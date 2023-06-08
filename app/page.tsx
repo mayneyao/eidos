@@ -1,17 +1,20 @@
 'use client'
 
 import Link from "next/link"
-
 import { buttonVariants } from "@/components/ui/button"
 import { siteConfig } from "@/config/site"
 import { useEffect } from "react"
+import { demo, useSqlite } from "@/lib/sql"
+
 
 export default function IndexPage() {
+  const sqlite = useSqlite()
   useEffect(() => {
-    const worker = new Worker(new URL('../worker/sql.ts', import.meta.url), { type: 'module' })
-    console.log(worker)
-    worker.postMessage(['hello']);
-  }, [])
+    if (sqlite) {
+      demo(sqlite)
+    }
+  }, [sqlite])
+
   return (
     <section className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
       <div className="flex max-w-[980px] flex-col items-start gap-2">
