@@ -1,12 +1,13 @@
 'use client'
 
 import { useAllTables } from "@/lib/sql"
+import { useSqliteStore } from "@/lib/store"
 import { Button } from "./ui/button"
 import { ScrollArea } from "./ui/scroll-area"
 
 export const SideBar = () => {
   const allTables = useAllTables();
-
+  const { selectedTable, setSelectedTable } = useSqliteStore();
   return <div className="p-4">
     <h2 className="relative px-6 text-lg font-semibold tracking-tight">
       Tables
@@ -22,6 +23,7 @@ export const SideBar = () => {
             key={`${table}`}
             variant="ghost"
             size="sm"
+            onClick={() => setSelectedTable(table)}
             className="w-full justify-start font-normal"
           >
             {table}

@@ -1,5 +1,6 @@
 'use client'
 
+import { useSqliteStore } from "@/lib/store";
 import dynamic from "next/dynamic";
 
 const Grid = dynamic(
@@ -11,5 +12,6 @@ const Grid = dynamic(
 
 
 export default function IndexPage() {
-  return <Grid />
+  const { selectedTable } = useSqliteStore();
+  return <Grid tableName={selectedTable} />
 }

@@ -11,6 +11,9 @@ interface SqliteState {
 
   allTables: string[]
   setAllTables: (tables: string[]) => void
+
+  selectedTable: string
+  setSelectedTable: (table: string) => void
 }
 
 export const useSqliteStore = create<SqliteState>()(
@@ -23,5 +26,8 @@ export const useSqliteStore = create<SqliteState>()(
 
     allTables: [],
     setAllTables: (tables) => set({ allTables: tables }),
+
+    selectedTable: '',
+    setSelectedTable: (table) => set({ selectedTable: table }),
   }),
 )
