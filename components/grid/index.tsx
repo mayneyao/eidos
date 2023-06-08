@@ -1,34 +1,78 @@
 import { initSql } from "@/components/grid/helper";
 import { useSqlite } from "@/lib/sql";
-import DataEditor, { EditableGridCell, GridCell, GridCellKind, GridColumn, Item } from "@glideapps/glide-data-grid";
+import DataEditor, { EditableGridCell, GridCell, GridCellKind, GridColumn, Item, Rectangle, GridSelection, CompactSelection, DataEditorProps } from "@glideapps/glide-data-grid";
 import "@glideapps/glide-data-grid/dist/index.css";
 import { useTheme } from "next-themes";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { Button } from "../ui/button";
 import { darkTheme } from "./theme";
+import { useLayer } from "react-laag";
+import { useSize } from 'ahooks';
 
 
 const columns: GridColumn[] = [
-  { id: "id", title: "id", width: 100 },
-  { id: "name", title: "name", width: 100, },
-  { id: "plugin_id", title: "plugin_id", width: 200 },
-  { id: "comment_count", title: "comment_count", width: 100 },
-  { id: "install_count", title: "install_count", width: 100 },
-  { id: "like_count", title: "like_count", width: 100 },
-  { id: "unique_run_count", title: "unique_run_count", width: 100 },
-  { id: "view_count", title: "view_count", width: 100 },
-  { id: "创建时间", title: "创建时间", width: 200 },
+  { hasMenu: true, id: "id", title: "id", width: 100 },
+  { hasMenu: true, id: "name", title: "name", width: 100, },
+  { hasMenu: true, id: "plugin_id", title: "plugin_id", width: 200 },
+  { hasMenu: true, id: "comment_count", title: "comment_count", width: 100 },
+  { hasMenu: true, id: "install_count", title: "install_count", width: 100 },
+  { hasMenu: true, id: "like_count", title: "like_count", width: 100 },
+  { hasMenu: true, id: "unique_run_count", title: "unique_run_count", width: 100 },
+  { hasMenu: true, id: "view_count", title: "view_count", width: 100 },
+  { hasMenu: true, id: "创建时间", title: "创建时间", width: 200 },
 ];
+const defaultConfig: Partial<DataEditorProps> = {
+  smoothScrollX: true,
+  smoothScrollY: true,
+  getCellsForSelection: true,
+  width: "100%",
+  freezeColumns: 1
+}
 
 export default function Grid() {
   const sqlite = useSqlite();
   const { theme } = useTheme()
   const _theme = theme === "light" ? {} : darkTheme
   const [data, setData] = React.useState<any[]>([]);
+  const ref = useRef(null);
+  const size = useSize(ref);
+  const [showMenu, setShowMenu] = React.useState<{ bounds: Rectangle; col: number }>();
+  const [selection, setSelection] = React.useState<GridSelection>({
+    columns: CompactSelection.empty(),
+    rows: CompactSelection.empty(),
+  });
+  const onHeaderMenuClick = React.useCallback((col: number, bounds: Rectangle) => {
+    setShowMenu({ col, bounds });
+  }, []);
+
+  const { renderLayer, layerProps } = useLayer({
+    isOpen: showMenu !== undefined,
+    triggerOffset: 4,
+    onOutsideClick: () => setShowMenu(undefined),
+    trigger: {
+      getBounds: () => {
+        const res = {
+          bottom: (showMenu?.bounds.y ?? 0) + (showMenu?.bounds.height ?? 0),
+          height: showMenu?.bounds.height ?? 0,
+          left: showMenu?.bounds.x ?? 0,
+          right: (showMenu?.bounds.x ?? 0) + (showMenu?.bounds.width ?? 0),
+          top: showMenu?.bounds.y ?? 0,
+          width: showMenu?.bounds.width ?? 0,
+        }
+        console.log(res)
+        return res;
+      },
+    },
+    placement: "bottom-start",
+    auto: true,
+    possiblePlacements: ["bottom-start", "bottom-end"],
+  });
+
 
   useEffect(() => {
     const getData = async () => {
       if (sqlite) {
+        console.log(sqlite)
         const result = await sqlite.sql`SELECT * FROM mytable2`;
         setData(result);
       }
@@ -77,24 +121,49 @@ export default function Grid() {
     }
   }, [data, sqlite]);
 
-  return <div>
-    <Button onClick={initData}>
+  return <div className="h-full p-8" ref={ref}>
+    <Button onClick={initData} className="hidden">
       init Data
     </Button>
-    <DataEditor
-      theme={_theme}
-      getCellContent={getData}
-      columns={columns}
-      rows={data.length}
-      trailingRowOptions={{
-        tint: true,
-        sticky: true,
-      }}
-      onCellEdited={onCellEdited}
-    />
-    <div id="portal">
-
-    </div>
+    <>
+      <DataEditor
+        {...defaultConfig}
+        theme={_theme}
+        onHeaderMenuClick={onHeaderMenuClick}
+        onCellContextMenu={(cell) => {
+          console.log(cell)
+        }}
+        gridSelection={selection}
+        onGridSelectionChange={setSelection}
+        getCellContent={getData}
+        columns={columns}
+        rows={data.length}
+        trailingRowOptions={{
+          tint: true,
+          sticky: true,
+        }}
+        onCellEdited={onCellEdited}
+      />
+      {showMenu !== undefined &&
+        renderLayer(
+          <div
+            {...layerProps}
+            style={{
+              ...layerProps.style,
+              width: 300,
+              padding: 4,
+              borderRadius: 8,
+              backgroundColor: "white",
+              border: "1px solid black",
+            }}>
+            <ul>
+              <li>Item 1</li>
+              <li>Item 2</li>
+              <li>Item 3</li>
+            </ul>
+          </div>
+        )}
+    </>
+    <div id="portal" />
   </div>
-
 }

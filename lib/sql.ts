@@ -1,5 +1,6 @@
 import type { SqlDatabase } from '@/worker/sql';
 import { useEffect, useState } from 'react';
+import { useSqliteStore } from './store';
 
 const worker = new Worker(new URL('../worker/sql.ts', import.meta.url), { type: 'module' })
 
@@ -24,19 +25,47 @@ const SQLWorker = new Proxy<SqlDatabase>({} as any, {
 })
 
 export const useSqlite = () => {
-  const [isInit, setIsInit] = useState(false)
-  const [sqlite, setSqlite] = useState<SqlDatabase | null>(null)
+  const { isInitialized, setInitialized, setSqlite, sqlite, setAllTables } = useSqliteStore();
   useEffect(() => {
-    worker.onmessage = (e) => {
+    worker.onmessage = async (e) => {
       if (e.data === 'init') {
-        setIsInit(true)
+        setInitialized(true)
         setSqlite(SQLWorker)
       }
     }
-  }, [])
+  }, [setAllTables, setInitialized, setSqlite])
 
-  if (!isInit) {
+  if (!isInitialized) {
     return null
   }
   return sqlite
+}
+
+
+export const useAllTables = () => {
+  const sqlite = useSqlite()
+  const { setAllTables, allTables } = useSqliteStore()
+
+  useEffect(() => {
+    if (sqlite) {
+      sqlite.sql`SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name`.then((res: any) => {
+        setAllTables(res.map((item: any) => item[0]))
+      })
+    }
+  }, [setAllTables, sqlite])
+
+  return allTables
+}
+
+export const useTable = (tableName: string) => {
+  const sqlite = useSqlite()
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    if (sqlite) {
+      sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
+        setData(res)
+      })
+    }
+  }, [sqlite, tableName])
+  return data
 }

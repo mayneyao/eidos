@@ -56,7 +56,6 @@ export class Sqlite {
         printErr: error,
       }).then((sqlite3) => {
         try {
-          log('Done initializing. Running demo...');
           log('Running SQLite3 version', sqlite3.version.libVersion);
           if (sqlite3.capi.sqlite3_vfs_find("opfs")) {
             log('opfs vfs found');
