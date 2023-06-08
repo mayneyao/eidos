@@ -1,6 +1,7 @@
 lockfileVersion: 5.4
 
 specifiers:
+  '@glideapps/glide-data-grid': ^5.2.1
   '@ianvs/prettier-plugin-sort-imports': ^3.7.2
   '@radix-ui/react-slot': ^1.0.2
   '@rkusa/wasm-sqlite': ^0.1.1
@@ -18,13 +19,16 @@ specifiers:
   eslint-config-prettier: ^8.8.0
   eslint-plugin-react: ^7.32.2
   eslint-plugin-tailwindcss: ^3.12.0
+  lodash: ^4.17.21
   lucide-react: 0.105.0-alpha.4
+  marked: ^5.0.5
   next: ^13.4.4
   next-themes: ^0.2.1
   postcss: ^8.4.24
   prettier: ^2.8.8
   react: ^18.2.0
   react-dom: ^18.2.0
+  react-responsive-carousel: ^3.2.23
   sharp: ^0.31.3
   tailwind-merge: ^1.12.0
   tailwindcss: ^3.3.2
@@ -32,17 +36,21 @@ specifiers:
   typescript: ^4.9.5
 
 dependencies:
+  '@glideapps/glide-data-grid': 5.2.1_h5cemw5yortdoyybqx2sz2ebua
   '@radix-ui/react-slot': 1.0.2_i2bxsyfskhzbpjanbovidbfj7u
   '@rkusa/wasm-sqlite': 0.1.1
   '@sqlite.org/sqlite-wasm': 3.42.0-build1
   class-variance-authority: 0.4.0_typescript@4.9.5
   clsx: 1.2.1
   comlink: 4.4.1
+  lodash: 4.17.21
   lucide-react: 0.105.0-alpha.4_react@18.2.0
+  marked: 5.0.5
   next: 13.4.4_biqbaboplfbrettd7655fr4n2y
   next-themes: 0.2.1_z4pol2qj2yv3um3jqqobs4b3eu
   react: 18.2.0
   react-dom: 18.2.0_react@18.2.0
+  react-responsive-carousel: 3.2.23
   sharp: 0.31.3
   tailwind-merge: 1.13.0
   tailwindcss-animate: 1.0.5_tailwindcss@3.3.2
@@ -315,6 +323,24 @@ packages:
     resolution: {integrity: sha512-6SWlXpWU5AvId8Ac7zjzmIOqMOba/JWY8XZ4A7q7Gn1Vlfg/SFFIlrtHXt9nPn4op9ZPAkl91Jao+QQv3r/ukw==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     dev: true
+
+  /@glideapps/glide-data-grid/5.2.1_h5cemw5yortdoyybqx2sz2ebua:
+    resolution: {integrity: sha512-2ds1xwYZkoJil7OyoHJHMtjq/MTwIFBRLx2VPAP5d6XaJRbuni3UCjtpUH51qf8o1qHeZsSE/dg3hJZZ2I86SQ==}
+    peerDependencies:
+      lodash: ^4.17.19
+      marked: ^4.0.10
+      react: ^16.12.0 || 17.x || 18.x
+      react-dom: ^16.12.0 || 17.x || 18.x
+      react-responsive-carousel: ^3.2.7
+    dependencies:
+      canvas-hypertxt: 0.0.7
+      lodash: 4.17.21
+      marked: 5.0.5
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+      react-number-format: 5.2.2_biqbaboplfbrettd7655fr4n2y
+      react-responsive-carousel: 3.2.23
+    dev: false
 
   /@humanwhocodes/config-array/0.11.10:
     resolution: {integrity: sha512-KVVjQmNUepDVGXNuoRRdmmEjruj0KfiGSbS8LVc12LMsWDQzRXJ0qdhN8L8uUigKpfEHRhlaQFY0ib1tnUbNeQ==}
@@ -867,6 +893,10 @@ packages:
   /caniuse-lite/1.0.30001495:
     resolution: {integrity: sha512-F6x5IEuigtUfU5ZMQK2jsy5JqUUlEFRVZq8bO2a+ysq5K7jD6PPc9YXZj78xDNS3uNchesp1Jw47YXEqr+Viyg==}
 
+  /canvas-hypertxt/0.0.7:
+    resolution: {integrity: sha512-XPXJvvaEQddHl0KaDdnnEowcCiYiL2gJz4M8ANK1GvZPcZimgvjRubnChtUospZWFSiNJtE06VkLnQs2vve5tQ==}
+    dev: false
+
   /chalk/2.4.2:
     resolution: {integrity: sha512-Mti+f9lpJNcwF4tWV8/OrTTtF1gZi+f8FqlyAdouralcFWFQWF2+NgCHShjkCb+IFBLq9buZwE1xckQU4peSuQ==}
     engines: {node: '>=4'}
@@ -911,6 +941,10 @@ packages:
         optional: true
     dependencies:
       typescript: 4.9.5
+    dev: false
+
+  /classnames/2.3.2:
+    resolution: {integrity: sha512-CSbhY4cFEJRe6/GQzIk5qXZ4Jeg5pcsP7b5peFSDpffpe1cqjASH/n9UTjBwOp6XpMSTwQ8Za2K5V02ueA7Tmw==}
     dev: false
 
   /client-only/0.0.1:
@@ -2050,6 +2084,10 @@ packages:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
     dev: true
 
+  /lodash/4.17.21:
+    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+    dev: false
+
   /loose-envify/1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
     hasBin: true
@@ -2074,6 +2112,12 @@ packages:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0
     dependencies:
       react: 18.2.0
+    dev: false
+
+  /marked/5.0.5:
+    resolution: {integrity: sha512-auTmKJTBwZM/GLVFOhmkY7pL8v/0DxiDaXRC2kEyajcNJ0XXn9NphLD0106dbWrbPwcyD4Y0Dus16OkCzUMkfg==}
+    engines: {node: '>= 18'}
+    hasBin: true
     dev: false
 
   /merge2/1.4.1:
@@ -2462,7 +2506,6 @@ packages:
       loose-envify: 1.4.0
       object-assign: 4.1.1
       react-is: 16.13.1
-    dev: true
 
   /pump/3.0.0:
     resolution: {integrity: sha512-LwZy+p3SFs1Pytd/jYct4wpv49HiYCqd9Rlc5ZVdk0V+8Yzv6jR5Blk3TRmPL1ft69TxP0IMZGJ+WPFU2BFhww==}
@@ -2499,9 +2542,34 @@ packages:
       scheduler: 0.23.0
     dev: false
 
+  /react-easy-swipe/0.0.21:
+    resolution: {integrity: sha512-OeR2jAxdoqUMHIn/nS9fgreI5hSpgGoL5ezdal4+oO7YSSgJR8ga+PkYGJrSrJ9MKlPcQjMQXnketrD7WNmNsg==}
+    engines: {node: '>= 6'}
+    dependencies:
+      prop-types: 15.8.1
+    dev: false
+
   /react-is/16.13.1:
     resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
-    dev: true
+
+  /react-number-format/5.2.2_biqbaboplfbrettd7655fr4n2y:
+    resolution: {integrity: sha512-wCh64Z1HCwXcO2dbgkeYIaB+Rmp/fcsH8kAeRtUkc46dv1pIrgDjie2WkOqKBw8YqyqhwNdYgNFNQuuY+iGJ/g==}
+    peerDependencies:
+      react: ^0.14 || ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0
+      react-dom: ^0.14 || ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0
+    dependencies:
+      prop-types: 15.8.1
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+    dev: false
+
+  /react-responsive-carousel/3.2.23:
+    resolution: {integrity: sha512-pqJLsBaKHWJhw/ItODgbVoziR2z4lpcJg+YwmRlSk4rKH32VE633mAtZZ9kDXjy4wFO+pgUZmDKPsPe1fPmHCg==}
+    dependencies:
+      classnames: 2.3.2
+      prop-types: 15.8.1
+      react-easy-swipe: 0.0.21
+    dev: false
 
   /react/18.2.0:
     resolution: {integrity: sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==}

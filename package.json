@@ -14,17 +14,21 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache"
   },
   "dependencies": {
+    "@glideapps/glide-data-grid": "^5.2.1",
     "@radix-ui/react-slot": "^1.0.2",
     "@rkusa/wasm-sqlite": "^0.1.1",
     "@sqlite.org/sqlite-wasm": "3.42.0-build1",
     "class-variance-authority": "^0.4.0",
     "clsx": "^1.2.1",
     "comlink": "^4.4.1",
+    "lodash": "^4.17.21",
     "lucide-react": "0.105.0-alpha.4",
+    "marked": "^5.0.5",
     "next": "^13.4.4",
     "next-themes": "^0.2.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-responsive-carousel": "^3.2.23",
     "sharp": "^0.31.3",
     "tailwind-merge": "^1.12.0",
     "tailwindcss-animate": "^1.0.5"
