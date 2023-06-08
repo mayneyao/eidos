@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+
 // export declare enum GridCellKind {
 //   Uri = "uri",
 //   Text = "text",
@@ -54,15 +56,13 @@ export const guessCellKind = (value: any) => {
 export const createTemplateTableSql = (tableName: string) => {
   const templateTableSql = `
 CREATE TABLE ${tableName} (
-  _id VARCHAR(32) PRIMARY KEY NOT NULL,
-  id               INTEGER  NULL
-  ,name             VARCHAR(100)  NULL
-  ,plugin_id        VARCHAR(32)  NULL
-  ,comment_count    BIT   NULL
+  _id VARCHAR(32) PRIMARY KEY NOT NULL
+  ,no             INTEGER  NULL
+  ,title             VARCHAR(100)  NULL
 );
-INSERT INTO ${tableName}(_id,name,id,plugin_id,comment_count) VALUES ('1','Plato',1,'1220625048523881652',1);
-INSERT INTO ${tableName}(_id,name,id,plugin_id,comment_count) VALUES ('2','Plato',2,'1220625048523881652',1);
-INSERT INTO ${tableName}(_id,name,id,plugin_id,comment_count) VALUES ('3','Plato',3,'1220625048523881652',1);
+INSERT INTO ${tableName}(_id,no,title) VALUES ('${uuidv4()}',1,'foo');
+INSERT INTO ${tableName}(_id,no,title) VALUES ('${uuidv4()}',2,'bar');
+INSERT INTO ${tableName}(_id,no,title) VALUES ('${uuidv4()}',3,'baz');
 `
   return templateTableSql
 }

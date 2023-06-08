@@ -123,7 +123,7 @@ export default function Grid(props: IGridProps) {
 
     <div className="flex h-full">
       {
-        columns ? <DataEditor
+        columns.length ? <DataEditor
           {...defaultConfig}
           theme={_theme}
           onHeaderMenuClick={onHeaderMenuClick}
