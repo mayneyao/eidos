@@ -21,11 +21,14 @@ export class SqlDatabase {
   }
 
   public async sql(strings: TemplateStringsArray, ...values: any[]) {
-    const sql = strings.map((s, i) => s + (values[i] || '')).join('');
+    const sql = strings.reduce((prev, curr, i) => {
+      return prev + curr + (values[i] || '')
+    }, '')
+    console.log(sql)
     const res: any[] = []
     this.db.exec({
       sql,
-      returnValue: 'resultRows',
+      // returnValue: 'resultRows',
       callback: (row) => {
         res.push(row)
       }

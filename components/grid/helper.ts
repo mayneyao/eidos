@@ -1,13 +1,52 @@
+// export declare enum GridCellKind {
+//   Uri = "uri",
+//   Text = "text",
+//   Image = "image",
+//   RowID = "row-id",
+//   Number = "number",
+//   Bubble = "bubble",
+//   Boolean = "boolean",
+//   Loading = "loading",
+//   Markdown = "markdown",
+//   Drilldown = "drilldown",
+//   Protected = "protected",
+//   Custom = "custom"
+// }
+
+import { GridCellKind } from "@glideapps/glide-data-grid";
+
+export const guessCellKind = (value: any) => {
+
+  const valueType = typeof value;
+  switch (valueType) {
+    case "string":
+      if (value.startsWith("http")) {
+        return GridCellKind.Uri;
+      }
+      return GridCellKind.Text;
+    case "number":
+      return GridCellKind.Number;
+    case "boolean":
+      return GridCellKind.Boolean;
+    case "object":
+      return GridCellKind.Text;
+    default:
+      return GridCellKind.Text;
+  }
+}
+
+
+export const initSql = `
 CREATE TABLE mytable2(
-   id               INTEGER  NOT NULL PRIMARY KEY
-  ,name             VARCHAR(5) NOT NULL 
-  ,plugin_id        VARCHAR(19) NOT NULL
-  ,comment_count    BIT  NOT NULL
-  ,install_count    INTEGER  NOT NULL
-  ,like_count       INTEGER  NOT NULL
-  ,unique_run_count INTEGER  NOT NULL
-  ,view_count       INTEGER  NOT NULL
-  ,创建时间             VARCHAR(19) NOT NULL
+  id               INTEGER  NOT NULL PRIMARY KEY
+ ,name             VARCHAR(5) NOT NULL 
+ ,plugin_id        VARCHAR(19) NOT NULL
+ ,comment_count    BIT  NOT NULL
+ ,install_count    INTEGER  NOT NULL
+ ,like_count       INTEGER  NOT NULL
+ ,unique_run_count INTEGER  NOT NULL
+ ,view_count       INTEGER  NOT NULL
+ ,创建时间             VARCHAR(19) NOT NULL
 );
 INSERT INTO mytable2(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,创建时间) VALUES ('Plato',1,'1220625048523881652',1,0,8,35,122,'2023/03/29 06:05 早上');
 INSERT INTO mytable2(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,创建时间) VALUES ('Plato',2,'1220625048523881652',1,0,8,39,142,'2023/03/29 08:30 晚上');
@@ -83,3 +122,5 @@ INSERT INTO mytable2(name,id,plugin_id,comment_count,install_count,like_count,un
 INSERT INTO mytable2(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,创建时间) VALUES ('Plato',72,'1220625048523881652',1,7,17,231,509,'2023/06/06 08:45 早上');
 INSERT INTO mytable2(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,创建时间) VALUES ('Plato',73,'1220625048523881652',1,7,17,233,512,'2023/06/07 08:45 早上');
 INSERT INTO mytable2(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,创建时间) VALUES ('Plato',74,'1220625048523881652',1,7,17,236,516,'2023/06/08 08:45 早上');
+
+`
