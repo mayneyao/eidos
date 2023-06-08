@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { sqlToJSONSchema2 } from './sqlite/sql2jsonschema';
 import { useSqliteStore } from './store';
 import { v4 as uuidv4 } from 'uuid';
+import { createTemplateTableSql } from '@/components/grid/helper';
 
 const worker = new Worker(new URL('@/worker/sql.ts', import.meta.url), { type: 'module' })
 
@@ -28,6 +29,12 @@ const SQLWorker = new Proxy<SqlDatabase>({} as any, {
 
 export const useSqlite = () => {
   const { isInitialized, setInitialized, setSqlite, setAllTables } = useSqliteStore();
+
+  const createTable = async (tableName: string) => {
+    const sql = createTemplateTableSql(tableName)
+    await SQLWorker.sql`${sql}`
+  }
+
   useEffect(() => {
     worker.onmessage = async (e) => {
       if (e.data === 'init') {
@@ -36,15 +43,15 @@ export const useSqlite = () => {
     }
   }, [setAllTables, setInitialized, setSqlite])
 
-  if (!isInitialized) {
-    return null
+  return {
+    sqlite: isInitialized ? SQLWorker : null,
+    createTable,
   }
-  return SQLWorker
 }
 
 
 export const useAllTables = () => {
-  const sqlite = useSqlite()
+  const { sqlite } = useSqlite()
   const { setAllTables, allTables } = useSqliteStore()
 
   useEffect(() => {
@@ -62,7 +69,7 @@ export const useAllTables = () => {
 }
 
 export const useTableSchema = (tableName: string) => {
-  const sqlite = useSqlite()
+  const { sqlite } = useSqlite()
   const [schema, setSchema] = useState<any[]>([])
   useEffect(() => {
     if (!sqlite) return;
@@ -84,10 +91,22 @@ export const useTableSchema = (tableName: string) => {
 }
 
 export const useTable = (tableName: string) => {
-  const sqlite = useSqlite()
+  const { sqlite } = useSqlite()
   const [data, setData] = useState<any[]>([])
   const [schema, setSchema] = useState<ReturnType<typeof sqlToJSONSchema2>>([])
 
+
+  const updateCell = async (col: number, row: number, value: any) => {
+    const filedName = schema[0]?.columns?.[col].name;
+    const rowId = data[row][0];
+    if (sqlite) {
+      await sqlite.sql`UPDATE ${tableName} SET ${filedName} = '${value}' WHERE id = ${rowId}`;
+      // get new data
+      const result2 = await sqlite.sql`SELECT ${filedName} FROM ${tableName} where id = ${rowId}`;
+      data[row][col] = result2[0]
+      setData([...data])
+    }
+  }
   useEffect(() => {
     if (sqlite && tableName) {
       sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
@@ -106,5 +125,5 @@ export const useTable = (tableName: string) => {
       })
     }
   }, [sqlite, tableName])
-  return { data, setData, schema }
+  return { data, setData, schema, updateCell }
 }

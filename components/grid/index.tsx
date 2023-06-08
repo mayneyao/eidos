@@ -5,7 +5,6 @@ import DataEditor, {
   GridCell, GridCellKind, GridColumn, GridSelection, Item, Rectangle
 } from "@glideapps/glide-data-grid";
 import "@glideapps/glide-data-grid/dist/index.css";
-import { useSize } from 'ahooks';
 import { useTheme } from "next-themes";
 import React, { useCallback, useRef } from "react";
 import { useLayer } from "react-laag";
@@ -27,10 +26,10 @@ interface IGridProps {
 }
 export default function Grid(props: IGridProps) {
   const { tableName } = props;
-  const sqlite = useSqlite();
+  const { sqlite } = useSqlite();
   const { theme } = useTheme()
   const _theme = theme === "light" ? {} : darkTheme
-  const { data, setData, schema } = useTable(tableName)
+  const { data, setData, schema, updateCell } = useTable(tableName)
   const ref = useRef(null);
   const columns = tableInterface2GridColumn(schema[0]);
   const [showMenu, setShowMenu] = React.useState<{ bounds: Rectangle; col: number }>();
@@ -93,20 +92,8 @@ export default function Grid(props: IGridProps) {
       return;
     }
     if (!columns) return;
-    const [col, row] = cell;
-    const indexes = columns.map((c) => c.title);
-    const filedName = indexes[col];
-    const rowId = data[row][0];
-    if (sqlite) {
-      const result = await sqlite.sql`UPDATE ${tableName} SET ${filedName} = '${newValue.data}' WHERE id = ${rowId}`;
-      // get new data
-      const result2 = await sqlite.sql`SELECT ${filedName} FROM ${tableName} where id = ${rowId}`;
-      console.log(result, result2)
-      // 
-      data[row][col] = result2[0]
-      setData([...data])
-    }
-  }, [data, setData, sqlite, tableName, columns]);
+    updateCell(cell[0], cell[1], newValue.data)
+  }, [columns, updateCell]);
 
   return <div className="h-full p-8" ref={ref}>
     <Button onClick={initData} className="hidden">
