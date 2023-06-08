@@ -1,11 +1,11 @@
 'use client'
 
+import { createTemplateTableSql } from '@/components/grid/helper';
 import type { SqlDatabase } from '@/worker/sql';
 import { useEffect, useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { sqlToJSONSchema2 } from './sqlite/sql2jsonschema';
 import { useSqliteStore } from './store';
-import { v4 as uuidv4 } from 'uuid';
-import { createTemplateTableSql } from '@/components/grid/helper';
 
 const worker = new Worker(new URL('@/worker/sql.ts', import.meta.url), { type: 'module' })
 
@@ -30,9 +30,36 @@ const SQLWorker = new Proxy<SqlDatabase>({} as any, {
 export const useSqlite = () => {
   const { isInitialized, setInitialized, setSqlite, setAllTables } = useSqliteStore();
 
+
+  const queryAllTables = async () => {
+    const res = await SQLWorker.sql`SELECT name FROM sqlite_schema WHERE type='table'`
+    const allTables = res.map((item: any) => item[0])
+    return allTables
+  }
+
+  const updateTableList = async () => {
+    queryAllTables().then(tables => { setAllTables(tables) })
+  }
+
   const createTable = async (tableName: string) => {
     const sql = createTemplateTableSql(tableName)
     await SQLWorker.sql`${sql}`
+    await updateTableList()
+  }
+
+  const deleteTable = async (tableName: string) => {
+    await SQLWorker.sql`DROP TABLE ${tableName}`
+    await updateTableList()
+  }
+
+  const renameTable = async (oldTableName: string, newTableName: string) => {
+    await SQLWorker.sql`ALTER TABLE ${oldTableName} RENAME TO ${newTableName}`
+    await updateTableList()
+  }
+
+  const duplicateTable = async (oldTableName: string, newTableName: string) => {
+    await SQLWorker.sql`CREATE TABLE ${newTableName} AS SELECT * FROM ${oldTableName}`
+    await updateTableList()
   }
 
   useEffect(() => {
@@ -46,31 +73,18 @@ export const useSqlite = () => {
   return {
     sqlite: isInitialized ? SQLWorker : null,
     createTable,
+    deleteTable,
+    renameTable,
+    duplicateTable,
+    queryAllTables,
   }
 }
 
 
-export const useAllTables = () => {
-  const { sqlite } = useSqlite()
-  const { setAllTables, allTables } = useSqliteStore()
-
-  useEffect(() => {
-    if (sqlite) {
-      setTimeout(() => {
-        // FIXME: it's wired that the first time we get the tables, it's empty, settimeout is a workaround
-        sqlite.sql`SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name`.then((res: any) => {
-          setAllTables(res.map((item: any) => item[0]))
-        })
-      }, 500);
-    }
-  }, [setAllTables, sqlite])
-
-  return allTables
-}
-
 export const useTableSchema = (tableName: string) => {
   const { sqlite } = useSqlite()
   const [schema, setSchema] = useState<any[]>([])
+
   useEffect(() => {
     if (!sqlite) return;
     sqlite.sql`SELECT * FROM sqlite_schema where name='${tableName}'`.then((res: any) => {
