@@ -33,7 +33,6 @@ export default function Grid(props: IGridProps) {
   const { sqlite } = useSqlite();
   const { theme } = useTheme()
   const _theme = theme === "light" ? {} : darkTheme
-  console.log({ theme, _theme })
   const { data, setData, schema, updateCell, addField, addRow } = useTable(tableName)
   const columns = tableInterface2GridColumn(schema[0]);
   const [showMenu, setShowMenu] = React.useState<{ bounds: Rectangle; col: number }>();

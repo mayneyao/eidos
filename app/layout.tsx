@@ -39,7 +39,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
             fontSans.variable
           )}
         >
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             {/* APP MODEL， a sidebar and main */}
             <div className="relative  grid  lg:grid-cols-5">
               <div className="col-span-1 h-screen">
