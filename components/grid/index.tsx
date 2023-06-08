@@ -1,9 +1,11 @@
-import "@glideapps/glide-data-grid/dist/index.css";
-import React, { useCallback, useEffect } from "react";
-import DataEditor, { EditableGridCell, GridCell, GridCellKind, GridColumn, Item } from "@glideapps/glide-data-grid";
+import { initSql } from "@/components/grid/helper";
 import { useSqlite } from "@/lib/sql";
-import { guessCellKind, initSql } from "@/components/grid/helper";
+import DataEditor, { EditableGridCell, GridCell, GridCellKind, GridColumn, Item } from "@glideapps/glide-data-grid";
+import "@glideapps/glide-data-grid/dist/index.css";
+import { useTheme } from "next-themes";
+import React, { useCallback, useEffect } from "react";
 import { Button } from "../ui/button";
+import { darkTheme } from "./theme";
 
 
 const columns: GridColumn[] = [
@@ -20,6 +22,8 @@ const columns: GridColumn[] = [
 
 export default function Grid() {
   const sqlite = useSqlite();
+  const { theme } = useTheme()
+  const _theme = theme === "light" ? {} : darkTheme
   const [data, setData] = React.useState<any[]>([]);
 
   useEffect(() => {
@@ -78,6 +82,7 @@ export default function Grid() {
       init Data
     </Button>
     <DataEditor
+      theme={_theme}
       getCellContent={getData}
       columns={columns}
       rows={data.length}
