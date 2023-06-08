@@ -1,4 +1,4 @@
-import { SqlDatabase } from '@/worker/sql'
+import type { SqlDatabase } from '@/worker/sql'
 import { create } from 'zustand'
 // import { devtools, persist } from 'zustand/middleware'
 

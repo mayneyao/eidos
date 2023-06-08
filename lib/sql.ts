@@ -7,29 +7,38 @@ import { v4 as uuidv4 } from 'uuid';
 import { sqlToJSONSchema2 } from './sqlite/sql2jsonschema';
 import { useSqliteStore } from './store';
 
-const worker = new Worker(new URL('@/worker/sql.ts', import.meta.url), { type: 'module' })
 
-const SQLWorker = new Proxy<SqlDatabase>({} as any, {
-  get(target, method) {
-    return function (params: any) {
-      const thisCallId = uuidv4();
-      const [_params, ...rest] = arguments
-      worker.postMessage({ method, params: [_params, ...rest], id: thisCallId })
-      return new Promise((resolve, reject) => {
-        worker.onmessage = (e) => {
-          const { id: returnId, result } = e.data
-          if (returnId === thisCallId) {
-            resolve(result)
-          }
-        }
-      })
-    }
-  }
-})
-
+let SQLWorker: SqlDatabase;
 export const useSqlite = () => {
   const { isInitialized, setInitialized, setSqlite, setAllTables } = useSqliteStore();
 
+  // const [SQLWorker, setSQLWorker] = useState<SqlDatabase | null>(null)
+
+  useEffect(() => {
+    const worker = new Worker(new URL('@/worker/sql.ts', import.meta.url), { type: 'module' })
+    worker.onmessage = async (e) => {
+      if (e.data === 'init') {
+        setInitialized(true)
+      }
+    }
+    SQLWorker = new Proxy<SqlDatabase>({} as any, {
+      get(target, method) {
+        return function (params: any) {
+          const thisCallId = uuidv4();
+          const [_params, ...rest] = arguments
+          worker.postMessage({ method, params: [_params, ...rest], id: thisCallId })
+          return new Promise((resolve, reject) => {
+            worker.onmessage = (e) => {
+              const { id: returnId, result } = e.data
+              if (returnId === thisCallId) {
+                resolve(result)
+              }
+            }
+          })
+        }
+      }
+    })
+  }, [])
 
   const queryAllTables = async () => {
     const res = await SQLWorker.sql`SELECT name FROM sqlite_schema WHERE type='table'`
@@ -62,13 +71,7 @@ export const useSqlite = () => {
     await updateTableList()
   }
 
-  useEffect(() => {
-    worker.onmessage = async (e) => {
-      if (e.data === 'init') {
-        setInitialized(true)
-      }
-    }
-  }, [setAllTables, setInitialized, setSqlite])
+
 
   return {
     sqlite: isInitialized ? SQLWorker : null,

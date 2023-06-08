@@ -40,13 +40,7 @@ export class SqlDatabase {
 export class Sqlite {
   sqlite3?: Sqlite3Static
 
-  get getSqlite3() {
-    return new Sqlite()
-  }
-
-  constructor() {
-
-  }
+  constructor() { }
 
   getSQLite3 = async function (): Promise<Sqlite3Static> {
     log('Loading and initializing SQLite3 module...');
