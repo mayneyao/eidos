@@ -15,6 +15,7 @@ export const useSqlite = () => {
   // const [SQLWorker, setSQLWorker] = useState<SqlDatabase | null>(null)
 
   useEffect(() => {
+    if (SQLWorker) return;
     const worker = new Worker(new URL('@/worker/sql.ts', import.meta.url), { type: 'module' })
     worker.onmessage = async (e) => {
       if (e.data === 'init') {
