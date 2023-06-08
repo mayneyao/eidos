@@ -2,7 +2,7 @@
 
 import { createTemplateTableSql } from '@/components/grid/helper';
 import type { SqlDatabase } from '@/worker/sql';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { sqlToJSONSchema2 } from './sqlite/sql2jsonschema';
 import { useSqliteStore } from './store';
@@ -38,7 +38,7 @@ export const useSqlite = () => {
   }
 
   const updateTableList = async () => {
-    queryAllTables().then(tables => { setAllTables(tables) })
+    await queryAllTables().then(tables => { setAllTables(tables) })
   }
 
   const createTable = async (tableName: string) => {
@@ -110,34 +110,65 @@ export const useTable = (tableName: string) => {
   const [schema, setSchema] = useState<ReturnType<typeof sqlToJSONSchema2>>([])
 
 
+  const updateTableSchema = useCallback(async () => {
+    if (!sqlite) return;
+    await sqlite.sql`SELECT * FROM sqlite_schema where name='${tableName}'`.then((res: any) => {
+      const sql = res[0][4] + ';';
+      if (sql) {
+        try {
+          const compactJsonTablesArray = sqlToJSONSchema2(sql)
+          setSchema(compactJsonTablesArray)
+        } catch (error) {
+          console.error('error', error)
+        }
+      }
+    })
+  }, [sqlite, tableName])
+
   const updateCell = async (col: number, row: number, value: any) => {
     const filedName = schema[0]?.columns?.[col].name;
     const rowId = data[row][0];
     if (sqlite) {
-      await sqlite.sql`UPDATE ${tableName} SET ${filedName} = '${value}' WHERE id = ${rowId}`;
+      await sqlite.sql`UPDATE ${tableName} SET ${filedName} = '${value}' WHERE _id = '${rowId}'`;
       // get new data
-      const result2 = await sqlite.sql`SELECT ${filedName} FROM ${tableName} where id = ${rowId}`;
+      const result2 = await sqlite.sql`SELECT ${filedName} FROM ${tableName} where _id = '${rowId}'`;
       data[row][col] = result2[0]
       setData([...data])
     }
   }
+
+  const fetchAllRows = async () => {
+    if (!sqlite) return;
+    await sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
+      setData(res)
+    })
+  }
+  const addField = async (fieldName: string, fieldType: string) => {
+    const typeMap: any = {
+      text: 'VARCHAR(128)',
+    }
+    if (sqlite) {
+      await sqlite.sql`ALTER TABLE ${tableName} ADD COLUMN ${fieldName} ${typeMap[fieldType] ?? 'VARCHAR(128)'};`
+      await updateTableSchema()
+    }
+  }
+
+  const addRow = async (params?: any[]) => {
+    if (sqlite) {
+      const uuid = uuidv4()
+      await sqlite.sql`INSERT INTO ${tableName}(_id) VALUES ('${uuid}')`
+      await updateTableSchema()
+      await fetchAllRows()
+    }
+  }
+
   useEffect(() => {
     if (sqlite && tableName) {
       sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
         setData(res)
-        sqlite.sql`SELECT * FROM sqlite_schema where name='${tableName}'`.then((res: any) => {
-          const sql = res[0][4] + ';';
-          if (sql) {
-            try {
-              const compactJsonTablesArray = sqlToJSONSchema2(sql)
-              setSchema(compactJsonTablesArray)
-            } catch (error) {
-              console.error('error', error)
-            }
-          }
-        })
+        updateTableSchema()
       })
     }
-  }, [sqlite, tableName])
-  return { data, setData, schema, updateCell }
+  }, [sqlite, tableName, updateTableSchema])
+  return { data, setData, schema, updateCell, addField, addRow }
 }

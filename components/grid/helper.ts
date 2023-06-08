@@ -15,19 +15,19 @@
 
 import { TableInterface } from 'sql-ddl-to-json-schema'
 
-
-import { GridCellKind } from "@glideapps/glide-data-grid";
-
+import { GridCellKind, GridColumn } from "@glideapps/glide-data-grid";
 
 
-export const tableInterface2GridColumn = (table?: TableInterface) => {
+
+export const tableInterface2GridColumn = (table?: TableInterface): GridColumn[] => {
   return table?.columns?.map((column) => {
     return {
       id: column.name,
       title: column.name,
       with: 150,
+      hasMenu: true,
     }
-  })
+  }) ?? []
 }
 
 export const guessCellKind = (value: any) => {
@@ -54,14 +54,15 @@ export const guessCellKind = (value: any) => {
 export const createTemplateTableSql = (tableName: string) => {
   const templateTableSql = `
 CREATE TABLE ${tableName} (
-  id               INTEGER  NOT NULL PRIMARY KEY
-  ,name             VARCHAR(100) NOT NULL
-  ,plugin_id        VARCHAR(32) NOT NULL
-  ,comment_count    BIT  NOT NULL
+  _id VARCHAR(32) PRIMARY KEY NOT NULL,
+  id               INTEGER  NULL
+  ,name             VARCHAR(100)  NULL
+  ,plugin_id        VARCHAR(32)  NULL
+  ,comment_count    BIT   NULL
 );
-INSERT INTO ${tableName}(name,id,plugin_id,comment_count) VALUES ('Plato',1,'1220625048523881652',1);
-INSERT INTO ${tableName}(name,id,plugin_id,comment_count) VALUES ('Plato',2,'1220625048523881652',1);
-INSERT INTO ${tableName}(name,id,plugin_id,comment_count) VALUES ('Plato',3,'1220625048523881652',1);
+INSERT INTO ${tableName}(_id,name,id,plugin_id,comment_count) VALUES ('1','Plato',1,'1220625048523881652',1);
+INSERT INTO ${tableName}(_id,name,id,plugin_id,comment_count) VALUES ('2','Plato',2,'1220625048523881652',1);
+INSERT INTO ${tableName}(_id,name,id,plugin_id,comment_count) VALUES ('3','Plato',3,'1220625048523881652',1);
 `
   return templateTableSql
 }

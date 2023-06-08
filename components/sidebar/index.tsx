@@ -15,7 +15,9 @@ export const SideBar = () => {
   useEffect(() => {
     if (sqlite) {
       setTimeout(() => {
-        queryAllTables().then(tables => { setAllTables(tables) })
+        queryAllTables().then(tables => {
+          setAllTables(tables)
+        })
       }, 500);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
