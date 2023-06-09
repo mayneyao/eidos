@@ -12,5 +12,5 @@ const Grid = dynamic(
 
 export default function TablePage() {
   const params = useParams();
-  return <Grid tableName={params.table} />
+  return <Grid tableName={params.table} databaseName={params.database} />
 }

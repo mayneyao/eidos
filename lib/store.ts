@@ -27,7 +27,7 @@ export const useSqliteStore = create<SqliteState>()(
     isInitialized: false,
     setInitialized: (isInitialized) => set({ isInitialized }),
 
-    currentDatabase: 'mytest',
+    currentDatabase: '',
     setCurrentDatabase: (database) => set({ currentDatabase: database }),
 
     sqlite: null,

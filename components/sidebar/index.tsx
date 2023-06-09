@@ -5,15 +5,20 @@ import { useAllDatabases, useSqlite } from "@/lib/sql";
 import { useSqliteStore } from "@/lib/store";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
 import { TableItem } from "./table-menu";
+import { TableListLoading } from "./loading";
+import { Separator } from "@/components/ui/separator"
+import { Plus } from "lucide-react";
 
 interface ISideBarProps {
   database: string;
 }
 export const SideBar = ({ database }: ISideBarProps) => {
+
+  const [loading, setLoading] = useState(true);
   const { createTable, queryAllTables, sqlite } = useSqlite(database);
   const { selectedTable, setSelectedTable, allTables, setAllTables } = useSqliteStore();
   const databaseList = useAllDatabases()
@@ -24,11 +29,11 @@ export const SideBar = ({ database }: ISideBarProps) => {
       setTimeout(() => {
         queryAllTables().then(tables => {
           setAllTables(tables)
+          setLoading(false)
         })
-      }, 0);
+      }, 100);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sqlite])
+  }, [queryAllTables, setAllTables, sqlite])
 
   const createNewTable = async () => {
     const tableName = prompt("Table name");
@@ -39,7 +44,7 @@ export const SideBar = ({ database }: ISideBarProps) => {
     }
   }
 
-  return <div className="p-4">
+  return <div className="flex h-screen flex-col p-4">
     <div className="flex items-center justify-between">
       <h2 className="relative px-6 text-lg font-semibold tracking-tight">
         Tables
@@ -48,12 +53,10 @@ export const SideBar = ({ database }: ISideBarProps) => {
         <DatabaseSelect databases={databaseList} defaultValue={database} />
       </div>
     </div>
-    <ScrollArea className="h-[500px] px-2">
+    <Separator className="my-2" />
+    <ScrollArea className="grow px-2">
       <div className="space-y-1 p-2">
-        <Button size="sm" className="w-full font-normal" variant="outline" onClick={createNewTable}>
-          <span className="text-xs font-semibold">+</span>
-        </Button>
-        {allTables?.map((table, i) => (
+        {loading ? <TableListLoading /> : allTables?.map((table, i) => (
           <TableItem tableName={table} databaseName={database} key={`${table}`}>
             <Button
               variant="ghost"
@@ -70,5 +73,8 @@ export const SideBar = ({ database }: ISideBarProps) => {
         ))}
       </div>
     </ScrollArea>
+    <Button size="sm" className="w-full font-normal" variant="outline" onClick={createNewTable}>
+      <Plus size={16} className="mr-2" />
+    </Button>
   </div>
 }

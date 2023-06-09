@@ -25,6 +25,7 @@ This project is a local-first, serverless application for creating and managing 
   - [ ] Edit a field
   - [ ] Remove a field
   - [ ] Custom cell renderer for field types
+- [x] switch/create new database
 - [ ] Import a database
   - [ ] CSV
   - [ ] SQLite3

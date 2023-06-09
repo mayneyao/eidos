@@ -9,7 +9,6 @@ import { useSqliteStore } from './store';
 import { getSQLiteFilesInRootDirectory } from './fs';
 
 
-let SQLWorker: SqlDatabase;
 let worker: Worker;
 
 
@@ -19,15 +18,16 @@ const loadWorker = () => {
   }
   return worker
 }
-export const useSqlite = (dbName?: string) => {
-  const { isInitialized, setInitialized, setSqlite, setAllTables, setCurrentDatabase, currentDatabase } = useSqliteStore();
 
-  // const [SQLWorker, setSQLWorker] = useState<SqlDatabase | null>(null)
+export const useSqlite = (dbName?: string) => {
+  const { isInitialized, setInitialized, setAllTables, setCurrentDatabase, currentDatabase } = useSqliteStore();
+
+  const [SQLWorker, setSQLWorker] = useState<SqlDatabase>()
 
   useEffect(() => {
     if (dbName && isInitialized) {
+      if (currentDatabase === dbName) return;
       const switchDdMsgId = uuidv4()
-      console.log('switchDatabase', dbName)
       const worker = loadWorker()
       worker.postMessage({ method: 'switchDatabase', params: [dbName], id: switchDdMsgId })
       worker.onmessage = (e) => {
@@ -37,22 +37,21 @@ export const useSqlite = (dbName?: string) => {
         }
       }
     }
-  }, [dbName, setCurrentDatabase, isInitialized])
+  }, [dbName, setCurrentDatabase, isInitialized, currentDatabase])
 
   useEffect(() => {
-    if (SQLWorker) return;
     const worker = loadWorker()
     worker.onmessage = async (e) => {
       if (e.data === 'init') {
         setInitialized(true)
       }
     }
-    SQLWorker = new Proxy<SqlDatabase>({} as any, {
+    const SQLWorker = new Proxy<SqlDatabase>({} as any, {
       get(target, method) {
         return function (params: any) {
           const thisCallId = uuidv4();
           const [_params, ...rest] = arguments
-          worker.postMessage({ method, params: [_params, ...rest], id: thisCallId })
+          worker.postMessage({ method, params: [_params, ...rest], id: thisCallId, dbName })
           return new Promise((resolve, reject) => {
             worker.onmessage = (e) => {
               const { id: returnId, result } = e.data
@@ -64,35 +63,41 @@ export const useSqlite = (dbName?: string) => {
         }
       }
     })
-  }, [])
+    setSQLWorker(SQLWorker)
+  }, [dbName, setInitialized])
 
-  const queryAllTables = async () => {
+  const queryAllTables = useCallback(async () => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
     const res = await SQLWorker.sql`SELECT name FROM sqlite_schema WHERE type='table'`
     const allTables = res.map((item: any) => item[0])
     return allTables
-  }
+  }, [SQLWorker])
 
   const updateTableList = async () => {
     await queryAllTables().then(tables => { setAllTables(tables) })
   }
 
   const createTable = async (tableName: string) => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
     const sql = createTemplateTableSql(tableName)
     await SQLWorker.sql`${sql}`
     await updateTableList()
   }
 
   const deleteTable = async (tableName: string) => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
     await SQLWorker.sql`DROP TABLE ${tableName}`
     await updateTableList()
   }
 
   const renameTable = async (oldTableName: string, newTableName: string) => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
     await SQLWorker.sql`ALTER TABLE ${oldTableName} RENAME TO ${newTableName}`
     await updateTableList()
   }
 
   const duplicateTable = async (oldTableName: string, newTableName: string) => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
     await SQLWorker.sql`CREATE TABLE ${newTableName} AS SELECT * FROM ${oldTableName}`
     await updateTableList()
   }
@@ -133,8 +138,8 @@ export const useTableSchema = (tableName: string) => {
   return schema
 }
 
-export const useTable = (tableName: string) => {
-  const { sqlite } = useSqlite()
+export const useTable = (tableName: string, databaseName: string) => {
+  const { sqlite } = useSqlite(databaseName)
   const [data, setData] = useState<any[]>([])
   const [schema, setSchema] = useState<ReturnType<typeof sqlToJSONSchema2>>([])
 
@@ -199,6 +204,7 @@ export const useTable = (tableName: string) => {
       })
     }
   }, [sqlite, tableName, updateTableSchema])
+
   return { data, setData, schema, updateCell, addField, addRow }
 }
 

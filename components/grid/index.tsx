@@ -1,19 +1,19 @@
-import { initSql, tableInterface2GridColumn } from "@/components/grid/helper";
-import { useSqlite, useTable } from "@/lib/sql";
+import { tableInterface2GridColumn } from "@/components/grid/helper";
+import { useTable } from "@/lib/sql";
+import { cn } from "@/lib/utils";
 import DataEditor, {
   CompactSelection, DataEditorProps, EditableGridCell,
   GridCell, GridCellKind, GridSelection, Item, Rectangle
 } from "@glideapps/glide-data-grid";
 import "@glideapps/glide-data-grid/dist/index.css";
+import { useClickAway } from 'ahooks';
 import { useTheme } from "next-themes";
 import React, { useCallback, useRef } from "react";
 import { useLayer } from "react-laag";
 import { Button } from "../ui/button";
-import { darkTheme } from "./theme";
-import { useClickAway } from 'ahooks';
-import { useTableAppStore } from "./store";
-import { cn } from "@/lib/utils";
 import { FieldAppendPanel } from "./field-append-panel";
+import { useTableAppStore } from "./store";
+import { darkTheme } from "./theme";
 
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -27,13 +27,13 @@ const defaultConfig: Partial<DataEditorProps> = {
 
 interface IGridProps {
   tableName: string
+  databaseName: string
 }
 export default function Grid(props: IGridProps) {
-  const { tableName } = props;
-  const { sqlite } = useSqlite();
+  const { tableName, databaseName } = props;
   const { theme } = useTheme()
   const _theme = theme === "light" ? {} : darkTheme
-  const { data, setData, schema, updateCell, addField, addRow } = useTable(tableName)
+  const { data, schema, updateCell, addField, addRow } = useTable(tableName, databaseName)
   const columns = tableInterface2GridColumn(schema[0]);
   const [showMenu, setShowMenu] = React.useState<{ bounds: Rectangle; col: number }>();
   const [selection, setSelection] = React.useState<GridSelection>({
@@ -100,13 +100,6 @@ export default function Grid(props: IGridProps) {
     }
   }, [data, columns])
 
-  const initData = async () => {
-    if (sqlite) {
-      const result = await sqlite.sql`${initSql}`;
-      console.log(result)
-    }
-  }
-
   const onCellEdited = React.useCallback(async (cell: Item, newValue: EditableGridCell) => {
     if (newValue.kind !== GridCellKind.Text) {
       // we only have text cells, might as well just die here.
@@ -117,46 +110,38 @@ export default function Grid(props: IGridProps) {
   }, [columns, updateCell]);
 
   return <div className="h-full p-8">
-    <Button onClick={initData} className="hidden">
-      init Data
-    </Button>
-
     <div className="flex h-full">
-      {
-        columns.length ? <DataEditor
-          {...defaultConfig}
-          theme={_theme}
-          onHeaderMenuClick={onHeaderMenuClick}
-          onCellContextMenu={(_, e) => e.preventDefault()}
-          gridSelection={selection}
-          onGridSelectionChange={setSelection}
-          getCellContent={getData}
-          columns={columns ?? []}
-          rows={data.length}
-          trailingRowOptions={{
-            tint: true,
-            sticky: true,
-          }}
-          rightElement={
-            <Button variant="ghost" onClick={() => {
-              setIsAddFieldEditorOpen(true)
-              addField(`newField${columns.length + 1}`, 'text')
-            }}>
-              +
-            </Button>
-          }
-          rightElementProps={{
-            sticky: true,
-            fill: true,
-          }}
-          onCellEdited={onCellEdited}
-          onRowAppended={() => {
-            addRow()
-          }}
-        /> : <div>
-          select a table
-        </div>
-      }
+      <DataEditor
+        {...defaultConfig}
+        theme={_theme}
+        onHeaderMenuClick={onHeaderMenuClick}
+        onCellContextMenu={(_, e) => e.preventDefault()}
+        gridSelection={selection}
+        onGridSelectionChange={setSelection}
+        getCellContent={getData}
+        columns={columns ?? []}
+        rows={data.length}
+        trailingRowOptions={{
+          tint: true,
+          sticky: true,
+        }}
+        rightElement={
+          <Button variant="ghost" onClick={() => {
+            setIsAddFieldEditorOpen(true)
+            addField(`newField${columns.length + 1}`, 'text')
+          }}>
+            +
+          </Button>
+        }
+        rightElementProps={{
+          sticky: true,
+          fill: true,
+        }}
+        onCellEdited={onCellEdited}
+        onRowAppended={() => {
+          addRow()
+        }}
+      />
       {
         isAddFieldEditorOpen && <div ref={ref} className={cn(
           "fixed right-0 z-50 h-screen w-[400px] bg-white shadow-lg"

@@ -1,7 +1,15 @@
 import sqlite3InitModule, { Database, Sqlite3Static } from '@sqlite.org/sqlite-wasm';
 
+
+const OPEN_DEBUG = true
+
 const log = console.log
 const error = console.error
+const debug = OPEN_DEBUG ? console.debug : () => void 0
+
+
+// current DB
+let _db: SqlDatabase | null = null
 
 export class SqlDatabase {
   db: Database
@@ -24,7 +32,7 @@ export class SqlDatabase {
     const sql = strings.reduce((prev, curr, i) => {
       return prev + curr + (values[i] || '')
     }, '')
-    console.log(sql)
+    debug(`[${this.db.filename}] ${sql}`)
     const res: any[] = []
     this.db.exec({
       sql,
@@ -33,6 +41,7 @@ export class SqlDatabase {
         res.push(row)
       }
     })
+    debug(res)
     return res;
   }
 }
@@ -78,14 +87,16 @@ export class Sqlite {
 }
 
 
-
-// current DB
-let _db: SqlDatabase | null = null
 const sqlite = new Sqlite()
 
-function switchDatabase(dbName: string) {
-  _db = sqlite.db(`/${dbName}.sqlite3`, 'c')
+function loadDatabase(dbName: string) {
+  const filename = `/${dbName}.sqlite3`
+  if (_db?.db.filename === filename) {
+    return _db;
+  }
+  const db = sqlite.db(filename, 'c')
   log('switchDatabase', dbName)
+  return db
 }
 
 async function main() {
@@ -97,10 +108,10 @@ async function main() {
 main()
 
 onmessage = async (e) => {
-  const { method, params, id } = e.data;
+  const { method, params, id, dbName } = e.data;
   if (method === 'switchDatabase') {
     const dbName = params[0]
-    switchDatabase(dbName)
+    _db = loadDatabase(dbName)
     postMessage({
       id,
       result: {
@@ -110,8 +121,14 @@ onmessage = async (e) => {
     })
     return;
   }
-  if (!_db) {
-    throw new Error('db not init')
+  if (!sqlite.sqlite3) {
+    throw new Error('sqlite3 not initialized')
+  }
+  debug(
+    `sql query dbName ${dbName}\n currentDBName ${_db?.db.filename}`,
+  )
+  if (!_db || dbName && dbName !== _db.db.filename) {
+    _db = loadDatabase(dbName)
   }
   const _method = method as keyof SqlDatabase
   const callMethod = (_db[_method] as Function).bind(_db)
