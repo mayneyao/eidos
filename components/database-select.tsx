@@ -128,8 +128,8 @@ export function DatabaseSelect({ databases, defaultValue }: IDatabaseSelectorPro
         <div>
           <div className="space-y-4 py-2 pb-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Database name</Label>
-              <Input id="name" placeholder="e.g. mydb" value={databaseName} onChange={(e) => setDatabaseName(e.target.value)} />
+              <Label htmlFor="database-name">Database name</Label>
+              <Input id="database-name" placeholder="e.g. mydb" value={databaseName} onChange={(e) => setDatabaseName(e.target.value)} />
             </div>
           </div>
         </div>

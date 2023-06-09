@@ -22,6 +22,7 @@ specifiers:
   '@sqlite.org/sqlite-wasm': 3.42.0-build1
   '@types/node': ^17.0.45
   '@types/papaparse': ^5.3.7
+  '@types/prismjs': ^1.26.0
   '@types/react': ^18.2.7
   '@types/react-dom': ^18.2.4
   '@types/uuid': ^9.0.1
@@ -46,11 +47,13 @@ specifiers:
   papaparse: ^5.4.1
   postcss: ^8.4.24
   prettier: ^2.8.8
+  prismjs: ^1.29.0
   react: ^18.2.0
   react-day-picker: ^8.7.1
   react-dom: ^18.2.0
   react-hook-form: ^7.44.3
   react-laag: ^2.0.5
+  react-marked-renderer: ^1.1.2
   react-responsive-carousel: ^3.2.23
   sharp: ^0.31.3
   sql-ddl-to-json-schema: ^4.0.10
@@ -93,11 +96,13 @@ dependencies:
   next-themes: 0.2.1_z4pol2qj2yv3um3jqqobs4b3eu
   openai: 3.2.1
   papaparse: 5.4.1
+  prismjs: 1.29.0
   react: 18.2.0
   react-day-picker: 8.7.1_kzhlcyde2l6xjiirkbg7jzhosa
   react-dom: 18.2.0_react@18.2.0
   react-hook-form: 7.44.3_react@18.2.0
   react-laag: 2.0.5_biqbaboplfbrettd7655fr4n2y
+  react-marked-renderer: 1.1.2_react@18.2.0
   react-responsive-carousel: 3.2.23
   sharp: 0.31.3
   sql-ddl-to-json-schema: 4.0.10
@@ -111,6 +116,7 @@ devDependencies:
   '@ianvs/prettier-plugin-sort-imports': 3.7.2_prettier@2.8.8
   '@types/node': 17.0.45
   '@types/papaparse': 5.3.7
+  '@types/prismjs': 1.26.0
   '@types/react': 18.2.8
   '@types/react-dom': 18.2.4
   '@types/uuid': 9.0.1
@@ -1676,6 +1682,10 @@ packages:
     resolution: {integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==}
     dev: true
 
+  /@types/marked/4.3.1:
+    resolution: {integrity: sha512-vSSbKZFbNktrQ15v7o1EaH78EbWV+sPQbPjHG+Cp8CaNcPFUEfjZ0Iml/V0bFDwsTlYe8o6XC5Hfdp91cqPV2g==}
+    dev: false
+
   /@types/node/17.0.45:
     resolution: {integrity: sha512-w+tIMs3rq2afQdsPJlODhoUEKzFP1ayaoyl1CcnwtIlsVe7K7bA1NGm4s3PraqTLlXnbIN84zuBlxBWo1u9BLw==}
     dev: true
@@ -1684,6 +1694,10 @@ packages:
     resolution: {integrity: sha512-f2HKmlnPdCvS0WI33WtCs5GD7X1cxzzS/aduaxSu3I7TbhWlENjSPs6z5TaB9K0J+BH1jbmqTaM+ja5puis4wg==}
     dependencies:
       '@types/node': 17.0.45
+    dev: true
+
+  /@types/prismjs/1.26.0:
+    resolution: {integrity: sha512-ZTaqn/qSqUuAq1YwvOFQfVW1AR/oQJlLSZVustdjwI+GZ8kr0MSHBj0tsXPW1EqHubx50gtBEjbPGsdZwQwCjQ==}
     dev: true
 
   /@types/prop-types/15.7.5:
@@ -3357,6 +3371,12 @@ packages:
       react: 18.2.0
     dev: false
 
+  /marked/4.3.0:
+    resolution: {integrity: sha512-PRsaiG84bK+AMvxziE/lCFss8juXjNaWzVbN5tXAm4XjeaS9NAHhop+PjQxz2A9h8Q4M/xGmzP8vqNwy6JeK0A==}
+    engines: {node: '>= 12'}
+    hasBin: true
+    dev: false
+
   /marked/5.0.5:
     resolution: {integrity: sha512-auTmKJTBwZM/GLVFOhmkY7pL8v/0DxiDaXRC2kEyajcNJ0XXn9NphLD0106dbWrbPwcyD4Y0Dus16OkCzUMkfg==}
     engines: {node: '>= 18'}
@@ -3782,6 +3802,11 @@ packages:
     hasBin: true
     dev: true
 
+  /prismjs/1.29.0:
+    resolution: {integrity: sha512-Kx/1w86q/epKcmte75LNrEoT+lX8pBpavuAbvJWRXar7Hz8jrtF+e3vY751p0R8H9HdArwaCTNDDzHg/ScJK1Q==}
+    engines: {node: '>=6'}
+    dev: false
+
   /prop-types/15.8.1:
     resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
     dependencies:
@@ -3874,6 +3899,16 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0_react@18.2.0
       tiny-warning: 1.0.3
+    dev: false
+
+  /react-marked-renderer/1.1.2_react@18.2.0:
+    resolution: {integrity: sha512-/rLR7DgQ9AdWf0AHO2656Has1TL3/zxMeHNz5uuspY36jLisKoAnZRDZYuVk+TLKa1svf83G/nAaQKVQoA5hzQ==}
+    peerDependencies:
+      react: '>= 16.14'
+    dependencies:
+      '@types/marked': 4.3.1
+      marked: 4.3.0
+      react: 18.2.0
     dev: false
 
   /react-number-format/5.2.2_biqbaboplfbrettd7655fr4n2y:

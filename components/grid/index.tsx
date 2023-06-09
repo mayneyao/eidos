@@ -37,7 +37,9 @@ export default function Grid(props: IGridProps) {
   const { tableName, databaseName } = props;
   const { theme } = useTheme()
   const _theme = theme === "light" ? {} : darkTheme
-  const { setCurrentTableSchema, currentQuery } = useDatabaseAppStore();
+  const { setCurrentTableSchema, currentQuery, setCurrentQuery } = useDatabaseAppStore();
+
+
   const { data, schema, tableSchema, updateCell, addField, addRow, deleteRows } = useTable(tableName, databaseName, currentQuery)
   const columns = tableInterface2GridColumn(schema[0]);
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen, selection, setSelection, clearSelection } = useTableAppStore();
@@ -46,6 +48,11 @@ export default function Grid(props: IGridProps) {
     isAddFieldEditorOpen && setIsAddFieldEditorOpen(false)
   }, ref);
 
+
+  // when switching table, clear current query
+  useEffect(() => {
+    setCurrentQuery('')
+  }, [setCurrentQuery, tableName])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
@@ -92,6 +99,9 @@ export default function Grid(props: IGridProps) {
           gridSelection={selection}
           onGridSelectionChange={setSelection}
           getCellContent={getData}
+          overscrollX={200}
+          maxColumnAutoWidth={500}
+          maxColumnWidth={2000}
           fillHandle={true}
           columns={columns ?? []}
           rows={data.length}
