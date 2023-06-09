@@ -79,10 +79,16 @@ export class Sqlite {
 
 
 
+// current DB
 let _db: SqlDatabase | null = null
+const sqlite = new Sqlite()
+
+function switchDatabase(dbName: string) {
+  _db = sqlite.db(`/${dbName}.sqlite3`, 'c')
+  log('switchDatabase', dbName)
+}
 
 async function main() {
-  const sqlite = new Sqlite()
   await sqlite.init()
   _db = sqlite.db('/mytest.sqlite3', 'c')
   postMessage('init')
@@ -92,6 +98,18 @@ main()
 
 onmessage = async (e) => {
   const { method, params, id } = e.data;
+  if (method === 'switchDatabase') {
+    const dbName = params[0]
+    switchDatabase(dbName)
+    postMessage({
+      id,
+      result: {
+        msg: 'switchDatabase success',
+        dbName
+      }
+    })
+    return;
+  }
   if (!_db) {
     throw new Error('db not init')
   }

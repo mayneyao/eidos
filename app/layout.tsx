@@ -6,7 +6,8 @@ import { fontSans } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
-import { SideBar } from "@/components/sidebar"
+import { CommandDialogDemo } from "@/components/cmdk"
+import { ShortCuts } from "@/components/shortcuts"
 
 export const metadata: Metadata = {
   title: {
@@ -41,14 +42,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
         >
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             {/* APP MODEL， a sidebar and main */}
-            <div className="relative  grid  lg:grid-cols-5">
-              <div className="col-span-1 h-screen">
-                <SideBar />
-              </div>
-              <div className="col-span-3 h-screen lg:col-span-4 lg:border-l">
-                {children}
-              </div>
+            <div className="h-screen w-screen">
+              {children}
             </div>
+            <CommandDialogDemo />
+            <ShortCuts />
             <TailwindIndicator />
           </ThemeProvider>
         </body>

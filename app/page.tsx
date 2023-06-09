@@ -1,17 +1,13 @@
 'use client'
 
-import { useSqliteStore } from "@/lib/store";
-import dynamic from "next/dynamic";
+import { DatabaseSelect } from "@/components/database-select";
+import { useAllDatabases } from "@/lib/sql";
 
-const Grid = dynamic(
-  () => {
-    return import("../components/grid");
-  },
-  { ssr: false }
-);
 
 
 export default function IndexPage() {
-  const { selectedTable } = useSqliteStore();
-  return <Grid tableName={selectedTable} />
+  const databaseList = useAllDatabases()
+  return <div className="flex h-screen w-screen items-center justify-center">
+    <DatabaseSelect databases={databaseList} />
+  </div>
 }

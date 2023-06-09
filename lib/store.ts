@@ -6,6 +6,9 @@ interface SqliteState {
   isInitialized: boolean
   setInitialized: (isInitialized: boolean) => void
 
+  currentDatabase: string
+  setCurrentDatabase: (database: string) => void
+
   sqlite: SqlDatabase | null
   setSqlite: (sqlite: SqlDatabase) => void
 
@@ -14,12 +17,18 @@ interface SqliteState {
 
   selectedTable: string
   setSelectedTable: (table: string) => void
+
+  databaseList: string[]
+  setDatabaseList: (databaseList: string[]) => void
 }
 
 export const useSqliteStore = create<SqliteState>()(
   (set) => ({
     isInitialized: false,
     setInitialized: (isInitialized) => set({ isInitialized }),
+
+    currentDatabase: 'mytest',
+    setCurrentDatabase: (database) => set({ currentDatabase: database }),
 
     sqlite: null,
     setSqlite: (sqlite) => set({ sqlite }),
@@ -29,5 +38,8 @@ export const useSqliteStore = create<SqliteState>()(
 
     selectedTable: '',
     setSelectedTable: (table) => set({ selectedTable: table }),
+
+    databaseList: [],
+    setDatabaseList: (databaseList) => set({ databaseList }),
   }),
 )

@@ -10,11 +10,12 @@ import { useSqlite } from "@/lib/sql";
 
 interface ITableItemProps {
   tableName: string,
+  databaseName: string,
   children?: React.ReactNode
 }
 
-export function TableItem({ tableName, children }: ITableItemProps) {
-  const { deleteTable, duplicateTable } = useSqlite();
+export function TableItem({ tableName, databaseName, children }: ITableItemProps) {
+  const { deleteTable, duplicateTable } = useSqlite(databaseName);
   return (
     <ContextMenu>
       <ContextMenuTrigger>

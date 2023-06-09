@@ -3,7 +3,7 @@ import { ProfileForm } from "@/app/settings/profile-form"
 
 export default function SettingsProfilePage() {
   return (
-    <div className="space-y-6">
+    <div className="max-w-lg space-y-6">
       <div>
         <h3 className="text-lg font-medium">Profile</h3>
         <p className="text-sm text-muted-foreground">

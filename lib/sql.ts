@@ -6,17 +6,42 @@ import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { sqlToJSONSchema2 } from './sqlite/sql2jsonschema';
 import { useSqliteStore } from './store';
+import { getSQLiteFilesInRootDirectory } from './fs';
 
 
 let SQLWorker: SqlDatabase;
-export const useSqlite = () => {
-  const { isInitialized, setInitialized, setSqlite, setAllTables } = useSqliteStore();
+let worker: Worker;
+
+
+const loadWorker = () => {
+  if (!worker) {
+    worker = new Worker(new URL('@/worker/sql.ts', import.meta.url), { type: 'module' })
+  }
+  return worker
+}
+export const useSqlite = (dbName?: string) => {
+  const { isInitialized, setInitialized, setSqlite, setAllTables, setCurrentDatabase, currentDatabase } = useSqliteStore();
 
   // const [SQLWorker, setSQLWorker] = useState<SqlDatabase | null>(null)
 
   useEffect(() => {
+    if (dbName && isInitialized) {
+      const switchDdMsgId = uuidv4()
+      console.log('switchDatabase', dbName)
+      const worker = loadWorker()
+      worker.postMessage({ method: 'switchDatabase', params: [dbName], id: switchDdMsgId })
+      worker.onmessage = (e) => {
+        const { id: returnId, result } = e.data
+        if (returnId === switchDdMsgId) {
+          setCurrentDatabase(dbName)
+        }
+      }
+    }
+  }, [dbName, setCurrentDatabase, isInitialized])
+
+  useEffect(() => {
     if (SQLWorker) return;
-    const worker = new Worker(new URL('@/worker/sql.ts', import.meta.url), { type: 'module' })
+    const worker = loadWorker()
     worker.onmessage = async (e) => {
       if (e.data === 'init') {
         setInitialized(true)
@@ -175,4 +200,17 @@ export const useTable = (tableName: string) => {
     }
   }, [sqlite, tableName, updateTableSchema])
   return { data, setData, schema, updateCell, addField, addRow }
+}
+
+
+export const useAllDatabases = () => {
+  const { setDatabaseList, databaseList } = useSqliteStore()
+
+  useEffect(() => {
+    getSQLiteFilesInRootDirectory().then(files => {
+      setDatabaseList(files.map(file => file.name.split('.')[0]))
+    })
+  }, [setDatabaseList])
+
+  return databaseList;
 }
