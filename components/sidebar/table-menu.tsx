@@ -2,7 +2,11 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger
 } from "@/components/ui/context-menu";
 import { useSqlite } from "@/lib/sql";
@@ -78,20 +82,21 @@ export function TableItem({ tableName, databaseName, children }: ITableItemProps
           Duplicate
           {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
         </ContextMenuItem>
-        {/* <ContextMenuSub>
-          <ContextMenuSubTrigger inset>More Tools</ContextMenuSubTrigger>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger inset>Export </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-48">
-            <ContextMenuItem>
-              Save Page As...
+            {/* <ContextMenuItem>
+              Export As...
               <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuItem>Create Shortcut...</ContextMenuItem>
-            <ContextMenuItem>Name Window...</ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem>Developer Tools</ContextMenuItem>
+            </ContextMenuItem> */}
+            <ContextMenuItem>Csv(.csv)</ContextMenuItem>
+            <ContextMenuItem disabled >Excel(.xlsx)</ContextMenuItem>
+            {/* <ContextMenuSeparator /> */}
+            {/* <ContextMenuItem>Developer Tools</ContextMenuItem> */}
           </ContextMenuSubContent>
         </ContextMenuSub>
-        <ContextMenuSeparator />
+
+        {/*<ContextMenuSeparator />
         <ContextMenuCheckboxItem checked>
           Show Bookmarks Bar
           <ContextMenuShortcut>⌘⇧B</ContextMenuShortcut>

@@ -39,9 +39,7 @@ export const SideBar = () => {
       <h2 className="relative px-6 text-lg font-semibold tracking-tight">
         Tables
       </h2>
-      <div className="mr-4">
-        <DatabaseSelect databases={databaseList} defaultValue={database} />
-      </div>
+      <DatabaseSelect databases={databaseList} defaultValue={database} />
     </div>
     <Separator className="my-2" />
     <ScrollArea className="grow px-2">

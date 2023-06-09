@@ -2,16 +2,17 @@ import { tableInterface2GridColumn } from "@/components/grid/helper";
 import { useTable } from "@/lib/sql";
 import { cn } from "@/lib/utils";
 import DataEditor, {
-  CompactSelection, DataEditorProps, EditableGridCell,
-  GridCell, GridCellKind, GridSelection, Item, Rectangle
+  DataEditorProps, EditableGridCell,
+  GridCell, GridCellKind,
+  Item
 } from "@glideapps/glide-data-grid";
 import "@glideapps/glide-data-grid/dist/index.css";
 import { useClickAway } from 'ahooks';
 import { useTheme } from "next-themes";
 import React, { useCallback, useRef } from "react";
-import { useLayer } from "react-laag";
 import { Button } from "../ui/button";
 import { FieldAppendPanel } from "./field-append-panel";
+import { ContextMenuDemo } from "./grid-context-menu";
 import { useTableAppStore } from "./store";
 import { darkTheme } from "./theme";
 
@@ -29,59 +30,20 @@ interface IGridProps {
   tableName: string
   databaseName: string
 }
+
+
 export default function Grid(props: IGridProps) {
   const { tableName, databaseName } = props;
   const { theme } = useTheme()
   const _theme = theme === "light" ? {} : darkTheme
-  const { data, schema, updateCell, addField, addRow } = useTable(tableName, databaseName)
+  const { data, schema, updateCell, addField, addRow, deleteRows } = useTable(tableName, databaseName)
   const columns = tableInterface2GridColumn(schema[0]);
-  const [showMenu, setShowMenu] = React.useState<{ bounds: Rectangle; col: number }>();
-  // const [selection, setSelection] = React.useState<GridSelection>({
-  //   columns: CompactSelection.empty(),
-  //   rows: CompactSelection.empty(),
-  // });
-  const onHeaderMenuClick = React.useCallback((col: number, bounds: Rectangle) => {
-    setShowMenu({ col, bounds });
-  }, []);
-
-  const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore();
+  const { isAddFieldEditorOpen, setIsAddFieldEditorOpen, selection, setSelection } = useTableAppStore();
   const ref = useRef<HTMLDivElement>(null);
   useClickAway(() => {
     isAddFieldEditorOpen && setIsAddFieldEditorOpen(false)
   }, ref);
 
-
-  const onHeaderClicked = React.useCallback(() => {
-    console.log("Header clicked");
-  }, []);
-
-  const isOpen = showMenu !== undefined;
-
-  const { renderLayer, layerProps } = useLayer({
-    isOpen,
-    triggerOffset: 4,
-    onOutsideClick: () => setShowMenu(undefined),
-    trigger: {
-      getBounds: () => {
-        const res = {
-          bottom: (showMenu?.bounds.y ?? 0) + (showMenu?.bounds.height ?? 0),
-          height: showMenu?.bounds.height ?? 0,
-          left: showMenu?.bounds.x ?? 0,
-          right: (showMenu?.bounds.x ?? 0) + (showMenu?.bounds.width ?? 0),
-          top: showMenu?.bounds.y ?? 0,
-          width: showMenu?.bounds.width ?? 0,
-        }
-        console.log(res)
-        return res;
-      },
-    },
-    placement: "bottom-start",
-    auto: true,
-    possiblePlacements: ["bottom-start", "bottom-end"],
-  });
-
-
-  // const tableSchema = useTableSchema('mytable3')
 
   const getData = useCallback((cell: Item): GridCell => {
     const [columnIndex, rowIndex] = cell;
@@ -111,37 +73,39 @@ export default function Grid(props: IGridProps) {
 
   return <div className="h-full p-8">
     <div className="flex h-full">
-      <DataEditor
-        {...defaultConfig}
-        theme={_theme}
-        onHeaderMenuClick={onHeaderMenuClick}
-        onCellContextMenu={(_, e) => e.preventDefault()}
-        // gridSelection={selection}
-        // onGridSelectionChange={setSelection}
-        getCellContent={getData}
-        columns={columns ?? []}
-        rows={data.length}
-        trailingRowOptions={{
-          tint: true,
-          sticky: true,
-        }}
-        rightElement={
-          <Button variant="ghost" onClick={() => {
-            setIsAddFieldEditorOpen(true)
-            addField(`newField${columns.length + 1}`, 'text')
-          }}>
-            +
-          </Button>
-        }
-        rightElementProps={{
-          sticky: true,
-          fill: true,
-        }}
-        onCellEdited={onCellEdited}
-        onRowAppended={() => {
-          addRow()
-        }}
-      />
+      <ContextMenuDemo deleteRows={deleteRows}>
+        <DataEditor
+          {...defaultConfig}
+          theme={_theme}
+          // onCellContextMenu={(_, e) => e.preventDefault()}
+          gridSelection={selection}
+          onGridSelectionChange={setSelection}
+          getCellContent={getData}
+          fillHandle={true}
+          columns={columns ?? []}
+          rows={data.length}
+          trailingRowOptions={{
+            tint: true,
+            sticky: true,
+          }}
+          rightElement={
+            <Button variant="ghost" onClick={() => {
+              setIsAddFieldEditorOpen(true)
+              addField(`newField${columns.length + 1}`, 'text')
+            }}>
+              +
+            </Button>
+          }
+          rightElementProps={{
+            sticky: true,
+            fill: true,
+          }}
+          onCellEdited={onCellEdited}
+          onRowAppended={() => {
+            addRow()
+          }}
+        />
+      </ContextMenuDemo>
       {
         isAddFieldEditorOpen && <div ref={ref} className={cn(
           "fixed right-0 z-50 h-screen w-[400px] bg-white shadow-lg"
@@ -152,25 +116,5 @@ export default function Grid(props: IGridProps) {
     </div>
 
     <div id="portal" />
-    {
-      isOpen && renderLayer(
-        <div
-          {...layerProps}
-          className={isOpen ? "block" : "hidden"}
-          style={{
-            ...layerProps.style,
-            width: 300,
-            padding: 4,
-            borderRadius: 8,
-            backgroundColor: "white",
-            border: "1px solid black",
-          }}>
-          <ul>
-            <li>Item 1</li>
-            <li>Item 2</li>
-            <li>Item 3</li>
-          </ul>
-        </div>
-      )}
   </div>
 }

@@ -45,7 +45,7 @@ export function DatabaseSelect({ databases, defaultValue }: IDatabaseSelectorPro
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-[200px] justify-between"
+          className="w-[180px] justify-between"
         >
           {value
             ? databases.find((db) => db === value)

@@ -30,6 +30,8 @@ This project is a local-first, serverless application for creating and managing 
   - [ ] CSV
   - [ ] SQLite3
 - [ ] Export a database
+  - [ ] export a table as CSV
+  - [ ] export a table as Excel
 - [ ] Backup/sync with Cloudflare Worker (d1 database)
 - [ ] PWA
 

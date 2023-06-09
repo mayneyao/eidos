@@ -173,10 +173,13 @@ export const useTable = (tableName: string, databaseName: string) => {
     const filedName = schema[0]?.columns?.[col].name;
     const rowId = data[row][0];
     if (sqlite) {
-      await sqlite.sql`UPDATE ${tableName} SET ${filedName} = '${value}' WHERE _id = '${rowId}'`;
-      // get new data
-      const result2 = await sqlite.sql`SELECT ${filedName} FROM ${tableName} where _id = '${rowId}'`;
-      data[row][col] = result2[0]
+      if (filedName !== '_id') {
+        sqlite.sql`UPDATE ${tableName} SET ${filedName} = '${value}' WHERE _id = '${rowId}'`;
+      }
+      // get the updated value, but it will block ui update. expect to success if not throw error
+      // const result2 = await sqlite.sql`SELECT ${filedName} FROM ${tableName} where _id = '${rowId}'`;
+      // data[row][col] = result2[0]
+      data[row][col] = value
       setData([...data])
     }
   }
@@ -206,6 +209,16 @@ export const useTable = (tableName: string, databaseName: string) => {
     }
   }
 
+  const deleteRows = async (startIndex: number, endIndex: number) => {
+    if (sqlite) {
+      const rowIds = data.slice(startIndex, endIndex).map(row => `'${row[0]}'`)
+      // console.log('deleteRows', data, startIndex, endIndex, rowIds)
+      await sqlite.sql`DELETE FROM ${tableName} WHERE _id IN (${rowIds})`
+      await updateTableSchema()
+      await fetchAllRows()
+    }
+  }
+
   useEffect(() => {
     if (sqlite && tableName) {
       sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
@@ -215,7 +228,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     }
   }, [sqlite, tableName, updateTableSchema])
 
-  return { data, setData, schema, updateCell, addField, addRow }
+  return { data, setData, schema, updateCell, addField, addRow, deleteRows }
 }
 
 
