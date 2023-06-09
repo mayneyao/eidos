@@ -36,10 +36,10 @@ export default function Grid(props: IGridProps) {
   const { data, schema, updateCell, addField, addRow } = useTable(tableName, databaseName)
   const columns = tableInterface2GridColumn(schema[0]);
   const [showMenu, setShowMenu] = React.useState<{ bounds: Rectangle; col: number }>();
-  const [selection, setSelection] = React.useState<GridSelection>({
-    columns: CompactSelection.empty(),
-    rows: CompactSelection.empty(),
-  });
+  // const [selection, setSelection] = React.useState<GridSelection>({
+  //   columns: CompactSelection.empty(),
+  //   rows: CompactSelection.empty(),
+  // });
   const onHeaderMenuClick = React.useCallback((col: number, bounds: Rectangle) => {
     setShowMenu({ col, bounds });
   }, []);
@@ -116,8 +116,8 @@ export default function Grid(props: IGridProps) {
         theme={_theme}
         onHeaderMenuClick={onHeaderMenuClick}
         onCellContextMenu={(_, e) => e.preventDefault()}
-        gridSelection={selection}
-        onGridSelectionChange={setSelection}
+        // gridSelection={selection}
+        // onGridSelectionChange={setSelection}
         getCellContent={getData}
         columns={columns ?? []}
         rows={data.length}

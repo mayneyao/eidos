@@ -4,6 +4,7 @@ specifiers:
   '@glideapps/glide-data-grid': ^5.2.1
   '@hookform/resolvers': ^3.1.0
   '@ianvs/prettier-plugin-sort-imports': ^3.7.2
+  '@radix-ui/react-alert-dialog': ^1.0.4
   '@radix-ui/react-checkbox': ^1.0.4
   '@radix-ui/react-context-menu': ^2.1.4
   '@radix-ui/react-dialog': ^1.0.4
@@ -20,6 +21,7 @@ specifiers:
   '@rkusa/wasm-sqlite': ^0.1.1
   '@sqlite.org/sqlite-wasm': 3.42.0-build1
   '@types/node': ^17.0.45
+  '@types/papaparse': ^5.3.7
   '@types/react': ^18.2.7
   '@types/react-dom': ^18.2.4
   '@types/uuid': ^9.0.1
@@ -40,6 +42,7 @@ specifiers:
   marked: ^5.0.5
   next: ^13.4.4
   next-themes: ^0.2.1
+  papaparse: ^5.4.1
   postcss: ^8.4.24
   prettier: ^2.8.8
   react: ^18.2.0
@@ -61,6 +64,7 @@ specifiers:
 dependencies:
   '@glideapps/glide-data-grid': 5.2.1_h5cemw5yortdoyybqx2sz2ebua
   '@hookform/resolvers': 3.1.0_react-hook-form@7.44.3
+  '@radix-ui/react-alert-dialog': 1.0.4_nt3dzwb3srfhvwd6kfpoey3m3m
   '@radix-ui/react-checkbox': 1.0.4_nt3dzwb3srfhvwd6kfpoey3m3m
   '@radix-ui/react-context-menu': 2.1.4_nt3dzwb3srfhvwd6kfpoey3m3m
   '@radix-ui/react-dialog': 1.0.4_nt3dzwb3srfhvwd6kfpoey3m3m
@@ -86,6 +90,7 @@ dependencies:
   marked: 5.0.5
   next: 13.4.4_biqbaboplfbrettd7655fr4n2y
   next-themes: 0.2.1_z4pol2qj2yv3um3jqqobs4b3eu
+  papaparse: 5.4.1
   react: 18.2.0
   react-day-picker: 8.7.1_kzhlcyde2l6xjiirkbg7jzhosa
   react-dom: 18.2.0_react@18.2.0
@@ -103,6 +108,7 @@ dependencies:
 devDependencies:
   '@ianvs/prettier-plugin-sort-imports': 3.7.2_prettier@2.8.8
   '@types/node': 17.0.45
+  '@types/papaparse': 5.3.7
   '@types/react': 18.2.8
   '@types/react-dom': 18.2.4
   '@types/uuid': 9.0.1
@@ -612,6 +618,32 @@ packages:
     resolution: {integrity: sha512-yQ8oGX2GVsEYMWGxcovu1uGWPCxV5BFfeeYxqPmuAzUyLT9qmaMXSAhXpb0WrspIeqYzdJpkh2vHModJPgRIaw==}
     dependencies:
       '@babel/runtime': 7.22.3
+    dev: false
+
+  /@radix-ui/react-alert-dialog/1.0.4_nt3dzwb3srfhvwd6kfpoey3m3m:
+    resolution: {integrity: sha512-jbfBCRlKYlhbitueOAv7z74PXYeIQmWpKwm3jllsdkw7fGWNkxqP3v0nY9WmOzcPqpQuoorNtvViBgL46n5gVg==}
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+      react: ^16.8 || ^17.0 || ^18.0
+      react-dom: ^16.8 || ^17.0 || ^18.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      '@types/react-dom':
+        optional: true
+    dependencies:
+      '@babel/runtime': 7.22.3
+      '@radix-ui/primitive': 1.0.1
+      '@radix-ui/react-compose-refs': 1.0.1_i2bxsyfskhzbpjanbovidbfj7u
+      '@radix-ui/react-context': 1.0.1_i2bxsyfskhzbpjanbovidbfj7u
+      '@radix-ui/react-dialog': 1.0.4_nt3dzwb3srfhvwd6kfpoey3m3m
+      '@radix-ui/react-primitive': 1.0.3_nt3dzwb3srfhvwd6kfpoey3m3m
+      '@radix-ui/react-slot': 1.0.2_i2bxsyfskhzbpjanbovidbfj7u
+      '@types/react': 18.2.8
+      '@types/react-dom': 18.2.4
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
     dev: false
 
   /@radix-ui/react-arrow/1.0.3_nt3dzwb3srfhvwd6kfpoey3m3m:
@@ -1644,6 +1676,12 @@ packages:
 
   /@types/node/17.0.45:
     resolution: {integrity: sha512-w+tIMs3rq2afQdsPJlODhoUEKzFP1ayaoyl1CcnwtIlsVe7K7bA1NGm4s3PraqTLlXnbIN84zuBlxBWo1u9BLw==}
+    dev: true
+
+  /@types/papaparse/5.3.7:
+    resolution: {integrity: sha512-f2HKmlnPdCvS0WI33WtCs5GD7X1cxzzS/aduaxSu3I7TbhWlENjSPs6z5TaB9K0J+BH1jbmqTaM+ja5puis4wg==}
+    dependencies:
+      '@types/node': 17.0.45
     dev: true
 
   /@types/prop-types/15.7.5:
@@ -3527,6 +3565,10 @@ packages:
     dependencies:
       p-limit: 3.1.0
     dev: true
+
+  /papaparse/5.4.1:
+    resolution: {integrity: sha512-HipMsgJkZu8br23pW15uvo6sib6wne/4woLZPlFf3rpDyMe9ywEXUsuD7+6K9PRkJlVT51j/sCOYDKGGS3ZJrw==}
+    dev: false
 
   /parent-module/1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}

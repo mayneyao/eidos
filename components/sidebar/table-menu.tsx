@@ -8,21 +8,65 @@ import {
 import { useSqlite } from "@/lib/sql";
 
 
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation";
+
+export function AlertDialogDemo() {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline">Show Dialog</Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete your
+            account and remove your data from our servers.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction>Continue</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 interface ITableItemProps {
   tableName: string,
   databaseName: string,
   children?: React.ReactNode
 }
 
+
 export function TableItem({ tableName, databaseName, children }: ITableItemProps) {
   const { deleteTable, duplicateTable } = useSqlite(databaseName);
+  const router = useRouter();
+  const handleDeleteTable = () => {
+    deleteTable(tableName)
+    router.push(`/${databaseName}`)
+  }
   return (
     <ContextMenu>
       <ContextMenuTrigger>
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onClick={() => deleteTable(tableName)}>
+        <ContextMenuItem inset onClick={handleDeleteTable}>
           Remove
           <ContextMenuShortcut>del</ContextMenuShortcut>
         </ContextMenuItem>

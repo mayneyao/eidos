@@ -84,6 +84,15 @@ export const useSqlite = (dbName?: string) => {
     await updateTableList()
   }
 
+  const createTableWithSql = async (createTableSql: string, insertSql?: string) => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
+    await SQLWorker.sql`${createTableSql}`
+    await updateTableList()
+    if (insertSql) {
+      await SQLWorker.sql`${insertSql}`
+    }
+  }
+
   const deleteTable = async (tableName: string) => {
     if (!SQLWorker) throw new Error('SQLWorker not initialized')
     await SQLWorker.sql`DROP TABLE ${tableName}`
@@ -111,6 +120,7 @@ export const useSqlite = (dbName?: string) => {
     renameTable,
     duplicateTable,
     queryAllTables,
+    createTableWithSql,
   }
 }
 

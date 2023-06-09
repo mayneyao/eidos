@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import Papa from 'papaparse';
 
 // export declare enum GridCellKind {
 //   Uri = "uri",
@@ -52,6 +53,18 @@ export const guessCellKind = (value: any) => {
   }
 }
 
+
+export const createTableWithSql = (tableName: string, sql: string) => {
+  const createTableSql = `
+CREATE TABLE ${tableName} (
+  _id VARCHAR(32) PRIMARY KEY NOT NULL
+  ,no             INTEGER  NULL
+  ,title             VARCHAR(100)  NULL
+);
+
+${sql}
+`
+}
 
 export const createTemplateTableSql = (tableName: string) => {
   const templateTableSql = `
