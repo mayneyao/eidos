@@ -118,6 +118,9 @@ export const AIChat = () => {
         sql = sql.replace("UUID()", `'${uuidV4()}'`)
       }
     }
+    // remove comments 
+    sql = sql.replace(/--.*\n/g, '\n').replace(/\/\*.*\*\//g, '')
+    
     const handled = await handleSql(sql)
     if (!handled) {
       console.log('set current query', sql)

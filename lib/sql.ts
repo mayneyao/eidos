@@ -125,8 +125,6 @@ export const useSqlite = (dbName?: string) => {
 
   const handleSql = async (sql: string) => {
     if (!SQLWorker) throw new Error('SQLWorker not initialized')
-    // remove comments 
-    sql = sql.replace(/--.*\n/g, '\n').replace(/\/\*.*\*\//g, '')
     const cls = sql.trim().split(' ')[0].toUpperCase()
 
     let handled = false
@@ -263,13 +261,18 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
 
   useEffect(() => {
     if (sqlite && tableName) {
-
       if (querySql) {
         sqlite.sql`${querySql}`.then((res: any) => {
-          if (checkSqlIsModifyTable(querySql)) {
+          if (checkSqlIsModifyTableSchema(querySql)) {
+            console.log("checkSqlIsModifyTable", querySql)
             updateTableSchema()
-          } else {
-            // refresh data
+          }
+          if (checkSqlIsOnlyQuery(querySql)) {
+            console.log("checkSqlIsOnlyQuery", querySql)
+            setData(res)
+          }
+          if (checkSqlIsModifyTableData(querySql)) {
+            console.log("checkSqlIsModifyTableData", querySql)
             refreshRows()
           }
         })
@@ -285,8 +288,18 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
   return { data, setData, schema, updateCell, addField, addRow, deleteRows, tableSchema }
 }
 
-const checkSqlIsModifyTable = (sql: string) => {
+const checkSqlIsModifyTableSchema = (sql: string) => {
   const modifyTableSqls = ['CREATE TABLE', 'DROP TABLE', 'ALTER TABLE', 'RENAME TABLE']
+  return modifyTableSqls.some(modifyTableSql => sql.includes(modifyTableSql))
+}
+
+const checkSqlIsOnlyQuery = (sql: string) => {
+  const querySqls = ['SELECT', 'PRAGMA']
+  return querySqls.some(querySql => sql.includes(querySql))
+}
+
+const checkSqlIsModifyTableData = (sql: string) => {
+  const modifyTableSqls = ['INSERT', 'UPDATE', 'DELETE']
   return modifyTableSqls.some(modifyTableSql => sql.includes(modifyTableSql))
 }
 
