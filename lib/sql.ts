@@ -125,6 +125,8 @@ export const useSqlite = (dbName?: string) => {
 
   const handleSql = async (sql: string) => {
     if (!SQLWorker) throw new Error('SQLWorker not initialized')
+    // remove comments 
+    sql = sql.replace(/--.*\n/g, '\n').replace(/\/\*.*\*\//g, '')
     const cls = sql.trim().split(' ')[0].toUpperCase()
 
     let handled = false
