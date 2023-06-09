@@ -1,6 +1,6 @@
 import { Textarea } from "@/components/ui/textarea";
 import { Configuration, OpenAIApi } from "openai";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useDatabaseAppStore } from "./store";
 import { Button } from "@/components/ui/button";
 import { User, Bot, Play, Paintbrush } from "lucide-react";
@@ -12,6 +12,7 @@ import { v4 as uuidV4 } from "uuid";
 import { useSqliteStore } from "@/lib/store";
 import { useTableChange } from "./hook";
 import { AIMessage } from "./ai-chat-message-prisma";
+import { useKeyPress } from "ahooks";
 
 const getOpenAI = (token: string) => {
   const configuration = new Configuration({
@@ -80,9 +81,16 @@ export const AIChat = () => {
     setMessages([])
   }, [])
 
+  const textInputRef = useRef<HTMLTextAreaElement>();
+
+  useKeyPress("ctrl.forwardslash", () => {
+    textInputRef.current?.focus();
+  })
+
   useTableChange(cleanMessages)
 
   const handleSend = async () => {
+    if (!input.trim().length) return;
     const _messages: any = [...messages, { role: "user", content: input }];
     setMessages(_messages)
     setInput("");
@@ -102,16 +110,16 @@ export const AIChat = () => {
   }
 
   const handleSendQuery = async (sql: string) => {
+    if (sql.includes("UUID()")) {
+      // bug, all uuid is same
+      // sql = sql.replaceAll("UUID()", `'${uuidV4()}'`)
+      // replace UUID() with uuidv4(), each uuid is unique
+      while (sql.includes("UUID()")) {
+        sql = sql.replace("UUID()", `'${uuidV4()}'`)
+      }
+    }
     const handled = await handleSql(sql)
     if (!handled) {
-      if (sql.includes("UUID()")) {
-        // bug, all uuid is same
-        // sql = sql.replaceAll("UUID()", `'${uuidV4()}'`)
-        // replace UUID() with uuidv4(), each uuid is unique
-        while (sql.includes("UUID()")) {
-          sql = sql.replace("UUID()", `'${uuidV4()}'`)
-        }
-      }
       console.log('set current query', sql)
       setCurrentQuery(sql);
     }
@@ -149,6 +157,7 @@ export const AIChat = () => {
         </Button>
       </div>
       <Textarea
+        ref={textInputRef as any}
         autoFocus
         placeholder="Type your message here."
         className=" bg-gray-100 dark:bg-gray-800"
