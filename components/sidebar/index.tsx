@@ -18,7 +18,7 @@ export const SideBar = () => {
         queryAllTables().then(tables => {
           setAllTables(tables)
         })
-      }, 500);
+      }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sqlite])

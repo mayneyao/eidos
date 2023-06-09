@@ -1,6 +1,6 @@
 export const darkTheme = {
-  accentColor: "#8c96ff",
-  accentLight: "rgba(202, 206, 255, 0.253)",
+  accentColor: "hsl(0,0%,100%)",
+  accentLight: "hsl(222.2,47.4%,11.2%)",
 
   textDark: "#ffffff",
   textMedium: "#b8b8b8",
@@ -12,11 +12,11 @@ export const darkTheme = {
   textHeader: "#a1a1a1",
   textHeaderSelected: "#000000",
 
-  bgCell: "#16161b",
+  bgCell: "#000000",
   bgCellMedium: "#202027",
-  bgHeader: "#212121",
-  bgHeaderHasFocus: "#474747",
-  bgHeaderHovered: "#404040",
+  bgHeader: "#111111",
+  bgHeaderHasFocus: "#222222",
+  bgHeaderHovered: "#333333",
 
   bgBubble: "#212121",
   bgBubbleSelected: "#000000",
