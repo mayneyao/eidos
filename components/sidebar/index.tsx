@@ -37,7 +37,7 @@ export const SideBar = () => {
   return <div className="flex h-screen flex-col p-4">
     <div className="flex items-center justify-between">
       <h2 className="relative px-6 text-lg font-semibold tracking-tight">
-        Tables
+        <Link href={`/${database}`}>Tables</Link>
       </h2>
       <DatabaseSelect databases={databaseList} defaultValue={database} />
     </div>

@@ -131,9 +131,6 @@ export const AIChat = () => {
               <>
                 <Bot className="h-4 w-4 shrink-0" />
                 <AIMessage message={message.content} onRun={handleSendQuery} />
-                {/* <Button className="shrink-0" variant="ghost" onClick={() => { handleSendQuery(message.content) }}>
-                  <Play className="h-4 w-4" />
-                </Button> */}
               </>
               : <>
                 <User className="h-4 w-4 shrink-0" />
