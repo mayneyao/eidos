@@ -84,6 +84,12 @@ export const useSqlite = (dbName?: string) => {
     await updateTableList()
   }
 
+  const updateTableListWithSql = async (sql: string) => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
+    await SQLWorker.sql`${sql}`
+    await updateTableList()
+  }
+
   const createTableWithSql = async (createTableSql: string, insertSql?: string) => {
     if (!SQLWorker) throw new Error('SQLWorker not initialized')
     await SQLWorker.sql`${createTableSql}`
@@ -91,6 +97,12 @@ export const useSqlite = (dbName?: string) => {
     if (insertSql) {
       await SQLWorker.sql`${insertSql}`
     }
+  }
+
+  const updateTableData = async (sql: string) => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
+    await SQLWorker.sql`${sql}`
+    await updateTableList()
   }
 
   const deleteTable = async (tableName: string) => {
@@ -111,6 +123,37 @@ export const useSqlite = (dbName?: string) => {
     await updateTableList()
   }
 
+  const handleSql = async (sql: string) => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
+    const cls = sql.trim().split(' ')[0].toUpperCase()
+
+    let handled = false
+    switch (cls) {
+      case 'SELECT':
+      case 'INSERT':
+      case 'UPDATE':
+      case 'DELETE':
+      case 'ALTER':
+        // add, delete, or modify columns in an existing table.
+        break;
+      // action above will update display of table, handle by tableState 
+      // action below will update table list, handle by self
+      case 'CREATE':
+        if (sql.includes('TABLE')) {
+          await createTableWithSql(sql)
+        }
+        break
+      case 'DROP':
+        if (sql.includes('TABLE')) {
+          await updateTableListWithSql(sql)
+        }
+        break;
+      default:
+        return handled
+    }
+    return handled
+  }
+
 
 
   return {
@@ -121,6 +164,8 @@ export const useSqlite = (dbName?: string) => {
     duplicateTable,
     queryAllTables,
     createTableWithSql,
+    updateTableData,
+    handleSql,
   }
 }
 
@@ -178,12 +223,13 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
     }
   }
 
-  const fetchAllRows = async () => {
+  const refreshRows = useCallback(async () => {
     if (!sqlite) return;
     await sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
       setData(res)
     })
-  }
+  }, [sqlite, tableName])
+
   const addField = async (fieldName: string, fieldType: string) => {
     const typeMap: any = {
       text: 'VARCHAR(128)',
@@ -199,7 +245,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
       const uuid = uuidv4()
       await sqlite.sql`INSERT INTO ${tableName}(_id) VALUES ('${uuid}')`
       await updateTableSchema()
-      await fetchAllRows()
+      await refreshRows()
     }
   }
 
@@ -209,7 +255,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
       // console.log('deleteRows', data, startIndex, endIndex, rowIds)
       await sqlite.sql`DELETE FROM ${tableName} WHERE _id IN (${rowIds})`
       await updateTableSchema()
-      await fetchAllRows()
+      await refreshRows()
     }
   }
 
@@ -221,8 +267,8 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
           if (checkSqlIsModifyTable(querySql)) {
             updateTableSchema()
           } else {
-            // only query data
-            setData(res)
+            // refresh data
+            refreshRows()
           }
         })
       } else {
@@ -232,7 +278,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
         })
       }
     }
-  }, [sqlite, tableName, updateTableSchema, querySql])
+  }, [sqlite, tableName, updateTableSchema, querySql, refreshRows])
 
   return { data, setData, schema, updateCell, addField, addRow, deleteRows, tableSchema }
 }

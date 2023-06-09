@@ -131,35 +131,13 @@ export function DatabaseSelect({ databases, defaultValue }: IDatabaseSelectorPro
               <Label htmlFor="name">Database name</Label>
               <Input id="name" placeholder="e.g. mydb" value={databaseName} onChange={(e) => setDatabaseName(e.target.value)} />
             </div>
-            {/* <div className="space-y-2">
-              <Label htmlFor="plan">Subscription plan</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a plan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="free">
-                    <span className="font-medium">Free</span> -{" "}
-                    <span className="text-muted-foreground">
-                      Trial for two weeks
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="pro">
-                    <span className="font-medium">Pro</span> -{" "}
-                    <span className="text-muted-foreground">
-                      $9/month per user
-                    </span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div> */}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={handleCreateDatabase}>
+          <Button variant="outline">
             Cancel
           </Button>
-          <Button type="submit">Continue</Button>
+          <Button type="submit" onClick={handleCreateDatabase}>Continue</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

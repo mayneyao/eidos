@@ -8,6 +8,7 @@ import { useConfigStore } from "../settings/store";
 import Link from "next/link";
 import { useSqlite } from "@/lib/sql";
 import { useParams } from "next/navigation";
+import { v4 as uuidV4 } from "uuid";
 
 const getOpenAI = (token: string) => {
   const configuration = new Configuration({
@@ -25,6 +26,7 @@ const askAI = async (token: string, messages: any[], tableSchema?: string) => {
 - if you create a table, you must include _id column
 - if you create a table, all columns except _id are nullable
 - if you query a table, you just return sql, *do not explain*
+- if you insert a row, you must include _id column, the value is a function named *UUID()*
 `
   const systemPrompt = tableSchema ? baseSysPrompt + promptWithTableSchema : baseSysPrompt
   const completion = await openai.createChatCompletion({
@@ -42,9 +44,9 @@ const askAI = async (token: string, messages: any[], tableSchema?: string) => {
 
 
 export const AIChat = () => {
-  const { currentTableSchema, setCurrentQuery } = useDatabaseAppStore();
+  const { currentTableSchema, setCurrentQuery, } = useDatabaseAppStore();
   const database = useParams().database;
-  const { createTableWithSql } = useSqlite(database);
+  const { createTableWithSql, updateTableData, handleSql } = useSqlite(database);
   const { aiConfig } = useConfigStore();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<{
@@ -68,11 +70,13 @@ export const AIChat = () => {
   }
 
   const handleSendQuery = async (sql: string) => {
-    // if is create table, then update table schema
-    if (sql.toLowerCase().trim().startsWith("create table")) {
-      createTableWithSql(sql)
-    } else {
-      setCurrentQuery(sql)
+    const handled = await handleSql(sql)
+    if (!handled) {
+      if (sql.includes("UUID()")) {
+        sql = sql.replace("UUID()", `'${uuidV4()}'`)
+      }
+      console.log('set current query', sql)
+      setCurrentQuery(sql);
     }
   }
 
@@ -83,7 +87,7 @@ export const AIChat = () => {
   return <div className="flex h-screen flex-col overflow-auto p-2">
     <div className="flex grow flex-col gap-2 pb-[100px]">
       {!aiConfig.token && <div className="p-2">
-        you need to set your openai token in <Link as="span" href='/settings/ai' className="text-cyan-500">
+        you need to set your openai token in <Link href='/settings/ai' className="text-cyan-500">
           <a >settings</a>
         </Link> first
       </div>}
