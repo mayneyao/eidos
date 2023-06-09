@@ -88,24 +88,26 @@ export const AIChat = () => {
         </Link> first
       </div>}
       {messages.map((message, i) => <div key={i}>
-        {
-          message.role === "assistant" ?
-            <div className="flex w-full items-start gap-2 rounded-lg bg-gray-200 p-2">
-              <Bot className="h-4 w-4 shrink-0" />
-              <p className="grow">
-                {message.content}
-              </p>
-              <Button className="shrink-0" variant="ghost" onClick={() => { handleSendQuery(message.content) }}>
-                <Play className="h-4 w-4" />
-              </Button>
-            </div>
-            : <div className="flex w-full items-start gap-2 rounded-lg bg-gray-200 p-2">
-              <User className="h-4 w-4 shrink-0" />
-              <p className="grow">
-                {message.content}
-              </p>
-            </div>
-        }
+        <div className="flex w-full items-start gap-2 rounded-lg bg-gray-200 p-2 dark:bg-gray-700">
+          {
+            message.role === "assistant" ?
+              <>
+                <Bot className="h-4 w-4 shrink-0" />
+                <p className="grow">
+                  {message.content}
+                </p>
+                <Button className="shrink-0" variant="ghost" onClick={() => { handleSendQuery(message.content) }}>
+                  <Play className="h-4 w-4" />
+                </Button>
+              </>
+              : <>
+                <User className="h-4 w-4 shrink-0" />
+                <p className="grow">
+                  {message.content}
+                </p>
+              </>
+          }
+        </div>
       </div>)}
 
     </div>
@@ -118,7 +120,7 @@ export const AIChat = () => {
       <Textarea
         autoFocus
         placeholder="Type your message here."
-        className=" bg-gray-100"
+        className=" bg-gray-100 dark:bg-gray-800"
         value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleEnter} />
     </div>
   </div>
