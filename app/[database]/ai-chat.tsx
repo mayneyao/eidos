@@ -23,7 +23,7 @@ const askAI = async (token: string, messages: any[], tableSchema?: string) => {
   const promptWithTableSchema = `\nhere is the table schema:\n${tableSchema}`
   const baseSysPrompt = `you're a sql generator, *only return sql, *do not explain* default settings below:
 - all table have a primary key named *_id* varchar(32)
-- if you create a table, you must include _id column
+- if you create a table, you must include _id column, but without default value
 - if you create a table, all columns except _id are nullable
 - if you query a table, you just return sql, *do not explain*
 - if you insert a row, you must include _id column, the value is a function named *UUID()*
@@ -73,7 +73,12 @@ export const AIChat = () => {
     const handled = await handleSql(sql)
     if (!handled) {
       if (sql.includes("UUID()")) {
-        sql = sql.replace("UUID()", `'${uuidV4()}'`)
+        // bug, all uuid is same
+        // sql = sql.replaceAll("UUID()", `'${uuidV4()}'`)
+        // replace UUID() with uuidv4(), each uuid is unique
+        while (sql.includes("UUID()")) {
+          sql = sql.replace("UUID()", `'${uuidV4()}'`)
+        }
       }
       console.log('set current query', sql)
       setCurrentQuery(sql);
