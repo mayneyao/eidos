@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  Bot,
   Calculator,
   Calendar,
   Palette,
@@ -22,6 +23,7 @@ import {
 import { useKeyPress } from "ahooks"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
+import { useDatabaseAppStore } from "@/app/[database]/store"
 
 export function CommandDialogDemo() {
   const [open, setOpen] = React.useState(false)
@@ -33,6 +35,8 @@ export function CommandDialogDemo() {
     setOpen(!open);
   });
 
+  const { isAiOpen, setIsAiOpen } = useDatabaseAppStore();
+
   const goto = (path: string) => () => {
     setOpen(false)
     router.push(path)
@@ -42,15 +46,20 @@ export function CommandDialogDemo() {
     setTheme(theme === 'light' ? 'dark' : 'light')
   }
 
+  const toggleAI = () => {
+    setOpen(false)
+    setIsAiOpen(!isAiOpen);
+  }
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput placeholder="Type a command or search..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Suggestions">
-          <CommandItem>
-            <Calendar className="mr-2 h-4 w-4" />
-            <span>Calendar</span>
+          <CommandItem onSelect={toggleAI}>
+            <Bot className="mr-2 h-4 w-4" />
+            <span>AI</span>
           </CommandItem>
           <CommandItem>
             <Smile className="mr-2 h-4 w-4" />

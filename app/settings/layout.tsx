@@ -1,3 +1,5 @@
+'use client'
+
 import { Metadata } from "next"
 import Image from "next/image"
 
@@ -6,6 +8,8 @@ import { SidebarNav } from "@/app/settings/components/sidebar-nav"
 import { Minimize2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { useKeyPress } from "ahooks"
+import { useRouter } from "next/navigation"
 
 export const metadata: Metadata = {
   title: "Forms",
@@ -18,8 +22,8 @@ const sidebarNavItems = [
     href: "/settings",
   },
   {
-    title: "Account",
-    href: "/settings/account",
+    title: "AIConfig",
+    href: "/settings/ai",
   },
   {
     title: "Appearance",
@@ -40,6 +44,12 @@ interface SettingsLayoutProps {
 }
 
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
+
+  const router = useRouter()
+  useKeyPress('esc', (e) => {
+    e.preventDefault();
+    router.back();
+  });
 
   return (
     <>

@@ -39,6 +39,7 @@ export function CreateTableDialog() {
       router.push(`/${database}/${tableName}`)
       setOpen(false)
     }
+    setFile(null)
   }
 
   return (

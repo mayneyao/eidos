@@ -125,33 +125,26 @@ export const useSqlite = (dbName?: string) => {
 }
 
 
-export const useTableSchema = (tableName: string) => {
-  const { sqlite } = useSqlite()
-  const [schema, setSchema] = useState<any[]>([])
+export const useTableSchema = (tableName: string, dbName: string) => {
+  const { sqlite } = useSqlite(dbName)
+  const [schema, setSchema] = useState<string>()
 
   useEffect(() => {
     if (!sqlite) return;
     sqlite.sql`SELECT * FROM sqlite_schema where name='${tableName}'`.then((res: any) => {
       const sql = res[0][4] + ';';
       console.log(sql)
-      if (sql) {
-        try {
-          const compactJsonTablesArray = sqlToJSONSchema2(sql)
-          console.log(compactJsonTablesArray)
-          setSchema(compactJsonTablesArray)
-        } catch (error) {
-          console.error('error', error)
-        }
-      }
+      setSchema(sql)
     })
-  }, [sqlite, tableName])
+  }, [sqlite, tableName, dbName])
   return schema
 }
 
-export const useTable = (tableName: string, databaseName: string) => {
+export const useTable = (tableName: string, databaseName: string, querySql?: string) => {
   const { sqlite } = useSqlite(databaseName)
   const [data, setData] = useState<any[]>([])
   const [schema, setSchema] = useState<ReturnType<typeof sqlToJSONSchema2>>([])
+  const [tableSchema, setTableSchema] = useState<string>()
 
 
   const updateTableSchema = useCallback(async () => {
@@ -159,6 +152,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     await sqlite.sql`SELECT * FROM sqlite_schema where name='${tableName}'`.then((res: any) => {
       const sql = res[0][4] + ';';
       if (sql) {
+        setTableSchema(sql)
         try {
           const compactJsonTablesArray = sqlToJSONSchema2(sql)
           setSchema(compactJsonTablesArray)
@@ -221,14 +215,31 @@ export const useTable = (tableName: string, databaseName: string) => {
 
   useEffect(() => {
     if (sqlite && tableName) {
-      sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
-        setData(res)
-        updateTableSchema()
-      })
-    }
-  }, [sqlite, tableName, updateTableSchema])
 
-  return { data, setData, schema, updateCell, addField, addRow, deleteRows }
+      if (querySql) {
+        sqlite.sql`${querySql}`.then((res: any) => {
+          if (checkSqlIsModifyTable(querySql)) {
+            updateTableSchema()
+          } else {
+            // only query data
+            setData(res)
+          }
+        })
+      } else {
+        sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
+          setData(res)
+          updateTableSchema()
+        })
+      }
+    }
+  }, [sqlite, tableName, updateTableSchema, querySql])
+
+  return { data, setData, schema, updateCell, addField, addRow, deleteRows, tableSchema }
+}
+
+const checkSqlIsModifyTable = (sql: string) => {
+  const modifyTableSqls = ['CREATE TABLE', 'DROP TABLE', 'ALTER TABLE', 'RENAME TABLE']
+  return modifyTableSqls.some(modifyTableSql => sql.includes(modifyTableSql))
 }
 
 

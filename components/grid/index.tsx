@@ -9,12 +9,13 @@ import DataEditor, {
 import "@glideapps/glide-data-grid/dist/index.css";
 import { useClickAway } from 'ahooks';
 import { useTheme } from "next-themes";
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { Button } from "../ui/button";
 import { FieldAppendPanel } from "./field-append-panel";
 import { ContextMenuDemo } from "./grid-context-menu";
 import { useTableAppStore } from "./store";
 import { darkTheme } from "./theme";
+import { useDatabaseAppStore } from "@/app/[database]/store";
 
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -36,14 +37,24 @@ export default function Grid(props: IGridProps) {
   const { tableName, databaseName } = props;
   const { theme } = useTheme()
   const _theme = theme === "light" ? {} : darkTheme
-  const { data, schema, updateCell, addField, addRow, deleteRows } = useTable(tableName, databaseName)
+  const { setCurrentTableSchema, currentQuery } = useDatabaseAppStore();
+  const { data, schema, tableSchema, updateCell, addField, addRow, deleteRows } = useTable(tableName, databaseName, currentQuery)
   const columns = tableInterface2GridColumn(schema[0]);
-  const { isAddFieldEditorOpen, setIsAddFieldEditorOpen, selection, setSelection } = useTableAppStore();
+  const { isAddFieldEditorOpen, setIsAddFieldEditorOpen, selection, setSelection, clearSelection } = useTableAppStore();
   const ref = useRef<HTMLDivElement>(null);
   useClickAway(() => {
     isAddFieldEditorOpen && setIsAddFieldEditorOpen(false)
   }, ref);
 
+
+  useEffect(() => {
+    tableSchema && setCurrentTableSchema(tableSchema)
+  }, [setCurrentTableSchema, tableSchema])
+
+
+  useEffect(() => {
+    clearSelection()
+  }, [tableName, databaseName, clearSelection])
 
   const getData = useCallback((cell: Item): GridCell => {
     const [columnIndex, rowIndex] = cell;
@@ -71,7 +82,7 @@ export default function Grid(props: IGridProps) {
     updateCell(cell[0], cell[1], newValue.data)
   }, [columns, updateCell]);
 
-  return <div className="h-full p-8">
+  return <div className="h-full p-2">
     <div className="flex h-full">
       <ContextMenuDemo deleteRows={deleteRows}>
         <DataEditor
@@ -114,7 +125,6 @@ export default function Grid(props: IGridProps) {
         </div>
       }
     </div>
-
     <div id="portal" />
   </div>
 }

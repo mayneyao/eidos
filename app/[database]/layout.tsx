@@ -4,6 +4,10 @@ import { SideBar } from "@/components/sidebar";
 import { useSqliteStore } from "@/lib/store";
 import { useParams } from 'next/navigation';
 import { useEffect } from "react";
+import { Nav } from "./nav";
+import { useDatabaseAppStore } from "./store";
+import { AIChat } from "./ai-chat";
+import { cn } from "@/lib/utils";
 
 
 interface RootLayoutProps {
@@ -13,17 +17,41 @@ interface RootLayoutProps {
 export default function DatabaseLayout({ children }: RootLayoutProps) {
   const params = useParams();
   const { setCurrentDatabase } = useSqliteStore();
+  const { isAiOpen, setIsAiOpen } = useDatabaseAppStore();
 
   useEffect(() => {
     setCurrentDatabase(params.database)
   }, [params.database, setCurrentDatabase])
 
-  return <div className="relative  grid  lg:grid-cols-5">
-    <div className="col-span-1 h-screen">
-      <SideBar/>
+  // when chat is open  2:7:3
+  // when chat is close 2:10
+  return <div className="relative  grid h-screen w-screen  lg:grid-cols-12">
+    <div className={
+      cn(
+        "col-span-2 h-screen",
+        // isAiOpen ? "" : "col-span-3",
+      )
+    }>
+      <SideBar />
     </div>
-    <div className="col-span-3 h-screen lg:col-span-4 lg:border-l">
-      {children}
+    <div className={
+      cn(
+        "flex h-screen flex-col lg:border-l",
+        isAiOpen ? "col-span-7" : "col-span-10",
+      )
+    }>
+      <Nav />
+      <div className="h-[calc(100vh-2rem)] overflow-auto">
+        {children}
+      </div>
+    </div>
+    <div className={
+      cn(
+        "h-screen lg:border-l",
+        isAiOpen ? "col-span-3" : "hidden",
+      )
+    }>
+      <AIChat />
     </div>
   </div>
 }

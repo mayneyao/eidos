@@ -8,6 +8,7 @@ import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { ShortCuts } from "@/components/shortcuts"
+import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
   title: {
@@ -45,9 +46,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
             <div className="h-screen w-screen">
               {children}
             </div>
+            {/* global components */}
             <CommandDialogDemo />
             <ShortCuts />
             <TailwindIndicator />
+            <Toaster />
           </ThemeProvider>
         </body>
       </html>
