@@ -1,6 +1,6 @@
 'use client'
 
-import { Metadata } from "next"
+// import { Metadata } from "next"
 import Image from "next/image"
 
 import { Separator } from "@/components/ui/separator"
@@ -11,10 +11,10 @@ import Link from "next/link"
 import { useKeyPress } from "ahooks"
 import { useRouter } from "next/navigation"
 
-export const metadata: Metadata = {
-  title: "Forms",
-  description: "Advanced form example using react-hook-form and Zod.",
-}
+// export const metadata: Metadata = {
+//   title: "Forms",
+//   description: "Advanced form example using react-hook-form and Zod.",
+// }
 
 const sidebarNavItems = [
   {
