@@ -1,21 +1,27 @@
+import { useDatabaseAppStore } from "@/app/[database]/store";
 import { tableInterface2GridColumn } from "@/components/grid/helper";
 import { useTable } from "@/lib/sql";
 import { cn } from "@/lib/utils";
 import DataEditor, {
-  DataEditorProps, EditableGridCell,
+  DataEditorProps,
+  DataEditorRef,
+  EditableGridCell,
   GridCell, GridCellKind,
+  GridColumn,
+  GridMouseEventArgs,
   Item
 } from "@glideapps/glide-data-grid";
 import "@glideapps/glide-data-grid/dist/index.css";
-import { useClickAway } from 'ahooks';
+import { useClickAway, useKeyPress } from 'ahooks';
+import { Plus } from 'lucide-react';
 import { useTheme } from "next-themes";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Button } from "../ui/button";
 import { FieldAppendPanel } from "./field-append-panel";
 import { ContextMenuDemo } from "./grid-context-menu";
 import { useTableAppStore } from "./store";
 import { darkTheme } from "./theme";
-import { useDatabaseAppStore } from "@/app/[database]/store";
+import { GetRowThemeCallback } from "@glideapps/glide-data-grid/dist/ts/data-grid/data-grid-render";
 
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -23,7 +29,30 @@ const defaultConfig: Partial<DataEditorProps> = {
   smoothScrollY: true,
   getCellsForSelection: true,
   width: "100%",
-  freezeColumns: 1
+  freezeColumns: 1,
+  rowMarkers: 'clickable-visible' as any,
+  trailingRowOptions: {
+    tint: true,
+    hint: 'New',
+  },
+  // auto handle copy and paste
+  onPaste: true
+  // experimental: {
+  //   paddingBottom: 300
+  // }
+}
+
+const oddRowOrHoverRowThemeOverride = (isDarkMode: boolean) => {
+  if (isDarkMode) {
+    return {
+      bgCell: "#2d2d2d",
+      bgCellMedium: "#3a3a3a",
+    };
+  }
+  return {
+    bgCell: "#f7f7f7",
+    bgCellMedium: "#f0f0f0",
+  };
 }
 
 
@@ -34,20 +63,42 @@ interface IGridProps {
 
 
 export default function Grid(props: IGridProps) {
+  const [showSearch, setShowSearch] = React.useState(false);
   const { tableName, databaseName } = props;
   const { theme } = useTheme()
   const _theme = theme === "light" ? {} : darkTheme
   const { setCurrentTableSchema, currentQuery, setCurrentQuery } = useDatabaseAppStore();
-
-
+  const glideDataGridRef = useRef<DataEditorRef>(null);
   const { data, schema, tableSchema, updateCell, addField, addRow, deleteRows } = useTable(tableName, databaseName, currentQuery)
-  const columns = tableInterface2GridColumn(schema[0]);
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen, selection, setSelection, clearSelection } = useTableAppStore();
   const ref = useRef<HTMLDivElement>(null);
+
+  // handle column width
+  const _columns = useMemo(() => {
+    return tableInterface2GridColumn(schema[0]);
+  }, [schema])
+
+  const hasResized = React.useRef(new Set<number>());
+  const [columns, setColumns] = React.useState<GridColumn[]>(_columns);
+  useEffect(() => {
+    setColumns(_columns)
+  }, [_columns])
+
+  const onColumnResize = React.useCallback((column: GridColumn, newSize: number) => {
+    const index = columns.findIndex(ci => ci.title === column.title);
+    const newColumns = [...columns];
+    newColumns.splice(index, 1, {
+      ...columns[index],
+      width: newSize,
+    });
+    // const _newColumns = newColumns.map((x, i) => ({ ...x, grow: hasResized.current.has(i) ? undefined : (5 + i) / 5 }));
+    setColumns(newColumns)
+  }, [columns]);
+
+  // effect
   useClickAway(() => {
     isAddFieldEditorOpen && setIsAddFieldEditorOpen(false)
   }, ref);
-
 
   // when switching table, clear current query
   useEffect(() => {
@@ -58,11 +109,36 @@ export default function Grid(props: IGridProps) {
     tableSchema && setCurrentTableSchema(tableSchema)
   }, [setCurrentTableSchema, tableSchema])
 
+  useKeyPress('ctrl.f', (e) => {
+    e.preventDefault()
+    setShowSearch(!showSearch)
+  })
 
   useEffect(() => {
     clearSelection()
   }, [tableName, databaseName, clearSelection])
 
+
+  // hover row style modification
+  const [hoverRow, setHoverRow] = React.useState<number | undefined>(undefined);
+  const onItemHovered = React.useCallback((args: GridMouseEventArgs) => {
+    const [_, row] = args.location;
+    setHoverRow(args.kind !== "cell" ? undefined : row);
+  }, []);
+
+  const getRowThemeOverride = React.useCallback<GetRowThemeCallback>(
+    row => {
+      const isDarkMode = theme === "dark"
+      const isOddRow = row % 2 === 1;
+      if (isOddRow) return oddRowOrHoverRowThemeOverride(isDarkMode);
+      if (row !== hoverRow) return undefined;
+      return oddRowOrHoverRowThemeOverride(isDarkMode);
+    },
+    [hoverRow, theme]
+  );
+
+
+  // data handle
   const getData = useCallback((cell: Item): GridCell => {
     const [columnIndex, rowIndex] = cell;
     const content = data[rowIndex]?.[columnIndex] ?? "";
@@ -80,6 +156,7 @@ export default function Grid(props: IGridProps) {
     }
   }, [data, columns])
 
+  // event handle
   const onCellEdited = React.useCallback(async (cell: Item, newValue: EditableGridCell) => {
     if (newValue.kind !== GridCellKind.Text) {
       // we only have text cells, might as well just die here.
@@ -89,32 +166,36 @@ export default function Grid(props: IGridProps) {
     updateCell(cell[0], cell[1], newValue.data)
   }, [columns, updateCell]);
 
+  console.log(columns)
+
   return <div className="h-full p-2">
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden rounded-md">
       <ContextMenuDemo deleteRows={deleteRows}>
         <DataEditor
           {...defaultConfig}
+          ref={glideDataGridRef}
           theme={_theme}
-          // onCellContextMenu={(_, e) => e.preventDefault()}
+          showSearch={showSearch}
           gridSelection={selection}
+          onItemHovered={onItemHovered}
+          getRowThemeOverride={getRowThemeOverride}
           onGridSelectionChange={setSelection}
+          onColumnResize={(col, _newSize, colIndex, newSizeWithGrow) => {
+            hasResized.current.add(colIndex);
+            onColumnResize(col, newSizeWithGrow);
+          }}
           getCellContent={getData}
-          overscrollX={200}
           maxColumnAutoWidth={500}
           maxColumnWidth={2000}
           fillHandle={true}
           columns={columns ?? []}
           rows={data.length}
-          trailingRowOptions={{
-            tint: true,
-            sticky: true,
-          }}
           rightElement={
             <Button variant="ghost" onClick={() => {
               setIsAddFieldEditorOpen(true)
               addField(`newField${columns.length + 1}`, 'text')
             }}>
-              +
+              <Plus size={16} />
             </Button>
           }
           rightElementProps={{

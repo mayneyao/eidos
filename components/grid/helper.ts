@@ -21,14 +21,20 @@ import { TableInterface } from 'sql-ddl-to-json-schema'
 import { GridCellKind, GridColumn } from "@glideapps/glide-data-grid";
 
 
+const typeIconMap: any = {
+  varchar: "headerString",
+  int: "headerNumber",
+}
 
 export const tableInterface2GridColumn = (table?: TableInterface): GridColumn[] => {
   return table?.columns?.map((column) => {
     return {
       id: column.name,
       title: column.name,
-      with: 150,
-      hasMenu: true,
+      with: 200,
+      // hasMenu: true,
+      icon: typeIconMap[column.type.datatype] ?? "headerString",
+      type: column.type.datatype,
     }
   }) ?? []
 }
