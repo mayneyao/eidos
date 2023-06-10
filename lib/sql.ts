@@ -15,6 +15,7 @@ let worker: Worker;
 const loadWorker = () => {
   if (!worker) {
     worker = new Worker(new URL('@/worker/sql.ts', import.meta.url), { type: 'module' })
+    console.log('new worker')
   }
   return worker
 }
@@ -31,18 +32,22 @@ export const useSqlite = (dbName?: string) => {
       const worker = loadWorker()
       worker.postMessage({ method: 'switchDatabase', params: [dbName], id: switchDdMsgId })
       worker.onmessage = (e) => {
+        console.log('e', e)
         const { id: returnId, result } = e.data
         if (returnId === switchDdMsgId) {
           setCurrentDatabase(dbName)
         }
       }
+      console.log('useSqlite', 'message reg')
     }
   }, [dbName, setCurrentDatabase, isInitialized, currentDatabase])
 
   useEffect(() => {
     const worker = loadWorker()
     worker.onmessage = async (e) => {
+      console.log('all msg', e)
       if (e.data === 'init') {
+        console.log('useSqlite', 'message init')
         setInitialized(true)
       }
     }
@@ -63,7 +68,8 @@ export const useSqlite = (dbName?: string) => {
         }
       }
     })
-    setSQLWorker(SQLWorker)
+    setSQLWorker(SQLWorker);
+    (window as any).SQLWorker = SQLWorker
   }, [dbName, setInitialized])
 
   const queryAllTables = useCallback(async () => {
@@ -154,6 +160,15 @@ export const useSqlite = (dbName?: string) => {
     return handled
   }
 
+  const redo = async () => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
+    SQLWorker.redo()
+  }
+
+  const undo = async () => {
+    if (!SQLWorker) throw new Error('SQLWorker not initialized')
+    SQLWorker.undo()
+  }
 
 
   return {
@@ -166,6 +181,8 @@ export const useSqlite = (dbName?: string) => {
     createTableWithSql,
     updateTableData,
     handleSql,
+    undo,
+    redo,
   }
 }
 
@@ -191,6 +208,15 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
   const [schema, setSchema] = useState<ReturnType<typeof sqlToJSONSchema2>>([])
   const [tableSchema, setTableSchema] = useState<string>()
 
+  useEffect(() => {
+    worker.onmessage = (e) => {
+      console.log(e)
+      const { type, data } = e.data
+      if (type === 'update') {
+        console.log('update', data)
+      }
+    }
+  }, [])
 
   const updateTableSchema = useCallback(async () => {
     if (!sqlite) return;

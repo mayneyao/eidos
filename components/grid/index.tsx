@@ -1,6 +1,6 @@
 import { useDatabaseAppStore } from "@/app/[database]/store";
 import { tableInterface2GridColumn } from "@/components/grid/helper";
-import { useTable } from "@/lib/sql";
+import { useSqlite, useTable } from "@/lib/sql";
 import { cn } from "@/lib/utils";
 import DataEditor, {
   DataEditorProps,
@@ -69,9 +69,22 @@ export default function Grid(props: IGridProps) {
   const _theme = theme === "light" ? {} : darkTheme
   const { setCurrentTableSchema, currentQuery, setCurrentQuery } = useDatabaseAppStore();
   const glideDataGridRef = useRef<DataEditorRef>(null);
+  const { undo, redo } = useSqlite(databaseName)
+
   const { data, schema, tableSchema, updateCell, addField, addRow, deleteRows } = useTable(tableName, databaseName, currentQuery)
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen, selection, setSelection, clearSelection } = useTableAppStore();
   const ref = useRef<HTMLDivElement>(null);
+
+  // handle undo redo
+  useKeyPress('ctrl.z', (e) => {
+    e.preventDefault()
+    undo()
+  })
+
+  useKeyPress('ctrl.shift.z', (e) => {
+    e.preventDefault()
+    redo()
+  })
 
   // handle column width
   const _columns = useMemo(() => {
@@ -165,8 +178,6 @@ export default function Grid(props: IGridProps) {
     if (!columns) return;
     updateCell(cell[0], cell[1], newValue.data)
   }, [columns, updateCell]);
-
-  console.log(columns)
 
   return <div className="h-full p-2">
     <div className="flex h-full overflow-hidden rounded-md">

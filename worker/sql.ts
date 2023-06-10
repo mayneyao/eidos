@@ -1,4 +1,6 @@
 import sqlite3InitModule, { Database, Sqlite3Static } from '@sqlite.org/sqlite-wasm';
+import { SQLiteUndoRedo } from './sql_undo_redo_v2';
+import { isReadOnlySql } from './helper';
 
 
 const OPEN_DEBUG = true
@@ -13,12 +15,52 @@ let _db: SqlDatabase | null = null
 
 export class SqlDatabase {
   db: Database
-
+  undoRedoManager: SQLiteUndoRedo
   constructor(db: Database) {
     this.db = db;
+    this.undoRedoManager = new SQLiteUndoRedo(this);
+    this.activeAllTablesUndoRedo()
   }
 
-  private async exec(sql: string, bind: any[] = []) {
+  public undo() {
+    debug('undo')
+    this.undoRedoManager.callUndo()
+  }
+
+  public redo() {
+    debug('redo')
+    this.undoRedoManager.callRedo()
+  }
+
+  private async activeAllTablesUndoRedo() {
+    const allTables = await this.sql`SELECT name FROM sqlite_master WHERE type='table';`
+    // [undefined] why?
+    const tables = allTables.map(item => item[0])?.filter(Boolean)
+    console.log(tables)
+    if (!tables) {
+      return
+    }
+    this.undoRedoManager.activate(tables);
+  }
+
+  public execute(sql: string, bind: any[] = []) {
+    const res: any[] = []
+    this.db.exec({
+      sql,
+      bind,
+      callback: (row) => {
+        res.push(row)
+      }
+    })
+
+    return {
+      fetchone: () => res[0],
+      fetchall: () => res,
+    }
+  }
+
+  // just execute, no return
+  public exec(sql: string, bind: any[] = []) {
     this.db.exec({
       sql,
       bind,
@@ -42,7 +84,23 @@ export class SqlDatabase {
       }
     })
     debug(res)
+    // when sql will update database, call event
+    if (!isReadOnlySql(sql)) {
+      // delay trigger event
+      setTimeout(() => this.undoRedoManager.event(), 30)
+    }
     return res;
+  }
+
+  public onUpdate() {
+    console.log('call onUpdate')
+    // postMessage({
+    //   type: 'update',
+    //   data: {
+    //     database: this.db.filename,
+    //   }
+    // })
+    console.log('call onUpdate end')
   }
 }
 

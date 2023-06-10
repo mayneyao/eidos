@@ -1,3 +1,5 @@
+'use client'
+
 import { Textarea } from "@/components/ui/textarea";
 import { Configuration, OpenAIApi } from "openai";
 import { useCallback, useRef, useState } from "react";
@@ -137,9 +139,9 @@ export const AIChat = () => {
 
   return <div className="flex h-screen flex-col overflow-auto p-2">
     <div className="flex grow flex-col gap-2 pb-[100px]">
-      {!aiConfig.token && <div className="p-2">
-        you need to set your openai token in <Link href='/settings/ai' className="text-cyan-500">settings</Link> first
-      </div>}
+      {!aiConfig.token && <p className="p-2">
+        you need to set your openai token in <span><Link href='/settings/ai' className="text-cyan-500">settings</Link></span> first
+      </p>}
       {messages.map((message, i) =>
         <div className="flex w-full items-start gap-2 rounded-lg bg-gray-200 p-2 dark:bg-gray-700" key={i}>
           {

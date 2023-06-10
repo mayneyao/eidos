@@ -12,6 +12,8 @@ This project is a local-first, serverless application for creating and managing 
 
 ### Base
 
+➡ is in progress
+
 - [x] Run sqlite-wasm in browser
 - [x] Create a wrapper for sqlite-wasm
 - [x] Render tables
@@ -20,15 +22,17 @@ This project is a local-first, serverless application for creating and managing 
 - [x] Edit a text cell
 - [x] Add a row
 - [x] Add a field
-- [ ] Remove a row
+- [x] Remove a row
+- [x] ai chat bot can generate sql queries & execute
 - [ ] Define field types and map to sqlite type
   - [ ] Edit a field
   - [ ] Remove a field
   - [ ] Custom cell renderer for field types
 - [x] switch/create new database
 - [ ] Import a database
-  - [ ] CSV
+  - [x] CSV
   - [ ] SQLite3
+- [ ] ➡ undo/redo
 - [ ] Export a database
   - [ ] export a table as CSV
   - [ ] export a table as Excel
