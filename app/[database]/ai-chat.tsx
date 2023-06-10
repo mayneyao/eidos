@@ -3,7 +3,7 @@ import { Configuration, OpenAIApi } from "openai";
 import { useCallback, useRef, useState } from "react";
 import { useDatabaseAppStore } from "./store";
 import { Button } from "@/components/ui/button";
-import { User, Bot, Play, Paintbrush } from "lucide-react";
+import { User, Bot, Play, Paintbrush, Loader2 } from "lucide-react";
 import { useConfigStore } from "../settings/store";
 import Link from "next/link";
 import { useSqlite } from "@/lib/sql";
@@ -13,6 +13,7 @@ import { useSqliteStore } from "@/lib/store";
 import { useTableChange } from "./hook";
 import { AIMessage } from "./ai-chat-message-prisma";
 import { useKeyPress } from "ahooks";
+
 
 const getOpenAI = (token: string) => {
   const configuration = new Configuration({
@@ -72,6 +73,7 @@ export const AIChat = () => {
   const { handleSql, } = useSqlite(database);
   const { aiConfig } = useConfigStore();
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<{
     role: "user" | "assistant",
     content: string
@@ -90,7 +92,9 @@ export const AIChat = () => {
   useTableChange(cleanMessages)
 
   const handleSend = async () => {
+    if (loading) return;
     if (!input.trim().length) return;
+    setLoading(true);
     const _messages: any = [...messages, { role: "user", content: input }];
     setMessages(_messages)
     setInput("");
@@ -100,6 +104,7 @@ export const AIChat = () => {
       databaseName: database
     });
     setMessages([..._messages, { role: "assistant", content: response?.content! }])
+    setLoading(false);
   }
 
   const handleEnter = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -120,7 +125,7 @@ export const AIChat = () => {
     }
     // remove comments 
     sql = sql.replace(/--.*\n/g, '\n').replace(/\/\*.*\*\//g, '')
-    
+
     const handled = await handleSql(sql)
     if (!handled) {
       console.log('set current query', sql)
@@ -151,6 +156,9 @@ export const AIChat = () => {
               </>
           }
         </div>)}
+      <div className="flex w-full justify-center">
+        {loading && <Loader2 className="h-5 w-5 animate-spin" />}
+      </div>
 
     </div>
     <div className="sticky bottom-0">
