@@ -291,9 +291,8 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
 
   const deleteRows = async (startIndex: number, endIndex: number) => {
     if (sqlite) {
-      const rowIds = data.slice(startIndex, endIndex).map(row => `'${row[0]}'`)
-      // console.log('deleteRows', data, startIndex, endIndex, rowIds)
-      await sqlite.sql`DELETE FROM ${Symbol(tableName)} WHERE _id IN (${rowIds})`
+      const rowIds = data.slice(startIndex, endIndex).map(row => row[0])
+      await sqlite.sql`DELETE FROM ${Symbol(tableName)} WHERE _id IN ${rowIds}`
       await updateTableSchema()
       await refreshRows()
     }

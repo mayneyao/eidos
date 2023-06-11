@@ -48,6 +48,9 @@ export function buildSql(strings: TemplateStringsArray, ...values: any[]) {
     const value = values[i]
     if (typeof value === 'symbol') {
       sql += value.description + strings[i + 1]
+    } else if (Array.isArray(value)) {
+      sql += `(${Array.from({ length: value.length }).fill('?').join(',')})`
+      bind.push(...value)
     } else {
       sql += '?' + strings[i + 1]
       bind.push(value)

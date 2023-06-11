@@ -43,4 +43,11 @@ describe('buildSQl', () => {
       bind: []
     });
   })
+
+  test('buildSQl with array var', () => {
+    expect(buildSql`select * from books where id in ${[1, 2, 3]}`).toStrictEqual({
+      sql: 'select * from books where id in (?,?,?)',
+      bind: [1, 2, 3]
+    });
+  })
 })
