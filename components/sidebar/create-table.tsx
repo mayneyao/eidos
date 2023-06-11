@@ -33,7 +33,6 @@ export function CreateTableDialog() {
       // await createTableWithSql(res.createTableSql, res.insertSql)
       router.push(`/${database}/${tableName}`)
       setOpen(false)
-      // sqlite!.sql`${res.insertSql}`
     } else {
       await createTable(tableName);
       router.push(`/${database}/${tableName}`)

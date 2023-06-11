@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sqlToJSONSchema2 } from './sqlite/sql2jsonschema';
 import { useSqliteStore } from './store';
 import { getSQLiteFilesInRootDirectory } from './fs';
+import { buildSql } from './sqlite/helper';
 
 
 let worker: Worker;
@@ -56,7 +57,20 @@ export const useSqlite = (dbName?: string) => {
         return function (params: any) {
           const thisCallId = uuidv4();
           const [_params, ...rest] = arguments
-          worker.postMessage({ method, params: [_params, ...rest], id: thisCallId, dbName })
+          if (method === 'sql') {
+            /**
+             * sql`SELECT * FROM ${Symbol(books)} WHERE id = ${1}`.
+             * because sql is a tag function, it will be called with an array of strings and an array of values. 
+             * if values include Symbol, it will can't be transported to worker via postMessage
+             * we need parse to sql first before transport to worker
+             * just for sql`SELECT * FROM ${Symbol(books)} WHERE id = ${1}`. work in main thread and worker thread
+             */
+            const { sql, bind } = buildSql(_params, ...rest)
+            worker.postMessage({ method: 'sql4mainThread', params: [sql, bind], id: thisCallId, dbName })
+          } else {
+            worker.postMessage({ method, params: [_params, ...rest], id: thisCallId, dbName })
+          }
+
           return new Promise((resolve, reject) => {
             worker.onmessage = (e) => {
               const { id: returnId, result } = e.data
@@ -113,19 +127,19 @@ export const useSqlite = (dbName?: string) => {
 
   const deleteTable = async (tableName: string) => {
     if (!SQLWorker) throw new Error('SQLWorker not initialized')
-    await SQLWorker.sql`DROP TABLE ${tableName}`
+    await SQLWorker.sql`DROP TABLE ${Symbol(tableName)}`
     await updateTableList()
   }
 
   const renameTable = async (oldTableName: string, newTableName: string) => {
     if (!SQLWorker) throw new Error('SQLWorker not initialized')
-    await SQLWorker.sql`ALTER TABLE ${oldTableName} RENAME TO ${newTableName}`
+    await SQLWorker.sql`ALTER TABLE ${Symbol(oldTableName)} RENAME TO ${Symbol(newTableName)}`
     await updateTableList()
   }
 
   const duplicateTable = async (oldTableName: string, newTableName: string) => {
     if (!SQLWorker) throw new Error('SQLWorker not initialized')
-    await SQLWorker.sql`CREATE TABLE ${newTableName} AS SELECT * FROM ${oldTableName}`
+    await SQLWorker.sql`CREATE TABLE ${Symbol(newTableName)} AS SELECT * FROM ${Symbol(oldTableName)}`
     await updateTableList()
   }
 
@@ -193,7 +207,7 @@ export const useTableSchema = (tableName: string, dbName: string) => {
 
   useEffect(() => {
     if (!sqlite) return;
-    sqlite.sql`SELECT * FROM sqlite_schema where name='${tableName}'`.then((res: any) => {
+    sqlite.sql`SELECT * FROM sqlite_schema where name=${Symbol(tableName)}`.then((res: any) => {
       const sql = res[0][4] + ';';
       console.log(sql)
       setSchema(sql)
@@ -220,7 +234,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
 
   const updateTableSchema = useCallback(async () => {
     if (!sqlite) return;
-    await sqlite.sql`SELECT * FROM sqlite_schema where name='${tableName}'`.then((res: any) => {
+    await sqlite.sql`SELECT * FROM sqlite_schema where name=${tableName}`.then((res: any) => {
       const sql = res[0][4] + ';';
       if (sql) {
         setTableSchema(sql)
@@ -239,10 +253,10 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
     const rowId = data[row][0];
     if (sqlite) {
       if (filedName !== '_id') {
-        sqlite.sql`UPDATE ${tableName} SET ${filedName} = '${value}' WHERE _id = '${rowId}'`;
+        sqlite.sql`UPDATE ${Symbol(tableName)} SET ${Symbol(filedName)} = ${value} WHERE _id = ${rowId}`;
       }
       // get the updated value, but it will block ui update. expect to success if not throw error
-      // const result2 = await sqlite.sql`SELECT ${filedName} FROM ${tableName} where _id = '${rowId}'`;
+      // const result2 = await sqlite.sql`SELECT ${filedName} FROM ${Symbol(tableName)} where _id = '${rowId}'`;
       // data[row][col] = result2[0]
       data[row][col] = value
       setData([...data])
@@ -251,7 +265,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
 
   const refreshRows = useCallback(async () => {
     if (!sqlite) return;
-    await sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
+    await sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
       setData(res)
     })
   }, [sqlite, tableName])
@@ -261,7 +275,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
       text: 'VARCHAR(128)',
     }
     if (sqlite) {
-      await sqlite.sql`ALTER TABLE ${tableName} ADD COLUMN ${fieldName} ${typeMap[fieldType] ?? 'VARCHAR(128)'};`
+      await sqlite.sql`ALTER TABLE ${Symbol(tableName)} ADD COLUMN ${fieldName} ${typeMap[fieldType] ?? 'VARCHAR(128)'};`
       await updateTableSchema()
     }
   }
@@ -269,7 +283,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
   const addRow = async (params?: any[]) => {
     if (sqlite) {
       const uuid = uuidv4()
-      await sqlite.sql`INSERT INTO ${tableName}(_id) VALUES ('${uuid}')`
+      await sqlite.sql`INSERT INTO ${Symbol(tableName)}(_id) VALUES (${uuid})`
       await updateTableSchema()
       await refreshRows()
     }
@@ -279,7 +293,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
     if (sqlite) {
       const rowIds = data.slice(startIndex, endIndex).map(row => `'${row[0]}'`)
       // console.log('deleteRows', data, startIndex, endIndex, rowIds)
-      await sqlite.sql`DELETE FROM ${tableName} WHERE _id IN (${rowIds})`
+      await sqlite.sql`DELETE FROM ${Symbol(tableName)} WHERE _id IN (${rowIds})`
       await updateTableSchema()
       await refreshRows()
     }
@@ -303,7 +317,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
           }
         })
       } else {
-        sqlite.sql`SELECT * FROM ${tableName}`.then((res: any) => {
+        sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
           setData(res)
           updateTableSchema()
         })

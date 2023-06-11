@@ -130,7 +130,7 @@ export class SQLiteUndoRedo {
   }
 
   private async _makeTriggersForTbl(db: SqlDatabase, tbl: string) {
-    const collist = await db.sql`pragma table_info(${tbl})`;
+    const collist = await db.sql`pragma table_info(${Symbol(tbl)})`;
     let sql = `CREATE TEMP TRIGGER _${tbl}_it AFTER INSERT ON ${tbl} BEGIN\n`;
     sql += '  INSERT INTO undolog VALUES(NULL,';
     sql += `\'DELETE FROM ${tbl} WHERE rowid=\'||new.rowid);\nEND;\n`;

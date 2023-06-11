@@ -1,14 +1,14 @@
 # Notion/Airtable-Like Database running in Browser
 
-This project is a local-first, serverless application for creating and managing databases in the browser. It uses sqlite-wasm to run the database engine locally on the user's machine, meaning all data is stored in the browser and there's no need for a server. It offers PWA support, enabling users to install the app to their desktop.
+This project is a local-first, web application for creating and managing databases in the browser. It uses sqlite-wasm to run the database engine locally on the user's machine, meaning all data is stored in the browser and there's no need for a server.
 
 ## Features
 
-- Local-first storage
-- One-click deployment to Vercel
-- PWA support, install to desktop
+- 100% Local-first, support offline, you own your data!
+- No server required
+- PWA support
 
-## Roadmap/Todo
+## Todo
 
 ### Base
 
@@ -57,6 +57,12 @@ Self-hosted server; this requires running a server locally.
 ## Contributions
 
 Contributions are welcome! Please submit a pull request on GitHub if you'd like to suggest any changes or additions to the project.
+
+before you commit, run `pnpm test` to make sure all tests pass.
+
+```
+pnpm test
+```
 
 ## License
 

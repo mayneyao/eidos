@@ -1,6 +1,6 @@
 import sqlite3InitModule, { Database, Sqlite3Static } from '@sqlite.org/sqlite-wasm';
 import { SQLiteUndoRedo } from './sql_undo_redo_v2';
-import { isReadOnlySql } from './helper';
+import { buildSql, isReadOnlySql } from '@/lib/sqlite/helper';
 
 
 const OPEN_DEBUG = true
@@ -70,20 +70,56 @@ export class SqlDatabase {
     })
   }
 
-  public async sql(strings: TemplateStringsArray, ...values: any[]) {
-    const sql = strings.reduce((prev, curr, i) => {
-      return prev + curr + (values[i] || '')
-    }, '')
-    debug(`[${this.db.filename}] ${sql}`)
+  private execSqlWithBind(sql: string, bind: any[] = []) {
     const res: any[] = []
-    this.db.exec({
-      sql,
-      // returnValue: 'resultRows',
-      callback: (row) => {
-        res.push(row)
-      }
-    })
-    debug(res)
+    try {
+      this.db.exec({
+        sql,
+        bind,
+        // returnValue: 'resultRows',
+        callback: (row) => {
+          res.push(row)
+        }
+      })
+    } catch (error) {
+      console.error(error)
+    }
+    return res;
+  }
+
+  /**
+   * it's a template string function, to execute sql. safe from sql injection
+   * table name and column name need to be Symbol, like Symbol('table_name') or Symbol('column_name')
+   * 
+   * example:
+   * const tableName = "books"
+   * const id = 42
+   * sql`select ${Symbol("title")} from ${Symbol('table_name')} where id = ${id}`.then(console.log)
+   * @param strings 
+   * @param values 
+   * @returns 
+   */
+  public async sql(strings: TemplateStringsArray, ...values: any[]) {
+    const { sql, bind } = buildSql(strings, ...values)
+    const res = this.execSqlWithBind(sql, bind)
+    // when sql will update database, call event
+    if (!isReadOnlySql(sql)) {
+      // delay trigger event
+      setTimeout(() => this.undoRedoManager.event(), 30)
+    }
+    return res;
+  }
+
+  /**
+   * Symbol can't be transformed between main thread and worker thread. 
+   * so we need to parse sql in main thread, then call this function. it will equal to call `sql` function in worker thread
+   * be careful, it just parse sql before, the next logic need to be same with `sql` function
+   * @param sql 
+   * @param bind 
+   * @returns 
+   */
+  public async sql4mainThread(sql: string, bind: any[] = []) {
+    const res = this.execSqlWithBind(sql, bind)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
       // delay trigger event
