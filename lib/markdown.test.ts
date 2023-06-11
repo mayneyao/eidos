@@ -1,7 +1,7 @@
-import { getAllCodeBlocks, getSQLFromMarkdownCodeBlock } from './markdown';
+import { getAllCodeBlocks, getSQLFromMarkdownCodeBlock } from "./markdown"
 
-describe('getAllCodeBlocks', () => {
-  it('should return all code blocks', () => {
+describe("getAllCodeBlocks", () => {
+  it("should return all code blocks", () => {
     const markdown = `
       # Hello World
       \`\`\`sql
@@ -10,11 +10,13 @@ describe('getAllCodeBlocks', () => {
       \`\`\`sql
       SELECT * FROM table;
       \`\`\`
-    `;
-    const codeBlocks = getAllCodeBlocks(markdown);
-    expect(codeBlocks).toHaveLength(2);
-    codeBlocks?.forEach(codeBlock => {
-      expect(getSQLFromMarkdownCodeBlock(codeBlock)).toEqual('SELECT * FROM table;');
+    `
+    const codeBlocks = getAllCodeBlocks(markdown)
+    expect(codeBlocks).toHaveLength(2)
+    codeBlocks?.forEach((codeBlock) => {
+      expect(getSQLFromMarkdownCodeBlock(codeBlock)).toEqual(
+        "SELECT * FROM table;"
+      )
     })
-  });
+  })
 })

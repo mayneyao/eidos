@@ -1,17 +1,15 @@
-'use client'
+"use client"
 
-import { useKeyPress } from 'ahooks';
-import { useTheme } from 'next-themes';
+import { useKeyPress } from "ahooks"
+import { useTheme } from "next-themes"
 
 export function ShortCuts() {
-  const { setTheme, theme } = useTheme();
+  const { setTheme, theme } = useTheme()
 
-  useKeyPress('shift.ctrl.l', (e) => {
-    e.preventDefault();
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  });
+  useKeyPress("shift.ctrl.l", (e) => {
+    e.preventDefault()
+    setTheme(theme === "dark" ? "light" : "dark")
+  })
 
-  return <div>
-
-  </div>
+  return <div></div>
 }

@@ -1,15 +1,15 @@
-'use client'
+"use client"
 
 // import { Metadata } from "next"
 import Image from "next/image"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useKeyPress } from "ahooks"
+import { Minimize2 } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarNav } from "@/app/settings/components/sidebar-nav"
-import { Minimize2 } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { useKeyPress } from "ahooks"
-import { useRouter } from "next/navigation"
 
 // export const metadata: Metadata = {
 //   title: "Forms",
@@ -44,12 +44,11 @@ interface SettingsLayoutProps {
 }
 
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
-
   const router = useRouter()
-  useKeyPress('esc', (e) => {
-    e.preventDefault();
-    router.back();
-  });
+  useKeyPress("esc", (e) => {
+    e.preventDefault()
+    router.back()
+  })
 
   return (
     <>
@@ -78,8 +77,10 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
                 Manage your account settings and set e-mail preferences.
               </p>
             </div>
-            <Button variant="ghost" asChild >
-              <Link href="/"><Minimize2 className="mr-2 h-4 w-4" /> ESC</Link>
+            <Button variant="ghost" asChild>
+              <Link href="/">
+                <Minimize2 className="mr-2 h-4 w-4" /> ESC
+              </Link>
             </Button>
           </div>
           <Separator className="my-6" />

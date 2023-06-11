@@ -1,3 +1,8 @@
+import { useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { Plus } from "lucide-react"
+
+import { useSqlite } from "@/lib/sql"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,21 +15,17 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useSqlite } from "@/lib/sql";
-import { Plus } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
-import { csvFile2Sql } from "./helper";
 
+import { csvFile2Sql } from "./helper"
 
 export function CreateTableDialog() {
   const [open, setOpen] = useState(false)
   const [tableName, setTableName] = useState("")
   const [file, setFile] = useState<File | null>(null)
-  const params = useParams();
-  const router = useRouter();
+  const params = useParams()
+  const router = useRouter()
   const { database } = params
-  const { createTable, createTableWithSql, sqlite } = useSqlite(database);
+  const { createTable, createTableWithSql, sqlite } = useSqlite(database)
 
   const handleCreateTable = async () => {
     if (file) {
@@ -34,7 +35,7 @@ export function CreateTableDialog() {
       router.push(`/${database}/${tableName}`)
       setOpen(false)
     } else {
-      await createTable(tableName);
+      await createTable(tableName)
       router.push(`/${database}/${tableName}`)
       setOpen(false)
     }
@@ -60,23 +61,35 @@ export function CreateTableDialog() {
             <Label htmlFor="name" className="text-right">
               *Name
             </Label>
-            <Input id="name" placeholder="e.g. books" className="col-span-3" value={tableName} onChange={e => setTableName(e.target.value)} />
+            <Input
+              id="name"
+              placeholder="e.g. books"
+              className="col-span-3"
+              value={tableName}
+              onChange={(e) => setTableName(e.target.value)}
+            />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">
               Import
             </Label>
-            <Input id="username" className="col-span-3" type="file" accept=".csv" onChange={
-              (e) => {
+            <Input
+              id="username"
+              className="col-span-3"
+              type="file"
+              accept=".csv"
+              onChange={(e) => {
                 if (e.target.files) {
                   setFile(e.target.files[0])
                 }
-              }
-            } />
+              }}
+            />
           </div>
         </div>
         <DialogFooter>
-          <Button type="submit" onClick={handleCreateTable}>Create</Button>
+          <Button type="submit" onClick={handleCreateTable}>
+            Create
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

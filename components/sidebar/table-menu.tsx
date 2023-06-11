@@ -1,18 +1,6 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger
-} from "@/components/ui/context-menu";
-import { useSqlite } from "@/lib/sql";
+import { useRouter } from "next/navigation"
 
-
-
+import { useSqlite } from "@/lib/sql"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +13,17 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 
 export function AlertDialogDemo() {
   return (
@@ -51,24 +49,25 @@ export function AlertDialogDemo() {
 }
 
 interface ITableItemProps {
-  tableName: string,
-  databaseName: string,
+  tableName: string
+  databaseName: string
   children?: React.ReactNode
 }
 
-
-export function TableItem({ tableName, databaseName, children }: ITableItemProps) {
-  const { deleteTable, duplicateTable } = useSqlite(databaseName);
-  const router = useRouter();
+export function TableItem({
+  tableName,
+  databaseName,
+  children,
+}: ITableItemProps) {
+  const { deleteTable, duplicateTable } = useSqlite(databaseName)
+  const router = useRouter()
   const handleDeleteTable = () => {
     deleteTable(tableName)
     router.push(`/${databaseName}`)
   }
   return (
     <ContextMenu>
-      <ContextMenuTrigger>
-        {children}
-      </ContextMenuTrigger>
+      <ContextMenuTrigger>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-64">
         <ContextMenuItem inset onClick={handleDeleteTable}>
           Remove
@@ -78,7 +77,11 @@ export function TableItem({ tableName, databaseName, children }: ITableItemProps
           Forward
           <ContextMenuShortcut>⌘]</ContextMenuShortcut>
         </ContextMenuItem> */}
-        <ContextMenuItem inset onClick={() => duplicateTable(tableName, `${tableName}_copy`)} disabled>
+        <ContextMenuItem
+          inset
+          onClick={() => duplicateTable(tableName, `${tableName}_copy`)}
+          disabled
+        >
           Duplicate
           {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
         </ContextMenuItem>
@@ -90,7 +93,7 @@ export function TableItem({ tableName, databaseName, children }: ITableItemProps
               <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
             </ContextMenuItem> */}
             <ContextMenuItem>Csv(.csv)</ContextMenuItem>
-            <ContextMenuItem disabled >Excel(.xlsx)</ContextMenuItem>
+            <ContextMenuItem disabled>Excel(.xlsx)</ContextMenuItem>
             {/* <ContextMenuSeparator /> */}
             {/* <ContextMenuItem>Developer Tools</ContextMenuItem> */}
           </ContextMenuSubContent>

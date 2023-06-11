@@ -33,6 +33,8 @@ This project is a local-first, web application for creating and managing databas
   - [x] CSV
   - [ ] SQLite3
 - [ ] ➡ undo/redo
+  - [ ] row level
+  - [ ] field level
 - [ ] Export a database
   - [ ] export a table as CSV
   - [ ] export a table as Excel

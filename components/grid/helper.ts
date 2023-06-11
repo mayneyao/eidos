@@ -1,6 +1,5 @@
-import { v4 as uuidv4 } from 'uuid';
-import Papa from 'papaparse';
-
+import { GridCellKind, GridColumn } from "@glideapps/glide-data-grid"
+import Papa from "papaparse"
 // export declare enum GridCellKind {
 //   Uri = "uri",
 //   Text = "text",
@@ -16,49 +15,49 @@ import Papa from 'papaparse';
 //   Custom = "custom"
 // }
 
-import { TableInterface } from 'sql-ddl-to-json-schema'
-
-import { GridCellKind, GridColumn } from "@glideapps/glide-data-grid";
-
+import { TableInterface } from "sql-ddl-to-json-schema"
+import { v4 as uuidv4 } from "uuid"
 
 const typeIconMap: any = {
   varchar: "headerString",
   int: "headerNumber",
 }
 
-export const tableInterface2GridColumn = (table?: TableInterface): GridColumn[] => {
-  return table?.columns?.map((column) => {
-    return {
-      id: column.name,
-      title: column.name,
-      with: 200,
-      // hasMenu: true,
-      icon: typeIconMap[column.type.datatype] ?? "headerString",
-      type: column.type.datatype,
-    }
-  }) ?? []
+export const tableInterface2GridColumn = (
+  table?: TableInterface
+): GridColumn[] => {
+  return (
+    table?.columns?.map((column) => {
+      return {
+        id: column.name,
+        title: column.name,
+        with: 200,
+        // hasMenu: true,
+        icon: typeIconMap[column.type.datatype] ?? "headerString",
+        type: column.type.datatype,
+      }
+    }) ?? []
+  )
 }
 
 export const guessCellKind = (value: any) => {
-
-  const valueType = typeof value;
+  const valueType = typeof value
   switch (valueType) {
     case "string":
       if (value.startsWith("http")) {
-        return GridCellKind.Uri;
+        return GridCellKind.Uri
       }
-      return GridCellKind.Text;
+      return GridCellKind.Text
     case "number":
-      return GridCellKind.Number;
+      return GridCellKind.Number
     case "boolean":
-      return GridCellKind.Boolean;
+      return GridCellKind.Boolean
     case "object":
-      return GridCellKind.Text;
+      return GridCellKind.Text
     default:
-      return GridCellKind.Text;
+      return GridCellKind.Text
   }
 }
-
 
 export const createTableWithSql = (tableName: string, sql: string) => {
   const createTableSql = `

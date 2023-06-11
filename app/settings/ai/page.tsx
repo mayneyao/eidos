@@ -1,4 +1,5 @@
 import { Separator } from "@/components/ui/separator"
+
 import { AIConfigForm } from "./ai-form"
 
 export default function SettingsAccountPage() {

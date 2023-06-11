@@ -1,14 +1,17 @@
 "use client"
 
+import * as React from "react"
+import { useRouter } from "next/navigation"
+import { useKeyPress } from "ahooks"
 import {
   Bot,
   Calculator,
   Calendar,
   Palette,
   Settings,
-  Smile
+  Smile,
 } from "lucide-react"
-import * as React from "react"
+import { useTheme } from "next-themes"
 
 import {
   CommandDialog,
@@ -20,9 +23,6 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
-import { useKeyPress } from "ahooks"
-import { useTheme } from "next-themes"
-import { useRouter } from "next/navigation"
 import { useDatabaseAppStore } from "@/app/[database]/store"
 
 export function CommandDialogDemo() {
@@ -30,12 +30,12 @@ export function CommandDialogDemo() {
 
   const { theme, setTheme } = useTheme()
   const router = useRouter()
-  useKeyPress('ctrl.k', (e) => {
-    e.preventDefault();
-    setOpen(!open);
-  });
+  useKeyPress("ctrl.k", (e) => {
+    e.preventDefault()
+    setOpen(!open)
+  })
 
-  const { isAiOpen, setIsAiOpen } = useDatabaseAppStore();
+  const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
 
   const goto = (path: string) => () => {
     setOpen(false)
@@ -43,12 +43,12 @@ export function CommandDialogDemo() {
   }
 
   const switchTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light')
+    setTheme(theme === "light" ? "dark" : "light")
   }
 
   const toggleAI = () => {
     setOpen(false)
-    setIsAiOpen(!isAiOpen);
+    setIsAiOpen(!isAiOpen)
   }
 
   return (
@@ -77,7 +77,7 @@ export function CommandDialogDemo() {
             <span>Switch Theme</span>
             <CommandShortcut>⌘+Shift+L</CommandShortcut>
           </CommandItem>
-          <CommandItem onSelect={goto('/settings')}>
+          <CommandItem onSelect={goto("/settings")}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
             <CommandShortcut>⌘S</CommandShortcut>
