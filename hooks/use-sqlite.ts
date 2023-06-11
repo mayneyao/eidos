@@ -13,12 +13,12 @@ import { createTemplateTableSql } from "@/components/grid/helper"
 
 let worker: Worker
 
-const loadWorker = () => {
+export const getWorker = () => {
   if (!worker) {
-    worker = new Worker(new URL("@/worker/sql.ts", import.meta.url), {
+    worker = new Worker(new URL("@/worker/index.ts", import.meta.url), {
       type: "module",
     })
-    logger.info("new worker")
+    logger.info("load worker")
   }
   return worker
 }
@@ -38,36 +38,30 @@ export const useSqlite = (dbName?: string) => {
     if (dbName && isInitialized) {
       if (currentDatabase === dbName) return
       const switchDdMsgId = uuidv4()
-      const worker = loadWorker()
+      const worker = getWorker()
       worker.postMessage({
-        method: "switchDatabase",
-        params: [dbName],
+        type: MsgType.SwitchDatabase,
+        data: {
+          databaseName: dbName,
+        },
         id: switchDdMsgId,
       })
       worker.onmessage = (e) => {
-        const { id: returnId, result } = e.data
+        const { id: returnId, data } = e.data
         if (returnId === switchDdMsgId) {
-          setCurrentDatabase(dbName)
+          setCurrentDatabase(data.dbName)
         }
       }
     }
   }, [dbName, setCurrentDatabase, isInitialized, currentDatabase])
 
   useEffect(() => {
-    const worker = loadWorker()
+    const worker = getWorker()
     worker.onmessage = async (e) => {
       if (e.data === "init") {
         setInitialized(true)
       }
     }
-    worker.postMessage({
-      type: MsgType.SetConfig,
-      data: {
-        config: {
-          test: 1,
-        },
-      },
-    })
     const SQLWorker = new Proxy<SqlDatabase>({} as any, {
       get(target, method) {
         return function (params: any) {
@@ -83,23 +77,29 @@ export const useSqlite = (dbName?: string) => {
              */
             const { sql, bind } = buildSql(_params, ...rest)
             worker.postMessage({
-              method: "sql4mainThread",
-              params: [sql, bind],
+              type: MsgType.CallFunction,
+              data: {
+                method: "sql4mainThread",
+                params: [sql, bind],
+                dbName,
+              },
               id: thisCallId,
-              dbName,
             })
           } else {
             worker.postMessage({
-              method,
-              params: [_params, ...rest],
+              type: MsgType.CallFunction,
+              data: {
+                method,
+                params: [_params, ...rest],
+                dbName,
+              },
               id: thisCallId,
-              dbName,
             })
           }
 
           return new Promise((resolve, reject) => {
             worker.onmessage = (e) => {
-              const { id: returnId, result, type, data } = e.data
+              const { id: returnId, type, data } = e.data
               switch (type) {
                 case MsgType.Error:
                   toast({
@@ -109,11 +109,13 @@ export const useSqlite = (dbName?: string) => {
                   })
                   break
                 case MsgType.DataUpdateSignal:
+                  console.log("data update signal", e)
                   window.postMessage(e.data)
                   break
+                // req-resp msg need to match id
                 case MsgType.QueryResp:
                   if (returnId === thisCallId) {
-                    resolve(result)
+                    resolve(data.result)
                   }
                   break
                 default:

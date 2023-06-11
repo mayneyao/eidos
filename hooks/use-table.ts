@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 
+import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import {
   checkSqlIsModifyTableData,
@@ -48,11 +49,12 @@ export const useTable = (
   useEffect(() => {
     window.onmessage = (e) => {
       const { type, data } = e.data
-      if (type === "update") {
+      if (type === MsgType.DataUpdateSignal && data.database === databaseName) {
+        console.log("refreshRows")
         refreshRows()
       }
     }
-  }, [refreshRows])
+  }, [refreshRows, databaseName])
 
   const updateTableSchema = useCallback(async () => {
     if (!sqlite) return

@@ -4,10 +4,13 @@ import { useEffect } from "react"
 import dynamic from "next/dynamic"
 import { useParams } from "next/navigation"
 
+import { MsgType } from "@/lib/const"
 import { useSqliteStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { getWorker } from "@/hooks/use-sqlite"
 import { SideBar } from "@/components/sidebar"
 
+import { useConfigStore } from "../settings/store"
 import { Nav } from "./nav"
 import { useDatabaseAppStore } from "./store"
 
@@ -24,6 +27,17 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
   const params = useParams()
   const { setCurrentDatabase } = useSqliteStore()
   const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
+  const { experiment } = useConfigStore()
+
+  useEffect(() => {
+    const worker = getWorker()
+    worker.postMessage({
+      type: MsgType.SetConfig,
+      data: {
+        experiment,
+      },
+    })
+  }, [experiment])
 
   useEffect(() => {
     setCurrentDatabase(params.database)

@@ -4,4 +4,5 @@ export enum MsgType {
   QueryResp = "QueryResp",
   SetConfig = "SetConfig",
   CallFunction = "CallFunction",
+  SwitchDatabase = "SwitchDatabase",
 }

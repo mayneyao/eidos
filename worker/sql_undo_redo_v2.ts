@@ -110,6 +110,7 @@ export class SQLiteUndoRedo {
 
   public refresh(): void {
     logger.info("refresh")
+    // logger.info(this.undo.undostack, this.undo.redostack)
   }
 
   public reload_all(): void {

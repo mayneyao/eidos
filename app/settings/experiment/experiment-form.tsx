@@ -35,7 +35,7 @@ const defaultValues: Partial<ExperimentFormValues> = {
 }
 
 export function ExperimentForm() {
-  const { experiment } = useConfigStore()
+  const { experiment, setExperiment } = useConfigStore()
   const form = useForm<ExperimentFormValues>({
     resolver: zodResolver(experimentFormSchema),
     defaultValues: {
@@ -45,6 +45,7 @@ export function ExperimentForm() {
   })
 
   function onSubmit(data: ExperimentFormValues) {
+    setExperiment(data)
     toast({
       title: "You submitted the following values:",
       description: (
