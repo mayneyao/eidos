@@ -4,9 +4,12 @@ import { v4 as uuidv4 } from "uuid"
 import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import {
+  aggregateSql2columns,
   checkSqlIsModifyTableData,
   checkSqlIsModifyTableSchema,
   checkSqlIsOnlyQuery,
+  isAggregated,
+  queryData2JSON,
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
 
@@ -132,7 +135,21 @@ export const useTable = (
             updateTableSchema()
           }
           if (checkSqlIsOnlyQuery(querySql)) {
+            const originSchema = tableSchema
+              ? sqlToJSONSchema2(tableSchema)
+              : []
+            const fields =
+              originSchema[0]?.columns?.map((col) => col.name) ?? []
+            const compactJsonTablesArray = aggregateSql2columns(
+              querySql,
+              fields
+            )
+            const queryFields =
+              compactJsonTablesArray.columns.map((col: any) => col.name) ?? []
+            setSchema([compactJsonTablesArray])
             setData(res)
+            const jsonData = queryData2JSON(res, queryFields)
+            ;(window as any)._DATA_ = jsonData
           }
           if (checkSqlIsModifyTableData(querySql)) {
             refreshRows()
@@ -145,7 +162,7 @@ export const useTable = (
         })
       }
     }
-  }, [sqlite, tableName, updateTableSchema, querySql, refreshRows])
+  }, [sqlite, tableName, updateTableSchema, querySql, refreshRows, tableSchema])
 
   return {
     data,

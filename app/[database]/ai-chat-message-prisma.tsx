@@ -16,7 +16,7 @@ export const AIMessage = ({
   onRun,
 }: {
   message: string
-  onRun: (sql: string) => void
+  onRun: (sql: string, lang: string) => void
 }) => {
   const renderers: MarkdownRenderers = {
     ...DEFAULT_MARKDOWN_RENDERERS,
@@ -38,7 +38,7 @@ export const AIMessage = ({
           <Button
             className=" absolute right-0 top-0 text-gray-300"
             variant="ghost"
-            onClick={() => onRun(text)}
+            onClick={() => onRun(text, lang)}
           >
             <Play className="h-4 w-4" />
           </Button>

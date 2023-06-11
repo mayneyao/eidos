@@ -4,12 +4,14 @@ import { useCallback, useRef, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useKeyPress } from "ahooks"
+import * as d3 from "d3"
 import { Bot, Loader2, Paintbrush, User } from "lucide-react"
 import { Configuration, OpenAIApi } from "openai"
 import { v4 as uuidV4 } from "uuid"
 
 import { getAllCodeBlocks, getSQLFromMarkdownCodeBlock } from "@/lib/markdown"
 import { useSqliteStore } from "@/lib/store"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -17,7 +19,6 @@ import { useConfigStore } from "../settings/store"
 import { AIMessage } from "./ai-chat-message-prisma"
 import { useTableChange } from "./hook"
 import { useDatabaseAppStore } from "./store"
-import { useSqlite } from "@/hooks/use-sqlite"
 
 const getOpenAI = (token: string) => {
   const configuration = new Configuration({
@@ -39,7 +40,10 @@ const askAI = async (
   const openai = getOpenAI(token)
   const { tableSchema, allTables, databaseName } = context
 
-  const baseSysPrompt = `you're a sql generator. must abide by the following rules:
+  const baseSysPrompt = `you're a sql generator and a d3.js master. must abide by the following rules:
+  *important: if user doesn't have intention to generate a d3.js chart, you can just return sql.*
+
+  when you act as a sql generator:
   1. your engine is sqlite, what you return is *pure sql* that can be executed in sqlite
   2. you return markdown, sql you return must be wrapped in \`\`\`sql\`\`\`. sql without no comments
   3. all table have a primary key named *_id* varchar(32)
@@ -48,6 +52,14 @@ const askAI = async (
   6. when insert,must include _id column, the value is a function named *UUID()*
   7. must abide rules above, otherwise you will be punished
 
+  when you act as a d3.js master:
+  1. generate a d3.js chart based on the sql you return
+  2. you can use any d3.js chart you want
+  4. you *can't use d3.json("xxxx.json")* to load data, data will be passed to you as a json array, you can use it directly, variable name is *_DATA_*.
+  5. your d3.js code begin with: 
+\`\`\`js
+const svg = d3.select("#chart").append("svg").attr("width", 500).attr("height", 500)
+\`\`\`
 `
   const contextPrompt = tableSchema
     ? `\ncontext below:
@@ -86,7 +98,7 @@ const getAllSqlFromMessage = (content: string) => {
 export const AIChat = () => {
   const { currentTableSchema, setCurrentQuery } = useDatabaseAppStore()
   const { database, table } = useParams()
-  const { handleSql } = useSqlite(database)
+  const { handleSql, sqlite } = useSqlite(database)
   const { aiConfig } = useConfigStore()
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
@@ -121,10 +133,11 @@ export const AIChat = () => {
       allTables,
       databaseName: database,
     })
-    setMessages([
+    const newMessages = [
       ..._messages,
       { role: "assistant", content: response?.content! },
-    ])
+    ]
+    setMessages(newMessages)
     if (response?.content && aiConfig.autoRunScope) {
       const sqls = getAllSqlFromMessage(response?.content)
       for (const sql of sqls) {
@@ -143,7 +156,6 @@ export const AIChat = () => {
       handleSend()
     }
   }
-
   const handleSendQuery = useCallback(
     async (sql: string) => {
       if (sql.includes("UUID()")) {
@@ -158,12 +170,35 @@ export const AIChat = () => {
       sql = sql.replace(/--.*\n/g, "\n").replace(/\/\*.*\*\//g, "")
       const handled = await handleSql(sql)
       if (!handled) {
+        // if (isAggregated(sql) && sqlite) {
+        //   // execute aggregated sql, put result in message
+        //   const result = await sqlite.sql`${sql}`
+        // }
         console.log("set current query", sql)
         setCurrentQuery(sql)
       }
     },
     [handleSql, setCurrentQuery]
   )
+  const handleRunCode = (code: string, lang: string) => {
+    switch (lang) {
+      case "sql":
+        handleSendQuery(code)
+        break
+      case "js":
+        // eslint-disable-next-line no-eval
+        try {
+          const svg = d3.select("#chart").select("svg")
+          if (!svg.empty()) {
+            svg.remove()
+          }
+        } catch (error) {}
+        eval(code)
+        break
+      default:
+        break
+    }
+  }
 
   return (
     <div className="flex h-screen flex-col overflow-auto p-2">
@@ -187,7 +222,7 @@ export const AIChat = () => {
             {message.role === "assistant" ? (
               <>
                 <Bot className="h-4 w-4 shrink-0" />
-                <AIMessage message={message.content} onRun={handleSendQuery} />
+                <AIMessage message={message.content} onRun={handleRunCode} />
               </>
             ) : (
               <>

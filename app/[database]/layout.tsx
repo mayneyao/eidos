@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import dynamic from "next/dynamic"
 import { useParams } from "next/navigation"
+import * as d3 from "d3"
 
 import { MsgType } from "@/lib/const"
 import { useSqliteStore } from "@/lib/store"
@@ -37,6 +38,7 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
         experiment,
       },
     })
+    ;(window as any).d3 = d3
   }, [experiment])
 
   useEffect(() => {
@@ -62,7 +64,10 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
         )}
       >
         <Nav />
-        <div className="h-[calc(100vh-2rem)] overflow-auto">{children}</div>
+        <div className="flex h-[calc(100vh-2rem)] overflow-auto">
+          <div className="grow">{children}</div>
+          <div id="chart" />
+        </div>
       </div>
       <div
         className={cn(
