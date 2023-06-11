@@ -11,7 +11,8 @@ export const useConfigStore = create<ConfigState>()(
   persist(
     (set) => ({
       aiConfig: {
-        token: ''
+        token: '',
+        autoRunScope: []
       },
       setAiConfig: (aiConfig) => set({ aiConfig }),
     }),

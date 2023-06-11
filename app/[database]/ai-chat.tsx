@@ -1,21 +1,21 @@
 'use client'
 
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { getAllCodeBlocks, getSQLFromMarkdownCodeBlock } from "@/lib/markdown";
+import { useSqlite } from "@/lib/sql";
+import { useSqliteStore } from "@/lib/store";
+import { useKeyPress } from "ahooks";
+import { Bot, Loader2, Paintbrush, User } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { Configuration, OpenAIApi } from "openai";
 import { useCallback, useRef, useState } from "react";
-import { useDatabaseAppStore } from "./store";
-import { Button } from "@/components/ui/button";
-import { User, Bot, Play, Paintbrush, Loader2 } from "lucide-react";
-import { useConfigStore } from "../settings/store";
-import Link from "next/link";
-import { useSqlite } from "@/lib/sql";
-import { useParams } from "next/navigation";
 import { v4 as uuidV4 } from "uuid";
-import { useSqliteStore } from "@/lib/store";
-import { useTableChange } from "./hook";
+import { useConfigStore } from "../settings/store";
 import { AIMessage } from "./ai-chat-message-prisma";
-import { useKeyPress } from "ahooks";
-
+import { useTableChange } from "./hook";
+import { useDatabaseAppStore } from "./store";
 
 const getOpenAI = (token: string) => {
   const configuration = new Configuration({
@@ -69,6 +69,12 @@ const askAI = async (token: string, messages: any[], context: {
 }
 
 
+const getAllSqlFromMessage = (content: string) => {
+  const codeBlocks = getAllCodeBlocks(content)
+  const sqls = (codeBlocks ?? []).map(codeBlock => getSQLFromMarkdownCodeBlock(codeBlock))
+  return sqls
+}
+
 export const AIChat = () => {
   const { currentTableSchema, setCurrentQuery, } = useDatabaseAppStore();
   const { database, table } = useParams();
@@ -86,6 +92,8 @@ export const AIChat = () => {
   }, [])
 
   const textInputRef = useRef<HTMLTextAreaElement>();
+
+
 
   useKeyPress("ctrl.forwardslash", () => {
     textInputRef.current?.focus();
@@ -106,6 +114,15 @@ export const AIChat = () => {
       databaseName: database
     });
     setMessages([..._messages, { role: "assistant", content: response?.content! }])
+    if (response?.content && aiConfig.autoRunScope) {
+      const sqls = getAllSqlFromMessage(response?.content)
+      for (const sql of sqls) {
+        const scope = sql?.trim().toUpperCase().slice(0, 6)
+        if (sql && scope) {
+          aiConfig.autoRunScope.includes(scope) && await handleSendQuery(sql)
+        }
+      }
+    }
     setLoading(false);
   }
 
@@ -116,7 +133,7 @@ export const AIChat = () => {
     }
   }
 
-  const handleSendQuery = async (sql: string) => {
+  const handleSendQuery = useCallback(async (sql: string) => {
     if (sql.includes("UUID()")) {
       // bug, all uuid is same
       // sql = sql.replaceAll("UUID()", `'${uuidV4()}'`)
@@ -127,13 +144,12 @@ export const AIChat = () => {
     }
     // remove comments 
     sql = sql.replace(/--.*\n/g, '\n').replace(/\/\*.*\*\//g, '')
-
     const handled = await handleSql(sql)
     if (!handled) {
       console.log('set current query', sql)
       setCurrentQuery(sql);
     }
-  }
+  }, [handleSql, setCurrentQuery])
 
 
 

@@ -11,6 +11,7 @@ import {
 
 
 export const AIMessage = ({ message, onRun }: { message: string, onRun: (sql: string) => void }) => {
+
   const renderers: MarkdownRenderers = {
     ...DEFAULT_MARKDOWN_RENDERERS,
     codespan: function CodeSpan({ children }) {
