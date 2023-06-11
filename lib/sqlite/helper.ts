@@ -36,6 +36,14 @@ export function isReadOnlySql(sql: string) {
 export function buildSql(strings: TemplateStringsArray, ...values: any[]) {
   const bind: any[] = []
   let sql = strings[0]
+
+  // if all strings are empty, e.g. sql`${sql} ${sql2}`, just concat values
+  if (strings.filter(item => item.trim().length > 0).length === 0) {
+    return {
+      sql: values.join(' '),
+      bind: []
+    }
+  }
   for (let i = 0; i < values.length; i++) {
     const value = values[i]
     if (typeof value === 'symbol') {

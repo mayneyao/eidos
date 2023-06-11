@@ -83,6 +83,9 @@ export class SqlDatabase {
       })
     } catch (error) {
       console.error(error)
+      console.log({
+        sql, bind
+      })
     }
     return res;
   }

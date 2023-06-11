@@ -36,4 +36,11 @@ describe('buildSQl', () => {
       bind: []
     });
   })
+
+  test('buildSQl with only var', () => {
+    expect(buildSql`${'select * from books'}`).toStrictEqual({
+      sql: 'select * from books',
+      bind: []
+    });
+  })
 })
