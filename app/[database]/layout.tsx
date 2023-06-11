@@ -2,13 +2,15 @@
 
 import { SideBar } from "@/components/sidebar";
 import { useSqliteStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
 import { useParams } from 'next/navigation';
 import { useEffect } from "react";
 import { Nav } from "./nav";
 import { useDatabaseAppStore } from "./store";
-import { AIChat } from "./ai-chat";
-import { cn } from "@/lib/utils";
 
+// import { AIChat } from "./ai-chat";
+const AIChat = dynamic(() => import("./ai-chat").then((mod) => mod.AIChat), { ssr: false })
 
 interface RootLayoutProps {
   children: React.ReactNode
