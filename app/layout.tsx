@@ -43,7 +43,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         >
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             {/* APP MODEL， a sidebar and main */}
-            <div className="h-screen w-screen">{children}</div>
+            <div className="h-screen w-screen overflow-auto">{children}</div>
             {/* global components */}
             <CommandDialogDemo />
             <ShortCuts />

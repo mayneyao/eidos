@@ -9,7 +9,6 @@ import DataEditor, {
   Item,
 } from "@glideapps/glide-data-grid"
 
-import { useSqlite, useTable } from "@/lib/sql"
 import { cn } from "@/lib/utils"
 import { tableInterface2GridColumn } from "@/components/grid/helper"
 import { useDatabaseAppStore } from "@/app/[database]/store"
@@ -20,6 +19,9 @@ import { GetRowThemeCallback } from "@glideapps/glide-data-grid/dist/ts/data-gri
 import { useClickAway, useKeyPress } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
+
+import { useSqlite } from "@/hooks/use-sqlite"
+import { useTable } from "@/hooks/use-table"
 
 import { Button } from "../ui/button"
 import { FieldAppendPanel } from "./field-append-panel"

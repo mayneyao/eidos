@@ -3,6 +3,8 @@ import sqlite3InitModule, {
   Sqlite3Static,
 } from "@sqlite.org/sqlite-wasm"
 
+import { devConfig } from "@/config/dev"
+import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 
@@ -21,10 +23,15 @@ export class SqlDatabase {
   constructor(db: Database) {
     this.db = db
     this.undoRedoManager = new SQLiteUndoRedo(this)
-    this.activeAllTablesUndoRedo()
+    if (devConfig.activeUndoRedo) {
+      this.activeAllTablesUndoRedo()
+    }
   }
 
   public undo() {
+    if (!devConfig.activeUndoRedo) {
+      throw new Error("undoRedo not active")
+    }
     debug("undo")
     this.undoRedoManager.callUndo()
   }
@@ -84,9 +91,19 @@ export class SqlDatabase {
           res.push(row)
         },
       })
-    } catch (error) {
+    } catch (error: any) {
       logger.error(error)
       logger.info({ sql, bind })
+      postMessage({
+        type: MsgType.Error,
+        data: {
+          message: error.message,
+          context: {
+            sql,
+            bind,
+          },
+        },
+      })
       throw error
     }
     return res
@@ -232,5 +249,6 @@ onmessage = async (e) => {
   postMessage({
     id,
     result: res,
+    type: MsgType.QueryResp,
   })
 }

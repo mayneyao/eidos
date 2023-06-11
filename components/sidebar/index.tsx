@@ -4,8 +4,9 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 
-import { useAllDatabases, useSqlite } from "@/lib/sql"
 import { useSqliteStore } from "@/lib/store"
+import { useAllDatabases } from "@/hooks/use-database"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Separator } from "@/components/ui/separator"
 import { DatabaseSelect } from "@/components/database-select"
 

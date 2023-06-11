@@ -4,13 +4,12 @@ import { useCallback, useEffect, useState } from "react"
 import type { SqlDatabase } from "@/worker/sql"
 import { v4 as uuidv4 } from "uuid"
 
+import { MsgType } from "@/lib/const"
+import { logger } from "@/lib/log"
+import { buildSql } from "@/lib/sqlite/helper"
+import { useSqliteStore } from "@/lib/store"
+import { toast } from "@/components/ui/use-toast"
 import { createTemplateTableSql } from "@/components/grid/helper"
-
-import { getSQLiteFilesInRootDirectory } from "./fs"
-import { logger } from "./log"
-import { buildSql } from "./sqlite/helper"
-import { sqlToJSONSchema2 } from "./sqlite/sql2jsonschema"
-import { useSqliteStore } from "./store"
 
 let worker: Worker
 
@@ -61,6 +60,14 @@ export const useSqlite = (dbName?: string) => {
         setInitialized(true)
       }
     }
+    worker.postMessage({
+      type: MsgType.SetConfig,
+      data: {
+        config: {
+          test: 1,
+        },
+      },
+    })
     const SQLWorker = new Proxy<SqlDatabase>({} as any, {
       get(target, method) {
         return function (params: any) {
@@ -92,12 +99,25 @@ export const useSqlite = (dbName?: string) => {
 
           return new Promise((resolve, reject) => {
             worker.onmessage = (e) => {
-              const { id: returnId, result, type } = e.data
-              if (type === "update") {
-                window.postMessage(e.data)
-              }
-              if (returnId === thisCallId) {
-                resolve(result)
+              const { id: returnId, result, type, data } = e.data
+              switch (type) {
+                case MsgType.Error:
+                  toast({
+                    title: "Error",
+                    description: data.message,
+                    duration: 5000,
+                  })
+                  break
+                case MsgType.DataUpdateSignal:
+                  window.postMessage(e.data)
+                  break
+                case MsgType.QueryResp:
+                  if (returnId === thisCallId) {
+                    resolve(result)
+                  }
+                  break
+                default:
+                  break
               }
             }
           })
@@ -229,179 +249,4 @@ export const useSqlite = (dbName?: string) => {
     undo,
     redo,
   }
-}
-
-export const useTableSchema = (tableName: string, dbName: string) => {
-  const { sqlite } = useSqlite(dbName)
-  const [schema, setSchema] = useState<string>()
-
-  useEffect(() => {
-    if (!sqlite) return
-    sqlite.sql`SELECT * FROM sqlite_schema where name=${Symbol(
-      tableName
-    )}`.then((res: any) => {
-      const sql = res[0][4] + ";"
-      logger.info(sql)
-      setSchema(sql)
-    })
-  }, [sqlite, tableName, dbName])
-  return schema
-}
-
-export const useTable = (
-  tableName: string,
-  databaseName: string,
-  querySql?: string
-) => {
-  const { sqlite } = useSqlite(databaseName)
-  const [data, setData] = useState<any[]>([])
-  const [schema, setSchema] = useState<ReturnType<typeof sqlToJSONSchema2>>([])
-  const [tableSchema, setTableSchema] = useState<string>()
-
-  const refreshRows = useCallback(async () => {
-    if (!sqlite) return
-    await sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
-      setData(res)
-    })
-  }, [sqlite, tableName])
-
-  useEffect(() => {
-    window.onmessage = (e) => {
-      const { type, data } = e.data
-      if (type === "update") {
-        refreshRows()
-      }
-    }
-  }, [refreshRows])
-
-  const updateTableSchema = useCallback(async () => {
-    if (!sqlite) return
-    await sqlite.sql`SELECT * FROM sqlite_schema where name=${tableName}`.then(
-      (res: any) => {
-        const sql = res[0][4] + ";"
-        if (sql) {
-          setTableSchema(sql)
-          try {
-            const compactJsonTablesArray = sqlToJSONSchema2(sql)
-            setSchema(compactJsonTablesArray)
-          } catch (error) {
-            console.error("error", error)
-          }
-        }
-      }
-    )
-  }, [sqlite, tableName])
-
-  const updateCell = async (col: number, row: number, value: any) => {
-    const filedName = schema[0]?.columns?.[col].name
-    const rowId = data[row][0]
-    if (sqlite) {
-      if (filedName !== "_id") {
-        sqlite.sql`UPDATE ${Symbol(tableName)} SET ${Symbol(
-          filedName
-        )} = ${value} WHERE _id = ${rowId}`
-      }
-      // get the updated value, but it will block ui update. expect to success if not throw error
-      // const result2 = await sqlite.sql`SELECT ${filedName} FROM ${Symbol(tableName)} where _id = '${rowId}'`;
-      // data[row][col] = result2[0]
-      data[row][col] = value
-      setData([...data])
-    }
-  }
-
-  const addField = async (fieldName: string, fieldType: string) => {
-    const typeMap: any = {
-      text: "VARCHAR(128)",
-    }
-    if (sqlite) {
-      await sqlite.sql`ALTER TABLE ${Symbol(
-        tableName
-      )} ADD COLUMN ${fieldName} ${typeMap[fieldType] ?? "VARCHAR(128)"};`
-      await updateTableSchema()
-    }
-  }
-
-  const addRow = async (params?: any[]) => {
-    if (sqlite) {
-      const uuid = uuidv4()
-      await sqlite.sql`INSERT INTO ${Symbol(tableName)}(_id) VALUES (${uuid})`
-      await updateTableSchema()
-      await refreshRows()
-    }
-  }
-
-  const deleteRows = async (startIndex: number, endIndex: number) => {
-    if (sqlite) {
-      const rowIds = data.slice(startIndex, endIndex).map((row) => row[0])
-      await sqlite.sql`DELETE FROM ${Symbol(tableName)} WHERE _id IN ${rowIds}`
-      await updateTableSchema()
-      await refreshRows()
-    }
-  }
-
-  useEffect(() => {
-    if (sqlite && tableName) {
-      if (querySql) {
-        sqlite.sql`${querySql}`.then((res: any) => {
-          if (checkSqlIsModifyTableSchema(querySql)) {
-            updateTableSchema()
-          }
-          if (checkSqlIsOnlyQuery(querySql)) {
-            setData(res)
-          }
-          if (checkSqlIsModifyTableData(querySql)) {
-            refreshRows()
-          }
-        })
-      } else {
-        sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
-          setData(res)
-          updateTableSchema()
-        })
-      }
-    }
-  }, [sqlite, tableName, updateTableSchema, querySql, refreshRows])
-
-  return {
-    data,
-    setData,
-    schema,
-    updateCell,
-    addField,
-    addRow,
-    deleteRows,
-    tableSchema,
-  }
-}
-
-const checkSqlIsModifyTableSchema = (sql: string) => {
-  const modifyTableSqls = [
-    "CREATE TABLE",
-    "DROP TABLE",
-    "ALTER TABLE",
-    "RENAME TABLE",
-  ]
-  return modifyTableSqls.some((modifyTableSql) => sql.includes(modifyTableSql))
-}
-
-const checkSqlIsOnlyQuery = (sql: string) => {
-  const querySqls = ["SELECT", "PRAGMA"]
-  return querySqls.some((querySql) => sql.includes(querySql))
-}
-
-const checkSqlIsModifyTableData = (sql: string) => {
-  const modifyTableSqls = ["INSERT", "UPDATE", "DELETE"]
-  return modifyTableSqls.some((modifyTableSql) => sql.includes(modifyTableSql))
-}
-
-export const useAllDatabases = () => {
-  const { setDatabaseList, databaseList } = useSqliteStore()
-
-  useEffect(() => {
-    getSQLiteFilesInRootDirectory().then((files) => {
-      setDatabaseList(files.map((file) => file.name.split(".")[0]))
-    })
-  }, [setDatabaseList])
-
-  return databaseList
 }

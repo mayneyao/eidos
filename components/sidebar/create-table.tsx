@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 
-import { useSqlite } from "@/lib/sql"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

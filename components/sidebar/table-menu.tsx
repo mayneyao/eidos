@@ -1,6 +1,6 @@
 import { useRouter } from "next/navigation"
 
-import { useSqlite } from "@/lib/sql"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   AlertDialog,
   AlertDialogAction,

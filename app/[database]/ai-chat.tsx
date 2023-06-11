@@ -9,7 +9,6 @@ import { Configuration, OpenAIApi } from "openai"
 import { v4 as uuidV4 } from "uuid"
 
 import { getAllCodeBlocks, getSQLFromMarkdownCodeBlock } from "@/lib/markdown"
-import { useSqlite } from "@/lib/sql"
 import { useSqliteStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -18,6 +17,7 @@ import { useConfigStore } from "../settings/store"
 import { AIMessage } from "./ai-chat-message-prisma"
 import { useTableChange } from "./hook"
 import { useDatabaseAppStore } from "./store"
+import { useSqlite } from "@/hooks/use-sqlite"
 
 const getOpenAI = (token: string) => {
   const configuration = new Configuration({

@@ -1,6 +1,6 @@
 "use client"
 
-import { useAllDatabases } from "@/lib/sql"
+import { useAllDatabases } from "@/hooks/use-database"
 import { DatabaseSelect } from "@/components/database-select"
 
 export default function IndexPage() {

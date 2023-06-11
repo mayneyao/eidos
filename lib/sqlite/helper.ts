@@ -1,3 +1,11 @@
+import { Parser } from "sql-ddl-to-json-schema"
+
+const parser = new Parser("mysql")
+
+export function sqlToJSONSchema2(sqlQuery: string) {
+  return parser.feed(sqlQuery).toCompactJson()
+}
+
 export function isReadOnlySql(sql: string) {
   const readonlySqls = ["SELECT", "PRAGMA", "EXPLAIN", "ANALYZE"]
   return readonlySqls.some((item) => sql.trim().toUpperCase().startsWith(item))
@@ -53,4 +61,24 @@ export function buildSql(strings: TemplateStringsArray, ...values: any[]) {
     sql,
     bind,
   }
+}
+
+export const checkSqlIsModifyTableSchema = (sql: string) => {
+  const modifyTableSqls = [
+    "CREATE TABLE",
+    "DROP TABLE",
+    "ALTER TABLE",
+    "RENAME TABLE",
+  ]
+  return modifyTableSqls.some((modifyTableSql) => sql.includes(modifyTableSql))
+}
+
+export const checkSqlIsOnlyQuery = (sql: string) => {
+  const querySqls = ["SELECT", "PRAGMA"]
+  return querySqls.some((querySql) => sql.includes(querySql))
+}
+
+export const checkSqlIsModifyTableData = (sql: string) => {
+  const modifyTableSqls = ["INSERT", "UPDATE", "DELETE"]
+  return modifyTableSqls.some((modifyTableSql) => sql.includes(modifyTableSql))
 }
