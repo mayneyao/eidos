@@ -78,13 +78,13 @@ export default function Grid(props: IGridProps) {
   // handle undo redo
   useKeyPress('ctrl.z', (e) => {
     e.preventDefault()
-    undo()
+    if (e.shiftKey) {
+      redo()
+    } else {
+      undo()
+    }
   })
 
-  useKeyPress('ctrl.shift.z', (e) => {
-    e.preventDefault()
-    redo()
-  })
 
   // handle column width
   const _columns = useMemo(() => {

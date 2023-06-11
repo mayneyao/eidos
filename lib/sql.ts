@@ -8,6 +8,7 @@ import { sqlToJSONSchema2 } from './sqlite/sql2jsonschema';
 import { useSqliteStore } from './store';
 import { getSQLiteFilesInRootDirectory } from './fs';
 import { buildSql } from './sqlite/helper';
+import { logger } from './log';
 
 
 let worker: Worker;
@@ -16,7 +17,7 @@ let worker: Worker;
 const loadWorker = () => {
   if (!worker) {
     worker = new Worker(new URL('@/worker/sql.ts', import.meta.url), { type: 'module' })
-    console.log('new worker')
+    logger.info('new worker')
   }
   return worker
 }
@@ -33,22 +34,18 @@ export const useSqlite = (dbName?: string) => {
       const worker = loadWorker()
       worker.postMessage({ method: 'switchDatabase', params: [dbName], id: switchDdMsgId })
       worker.onmessage = (e) => {
-        console.log('e', e)
         const { id: returnId, result } = e.data
         if (returnId === switchDdMsgId) {
           setCurrentDatabase(dbName)
         }
       }
-      console.log('useSqlite', 'message reg')
     }
   }, [dbName, setCurrentDatabase, isInitialized, currentDatabase])
 
   useEffect(() => {
     const worker = loadWorker()
     worker.onmessage = async (e) => {
-      console.log('all msg', e)
       if (e.data === 'init') {
-        console.log('useSqlite', 'message init')
         setInitialized(true)
       }
     }
@@ -73,7 +70,10 @@ export const useSqlite = (dbName?: string) => {
 
           return new Promise((resolve, reject) => {
             worker.onmessage = (e) => {
-              const { id: returnId, result } = e.data
+              const { id: returnId, result, type } = e.data
+              if (type === 'update') {
+                window.postMessage(e.data)
+              }
               if (returnId === thisCallId) {
                 resolve(result)
               }
@@ -209,7 +209,7 @@ export const useTableSchema = (tableName: string, dbName: string) => {
     if (!sqlite) return;
     sqlite.sql`SELECT * FROM sqlite_schema where name=${Symbol(tableName)}`.then((res: any) => {
       const sql = res[0][4] + ';';
-      console.log(sql)
+      logger.info(sql)
       setSchema(sql)
     })
   }, [sqlite, tableName, dbName])
@@ -222,15 +222,22 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
   const [schema, setSchema] = useState<ReturnType<typeof sqlToJSONSchema2>>([])
   const [tableSchema, setTableSchema] = useState<string>()
 
+
+  const refreshRows = useCallback(async () => {
+    if (!sqlite) return;
+    await sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
+      setData(res)
+    })
+  }, [sqlite, tableName])
+
   useEffect(() => {
-    worker.onmessage = (e) => {
-      console.log(e)
+    window.onmessage = (e) => {
       const { type, data } = e.data
       if (type === 'update') {
-        console.log('update', data)
+        refreshRows()
       }
     }
-  }, [])
+  }, [refreshRows])
 
   const updateTableSchema = useCallback(async () => {
     if (!sqlite) return;
@@ -263,12 +270,7 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
     }
   }
 
-  const refreshRows = useCallback(async () => {
-    if (!sqlite) return;
-    await sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
-      setData(res)
-    })
-  }, [sqlite, tableName])
+
 
   const addField = async (fieldName: string, fieldType: string) => {
     const typeMap: any = {
@@ -303,15 +305,12 @@ export const useTable = (tableName: string, databaseName: string, querySql?: str
       if (querySql) {
         sqlite.sql`${querySql}`.then((res: any) => {
           if (checkSqlIsModifyTableSchema(querySql)) {
-            console.log("checkSqlIsModifyTable", querySql)
             updateTableSchema()
           }
           if (checkSqlIsOnlyQuery(querySql)) {
-            console.log("checkSqlIsOnlyQuery", querySql)
             setData(res)
           }
           if (checkSqlIsModifyTableData(querySql)) {
-            console.log("checkSqlIsModifyTableData", querySql)
             refreshRows()
           }
         })

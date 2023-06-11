@@ -1,13 +1,12 @@
 import sqlite3InitModule, { Database, Sqlite3Static } from '@sqlite.org/sqlite-wasm';
 import { SQLiteUndoRedo } from './sql_undo_redo_v2';
 import { buildSql, isReadOnlySql } from '@/lib/sqlite/helper';
+import { logger } from '@/lib/log';
 
 
-const OPEN_DEBUG = true
-
-const log = console.log
-const error = console.error
-const debug = OPEN_DEBUG ? console.debug : () => void 0
+const log = logger.info
+const error = logger.error
+const debug = logger.debug
 
 
 // current DB
@@ -36,7 +35,7 @@ export class SqlDatabase {
     const allTables = await this.sql`SELECT name FROM sqlite_master WHERE type='table';`
     // [undefined] why?
     const tables = allTables.map(item => item[0])?.filter(Boolean)
-    console.log(tables)
+    logger.info(tables)
     if (!tables) {
       return
     }
@@ -65,7 +64,7 @@ export class SqlDatabase {
       sql,
       bind,
       callback: (row) => {
-        console.log(row)
+        logger.info(row)
       }
     })
   }
@@ -82,10 +81,9 @@ export class SqlDatabase {
         }
       })
     } catch (error) {
-      console.error(error)
-      console.log({
-        sql, bind
-      })
+      logger.error(error)
+      logger.info({ sql, bind })
+      throw error
     }
     return res;
   }
@@ -97,7 +95,7 @@ export class SqlDatabase {
    * example:
    * const tableName = "books"
    * const id = 42
-   * sql`select ${Symbol("title")} from ${Symbol('table_name')} where id = ${id}`.then(console.log)
+   * sql`select ${Symbol("title")} from ${Symbol('table_name')} where id = ${id}`.then(logger.info)
    * @param strings 
    * @param values 
    * @returns 
@@ -108,7 +106,7 @@ export class SqlDatabase {
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
       // delay trigger event
-      setTimeout(() => this.undoRedoManager.event(), 30)
+      setTimeout(() => this.undoRedoManager.event(), 0)
     }
     return res;
   }
@@ -132,14 +130,12 @@ export class SqlDatabase {
   }
 
   public onUpdate() {
-    console.log('call onUpdate')
-    // postMessage({
-    //   type: 'update',
-    //   data: {
-    //     database: this.db.filename,
-    //   }
-    // })
-    console.log('call onUpdate end')
+    postMessage({
+      type: 'update',
+      data: {
+        database: this.db.filename,
+      }
+    })
   }
 }
 
@@ -221,9 +217,9 @@ onmessage = async (e) => {
   if (!sqlite.sqlite3) {
     throw new Error('sqlite3 not initialized')
   }
-  debug(
-    `sql query dbName ${dbName}\n currentDBName ${_db?.db.filename}`,
-  )
+  // debug(
+  //   `sql query dbName ${dbName}\n currentDBName ${_db?.db.filename}`,
+  // )
   if (!_db || dbName && dbName !== _db.db.filename) {
     _db = loadDatabase(dbName)
   }

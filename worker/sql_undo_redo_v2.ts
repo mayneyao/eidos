@@ -1,3 +1,4 @@
+import { logger } from '@/lib/log';
 import { SqlDatabase } from './sql';
 
 interface StackEntry {
@@ -67,14 +68,16 @@ export class SQLiteUndoRedo {
     this.undo.freeze = -1;
   }
 
+  // when any table is modified, this function is called
   public event(): void {
     if (!this.undo.pending) {
-      this.undo.pending = setTimeout(() => this.barrier());
+      this.undo.pending = setTimeout(() => this.barrier(), 300);
     }
   }
 
+
   public async barrier() {
-    setTimeout(this.undo.pending!)
+    clearTimeout(this.undo.pending);
     this.undo.pending = undefined;
 
     if (!this.undo.active) {
@@ -82,42 +85,36 @@ export class SQLiteUndoRedo {
       return;
     }
 
-    let end = this.db.execute(
+    const end = this.db.execute(
       "SELECT coalesce(max(seq),0) FROM undolog"
     ).fetchone()[0];
 
-    if (this.undo.freeze && end > this.undo.freeze) {
-      end = this.undo.freeze;
-    }
-    const begin = this.undo.firstlog;
+    this.undo.undostack.push({
+      begin: this.undo.firstlog,
+      end,
+    });
+    // logger.info('barrier', this.undo.undostack, this.undo.redostack)
     this._start_interval();
-    if (begin === this.undo.firstlog) {
-      this.refresh();
-      return;
-    }
-    this.undo.undostack.push({ begin, end: this.undo.firstlog });
-    console.log(this.undo.undostack, { begin, end: this.undo.firstlog })
-    this.undo.redostack = [];
     this.refresh();
   }
 
   public callUndo(): void {
-    console.log('undo')
+    logger.info('undo')
     this._step(this.undo.undostack, this.undo.redostack);
   }
 
   public callRedo(): void {
+    logger.info('redo')
     this._step(this.undo.redostack, this.undo.undostack);
   }
 
   public refresh(): void {
-    console.log('refresh')
-    // this.db.onUpdate();
+    logger.info('refresh')
   }
 
   public reload_all(): void {
     const body: string[] = [];
-    console.log('not implemented, but should be')
+    logger.info('not implemented, but should be')
     // for (const ns in global) {
     //   if (Object.prototype.hasOwnProperty.call(global, ns)) {
     //     const fn = global[ns]?.reload;
@@ -161,7 +158,7 @@ export class SQLiteUndoRedo {
       sql += `,\'||quote(old.${name})||\'`;
     }
     sql += `)\');\nEND;\n`;
-    console.log(`Creating triggers for ${tbl}`, sql)
+    logger.info(`Creating triggers for ${tbl}`, sql)
     return sql
   }
 
@@ -177,12 +174,12 @@ export class SQLiteUndoRedo {
         const sql = await this._makeTriggersForTbl(db, tbl);
         db.exec(sql);
       } catch (error) {
-        console.log(`Error creating triggers for ${tbl}`, error)
+        logger.info(`Error creating triggers for ${tbl}`, error)
       }
     }
   }
   private _drop_triggers(): void {
-    console.log('not implemented, but should be')
+    logger.info('not implemented, but should be')
     // const tables = this.db?.all(
     //   `SELECT DISTINCT tbl_name FROM sqlite_master WHERE type='trigger' AND name LIKE '_%_%'`
     // )!;
@@ -199,38 +196,29 @@ export class SQLiteUndoRedo {
       "SELECT coalesce(max(seq),0)+1 FROM undolog").fetchone()[0]
     if (begin > this.undo.firstlog) {
       this.undo.firstlog = begin;
-      this.undo.redostack = [];
-      this.undo.undostack = [];
     }
   }
 
   private _step(from: StackEntry[], to: StackEntry[]): void {
     if (from.length === 0) return;
     const { begin, end } = from.pop()!;
-    this.undo.freeze = end;
+    const newBegin = this.db.execute(
+      "SELECT coalesce(max(seq),0)+1 FROM undolog").fetchone()[0]
     const q1 = `SELECT sql FROM undolog WHERE seq>=${begin} AND seq<=${end} ORDER BY seq DESC`;
     const rows = this.db.execute(q1).fetchall();
     const sql = rows.map((row) => row[0]).join(';\n');
+    // use exec wont trigger event
     this.db.exec(sql);
-    to.push({ begin, end });
-    this._start_interval()
-    this.refresh();
-    console.log(
-      this.undo.undostack,
-      this.undo.redostack,
-    )
+    const newEnd = this.db.execute(
+      "SELECT coalesce(max(seq),0) FROM undolog"
+    ).fetchone()[0];
+
+    to.push({
+      begin: newBegin,
+      end: newEnd
+    });
+    // logger.info(`step ok`)
+    this.db.onUpdate();
+    // logger.info(this.undo.undostack, this.undo.redostack)
   }
 }
-
-
-/**
- * init: 1row. action: add 2
- * undo stack = [delete 2]
- * redo stack = []
- * 
- * call undo -> delete 2 -> state: 1 row
- * undo stack = []
- * redo stack = [add 2]
- * 
- */
-

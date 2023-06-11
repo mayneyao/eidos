@@ -1,3 +1,4 @@
+import { logger } from '@/lib/log';
 import Papa from 'papaparse';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -14,7 +15,7 @@ export const csvFile2Sql = async (file: File, tableName: string): Promise<{
       header: true,
       skipEmptyLines: true,
       complete: (results: any, file: any) => {
-        console.log("Parsing complete:", results, file);
+        logger.info("Parsing complete:", results, file);
         resolve({
           createTableSql, insertSql
         });
