@@ -1,23 +1,33 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { AIConfigFormValues } from './ai/ai-form';
+import { create } from "zustand"
+import { persist } from "zustand/middleware"
+
+import { AIConfigFormValues } from "@/app/settings/ai/ai-form"
+import { ExperimentFormValues } from "@/app/settings/experiment/experiment-form"
 
 interface ConfigState {
-  aiConfig: AIConfigFormValues;
-  setAiConfig: (aiConfig: AIConfigFormValues) => void;
+  aiConfig: AIConfigFormValues
+  experiment: ExperimentFormValues
+  setAiConfig: (aiConfig: AIConfigFormValues) => void
+  setExperiment: (experiment: ExperimentFormValues) => void
 }
 
 export const useConfigStore = create<ConfigState>()(
   persist(
     (set) => ({
       aiConfig: {
-        token: ''
+        token: "",
+        autoRunScope: [],
+      },
+      experiment: {
+        undoRedo: false,
+        aiChat: false,
       },
       setAiConfig: (aiConfig) => set({ aiConfig }),
+      setExperiment: (experiment) => set({ experiment }),
     }),
     {
-      name: 'settings-config',
+      name: "settings-config",
       getStorage: () => localStorage,
-    },
-  ),
+    }
+  )
 )

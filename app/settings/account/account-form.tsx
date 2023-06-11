@@ -170,8 +170,8 @@ export function AccountForm() {
                     >
                       {field.value
                         ? languages.find(
-                          (language) => language.value === field.value
-                        )?.label
+                            (language) => language.value === field.value
+                          )?.label
                         : "Select language"}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>

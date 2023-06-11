@@ -1,16 +1,16 @@
-'use client'
+"use client"
 
-import dynamic from "next/dynamic";
-import { useParams } from "next/navigation";
+import dynamic from "next/dynamic"
+import { useParams } from "next/navigation"
 
 const Grid = dynamic(
   () => {
-    return import("@/components/grid");
+    return import("@/components/grid")
   },
   { ssr: false }
-);
+)
 
 export default function TablePage() {
-  const params = useParams();
+  const params = useParams()
   return <Grid tableName={params.table} databaseName={params.database} />
 }

@@ -1,14 +1,12 @@
 "use client"
 
 import * as React from "react"
+
 import { Button } from "../ui/button"
 import { useTableAppStore } from "./store"
 
-
-
 const FieldTypeSelect = () => {
-
-  const { selectedFieldType, setSelectedFieldType } = useTableAppStore();
+  const { selectedFieldType, setSelectedFieldType } = useTableAppStore()
   const fieldTypes = [
     { name: "Text", value: "text" },
     { name: "Number", value: "number" },
@@ -17,13 +15,13 @@ const FieldTypeSelect = () => {
     { name: "Checkbox", value: "checkbox" },
   ]
 
-  return <div>
-    <h2 className="relative px-6 text-lg font-semibold tracking-tight">
-      Select a field type
-    </h2>
-    <div className="space-y-1 p-2">
-      {
-        fieldTypes.map((field, i) => (
+  return (
+    <div>
+      <h2 className="relative px-6 text-lg font-semibold tracking-tight">
+        Select a field type
+      </h2>
+      <div className="space-y-1 p-2">
+        {fieldTypes.map((field, i) => (
           <Button
             variant="ghost"
             size="sm"
@@ -33,17 +31,18 @@ const FieldTypeSelect = () => {
           >
             {field.name}
           </Button>
-        ))
-      }
+        ))}
+      </div>
     </div>
-  </div>
+  )
 }
 
 export function FieldAppendPanel() {
-  const { selectedFieldType, setSelectedFieldType } = useTableAppStore();
+  const { selectedFieldType, setSelectedFieldType } = useTableAppStore()
 
-  return <div>
-    {selectedFieldType ? <div>{selectedFieldType}</div> : <FieldTypeSelect />}
-  </div>
+  return (
+    <div>
+      {selectedFieldType ? <div>{selectedFieldType}</div> : <FieldTypeSelect />}
+    </div>
+  )
 }
-

@@ -12,18 +12,19 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 
-
 interface IFieldEditorSheetProps {
   tableName: string
   fieldName: string
   children: React.ReactNode
 }
-export function SheetDemo({ tableName, fieldName, children }: IFieldEditorSheetProps) {
+export function SheetDemo({
+  tableName,
+  fieldName,
+  children,
+}: IFieldEditorSheetProps) {
   return (
     <Sheet open>
-      <SheetTrigger asChild>
-        {children}
-      </SheetTrigger>
+      <SheetTrigger asChild>{children}</SheetTrigger>
       <SheetContent position="right" size="sm">
         <SheetHeader>
           <SheetTitle>Edit profile</SheetTitle>

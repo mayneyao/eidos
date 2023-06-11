@@ -1,8 +1,8 @@
-import { create } from 'zustand'
+import { create } from "zustand"
+
 // import { devtools, persist } from 'zustand/middleware'
 
 interface IDatabaseAppState {
-
   isAiOpen: boolean
   setIsAiOpen: (isAiOpen: boolean) => void
 
@@ -11,18 +11,15 @@ interface IDatabaseAppState {
 
   currentQuery: string
   setCurrentQuery: (currentQuery: string) => void
-
 }
 
-export const useDatabaseAppStore = create<IDatabaseAppState>()(
-  (set) => ({
-    isAiOpen: false,
-    setIsAiOpen: (isAiOpen) => set({ isAiOpen }),
+export const useDatabaseAppStore = create<IDatabaseAppState>()((set) => ({
+  isAiOpen: false,
+  setIsAiOpen: (isAiOpen) => set({ isAiOpen }),
 
-    currentTableSchema: '',
-    setCurrentTableSchema: (currentTableSchema) => set({ currentTableSchema }),
+  currentTableSchema: "",
+  setCurrentTableSchema: (currentTableSchema) => set({ currentTableSchema }),
 
-    currentQuery: '',
-    setCurrentQuery: (currentQuery) => set({ currentQuery }),
-  }),
-)
+  currentQuery: "",
+  setCurrentQuery: (currentQuery) => set({ currentQuery }),
+}))

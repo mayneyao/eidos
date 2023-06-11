@@ -32,4 +32,4 @@ export const darkTheme = {
   baseFontStyle: "13px",
   fontFamily:
     "Inter, Roboto, -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Ubuntu, noto, arial, sans-serif",
-};
+}

@@ -4,11 +4,11 @@ import { Metadata } from "next"
 import { siteConfig } from "@/config/site"
 import { fontSans } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
-import { TailwindIndicator } from "@/components/tailwind-indicator"
-import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toaster"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { ShortCuts } from "@/components/shortcuts"
-import { Toaster } from "@/components/ui/toaster"
+import { TailwindIndicator } from "@/components/tailwind-indicator"
+import { ThemeProvider } from "@/components/theme-provider"
 
 export const metadata: Metadata = {
   title: {
@@ -43,9 +43,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         >
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             {/* APP MODEL， a sidebar and main */}
-            <div className="h-screen w-screen">
-              {children}
-            </div>
+            <div className="h-screen w-screen overflow-auto">{children}</div>
             {/* global components */}
             <CommandDialogDemo />
             <ShortCuts />

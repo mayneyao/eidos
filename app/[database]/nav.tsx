@@ -1,4 +1,5 @@
 import {
+  Bot,
   Cloud,
   CreditCard,
   Github,
@@ -7,15 +8,15 @@ import {
   LogOut,
   Mail,
   MessageSquare,
+  MoreHorizontal,
   Plus,
   PlusCircle,
+  RotateCcw,
   Settings,
   User,
   UserPlus,
   Users,
-  Bot,
   XCircle,
-  RotateCcw
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -34,7 +35,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-import { MoreHorizontal } from 'lucide-react'
 import { useDatabaseAppStore } from "./store"
 
 export function DropdownMenuDemo() {
@@ -129,27 +129,28 @@ export function DropdownMenuDemo() {
   )
 }
 
-
-
 export const Nav = () => {
-  const { isAiOpen, setIsAiOpen, currentQuery, setCurrentQuery } = useDatabaseAppStore();
+  const { isAiOpen, setIsAiOpen, currentQuery, setCurrentQuery } =
+    useDatabaseAppStore()
 
   const toggleAi = () => {
     setIsAiOpen(!isAiOpen)
   }
 
   const clearQuery = () => {
-    console.log('clear query')
-    setCurrentQuery('')
+    console.log("clear query")
+    setCurrentQuery("")
   }
 
-  return <div className="flex h-8 items-center justify-between self-end">
-    <Button variant="ghost" onClick={clearQuery}>
-      <RotateCcw className="h-5 w-5" />
-    </Button>
-    <Button variant="ghost" onClick={toggleAi}>
-      <Bot className="h-5 w-5" />
-    </Button>
-    <DropdownMenuDemo></DropdownMenuDemo>
-  </div>
+  return (
+    <div className="flex h-8 items-center justify-between self-end">
+      <Button variant="ghost" onClick={clearQuery}>
+        <RotateCcw className="h-5 w-5" />
+      </Button>
+      <Button variant="ghost" onClick={toggleAi}>
+        <Bot className="h-5 w-5" />
+      </Button>
+      <DropdownMenuDemo></DropdownMenuDemo>
+    </div>
+  )
 }

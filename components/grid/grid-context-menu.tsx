@@ -13,28 +13,31 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { useTableAppStore } from "./store";
+
+import { useTableAppStore } from "./store"
 
 export function ContextMenuDemo({ children, deleteRows }: any) {
-  const { selection, clearSelection } = useTableAppStore();
+  const { selection, clearSelection } = useTableAppStore()
 
-  const count = selection.current?.range.height ?? 0;
+  const count = selection.current?.range.height ?? 0
   return (
     <ContextMenu>
       <ContextMenuTrigger className="h-full w-full">
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onClick={() => {
-          if (!selection.current) {
-            return;
-          }
-          const { y, height } = selection.current?.range;
-          deleteRows(y, y + height)
-          clearSelection()
-        }}>
-          Delete Rows ({count})
-          <ContextMenuShortcut>⌘[</ContextMenuShortcut>
+        <ContextMenuItem
+          inset
+          onClick={() => {
+            if (!selection.current) {
+              return
+            }
+            const { y, height } = selection.current?.range
+            deleteRows(y, y + height)
+            clearSelection()
+          }}
+        >
+          Delete Rows ({count})<ContextMenuShortcut>⌘[</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem inset disabled>
           Forward
