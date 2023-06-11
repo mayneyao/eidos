@@ -34,7 +34,7 @@ export const AIMessage = ({ message, onRun }: { message: string, onRun: (sql: st
       );
     }
   };
-  return <div>
+  return <div className="grow">
     <Markdown
       markdown={message}
       renderers={renderers}

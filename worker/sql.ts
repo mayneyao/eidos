@@ -64,7 +64,7 @@ export class SqlDatabase {
       sql,
       bind,
       callback: (row) => {
-        logger.info(row)
+        // logger.info(row)
       }
     })
   }
