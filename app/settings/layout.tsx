@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarNav } from "@/app/settings/components/sidebar-nav"
 
+import { useLastOpenedDatabase } from "../[database]/hook"
+
 // export const metadata: Metadata = {
 //   title: "Forms",
 //   description: "Advanced form example using react-hook-form and Zod.",
@@ -43,7 +45,9 @@ interface SettingsLayoutProps {
 
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const router = useRouter()
-  const goBack = () => router.push("/")
+  const lastOpenedDatabase = useLastOpenedDatabase()
+  const goBack = () =>
+    lastOpenedDatabase ? router.push(`${lastOpenedDatabase}`) : router.push("/")
   useKeyPress("esc", (e) => {
     e.preventDefault()
     goBack()

@@ -82,3 +82,63 @@ export const checkSqlIsModifyTableData = (sql: string) => {
   const modifyTableSqls = ["INSERT", "UPDATE", "DELETE"]
   return modifyTableSqls.some((modifyTableSql) => sql.includes(modifyTableSql))
 }
+
+export function isAggregated(sql: string): boolean {
+  if (sql.match(/SELECT\s+(SUM|AVG|COUNT|MAX|MIN)\(/i)) {
+    return true
+  }
+
+  if (sql.match(/GROUP\s+BY/i)) {
+    return true
+  }
+
+  if (sql.match(/HAVING/i)) {
+    return true
+  }
+  return false
+}
+
+export const aggregateSql2columns = (sql: string, originFields: string[]) => {
+  const result: any = { columns: [] }
+
+  const matches = sql.match(/SELECT\s+(.*?)\s+FROM\s+(\w+)/i)
+  if (matches) {
+    const [, select, from] = matches
+    const columns = select === "*" ? originFields : select.split(",")
+
+    columns.forEach((column) => {
+      // support "AS as"
+      const [name, alias] = column.trim().split(/\s+as\s+/i)
+      result.columns.push({ name: alias || name, type: "string" })
+    })
+
+    const orderByMatches = sql.match(/ORDER\s+BY\s+(\w+)/i)
+    if (orderByMatches) {
+      const [, orderBy] = orderByMatches
+      result.orderBy = orderBy
+    }
+
+    const limitMatches = sql.match(/LIMIT\s+(\d+)/i)
+    if (limitMatches) {
+      const [, limit] = limitMatches
+      result.limit = parseInt(limit)
+    }
+  }
+  return result
+}
+
+export const getSqlQueryColumns = (sql: string, originSchema: any) => {
+  const fields = originSchema[0]?.columns?.map((col: any) => col.name) ?? []
+  const compactJsonTablesArray = aggregateSql2columns(sql, fields)
+  return compactJsonTablesArray.columns.map((col: any) => col.name) ?? []
+}
+
+export const queryData2JSON = (sqlResult: any[][], fields: string[]) => {
+  return sqlResult.map((row) => {
+    const obj: any = {}
+    row.forEach((value, index) => {
+      obj[fields[index]] = value
+    })
+    return obj
+  })
+}

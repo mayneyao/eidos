@@ -1,4 +1,4 @@
-import { buildSql } from "./helper"
+import { aggregateSql2columns, buildSql } from "./helper"
 
 describe("buildSQl", () => {
   test("buildSQl with table name", () => {
@@ -64,4 +64,30 @@ describe("buildSQl", () => {
       bind: [1, 2, 3],
     })
   })
+})
+
+describe("aggregateSql2columns", () => {
+  it("aggregateSql2columns", () => {
+    const sql = `SELECT rating, COUNT(*) as count FROM movie_review GROUP BY rating ORDER BY rating ASC`
+    const res = aggregateSql2columns(sql, [])
+    expect(res.columns.map((item: any) => item.name)).toStrictEqual([
+      "rating",
+      "count",
+    ])
+  })
+
+  it("aggregateSql2columns2", () => {
+    const sql = `SELECT * FROM movie_review WHERE rating > 7;`
+    const res = aggregateSql2columns(sql, [])
+    expect(res.columns.map((item: any) => item.name)).toStrictEqual([
+      "rating",
+      "count",
+    ])
+  })
+
+
+  
+
+
+
 })

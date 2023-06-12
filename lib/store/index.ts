@@ -1,7 +1,7 @@
 import type { SqlDatabase } from "@/worker/sql"
 import { create } from "zustand"
 
-// import { devtools, persist } from 'zustand/middleware'
+import { sqlToJSONSchema2 } from "../sqlite/helper"
 
 interface SqliteState {
   isInitialized: boolean
@@ -23,6 +23,7 @@ interface SqliteState {
   setDatabaseList: (databaseList: string[]) => void
 }
 
+// not using persist
 export const useSqliteStore = create<SqliteState>()((set) => ({
   isInitialized: false,
   setInitialized: (isInitialized) => set({ isInitialized }),

@@ -1,15 +1,15 @@
 "use client"
 
+// for now it's under database page, maybe move to global later
 import { useCallback, useRef, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useKeyPress } from "ahooks"
+import { useKeyPress, useSize } from "ahooks"
 import { Bot, Loader2, Paintbrush, User } from "lucide-react"
-import { Configuration, OpenAIApi } from "openai"
-import { v4 as uuidV4 } from "uuid"
 
-import { getAllCodeBlocks, getSQLFromMarkdownCodeBlock } from "@/lib/markdown"
 import { useSqliteStore } from "@/lib/store"
+import { useAI } from "@/hooks/use-ai"
+import { useAutoRunCode } from "@/hooks/use-auto-run-code"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -17,79 +17,17 @@ import { useConfigStore } from "../settings/store"
 import { AIMessage } from "./ai-chat-message-prisma"
 import { useTableChange } from "./hook"
 import { useDatabaseAppStore } from "./store"
-import { useSqlite } from "@/hooks/use-sqlite"
-
-const getOpenAI = (token: string) => {
-  const configuration = new Configuration({
-    apiKey: token ?? process.env.OPENAI_API_KEY,
-  })
-  const openai = new OpenAIApi(configuration)
-  return openai
-}
-
-const askAI = async (
-  token: string,
-  messages: any[],
-  context: {
-    tableSchema?: string
-    allTables: string[]
-    databaseName: string
-  }
-) => {
-  const openai = getOpenAI(token)
-  const { tableSchema, allTables, databaseName } = context
-
-  const baseSysPrompt = `you're a sql generator. must abide by the following rules:
-  1. your engine is sqlite, what you return is *pure sql* that can be executed in sqlite
-  2. you return markdown, sql you return must be wrapped in \`\`\`sql\`\`\`. sql without no comments
-  3. all table have a primary key named *_id* varchar(32)
-  4. when create table, must include _id column, but without default value.
-  5. when create all columns except _id are nullable  
-  6. when insert,must include _id column, the value is a function named *UUID()*
-  7. must abide rules above, otherwise you will be punished
-
-`
-  const contextPrompt = tableSchema
-    ? `\ncontext below:
-- database name: ${databaseName}
-- current table schema:\n${tableSchema}
-`
-    : `context below:
-- database name: ${databaseName}
-- all tables: ${allTables.join(", ")}
-- current table schema:\n${tableSchema}
-`
-  const systemPrompt = baseSysPrompt + contextPrompt
-  // console.log(systemPrompt)
-  const completion = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo-0301",
-    temperature: 0,
-    messages: [
-      ...messages,
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-    ],
-  })
-  return completion.data.choices[0].message
-}
-
-const getAllSqlFromMessage = (content: string) => {
-  const codeBlocks = getAllCodeBlocks(content)
-  const sqls = (codeBlocks ?? []).map((codeBlock) =>
-    getSQLFromMarkdownCodeBlock(codeBlock)
-  )
-  return sqls
-}
 
 export const AIChat = () => {
   const { currentTableSchema, setCurrentQuery } = useDatabaseAppStore()
+  const { askAI } = useAI()
   const { database, table } = useParams()
-  const { handleSql } = useSqlite(database)
   const { aiConfig } = useConfigStore()
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
+  const { autoRun: runCode, handleRunCode } = useAutoRunCode()
+  const divRef = useRef<HTMLDivElement>()
+  const size = useSize(divRef)
   const [messages, setMessages] = useState<
     {
       role: "user" | "assistant"
@@ -116,23 +54,24 @@ export const AIChat = () => {
     const _messages: any = [...messages, { role: "user", content: input }]
     setMessages(_messages)
     setInput("")
-    const response = await askAI(aiConfig.token, _messages, {
+    const response = await askAI(_messages, {
       tableSchema: currentTableSchema,
       allTables,
       databaseName: database,
     })
-    setMessages([
+    const newMessages = [
       ..._messages,
       { role: "assistant", content: response?.content! },
-    ])
+    ]
+    const thisMsgIndex = newMessages.length - 1
+    setMessages(newMessages)
     if (response?.content && aiConfig.autoRunScope) {
-      const sqls = getAllSqlFromMessage(response?.content)
-      for (const sql of sqls) {
-        const scope = sql?.trim().toUpperCase().slice(0, 6)
-        if (sql && scope) {
-          aiConfig.autoRunScope.includes(scope) && (await handleSendQuery(sql))
-        }
-      }
+      setTimeout(() => {
+        runCode(response.content, {
+          msgIndex: thisMsgIndex,
+          width: size?.width ?? 300,
+        })
+      }, 1000)
     }
     setLoading(false)
   }
@@ -144,29 +83,11 @@ export const AIChat = () => {
     }
   }
 
-  const handleSendQuery = useCallback(
-    async (sql: string) => {
-      if (sql.includes("UUID()")) {
-        // bug, all uuid is same
-        // sql = sql.replaceAll("UUID()", `'${uuidV4()}'`)
-        // replace UUID() with uuidv4(), each uuid is unique
-        while (sql.includes("UUID()")) {
-          sql = sql.replace("UUID()", `'${uuidV4()}'`)
-        }
-      }
-      // remove comments
-      sql = sql.replace(/--.*\n/g, "\n").replace(/\/\*.*\*\//g, "")
-      const handled = await handleSql(sql)
-      if (!handled) {
-        console.log("set current query", sql)
-        setCurrentQuery(sql)
-      }
-    },
-    [handleSql, setCurrentQuery]
-  )
-
   return (
-    <div className="flex h-screen flex-col overflow-auto p-2">
+    <div
+      className="flex h-screen flex-col overflow-auto p-2"
+      ref={divRef as any}
+    >
       <div className="flex grow flex-col gap-2 pb-[100px]">
         {!aiConfig.token && (
           <p className="p-2">
@@ -187,7 +108,11 @@ export const AIChat = () => {
             {message.role === "assistant" ? (
               <>
                 <Bot className="h-4 w-4 shrink-0" />
-                <AIMessage message={message.content} onRun={handleSendQuery} />
+                <AIMessage
+                  message={message.content}
+                  onRun={handleRunCode}
+                  msgIndex={i}
+                />
               </>
             ) : (
               <>

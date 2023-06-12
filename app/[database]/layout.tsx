@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import dynamic from "next/dynamic"
 import { useParams } from "next/navigation"
+import * as d3 from "d3"
 
 import { MsgType } from "@/lib/const"
 import { useSqliteStore } from "@/lib/store"
@@ -11,6 +12,7 @@ import { getWorker } from "@/hooks/use-sqlite"
 import { SideBar } from "@/components/sidebar"
 
 import { useConfigStore } from "../settings/store"
+import { useLastOpenedDatabase } from "./hook"
 import { Nav } from "./nav"
 import { useDatabaseAppStore } from "./store"
 
@@ -29,6 +31,7 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
   const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
   const { experiment } = useConfigStore()
 
+  useLastOpenedDatabase()
   useEffect(() => {
     const worker = getWorker()
     worker.postMessage({
@@ -37,6 +40,7 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
         experiment,
       },
     })
+    ;(window as any).d3 = d3
   }, [experiment])
 
   useEffect(() => {
@@ -62,7 +66,9 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
         )}
       >
         <Nav />
-        <div className="h-[calc(100vh-2rem)] overflow-auto">{children}</div>
+        <div className="flex h-[calc(100vh-2rem)] overflow-auto">
+          <div className="grow">{children}</div>
+        </div>
       </div>
       <div
         className={cn(
