@@ -141,6 +141,7 @@ export const Nav = () => {
   const { reload } = useTable(table, database)
   const { currentCollaborators } = usePeer()
   const nameList = currentCollaborators.map((c) => c.name)
+  const { isShareMode } = useAppRuntimeStore()
 
   const toggleAi = () => {
     setIsAiOpen(!isAiOpen)
@@ -152,7 +153,7 @@ export const Nav = () => {
       <Button variant="ghost" onClick={reload}>
         <RotateCcw className="h-5 w-5" />
       </Button>
-      <ShareDialog />
+      {!isShareMode && <ShareDialog />}
       <Button variant="ghost" onClick={toggleAi}>
         <Bot className="h-5 w-5" />
       </Button>

@@ -1,13 +1,14 @@
 "use client"
 
-import Link from "next/link"
-import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
+import Link from "next/link"
+import { useParams, useSearchParams } from "next/navigation"
 
-import { DatabaseSelect } from "@/components/database-select"
-import { Separator } from "@/components/ui/separator"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useAllDatabases } from "@/hooks/use-database"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { Separator } from "@/components/ui/separator"
+import { DatabaseSelect } from "@/components/database-select"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
@@ -21,6 +22,7 @@ export const SideBar = () => {
   const { queryAllTables } = useSqlite(database)
   const { setSelectedTable, allTables, setAllTables } = useSqliteStore()
   const databaseList = useAllDatabases()
+  const { isShareMode } = useAppRuntimeStore()
 
   useEffect(() => {
     console.log("side bar loading all tables, database: ")
@@ -31,14 +33,23 @@ export const SideBar = () => {
       })
     }, 100)
   }, [queryAllTables, setAllTables])
+  const searchParams = useSearchParams()
+
+  const databaseHomeLink = `/${database}`
 
   return (
     <div className="flex h-full flex-col p-4">
       <div className="flex items-center justify-between">
-        <h2 className="relative px-6 text-lg font-semibold tracking-tight">
-          <Link href={`/${database}`}>Tables</Link>
-        </h2>
-        <DatabaseSelect databases={databaseList} defaultValue={database} />
+        {!isShareMode && (
+          <h2 className="relative px-6 text-lg font-semibold tracking-tight">
+            <Link href={databaseHomeLink}>Tables</Link>
+          </h2>
+        )}
+        {isShareMode ? (
+          "shareMode"
+        ) : (
+          <DatabaseSelect databases={databaseList} defaultValue={database} />
+        )}
       </div>
       <Separator className="my-2" />
       <ScrollArea className="grow px-2">
@@ -46,23 +57,28 @@ export const SideBar = () => {
           {loading ? (
             <TableListLoading />
           ) : (
-            allTables?.map((table, i) => (
-              <TableItem
-                tableName={table}
-                databaseName={database}
-                key={`${table}`}
-              >
-                <Button
-                  variant={tableName === table ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setSelectedTable(table)}
-                  className="w-full justify-start font-normal"
-                  asChild
+            allTables?.map((table, i) => {
+              const link = isShareMode
+                ? `/share/${database}/${table}?` + searchParams.toString()
+                : `/${database}/${table}`
+              return (
+                <TableItem
+                  tableName={table}
+                  databaseName={database}
+                  key={table}
                 >
-                  <Link href={`/${database}/${table}`}>{table}</Link>
-                </Button>
-              </TableItem>
-            ))
+                  <Button
+                    variant={tableName === table ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setSelectedTable(table)}
+                    className="w-full justify-start font-normal"
+                    asChild
+                  >
+                    <Link href={link}>{table}</Link>
+                  </Button>
+                </TableItem>
+              )
+            })
           )}
         </div>
       </ScrollArea>

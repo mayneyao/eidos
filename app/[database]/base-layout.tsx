@@ -3,11 +3,11 @@
 import dynamic from "next/dynamic"
 import { useParams } from "next/navigation"
 
-import { Loading } from "@/components/loading"
-import { SideBar } from "@/components/sidebar"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { Loading } from "@/components/loading"
+import { SideBar } from "@/components/sidebar"
 
 import { useLayoutInit } from "./hook"
 import { Nav } from "./nav"
@@ -25,9 +25,8 @@ export function DatabaseLayoutBase({
   children: React.ReactNode
   className?: string
 }) {
-  const { database } = useParams()
   const { isAiOpen } = useDatabaseAppStore()
-  const { sqlite } = useSqlite(database)
+  const { sqlite } = useSqlite()
   const { isShareMode } = useAppRuntimeStore()
 
   // event listen should be in useLayoutInit, and just listen once

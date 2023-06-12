@@ -5,6 +5,7 @@ import * as d3 from "d3"
 import { MsgType } from "@/lib/const"
 import { SQLWorker, getWorker } from "@/lib/sqlite/sql-worker"
 import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv4 } from "@/lib/utils"
 import { usePeer } from "@/hooks/use-peer"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
@@ -31,13 +32,14 @@ export const useCurrentDomain = () => {
 
 export const useLastOpenedDatabase = () => {
   const { lastOpenedDatabase, setLastOpenedDatabase } = useAppStore()
+  const { isShareMode } = useAppRuntimeStore()
   const { database, table } = useParams()
 
   useEffect(() => {
-    if (database) {
+    if (!isShareMode && database) {
       setLastOpenedDatabase(database)
     }
-  }, [database, setLastOpenedDatabase])
+  }, [database, isShareMode, setLastOpenedDatabase])
 
   return lastOpenedDatabase
 }

@@ -25,7 +25,10 @@ export default function ShareDatabaseLayout({ children }: RootLayoutProps) {
   const { database } = useParams()
   useEffect(() => {
     setShareMode(true)
-  }, [])
+    return () => {
+      setShareMode(false)
+    }
+  }, [setShareMode])
 
   useEffect(() => {
     // TODO: handle connection
