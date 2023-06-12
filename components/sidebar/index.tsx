@@ -4,9 +4,8 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 
-import { useSqliteStore } from "@/lib/store"
 import { useAllDatabases } from "@/hooks/use-database"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { Separator } from "@/components/ui/separator"
 import { DatabaseSelect } from "@/components/database-select"
 
@@ -21,25 +20,23 @@ export const SideBar = () => {
   const { database, table: tableName } = params
 
   const [loading, setLoading] = useState(true)
-  const { createTable, queryAllTables, sqlite } = useSqlite(database)
+  const { createTable, queryAllTables } = useSqlite(database)
   const { selectedTable, setSelectedTable, allTables, setAllTables } =
     useSqliteStore()
   const databaseList = useAllDatabases()
 
   const router = useRouter()
   useEffect(() => {
-    if (sqlite) {
-      setTimeout(() => {
-        queryAllTables().then((tables) => {
-          setAllTables(tables)
-          setLoading(false)
-        })
-      }, 100)
-    }
-  }, [queryAllTables, setAllTables, sqlite])
+    setTimeout(() => {
+      queryAllTables().then((tables) => {
+        setAllTables(tables)
+        setLoading(false)
+      })
+    }, 100)
+  }, [queryAllTables, setAllTables])
 
   return (
-    <div className="flex h-screen flex-col p-4">
+    <div className="flex h-full flex-col p-4">
       <div className="flex items-center justify-between">
         <h2 className="relative px-6 text-lg font-semibold tracking-tight">
           <Link href={`/${database}`}>Tables</Link>

@@ -25,7 +25,7 @@ export function CreateTableDialog() {
   const params = useParams()
   const router = useRouter()
   const { database } = params
-  const { createTable, createTableWithSql, sqlite } = useSqlite(database)
+  const { createTable, createTableWithSql } = useSqlite(database)
 
   const handleCreateTable = async () => {
     if (file) {

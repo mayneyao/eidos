@@ -6,9 +6,10 @@ import { useParams } from "next/navigation"
 import * as d3 from "d3"
 
 import { MsgType } from "@/lib/const"
-import { useSqliteStore } from "@/lib/store"
+import { getWorker } from "@/lib/sqlite/sql-worker"
 import { cn } from "@/lib/utils"
-import { getWorker } from "@/hooks/use-sqlite"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { Loading } from "@/components/loading"
 import { SideBar } from "@/components/sidebar"
 
 import { useConfigStore } from "../settings/store"
@@ -23,13 +24,18 @@ const AIChat = dynamic(() => import("./ai-chat").then((mod) => mod.AIChat), {
 
 interface RootLayoutProps {
   children: React.ReactNode
+  className?: string
 }
 
-export default function DatabaseLayout({ children }: RootLayoutProps) {
-  const params = useParams()
+export default function DatabaseLayout({
+  children,
+  className,
+}: RootLayoutProps) {
+  const { database } = useParams()
   const { setCurrentDatabase } = useSqliteStore()
   const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
   const { experiment } = useConfigStore()
+  const { sqlite } = useSqlite(database)
 
   useLastOpenedDatabase()
   useEffect(() => {
@@ -44,16 +50,28 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
   }, [experiment])
 
   useEffect(() => {
-    setCurrentDatabase(params.database)
-  }, [params.database, setCurrentDatabase])
+    setCurrentDatabase(database)
+  }, [database, setCurrentDatabase])
 
+  if (!sqlite) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <Loading />
+      </div>
+    )
+  }
   // when chat is open  2:7:3
   // when chat is close 2:10
   return (
-    <div className="relative  grid h-screen w-screen  lg:grid-cols-12">
+    <div
+      className={cn(
+        "relative  grid h-screen w-screen  lg:grid-cols-12",
+        className
+      )}
+    >
       <div
         className={cn(
-          "col-span-2 h-screen"
+          "col-span-2 h-full"
           // isAiOpen ? "" : "col-span-3",
         )}
       >
@@ -61,20 +79,17 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
       </div>
       <div
         className={cn(
-          "flex h-screen flex-col lg:border-l",
+          "flex h-full flex-col lg:border-l",
           isAiOpen ? "col-span-7" : "col-span-10"
         )}
       >
         <Nav />
-        <div className="flex h-[calc(100vh-2rem)] overflow-auto">
+        <div className="flex grow overflow-auto">
           <div className="grow">{children}</div>
         </div>
       </div>
       <div
-        className={cn(
-          "h-screen lg:border-l",
-          isAiOpen ? "col-span-3" : "hidden"
-        )}
+        className={cn("h-full lg:border-l", isAiOpen ? "col-span-3" : "hidden")}
       >
         <AIChat />
       </div>
