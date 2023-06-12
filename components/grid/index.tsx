@@ -70,8 +70,7 @@ export default function Grid(props: IGridProps) {
   const { tableName, databaseName } = props
   const { theme } = useTheme()
   const _theme = theme === "light" ? {} : darkTheme
-  const { setCurrentTableSchema, currentQuery, setCurrentQuery } =
-    useDatabaseAppStore()
+  const { setCurrentTableSchema } = useDatabaseAppStore()
   const glideDataGridRef = useRef<DataEditorRef>(null)
   const { undo, redo } = useSqlite(databaseName)
 
@@ -83,7 +82,7 @@ export default function Grid(props: IGridProps) {
     addField,
     addRow,
     deleteRows,
-  } = useTable(tableName, databaseName, currentQuery)
+  } = useTable(tableName, databaseName)
   const {
     isAddFieldEditorOpen,
     setIsAddFieldEditorOpen,
@@ -132,11 +131,6 @@ export default function Grid(props: IGridProps) {
   useClickAway(() => {
     isAddFieldEditorOpen && setIsAddFieldEditorOpen(false)
   }, ref)
-
-  // when switching table, clear current query
-  useEffect(() => {
-    setCurrentQuery("")
-  }, [setCurrentQuery, tableName])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)

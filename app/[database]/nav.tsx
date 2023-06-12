@@ -6,9 +6,9 @@ import {
   LifeBuoy,
   MoreHorizontal,
   RotateCcw,
-  Settings
+  Settings,
 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -19,8 +19,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useTable } from "@/hooks/use-table"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { useCurrentDomain } from "./hook"
@@ -133,18 +134,16 @@ export const Nav = () => {
   const { isAiOpen, setIsAiOpen, currentQuery, setCurrentQuery } =
     useDatabaseAppStore()
 
+  const { database, table } = useParams()
+  const { reload } = useTable(table, database)
+
   const toggleAi = () => {
     setIsAiOpen(!isAiOpen)
   }
 
-  const clearQuery = () => {
-    console.log("clear query")
-    setCurrentQuery("")
-  }
-
   return (
     <div className="flex h-8 items-center justify-between self-end">
-      <Button variant="ghost" onClick={clearQuery}>
+      <Button variant="ghost" onClick={reload}>
         <RotateCcw className="h-5 w-5" />
       </Button>
       <Button variant="ghost" onClick={toggleAi}>

@@ -32,11 +32,7 @@ export const useTableSchema = (tableName: string, dbName: string) => {
   return schema
 }
 
-export const useTable = (
-  tableName: string,
-  databaseName: string,
-  querySql?: string
-) => {
+export const useTable = (tableName: string, databaseName: string) => {
   const { sqlite } = useSqlite(databaseName)
   const {
     data,
@@ -82,6 +78,11 @@ export const useTable = (
       }
     )
   }, [setSchema, setTableSchema, sqlite, tableName])
+
+  const reload = useCallback(async () => {
+    await updateTableSchema()
+    await refreshRows()
+  }, [refreshRows, updateTableSchema])
 
   const updateCell = async (col: number, row: number, value: any) => {
     const filedName = schema[0]?.columns?.[col].name
@@ -161,20 +162,15 @@ export const useTable = (
 
   useEffect(() => {
     if (sqlite && tableName) {
-      if (querySql) {
-        // runQuery(querySql)
-      } else {
-        sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
-          setData(res)
-          updateTableSchema()
-        })
-      }
+      sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
+        setData(res)
+        updateTableSchema()
+      })
     }
   }, [
     sqlite,
     tableName,
     updateTableSchema,
-    querySql,
     refreshRows,
     tableSchema,
     runQuery,
@@ -191,5 +187,6 @@ export const useTable = (
     deleteRows,
     tableSchema,
     runQuery,
+    reload,
   }
 }
