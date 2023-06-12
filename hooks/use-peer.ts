@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react"
 import Peer, { DataConnection } from "peerjs"
 import { create } from "zustand"
 
-import { ICollaborator, IMsg } from "@/lib/collaboration/interface"
+import { ECollaborationMsgType, ICollaborator, IMsg } from "@/lib/collaboration/interface"
 import { getWorker } from "@/lib/sqlite/sql-worker"
 
 import { useSqliteStore } from "./use-sqlite"
@@ -156,9 +156,9 @@ export const usePeer = () => {
           const worker = getWorker()
           worker.postMessage(msg.payload)
           worker.onmessage = (e) => {
-            console.log("QUERY RESULT", e.data)
+            // console.log("QUERY RESULT", e.data)
             conn.send({
-              type: "QUERY_RESULT",
+              type: ECollaborationMsgType.QUERY_RESP,
               payload: e.data,
             })
           }

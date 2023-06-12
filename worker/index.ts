@@ -34,7 +34,7 @@ function loadDatabase(dbName: string) {
     return _db
   }
   const db = sqlite.db(filename, "c")
-  logger.info("switchDatabase", dbName)
+  logger.info(`switch to database[${dbName}]`)
   return db
 }
 
@@ -62,7 +62,7 @@ onmessage = async (e) => {
       return
     case MsgType.SetConfig:
       sqlite.setConfig(data)
-      console.log("setConfig", data)
+      console.log("load config", data)
       break
     default:
       logger.warn("unknown msg type", type)

@@ -8,7 +8,7 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { usePeerConnect } from "@/hooks/use-peer"
 import { useSqliteStore } from "@/hooks/use-sqlite"
-import DatabaseLayout from "@/app/[database]/layout"
+import { DatabaseLayoutBase } from "@/app/[database]/base-layout"
 import { useConfigStore } from "@/app/settings/store"
 
 interface RootLayoutProps {
@@ -28,23 +28,25 @@ export default function ShareDatabaseLayout({ children }: RootLayoutProps) {
   }, [])
 
   useEffect(() => {
-    if (!conn) return
     // TODO: handle connection
     const sqlWorker = SQLWorker(database, {
       isShareMode: true,
-      connection: conn,
+      connection: conn ?? undefined,
     })
+    console.log(`share mode setSqlWorker`)
     setSqlWorker(sqlWorker)
+    ;(window as any).SQLWorker = sqlWorker
+    console.log("switch to  new sqlWorker", sqlWorker)
   }, [conn, database, setSqlWorker])
+  // border to show difference between share and app
   return (
-    // border to show difference between share and app
-    <DatabaseLayout
+    <DatabaseLayoutBase
       className={cn(
         "border-box border-2",
         isConnected ? "border-green-400" : "border-red-400"
       )}
     >
       {children}
-    </DatabaseLayout>
+    </DatabaseLayoutBase>
   )
 }

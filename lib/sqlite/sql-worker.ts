@@ -5,7 +5,7 @@ import { toast } from "@/components/ui/use-toast"
 
 import {
   ECollaborationMsgType,
-  IMsgQueryResp
+  IMsgQueryResp,
 } from "../collaboration/interface"
 import { MsgType } from "../const"
 import { logger } from "../log"
@@ -56,6 +56,9 @@ export const SQLWorker = (
 ) =>
   new Proxy<SqlDatabase>({} as any, {
     get(target, method) {
+      if (method == "_config") {
+        return config
+      }
       return function (params: any) {
         const thisCallId = uuidv4()
         const [_params, ...rest] = arguments
@@ -77,8 +80,8 @@ export const SQLWorker = (
             },
             id: thisCallId,
           }
-          if (config?.isShareMode && config.connection) {
-            config.connection.send({
+          if (config?.isShareMode) {
+            config.connection?.send({
               type: ECollaborationMsgType.QUERY,
               payload: data,
             })
@@ -98,9 +101,9 @@ export const SQLWorker = (
         }
 
         return new Promise((resolve, reject) => {
-          if (config?.isShareMode && config.connection) {
-            config.connection.on("data", (data) => {
-              console.log("receive data", data)
+          if (config?.isShareMode) {
+            config.connection?.on("data", (data) => {
+              console.log("receive data", data, thisCallId)
               const type = (data as any).type as ECollaborationMsgType
               if (type == ECollaborationMsgType.QUERY_RESP) {
                 const _data = data as IMsgQueryResp

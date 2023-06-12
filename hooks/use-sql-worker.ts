@@ -1,0 +1,31 @@
+import { useCallback, useEffect, useMemo } from "react"
+
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+
+import { useSqliteStore } from "./use-sqlite"
+
+export const useSqlWorker = () => {
+  const { sqlWorker } = useSqliteStore()
+  const { isShareMode } = useAppRuntimeStore()
+  const checkSqlWorkerIsOk2Call = useCallback(() => {
+    if (!sqlWorker) return false
+    if (isShareMode) {
+      if ((sqlWorker as any)._config) {
+        return true
+      } else {
+        return false
+      }
+    }
+    return true
+  }, [isShareMode, sqlWorker])
+
+  const isOk2call = useMemo(
+    () => checkSqlWorkerIsOk2Call(),
+    [checkSqlWorkerIsOk2Call]
+  )
+  useEffect(() => {
+    console.log("useSqlWorker:isOk2call", isOk2call)
+  }, [isOk2call])
+
+  return isOk2call ? sqlWorker : undefined
+}

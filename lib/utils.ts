@@ -19,3 +19,7 @@ export const hashText = (text: string) => {
   }
   return hash
 }
+
+export const checkIsInWorker = () => {
+  return globalThis.self === globalThis
+}

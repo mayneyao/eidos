@@ -1,13 +1,11 @@
 "use client"
 
 import type { SqlDatabase } from "@/worker/sql"
-import { useCallback, useEffect } from "react"
-import { v4 as uuidv4 } from "uuid"
+import { useCallback } from "react"
 import { create } from "zustand"
 
 import { createTemplateTableSql } from "@/components/grid/helper"
-import { MsgType } from "@/lib/const"
-import { SQLWorker, getWorker } from "@/lib/sqlite/sql-worker"
+
 
 interface SqliteState {
   isInitialized: boolean
@@ -53,72 +51,34 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
 }))
 
 export const useSqlite = (dbName?: string) => {
-  const {
-    isInitialized,
-    setInitialized,
-    setAllTables,
-    setCurrentDatabase,
-    currentDatabase,
-    sqlWorker,
-    setSqlWorker,
-  } = useSqliteStore()
-
-  useEffect(() => {
-    if (dbName && isInitialized) {
-      if (currentDatabase === dbName) return
-      const switchDdMsgId = uuidv4()
-      const worker = getWorker()
-      worker.postMessage({
-        type: MsgType.SwitchDatabase,
-        data: {
-          databaseName: dbName,
-        },
-        id: switchDdMsgId,
-      })
-      worker.onmessage = (e) => {
-        const { id: returnId, data } = e.data
-        if (returnId === switchDdMsgId) {
-          setCurrentDatabase(data.dbName)
-        }
-      }
-    }
-  }, [dbName, setCurrentDatabase, isInitialized, currentDatabase])
-
-  useEffect(() => {
-    const worker = getWorker()
-    worker.onmessage = async (e) => {
-      if (e.data === "init") {
-        setInitialized(true)
-      }
-    }
-    const sqlWorker = SQLWorker(dbName!)
-    setSqlWorker(sqlWorker)
-    ;(window as any).SQLWorker = sqlWorker
-  }, [dbName, setInitialized, setSqlWorker])
+  const { isInitialized, sqlWorker, setAllTables } = useSqliteStore()
+  // const sqlWorker = useSqlWorker()
 
   const queryAllTables = useCallback(async () => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
+    if (!sqlWorker) return
+    // console.log("queryAllTables call", (sqlWorker as any)._config)
     const res =
       await sqlWorker.sql`SELECT name FROM sqlite_schema WHERE type='table'`
     const allTables = res.map((item: any) => item[0])
+    console.log("table list loaded", allTables)
     return allTables
   }, [sqlWorker])
 
   const updateTableList = async () => {
     await queryAllTables().then((tables) => {
-      setAllTables(tables)
+      tables && setAllTables(tables)
     })
   }
 
   const createTable = async (tableName: string) => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
+    if (!sqlWorker) return
     const sql = createTemplateTableSql(tableName)
     await sqlWorker.sql`${sql}`
     await updateTableList()
   }
 
   const updateTableListWithSql = async (sql: string) => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
+    if (!sqlWorker) return
     await sqlWorker.sql`${sql}`
     await updateTableList()
   }
@@ -127,7 +87,7 @@ export const useSqlite = (dbName?: string) => {
     createTableSql: string,
     insertSql?: string
   ) => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
+    if (!sqlWorker) return
     await sqlWorker.sql`${createTableSql}`
     await updateTableList()
     if (insertSql) {
@@ -136,19 +96,19 @@ export const useSqlite = (dbName?: string) => {
   }
 
   const updateTableData = async (sql: string) => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
+    if (!sqlWorker) return
     await sqlWorker.sql`${sql}`
     await updateTableList()
   }
 
   const deleteTable = async (tableName: string) => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
+    if (!sqlWorker) return
     await sqlWorker.sql`DROP TABLE ${Symbol(tableName)}`
     await updateTableList()
   }
 
   const renameTable = async (oldTableName: string, newTableName: string) => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
+    if (!sqlWorker) return
     await sqlWorker.sql`ALTER TABLE ${Symbol(oldTableName)} RENAME TO ${Symbol(
       newTableName
     )}`
@@ -156,7 +116,7 @@ export const useSqlite = (dbName?: string) => {
   }
 
   const duplicateTable = async (oldTableName: string, newTableName: string) => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
+    if (!sqlWorker) return
     await sqlWorker.sql`CREATE TABLE ${Symbol(
       newTableName
     )} AS SELECT * FROM ${Symbol(oldTableName)}`
@@ -164,7 +124,7 @@ export const useSqlite = (dbName?: string) => {
   }
 
   const handleSql = async (sql: string) => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
+    if (!sqlWorker) return
     const cls = sql.trim().split(" ")[0].toUpperCase()
 
     let handled = false
@@ -195,13 +155,13 @@ export const useSqlite = (dbName?: string) => {
   }
 
   const redo = async () => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
-    sqlWorker.redo()
+    if (!sqlWorker) return
+    sqlWorker?.redo()
   }
 
   const undo = async () => {
-    if (!sqlWorker) throw new Error("SQLWorker not initialized")
-    sqlWorker.undo()
+    if (!sqlWorker) return
+    sqlWorker?.undo()
   }
 
   return {

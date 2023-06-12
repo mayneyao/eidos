@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
+import { useEffect, useState } from "react"
 
+import { DatabaseSelect } from "@/components/database-select"
+import { Separator } from "@/components/ui/separator"
 import { useAllDatabases } from "@/hooks/use-database"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { Separator } from "@/components/ui/separator"
-import { DatabaseSelect } from "@/components/database-select"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
@@ -16,20 +16,17 @@ import { TableListLoading } from "./loading"
 import { TableItem } from "./table-menu"
 
 export const SideBar = () => {
-  const params = useParams()
-  const { database, table: tableName } = params
-
+  const { database, table: tableName } = useParams()
   const [loading, setLoading] = useState(true)
-  const { createTable, queryAllTables } = useSqlite(database)
-  const { selectedTable, setSelectedTable, allTables, setAllTables } =
-    useSqliteStore()
+  const { queryAllTables } = useSqlite(database)
+  const { setSelectedTable, allTables, setAllTables } = useSqliteStore()
   const databaseList = useAllDatabases()
 
-  const router = useRouter()
   useEffect(() => {
+    console.log("side bar loading all tables, database: ")
     setTimeout(() => {
       queryAllTables().then((tables) => {
-        setAllTables(tables)
+        tables && setAllTables(tables)
         setLoading(false)
       })
     }, 100)
