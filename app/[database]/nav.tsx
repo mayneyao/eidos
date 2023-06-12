@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { usePeer } from "@/hooks/use-peer"
 import { useTable } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +25,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { AvatarList } from "@/components/avatar-list"
 import { ShareDialog } from "@/components/share-dialog"
 
 import { useCurrentDomain } from "./hook"
@@ -137,7 +139,8 @@ export const Nav = () => {
 
   const { database, table } = useParams()
   const { reload } = useTable(table, database)
-  const share = () => {}
+  const { currentCollaborators } = usePeer()
+  const nameList = currentCollaborators.map((c) => c.name)
 
   const toggleAi = () => {
     setIsAiOpen(!isAiOpen)
@@ -145,6 +148,7 @@ export const Nav = () => {
 
   return (
     <div className="flex h-8 items-center justify-between self-end">
+      <AvatarList nameList={nameList} />
       <Button variant="ghost" onClick={reload}>
         <RotateCcw className="h-5 w-5" />
       </Button>

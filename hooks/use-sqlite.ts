@@ -1,13 +1,13 @@
 "use client"
 
-import { useCallback, useEffect } from "react"
 import type { SqlDatabase } from "@/worker/sql"
+import { useCallback, useEffect } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
 
+import { createTemplateTableSql } from "@/components/grid/helper"
 import { MsgType } from "@/lib/const"
 import { SQLWorker, getWorker } from "@/lib/sqlite/sql-worker"
-import { createTemplateTableSql } from "@/components/grid/helper"
 
 interface SqliteState {
   isInitialized: boolean
@@ -62,8 +62,6 @@ export const useSqlite = (dbName?: string) => {
     sqlWorker,
     setSqlWorker,
   } = useSqliteStore()
-
-  // const [sqlWorker, setSqlWorker] = useState<SqlDatabase>()
 
   useEffect(() => {
     if (dbName && isInitialized) {

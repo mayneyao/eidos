@@ -1,7 +1,12 @@
 import { SqlDatabase } from "@/worker/sql"
+import { DataConnection } from "peerjs"
 
 import { toast } from "@/components/ui/use-toast"
 
+import {
+  ECollaborationMsgType,
+  IMsgQueryResp
+} from "../collaboration/interface"
 import { MsgType } from "../const"
 import { logger } from "../log"
 import { uuidv4 } from "../utils"
@@ -19,7 +24,36 @@ export const getWorker = () => {
   return worker
 }
 
-export const SQLWorker = (dbName: string) =>
+export type IQuery = {
+  type: MsgType.CallFunction
+  data: {
+    method: string
+    params: [string, string[]]
+    dbName: string
+  }
+  id: string
+}
+
+export type IQueryResp = {
+  id: string
+  data: {
+    result: any
+  }
+  type: MsgType.QueryResp
+}
+
+/**
+ * @param dbName
+ * @param isShareMode when isShareMode is true, it means the database is shared other user, sql query will execute by other user and return result to us
+ * @returns
+ */
+export const SQLWorker = (
+  dbName: string,
+  config?: {
+    isShareMode?: boolean
+    connection?: DataConnection
+  }
+) =>
   new Proxy<SqlDatabase>({} as any, {
     get(target, method) {
       return function (params: any) {
@@ -34,7 +68,7 @@ export const SQLWorker = (dbName: string) =>
            * just for sql`SELECT * FROM ${Symbol(books)} WHERE id = ${1}`. work in main thread and worker thread
            */
           const { sql, bind } = buildSql(_params, ...rest)
-          worker.postMessage({
+          const data: IQuery = {
             type: MsgType.CallFunction,
             data: {
               method: "sql4mainThread",
@@ -42,7 +76,15 @@ export const SQLWorker = (dbName: string) =>
               dbName,
             },
             id: thisCallId,
-          })
+          }
+          if (config?.isShareMode && config.connection) {
+            config.connection.send({
+              type: ECollaborationMsgType.QUERY,
+              payload: data,
+            })
+          } else {
+            worker.postMessage(data)
+          }
         } else {
           worker.postMessage({
             type: MsgType.CallFunction,
@@ -56,28 +98,41 @@ export const SQLWorker = (dbName: string) =>
         }
 
         return new Promise((resolve, reject) => {
-          worker.onmessage = (e) => {
-            const { id: returnId, type, data } = e.data
-            switch (type) {
-              case MsgType.Error:
-                toast({
-                  title: "Error",
-                  description: data.message,
-                  duration: 5000,
-                })
-                break
-              case MsgType.DataUpdateSignal:
-                console.log("data update signal", e)
-                window.postMessage(e.data)
-                break
-              // req-resp msg need to match id
-              case MsgType.QueryResp:
-                if (returnId === thisCallId) {
-                  resolve(data.result)
+          if (config?.isShareMode && config.connection) {
+            config.connection.on("data", (data) => {
+              console.log("receive data", data)
+              const type = (data as any).type as ECollaborationMsgType
+              if (type == ECollaborationMsgType.QUERY_RESP) {
+                const _data = data as IMsgQueryResp
+                if (_data.payload.id === thisCallId) {
+                  resolve(_data.payload.data.result)
                 }
-                break
-              default:
-                break
+              }
+            })
+          } else {
+            worker.onmessage = (e) => {
+              const { id: returnId, type, data } = e.data
+              switch (type) {
+                case MsgType.Error:
+                  toast({
+                    title: "Error",
+                    description: data.message,
+                    duration: 5000,
+                  })
+                  break
+                case MsgType.DataUpdateSignal:
+                  console.log("data update signal", e)
+                  window.postMessage(e.data)
+                  break
+                // req-resp msg need to match id
+                case MsgType.QueryResp:
+                  if (returnId === thisCallId) {
+                    resolve(data.result)
+                  }
+                  break
+                default:
+                  break
+              }
             }
           }
         })

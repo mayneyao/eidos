@@ -1,12 +1,22 @@
-import Peer, { DataConnection } from "peerjs"
 import { useCallback, useEffect } from "react"
+import Peer, { DataConnection } from "peerjs"
 import { create } from "zustand"
+
+import { ICollaborator, IMsg } from "@/lib/collaboration/interface"
+import { getWorker } from "@/lib/sqlite/sql-worker"
+
+import { useSqliteStore } from "./use-sqlite"
 
 interface PeerState {
   peer: Peer | undefined
   peerId: string | undefined
   peers: string[]
   connectMap: Record<string, DataConnection>
+
+  collaboratorMap: Record<string, ICollaborator>
+  currentCollaborators: ICollaborator[]
+  addCollaborator: (collaborator: ICollaborator) => void
+  removeCollaborator: (collaborator: ICollaborator) => void
 
   setPeer: (peer: Peer) => void
   setPeerId: (peerId: string) => void
@@ -21,6 +31,29 @@ const usePeerStore = create<PeerState>()((set) => ({
   peerId: undefined,
   peers: [],
   connectMap: {},
+
+  collaboratorMap: {},
+  currentCollaborators: [],
+  addCollaborator: (collaborator) => {
+    set((state) => ({
+      collaboratorMap: {
+        ...state.collaboratorMap,
+        [collaborator.id]: collaborator,
+      },
+      currentCollaborators: [...state.currentCollaborators, collaborator],
+    }))
+  },
+  removeCollaborator: (collaborator) => {
+    set((state) => {
+      const { [collaborator.id]: _, ...rest } = state.collaboratorMap
+      return {
+        collaboratorMap: rest,
+        currentCollaborators: state.currentCollaborators.filter(
+          (c) => c.id !== collaborator.id
+        ),
+      }
+    })
+  },
 
   setConnectMap: (connectMap) => set({ connectMap }),
   setPeer: (peer) => set({ peer }),
@@ -46,12 +79,18 @@ export const serverConfig = {
   path: "/myapp",
 }
 
-export const usePeerConnect = (connectId: string | null) => {
+export const usePeerConnect = (connectId: string | null, name?: string) => {
   const { connectMap, removeConnect, addConnect } = usePeerStore()
   const { peer, peerId } = usePeer()
 
   const conn = connectId ? connectMap[connectId] : null
 
+  const sendMsg = useCallback(
+    (msg: IMsg) => {
+      conn?.send(msg)
+    },
+    [conn]
+  )
   const connect = useCallback(
     async (peerId: string) => {
       const conn = peer?.connect(peerId)
@@ -65,12 +104,16 @@ export const usePeerConnect = (connectId: string | null) => {
 
       return conn?.on("open", () => {
         addConnect(peerId, conn)
+        conn.send({
+          type: "JOIN",
+          payload: { collaborator: { id: peerId, name: name ?? peerId } },
+        })
         return new Promise((resolve) => {
           resolve(conn)
         })
       })
     },
-    [addConnect, peer, removeConnect]
+    [addConnect, name, peer, removeConnect]
   )
 
   useEffect(() => {
@@ -79,11 +122,66 @@ export const usePeerConnect = (connectId: string | null) => {
     }
   }, [conn, connect, connectId, peerId])
 
-  return conn
+  return { sendMsg, isConnected: !!conn, conn }
 }
 
 export const usePeer = () => {
-  const { peer, peerId, peers, setPeer, setPeerId, setPeers } = usePeerStore()
+  const {
+    peer,
+    peerId,
+    peers,
+    setPeer,
+    setPeerId,
+    setPeers,
+    addCollaborator,
+    removeCollaborator,
+    currentCollaborators,
+  } = usePeerStore()
+
+  const handleMsg = useCallback(
+    (msg: IMsg, conn: DataConnection) => {
+      switch (msg.type) {
+        case "JOIN":
+          console.log("JOIN", msg.payload.collaborator)
+          addCollaborator(msg.payload.collaborator)
+          break
+        case "LEAVE":
+          console.log("LEAVE", msg.payload.collaborator)
+          removeCollaborator(msg.payload.collaborator)
+          break
+        case "MOVE_CURSOR":
+          console.log("MOVE_CURSOR", msg.payload)
+          break
+        case "QUERY":
+          const worker = getWorker()
+          worker.postMessage(msg.payload)
+          worker.onmessage = (e) => {
+            console.log("QUERY RESULT", e.data)
+            conn.send({
+              type: "QUERY_RESULT",
+              payload: e.data,
+            })
+          }
+          console.log("QUERY", msg.payload)
+          break
+        default:
+          console.log("Unknown message type", msg)
+          break
+      }
+    },
+    [addCollaborator, removeCollaborator]
+  )
+
+  const initPeer = useCallback(() => {
+    const peer = new Peer(serverConfig)
+    peer.on("open", (id) => setPeerId(id))
+    peer.on("connection", (conn) => {
+      conn.on("data", (data) => {
+        handleMsg(data as IMsg, conn)
+      })
+    })
+    setPeer(peer)
+  }, [handleMsg, setPeer, setPeerId])
 
   const discoverPeers = () => {
     peer?.listAllPeers((peers: string[]) => {
@@ -92,5 +190,14 @@ export const usePeer = () => {
     })
   }
 
-  return { peer, peerId, peers, discoverPeers, setPeer, setPeerId }
+  return {
+    peer,
+    peerId,
+    peers,
+    discoverPeers,
+    setPeer,
+    setPeerId,
+    initPeer,
+    currentCollaborators,
+  }
 }

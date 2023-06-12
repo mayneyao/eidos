@@ -3,12 +3,11 @@
 import * as d3 from "d3"
 import dynamic from "next/dynamic"
 import { useParams } from "next/navigation"
-import Peer from "peerjs"
 import { useEffect } from "react"
 
 import { Loading } from "@/components/loading"
 import { SideBar } from "@/components/sidebar"
-import { serverConfig, usePeer } from "@/hooks/use-peer"
+import { usePeer } from "@/hooks/use-peer"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { MsgType } from "@/lib/const"
 import { getWorker } from "@/lib/sqlite/sql-worker"
@@ -41,10 +40,10 @@ export default function DatabaseLayout({
 
   useLastOpenedDatabase()
 
-  const { peerId, setPeer, setPeerId } = usePeer()
+  const { initPeer } = usePeer()
 
   useEffect(() => {
-    setPeer(new Peer(serverConfig).on("open", (id) => setPeerId(id)))
+    initPeer()
   }, [])
 
   useEffect(() => {
