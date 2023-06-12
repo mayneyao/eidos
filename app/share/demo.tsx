@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { DataConnection } from "peerjs"
+import type { DataConnection } from "peerjs"
 
 import { usePeer } from "@/hooks/use-peer"
 import { Button } from "@/components/ui/button"

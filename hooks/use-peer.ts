@@ -1,11 +1,13 @@
 import { useCallback, useEffect } from "react"
-import Peer, { DataConnection } from "peerjs"
+import type { DataConnection, Peer } from "peerjs"
 import { create } from "zustand"
 
-import { ECollaborationMsgType, ICollaborator, IMsg } from "@/lib/collaboration/interface"
+import {
+  ECollaborationMsgType,
+  ICollaborator,
+  IMsg,
+} from "@/lib/collaboration/interface"
 import { getWorker } from "@/lib/sqlite/sql-worker"
-
-import { useSqliteStore } from "./use-sqlite"
 
 interface PeerState {
   peer: Peer | undefined
@@ -73,7 +75,7 @@ const usePeerStore = create<PeerState>()((set) => ({
   },
 }))
 
-export const serverConfig = {
+const serverConfig = {
   host: "localhost",
   port: 9000,
   path: "/myapp",
@@ -172,8 +174,13 @@ export const usePeer = () => {
     [addCollaborator, removeCollaborator]
   )
 
-  const initPeer = useCallback(() => {
-    const peer = new Peer(serverConfig)
+  const initPeer = useCallback(async () => {
+    /**
+     * https://github.com/peers/peerjs/issues/819
+     * nextjs build fails if we import peerjs at the top level
+     */
+    const OriginPeer = (await import("peerjs")).default
+    const peer = new OriginPeer(serverConfig)
     peer.on("open", (id) => setPeerId(id))
     peer.on("connection", (conn) => {
       conn.on("data", (data) => {

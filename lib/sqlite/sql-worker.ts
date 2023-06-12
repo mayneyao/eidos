@@ -1,5 +1,5 @@
 import { SqlDatabase } from "@/worker/sql"
-import { DataConnection } from "peerjs"
+import type { DataConnection } from "peerjs"
 
 import { toast } from "@/components/ui/use-toast"
 
