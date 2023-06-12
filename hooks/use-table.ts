@@ -8,10 +8,10 @@ import {
   checkSqlIsModifyTableData,
   checkSqlIsModifyTableSchema,
   checkSqlIsOnlyQuery,
-  isAggregated,
   queryData2JSON,
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
+import { useDatabaseAppStore } from "@/app/[database]/store"
 
 import { useSqlite } from "./use-sqlite"
 
@@ -38,16 +38,22 @@ export const useTable = (
   querySql?: string
 ) => {
   const { sqlite } = useSqlite(databaseName)
-  const [data, setData] = useState<any[]>([])
-  const [schema, setSchema] = useState<ReturnType<typeof sqlToJSONSchema2>>([])
-  const [tableSchema, setTableSchema] = useState<string>()
+  const {
+    data,
+    setData,
+    currentSchema: schema,
+    setCurrentSchema: setSchema,
+    currentTableSchema: tableSchema,
+    setCurrentTableSchema: setTableSchema,
+  } = useDatabaseAppStore()
+  // const [tableSchema, setTableSchema] = useState<string>()
 
   const refreshRows = useCallback(async () => {
     if (!sqlite) return
     await sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
       setData(res)
     })
-  }, [sqlite, tableName])
+  }, [setData, sqlite, tableName])
 
   useEffect(() => {
     window.onmessage = (e) => {
@@ -75,7 +81,7 @@ export const useTable = (
         }
       }
     )
-  }, [sqlite, tableName])
+  }, [setSchema, setTableSchema, sqlite, tableName])
 
   const updateCell = async (col: number, row: number, value: any) => {
     const filedName = schema[0]?.columns?.[col].name
@@ -126,35 +132,37 @@ export const useTable = (
       await refreshRows()
     }
   }
+  const runQuery = useCallback(
+    async (querySql: string) => {
+      if (sqlite) {
+        const res = await sqlite.sql`${querySql}`
+        if (checkSqlIsModifyTableSchema(querySql)) {
+          updateTableSchema()
+        }
+        if (checkSqlIsOnlyQuery(querySql)) {
+          const originSchema = tableSchema ? sqlToJSONSchema2(tableSchema) : []
+          const fields = originSchema[0]?.columns?.map((col) => col.name) ?? []
+          const compactJsonTablesArray = aggregateSql2columns(querySql, fields)
+          const queryFields =
+            compactJsonTablesArray.columns.map((col: any) => col.name) ?? []
+          setSchema([compactJsonTablesArray])
+          console.log([compactJsonTablesArray])
+          setData(res)
+          const jsonData = queryData2JSON(res, queryFields)
+          return jsonData
+        }
+        if (checkSqlIsModifyTableData(querySql)) {
+          refreshRows()
+        }
+      }
+    },
+    [refreshRows, setData, setSchema, sqlite, tableSchema, updateTableSchema]
+  )
 
   useEffect(() => {
     if (sqlite && tableName) {
       if (querySql) {
-        sqlite.sql`${querySql}`.then((res: any) => {
-          if (checkSqlIsModifyTableSchema(querySql)) {
-            updateTableSchema()
-          }
-          if (checkSqlIsOnlyQuery(querySql)) {
-            const originSchema = tableSchema
-              ? sqlToJSONSchema2(tableSchema)
-              : []
-            const fields =
-              originSchema[0]?.columns?.map((col) => col.name) ?? []
-            const compactJsonTablesArray = aggregateSql2columns(
-              querySql,
-              fields
-            )
-            const queryFields =
-              compactJsonTablesArray.columns.map((col: any) => col.name) ?? []
-            setSchema([compactJsonTablesArray])
-            setData(res)
-            const jsonData = queryData2JSON(res, queryFields)
-            ;(window as any)._DATA_ = jsonData
-          }
-          if (checkSqlIsModifyTableData(querySql)) {
-            refreshRows()
-          }
-        })
+        // runQuery(querySql)
       } else {
         sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
           setData(res)
@@ -162,7 +170,16 @@ export const useTable = (
         })
       }
     }
-  }, [sqlite, tableName, updateTableSchema, querySql, refreshRows, tableSchema])
+  }, [
+    sqlite,
+    tableName,
+    updateTableSchema,
+    querySql,
+    refreshRows,
+    tableSchema,
+    runQuery,
+    setData,
+  ])
 
   return {
     data,
@@ -173,5 +190,6 @@ export const useTable = (
     addRow,
     deleteRows,
     tableSchema,
+    runQuery,
   }
 }

@@ -30,7 +30,7 @@ when you act as a d3.js master:
 4. you *can't use d3.json("xxxx.json")* to load data, data will be passed to you as a json array, you can use it directly, variable name is *_DATA_*.
 5. your d3.js code begin with: 
 \`\`\`js
-const svg = d3.select("#chart").append("svg").attr("width", 500).attr("height", 500)
+const svg = d3.select(_CANVAS_ID_).append("svg").attr("width", _CHART_WIDTH_).attr("height", _CHART_HEIGHT_)
 \`\`\`
 `
 

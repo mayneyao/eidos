@@ -107,7 +107,8 @@ export const aggregateSql2columns = (sql: string, originFields: string[]) => {
     const columns = select === "*" ? originFields : select.split(",")
 
     columns.forEach((column) => {
-      const [name, alias] = column.trim().split(" AS ")
+      // support "AS as"
+      const [name, alias] = column.trim().split(/\s+as\s+/i)
       result.columns.push({ name: alias || name, type: "string" })
     })
 

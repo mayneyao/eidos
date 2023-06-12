@@ -1,6 +1,7 @@
 import type { SqlDatabase } from "@/worker/sql"
 import { create } from "zustand"
-import { persist } from "zustand/middleware"
+
+import { sqlToJSONSchema2 } from "../sqlite/helper"
 
 interface SqliteState {
   isInitialized: boolean
@@ -22,7 +23,7 @@ interface SqliteState {
   setDatabaseList: (databaseList: string[]) => void
 }
 
-// not using persist 
+// not using persist
 export const useSqliteStore = create<SqliteState>()((set) => ({
   isInitialized: false,
   setInitialized: (isInitialized) => set({ isInitialized }),
@@ -42,24 +43,3 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
   databaseList: [],
   setDatabaseList: (databaseList) => set({ databaseList }),
 }))
-
-
-interface AppState {
-  lastOpenedDatabase: string
-  setLastOpenedDatabase: (database: string) => void
-}
-
-// need persist, store user config in localstorage
-export const useAppStore = create<AppState>()(
-  persist(
-    (set) => ({
-      lastOpenedDatabase: "",
-      setLastOpenedDatabase: (database) =>
-        set({ lastOpenedDatabase: database }),
-    }),
-    {
-      name: "app-storage",
-      getStorage: () => localStorage,
-    }
-  )
-)

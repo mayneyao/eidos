@@ -1,3 +1,7 @@
+/**
+ * state store for runtime, for cross component communication
+ */
+
 import { create } from "zustand"
 
 interface AppRuntimeState {

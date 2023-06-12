@@ -12,9 +12,9 @@ import { getWorker } from "@/hooks/use-sqlite"
 import { SideBar } from "@/components/sidebar"
 
 import { useConfigStore } from "../settings/store"
+import { useLastOpenedDatabase } from "./hook"
 import { Nav } from "./nav"
 import { useDatabaseAppStore } from "./store"
-import { useLastOpenedDatabase } from "./hook"
 
 // import { AIChat } from "./ai-chat";
 const AIChat = dynamic(() => import("./ai-chat").then((mod) => mod.AIChat), {
@@ -31,7 +31,7 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
   const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
   const { experiment } = useConfigStore()
 
-  useLastOpenedDatabase();
+  useLastOpenedDatabase()
   useEffect(() => {
     const worker = getWorker()
     worker.postMessage({
@@ -68,7 +68,6 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
         <Nav />
         <div className="flex h-[calc(100vh-2rem)] overflow-auto">
           <div className="grow">{children}</div>
-          <div id="chart" />
         </div>
       </div>
       <div

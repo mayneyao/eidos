@@ -1,4 +1,4 @@
-// need persist, store user config in localstorage
+// need persist, store user config in localstorage, make app response faster
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"

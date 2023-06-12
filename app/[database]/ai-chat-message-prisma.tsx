@@ -14,9 +14,19 @@ import {
 export const AIMessage = ({
   message,
   onRun,
+  msgIndex,
 }: {
+  msgIndex: number
   message: string
-  onRun: (sql: string, lang: string) => void
+  onRun: (props: {
+    code: string
+    lang: string
+    isAuto: boolean
+    context?: {
+      msgIndex: number
+      width: number
+    }
+  }) => void
 }) => {
   const renderers: MarkdownRenderers = {
     ...DEFAULT_MARKDOWN_RENDERERS,
@@ -27,6 +37,10 @@ export const AIMessage = ({
     codeblock: function Code(props) {
       const { lang, text } = props
       const codeHtml = Prism.highlight(text, Prism.languages[lang], lang)
+      // if it's a d3 codeblock, we need to render it differently
+      if (lang === "js" && text.includes("d3.")) {
+        return <div />
+      }
       return (
         <pre className="relative flex w-[calc(100%-24px)] rounded-sm bg-gray-700 p-2">
           <code
@@ -38,7 +52,13 @@ export const AIMessage = ({
           <Button
             className=" absolute right-0 top-0 text-gray-300"
             variant="ghost"
-            onClick={() => onRun(text, lang)}
+            onClick={() =>
+              onRun({
+                code: text,
+                lang,
+                isAuto: false,
+              })
+            }
           >
             <Play className="h-4 w-4" />
           </Button>
@@ -49,6 +69,7 @@ export const AIMessage = ({
   return (
     <div className="grow">
       <Markdown markdown={message} renderers={renderers} />
+      <div id={`chart-${msgIndex}`} />
     </div>
   )
 }
