@@ -1,23 +1,14 @@
 import {
   Bot,
   Cloud,
-  CreditCard,
   Github,
   Keyboard,
   LifeBuoy,
-  LogOut,
-  Mail,
-  MessageSquare,
   MoreHorizontal,
-  Plus,
-  PlusCircle,
   RotateCcw,
-  Settings,
-  User,
-  UserPlus,
-  Users,
-  XCircle,
+  Settings
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -26,18 +17,25 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
+import { useCurrentDomain } from "./hook"
 import { useDatabaseAppStore } from "./store"
 
 export function DropdownMenuDemo() {
+  const currentDomain = useCurrentDomain()
+  const router = useRouter()
+  const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
+  const toggleCMDK = () => {
+    setCmdkOpen(!isCmdkOpen)
+  }
+  const goSettings = () => {
+    router.push("/settings")
+  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -46,31 +44,33 @@ export function DropdownMenuDemo() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>My Account</DropdownMenuLabel>
+        <DropdownMenuLabel>
+          All File Hosted on {currentDomain}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
+          {/* <DropdownMenuItem>
             <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
-            <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
+            <span>Command Palette</span>
+            <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
+          </DropdownMenuItem> */}
+          {/* <DropdownMenuItem>
             <CreditCard className="mr-2 h-4 w-4" />
             <span>Billing</span>
             <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Settings</span>
-            <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
+          </DropdownMenuItem> */}
+          <DropdownMenuItem onSelect={toggleCMDK}>
             <Keyboard className="mr-2 h-4 w-4" />
-            <span>Keyboard shortcuts</span>
+            <span>Command Palette</span>
             <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={goSettings}>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Settings</span>
+            {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
+          </DropdownMenuItem>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
+        {/* <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem>
             <Users className="mr-2 h-4 w-4" />
@@ -104,7 +104,7 @@ export function DropdownMenuDemo() {
             <span>New Team</span>
             <DropdownMenuShortcut>⌘+T</DropdownMenuShortcut>
           </DropdownMenuItem>
-        </DropdownMenuGroup>
+        </DropdownMenuGroup> */}
         <DropdownMenuSeparator />
         <DropdownMenuItem>
           <Github className="mr-2 h-4 w-4" />
@@ -118,12 +118,12 @@ export function DropdownMenuDemo() {
           <Cloud className="mr-2 h-4 w-4" />
           <span>API</span>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        {/* <DropdownMenuSeparator />
         <DropdownMenuItem>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
           <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-        </DropdownMenuItem>
+        </DropdownMenuItem> */}
       </DropdownMenuContent>
     </DropdownMenu>
   )

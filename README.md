@@ -16,7 +16,7 @@ This project is a local-first, web application for creating and managing databas
 
 - [x] Run sqlite-wasm in browser
 - [x] Create a wrapper for sqlite-wasm
-- [x] Render tables
+- [x] Render table
 - [x] Create a table from a template
 - [x] Remove a table
 - [x] Edit a text cell
@@ -35,6 +35,11 @@ This project is a local-first, web application for creating and managing databas
 - [ ] ➡ undo/redo
   - [ ] row level
   - [ ] field level
+  - [ ] fix: seq of undo/redo
+- [ ] AI
+  - [ ] custom system prompt in config
+  - [ ] multi prompt support
+  - [ ] system prompt switch support
 - [ ] Export a database
   - [ ] export a table as CSV
   - [ ] export a table as Excel
@@ -43,9 +48,8 @@ This project is a local-first, web application for creating and managing databas
 
 ### More
 
-Self-hosted server; this requires running a server locally.
-
 - [ ] API server to operate the database via API
+  - [ ] self-hosted server / desktop app; this requires running a app/server locally.
 - [ ] Webhooks
 - [ ] Automation (just like Zapier/IFTTT)
 

@@ -3,16 +3,10 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useKeyPress } from "ahooks"
-import {
-  Bot,
-  Calculator,
-  Calendar,
-  Palette,
-  Settings,
-  Smile,
-} from "lucide-react"
+import { Bot, Palette, Settings } from "lucide-react"
 import { useTheme } from "next-themes"
 
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import {
   CommandDialog,
   CommandEmpty,
@@ -26,19 +20,20 @@ import {
 import { useDatabaseAppStore } from "@/app/[database]/store"
 
 export function CommandDialogDemo() {
-  const [open, setOpen] = React.useState(false)
+  // const [open, setOpen] = React.useState(false)
+  const { isCmdkOpen, setCmdkOpen } = useAppRuntimeStore()
 
   const { theme, setTheme } = useTheme()
   const router = useRouter()
   useKeyPress("ctrl.k", (e) => {
     e.preventDefault()
-    setOpen(!open)
+    setCmdkOpen(!isCmdkOpen)
   })
 
   const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
 
   const goto = (path: string) => () => {
-    setOpen(false)
+    setCmdkOpen(false)
     router.push(path)
   }
 
@@ -47,12 +42,12 @@ export function CommandDialogDemo() {
   }
 
   const toggleAI = () => {
-    setOpen(false)
+    setCmdkOpen(false)
     setIsAiOpen(!isAiOpen)
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
+    <CommandDialog open={isCmdkOpen} onOpenChange={setCmdkOpen}>
       <CommandInput placeholder="Type a command or search..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
@@ -61,14 +56,14 @@ export function CommandDialogDemo() {
             <Bot className="mr-2 h-4 w-4" />
             <span>AI</span>
           </CommandItem>
-          <CommandItem>
+          {/* <CommandItem>
             <Smile className="mr-2 h-4 w-4" />
             <span>Search Emoji</span>
           </CommandItem>
           <CommandItem>
             <Calculator className="mr-2 h-4 w-4" />
             <span>Calculator</span>
-          </CommandItem>
+          </CommandItem> */}
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Settings">

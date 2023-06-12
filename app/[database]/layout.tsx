@@ -14,6 +14,7 @@ import { SideBar } from "@/components/sidebar"
 import { useConfigStore } from "../settings/store"
 import { Nav } from "./nav"
 import { useDatabaseAppStore } from "./store"
+import { useLastOpenedDatabase } from "./hook"
 
 // import { AIChat } from "./ai-chat";
 const AIChat = dynamic(() => import("./ai-chat").then((mod) => mod.AIChat), {
@@ -30,6 +31,7 @@ export default function DatabaseLayout({ children }: RootLayoutProps) {
   const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
   const { experiment } = useConfigStore()
 
+  useLastOpenedDatabase();
   useEffect(() => {
     const worker = getWorker()
     worker.postMessage({

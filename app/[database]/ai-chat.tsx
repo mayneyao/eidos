@@ -1,91 +1,24 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
-import Link from "next/link"
-import { useParams } from "next/navigation"
 import { useKeyPress } from "ahooks"
 import * as d3 from "d3"
 import { Bot, Loader2, Paintbrush, User } from "lucide-react"
-import { Configuration, OpenAIApi } from "openai"
+import Link from "next/link"
+import { useParams } from "next/navigation"
+import { useCallback, useRef, useState } from "react"
 import { v4 as uuidV4 } from "uuid"
 
-import { getAllCodeBlocks, getSQLFromMarkdownCodeBlock } from "@/lib/markdown"
-import { useSqliteStore } from "@/lib/store"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { useAI } from "@/hooks/use-ai"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { getAllCodeBlocks, getSQLFromMarkdownCodeBlock } from "@/lib/markdown"
+import { useSqliteStore } from "@/lib/store"
 
 import { useConfigStore } from "../settings/store"
 import { AIMessage } from "./ai-chat-message-prisma"
 import { useTableChange } from "./hook"
 import { useDatabaseAppStore } from "./store"
-
-const getOpenAI = (token: string) => {
-  const configuration = new Configuration({
-    apiKey: token ?? process.env.OPENAI_API_KEY,
-  })
-  const openai = new OpenAIApi(configuration)
-  return openai
-}
-
-const askAI = async (
-  token: string,
-  messages: any[],
-  context: {
-    tableSchema?: string
-    allTables: string[]
-    databaseName: string
-  }
-) => {
-  const openai = getOpenAI(token)
-  const { tableSchema, allTables, databaseName } = context
-
-  const baseSysPrompt = `you're a sql generator and a d3.js master. must abide by the following rules:
-  *important: if user doesn't have intention to generate a d3.js chart, you can just return sql.*
-
-  when you act as a sql generator:
-  1. your engine is sqlite, what you return is *pure sql* that can be executed in sqlite
-  2. you return markdown, sql you return must be wrapped in \`\`\`sql\`\`\`. sql without no comments
-  3. all table have a primary key named *_id* varchar(32)
-  4. when create table, must include _id column, but without default value.
-  5. when create all columns except _id are nullable  
-  6. when insert,must include _id column, the value is a function named *UUID()*
-  7. must abide rules above, otherwise you will be punished
-
-  when you act as a d3.js master:
-  1. generate a d3.js chart based on the sql you return
-  2. you can use any d3.js chart you want
-  4. you *can't use d3.json("xxxx.json")* to load data, data will be passed to you as a json array, you can use it directly, variable name is *_DATA_*.
-  5. your d3.js code begin with: 
-\`\`\`js
-const svg = d3.select("#chart").append("svg").attr("width", 500).attr("height", 500)
-\`\`\`
-`
-  const contextPrompt = tableSchema
-    ? `\ncontext below:
-- database name: ${databaseName}
-- current table schema:\n${tableSchema}
-`
-    : `context below:
-- database name: ${databaseName}
-- all tables: ${allTables.join(", ")}
-- current table schema:\n${tableSchema}
-`
-  const systemPrompt = baseSysPrompt + contextPrompt
-  // console.log(systemPrompt)
-  const completion = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo-0301",
-    temperature: 0,
-    messages: [
-      ...messages,
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-    ],
-  })
-  return completion.data.choices[0].message
-}
 
 const getAllSqlFromMessage = (content: string) => {
   const codeBlocks = getAllCodeBlocks(content)
@@ -97,6 +30,7 @@ const getAllSqlFromMessage = (content: string) => {
 
 export const AIChat = () => {
   const { currentTableSchema, setCurrentQuery } = useDatabaseAppStore()
+  const { askAI } = useAI()
   const { database, table } = useParams()
   const { handleSql, sqlite } = useSqlite(database)
   const { aiConfig } = useConfigStore()
@@ -128,7 +62,7 @@ export const AIChat = () => {
     const _messages: any = [...messages, { role: "user", content: input }]
     setMessages(_messages)
     setInput("")
-    const response = await askAI(aiConfig.token, _messages, {
+    const response = await askAI(_messages, {
       tableSchema: currentTableSchema,
       allTables,
       databaseName: database,
