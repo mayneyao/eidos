@@ -180,7 +180,7 @@ export const usePeer = () => {
      * nextjs build fails if we import peerjs at the top level
      */
     const OriginPeer = (await import("peerjs")).default
-    const peer = new OriginPeer(serverConfig)
+    const peer = new OriginPeer()
     peer.on("open", (id) => setPeerId(id))
     peer.on("connection", (conn) => {
       conn.on("data", (data) => {
