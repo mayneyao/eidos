@@ -1,3 +1,4 @@
+import { useParams, useRouter } from "next/navigation"
 import {
   Bot,
   Cloud,
@@ -7,9 +8,11 @@ import {
   MoreHorizontal,
   RotateCcw,
   Settings,
+  Share2,
 } from "lucide-react"
-import { useParams, useRouter } from "next/navigation"
 
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useTable } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -21,8 +24,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useTable } from "@/hooks/use-table"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { ShareDialog } from "@/components/share-dialog"
 
 import { useCurrentDomain } from "./hook"
 import { useDatabaseAppStore } from "./store"
@@ -131,11 +133,11 @@ export function DropdownMenuDemo() {
 }
 
 export const Nav = () => {
-  const { isAiOpen, setIsAiOpen, currentQuery, setCurrentQuery } =
-    useDatabaseAppStore()
+  const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
 
   const { database, table } = useParams()
   const { reload } = useTable(table, database)
+  const share = () => {}
 
   const toggleAi = () => {
     setIsAiOpen(!isAiOpen)
@@ -146,6 +148,7 @@ export const Nav = () => {
       <Button variant="ghost" onClick={reload}>
         <RotateCcw className="h-5 w-5" />
       </Button>
+      <ShareDialog />
       <Button variant="ghost" onClick={toggleAi}>
         <Bot className="h-5 w-5" />
       </Button>

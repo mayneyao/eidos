@@ -48,6 +48,7 @@ This project is a local-first, web application for creating and managing databas
 
 ### More
 
+- [ ] p2p sharing
 - [ ] API server to operate the database via API
   - [ ] self-hosted server / desktop app; this requires running a app/server locally.
 - [ ] Webhooks
@@ -59,6 +60,14 @@ This project is a local-first, web application for creating and managing databas
 2. Run `pnpm install`
 3. Run `pnpm dev`
 4. You can now access the app in your browser at `http://localhost:3000`
+
+
+## dev
+```
+# start a peerjs server
+peerjs --port 9000 --key peerjs --path /myapp
+
+```
 
 ## Contributions
 
