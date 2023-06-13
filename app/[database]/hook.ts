@@ -1,14 +1,15 @@
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
 import * as d3 from "d3"
+import { useParams } from "next/navigation"
+import { useEffect, useState } from "react"
 
+import { usePeer } from "@/hooks/use-peer"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { MsgType } from "@/lib/const"
-import { SQLWorker, getWorker } from "@/lib/sqlite/sql-worker"
+import { getSqliteProxy } from "@/lib/sqlite/proxy"
+import { getWorker } from "@/lib/sqlite/worker"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv4 } from "@/lib/utils"
-import { usePeer } from "@/hooks/use-peer"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 
 import { useConfigStore } from "../settings/store"
 
@@ -46,7 +47,7 @@ export const useLastOpenedDatabase = () => {
 
 export const useLayoutInit = () => {
   const { database } = useParams()
-  const { setInitialized, setSqlWorker } = useSqliteStore()
+  const { setInitialized, setSqliteProxy: setSqlWorker } = useSqliteStore()
   const { setCurrentDatabase, currentDatabase } = useSqliteStore()
   const { experiment } = useConfigStore()
   const { sqlite } = useSqlite(database)
@@ -100,9 +101,8 @@ export const useLayoutInit = () => {
         setInitialized(true)
       }
     }
-    const sqlWorker = SQLWorker(database)
+    const sqlWorker = getSqliteProxy(database)
     setSqlWorker(sqlWorker)
-    ;(window as any).SQLWorker = sqlWorker
   }, [database, setInitialized, setSqlWorker])
 
   useEffect(() => {

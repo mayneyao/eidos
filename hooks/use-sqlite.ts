@@ -1,11 +1,10 @@
 "use client"
 
-import type { SqlDatabase } from "@/worker/sql"
 import { useCallback } from "react"
+import type { SqlDatabase } from "@/worker/sql"
 import { create } from "zustand"
 
 import { createTemplateTableSql } from "@/components/grid/helper"
-
 
 interface SqliteState {
   isInitialized: boolean
@@ -25,8 +24,8 @@ interface SqliteState {
 
   // const [sqlWorker, setSQLWorker] = useState<SqlDatabase>()
 
-  sqlWorker: SqlDatabase | null
-  setSqlWorker: (sqlWorker: SqlDatabase) => void
+  sqliteProxy: SqlDatabase | null
+  setSqliteProxy: (sqlWorker: SqlDatabase) => void
 }
 
 // not using persist
@@ -46,17 +45,19 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
   databaseList: [],
   setDatabaseList: (databaseList) => set({ databaseList }),
 
-  sqlWorker: null,
-  setSqlWorker: (sqlWorker) => set({ sqlWorker }),
+  sqliteProxy: null,
+  setSqliteProxy: (sqlWorker) => set({ sqliteProxy: sqlWorker }),
 }))
 
 export const useSqlite = (dbName?: string) => {
-  const { isInitialized, sqlWorker, setAllTables } = useSqliteStore()
-  // const sqlWorker = useSqlWorker()
+  const {
+    isInitialized,
+    sqliteProxy: sqlWorker,
+    setAllTables,
+  } = useSqliteStore()
 
   const queryAllTables = useCallback(async () => {
     if (!sqlWorker) return
-    // console.log("queryAllTables call", (sqlWorker as any)._config)
     const res =
       await sqlWorker.sql`SELECT name FROM sqlite_schema WHERE type='table'`
     const allTables = res.map((item: any) => item[0])

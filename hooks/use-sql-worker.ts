@@ -5,7 +5,7 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useSqliteStore } from "./use-sqlite"
 
 export const useSqlWorker = () => {
-  const { sqlWorker } = useSqliteStore()
+  const { sqliteProxy: sqlWorker } = useSqliteStore()
   const { isShareMode } = useAppRuntimeStore()
   const checkSqlWorkerIsOk2Call = useCallback(() => {
     if (!sqlWorker) return false

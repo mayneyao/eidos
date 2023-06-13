@@ -7,7 +7,7 @@ import {
   ICollaborator,
   IMsg,
 } from "@/lib/collaboration/interface"
-import { getWorker } from "@/lib/sqlite/sql-worker"
+import { getWorker } from "@/lib/sqlite/worker"
 
 interface PeerState {
   peer: Peer | undefined
@@ -156,6 +156,8 @@ export const usePeer = () => {
           break
         case "QUERY":
           const worker = getWorker()
+          // TODO: check sql syntax, for now only allow read-only query
+          // TODO: advance permission system
           worker.postMessage(msg.payload)
           worker.onmessage = (e) => {
             // console.log("QUERY RESULT", e.data)

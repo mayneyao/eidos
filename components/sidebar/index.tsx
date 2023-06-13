@@ -25,13 +25,11 @@ export const SideBar = () => {
   const { isShareMode } = useAppRuntimeStore()
 
   useEffect(() => {
-    console.log("side bar loading all tables, database: ")
-    setTimeout(() => {
-      queryAllTables().then((tables) => {
-        tables && setAllTables(tables)
-        setLoading(false)
-      })
-    }, 100)
+    console.log("side bar loading all tables ")
+    queryAllTables().then((tables) => {
+      tables && setAllTables(tables)
+      setLoading(false)
+    })
   }, [queryAllTables, setAllTables])
   const searchParams = useSearchParams()
 

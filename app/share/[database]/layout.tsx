@@ -1,15 +1,15 @@
 "use client"
 
-import { useEffect } from "react"
 import { useParams, useSearchParams } from "next/navigation"
+import { useEffect } from "react"
 
-import { SQLWorker } from "@/lib/sqlite/sql-worker"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
-import { usePeerConnect } from "@/hooks/use-peer"
-import { useSqliteStore } from "@/hooks/use-sqlite"
 import { DatabaseLayoutBase } from "@/app/[database]/base-layout"
 import { useConfigStore } from "@/app/settings/store"
+import { usePeerConnect } from "@/hooks/use-peer"
+import { useSqliteStore } from "@/hooks/use-sqlite"
+import { getSqliteProxy } from "@/lib/sqlite/proxy"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 
 interface RootLayoutProps {
   children: React.ReactNode
@@ -21,7 +21,7 @@ export default function ShareDatabaseLayout({ children }: RootLayoutProps) {
   const { profile } = useConfigStore()
   const { isConnected, conn } = usePeerConnect(sharePeerId, profile.username)
   const { setShareMode } = useAppRuntimeStore()
-  const { setSqlWorker } = useSqliteStore()
+  const { setSqliteProxy } = useSqliteStore()
   const { database } = useParams()
   useEffect(() => {
     setShareMode(true)
@@ -32,15 +32,13 @@ export default function ShareDatabaseLayout({ children }: RootLayoutProps) {
 
   useEffect(() => {
     // TODO: handle connection
-    const sqlWorker = SQLWorker(database, {
+    const sqliteProxy = getSqliteProxy(database, {
       isShareMode: true,
-      connection: conn ?? undefined,
+      connection: conn!,
     })
     console.log(`share mode setSqlWorker`)
-    setSqlWorker(sqlWorker)
-    ;(window as any).SQLWorker = sqlWorker
-    console.log("switch to  new sqlWorker", sqlWorker)
-  }, [conn, database, setSqlWorker])
+    setSqliteProxy(sqliteProxy)
+  }, [conn, database, setSqliteProxy])
   // border to show difference between share and app
   return (
     <DatabaseLayoutBase
