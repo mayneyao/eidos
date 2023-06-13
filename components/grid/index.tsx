@@ -16,7 +16,7 @@ import { useDatabaseAppStore } from "@/app/[database]/store"
 import "@glideapps/glide-data-grid/dist/index.css"
 import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { GetRowThemeCallback } from "@glideapps/glide-data-grid/dist/ts/data-grid/data-grid-render"
-import { useClickAway, useKeyPress } from "ahooks"
+import { useClickAway, useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
 
@@ -72,7 +72,9 @@ export default function Grid(props: IGridProps) {
   const _theme = theme === "light" ? {} : darkTheme
   const { setCurrentTableSchema } = useDatabaseAppStore()
   const glideDataGridRef = useRef<DataEditorRef>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const { undo, redo } = useSqlite(databaseName)
+  const size = useSize(containerRef)
 
   const {
     data,
@@ -101,6 +103,16 @@ export default function Grid(props: IGridProps) {
       undo()
     }
   })
+
+  const isSm = size?.width ?? 0 < 768
+  const freezeColumns = isSm ? 0 : 1
+
+  const config = useMemo(() => {
+    return {
+      ...defaultConfig,
+      freezeColumns,
+    }
+  }, [freezeColumns])
 
   // handle column width
   const _columns = useMemo(() => {
@@ -198,11 +210,11 @@ export default function Grid(props: IGridProps) {
   )
 
   return (
-    <div className="h-full p-2">
+    <div className="h-full p-2" ref={containerRef}>
       <div className="flex h-full overflow-hidden rounded-md">
         <ContextMenuDemo deleteRows={deleteRows}>
           <DataEditor
-            {...defaultConfig}
+            {...config}
             ref={glideDataGridRef}
             theme={_theme}
             showSearch={showSearch}
