@@ -39,6 +39,7 @@ const defaultConfig: Partial<DataEditorProps> = {
   trailingRowOptions: {
     tint: true,
     hint: "New",
+    sticky: true,
   },
   // auto handle copy and paste
   onPaste: true,

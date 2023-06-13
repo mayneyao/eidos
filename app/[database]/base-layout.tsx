@@ -57,7 +57,7 @@ export function DatabaseLayoutBase({
   // when chat is close 2:10
   return (
     <div
-      className={cn("relative  grid h-screen w-screen grid-cols-12", className)}
+      className={cn("relative  grid h-screen w-screen grid-cols-9 md:grid-cols-12", className)}
     >
       <div className={cn("col-span-3 hidden h-full md:block xl:col-span-2")}>
         <SideBar />
@@ -72,7 +72,7 @@ export function DatabaseLayoutBase({
           <MobileSideBar />
           <Nav />
         </div>
-        <div className="flex grow overflow-auto">
+        <div className="flex h-[calc(100vh-4rem)] grow overflow-auto">
           <div className="grow">{children}</div>
         </div>
       </div>
