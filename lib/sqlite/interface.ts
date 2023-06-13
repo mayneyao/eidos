@@ -1,0 +1,19 @@
+import { MsgType } from "../const"
+
+export type IQuery = {
+  type: MsgType.CallFunction
+  data: {
+    method: string
+    params: [string, string[]]
+    dbName: string
+  }
+  id: string
+}
+
+export type IQueryResp = {
+  id: string
+  data: {
+    result: any
+  }
+  type: MsgType.QueryResp
+}

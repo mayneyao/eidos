@@ -3,9 +3,10 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useKeyPress } from "ahooks"
-import { Bot, Palette, Settings } from "lucide-react"
+import { Bot, Forward, Home, Palette, Settings } from "lucide-react"
 import { useTheme } from "next-themes"
 
+import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import {
   CommandDialog,
@@ -31,11 +32,15 @@ export function CommandDialogDemo() {
   })
 
   const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
+  const { lastOpenedDatabase } = useAppStore()
 
   const goto = (path: string) => () => {
     setCmdkOpen(false)
     router.push(path)
   }
+  const goHome = goto(`/${lastOpenedDatabase}`)
+
+  const goShare = goto("/share")
 
   const switchTheme = () => {
     setTheme(theme === "light" ? "dark" : "light")
@@ -56,14 +61,14 @@ export function CommandDialogDemo() {
             <Bot className="mr-2 h-4 w-4" />
             <span>AI</span>
           </CommandItem>
-          {/* <CommandItem>
-            <Smile className="mr-2 h-4 w-4" />
-            <span>Search Emoji</span>
+          <CommandItem onSelect={goHome}>
+            <Home className="mr-2 h-4 w-4" />
+            <span>Home</span>
           </CommandItem>
-          <CommandItem>
-            <Calculator className="mr-2 h-4 w-4" />
-            <span>Calculator</span>
-          </CommandItem> */}
+          <CommandItem onSelect={goShare}>
+            <Forward className="mr-2 h-4 w-4" />
+            <span>Share</span>
+          </CommandItem>
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Settings">

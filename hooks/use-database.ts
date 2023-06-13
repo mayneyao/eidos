@@ -1,7 +1,8 @@
 import { useEffect } from "react"
 
 import { getSQLiteFilesInRootDirectory } from "@/lib/fs"
-import { useSqliteStore } from "@/lib/store"
+
+import { useSqliteStore } from "./use-sqlite"
 
 export const useAllDatabases = () => {
   const { setDatabaseList, databaseList } = useSqliteStore()

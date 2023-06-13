@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect } from "react"
 import { v4 as uuidv4 } from "uuid"
 
+import { useDatabaseAppStore } from "@/app/[database]/store"
 import { MsgType } from "@/lib/const"
-import { logger } from "@/lib/log"
 import {
   aggregateSql2columns,
   checkSqlIsModifyTableData,
@@ -11,26 +11,8 @@ import {
   queryData2JSON,
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
-import { useDatabaseAppStore } from "@/app/[database]/store"
 
 import { useSqlite } from "./use-sqlite"
-
-export const useTableSchema = (tableName: string, dbName: string) => {
-  const { sqlite } = useSqlite(dbName)
-  const [schema, setSchema] = useState<string>()
-
-  useEffect(() => {
-    if (!sqlite) return
-    sqlite.sql`SELECT * FROM sqlite_schema where name=${Symbol(
-      tableName
-    )}`.then((res: any) => {
-      const sql = res[0][4] + ";"
-      logger.info(sql)
-      setSchema(sql)
-    })
-  }, [sqlite, tableName, dbName])
-  return schema
-}
 
 export const useTable = (tableName: string, databaseName: string) => {
   const { sqlite } = useSqlite(databaseName)
@@ -65,7 +47,10 @@ export const useTable = (tableName: string, databaseName: string) => {
     if (!sqlite) return
     await sqlite.sql`SELECT * FROM sqlite_schema where name=${tableName}`.then(
       (res: any) => {
+        // array mode
         const sql = res[0][4] + ";"
+        // object mode
+        // const sql = res[0].sql + ";"
         if (sql) {
           setTableSchema(sql)
           try {

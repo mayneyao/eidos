@@ -7,7 +7,6 @@ import { useParams } from "next/navigation"
 import { useKeyPress, useSize } from "ahooks"
 import { Bot, Loader2, Paintbrush, User } from "lucide-react"
 
-import { useSqliteStore } from "@/lib/store"
 import { useAI } from "@/hooks/use-ai"
 import { useAutoRunCode } from "@/hooks/use-auto-run-code"
 import { Button } from "@/components/ui/button"
@@ -17,6 +16,7 @@ import { useConfigStore } from "../settings/store"
 import { AIMessage } from "./ai-chat-message-prisma"
 import { useTableChange } from "./hook"
 import { useDatabaseAppStore } from "./store"
+import { useSqliteStore } from "@/hooks/use-sqlite"
 
 export const AIChat = () => {
   const { currentTableSchema, setCurrentQuery } = useDatabaseAppStore()
@@ -84,10 +84,7 @@ export const AIChat = () => {
   }
 
   return (
-    <div
-      className="flex h-screen flex-col overflow-auto p-2"
-      ref={divRef as any}
-    >
+    <div className="flex h-full flex-col overflow-auto p-2" ref={divRef as any}>
       <div className="flex grow flex-col gap-2 pb-[100px]">
         {!aiConfig.token && (
           <p className="p-2">

@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+export { v4 as uuidv4 } from "uuid"
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -16,4 +18,8 @@ export const hashText = (text: string) => {
     hash = hash & hash // Convert to 32bit integer
   }
   return hash
+}
+
+export const checkIsInWorker = () => {
+  return globalThis.self === globalThis
 }
