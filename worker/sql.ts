@@ -137,7 +137,8 @@ export class SqlDatabase {
       this.db.exec({
         sql,
         bind,
-        // returnValue: 'resultRows',
+        returnValue: 'resultRows',
+        // rowMode: "object",
         callback: (row) => {
           res.push(row)
         },

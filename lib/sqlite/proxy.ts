@@ -21,16 +21,25 @@ interface ISqlite<T> {
 
 export class LocalSqlite implements ISqlite<Worker> {
   connector: Worker
+  channel: MessageChannel
   constructor(connector: Worker) {
     this.connector = connector
+    this.channel = new MessageChannel()
   }
 
+  useNewChannel() {
+    this.channel = new MessageChannel()
+  }
   send(data: any) {
-    return this.connector.postMessage(data)
+    // every msg need to have a unique id
+    this.useNewChannel()
+    return this.connector.postMessage(data, [this.channel.port2])
   }
   onCallBack(thisCallId: string) {
     return new Promise((resolve, reject) => {
-      this.connector.onmessage = (e) => {
+      // https://advancedweb.hu/how-to-use-async-await-with-postmessage/ saves me, there is a bug when use id to match msg, channel is the right way
+      this.channel.port1.onmessage = (e) => {
+        this.channel.port1.close()
         const { id: returnId, type, data } = e.data
         switch (type) {
           case MsgType.Error:
@@ -66,12 +75,16 @@ export class RemoteSqlite implements ISqlite<DataConnection> {
   }
 
   send(data: any) {
-    return this.connector.send
+    return this.connector.send({
+      type: ECollaborationMsgType.QUERY,
+      payload: data,
+    })
   }
+
   onCallBack(thisCallId: string) {
     return new Promise((resolve, reject) => {
       this.connector.on("data", (data) => {
-        console.log("receive data", data, thisCallId)
+        // console.log("receive data", data, thisCallId)
         const type = (data as any).type as ECollaborationMsgType
         if (type == ECollaborationMsgType.QUERY_RESP) {
           const _data = data as IMsgQueryResp

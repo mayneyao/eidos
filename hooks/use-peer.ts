@@ -120,6 +120,7 @@ export const usePeerConnect = (connectId: string | null, name?: string) => {
 
   useEffect(() => {
     if (peerId && connectId && !conn) {
+      console.log(`${peerId} CONNECT ${connectId}`)
       connect(connectId)
     }
   }, [conn, connect, connectId, peerId])
@@ -158,8 +159,11 @@ export const usePeer = () => {
           const worker = getWorker()
           // TODO: check sql syntax, for now only allow read-only query
           // TODO: advance permission system
-          worker.postMessage(msg.payload)
-          worker.onmessage = (e) => {
+          const channel = new MessageChannel()
+
+          worker.postMessage(msg.payload, [channel.port2])
+          channel.port1.onmessage = (e) => {
+            channel.port1.close()
             // console.log("QUERY RESULT", e.data)
             conn.send({
               type: ECollaborationMsgType.QUERY_RESP,

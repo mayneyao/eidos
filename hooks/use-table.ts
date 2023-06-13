@@ -47,7 +47,10 @@ export const useTable = (tableName: string, databaseName: string) => {
     if (!sqlite) return
     await sqlite.sql`SELECT * FROM sqlite_schema where name=${tableName}`.then(
       (res: any) => {
+        // array mode
         const sql = res[0][4] + ";"
+        // object mode
+        // const sql = res[0].sql + ";"
         if (sql) {
           setTableSchema(sql)
           try {

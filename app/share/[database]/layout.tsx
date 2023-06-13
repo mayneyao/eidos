@@ -15,14 +15,33 @@ interface RootLayoutProps {
   children: React.ReactNode
 }
 
+const SwitchProxyWrapper = ({ children }: any) => {
+  const searchParams = useSearchParams()
+  const sharePeerId = searchParams.get("peerId")
+  const { profile } = useConfigStore()
+  const { conn } = usePeerConnect(sharePeerId, profile.username)
+  const { setSqliteProxy } = useSqliteStore()
+  const { database } = useParams()
+  useEffect(() => {
+    // TODO: handle connection
+    if (conn) {
+      const sqliteProxy = getSqliteProxy(database, {
+        isShareMode: true,
+        connection: conn,
+      })
+      console.log(`share mode setSqlWorker`)
+      setSqliteProxy(sqliteProxy)
+    }
+  }, [conn, database, setSqliteProxy])
+  return <>{children}</>
+}
+
 export default function ShareDatabaseLayout({ children }: RootLayoutProps) {
   const searchParams = useSearchParams()
   const sharePeerId = searchParams.get("peerId")
   const { profile } = useConfigStore()
-  const { isConnected, conn } = usePeerConnect(sharePeerId, profile.username)
+  const { isConnected } = usePeerConnect(sharePeerId, profile.username)
   const { setShareMode } = useAppRuntimeStore()
-  const { setSqliteProxy } = useSqliteStore()
-  const { database } = useParams()
   useEffect(() => {
     setShareMode(true)
     return () => {
@@ -30,16 +49,8 @@ export default function ShareDatabaseLayout({ children }: RootLayoutProps) {
     }
   }, [setShareMode])
 
-  useEffect(() => {
-    // TODO: handle connection
-    const sqliteProxy = getSqliteProxy(database, {
-      isShareMode: true,
-      connection: conn!,
-    })
-    console.log(`share mode setSqlWorker`)
-    setSqliteProxy(sqliteProxy)
-  }, [conn, database, setSqliteProxy])
   // border to show difference between share and app
+  // first we need init peer client at DatabaseLayoutBase, then we can use connect to share peer
   return (
     <DatabaseLayoutBase
       className={cn(
@@ -47,7 +58,7 @@ export default function ShareDatabaseLayout({ children }: RootLayoutProps) {
         isConnected ? "border-green-400" : "border-red-400"
       )}
     >
-      {children}
+      <SwitchProxyWrapper>{children}</SwitchProxyWrapper>
     </DatabaseLayoutBase>
   )
 }

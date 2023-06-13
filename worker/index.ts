@@ -7,7 +7,7 @@ import { SqlDatabase, Sqlite } from "./sql"
 let _db: SqlDatabase | null = null
 const sqlite = new Sqlite()
 
-const handleFunctionCall = async (data: any, id: number) => {
+const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
   if (!sqlite.sqlite3) {
     throw new Error("sqlite3 not initialized")
   }
@@ -19,7 +19,7 @@ const handleFunctionCall = async (data: any, id: number) => {
   const _method = method as keyof SqlDatabase
   const callMethod = (_db[_method] as Function).bind(_db)
   const res = await callMethod(...params)
-  postMessage({
+  port.postMessage({
     id,
     data: {
       result: res,
@@ -48,7 +48,7 @@ onmessage = async (e) => {
   const { type, data, id } = e.data
   switch (type) {
     case MsgType.CallFunction:
-      await handleFunctionCall(data, id)
+      await handleFunctionCall(data, id, e.ports[0])
       break
     case MsgType.SwitchDatabase:
       _db = loadDatabase(data.databaseName)
