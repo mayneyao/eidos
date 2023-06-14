@@ -6,6 +6,9 @@ import { persist } from "zustand/middleware"
 interface AppState {
   lastOpenedDatabase: string
   setLastOpenedDatabase: (database: string) => void
+
+  lastOpenedTable: string
+  setLastOpenedTable: (table: string) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -14,6 +17,9 @@ export const useAppStore = create<AppState>()(
       lastOpenedDatabase: "",
       setLastOpenedDatabase: (database) =>
         set({ lastOpenedDatabase: database }),
+
+      lastOpenedTable: "",
+      setLastOpenedTable: (table) => set({ lastOpenedTable: table }),
     }),
     {
       name: "app-storage",

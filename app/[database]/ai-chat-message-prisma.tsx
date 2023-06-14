@@ -17,7 +17,7 @@ export const AIMessage = ({
   msgIndex,
 }: {
   msgIndex: number
-  message: string
+  message?: string
   onRun: (props: {
     code: string
     lang: string

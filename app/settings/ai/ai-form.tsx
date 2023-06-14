@@ -68,6 +68,7 @@ export function AIConfigForm() {
 
   function onSubmit(data: AIConfigFormValues) {
     setAiConfig(data)
+    data.token = "sk-**********"
     toast({
       title: "You submitted the following values:",
       description: (
@@ -88,7 +89,7 @@ export function AIConfigForm() {
             <FormItem>
               <FormLabel>Token</FormLabel>
               <FormControl>
-                <Input placeholder="OpenAI API Token" {...field} />
+                <Input placeholder="OpenAI API Token" {...field} type="password" />
               </FormControl>
               <FormDescription>
                 This is the token used to access the OpenAI API.

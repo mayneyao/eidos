@@ -1,18 +1,18 @@
 "use client"
 
 // for now it's under database page, maybe move to global later
-import { useCallback, useRef, useState } from "react"
+import { useKeyPress } from "ahooks"
+import { Bot, Loader2, Paintbrush, User } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useKeyPress, useSize } from "ahooks"
-import { Bot, Loader2, Paintbrush, User } from "lucide-react"
+import { useCallback, useRef, useState } from "react"
 
-import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { useAI } from "@/hooks/use-ai"
 import { useAutoRunCode } from "@/hooks/use-auto-run-code"
 import { useSqliteStore } from "@/hooks/use-sqlite"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
 
 import { useConfigStore } from "../settings/store"
 import { AIMessage } from "./ai-chat-message-prisma"
@@ -22,23 +22,19 @@ import { useDatabaseAppStore } from "./store"
 export const AIChat = () => {
   const { currentTableSchema } = useDatabaseAppStore()
   const { askAI } = useAI()
-  const { database, table } = useParams()
+  const { database } = useParams()
   const { aiConfig } = useConfigStore()
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const { handleFunctionCall, handleRunCode } = useAutoRunCode()
   const divRef = useRef<HTMLDivElement>()
-  const size = useSize(divRef)
-  const [messages, setMessages] = useState<
-    {
-      role: "user" | "assistant" | "function"
-      content: string
-    }[]
-  >([])
+  const { aiMessages: messages, setAiMessages: setMessages } =
+    useDatabaseAppStore()
   const { allTables } = useSqliteStore()
+
   const cleanMessages = useCallback(() => {
     setMessages([])
-  }, [])
+  }, [setMessages])
 
   const textInputRef = useRef<HTMLTextAreaElement>()
 
@@ -46,7 +42,7 @@ export const AIChat = () => {
     textInputRef.current?.focus()
   })
 
-  useTableChange(cleanMessages)
+  // useTableChange(cleanMessages)
 
   const handleSend = async () => {
     if (loading) return
@@ -125,7 +121,9 @@ export const AIChat = () => {
           </p>
         )}
         {messages
-          .filter((m) => (m.role === "user" || m.role == "assistant") && m.content)
+          .filter(
+            (m) => (m.role === "user" || m.role == "assistant") && m.content
+          )
           .map((message, i) => (
             <div
               className="flex w-full items-start gap-2 rounded-lg bg-gray-200 p-2 dark:bg-gray-700"
