@@ -78,7 +78,7 @@ export function DatabaseLayoutBase({
       </div>
       <div
         className={cn(
-          " h-full  lg:border-l",
+          " h-screen  lg:border-l",
           isAiOpen ? "col-span-3 hidden md:block" : "hidden"
         )}
       >
