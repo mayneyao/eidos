@@ -13,6 +13,7 @@ import { useAutoRunCode } from "@/hooks/use-auto-run-code"
 import { useSqliteStore } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/components/ui/use-toast"
 
 import { useConfigStore } from "../settings/store"
 import { AIChatMessage } from "./ai-chat-message"
@@ -55,52 +56,59 @@ export const AIChat = () => {
 
   const sendMessages = async (_messages: any) => {
     setLoading(true)
-    const response = await askAI(_messages, {
-      tableSchema: currentTableSchema,
-      allTables,
-      databaseName: database,
-    })
+    try {
+      const response = await askAI(_messages, {
+        tableSchema: currentTableSchema,
+        allTables,
+        databaseName: database,
+      })
 
-    if (response?.finish_reason == "function_call") {
-      if (aiConfig.autoRunScope) {
-        const res = await handleOpenAIFunctionCall(
-          response.message!,
-          handleFunctionCall
-        )
-        if (res) {
-          const { name, resp } = res
-          const newMessages = [
-            ..._messages,
-            response.message,
-            {
-              role: "function",
-              name,
-              content: JSON.stringify(resp),
-            },
-          ]
-          const newResponse = await askAI(newMessages, {
-            tableSchema: currentTableSchema,
-            allTables,
-            databaseName: database,
-          })
-          const _newMessages = [
-            ...newMessages,
-            { role: "assistant", content: newResponse?.message?.content },
-          ]
-          console.log({ _newMessages })
-          setMessages(_newMessages as any)
+      if (response?.finish_reason == "function_call") {
+        if (aiConfig.autoRunScope) {
+          const res = await handleOpenAIFunctionCall(
+            response.message!,
+            handleFunctionCall
+          )
+          if (res) {
+            const { name, resp } = res
+            const newMessages = [
+              ..._messages,
+              response.message,
+              {
+                role: "function",
+                name,
+                content: JSON.stringify(resp),
+              },
+            ]
+            const newResponse = await askAI(newMessages, {
+              tableSchema: currentTableSchema,
+              allTables,
+              databaseName: database,
+            })
+            const _newMessages = [
+              ...newMessages,
+              { role: "assistant", content: newResponse?.message?.content },
+            ]
+            console.log({ _newMessages })
+            setMessages(_newMessages as any)
+          }
         }
+      } else if (response?.message) {
+        const newMessages = [
+          ..._messages,
+          { role: "assistant", content: response?.message?.content },
+        ]
+        const thisMsgIndex = newMessages.length - 1
+        setMessages(newMessages)
       }
-    } else if (response?.message) {
-      const newMessages = [
-        ..._messages,
-        { role: "assistant", content: response?.message?.content },
-      ]
-      const thisMsgIndex = newMessages.length - 1
-      setMessages(newMessages)
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: 'oops, something went wrong. please try again later.',
+      })
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   const handleSend = async () => {
