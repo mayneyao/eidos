@@ -84,6 +84,23 @@ export const useSqlite = (dbName?: string) => {
     await updateTableList()
   }
 
+  const createTableWithSqlAndInsertSqls = async (
+    createTableSql: string,
+    insertSql?: any[],
+    callback?: (progress: number) => void
+  ) => {
+    if (!sqlWorker) return
+    await sqlWorker.sql`${createTableSql}`
+    await updateTableList()
+    if (insertSql) {
+      for (let index = 0; index < insertSql.length; index++) {
+        const { sql, bind } = insertSql[index]
+        await sqlWorker.sql4mainThread(sql, bind)
+        callback && callback((index / insertSql.length) * 100)
+      }
+    }
+  }
+
   const createTableWithSql = async (
     createTableSql: string,
     insertSql?: string
@@ -173,6 +190,7 @@ export const useSqlite = (dbName?: string) => {
     duplicateTable,
     queryAllTables,
     createTableWithSql,
+    createTableWithSqlAndInsertSqls,
     updateTableData,
     handleSql,
     undo,

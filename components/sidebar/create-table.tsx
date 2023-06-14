@@ -15,22 +15,31 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
 
 import { csvFile2Sql } from "./helper"
 
 export function CreateTableDialog() {
   const [open, setOpen] = useState(false)
   const [tableName, setTableName] = useState("")
+  const [importing, setImporting] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [file, setFile] = useState<File | null>(null)
   const params = useParams()
   const router = useRouter()
   const { database } = params
-  const { createTable, createTableWithSql } = useSqlite(database)
+  const { createTable, createTableWithSqlAndInsertSqls } = useSqlite(database)
 
   const handleCreateTable = async () => {
     if (file) {
       const res = await csvFile2Sql(file, tableName.trim())
-      await createTableWithSql(res.createTableSql, res.insertSql)
+      setImporting(true)
+      await createTableWithSqlAndInsertSqls(
+        res.createTableSql,
+        res.sqls,
+        setProgress
+      )
+      setImporting(false)
       // await createTableWithSql(res.createTableSql, res.insertSql)
       router.push(`/${database}/${tableName}`)
       setOpen(false)
@@ -49,6 +58,7 @@ export function CreateTableDialog() {
           <Plus size={16} className="mr-2" />
         </Button>
       </DialogTrigger>
+
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create Table</DialogTitle>
@@ -86,6 +96,7 @@ export function CreateTableDialog() {
             />
           </div>
         </div>
+        {importing && <Progress value={progress} />}
         <DialogFooter>
           <Button type="submit" onClick={handleCreateTable}>
             Create

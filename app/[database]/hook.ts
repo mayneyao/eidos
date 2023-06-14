@@ -1,15 +1,15 @@
-import * as d3 from "d3"
-import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
+import { useParams } from "next/navigation"
+import * as d3 from "d3"
 
-import { usePeer } from "@/hooks/use-peer"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { MsgType } from "@/lib/const"
 import { getSqliteProxy } from "@/lib/sqlite/proxy"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv4 } from "@/lib/utils"
+import { usePeer } from "@/hooks/use-peer"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 
 import { useConfigStore } from "../settings/store"
 
@@ -45,6 +45,20 @@ export const useLastOpenedDatabase = () => {
   return lastOpenedDatabase
 }
 
+export const useLastOpenedTable = () => {
+  const { lastOpenedTable, setLastOpenedTable } = useAppStore()
+  const { isShareMode } = useAppRuntimeStore()
+  const { table, database } = useParams()
+
+  useEffect(() => {
+    if (!isShareMode && table && database) {
+      setLastOpenedTable(`${database}/${table}`)
+    }
+  }, [isShareMode, setLastOpenedTable, table, database])
+
+  return lastOpenedTable
+}
+
 export const useLayoutInit = () => {
   const { database } = useParams()
   const { setInitialized, setSqliteProxy: setSqlWorker } = useSqliteStore()
@@ -53,6 +67,7 @@ export const useLayoutInit = () => {
   const { sqlite } = useSqlite(database)
 
   useLastOpenedDatabase()
+  useLastOpenedTable()
 
   const { initPeer } = usePeer()
 

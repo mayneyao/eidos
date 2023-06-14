@@ -1,3 +1,4 @@
+import { ChatCompletionResponseMessage } from "openai"
 import { create } from "zustand"
 
 import { sqlToJSONSchema2 } from "@/lib/sqlite/helper"
@@ -7,6 +8,9 @@ import { sqlToJSONSchema2 } from "@/lib/sqlite/helper"
 interface IDatabaseAppState {
   isAiOpen: boolean
   setIsAiOpen: (isAiOpen: boolean) => void
+
+  aiMessages: ChatCompletionResponseMessage[]
+  setAiMessages: (aiMessages: ChatCompletionResponseMessage[]) => void
 
   currentTableSchema: string
   setCurrentTableSchema: (currentTableSchema: string) => void
@@ -28,6 +32,9 @@ interface IDatabaseAppState {
 export const useDatabaseAppStore = create<IDatabaseAppState>()((set) => ({
   isAiOpen: false,
   setIsAiOpen: (isAiOpen) => set({ isAiOpen }),
+
+  aiMessages: [],
+  setAiMessages: (aiMessages) => set({ aiMessages }),
 
   currentTableSchema: "",
   setCurrentTableSchema: (currentTableSchema) => set({ currentTableSchema }),

@@ -33,11 +33,9 @@ export const useAutoRunCode = () => {
       if (!handled) {
         const res = await runQuery(sql)
         console.log(res)
-        if (res) {
-          // TODO: use runtime context to pass data to d3,
-          ;(window as any)._DATA_ = res
-        }
+        return res
       }
+      return "ok"
     },
     [handleSql, runQuery]
   )
@@ -95,6 +93,24 @@ export const useAutoRunCode = () => {
     }
   }
 
+  const handleFunctionCall = async (
+    name: string,
+    parameters: any,
+    isAuto: boolean = true
+  ) => {
+    const { autoRunScope } = aiConfig
+    switch (name) {
+      case "sqlQuery":
+        const { sql } = parameters
+        const scope = "SQL." + sql?.trim().toUpperCase().split(" ")[0]
+        if (autoRunScope.includes(scope)) {
+          return await handleRunSql(sql)
+        }
+        return "permission denied"
+      default:
+        throw new Error(`function ${name} not supported auto run`)
+    }
+  }
   const autoRun = async (
     markdown: string,
     context: {
@@ -113,5 +129,5 @@ export const useAutoRunCode = () => {
       })
     }
   }
-  return { autoRun, handleRunCode }
+  return { autoRun, handleRunCode, handleFunctionCall }
 }

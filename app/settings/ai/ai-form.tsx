@@ -28,7 +28,47 @@ const AIConfigFormSchema = z.object({
 })
 
 export type AIConfigFormValues = z.infer<typeof AIConfigFormSchema>
-export const AutoRunScopes = ["SQL.SELECT", "SQL.INSERT", "D3.CHART"]
+export const AutoRunScopesWithDesc = [
+  {
+    value: "SQL.SELECT",
+    description: "Select data from a SQL table.",
+  },
+  {
+    value: "SQL.INSERT",
+    description: "Insert data into a SQL table.",
+  },
+  {
+    value: "SQL.UPDATE",
+    description: "Update data in a SQL table.",
+  },
+  {
+    value: "SQL.DELETE",
+    description: "Delete data from a SQL table.",
+  },
+  {
+    value: "SQL.ALTER",
+    description: "Alter a SQL table.",
+  },
+  {
+    value: "SQL.CREATE",
+    description: "Create a SQL table.",
+  },
+  {
+    value: "SQL.DROP",
+    description: "Drop a SQL table.",
+  },
+  {
+    value: "UI.REFRESH",
+    description: "Refresh the UI after SQL execution.",
+  },
+  {
+    value: "D3.CHART",
+    description: "Create a D3 chart.",
+  },
+]
+
+export const AutoRunScopes = AutoRunScopesWithDesc.map((item) => item.value)
+
 // This can come from your database or API.
 const defaultValues: Partial<AIConfigFormValues> = {
   // name: "Your name",
@@ -48,6 +88,7 @@ export function AIConfigForm() {
 
   function onSubmit(data: AIConfigFormValues) {
     setAiConfig(data)
+    // data.token = "sk-**********"
     toast({
       title: "You submitted the following values:",
       description: (
@@ -68,7 +109,11 @@ export function AIConfigForm() {
             <FormItem>
               <FormLabel>Token</FormLabel>
               <FormControl>
-                <Input placeholder="OpenAI API Token" {...field} />
+                <Input
+                  placeholder="OpenAI API Token"
+                  {...field}
+                  type="password"
+                />
               </FormControl>
               <FormDescription>
                 This is the token used to access the OpenAI API.
@@ -89,32 +134,34 @@ export function AIConfigForm() {
                   run.
                 </FormDescription>
               </div>
-              {AutoRunScopes.map((_item) => (
+              {AutoRunScopesWithDesc.map(({ value: key, description }) => (
                 <FormField
-                  key={_item}
+                  key={key}
                   control={form.control}
                   name="autoRunScope"
                   render={({ field }) => {
                     return (
                       <FormItem
-                        key={_item}
+                        key={key}
                         className="flex flex-row items-start space-x-3 space-y-0"
                       >
                         <FormControl>
                           <Checkbox
-                            checked={field.value?.includes(_item)}
+                            checked={field.value?.includes(key)}
                             onCheckedChange={(checked: any) => {
                               return checked
-                                ? field.onChange([...field.value, _item])
+                                ? field.onChange([...field.value, key])
                                 : field.onChange(
                                     field.value?.filter(
-                                      (value) => value !== _item
+                                      (value) => value !== key
                                     )
                                   )
                             }}
                           />
                         </FormControl>
-                        <FormLabel className="font-normal">{_item}</FormLabel>
+                        <FormLabel className="font-normal">
+                          {description}
+                        </FormLabel>
                       </FormItem>
                     )
                   }}

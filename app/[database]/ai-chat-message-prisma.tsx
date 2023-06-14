@@ -1,4 +1,4 @@
-import { Play } from "lucide-react"
+import { Play, Trash2 } from "lucide-react"
 import Prism from "prismjs"
 
 import { Button } from "@/components/ui/button"
@@ -17,7 +17,7 @@ export const AIMessage = ({
   msgIndex,
 }: {
   msgIndex: number
-  message: string
+  message?: string
   onRun: (props: {
     code: string
     lang: string
@@ -35,7 +35,7 @@ export const AIMessage = ({
       return <code className="language-none">{children}</code>
     },
     codeblock: function Code(props) {
-      const { lang, text } = props
+      const { lang='sql', text } = props
       const codeHtml = Prism.highlight(text, Prism.languages[lang], lang)
       // if it's a d3 codeblock, we need to render it differently
       if (lang === "js" && text.includes("d3.")) {
@@ -68,7 +68,7 @@ export const AIMessage = ({
   }
   return (
     <div className="grow">
-      <Markdown markdown={message} renderers={renderers} />
+      {message && <Markdown markdown={message} renderers={renderers} />}
       <div id={`chart-${msgIndex}`} />
     </div>
   )

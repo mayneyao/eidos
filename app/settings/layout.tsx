@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarNav } from "@/app/settings/components/sidebar-nav"
 
-import { useLastOpenedDatabase } from "../[database]/hook"
+import { useLastOpenedDatabase, useLastOpenedTable } from "../[database]/hook"
 
 // export const metadata: Metadata = {
 //   title: "Forms",
@@ -45,9 +45,9 @@ interface SettingsLayoutProps {
 
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const router = useRouter()
-  const lastOpenedDatabase = useLastOpenedDatabase()
+  const lastOpenedTable = useLastOpenedTable()
   const goBack = () =>
-    lastOpenedDatabase ? router.push(`${lastOpenedDatabase}`) : router.push("/")
+    lastOpenedTable ? router.push(`/${lastOpenedTable}`) : router.push("/")
   useKeyPress("esc", (e) => {
     e.preventDefault()
     goBack()

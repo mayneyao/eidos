@@ -3,16 +3,20 @@ import { v4 as uuidv4 } from "uuid"
 
 import { logger } from "@/lib/log"
 
+export type ISqls = {
+  sql: string
+  bind: any[]
+}[]
 export const csvFile2Sql = async (
   file: File,
   tableName: string
 ): Promise<{
   createTableSql: string
-  insertSql: string
+  sqls: ISqls
 }> => {
   let hasCreateTable = false
   let createTableSql = ""
-  let insertSql = ""
+  const sqls: ISqls = []
 
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
@@ -22,7 +26,7 @@ export const csvFile2Sql = async (
         logger.info("Parsing complete:", results, file)
         resolve({
           createTableSql,
-          insertSql,
+          sqls,
         })
       },
       step: (results: any, parser: any) => {
@@ -42,8 +46,11 @@ export const csvFile2Sql = async (
           const _columns = ["_id", ...columns]
           const sql = `INSERT INTO ${tableName} (${_columns.join(
             ","
-          )}) VALUES (${_values.join(",")});\n`
-          insertSql += sql
+          )}) VALUES (${Array.from(_values).fill("?").join(",")});`
+          sqls.push({
+            sql,
+            bind: [uuidv4(), ...values],
+          })
         }
       },
     })

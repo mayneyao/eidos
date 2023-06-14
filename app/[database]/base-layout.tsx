@@ -72,13 +72,13 @@ export function DatabaseLayoutBase({
           <MobileSideBar />
           <Nav />
         </div>
-        <div className="flex h-[calc(100vh-4rem)] grow overflow-auto">
+        <div className="z-[1] flex h-[calc(100vh-4rem)] grow overflow-auto">
           <div className="grow">{children}</div>
         </div>
       </div>
       <div
         className={cn(
-          " h-full  lg:border-l",
+          " h-screen  lg:border-l",
           isAiOpen ? "col-span-3 hidden md:block" : "hidden"
         )}
       >
