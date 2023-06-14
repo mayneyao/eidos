@@ -1,19 +1,19 @@
 "use client"
 
 // for now it's under database page, maybe move to global later
-import { useCallback, useRef, useState } from "react"
+import { useKeyPress } from "ahooks"
+import { Loader2, Paintbrush } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useKeyPress, useWhyDidYouUpdate } from "ahooks"
-import { Loader2, Paintbrush } from "lucide-react"
+import { useCallback, useRef, useState } from "react"
 
-import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
-import { useAI } from "@/hooks/use-ai"
-import { useAutoRunCode } from "@/hooks/use-auto-run-code"
-import { useSqliteStore } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
+import { useAI } from "@/hooks/use-ai"
+import { useAutoRunCode } from "@/hooks/use-auto-run-code"
+import { useSqliteStore } from "@/hooks/use-sqlite"
+import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
 
 import { useConfigStore } from "../settings/store"
 import { AIChatMessage } from "./ai-chat-message"
