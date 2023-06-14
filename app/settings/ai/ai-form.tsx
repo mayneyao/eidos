@@ -28,7 +28,27 @@ const AIConfigFormSchema = z.object({
 })
 
 export type AIConfigFormValues = z.infer<typeof AIConfigFormSchema>
-export const AutoRunScopes = ["SQL.SELECT", "SQL.INSERT", "D3.CHART"]
+export const AutoRunScopesWithDesc = [
+  {
+    value: "SQL.SELECT",
+    description: "Selects data from a SQL table.",
+  },
+  {
+    value: "UI.REFRESH",
+    description: "Refresh the UI after querying data.",
+  },
+  {
+    value: "SQL.INSERT",
+    description: "Inserts data into a SQL table.",
+  },
+  {
+    value: "D3.CHART",
+    description: "Creates a D3 chart.",
+  },
+]
+
+export const AutoRunScopes = AutoRunScopesWithDesc.map((item) => item.value)
+
 // This can come from your database or API.
 const defaultValues: Partial<AIConfigFormValues> = {
   // name: "Your name",
@@ -89,32 +109,34 @@ export function AIConfigForm() {
                   run.
                 </FormDescription>
               </div>
-              {AutoRunScopes.map((_item) => (
+              {AutoRunScopesWithDesc.map(({ value, description }) => (
                 <FormField
-                  key={_item}
+                  key={value}
                   control={form.control}
                   name="autoRunScope"
                   render={({ field }) => {
                     return (
                       <FormItem
-                        key={_item}
+                        key={value}
                         className="flex flex-row items-start space-x-3 space-y-0"
                       >
                         <FormControl>
                           <Checkbox
-                            checked={field.value?.includes(_item)}
+                            checked={field.value?.includes(value)}
                             onCheckedChange={(checked: any) => {
                               return checked
-                                ? field.onChange([...field.value, _item])
+                                ? field.onChange([...field.value, value])
                                 : field.onChange(
                                     field.value?.filter(
-                                      (value) => value !== _item
+                                      (value) => value !== value
                                     )
                                   )
                             }}
                           />
                         </FormControl>
-                        <FormLabel className="font-normal">{_item}</FormLabel>
+                        <FormLabel className="font-normal">
+                          {description}
+                        </FormLabel>
                       </FormItem>
                     )
                   }}

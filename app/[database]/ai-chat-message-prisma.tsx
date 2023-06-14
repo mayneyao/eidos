@@ -68,7 +68,7 @@ export const AIMessage = ({
   }
   return (
     <div className="grow">
-      <Markdown markdown={message} renderers={renderers} />
+      {message && <Markdown markdown={message} renderers={renderers} />}
       <div id={`chart-${msgIndex}`} />
     </div>
   )

@@ -33,6 +33,7 @@ export const useAutoRunCode = () => {
       if (!handled) {
         const res = await runQuery(sql)
         console.log(res)
+        return res
         if (res) {
           // TODO: use runtime context to pass data to d3,
           ;(window as any)._DATA_ = res
@@ -95,6 +96,22 @@ export const useAutoRunCode = () => {
     }
   }
 
+  const handleFunctionCall = async (
+    name: string,
+    parameters: any,
+    isAuto: boolean = true
+  ) => {
+    const { autoRunScope } = aiConfig
+    switch (name) {
+      case "sqlQuery":
+        const { sql } = parameters
+        const scope = "SQL." + sql?.trim().toUpperCase().slice(0, 6)
+        if (autoRunScope.includes(scope)) {
+          return await handleRunSql(sql)
+        }
+        break
+    }
+  }
   const autoRun = async (
     markdown: string,
     context: {
@@ -113,5 +130,5 @@ export const useAutoRunCode = () => {
       })
     }
   }
-  return { autoRun, handleRunCode }
+  return { autoRun, handleRunCode, handleFunctionCall }
 }

@@ -1,7 +1,6 @@
 import { useCallback, useEffect } from "react"
 import { v4 as uuidv4 } from "uuid"
 
-import { useDatabaseAppStore } from "@/app/[database]/store"
 import { MsgType } from "@/lib/const"
 import {
   aggregateSql2columns,
@@ -11,6 +10,8 @@ import {
   queryData2JSON,
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
+import { useDatabaseAppStore } from "@/app/[database]/store"
+import { useConfigStore } from "@/app/settings/store"
 
 import { useSqlite } from "./use-sqlite"
 
@@ -118,6 +119,7 @@ export const useTable = (tableName: string, databaseName: string) => {
       await refreshRows()
     }
   }
+  const { aiConfig } = useConfigStore()
   const runQuery = useCallback(
     async (querySql: string) => {
       if (sqlite) {
@@ -131,9 +133,11 @@ export const useTable = (tableName: string, databaseName: string) => {
           const compactJsonTablesArray = aggregateSql2columns(querySql, fields)
           const queryFields =
             compactJsonTablesArray.columns.map((col: any) => col.name) ?? []
-          setSchema([compactJsonTablesArray])
-          console.log([compactJsonTablesArray])
-          setData(res)
+          if (aiConfig.autoRunScope.includes("UI.REFRESH")) {
+            setSchema([compactJsonTablesArray])
+            setData(res)
+          }
+
           const jsonData = queryData2JSON(res, queryFields)
           return jsonData
         }
@@ -142,7 +146,15 @@ export const useTable = (tableName: string, databaseName: string) => {
         }
       }
     },
-    [refreshRows, setData, setSchema, sqlite, tableSchema, updateTableSchema]
+    [
+      refreshRows,
+      setData,
+      setSchema,
+      sqlite,
+      tableSchema,
+      updateTableSchema,
+      aiConfig.autoRunScope,
+    ]
   )
 
   useEffect(() => {

@@ -7,8 +7,10 @@ import { useParams } from "next/navigation"
 import { useKeyPress, useSize } from "ahooks"
 import { Bot, Loader2, Paintbrush, User } from "lucide-react"
 
+import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
 import { useAI } from "@/hooks/use-ai"
 import { useAutoRunCode } from "@/hooks/use-auto-run-code"
+import { useSqliteStore } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -16,21 +18,20 @@ import { useConfigStore } from "../settings/store"
 import { AIMessage } from "./ai-chat-message-prisma"
 import { useTableChange } from "./hook"
 import { useDatabaseAppStore } from "./store"
-import { useSqliteStore } from "@/hooks/use-sqlite"
 
 export const AIChat = () => {
-  const { currentTableSchema, setCurrentQuery } = useDatabaseAppStore()
+  const { currentTableSchema } = useDatabaseAppStore()
   const { askAI } = useAI()
   const { database, table } = useParams()
   const { aiConfig } = useConfigStore()
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
-  const { autoRun: runCode, handleRunCode } = useAutoRunCode()
+  const { handleFunctionCall, handleRunCode } = useAutoRunCode()
   const divRef = useRef<HTMLDivElement>()
   const size = useSize(divRef)
   const [messages, setMessages] = useState<
     {
-      role: "user" | "assistant"
+      role: "user" | "assistant" | "function"
       content: string
     }[]
   >([])
@@ -59,20 +60,46 @@ export const AIChat = () => {
       allTables,
       databaseName: database,
     })
-    const newMessages = [
-      ..._messages,
-      { role: "assistant", content: response?.content! },
-    ]
-    const thisMsgIndex = newMessages.length - 1
-    setMessages(newMessages)
-    if (response?.content && aiConfig.autoRunScope) {
-      setTimeout(() => {
-        runCode(response.content, {
-          msgIndex: thisMsgIndex,
-          width: size?.width ?? 300,
-        })
-      }, 1000)
+
+    if (response?.finish_reason == "function_call") {
+      if (aiConfig.autoRunScope) {
+        const res = await handleOpenAIFunctionCall(
+          response.message!,
+          handleFunctionCall
+        )
+        if (res) {
+          const { name, resp } = res
+          const newMessages = [
+            ..._messages,
+            response.message,
+            {
+              role: "function",
+              name,
+              content: JSON.stringify(resp),
+            },
+          ]
+          const newResponse = await askAI(newMessages, {
+            tableSchema: currentTableSchema,
+            allTables,
+            databaseName: database,
+          })
+          const _newMessages = [
+            ...newMessages,
+            { role: "assistant", content: newResponse?.message?.content },
+          ]
+          console.log({ _newMessages })
+          setMessages(_newMessages as any)
+        }
+      }
+    } else if (response?.message) {
+      const newMessages = [
+        ..._messages,
+        { role: "assistant", content: response?.message?.content },
+      ]
+      const thisMsgIndex = newMessages.length - 1
+      setMessages(newMessages)
     }
+
     setLoading(false)
   }
 
@@ -97,28 +124,37 @@ export const AIChat = () => {
             first
           </p>
         )}
-        {messages.map((message, i) => (
-          <div
-            className="flex w-full items-start gap-2 rounded-lg bg-gray-200 p-2 dark:bg-gray-700"
-            key={i}
-          >
-            {message.role === "assistant" ? (
-              <>
-                <Bot className="h-4 w-4 shrink-0" />
-                <AIMessage
-                  message={message.content}
-                  onRun={handleRunCode}
-                  msgIndex={i}
-                />
-              </>
-            ) : (
+        {messages
+          .filter((m) => (m.role === "user" || m.role == "assistant") && m.content)
+          .map((message, i) => (
+            <div
+              className="flex w-full items-start gap-2 rounded-lg bg-gray-200 p-2 dark:bg-gray-700"
+              key={i}
+            >
+              {message.role === "assistant" && (
+                <>
+                  <Bot className="h-4 w-4 shrink-0" />
+                  <AIMessage
+                    message={message.content}
+                    onRun={handleRunCode}
+                    msgIndex={i}
+                  />
+                </>
+              )}
+              {message.role === "user" && (
+                <>
+                  <User className="h-4 w-4 shrink-0" />
+                  <p className="grow">{message.content}</p>
+                </>
+              )}
+              {/* {message.role === "function" && (
               <>
                 <User className="h-4 w-4 shrink-0" />
-                <p className="grow">{message.content}</p>
+                <p className="grow">run function </p>
               </>
-            )}
-          </div>
-        ))}
+            )} */}
+            </div>
+          ))}
         <div className="flex w-full justify-center">
           {loading && <Loader2 className="h-5 w-5 animate-spin" />}
         </div>
