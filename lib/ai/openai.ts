@@ -26,7 +26,6 @@ const svg = d3.select(_CANVAS_ID_).append("svg").attr("width", _CHART_WIDTH_).at
 `
 
 const baseSysPrompt = ``
-
 // this version is after 0613, openai support function call
 // const baseSysPrompt = `you're a database master, help use query database and generate d3.js chart if user want. must abide by the following rules:
 

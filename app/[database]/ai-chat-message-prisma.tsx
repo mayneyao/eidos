@@ -1,4 +1,4 @@
-import { Play } from "lucide-react"
+import { Play, Trash2 } from "lucide-react"
 import Prism from "prismjs"
 
 import { Button } from "@/components/ui/button"
