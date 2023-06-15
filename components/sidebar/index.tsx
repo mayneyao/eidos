@@ -1,15 +1,15 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
 
-import { DatabaseSelect } from "@/components/database-select"
-import { Separator } from "@/components/ui/separator"
-import { useAllDatabases } from "@/hooks/use-database"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { useAllDatabases } from "@/hooks/use-database"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { Separator } from "@/components/ui/separator"
+import { DatabaseSelect } from "@/components/database-select"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
@@ -63,22 +63,22 @@ export const SideBar = ({ className }: any) => {
           ) : (
             allTables?.map((table, i) => {
               const link = isShareMode
-                ? `/share/${database}/${table}?` + searchParams.toString()
-                : `/${database}/${table}`
+                ? `/share/${database}/${table.id}?` + searchParams.toString()
+                : `/${database}/${table.id}`
               return (
                 <TableItem
-                  tableName={table}
+                  tableName={table.name}
                   databaseName={database}
-                  key={table}
+                  key={table.id}
                 >
                   <Button
-                    variant={tableName === table ? "secondary" : "ghost"}
+                    variant={tableName === table.id ? "secondary" : "ghost"}
                     size="sm"
-                    onClick={() => handleClickTable(table)}
+                    onClick={() => handleClickTable(table.id)}
                     className="w-full justify-start font-normal"
                     asChild
                   >
-                    <Link href={link}>{table}</Link>
+                    <Link href={link}>{table.id}</Link>
                   </Button>
                 </TableItem>
               )

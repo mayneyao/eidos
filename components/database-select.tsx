@@ -1,10 +1,9 @@
 "use client"
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
 import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
+import * as React from "react"
 
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -29,16 +28,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select"
 
 interface IDatabaseSelectorProps {
   databases: string[]

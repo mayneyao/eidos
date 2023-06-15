@@ -70,12 +70,40 @@ export class SqlDatabase {
   dbName: string
   constructor(db: Database, activeUndoManager: boolean) {
     this.db = db
+    this.initMetaTable()
     this.dbName = db.filename.split("/").pop()?.split(".")[0] ?? db.filename
     this.undoRedoManager = new SQLiteUndoRedo(this)
     this.activeUndoManager = activeUndoManager
     if (activeUndoManager) {
       this.activeAllTablesUndoRedo()
     }
+  }
+
+  private initMetaTable() {
+    this.exec(`CREATE TABLE IF NOT EXISTS eidos__meta (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      type TEXT
+    );`)
+  }
+
+  // return object array
+  private exec2(sql: string, bind: any[] = []) {
+    const res: any[] = []
+    this.db.exec({
+      sql,
+      bind,
+      returnValue: "resultRows",
+      rowMode: "object",
+      callback: (row) => {
+        res.push(row)
+      },
+    })
+    return res
+  }
+
+  public async listAllTables() {
+    return this.exec2("SELECT * FROM eidos__meta WHERE type='table';")
   }
 
   public undo() {
@@ -137,7 +165,7 @@ export class SqlDatabase {
       this.db.exec({
         sql,
         bind,
-        returnValue: 'resultRows',
+        returnValue: "resultRows",
         // rowMode: "object",
         callback: (row) => {
           res.push(row)

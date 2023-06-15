@@ -4,7 +4,14 @@ import { useCallback } from "react"
 import type { SqlDatabase } from "@/worker/sql"
 import { create } from "zustand"
 
+import { uuidv4 } from "@/lib/utils"
 import { createTemplateTableSql } from "@/components/grid/helper"
+
+type ITable = {
+  id: string
+  name: string
+  type: string
+}
 
 interface SqliteState {
   isInitialized: boolean
@@ -13,8 +20,8 @@ interface SqliteState {
   currentDatabase: string
   setCurrentDatabase: (database: string) => void
 
-  allTables: string[]
-  setAllTables: (tables: string[]) => void
+  allTables: ITable[]
+  setAllTables: (tables: ITable[]) => void
 
   selectedTable: string
   setSelectedTable: (table: string) => void
@@ -58,9 +65,7 @@ export const useSqlite = (dbName?: string) => {
 
   const queryAllTables = useCallback(async () => {
     if (!sqlWorker) return
-    const res =
-      await sqlWorker.sql`SELECT name FROM sqlite_schema WHERE type='table'`
-    const allTables = res.map((item: any) => item[0])
+    const allTables = await sqlWorker.listAllTables()
     console.log("table list loaded", allTables)
     return allTables
   }, [sqlWorker])
@@ -74,7 +79,9 @@ export const useSqlite = (dbName?: string) => {
   const createTable = async (tableName: string) => {
     if (!sqlWorker) return
     const sql = createTemplateTableSql(tableName)
+    //
     await sqlWorker.sql`${sql}`
+    await sqlWorker.sql`INSERT INTO eidos__meta (id,name,type) VALUES (${uuidv4()}, ${tableName},'table');`
     await updateTableList()
   }
 
