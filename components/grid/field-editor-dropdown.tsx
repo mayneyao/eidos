@@ -92,13 +92,16 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
             <div ref={ref2}>
               {/* <CommonMenuItem>Profile</CommonMenuItem>
               <CommonMenuItem>Billing</CommonMenuItem>
-              <CommonMenuItem>Team</CommonMenuItem> */}
-              <DialogTrigger
-                onClick={handleDeleteFieldClick}
-                className="w-full"
-              >
-                <CommonMenuItem>Delete Field</CommonMenuItem>
-              </DialogTrigger>
+              */}
+              {/* <CommonMenuItem>Edit Name</CommonMenuItem> */}
+              {menu?.col != 0 && (
+                <DialogTrigger
+                  onClick={handleDeleteFieldClick}
+                  className="w-full"
+                >
+                  <CommonMenuItem>Delete Field</CommonMenuItem>
+                </DialogTrigger>
+              )}
               <DialogContent className="max-w-[300px]">
                 <DialogHeader>
                   <DialogTitle>Are you sure delete this field?</DialogTitle>

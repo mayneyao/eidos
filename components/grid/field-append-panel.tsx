@@ -24,7 +24,7 @@ export function FieldAppendPanel({
     { name: "Text", value: GridCellKind.Text },
     { name: "Number", value: GridCellKind.Number },
     { name: "Select", value: GridCellKind.Bubble },
-    { name: "Multi-Select", value: GridCellKind.Bubble },
+    { name: "MultiSelect", value: GridCellKind.Bubble },
     { name: "Checkbox", value: GridCellKind.Boolean },
   ]
 
@@ -63,7 +63,7 @@ export function FieldAppendPanel({
                 variant="ghost"
                 size="sm"
                 className="w-full justify-start font-normal"
-                key={`${field.value}`}
+                key={`${field.name}-${field.value}`}
                 onClick={(e) => {
                   handleAddField(field)
                 }}
