@@ -32,10 +32,6 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
 
 async function loadDatabase(dbName: string) {
   const filename = await getSpaceDatabasePath(dbName)
-  console.log({
-    currentDb: _db,
-    filename,
-  })
   if (_db?.db.filename === filename) {
     return _db
   }

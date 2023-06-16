@@ -28,11 +28,16 @@ export const checkIsInWorker = () => {
  * pathname = /space1/5c5bf8539ee9434aa721560c89f34ed6
  * databaseName = space1
  * tableId = 5c5bf8539ee9434aa721560c89f34ed6
- * tableName = user custom name 
+ * tableName = user custom name
  * rawTableName = tb_5c5bf8539ee9434aa721560c89f34ed6 (real table name in sqlite)
  * @param id
  * @returns
  */
 export const getRawTableNameById = (id: string) => {
   return `tb_${id}`
+}
+
+export const generateColumnName = () => {
+  // random 4 characters
+  return `cl_${Math.random().toString(36).substring(2, 6)}`
 }

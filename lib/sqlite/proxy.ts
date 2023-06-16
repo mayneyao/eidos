@@ -150,6 +150,7 @@ export const getSqliteProxy = (
            * sql2 return array of object, for easy to use
            */
           const { sql, bind } = buildSql(_params, ...rest)
+          // console.log(sql, bind)
           const callMethod =
             method == "sql2" ? "sql4mainThread2" : "sql4mainThread"
           const data: IQuery = {

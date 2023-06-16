@@ -6,47 +6,51 @@ import DataEditor, {
   GridCellKind,
   HeaderClickedEventArgs,
   Item,
-  Rectangle
+  Rectangle,
 } from "@glideapps/glide-data-grid"
 
-import { useDatabaseAppStore } from "@/app/[database]/store"
 import { columnsHandleMap } from "@/components/grid/helper"
+import { useDatabaseAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
-import "./styles.css"
 
+import "./styles.css"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { Button } from "../ui/button"
-import { FieldAppendPanel } from "./field-append-panel"
-import { FieldEditorDropdown } from "./field-editor-dropdown"
+import { FieldAppendPanel } from "./fields/field-append-panel"
+import { FieldEditorDropdown } from "./fields/field-editor-dropdown"
+import { headerIcons } from "./fields/header-icons"
 import { ContextMenuDemo } from "./grid-context-menu"
 import { useColumns } from "./hooks/use-col"
 import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
-import { darkTheme } from "./theme"
+import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
   smoothScrollX: true,
   smoothScrollY: true,
   getCellsForSelection: true,
   width: "100%",
+  rowHeight: 36,
+  headerHeight: 36,
   freezeColumns: 1,
   rowMarkers: "clickable-visible" as any,
   trailingRowOptions: {
-    tint: true,
+    tint: false,
     hint: "New",
     sticky: true,
   },
   // auto handle copy and paste
   onPaste: true,
+  headerIcons: headerIcons,
   // experimental: {
   //   paddingBottom: 300
   // }
@@ -61,7 +65,7 @@ export default function Grid(props: IGridProps) {
   const [showSearch, setShowSearch] = React.useState(false)
   const { tableName, databaseName } = props
   const { theme } = useTheme()
-  const _theme = theme === "light" ? {} : darkTheme
+  const _theme = theme === "light" ? lightTheme : darkTheme
   const { setCurrentTableSchema } = useDatabaseAppStore()
   const glideDataGridRef = useRef<DataEditorRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -194,7 +198,7 @@ export default function Grid(props: IGridProps) {
               showSearch={showSearch}
               gridSelection={selection}
               onItemHovered={onItemHovered}
-              getRowThemeOverride={getRowThemeOverride}
+              // getRowThemeOverride={getRowThemeOverride}
               onHeaderClicked={onHeaderClicked}
               onGridSelectionChange={setSelection}
               onColumnResize={onColumnResize}
@@ -231,6 +235,8 @@ export default function Grid(props: IGridProps) {
         <FieldEditorDropdown
           menu={menu}
           setMenu={setMenu}
+          databaseName={databaseName}
+          tableName={tableName}
           deleteFieldByColIndex={deleteFieldByColIndex}
         />
       </div>

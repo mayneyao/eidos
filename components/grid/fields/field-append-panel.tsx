@@ -1,14 +1,22 @@
 "use client"
 
-import * as React from "react"
 import { GridCellKind } from "@glideapps/glide-data-grid"
 import { useClickAway } from "ahooks"
+import {
+  BaselineIcon,
+  CheckSquareIcon,
+  ImageIcon,
+  LinkIcon,
+  TagIcon,
+  TagsIcon,
+} from "lucide-react"
+import * as React from "react"
 
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import { IUIColumn } from "@/hooks/use-table"
+import { cn } from "@/lib/utils"
 
-import { Button } from "../ui/button"
-import { useTableAppStore } from "./store"
+import { useTableAppStore } from "../store"
 
 export function FieldAppendPanel({
   addField,
@@ -21,12 +29,17 @@ export function FieldAppendPanel({
   const ref = React.useRef<HTMLDivElement>(null)
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
   const fieldTypes = [
-    { name: "Text", value: GridCellKind.Text },
-    { name: "Number", value: GridCellKind.Number },
-    { name: "Select", value: GridCellKind.Bubble },
-    { name: "MultiSelect", value: GridCellKind.Bubble },
-    { name: "Checkbox", value: GridCellKind.Boolean },
-    { name: "Files", value: GridCellKind.Image },
+    { name: "Text", value: GridCellKind.Text, icon: BaselineIcon },
+    { name: "Number", value: GridCellKind.Number, icon: BaselineIcon },
+    { name: "Select", value: GridCellKind.Bubble, icon: TagIcon },
+    { name: "MultiSelect", value: GridCellKind.Bubble, icon: TagsIcon },
+    {
+      name: "Checkbox",
+      value: GridCellKind.Boolean,
+      icon: CheckSquareIcon,
+    },
+    { name: "URL", value: GridCellKind.Uri, icon: LinkIcon },
+    { name: "Files", value: GridCellKind.Image, icon: ImageIcon },
   ]
 
   const handleAddField = (field: (typeof fieldTypes)[0]) => {
@@ -59,19 +72,23 @@ export function FieldAppendPanel({
             add field
           </h2>
           <div className="space-y-1 p-2">
-            {fieldTypes.map((field, i) => (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start font-normal"
-                key={`${field.name}-${field.value}`}
-                onClick={(e) => {
-                  handleAddField(field)
-                }}
-              >
-                {field.name}
-              </Button>
-            ))}
+            {fieldTypes.map((field, i) => {
+              const Icon = field.icon
+              return (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start font-normal"
+                  key={`${field.name}-${field.value}`}
+                  onClick={(e) => {
+                    handleAddField(field)
+                  }}
+                >
+                  <Icon className="mr-2 h-5 w-5" />
+                  {field.name}
+                </Button>
+              )
+            })}
           </div>
         </div>
       )}

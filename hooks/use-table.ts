@@ -14,6 +14,7 @@ import {
   queryData2JSON,
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
+import { generateColumnName } from "@/lib/utils"
 import { useDatabaseAppStore } from "@/app/[database]/store"
 import { useConfigStore } from "@/app/settings/store"
 
@@ -32,6 +33,7 @@ export type IColumn = {
 export type IUIColumn = {
   name: string
   type: string
+  table_column_name: string
 }
 
 interface TableState {
@@ -148,45 +150,52 @@ export const useTable = (tableName: string, databaseName: string) => {
     }
   }
 
+  const updateFieldName = async (tableColumnName: string, newName: string) => {
+    if (!sqlite) return
+    await sqlite.sql`UPDATE ${Symbol(
+      ColumnTableName
+    )} SET name = ${newName} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+    await updateUiColumns()
+  }
   const addField = async (fieldName: string, fieldType: string) => {
     const typeMap: any = {
       text: "TEXT",
     }
     if (sqlite) {
-      const column = Symbol(fieldName)
       const table = Symbol(tableName)
       const columnType = typeMap[fieldType] ?? "TEXT"
+      const tableColumnName = generateColumnName()
       await withTransaction(async () => {
-        await sqlite.sql`ALTER TABLE ${table} ADD COLUMN ${column} ${Symbol(
-          columnType
-        )};`
+        await sqlite.sql`ALTER TABLE ${table} ADD COLUMN ${Symbol(
+          tableColumnName
+        )} ${Symbol(columnType)};`
         await sqlite.sql`INSERT INTO ${Symbol(
           ColumnTableName
-        )} (name,type,table_name,table_column_name) VALUES (${fieldName},${fieldType},${tableName},${fieldName});`
+        )} (name,type,table_name,table_column_name) VALUES (${fieldName},${fieldType},${tableName},${tableColumnName});`
       })
       await updateTableSchema()
       await updateUiColumns()
     }
   }
 
-  const deleteField = async (fieldName: string) => {
+  const deleteField = async (tableColumnName: string) => {
     if (!sqlite) return
     await withTransaction(async () => {
       await sqlite.sql`ALTER TABLE ${Symbol(tableName)} DROP COLUMN ${Symbol(
-        fieldName
+        tableColumnName
       )};`
       await sqlite.sql`DELETE FROM ${Symbol(
         ColumnTableName
-      )} WHERE table_column_name = ${fieldName} AND table_name = ${tableName};`
+      )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
     })
     await updateUiColumns()
     await updateTableSchema()
   }
 
   const deleteFieldByColIndex = async (colIndex: number) => {
-    const fieldName = uiColumns[colIndex].name
-    console.log("deleteFieldByColIndex", fieldName, colIndex)
-    await deleteField(fieldName)
+    const tableColumnName = uiColumns[colIndex].table_column_name
+    console.log("deleteFieldByColIndex", tableColumnName, colIndex)
+    await deleteField(tableColumnName)
   }
 
   const addRow = async (params?: any[]) => {
@@ -286,6 +295,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     schema,
     updateCell,
     addField,
+    updateFieldName,
     deleteField,
     deleteFieldByColIndex,
     addRow,
