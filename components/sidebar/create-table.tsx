@@ -1,8 +1,6 @@
-import { useState } from "react"
-import { useParams, useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
+import { useState } from "react"
 
-import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -16,7 +14,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import { useGoto } from "@/hooks/use-goto"
+import { useSqlite } from "@/hooks/use-sqlite"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { csvFile2Sql } from "./helper"
 
 export function CreateTableDialog() {
@@ -25,10 +26,10 @@ export function CreateTableDialog() {
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [file, setFile] = useState<File | null>(null)
-  const params = useParams()
-  const router = useRouter()
+  const params  = useCurrentPathInfo()
   const { database } = params
   const { createTable, createTableWithSqlAndInsertSqls } = useSqlite(database)
+  const goto = useGoto()
 
   const handleCreateTable = async () => {
     if (file) {
@@ -41,11 +42,11 @@ export function CreateTableDialog() {
       )
       setImporting(false)
       // await createTableWithSql(res.createTableSql, res.insertSql)
-      router.push(`/${database}/${tableName}`)
+      goto(`/${database}/${tableName}`)
       setOpen(false)
     } else {
-      await createTable(tableName)
-      router.push(`/${database}/${tableName}`)
+      const tableId = await createTable(tableName)
+      goto(database, tableId)
       setOpen(false)
     }
     setFile(null)

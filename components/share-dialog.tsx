@@ -1,5 +1,4 @@
 import { Share2 } from "lucide-react"
-import { useParams } from "next/navigation"
 import { useMemo, useState } from "react"
 
 import { useCurrentDomain } from "@/app/[database]/hook"
@@ -16,11 +15,12 @@ import {
 import { useCopyToClipboard } from "@/hooks/use-copy"
 import { usePeer } from "@/hooks/use-peer"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { toast } from "./ui/use-toast"
 
 export function ShareDialog() {
   const { peerId } = usePeer()
-  const { database, table } = useParams()
+  const { database, tableName: table }  = useCurrentPathInfo()
   const currentDomain = useCurrentDomain()
   const [open, setOpen] = useState(false)
   const shareLink = useMemo(() => {

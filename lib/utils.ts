@@ -23,3 +23,16 @@ export const hashText = (text: string) => {
 export const checkIsInWorker = () => {
   return globalThis.self === globalThis
 }
+
+/**
+ * pathname = /space1/5c5bf8539ee9434aa721560c89f34ed6
+ * databaseName = space1
+ * tableId = 5c5bf8539ee9434aa721560c89f34ed6
+ * tableName = user custom name 
+ * rawTableName = tb_5c5bf8539ee9434aa721560c89f34ed6 (real table name in sqlite)
+ * @param id
+ * @returns
+ */
+export const getRawTableNameById = (id: string) => {
+  return `tb_${id}`
+}

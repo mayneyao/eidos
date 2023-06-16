@@ -9,7 +9,7 @@ import DataEditor, {
   Item,
 } from "@glideapps/glide-data-grid"
 
-import { cn } from "@/lib/utils"
+import { cn, getRawTableNameById } from "@/lib/utils"
 import { tableInterface2GridColumn } from "@/components/grid/helper"
 import { useDatabaseAppStore } from "@/app/[database]/store"
 
@@ -28,6 +28,7 @@ import { FieldAppendPanel } from "./field-append-panel"
 import { ContextMenuDemo } from "./grid-context-menu"
 import { useTableAppStore } from "./store"
 import { darkTheme } from "./theme"
+import { useColumns } from "@/hooks/use-columns"
 
 const defaultConfig: Partial<DataEditorProps> = {
   smoothScrollX: true,
@@ -86,6 +87,8 @@ export default function Grid(props: IGridProps) {
     addRow,
     deleteRows,
   } = useTable(tableName, databaseName)
+
+  const myColumns = useColumns(tableName, databaseName)
   const {
     isAddFieldEditorOpen,
     setIsAddFieldEditorOpen,

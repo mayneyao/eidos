@@ -2,6 +2,7 @@ import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 
 import { SqlDatabase, Sqlite } from "./sql"
+import { getSpaceDatabasePath } from "@/lib/fs"
 
 // current DB
 let _db: SqlDatabase | null = null
@@ -14,7 +15,7 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
 
   const { dbName, method, params } = data
   if (!_db || (dbName && dbName !== _db.db.filename)) {
-    _db = loadDatabase(dbName)
+    _db = await loadDatabase(dbName)
   }
   const _method = method as keyof SqlDatabase
   const callMethod = (_db[_method] as Function).bind(_db)
@@ -28,11 +29,12 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
   })
 }
 
-function loadDatabase(dbName: string) {
-  const filename = `/${dbName}.sqlite3`
+async function loadDatabase(dbName: string) {
+  const filename = await getSpaceDatabasePath(dbName)
   if (_db?.db.filename === filename) {
     return _db
   }
+  console.log(filename)
   const db = sqlite.db(filename, "c")
   logger.info(`switch to database[${dbName}]`)
   return db
@@ -40,7 +42,6 @@ function loadDatabase(dbName: string) {
 
 async function main() {
   await sqlite.init()
-  _db = sqlite.db("/mytest.sqlite3", "c")
   postMessage("init")
 }
 
@@ -51,7 +52,7 @@ onmessage = async (e) => {
       await handleFunctionCall(data, id, e.ports[0])
       break
     case MsgType.SwitchDatabase:
-      _db = loadDatabase(data.databaseName)
+      _db = await loadDatabase(data.databaseName)
       postMessage({
         id,
         data: {

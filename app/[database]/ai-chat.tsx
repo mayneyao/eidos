@@ -1,19 +1,19 @@
 "use client"
 
 // for now it's under database page, maybe move to global later
+import { useCallback, useRef, useState } from "react"
+import Link from "next/link"
 import { useKeyPress } from "ahooks"
 import { Loader2, Paintbrush } from "lucide-react"
-import Link from "next/link"
-import { useParams } from "next/navigation"
-import { useCallback, useRef, useState } from "react"
 
+import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
+import { useAI } from "@/hooks/use-ai"
+import { useAutoRunCode } from "@/hooks/use-auto-run-code"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqliteStore } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
-import { useAI } from "@/hooks/use-ai"
-import { useAutoRunCode } from "@/hooks/use-auto-run-code"
-import { useSqliteStore } from "@/hooks/use-sqlite"
-import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
 
 import { useConfigStore } from "../settings/store"
 import { AIChatMessage } from "./ai-chat-message"
@@ -22,7 +22,7 @@ import { useDatabaseAppStore } from "./store"
 export const AIChat = () => {
   const { currentTableSchema } = useDatabaseAppStore()
   const { askAI } = useAI()
-  const { database } = useParams()
+  const { database } = useCurrentPathInfo()
   const { aiConfig } = useConfigStore()
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
@@ -104,7 +104,7 @@ export const AIChat = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: 'oops, something went wrong. please try again later.',
+        description: "oops, something went wrong. please try again later.",
       })
     } finally {
       setLoading(false)

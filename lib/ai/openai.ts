@@ -1,6 +1,7 @@
 import { ChatCompletionResponseMessage, Configuration, OpenAIApi } from "openai"
 
 import { functionParamsSchemaMap, functions } from "./functions"
+import { ITable } from "@/hooks/use-sqlite"
 
 // TODO: expose to user config
 const _baseSysPrompt = `you're a sql generator and a d3.js master. must abide by the following rules:
@@ -62,7 +63,7 @@ export const askAI =
     messages: any[],
     context: {
       tableSchema?: string
-      allTables: string[]
+      allTables: ITable[]
       databaseName: string
     }
   ) => {
@@ -76,7 +77,7 @@ export const askAI =
 `
       : `context below:
 - database name: ${databaseName}
-- all tables: ${allTables.join(", ")}
+- all tables: ${JSON.stringify(allTables)}
 - current table schema:\n${tableSchema}
 `
     const systemPrompt = baseSysPrompt + contextPrompt

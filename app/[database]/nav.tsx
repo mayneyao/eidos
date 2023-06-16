@@ -13,6 +13,7 @@ import {
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { usePeer } from "@/hooks/use-peer"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useTable } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
 import {
@@ -49,9 +50,7 @@ export function DropdownMenuDemo() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>
-          All File Hosted on {currentDomain}
-        </DropdownMenuLabel>
+        <DropdownMenuLabel>All data hosted on Local 🖥</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           {/* <DropdownMenuItem>
@@ -137,8 +136,8 @@ export function DropdownMenuDemo() {
 export const Nav = () => {
   const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
 
-  const { database, table } = useParams()
-  const { reload } = useTable(table, database)
+  const { database, tableName: table } = useCurrentPathInfo()
+  const { reload } = useTable(table ?? "", database)
   const { currentCollaborators } = usePeer()
   const nameList = currentCollaborators.map((c) => c.name)
   const { isShareMode } = useAppRuntimeStore()

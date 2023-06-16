@@ -51,18 +51,20 @@ export function AlertDialogDemo() {
 interface ITableItemProps {
   tableName: string
   databaseName: string
+  tableId: string
   children?: React.ReactNode
 }
 
 export function TableItem({
   tableName,
+  tableId,
   databaseName,
   children,
 }: ITableItemProps) {
   const { deleteTable, duplicateTable } = useSqlite(databaseName)
   const router = useRouter()
   const handleDeleteTable = () => {
-    deleteTable(tableName)
+    deleteTable(tableId)
     router.push(`/${databaseName}`)
   }
   return (

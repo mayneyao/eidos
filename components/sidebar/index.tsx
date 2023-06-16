@@ -1,24 +1,25 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
 
-import { DatabaseSelect } from "@/components/database-select"
-import { Separator } from "@/components/ui/separator"
-import { useAllDatabases } from "@/hooks/use-database"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { useAllDatabases } from "@/hooks/use-database"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { Separator } from "@/components/ui/separator"
+import { DatabaseSelect } from "@/components/database-select"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
 import { CreateTableDialog } from "./create-table"
 import { TableListLoading } from "./loading"
 import { TableItem } from "./table-menu"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 export const SideBar = ({ className }: any) => {
-  const { database, table: tableName } = useParams()
+  const { database, tableName: tableName }  = useCurrentPathInfo()
   const [loading, setLoading] = useState(true)
   const { queryAllTables } = useSqlite(database)
   const { setSelectedTable, allTables, setAllTables } = useSqliteStore()
@@ -63,22 +64,23 @@ export const SideBar = ({ className }: any) => {
           ) : (
             allTables?.map((table, i) => {
               const link = isShareMode
-                ? `/share/${database}/${table}?` + searchParams.toString()
-                : `/${database}/${table}`
+                ? `/share/${database}/${table.id}?` + searchParams.toString()
+                : `/${database}/${table.id}`
               return (
                 <TableItem
-                  tableName={table}
+                  tableName={table.name}
                   databaseName={database}
-                  key={table}
+                  tableId={table.id}
+                  key={table.id}
                 >
                   <Button
-                    variant={tableName === table ? "secondary" : "ghost"}
+                    variant={tableName === table.id ? "secondary" : "ghost"}
                     size="sm"
-                    onClick={() => handleClickTable(table)}
+                    onClick={() => handleClickTable(table.id)}
                     className="w-full justify-start font-normal"
                     asChild
                   >
-                    <Link href={link}>{table}</Link>
+                    <Link href={link}>{table.name}</Link>
                   </Button>
                 </TableItem>
               )

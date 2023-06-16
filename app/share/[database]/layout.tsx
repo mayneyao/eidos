@@ -10,6 +10,7 @@ import { useSqliteStore } from "@/hooks/use-sqlite"
 import { getSqliteProxy } from "@/lib/sqlite/proxy"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 interface RootLayoutProps {
   children: React.ReactNode
@@ -21,7 +22,7 @@ const SwitchProxyWrapper = ({ children }: any) => {
   const { profile } = useConfigStore()
   const { conn } = usePeerConnect(sharePeerId, profile.username)
   const { setSqliteProxy } = useSqliteStore()
-  const { database } = useParams()
+  const { database }  = useCurrentPathInfo()
   useEffect(() => {
     // TODO: handle connection
     if (conn) {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useGoto } from "@/hooks/use-goto"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -32,13 +33,6 @@ import {
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select"
 
 interface IDatabaseSelectorProps {
   databases: string[]
@@ -54,6 +48,7 @@ export function DatabaseSelect({
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [databaseName, setDatabaseName] = React.useState("")
+  const goto = useGoto()
 
   const router = useRouter()
   const handleSelect = (currentValue: string) => {
@@ -65,7 +60,7 @@ export function DatabaseSelect({
   const handleCreateDatabase = () => {
     if (databaseName) {
       setShowNewTeamDialog(false)
-      router.push(`/${databaseName}`)
+      goto(databaseName)
     }
   }
 
@@ -130,15 +125,15 @@ export function DatabaseSelect({
       </Popover>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create database</DialogTitle>
+          <DialogTitle>Create Space</DialogTitle>
           <DialogDescription>
-            Add a new database to manage data for you
+            Add a new space to manage data for you
           </DialogDescription>
         </DialogHeader>
         <div>
           <div className="space-y-4 py-2 pb-4">
             <div className="space-y-2">
-              <Label htmlFor="database-name">Database name</Label>
+              <Label htmlFor="database-name">Space name</Label>
               <Input
                 id="database-name"
                 placeholder="e.g. mydb"
