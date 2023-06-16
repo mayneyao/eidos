@@ -1,11 +1,11 @@
 "use client"
 
+import * as React from "react"
 import { GridCellKind } from "@glideapps/glide-data-grid"
 import { useClickAway } from "ahooks"
-import * as React from "react"
 
-import { IUIColumn } from "@/hooks/use-table"
 import { cn } from "@/lib/utils"
+import { IUIColumn } from "@/hooks/use-table"
 
 import { Button } from "../ui/button"
 import { useTableAppStore } from "./store"
@@ -26,6 +26,7 @@ export function FieldAppendPanel({
     { name: "Select", value: GridCellKind.Bubble },
     { name: "MultiSelect", value: GridCellKind.Bubble },
     { name: "Checkbox", value: GridCellKind.Boolean },
+    { name: "Files", value: GridCellKind.Image },
   ]
 
   const handleAddField = (field: (typeof fieldTypes)[0]) => {
