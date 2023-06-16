@@ -1,4 +1,5 @@
 import { SqlDatabase } from "@/worker/sql"
+import { mt } from "date-fns/locale"
 import { DataConnection } from "peerjs"
 
 import { toast } from "@/components/ui/use-toast"
@@ -120,19 +121,25 @@ export const getSqliteProxy = (
       return function (params: any) {
         const thisCallId = uuidv4()
         const [_params, ...rest] = arguments
-        if (method === "sql") {
+        
+        if (["sql", "sql2"].includes(method as string)) {
           /**
            * sql`SELECT * FROM ${Symbol(books)} WHERE id = ${1}`.
            * because sql is a tag function, it will be called with an array of strings and an array of values.
            * if values include Symbol, it will can't be transported to worker via postMessage
            * we need parse to sql first before transport to worker
            * this make sql`SELECT * FROM ${Symbol(books)} WHERE id = ${1}`  works in main thread and worker thread
+           * 
+           * sql return array of array, for performance reason
+           * sql2 return array of object, for easy to use
            */
           const { sql, bind } = buildSql(_params, ...rest)
+          const callMethod =
+            method == "sql2" ? "sql4mainThread2" : "sql4mainThread"
           const data: IQuery = {
             type: MsgType.CallFunction,
             data: {
-              method: "sql4mainThread",
+              method: callMethod,
               params: [sql, bind],
               dbName,
             },

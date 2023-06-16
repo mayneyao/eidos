@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
 import * as d3 from "d3"
 
 import { MsgType } from "@/lib/const"
@@ -9,12 +8,13 @@ import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv4 } from "@/lib/utils"
 import { usePeer } from "@/hooks/use-peer"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 
 import { useConfigStore } from "../settings/store"
 
 export const useTableChange = (callback: Function) => {
-  const { database, table } = useParams()
+  const { database, tableName: table } = useCurrentPathInfo()
   useEffect(() => {
     callback()
   }, [callback, database, table])
@@ -31,43 +31,36 @@ export const useCurrentDomain = () => {
   return domain
 }
 
-export const useLastOpenedDatabase = () => {
+export const useLastOpened = () => {
   const { lastOpenedDatabase, setLastOpenedDatabase } = useAppStore()
   const { isShareMode } = useAppRuntimeStore()
-  const { database, table } = useParams()
+  const { database, tableId: table } = useCurrentPathInfo()
+  const { lastOpenedTable, setLastOpenedTable } = useAppStore()
 
+  useEffect(() => {}, [isShareMode, setLastOpenedTable, table])
   useEffect(() => {
     if (!isShareMode && database) {
       setLastOpenedDatabase(database)
     }
-  }, [database, isShareMode, setLastOpenedDatabase])
-
-  return lastOpenedDatabase
-}
-
-export const useLastOpenedTable = () => {
-  const { lastOpenedTable, setLastOpenedTable } = useAppStore()
-  const { isShareMode } = useAppRuntimeStore()
-  const { table, database } = useParams()
-
-  useEffect(() => {
-    if (!isShareMode && table && database) {
-      setLastOpenedTable(`${database}/${table}`)
+    if (!isShareMode && table) {
+      setLastOpenedTable(table)
     }
-  }, [isShareMode, setLastOpenedTable, table, database])
+  }, [database, isShareMode, setLastOpenedDatabase, setLastOpenedTable, table])
 
-  return lastOpenedTable
+  return {
+    lastOpenedDatabase,
+    lastOpenedTable,
+  }
 }
 
 export const useLayoutInit = () => {
-  const { database } = useParams()
+  const { database } = useCurrentPathInfo()
   const { setInitialized, setSqliteProxy: setSqlWorker } = useSqliteStore()
   const { setCurrentDatabase, currentDatabase } = useSqliteStore()
   const { experiment } = useConfigStore()
   const { sqlite } = useSqlite(database)
 
-  useLastOpenedDatabase()
-  useLastOpenedTable()
+  useLastOpened()
 
   const { initPeer } = usePeer()
 

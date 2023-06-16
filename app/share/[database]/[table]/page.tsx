@@ -1,7 +1,7 @@
 "use client"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import dynamic from "next/dynamic"
-import { useParams } from "next/navigation"
 
 const Grid = dynamic(
   () => {
@@ -11,11 +11,11 @@ const Grid = dynamic(
 )
 
 export default function TablePage() {
-  const params = useParams()
+  const params  = useCurrentPathInfo()
 
   return (
     <>
-      <Grid tableName={params.table} databaseName={params.database} />
+      <Grid tableName={params.tableName} databaseName={params.database} />
     </>
   )
 }

@@ -11,7 +11,6 @@ import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 
 const log = logger.info
 const error = logger.error
-const debug = logger.debug
 
 export class Sqlite {
   sqlite3?: Sqlite3Static
@@ -88,7 +87,7 @@ export class SqlDatabase {
   }
 
   // return object array
-  private exec2(sql: string, bind: any[] = []) {
+  public async exec2(sql: string, bind: any[] = []) {
     const res: any[] = []
     this.db.exec({
       sql,
@@ -159,14 +158,18 @@ export class SqlDatabase {
     })
   }
 
-  private execSqlWithBind(sql: string, bind: any[] = []) {
+  private execSqlWithBind(
+    sql: string,
+    bind: any[] = [],
+    rowMode: "object" | "array" = "array"
+  ) {
     const res: any[] = []
     try {
       this.db.exec({
         sql,
         bind,
         returnValue: "resultRows",
-        // rowMode: "object",
+        rowMode,
         callback: (row) => {
           res.push(row)
         },
@@ -212,6 +215,9 @@ export class SqlDatabase {
     return res
   }
 
+  // just for type check
+  public sql2 = this.sql
+
   /**
    * Symbol can't be transformed between main thread and worker thread.
    * so we need to parse sql in main thread, then call this function. it will equal to call `sql` function in worker thread
@@ -220,14 +226,23 @@ export class SqlDatabase {
    * @param bind
    * @returns
    */
-  public async sql4mainThread(sql: string, bind: any[] = []) {
-    const res = this.execSqlWithBind(sql, bind)
+  public async sql4mainThread(
+    sql: string,
+    bind: any[] = [],
+    rowMode: "object" | "array" = "array"
+  ) {
+    const res = this.execSqlWithBind(sql, bind, rowMode)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
       // delay trigger event
       setTimeout(() => this.undoRedoManager.event(), 30)
     }
     return res
+  }
+
+  // return object array
+  public async sql4mainThread2(sql: string, bind: any[] = []) {
+    return this.execSqlWithBind(sql, bind, "object")
   }
 
   public onUpdate() {

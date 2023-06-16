@@ -1,15 +1,15 @@
 import { useCallback } from "react"
-import { useParams } from "next/navigation"
 import { v4 as uuidV4 } from "uuid"
 
-import { getCodeFromMarkdown } from "@/lib/markdown"
 import { useConfigStore } from "@/app/settings/store"
+import { getCodeFromMarkdown } from "@/lib/markdown"
 
+import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite } from "./use-sqlite"
 import { useTable } from "./use-table"
 
 export const useAutoRunCode = () => {
-  const { database, table } = useParams()
+  const { database, tableName: table }  = useCurrentPathInfo()
   const { handleSql } = useSqlite(database)
   const { aiConfig } = useConfigStore()
   const { runQuery } = useTable(table, database)

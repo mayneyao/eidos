@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react"
 import { useWhyDidYouUpdate } from "ahooks"
 import { v4 as uuidv4 } from "uuid"
+import { create } from "zustand"
 
 import { MsgType } from "@/lib/const"
 import {
@@ -15,6 +16,27 @@ import { useDatabaseAppStore } from "@/app/[database]/store"
 import { useConfigStore } from "@/app/settings/store"
 
 import { useSqlite } from "./use-sqlite"
+
+// PRAGMA table_info('table_name') will return IColumn[]
+export type IColumn = {
+  cid: number
+  name: string
+  type: string
+  notnull: number
+  dflt_value: string
+  pk: number
+}
+
+interface TableState {
+  columns: IColumn[]
+  setColumns: (columns: IColumn[]) => void
+}
+
+// not using persist
+export const useTableStore = create<TableState>()((set) => ({
+  columns: [],
+  setColumns: (columns) => set({ columns }),
+}))
 
 export const useTable = (tableName: string, databaseName: string) => {
   const { sqlite } = useSqlite(databaseName)
@@ -84,9 +106,11 @@ export const useTable = (tableName: string, databaseName: string) => {
   }, [setSchema, setTableSchema, sqlite, tableName])
 
   const reload = useCallback(async () => {
+    console.log(tableName)
+    if (!tableName) return
     await refreshRows()
     await updateTableSchema()
-  }, [refreshRows, updateTableSchema])
+  }, [refreshRows, updateTableSchema, tableName])
 
   const updateCell = async (col: number, row: number, value: any) => {
     const filedName = schema[0]?.columns?.[col].name

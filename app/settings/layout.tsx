@@ -1,15 +1,15 @@
 "use client"
 
 // import { Metadata } from "next"
-import { useRouter } from "next/navigation"
 import { useKeyPress } from "ahooks"
 import { Minimize2 } from "lucide-react"
 
+import { useGoto } from "@/hooks/use-goto"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarNav } from "@/app/settings/components/sidebar-nav"
 
-import { useLastOpenedDatabase, useLastOpenedTable } from "../[database]/hook"
+import { useLastOpened } from "../[database]/hook"
 
 // export const metadata: Metadata = {
 //   title: "Forms",
@@ -44,10 +44,10 @@ interface SettingsLayoutProps {
 }
 
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
-  const router = useRouter()
-  const lastOpenedTable = useLastOpenedTable()
-  const goBack = () =>
-    lastOpenedTable ? router.push(`/${lastOpenedTable}`) : router.push("/")
+  const { lastOpenedTable, lastOpenedDatabase } = useLastOpened()
+  const goto = useGoto()
+  console.log({ lastOpenedDatabase, lastOpenedTable })
+  const goBack = () => goto(lastOpenedDatabase, lastOpenedTable)
   useKeyPress("esc", (e) => {
     e.preventDefault()
     goBack()

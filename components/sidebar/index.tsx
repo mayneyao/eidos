@@ -16,9 +16,10 @@ import { ScrollArea } from "../ui/scroll-area"
 import { CreateTableDialog } from "./create-table"
 import { TableListLoading } from "./loading"
 import { TableItem } from "./table-menu"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 export const SideBar = ({ className }: any) => {
-  const { database, table: tableName } = useParams()
+  const { database, tableName: tableName }  = useCurrentPathInfo()
   const [loading, setLoading] = useState(true)
   const { queryAllTables } = useSqlite(database)
   const { setSelectedTable, allTables, setAllTables } = useSqliteStore()
@@ -69,6 +70,7 @@ export const SideBar = ({ className }: any) => {
                 <TableItem
                   tableName={table.name}
                   databaseName={database}
+                  tableId={table.id}
                   key={table.id}
                 >
                   <Button
@@ -78,7 +80,7 @@ export const SideBar = ({ className }: any) => {
                     className="w-full justify-start font-normal"
                     asChild
                   >
-                    <Link href={link}>{table.id}</Link>
+                    <Link href={link}>{table.name}</Link>
                   </Button>
                 </TableItem>
               )

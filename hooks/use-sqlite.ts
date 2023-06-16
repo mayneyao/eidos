@@ -4,10 +4,10 @@ import { useCallback } from "react"
 import type { SqlDatabase } from "@/worker/sql"
 import { create } from "zustand"
 
-import { uuidv4 } from "@/lib/utils"
+import { getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { createTemplateTableSql } from "@/components/grid/helper"
 
-type ITable = {
+export type ITable = {
   id: string
   name: string
   type: string
@@ -53,7 +53,11 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
   setDatabaseList: (databaseList) => set({ databaseList }),
 
   sqliteProxy: null,
-  setSqliteProxy: (sqlWorker) => set({ sqliteProxy: sqlWorker }),
+  setSqliteProxy: (sqlWorker) => {
+    // for debug
+    ;(window as any).sqlite = sqlWorker
+    return set({ sqliteProxy: sqlWorker })
+  },
 }))
 
 export const useSqlite = (dbName?: string) => {
@@ -78,11 +82,14 @@ export const useSqlite = (dbName?: string) => {
 
   const createTable = async (tableName: string) => {
     if (!sqlWorker) return
-    const sql = createTemplateTableSql(tableName)
+    const tableId = uuidv4().split("-").join("")
+    const _tableName = getRawTableNameById(tableId)
+    const sql = createTemplateTableSql(_tableName)
     //
     await sqlWorker.sql`${sql}`
-    await sqlWorker.sql`INSERT INTO eidos__meta (id,name,type) VALUES (${uuidv4()}, ${tableName},'table');`
+    await sqlWorker.sql`INSERT INTO eidos__meta (id,name,type) VALUES (${tableId}, ${tableName},'table');`
     await updateTableList()
+    return tableId
   }
 
   const updateTableListWithSql = async (sql: string) => {
@@ -126,9 +133,13 @@ export const useSqlite = (dbName?: string) => {
     await updateTableList()
   }
 
-  const deleteTable = async (tableName: string) => {
+  const deleteTable = async (tableId: string) => {
     if (!sqlWorker) return
-    await sqlWorker.sql`DROP TABLE ${Symbol(tableName)}`
+    const rawTableName = `tb_${tableId}`
+    await sqlWorker.sql`BEGIN TRANSACTION`
+    await sqlWorker.sql`DROP TABLE ${Symbol(rawTableName)}`
+    await sqlWorker.sql`DELETE FROM eidos__meta WHERE id = ${tableId}`
+    await sqlWorker.sql`COMMIT`
     await updateTableList()
   }
 
