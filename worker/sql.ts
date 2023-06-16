@@ -254,4 +254,10 @@ export class SqlDatabase {
     })
     console.log("onUpdate")
   }
+
+  public async withTransaction(fn: Function) {
+    this.db.exec("BEGIN TRANSACTION;")
+    await fn()
+    this.db.exec("COMMIT;")
+  }
 }

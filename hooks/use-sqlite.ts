@@ -79,15 +79,36 @@ export const useSqlite = (dbName?: string) => {
       tables && setAllTables(tables)
     })
   }
+  const withTransaction = async (callback: () => Promise<void>) => {
+    if (!sqlWorker) return
+    await sqlWorker.sql`BEGIN TRANSACTION;`
+    await callback()
+    await sqlWorker.sql`COMMIT;`
+  }
 
+  const createTableAndRegister = async (data: {
+    tableName: string
+    tableId: string
+    sql: string
+  }) => {
+    if (!sqlWorker) return
+    const { tableName, tableId, sql } = data
+    await withTransaction(async () => {
+      await sqlWorker.sql`${sql}`
+      await sqlWorker.sql`INSERT INTO eidos__meta (id,name,type) VALUES (${tableId}, ${tableName},'table');`
+    })
+  }
   const createTable = async (tableName: string) => {
     if (!sqlWorker) return
     const tableId = uuidv4().split("-").join("")
     const _tableName = getRawTableNameById(tableId)
     const sql = createTemplateTableSql(_tableName)
     //
-    await sqlWorker.sql`${sql}`
-    await sqlWorker.sql`INSERT INTO eidos__meta (id,name,type) VALUES (${tableId}, ${tableName},'table');`
+    await createTableAndRegister({
+      tableName,
+      tableId,
+      sql,
+    })
     await updateTableList()
     return tableId
   }
@@ -98,13 +119,20 @@ export const useSqlite = (dbName?: string) => {
     await updateTableList()
   }
 
-  const createTableWithSqlAndInsertSqls = async (
-    createTableSql: string,
-    insertSql?: any[],
+  const createTableWithSqlAndInsertSqls = async (props: {
+    tableId: string
+    tableName: string
+    createTableSql: string
+    insertSql?: any[]
     callback?: (progress: number) => void
-  ) => {
+  }) => {
     if (!sqlWorker) return
-    await sqlWorker.sql`${createTableSql}`
+    const { tableId, tableName, createTableSql, insertSql, callback } = props
+    await createTableAndRegister({
+      tableName,
+      tableId,
+      sql: createTableSql,
+    })
     await updateTableList()
     if (insertSql) {
       for (let index = 0; index < insertSql.length; index++) {

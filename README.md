@@ -8,51 +8,9 @@ This project is a local-first, web application for creating and managing databas
 - No server required
 - PWA support
 
-## Todo
+## Roadmap
 
-### Base
-
-➡ is in progress
-
-- [x] Run sqlite-wasm in browser
-- [x] Create a wrapper for sqlite-wasm
-- [x] Render table
-- [x] Create a table from a template
-- [x] Remove a table
-- [x] Edit a text cell
-- [x] Add a row
-- [x] Add a field
-- [x] Remove a row
-- [x] ai chat bot can generate sql queries & execute
-- [ ] Define field types and map to sqlite type
-  - [ ] Edit a field
-  - [ ] Remove a field
-  - [ ] Custom cell renderer for field types
-- [x] switch/create new database
-- [ ] Import a database
-  - [x] CSV
-  - [ ] SQLite3
-- [ ] ➡ undo/redo
-  - [ ] row level
-  - [ ] field level
-  - [ ] fix: seq of undo/redo
-- [ ] AI
-  - [ ] custom system prompt in config
-  - [ ] multi prompt support
-  - [ ] system prompt switch support
-- [ ] Export a database
-  - [ ] export a table as CSV
-  - [ ] export a table as Excel
-- [ ] Backup/sync with Cloudflare Worker (d1 database)
-- [ ] PWA
-
-### More
-
-- [ ] p2p sharing
-- [ ] API server to operate the database via API
-  - [ ] self-hosted server / desktop app; this requires running a app/server locally.
-- [ ] Webhooks
-- [ ] Automation (just like Zapier/IFTTT)
+see [Eidos Project](https://github.com/users/mayneyao/projects/5)
 
 ## How to Use
 
@@ -60,14 +18,6 @@ This project is a local-first, web application for creating and managing databas
 2. Run `pnpm install`
 3. Run `pnpm dev`
 4. You can now access the app in your browser at `http://localhost:3000`
-
-
-## dev
-```
-# start a peerjs server
-peerjs --port 9000 --key peerjs --path /myapp
-
-```
 
 ## Contributions
 
