@@ -52,7 +52,7 @@ export const useTableStore = create<TableState>()((set) => ({
 
 export const useTable = (tableName: string, databaseName: string) => {
   const { sqlite, withTransaction } = useSqlite(databaseName)
-  const { setUiColumns } = useTableStore()
+  const { setUiColumns, uiColumns } = useTableStore()
   const {
     data,
     setData,
@@ -169,6 +169,26 @@ export const useTable = (tableName: string, databaseName: string) => {
     }
   }
 
+  const deleteField = async (fieldName: string) => {
+    if (!sqlite) return
+    await withTransaction(async () => {
+      await sqlite.sql`ALTER TABLE ${Symbol(tableName)} DROP COLUMN ${Symbol(
+        fieldName
+      )};`
+      await sqlite.sql`DELETE FROM ${Symbol(
+        ColumnTableName
+      )} WHERE table_column_name = ${fieldName} AND table_name = ${tableName};`
+    })
+    await updateUiColumns()
+    await updateTableSchema()
+  }
+
+  const deleteFieldByColIndex = async (colIndex: number) => {
+    const fieldName = uiColumns[colIndex].name
+    console.log("deleteFieldByColIndex", fieldName, colIndex)
+    await deleteField(fieldName)
+  }
+
   const addRow = async (params?: any[]) => {
     if (sqlite) {
       const uuid = uuidv4()
@@ -266,6 +286,8 @@ export const useTable = (tableName: string, databaseName: string) => {
     schema,
     updateCell,
     addField,
+    deleteField,
+    deleteFieldByColIndex,
     addRow,
     deleteRows,
     tableSchema,

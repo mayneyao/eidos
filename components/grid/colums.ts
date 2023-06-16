@@ -139,9 +139,11 @@ export const defaultAllColumnsHandle = [
     hasMenu: false,
     kind: GridCellKind.Bubble,
     getContent: (data: string) => {
+      const _data = data?.split(",") ?? null
+      if (!_data) return null
       return {
         kind: GridCellKind.Bubble,
-        data: data?.split(",") ?? [],
+        data: _data,
         allowOverlay: true,
       }
     },

@@ -26,7 +26,7 @@ export const getColumns = (uiColumns: IUIColumn[]): GridColumn[] => {
       id: column.name,
       title: column.name,
       with: 200,
-      hasMenu: true,
+      hasMenu: false,
       icon: colHandle.icon,
     }
   })

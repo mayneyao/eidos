@@ -3,20 +3,24 @@ import DataEditor, {
   DataEditorRef,
   EditableGridCell,
   GridCell,
+  GridCellKind,
   GridColumn,
   GridMouseEventArgs,
+  HeaderClickedEventArgs,
   Item,
+  Rectangle,
 } from "@glideapps/glide-data-grid"
 
-import { useDatabaseAppStore } from "@/app/[database]/store"
 import { columnsHandleMap, getColumns } from "@/components/grid/helper"
+import { useDatabaseAppStore } from "@/app/[database]/store"
 
+import "./styles.css"
 import "@glideapps/glide-data-grid/dist/index.css"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { GetRowThemeCallback } from "@glideapps/glide-data-grid/dist/ts/data-grid/data-grid-render"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
@@ -24,6 +28,7 @@ import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { Button } from "../ui/button"
 import { FieldAppendPanel } from "./field-append-panel"
+import { FieldEditorDropdown } from "./field-editor-dropdown"
 import { ContextMenuDemo } from "./grid-context-menu"
 import { useTableAppStore } from "./store"
 import { darkTheme } from "./theme"
@@ -75,8 +80,15 @@ export default function Grid(props: IGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
-  const { data, tableSchema, updateCell, addField, addRow, deleteRows } =
-    useTable(tableName, databaseName)
+  const {
+    data,
+    tableSchema,
+    updateCell,
+    deleteFieldByColIndex,
+    addField,
+    addRow,
+    deleteRows,
+  } = useTable(tableName, databaseName)
 
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
   const {
@@ -165,8 +177,20 @@ export default function Grid(props: IGridProps) {
       const [columnIndex, rowIndex] = cell
       const content = data[rowIndex]?.[columnIndex] ?? ""
       const field = columns[columnIndex]
+      const emptyCell: GridCell = {
+        kind: GridCellKind.Text,
+        data: content,
+        displayData: `${content}`,
+        allowOverlay: true,
+      }
+      if (!field) {
+        return emptyCell
+      }
       const uiCol = uiColumnMap.get(field.title)
-      const colHandle = columnsHandleMap[uiCol!.type]
+      if (!uiCol) {
+        return emptyCell
+      }
+      const colHandle = columnsHandleMap[uiCol.type]
       return colHandle.getContent(content)
     },
     [data, columns, uiColumnMap]
@@ -178,6 +202,21 @@ export default function Grid(props: IGridProps) {
       updateCell(cell[0], cell[1], newValue.data)
     },
     [updateCell]
+  )
+
+  const [menu, setMenu] = React.useState<{
+    col: number
+    bounds: Rectangle
+  }>()
+
+  const onHeaderClicked = React.useCallback(
+    (col: number, e: HeaderClickedEventArgs) => {
+      setMenu({
+        col,
+        bounds: e.bounds,
+      })
+    },
+    []
   )
 
   return (
@@ -193,6 +232,7 @@ export default function Grid(props: IGridProps) {
               gridSelection={selection}
               onItemHovered={onItemHovered}
               getRowThemeOverride={getRowThemeOverride}
+              onHeaderClicked={onHeaderClicked}
               onGridSelectionChange={setSelection}
               onColumnResize={(col, _newSize, colIndex, newSizeWithGrow) => {
                 hasResized.current.add(colIndex)
@@ -216,7 +256,7 @@ export default function Grid(props: IGridProps) {
               }
               rightElementProps={{
                 sticky: true,
-                fill: true,
+                fill: false,
               }}
               onCellEdited={onCellEdited}
               onRowAppended={() => {
@@ -225,7 +265,14 @@ export default function Grid(props: IGridProps) {
             />
           )}
         </ContextMenuDemo>
-        {isAddFieldEditorOpen && <FieldAppendPanel addField={addField} uiColumns={uiColumns}/>}
+        {isAddFieldEditorOpen && (
+          <FieldAppendPanel addField={addField} uiColumns={uiColumns} />
+        )}
+        <FieldEditorDropdown
+          menu={menu}
+          setMenu={setMenu}
+          deleteFieldByColIndex={deleteFieldByColIndex}
+        />
       </div>
       <div id="portal" />
     </div>
