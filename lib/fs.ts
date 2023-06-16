@@ -38,13 +38,12 @@ export const saveFile = async (file: File, name?: string) => {
   const filesDirHandle = await opfsRoot.getDirectoryHandle("files", {
     create: true,
   })
-  console.log(file)
   const fileHandle = await filesDirHandle.getFileHandle(name ?? file.name, {
     create: true,
   })
-  const writable = await fileHandle.createWritable()
+  // nextjs can't recognize createWritable of fileHandle
+  const writable = await (fileHandle as any).createWritable()
   await writable.write(file)
   await writable.close()
-  console.log(fileHandle)
   return fileHandle
 }
