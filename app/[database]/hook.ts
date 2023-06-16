@@ -7,8 +7,8 @@ import { getWorker } from "@/lib/sqlite/worker"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv4 } from "@/lib/utils"
-import { usePeer } from "@/hooks/use-peer"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { usePeer } from "@/hooks/use-peer"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 
 import { useConfigStore } from "../settings/store"
@@ -105,7 +105,7 @@ export const useLayoutInit = () => {
     const worker = getWorker()
     worker.onmessage = async (e) => {
       if (e.data === "init") {
-        console.log("database is ready to query")
+        console.log("sqlite is loaded")
         setInitialized(true)
       }
     }

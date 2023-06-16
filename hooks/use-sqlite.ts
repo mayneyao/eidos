@@ -4,6 +4,7 @@ import { useCallback } from "react"
 import type { SqlDatabase } from "@/worker/sql"
 import { create } from "zustand"
 
+import { TreeTableName } from "@/lib/sqlite/const"
 import { getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { createTemplateTableSql } from "@/components/grid/helper"
 
@@ -95,9 +96,12 @@ export const useSqlite = (dbName?: string) => {
     const { tableName, tableId, sql } = data
     await withTransaction(async () => {
       await sqlWorker.sql`${sql}`
-      await sqlWorker.sql`INSERT INTO eidos__meta (id,name,type) VALUES (${tableId}, ${tableName},'table');`
+      await sqlWorker.sql`INSERT INTO ${Symbol(
+        TreeTableName
+      )} (id,name,type) VALUES (${tableId}, ${tableName},'table');`
     })
   }
+  // create table with default template
   const createTable = async (tableName: string) => {
     if (!sqlWorker) return
     const tableId = uuidv4().split("-").join("")
@@ -166,7 +170,9 @@ export const useSqlite = (dbName?: string) => {
     const rawTableName = `tb_${tableId}`
     await sqlWorker.sql`BEGIN TRANSACTION`
     await sqlWorker.sql`DROP TABLE ${Symbol(rawTableName)}`
-    await sqlWorker.sql`DELETE FROM eidos__meta WHERE id = ${tableId}`
+    await sqlWorker.sql`DELETE FROM ${Symbol(
+      TreeTableName
+    )} WHERE id = ${tableId}`
     await sqlWorker.sql`COMMIT`
     await updateTableList()
   }
@@ -241,5 +247,6 @@ export const useSqlite = (dbName?: string) => {
     handleSql,
     undo,
     redo,
+    withTransaction,
   }
 }

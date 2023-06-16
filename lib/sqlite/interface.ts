@@ -17,3 +17,9 @@ export type IQueryResp = {
   }
   type: MsgType.QueryResp
 }
+
+export type ITreeItem = {
+  id: string
+  name: string
+  type: "table" | "doc"
+}

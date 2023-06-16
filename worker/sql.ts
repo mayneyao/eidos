@@ -5,6 +5,7 @@ import sqlite3InitModule, {
 
 import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
+import { ColumnTableName, TreeTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
@@ -52,13 +53,14 @@ export class Sqlite {
     this.sqlite3 = await this.getSQLite3()
   }
 
-  db(name: string, flags: string, vfs?: any) {
+  db(props: { path: string; flags: string; vfs?: any; name: string }) {
+    const { name, flags, vfs, path } = props
     if (!this.sqlite3) {
       throw new Error("sqlite3 not initialized")
     }
     // const db = new this.sqlite3.oo1.DB(name, flags, vfs)
-    const db = new this.sqlite3.oo1.OpfsDb(name, flags)
-    return new SqlDatabase(db, this.config.experiment.undoRedo)
+    const db = new this.sqlite3.oo1.OpfsDb(path, flags)
+    return new SqlDatabase(db, this.config.experiment.undoRedo, name)
   }
 }
 
@@ -67,10 +69,10 @@ export class SqlDatabase {
   undoRedoManager: SQLiteUndoRedo
   activeUndoManager: boolean
   dbName: string
-  constructor(db: Database, activeUndoManager: boolean) {
+  constructor(db: Database, activeUndoManager: boolean, dbName: string) {
     this.db = db
     this.initMetaTable()
-    this.dbName = db.filename.split("/").pop()?.split(".")[0] ?? db.filename
+    this.dbName = dbName
     this.undoRedoManager = new SQLiteUndoRedo(this)
     this.activeUndoManager = activeUndoManager
     if (activeUndoManager) {
@@ -79,10 +81,19 @@ export class SqlDatabase {
   }
 
   private initMetaTable() {
-    this.exec(`CREATE TABLE IF NOT EXISTS eidos__meta (
+    this.exec(`
+    --- sidebar-tree
+    CREATE TABLE IF NOT EXISTS ${TreeTableName} (
       id TEXT PRIMARY KEY,
       name TEXT,
       type TEXT
+    );
+    --- ui column definition
+    CREATE TABLE IF NOT EXISTS ${ColumnTableName} (
+      name TEXT,
+      type TEXT,
+      table_name TEXT,
+      table_column_name TEXT
     );`)
   }
 
@@ -102,7 +113,12 @@ export class SqlDatabase {
   }
 
   public async listAllTables() {
-    return this.exec2("SELECT * FROM eidos__meta WHERE type='table';")
+    return this.exec2(`SELECT * FROM ${TreeTableName} WHERE type='table';`)
+  }
+  public async listUiColumns(tableName: string) {
+    return this.exec2(`SELECT * FROM ${ColumnTableName} WHERE table_name=?;`, [
+      tableName,
+    ])
   }
 
   public undo() {

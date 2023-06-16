@@ -1,9 +1,11 @@
 import { useCallback, useEffect } from "react"
+import { GridCellKind } from "@glideapps/glide-data-grid"
 import { useWhyDidYouUpdate } from "ahooks"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
 
 import { MsgType } from "@/lib/const"
+import { ColumnTableName } from "@/lib/sqlite/const"
 import {
   aggregateSql2columns,
   checkSqlIsModifyTableData,
@@ -27,19 +29,30 @@ export type IColumn = {
   pk: number
 }
 
+export type IUIColumn = {
+  name: string
+  type: string
+}
+
 interface TableState {
   columns: IColumn[]
+  uiColumns: IUIColumn[]
+
   setColumns: (columns: IColumn[]) => void
+  setUiColumns: (columns: IUIColumn[]) => void
 }
 
 // not using persist
 export const useTableStore = create<TableState>()((set) => ({
   columns: [],
+  uiColumns: [],
   setColumns: (columns) => set({ columns }),
+  setUiColumns: (uiColumns) => set({ uiColumns }),
 }))
 
 export const useTable = (tableName: string, databaseName: string) => {
-  const { sqlite } = useSqlite(databaseName)
+  const { sqlite, withTransaction } = useSqlite(databaseName)
+  const { setUiColumns } = useTableStore()
   const {
     data,
     setData,
@@ -83,6 +96,12 @@ export const useTable = (tableName: string, databaseName: string) => {
       }
     }
   }, [refreshRows, databaseName])
+
+  const updateUiColumns = useCallback(async () => {
+    if (!sqlite) return
+    const res = await sqlite.listUiColumns(tableName)
+    setUiColumns(res)
+  }, [setUiColumns, sqlite, tableName])
 
   const updateTableSchema = useCallback(async () => {
     if (!sqlite) return
@@ -131,16 +150,22 @@ export const useTable = (tableName: string, databaseName: string) => {
 
   const addField = async (fieldName: string, fieldType: string) => {
     const typeMap: any = {
-      text: "VARCHAR(128)",
+      text: "TEXT",
     }
     if (sqlite) {
       const column = Symbol(fieldName)
       const table = Symbol(tableName)
-      const columnType = typeMap[fieldType] ?? "VARCHAR(128)"
-      await sqlite.sql`ALTER TABLE ${table} ADD COLUMN ${column} ${Symbol(
-        columnType
-      )};`
+      const columnType = typeMap[fieldType] ?? "TEXT"
+      await withTransaction(async () => {
+        await sqlite.sql`ALTER TABLE ${table} ADD COLUMN ${column} ${Symbol(
+          columnType
+        )};`
+        await sqlite.sql`INSERT INTO ${Symbol(
+          ColumnTableName
+        )} (name,type,table_name,table_column_name) VALUES (${fieldName},${fieldType},${tableName},${fieldName});`
+      })
       await updateTableSchema()
+      await updateUiColumns()
     }
   }
 

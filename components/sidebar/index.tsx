@@ -1,25 +1,44 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { File, FileSpreadsheet } from "lucide-react"
 import Link from "next/link"
-import { useParams, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { DatabaseSelect } from "@/components/database-select"
+import { Separator } from "@/components/ui/separator"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllDatabases } from "@/hooks/use-database"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { Separator } from "@/components/ui/separator"
-import { DatabaseSelect } from "@/components/database-select"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
 import { CreateTableDialog } from "./create-table"
 import { TableListLoading } from "./loading"
 import { TableItem } from "./table-menu"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+
+const ItemIcon = ({
+  type,
+  className,
+}: {
+  type: string
+  className?: string
+}) => {
+  const _className = cn("opacity-60", className)
+  switch (type) {
+    case "table":
+      return <FileSpreadsheet className={_className} />
+    case "doc":
+      return <File className={_className} />
+    default:
+      return <File className={_className} />
+  }
+}
 
 export const SideBar = ({ className }: any) => {
-  const { database, tableName: tableName }  = useCurrentPathInfo()
+  const { database, tableName: tableName } = useCurrentPathInfo()
   const [loading, setLoading] = useState(true)
   const { queryAllTables } = useSqlite(database)
   const { setSelectedTable, allTables, setAllTables } = useSqliteStore()
@@ -80,7 +99,10 @@ export const SideBar = ({ className }: any) => {
                     className="w-full justify-start font-normal"
                     asChild
                   >
-                    <Link href={link}>{table.name}</Link>
+                    <Link href={link}>
+                      <ItemIcon type={table.type} className="pr-2" />
+                      {table.name}
+                    </Link>
                   </Button>
                 </TableItem>
               )

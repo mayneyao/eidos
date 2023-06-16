@@ -1,43 +1,35 @@
 import { GridCellKind, GridColumn } from "@glideapps/glide-data-grid"
-import Papa from "papaparse"
-// export declare enum GridCellKind {
-//   Uri = "uri",
-//   Text = "text",
-//   Image = "image",
-//   RowID = "row-id",
-//   Number = "number",
-//   Bubble = "bubble",
-//   Boolean = "boolean",
-//   Loading = "loading",
-//   Markdown = "markdown",
-//   Drilldown = "drilldown",
-//   Protected = "protected",
-//   Custom = "custom"
-// }
-
-import { TableInterface } from "sql-ddl-to-json-schema"
 import { v4 as uuidv4 } from "uuid"
 
-const typeIconMap: any = {
-  varchar: "headerString",
-  int: "headerNumber",
+import { ColumnTableName } from "@/lib/sqlite/const"
+import { IUIColumn } from "@/hooks/use-table"
+
+import { defaultAllColumnsHandle } from "./colums"
+
+export function getColumnsHandleMap(): {
+  [kind: string]: Omit<(typeof defaultAllColumnsHandle)[0], "getContent"> & {
+    getContent: (data: any) => any
+  }
+} {
+  return defaultAllColumnsHandle.reduce((acc, column) => {
+    acc[column.kind] = column
+    return acc
+  }, {} as any)
 }
 
-export const tableInterface2GridColumn = (
-  table?: TableInterface
-): GridColumn[] => {
-  return (
-    table?.columns?.map((column) => {
-      return {
-        id: column.name,
-        title: column.name,
-        with: 200,
-        // hasMenu: true,
-        icon: typeIconMap[column.type.datatype] ?? "headerString",
-        type: column.type.datatype,
-      }
-    }) ?? []
-  )
+export const columnsHandleMap = getColumnsHandleMap()
+
+export const getColumns = (uiColumns: IUIColumn[]): GridColumn[] => {
+  return uiColumns.map((column) => {
+    const colHandle = columnsHandleMap[column.type]
+    return {
+      id: column.name,
+      title: column.name,
+      with: 200,
+      hasMenu: true,
+      icon: colHandle.icon,
+    }
+  })
 }
 
 export const guessCellKind = (value: any) => {
@@ -59,50 +51,44 @@ export const guessCellKind = (value: any) => {
   }
 }
 
-export const createTableWithSql = (tableName: string, sql: string) => {
-  const createTableSql = `
-CREATE TABLE ${tableName} (
-  _id VARCHAR(32) PRIMARY KEY NOT NULL
-  ,no             INTEGER  NULL
-  ,title             VARCHAR(100)  NULL
-);
-
-${sql}
-`
-}
-
+// Uri = "uri",
+// Text = "text",
+// Image = "image",
+// RowID = "row-id",
+// Number = "number",
+// Bubble = "bubble",
+// Boolean = "boolean",
+// Loading = "loading",
+// Markdown = "markdown",
+// Drilldown = "drilldown",
+// Protected = "protected",
+// Custom = "custom"
 export const createTemplateTableSql = (tableName: string) => {
   const templateTableSql = `
 CREATE TABLE ${tableName} (
-  _id VARCHAR(32) PRIMARY KEY NOT NULL
+  _id TEXT PRIMARY KEY NOT NULL
   ,no             INTEGER  NULL
-  ,title             VARCHAR(100)  NULL
+  ,title          TEXT  NULL
+  ,checked        BOOLEAN  NULL
+  ,tags           TEXT  NULL
 );
-INSERT INTO ${tableName}(_id,no,title) VALUES ('${uuidv4()}',1,'foo');
-INSERT INTO ${tableName}(_id,no,title) VALUES ('${uuidv4()}',2,'bar');
+INSERT INTO ${tableName}(_id,no,title,checked) VALUES ('${uuidv4()}',1,'foo',1);
+INSERT INTO ${tableName}(_id,no,title,checked,tags) VALUES ('${uuidv4()}',2,'bar',1, 'foo,bar');
 INSERT INTO ${tableName}(_id,no,title) VALUES ('${uuidv4()}',3,'baz');
+
+--- insert ui-column to table
+INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('_id', 'row-id', '${tableName}', '_id');
+INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('no', 'number', '${tableName}', 'no');
+INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('title', 'text', '${tableName}', 'title');
+INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('checked', 'boolean', '${tableName}', 'checked');
+INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('tags', 'bubble', '${tableName}', 'tags');
 `
   return templateTableSql
 }
 
-export const initSql = `
-CREATE TABLE mytable3(
-  id               INTEGER  NOT NULL PRIMARY KEY
- ,name             VARCHAR(5) NOT NULL 
- ,plugin_id        VARCHAR(19) NOT NULL
- ,comment_count    BIT  NOT NULL
- ,install_count    INTEGER  NOT NULL
- ,like_count       INTEGER  NOT NULL
- ,unique_run_count INTEGER  NOT NULL
- ,view_count       INTEGER  NOT NULL
- ,create_at             VARCHAR(19) NOT NULL
-);
-INSERT INTO mytable3(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,create_at) VALUES ('Plato',1,'1220625048523881652',1,0,8,35,122,'2023/03/29 06:05 早上');
-INSERT INTO mytable3(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,create_at) VALUES ('Plato',2,'1220625048523881652',1,0,8,39,142,'2023/03/29 08:30 晚上');
-INSERT INTO mytable3(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,create_at) VALUES ('Plato',3,'1220625048523881652',1,0,8,45,163,'2023/03/30 02:55 下午');
-INSERT INTO mytable3(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,create_at) VALUES ('Plato',4,'1220625048523881652',1,0,9,49,174,'2023/03/30 08:29 晚上');
-INSERT INTO mytable3(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,create_at) VALUES ('Plato',5,'1220625048523881652',1,0,10,58,213,'2023/03/31 08:30 晚上');
-INSERT INTO mytable3(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,create_at) VALUES ('Plato',6,'1220625048523881652',1,1,10,63,236,'2023/04/01 08:30 晚上');
-INSERT INTO mytable3(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,create_at) VALUES ('Plato',7,'1220625048523881652',1,1,10,68,257,'2023/04/02 08:30 晚上');
-INSERT INTO mytable3(name,id,plugin_id,comment_count,install_count,like_count,unique_run_count,view_count,create_at) VALUES ('Plato',8,'1220625048523881652',1,1,11,69,273,'2023/04/03 08:29 晚上');
+export const createTemplateTableColumnsSql = () => {
+  return `
+  
+  
 `
+}
