@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { IUIColumn } from "@/hooks/use-table"
 
-import { defaultAllColumnsHandle } from "./colums"
+import { defaultAllColumnsHandle } from "./fields/colums"
 
 export function getColumnsHandleMap(): {
   [kind: string]: Omit<(typeof defaultAllColumnsHandle)[0], "getContent"> & {
@@ -21,13 +21,12 @@ export const columnsHandleMap = getColumnsHandleMap()
 
 export const getColumns = (uiColumns: IUIColumn[]): GridColumn[] => {
   return uiColumns.map((column) => {
-    const colHandle = columnsHandleMap[column.type]
     return {
       id: column.name,
       title: column.name,
       with: 200,
       hasMenu: false,
-      icon: colHandle.icon,
+      icon: column.type,
     }
   })
 }
@@ -80,8 +79,8 @@ INSERT INTO ${tableName}(_id,no,title) VALUES ('${uuidv4()}',3,'baz');
 INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('_id', 'row-id', '${tableName}', '_id');
 INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('no', 'number', '${tableName}', 'no');
 INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('title', 'text', '${tableName}', 'title');
-INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('checked', 'boolean', '${tableName}', 'checked');
-INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('tags', 'bubble', '${tableName}', 'tags');
+INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('checked', 'checkbox', '${tableName}', 'checked');
+INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('tags', 'multi-select', '${tableName}', 'tags');
 `
   return templateTableSql
 }

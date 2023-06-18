@@ -54,7 +54,11 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     const newName = e.target.value
     const isOk = checkNewFieldNameIsOk(newName, currentField, uiColumns)
     if (!isOk) {
-      setError("Field name already exists")
+      if (newName.length === 0) {
+        setError("Field name cannot be empty")
+      } else {
+        setError("Field name already exists")
+      }
     } else {
       setError("")
     }
@@ -131,15 +135,12 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
           <div
             {...layerProps}
             className={cn(
-              "hidden min-w-[220px] overflow-hidden rounded-sm bg-white p-1 shadow-md",
+              "hidden min-w-[220px] overflow-hidden rounded-sm bg-white p-1 shadow-md dark:bg-black",
               isOpen && "block"
             )}
             onMouseMoveCapture={(e) => e.stopPropagation()}
           >
             <div ref={ref2}>
-              {/* <CommonMenuItem>Profile</CommonMenuItem>
-              <CommonMenuItem>Billing</CommonMenuItem>
-              */}
               <div className="flex flex-col gap-2 p-2">
                 <Input
                   ref={inputRef}
@@ -147,6 +148,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                   value={newFieldName}
                   onBlur={handleChangeFieldName}
                   autoFocus
+                  autoComplete="off"
                   onChange={handleNewFieldNameChange}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {

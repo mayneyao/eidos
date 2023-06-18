@@ -5,6 +5,9 @@ export const checkNewFieldNameIsOk = (
   currentField: IUIColumn,
   columns: IUIColumn[]
 ) => {
+  if (name.length < 1) {
+    return false
+  }
   if (currentField && currentField.name === name) {
     return true
   }

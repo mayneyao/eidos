@@ -93,7 +93,8 @@ export class SqlDatabase {
       name TEXT,
       type TEXT,
       table_name TEXT,
-      table_column_name TEXT
+      table_column_name TEXT,
+      property TEXT
     );`)
   }
 

@@ -13,12 +13,16 @@ import { columnsHandleMap } from "@/components/grid/helper"
 import { useDatabaseAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
+import "@glideapps/glide-data-grid-cells/dist/index.css"
 import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import "./styles.css"
+import { useExtraCells } from "@glideapps/glide-data-grid-cells"
+
+import { allFieldTypesMap } from "@/lib/fields"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
@@ -62,6 +66,7 @@ interface IGridProps {
 }
 
 export default function Grid(props: IGridProps) {
+  const cellProps = useExtraCells()
   const [showSearch, setShowSearch] = React.useState(false)
   const { tableName, databaseName } = props
   const { theme } = useTheme()
@@ -124,6 +129,7 @@ export default function Grid(props: IGridProps) {
   }, [tableName, databaseName, clearSelection])
   const { onColumnResize, columns } = useColumns(uiColumns)
   // data handle
+  // TODO: refactor
   const getData = useCallback(
     (cell: Item): GridCell => {
       const [columnIndex, rowIndex] = cell
@@ -142,7 +148,14 @@ export default function Grid(props: IGridProps) {
       if (!uiCol) {
         return emptyCell
       }
-      const colHandle = columnsHandleMap[uiCol.type]
+      let colHandle = columnsHandleMap[uiCol.type]
+      if (!colHandle) {
+        const FieldClass = allFieldTypesMap[uiCol.type]
+        if (FieldClass) {
+          const field = new FieldClass(uiCol)
+          return field.getCellContent(content as never)
+        }
+      }
       return colHandle.getContent(content)
     },
     [data, columns, uiColumnMap]
@@ -151,9 +164,28 @@ export default function Grid(props: IGridProps) {
   // event handle
   const onCellEdited = React.useCallback(
     async (cell: Item, newValue: EditableGridCell) => {
-      updateCell(cell[0], cell[1], newValue.data)
+      console.log("onCellEdited", cell, newValue)
+      const field = columns[cell[0]]
+      if (!field) {
+        return
+      }
+      const uiCol = uiColumnMap.get(field.title)
+      if (!uiCol) {
+        return
+      }
+      let colHandle = columnsHandleMap[uiCol.type]
+      if (!colHandle) {
+        const FieldClass = allFieldTypesMap[uiCol.type]
+        if (FieldClass) {
+          const field = new FieldClass(uiCol)
+          const rawData = field.cellData2RawData(newValue as never)
+          console.log(newValue, rawData)
+          return updateCell(cell[0], cell[1], rawData)
+        }
+      }
+      return updateCell(cell[0], cell[1], newValue.data)
     },
-    [updateCell]
+    [columns, uiColumnMap, updateCell]
   )
 
   const [menu, setMenu] = React.useState<{
@@ -189,6 +221,7 @@ export default function Grid(props: IGridProps) {
           {Boolean(uiColumns.length) && (
             <DataEditor
               {...config}
+              {...cellProps}
               ref={glideDataGridRef}
               theme={_theme}
               onDragLeave={onDragLeave}

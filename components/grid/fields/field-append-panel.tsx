@@ -1,20 +1,21 @@
 "use client"
 
-import { GridCellKind } from "@glideapps/glide-data-grid"
+import * as React from "react"
 import { useClickAway } from "ahooks"
 import {
   BaselineIcon,
   CheckSquareIcon,
   ImageIcon,
   LinkIcon,
+  StarIcon,
   TagIcon,
   TagsIcon,
+  CalendarDaysIcon
 } from "lucide-react"
-import * as React from "react"
 
-import { Button } from "@/components/ui/button"
-import { IUIColumn } from "@/hooks/use-table"
 import { cn } from "@/lib/utils"
+import { IUIColumn } from "@/hooks/use-table"
+import { Button } from "@/components/ui/button"
 
 import { useTableAppStore } from "../store"
 
@@ -29,17 +30,19 @@ export function FieldAppendPanel({
   const ref = React.useRef<HTMLDivElement>(null)
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
   const fieldTypes = [
-    { name: "Text", value: GridCellKind.Text, icon: BaselineIcon },
-    { name: "Number", value: GridCellKind.Number, icon: BaselineIcon },
-    { name: "Select", value: GridCellKind.Bubble, icon: TagIcon },
-    { name: "MultiSelect", value: GridCellKind.Bubble, icon: TagsIcon },
+    { name: "Text", value: "text", icon: BaselineIcon },
+    { name: "Number", value: "number", icon: BaselineIcon },
+    { name: "Select", value: "select", icon: TagIcon },
+    { name: "MultiSelect", value: "multi-select", icon: TagsIcon },
     {
       name: "Checkbox",
-      value: GridCellKind.Boolean,
+      value: 'checkbox"',
       icon: CheckSquareIcon,
     },
-    { name: "URL", value: GridCellKind.Uri, icon: LinkIcon },
-    { name: "Files", value: GridCellKind.Image, icon: ImageIcon },
+    { name: "Rating", value: "rating", icon: StarIcon },
+    { name: "URL", value: "url", icon: LinkIcon },
+    { name: "Date", value: "date", icon: CalendarDaysIcon },
+    { name: "Files", value: "file", icon: ImageIcon },
   ]
 
   const handleAddField = (field: (typeof fieldTypes)[0]) => {

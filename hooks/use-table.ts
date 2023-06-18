@@ -34,6 +34,7 @@ export type IUIColumn = {
   name: string
   type: string
   table_column_name: string
+  property: any
 }
 
 interface TableState {
