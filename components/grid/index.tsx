@@ -20,8 +20,6 @@ import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import "./styles.css"
-import { useExtraCells } from "@glideapps/glide-data-grid-cells"
-
 import { allFieldTypesMap } from "@/lib/fields"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
@@ -37,6 +35,7 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import { darkTheme, lightTheme } from "./theme"
+import { useExtraCells } from "../cells"
 
 const defaultConfig: Partial<DataEditorProps> = {
   smoothScrollX: true,
@@ -154,6 +153,8 @@ export default function Grid(props: IGridProps) {
         if (FieldClass) {
           const field = new FieldClass(uiCol)
           return field.getCellContent(content as never)
+        } else {
+          throw new Error(`field type ${uiCol.type} not found`)
         }
       }
       return colHandle.getContent(content)

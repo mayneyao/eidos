@@ -4,13 +4,13 @@ import * as React from "react"
 import { useClickAway } from "ahooks"
 import {
   BaselineIcon,
+  CalendarDaysIcon,
   CheckSquareIcon,
   ImageIcon,
   LinkIcon,
   StarIcon,
   TagIcon,
   TagsIcon,
-  CalendarDaysIcon
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -36,7 +36,7 @@ export function FieldAppendPanel({
     { name: "MultiSelect", value: "multi-select", icon: TagsIcon },
     {
       name: "Checkbox",
-      value: 'checkbox"',
+      value: "checkbox",
       icon: CheckSquareIcon,
     },
     { name: "Rating", value: "rating", icon: StarIcon },

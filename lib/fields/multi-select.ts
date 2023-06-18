@@ -15,6 +15,13 @@ type MultiSelectProperty = {
   options: Tag[]
 }
 
+const DefaultOptTags = ["foo", "bar", "baz", "qux", "quux"]
+const DefaultOptColors = ["ff99c8", "fcf6bd", "d0f4de", "a9def9", "e4c1f9"]
+const defaultOptions = DefaultOptTags.map((tag, i) => ({
+  tag,
+  color: `#${DefaultOptColors[i]}`,
+}))
+
 export class MultiSelectField extends BaseField<
   MultiSelectCell,
   MultiSelectProperty,
@@ -33,16 +40,7 @@ export class MultiSelectField extends BaseField<
       kind: GridCellKind.Custom,
       data: {
         kind: "tags-cell",
-        possibleTags: this.column.property?.options ?? [
-          {
-            tag: "foo",
-            color: "#00ff00",
-          },
-          {
-            tag: "bar",
-            color: "#ff0000",
-          },
-        ],
+        possibleTags: this.column.property?.options ?? defaultOptions,
         tags: rawData ? rawData.split(",") : [],
       },
       copyData: rawData,

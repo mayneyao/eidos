@@ -1,7 +1,7 @@
 lockfileVersion: 5.4
 
 specifiers:
-  '@glideapps/glide-data-grid': ^5.2.1
+  '@glideapps/glide-data-grid': 5.2.2-beta3
   '@glideapps/glide-data-grid-cells': ^5.2.1
   '@hookform/resolvers': ^3.1.0
   '@ianvs/prettier-plugin-sort-imports': ^3.7.2
@@ -78,7 +78,7 @@ specifiers:
   zustand: ^4.3.8
 
 dependencies:
-  '@glideapps/glide-data-grid': 5.2.1_h5cemw5yortdoyybqx2sz2ebua
+  '@glideapps/glide-data-grid': 5.2.2-beta3_h5cemw5yortdoyybqx2sz2ebua
   '@glideapps/glide-data-grid-cells': 5.2.1_ftvyrgey7nmgpikj3vwh3p56ca
   '@hookform/resolvers': 3.1.0_react-hook-form@7.44.3
   '@radix-ui/react-alert-dialog': 1.0.4_nt3dzwb3srfhvwd6kfpoey3m3m
@@ -766,6 +766,24 @@ packages:
 
   /@glideapps/glide-data-grid/5.2.1_h5cemw5yortdoyybqx2sz2ebua:
     resolution: {integrity: sha512-2ds1xwYZkoJil7OyoHJHMtjq/MTwIFBRLx2VPAP5d6XaJRbuni3UCjtpUH51qf8o1qHeZsSE/dg3hJZZ2I86SQ==}
+    peerDependencies:
+      lodash: ^4.17.19
+      marked: ^4.0.10
+      react: ^16.12.0 || 17.x || 18.x
+      react-dom: ^16.12.0 || 17.x || 18.x
+      react-responsive-carousel: ^3.2.7
+    dependencies:
+      canvas-hypertxt: 0.0.7
+      lodash: 4.17.21
+      marked: 5.0.5
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+      react-number-format: 5.2.2_biqbaboplfbrettd7655fr4n2y
+      react-responsive-carousel: 3.2.23
+    dev: false
+
+  /@glideapps/glide-data-grid/5.2.2-beta3_h5cemw5yortdoyybqx2sz2ebua:
+    resolution: {integrity: sha512-USfhIaIRegzv6LNU1zLwZiNsTDJhhNhD0BIuZ3l5/0gGQ75+GAZgv1Nz6OrpZX5db/IoVY4UE+gQ6jSwgali4w==}
     peerDependencies:
       lodash: ^4.17.19
       marked: ^4.0.10

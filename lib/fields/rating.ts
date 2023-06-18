@@ -1,12 +1,10 @@
 import { GridCellKind } from "@glideapps/glide-data-grid"
-import { StarCell } from "@glideapps/glide-data-grid-cells"
+
+import { RatingCell } from "@/components/cells/rating-cell"
 
 import { BaseField } from "./base"
-import { InferCustomRendererType } from "./interface"
 
 type RatingProperty = {}
-
-type RatingCell = InferCustomRendererType<typeof StarCell>
 
 export class RatingField extends BaseField<RatingCell, RatingProperty, number> {
   static type = "rating"
@@ -15,7 +13,7 @@ export class RatingField extends BaseField<RatingCell, RatingProperty, number> {
     return {
       kind: GridCellKind.Custom,
       data: {
-        kind: "star-cell",
+        kind: "rating-cell",
         rating: rawData,
       },
       copyData: `${rawData}`,

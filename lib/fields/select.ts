@@ -1,5 +1,6 @@
 import { GridCellKind } from "@glideapps/glide-data-grid"
-import { DropdownCell } from "@glideapps/glide-data-grid-cells"
+
+import { SelectCell } from "@/components/cells/select-cell"
 
 import { BaseField } from "./base"
 import { InferCustomRendererType } from "./interface"
@@ -9,32 +10,28 @@ type Tag = {
   color: string
 }
 
-type SelectCell = InferCustomRendererType<typeof DropdownCell>
-
 type SelectProperty = {
   options: Tag[]
 }
+
+const DefaultOptTags = ["foo", "bar", "baz", "qux", "quux"]
+const DefaultOptColors = ["ff99c8", "fcf6bd", "d0f4de", "a9def9", "e4c1f9"]
+const defaultOptions = DefaultOptTags.map((tag, i) => ({
+  tag,
+  color: `#${DefaultOptColors[i]}`,
+}))
 
 export class SelectField extends BaseField<SelectCell, SelectProperty> {
   static type = "select"
 
   getCellContent(rawData: string): SelectCell {
-    const options = this.column.property?.options ?? [
-      {
-        tag: "foo",
-        color: "#00ff00",
-      },
-      {
-        tag: "bar",
-        color: "#ff0000",
-      },
-    ]
+    const options = this.column.property?.options ?? defaultOptions
     return {
       kind: GridCellKind.Custom,
       data: {
-        kind: "dropdown-cell",
+        kind: "select-cell",
         value: rawData,
-        allowedValues: options.map((tag) => tag.tag),
+        allowedValues: options,
       },
       copyData: rawData,
       allowOverlay: true,
