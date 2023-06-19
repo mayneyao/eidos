@@ -25,7 +25,7 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
-import { useExtraCells } from "../cells"
+import { customCells, useExtraCells } from "../cells"
 import { Button } from "../ui/button"
 import { FieldAppendPanel } from "./fields/field-append-panel"
 import { FieldEditorDropdown } from "./fields/field-editor-dropdown"
@@ -54,9 +54,9 @@ const defaultConfig: Partial<DataEditorProps> = {
   // auto handle copy and paste
   onPaste: true,
   headerIcons: headerIcons,
-  // experimental: {
-  //   paddingBottom: 300
-  // }
+  experimental: {
+    paddingBottom: 14,
+  },
 }
 
 interface IGridProps {
@@ -65,7 +65,6 @@ interface IGridProps {
 }
 
 export default function Grid(props: IGridProps) {
-  const cellProps = useExtraCells()
   const [showSearch, setShowSearch] = React.useState(false)
   const { tableName, databaseName } = props
   const { theme } = useTheme()
@@ -218,12 +217,12 @@ export default function Grid(props: IGridProps) {
 
   return (
     <div className="h-full p-2" ref={containerRef}>
-      <div className="flex h-full overflow-hidden rounded-md">
+      <div className="flex h-full overflow-hidden rounded-md border-t border-t-slate-200">
         <ContextMenuDemo deleteRows={deleteRows}>
           {Boolean(uiColumns.length) && (
             <DataEditor
               {...config}
-              {...cellProps}
+              customRenderers={customCells}
               ref={glideDataGridRef}
               theme={_theme}
               onDragLeave={onDragLeave}

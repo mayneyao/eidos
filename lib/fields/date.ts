@@ -1,12 +1,12 @@
 import { GridCellKind } from "@glideapps/glide-data-grid"
-import type { DatePickerCell } from "@glideapps/glide-data-grid-cells"
+
+import { DatePickerCell } from "@/components/cells/date-picker-cell"
 
 import { BaseField } from "./base"
-import { InferCustomRendererType } from "./interface"
 
 type DateProperty = {}
 
-type DateCell = InferCustomRendererType<typeof DatePickerCell>
+type DateCell = DatePickerCell
 
 export class DateField extends BaseField<DateCell, DateProperty, string> {
   static type = "date"

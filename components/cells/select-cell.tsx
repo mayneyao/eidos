@@ -165,10 +165,17 @@ const renderer: CustomRenderer<SelectCell> = {
   provideEditor: () => (p) => {
     return <Editor {...p} />
   },
-  onPaste: (v, d) => ({
-    ...d,
-    value: d.allowedValues.map((i) => i.tag).includes(v) ? v : d.value,
-  }),
+
+  onPaste: (v, d) => {
+    return {
+      ...d,
+      value: (d as any as SelectCell).data.allowedValues
+        .map((i) => i.tag)
+        .includes(v)
+        ? v
+        : d.value,
+    }
+  },
   onDelete: (d) => ({
     ...d,
     data: {

@@ -22,3 +22,5 @@ const cells = [
 export function useExtraCells() {
   return useCustomCells(cells)
 }
+
+export const customCells = cells

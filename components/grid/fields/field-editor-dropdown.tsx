@@ -154,6 +154,9 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                     if (e.key === "Enter") {
                       handleChangeFieldName()
                     }
+                    if (e.key === "Escape") {
+                      setMenu(undefined)
+                    }
                   }}
                   className="col-span-3 h-[32px]"
                 />

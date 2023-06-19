@@ -3,7 +3,6 @@ import { GridCellKind } from "@glideapps/glide-data-grid"
 import { SelectCell } from "@/components/cells/select-cell"
 
 import { BaseField } from "./base"
-import { InferCustomRendererType } from "./interface"
 
 type Tag = {
   tag: string

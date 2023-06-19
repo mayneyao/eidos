@@ -1,15 +1,14 @@
 import { GridCellKind } from "@glideapps/glide-data-grid"
-import type { TagsCell } from "@glideapps/glide-data-grid-cells"
+import { TagsCellType } from "@glideapps/glide-data-grid-cells"
 
 import { BaseField } from "./base"
-import { InferCustomRendererType } from "./interface"
 
 type Tag = {
   tag: string
   color: string
 }
 
-type MultiSelectCell = InferCustomRendererType<typeof TagsCell>
+type MultiSelectCell = TagsCellType
 
 type MultiSelectProperty = {
   options: Tag[]

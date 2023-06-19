@@ -1,8 +1,8 @@
 import {
-    CustomCell,
-    CustomRenderer,
-    GridCellKind,
-    Item
+  CustomCell,
+  CustomRenderer,
+  GridCellKind,
+  Item,
 } from "@glideapps/glide-data-grid"
 
 import { cn } from "@/lib/utils"
@@ -111,6 +111,7 @@ const renderer: CustomRenderer<RatingCell> = {
     )
   },
   onPaste: (val, d) => {
+    console.log(val, d)
     const num = Number.parseInt(val)
     return {
       ...d,

@@ -78,16 +78,10 @@ describe("aggregateSql2columns", () => {
 
   it("aggregateSql2columns2", () => {
     const sql = `SELECT * FROM movie_review WHERE rating > 7;`
-    const res = aggregateSql2columns(sql, [])
+    const res = aggregateSql2columns(sql, ["rating", "count"])
     expect(res.columns.map((item: any) => item.name)).toStrictEqual([
       "rating",
       "count",
     ])
   })
-
-
-  
-
-
-
 })
