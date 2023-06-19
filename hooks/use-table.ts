@@ -1,9 +1,9 @@
 import { useCallback, useEffect } from "react"
-import { GridCellKind } from "@glideapps/glide-data-grid"
-import { useWhyDidYouUpdate } from "ahooks"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
 
+import { useConfigStore } from "@/app/settings/store"
+import { useDatabaseAppStore } from "@/app/[database]/store"
 import { MsgType } from "@/lib/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import {
@@ -12,11 +12,9 @@ import {
   checkSqlIsModifyTableSchema,
   checkSqlIsOnlyQuery,
   queryData2JSON,
-  sqlToJSONSchema2,
+  sqlToJSONSchema2
 } from "@/lib/sqlite/helper"
 import { generateColumnName } from "@/lib/utils"
-import { useDatabaseAppStore } from "@/app/[database]/store"
-import { useConfigStore } from "@/app/settings/store"
 
 import { useSqlite } from "./use-sqlite"
 
@@ -174,6 +172,7 @@ export const useTable = (tableName: string, databaseName: string) => {
           ColumnTableName
         )} (name,type,table_name,table_column_name) VALUES (${fieldName},${fieldType},${tableName},${tableColumnName});`
       })
+      await refreshRows()
       await updateTableSchema()
       await updateUiColumns()
     }
@@ -189,6 +188,7 @@ export const useTable = (tableName: string, databaseName: string) => {
         ColumnTableName
       )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
     })
+    await refreshRows()
     await updateUiColumns()
     await updateTableSchema()
   }
