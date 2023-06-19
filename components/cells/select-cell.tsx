@@ -55,7 +55,7 @@ const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
   }
   const [open, setOpen] = React.useState(true)
   //  input
-  const [value, setValue] = React.useState(valueIn)
+  const [value, setValue] = React.useState("")
 
   return (
     <Popover open={open}>
@@ -63,7 +63,7 @@ const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
         <div />
       </PopoverTrigger>
       <PopoverContent
-        className="w-[200px] p-0"
+        className="click-outside-ignore w-[200px] p-0"
         align="start"
         sideOffset={-6}
         alignOffset={-9}
@@ -84,13 +84,13 @@ const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
                 key={option.tag}
                 value={option.tag}
                 onSelect={(currentValue) => {
-                  handleSelect(currentValue === value ? "" : currentValue)
+                  handleSelect(currentValue === valueIn ? "" : currentValue)
                 }}
               >
                 <Check
                   className={cn(
                     "mr-2 h-4 w-4",
-                    value === option.tag ? "opacity-100" : "opacity-0"
+                    valueIn === option.tag ? "opacity-100" : "opacity-0"
                   )}
                 />
                 <span
