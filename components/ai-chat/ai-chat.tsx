@@ -14,10 +14,10 @@ import { useSqliteStore } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
+import { useDatabaseAppStore } from "@/app/[database]/store"
+import { useConfigStore } from "@/app/settings/store"
 
-import { useConfigStore } from "../settings/store"
 import { AIChatMessage } from "./ai-chat-message"
-import { useDatabaseAppStore } from "./store"
 
 export const AIChat = () => {
   const { currentTableSchema } = useDatabaseAppStore()
@@ -128,7 +128,10 @@ export const AIChat = () => {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-auto p-2" ref={divRef as any}>
+    <div
+      className="flex h-full w-[24%] min-w-[400px] max-w-[700px] flex-col overflow-auto border-l border-l-slate-400 p-2"
+      ref={divRef as any}
+    >
       <div className="flex grow flex-col gap-2 pb-[100px]">
         {!aiConfig.token && (
           <p className="p-2">
