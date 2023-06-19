@@ -25,6 +25,7 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
+import { useExtraCells } from "../cells"
 import { Button } from "../ui/button"
 import { FieldAppendPanel } from "./fields/field-append-panel"
 import { FieldEditorDropdown } from "./fields/field-editor-dropdown"
@@ -35,7 +36,6 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import { darkTheme, lightTheme } from "./theme"
-import { useExtraCells } from "../cells"
 
 const defaultConfig: Partial<DataEditorProps> = {
   smoothScrollX: true,
@@ -200,6 +200,7 @@ export default function Grid(props: IGridProps) {
         col,
         bounds: e.bounds,
       })
+      e.preventDefault()
     },
     []
   )
@@ -234,6 +235,7 @@ export default function Grid(props: IGridProps) {
               onItemHovered={onItemHovered}
               // getRowThemeOverride={getRowThemeOverride}
               onHeaderClicked={onHeaderClicked}
+              onHeaderContextMenu={onHeaderClicked}
               onGridSelectionChange={setSelection}
               onColumnResize={onColumnResize}
               getCellContent={getData}

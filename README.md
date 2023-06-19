@@ -12,35 +12,6 @@ This project is a local-first, web application for creating and managing databas
 
 see [Eidos Project](https://github.com/users/mayneyao/projects/5)
 
-## Field
-
-- [x] text
-- [ ] number
-- [x] checkbox
-- [ ] select
-- [ ] multi-select
-- [x] rating
-- [ ] url
-- [ ] file
-- [ ] date
-
-| field            | onPaste | onDelete | getCell | setCell | property |
-| ---------------- | ------- | -------- | ------- | ------- | -------- |
-| text             | ✅      | ✅       | ✅      | ✅      |          |
-| number           | ✅      | ✅       | ✅      | ✅      |          |
-| checkbox         | ✅      | ✅       | ✅      | ✅      |          |
-| select           |         |          |         |         |          |
-| multi-select     |         |          |         |         |          |
-| rating           | ✅      |          | ✅      | ✅      |          |
-| url              | ✅      | ✅       | ✅      | ✅      |          |
-| file             |         | ✅       | ✅      |         |          |
-| date             |         |          |         |         |          |
-| formula          |         |          |         |         |          |
-| created time     |         |          |         |         |          |
-| last edited time |         |          |         |         |          |
-| link             |         |          |         |         |          |
-| rollup           |         |          |         |         |          |
-
 ## How to Use
 
 1. Clone the repository

@@ -9,6 +9,9 @@ interface AppState {
 
   lastOpenedTable: string
   setLastOpenedTable: (table: string) => void
+
+  sidebarWidth: number
+  setSidebarWidth: (width: number) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -20,6 +23,9 @@ export const useAppStore = create<AppState>()(
 
       lastOpenedTable: "",
       setLastOpenedTable: (table) => set({ lastOpenedTable: table }),
+
+      sidebarWidth: 400,
+      setSidebarWidth: (width) => set({ sidebarWidth: width }),
     }),
     {
       name: "app-storage",
