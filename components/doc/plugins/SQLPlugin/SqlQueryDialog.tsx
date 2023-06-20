@@ -11,7 +11,7 @@ interface SqlQueryDialogProps {
   onClose: () => void
 }
 
-const Placeholder = "SELECT count(*) as amount FROM "
+const Placeholder = "SELECT date();"
 export const SqlQueryDialog = (props: SqlQueryDialogProps) => {
   const [sql, setSql] = useState("")
   const { activeEditor, onClose } = props

@@ -1,13 +1,7 @@
-import { useCallback, useEffect } from "react"
-import { registerCodeHighlighting } from "@lexical/code"
-import {
-  $convertFromMarkdownString,
-  $convertToMarkdownString,
-} from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useKeyPress } from "ahooks"
+import { useCallback, useEffect } from "react"
 
-import { allTransformers } from "../const"
 
 interface AutoSavePluginProps {
   onSave: (markdown: string) => void
@@ -24,14 +18,24 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
 
   useEffect(() => {
     editor.update(() => {
-      $convertFromMarkdownString(initContent ?? "", allTransformers)
+      //   $convertFromMarkdownString(initContent ?? "", allTransformers)
+      let state
+      try {
+        state = JSON.parse(initContent ?? "{}")
+      } catch (error) {}
+      if (state) {
+        const parsedState = editor.parseEditorState(state)
+        editor.setEditorState(parsedState)
+      }
     })
   }, [initContent, editor])
 
   const handleMarkdownToggle = useCallback(() => {
     editor.update(() => {
-      const markdown = $convertToMarkdownString(allTransformers)
-      onSave(markdown)
+      //   const markdown = $convertToMarkdownString(allTransformers)
+      //   onSave(markdown)
+      const json = editor.getEditorState().toJSON()
+      onSave(JSON.stringify(json))
     })
   }, [editor, onSave])
 
