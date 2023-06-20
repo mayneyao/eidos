@@ -18,6 +18,7 @@
     "@glideapps/glide-data-grid": "5.2.2-beta3",
     "@glideapps/glide-data-grid-cells": "^5.2.1",
     "@hookform/resolvers": "^3.1.0",
+    "@lexical/react": "^0.11.1",
     "@radix-ui/react-alert-dialog": "^1.0.4",
     "@radix-ui/react-avatar": "^1.0.3",
     "@radix-ui/react-checkbox": "^1.0.4",
@@ -43,6 +44,7 @@
     "d3": "^7.8.5",
     "date-fns": "^2.30.0",
     "eventemitter3": "^5.0.1",
+    "lexical": "^0.11.1",
     "lodash": "^4.17.21",
     "lucide-react": "0.105.0-alpha.4",
     "marked": "^5.0.5",
@@ -64,6 +66,7 @@
     "tailwind-merge": "^1.12.0",
     "tailwindcss-animate": "^1.0.5",
     "uuid": "^9.0.0",
+    "yjs": "^13.6.4",
     "zod": "^3.21.4",
     "zod-to-json-schema": "^3.21.1",
     "zustand": "^4.3.8"
