@@ -1,5 +1,4 @@
 import { SqlDatabase } from "@/worker/sql"
-import { mt } from "date-fns/locale"
 import { DataConnection } from "peerjs"
 
 import { toast } from "@/components/ui/use-toast"
@@ -23,24 +22,41 @@ interface ISqlite<T> {
 export class LocalSqlite implements ISqlite<Worker> {
   connector: Worker
   channel: MessageChannel
+  channelMap: Map<string, MessageChannel>
   constructor(connector: Worker) {
     this.connector = connector
     this.channel = new MessageChannel()
+    this.channelMap = new Map()
   }
 
-  useNewChannel() {
-    this.channel = new MessageChannel()
+  getChannel(id: string) {
+    return this.channelMap.get(id)
   }
+  destroyChannel(id: string) {
+    this.channelMap.delete(id)
+  }
+
   send(data: any) {
-    // every msg need to have a unique id
-    this.useNewChannel()
-    return this.connector.postMessage(data, [this.channel.port2])
+    /**
+     * every msg need to have a unique id,
+     * one msg id, one channel
+     * channel map used to avoid parallel sending
+     */
+    const msgId = data.id
+    const channel = new MessageChannel()
+    this.channelMap.set(msgId, channel)
+    return this.connector.postMessage(data, [channel.port2])
   }
   onCallBack(thisCallId: string) {
     return new Promise((resolve, reject) => {
       // https://advancedweb.hu/how-to-use-async-await-with-postmessage/ saves me, there is a bug when use id to match msg, channel is the right way
-      this.channel.port1.onmessage = (e) => {
+      const channel = this.getChannel(thisCallId)
+      if (!channel) {
+        return
+      }
+      channel.port1.onmessage = (e) => {
         this.channel.port1.close()
+        this.destroyChannel(thisCallId)
         const { id: returnId, type, data } = e.data
         switch (type) {
           case MsgType.Error:
@@ -121,7 +137,7 @@ export const getSqliteProxy = (
       return function (params: any) {
         const thisCallId = uuidv4()
         const [_params, ...rest] = arguments
-        
+
         if (["sql", "sql2"].includes(method as string)) {
           /**
            * sql`SELECT * FROM ${Symbol(books)} WHERE id = ${1}`.
@@ -129,11 +145,12 @@ export const getSqliteProxy = (
            * if values include Symbol, it will can't be transported to worker via postMessage
            * we need parse to sql first before transport to worker
            * this make sql`SELECT * FROM ${Symbol(books)} WHERE id = ${1}`  works in main thread and worker thread
-           * 
+           *
            * sql return array of array, for performance reason
            * sql2 return array of object, for easy to use
            */
           const { sql, bind } = buildSql(_params, ...rest)
+          // console.log(sql, bind)
           const callMethod =
             method == "sql2" ? "sql4mainThread2" : "sql4mainThread"
           const data: IQuery = {

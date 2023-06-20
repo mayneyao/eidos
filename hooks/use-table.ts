@@ -1,9 +1,9 @@
 import { useCallback, useEffect } from "react"
-import { useWhyDidYouUpdate } from "ahooks"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
 
 import { MsgType } from "@/lib/const"
+import { ColumnTableName } from "@/lib/sqlite/const"
 import {
   aggregateSql2columns,
   checkSqlIsModifyTableData,
@@ -12,6 +12,7 @@ import {
   queryData2JSON,
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
+import { generateColumnName } from "@/lib/utils"
 import { useDatabaseAppStore } from "@/app/[database]/store"
 import { useConfigStore } from "@/app/settings/store"
 
@@ -27,19 +28,32 @@ export type IColumn = {
   pk: number
 }
 
+export type IUIColumn = {
+  name: string
+  type: string
+  table_column_name: string
+  property: any
+}
+
 interface TableState {
   columns: IColumn[]
+  uiColumns: IUIColumn[]
+
   setColumns: (columns: IColumn[]) => void
+  setUiColumns: (columns: IUIColumn[]) => void
 }
 
 // not using persist
 export const useTableStore = create<TableState>()((set) => ({
   columns: [],
+  uiColumns: [],
   setColumns: (columns) => set({ columns }),
+  setUiColumns: (uiColumns) => set({ uiColumns }),
 }))
 
 export const useTable = (tableName: string, databaseName: string) => {
-  const { sqlite } = useSqlite(databaseName)
+  const { sqlite, withTransaction } = useSqlite(databaseName)
+  const { setUiColumns, uiColumns } = useTableStore()
   const {
     data,
     setData,
@@ -83,6 +97,12 @@ export const useTable = (tableName: string, databaseName: string) => {
       }
     }
   }, [refreshRows, databaseName])
+
+  const updateUiColumns = useCallback(async () => {
+    if (!sqlite) return
+    const res = await sqlite.listUiColumns(tableName)
+    setUiColumns(res)
+  }, [setUiColumns, sqlite, tableName])
 
   const updateTableSchema = useCallback(async () => {
     if (!sqlite) return
@@ -129,19 +149,68 @@ export const useTable = (tableName: string, databaseName: string) => {
     }
   }
 
+  const updateFieldName = async (tableColumnName: string, newName: string) => {
+    if (!sqlite) return
+    await sqlite.sql`UPDATE ${Symbol(
+      ColumnTableName
+    )} SET name = ${newName} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+    await updateUiColumns()
+  }
+
+  const updateFieldProperty = async (
+    tableColumnName: string,
+    property: any
+  ) => {
+    if (!sqlite) return
+    await sqlite.sql`UPDATE ${Symbol(
+      ColumnTableName
+    )} SET property = ${JSON.stringify(
+      property
+    )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+    await updateUiColumns()
+  }
+
   const addField = async (fieldName: string, fieldType: string) => {
     const typeMap: any = {
-      text: "VARCHAR(128)",
+      text: "TEXT",
     }
     if (sqlite) {
-      const column = Symbol(fieldName)
       const table = Symbol(tableName)
-      const columnType = typeMap[fieldType] ?? "VARCHAR(128)"
-      await sqlite.sql`ALTER TABLE ${table} ADD COLUMN ${column} ${Symbol(
-        columnType
-      )};`
+      const columnType = typeMap[fieldType] ?? "TEXT"
+      const tableColumnName = generateColumnName()
+      await withTransaction(async () => {
+        await sqlite.sql`ALTER TABLE ${table} ADD COLUMN ${Symbol(
+          tableColumnName
+        )} ${Symbol(columnType)};`
+        await sqlite.sql`INSERT INTO ${Symbol(
+          ColumnTableName
+        )} (name,type,table_name,table_column_name) VALUES (${fieldName},${fieldType},${tableName},${tableColumnName});`
+      })
+      await refreshRows()
       await updateTableSchema()
+      await updateUiColumns()
     }
+  }
+
+  const deleteField = async (tableColumnName: string) => {
+    if (!sqlite) return
+    await withTransaction(async () => {
+      await sqlite.sql`ALTER TABLE ${Symbol(tableName)} DROP COLUMN ${Symbol(
+        tableColumnName
+      )};`
+      await sqlite.sql`DELETE FROM ${Symbol(
+        ColumnTableName
+      )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+    })
+    await refreshRows()
+    await updateUiColumns()
+    await updateTableSchema()
+  }
+
+  const deleteFieldByColIndex = async (colIndex: number) => {
+    const tableColumnName = uiColumns[colIndex].table_column_name
+    console.log("deleteFieldByColIndex", tableColumnName, colIndex)
+    await deleteField(tableColumnName)
   }
 
   const addRow = async (params?: any[]) => {
@@ -241,6 +310,10 @@ export const useTable = (tableName: string, databaseName: string) => {
     schema,
     updateCell,
     addField,
+    updateFieldName,
+    updateFieldProperty,
+    deleteField,
+    deleteFieldByColIndex,
     addRow,
     deleteRows,
     tableSchema,

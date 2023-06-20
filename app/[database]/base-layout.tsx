@@ -1,6 +1,5 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { Menu } from "lucide-react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -12,12 +11,6 @@ import { SideBar } from "@/components/sidebar"
 
 import { useLayoutInit } from "./hook"
 import { Nav } from "./nav"
-import { useDatabaseAppStore } from "./store"
-
-// import { AIChat } from "./ai-chat";
-const AIChat = dynamic(() => import("./ai-chat").then((mod) => mod.AIChat), {
-  ssr: false,
-})
 
 const MobileSideBar = () => {
   const { isSidebarOpen, setSidebarOpen } = useAppRuntimeStore()
@@ -40,7 +33,6 @@ export function DatabaseLayoutBase({
   children: React.ReactNode
   className?: string
 }) {
-  const { isAiOpen } = useDatabaseAppStore()
   const { sqlite } = useSqlite()
   const { isShareMode } = useAppRuntimeStore()
 
@@ -57,7 +49,10 @@ export function DatabaseLayoutBase({
   // when chat is close 2:10
   return (
     <div
-      className={cn("relative  grid h-screen w-screen grid-cols-9 md:grid-cols-12", className)}
+      className={cn(
+        "relative  grid h-screen  grid-cols-9 md:grid-cols-12",
+        className
+      )}
     >
       <div className={cn("col-span-3 hidden h-full md:block xl:col-span-2")}>
         <SideBar />
@@ -65,7 +60,7 @@ export function DatabaseLayoutBase({
       <div
         className={cn(
           "flex h-full flex-col lg:border-l",
-          isAiOpen ? "col-span-7" : "col-span-9 xl:col-span-10"
+          "col-span-9 xl:col-span-10"
         )}
       >
         <div className="flex justify-between p-2 md:justify-end">
@@ -75,14 +70,6 @@ export function DatabaseLayoutBase({
         <div className="z-[1] flex h-[calc(100vh-4rem)] grow overflow-auto">
           <div className="grow">{children}</div>
         </div>
-      </div>
-      <div
-        className={cn(
-          " h-screen  lg:border-l",
-          isAiOpen ? "col-span-3 hidden md:block" : "hidden"
-        )}
-      >
-        <AIChat />
       </div>
     </div>
   )

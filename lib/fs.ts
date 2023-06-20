@@ -33,26 +33,17 @@ export const getSpaceDatabasePath = async (spaceName: string) => {
   return `/spaces/${spaceName}/db.sqlite3`
 }
 
-// // @ts-nocheck
-// export function getSQLiteFilesInRootDirectory(): Promise<File[]> {
-//   window.requestFileSystem =
-//     window.requestFileSystem || window.webkitRequestFileSystem
-//   return new Promise<File[]>((resolve, reject) => {
-//     window.requestFileSystem(
-//       window.TEMPORARY,
-//       1024 * 1024,
-//       function (fs) {
-//         const dirReader = fs.root.createReader()
-//         dirReader.readEntries(function (results) {
-//           const sqliteFiles = results.filter((file) =>
-//             file.name.endsWith(".sqlite3")
-//           )
-//           resolve(sqliteFiles)
-//         })
-//       },
-//       function (error) {
-//         reject(error)
-//       }
-//     )
-//   })
-// }
+export const saveFile = async (file: File, name?: string) => {
+  const opfsRoot = await navigator.storage.getDirectory()
+  const filesDirHandle = await opfsRoot.getDirectoryHandle("files", {
+    create: true,
+  })
+  const fileHandle = await filesDirHandle.getFileHandle(name ?? file.name, {
+    create: true,
+  })
+  // nextjs can't recognize createWritable of fileHandle
+  const writable = await (fileHandle as any).createWritable()
+  await writable.write(file)
+  await writable.close()
+  return fileHandle
+}

@@ -46,7 +46,6 @@ interface SettingsLayoutProps {
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const { lastOpenedTable, lastOpenedDatabase } = useLastOpened()
   const goto = useGoto()
-  console.log({ lastOpenedDatabase, lastOpenedTable })
   const goBack = () => goto(lastOpenedDatabase, lastOpenedTable)
   useKeyPress("esc", (e) => {
     e.preventDefault()

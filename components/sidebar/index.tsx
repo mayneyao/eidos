@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useParams, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
+import { File, FileSpreadsheet } from "lucide-react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllDatabases } from "@/hooks/use-database"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { Separator } from "@/components/ui/separator"
@@ -16,10 +18,27 @@ import { ScrollArea } from "../ui/scroll-area"
 import { CreateTableDialog } from "./create-table"
 import { TableListLoading } from "./loading"
 import { TableItem } from "./table-menu"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+
+const ItemIcon = ({
+  type,
+  className,
+}: {
+  type: string
+  className?: string
+}) => {
+  const _className = cn("opacity-60", className)
+  switch (type) {
+    case "table":
+      return <FileSpreadsheet className={_className} />
+    case "doc":
+      return <File className={_className} />
+    default:
+      return <File className={_className} />
+  }
+}
 
 export const SideBar = ({ className }: any) => {
-  const { database, tableName: tableName }  = useCurrentPathInfo()
+  const { database, tableName: tableName } = useCurrentPathInfo()
   const [loading, setLoading] = useState(true)
   const { queryAllTables } = useSqlite(database)
   const { setSelectedTable, allTables, setAllTables } = useSqliteStore()
@@ -43,52 +62,57 @@ export const SideBar = ({ className }: any) => {
   const databaseHomeLink = `/${database}`
 
   return (
-    <div className={cn("flex h-full flex-col p-4", className)}>
-      <div className="flex items-center justify-between">
-        {!isShareMode && (
-          <h2 className="relative px-6 text-lg font-semibold tracking-tight">
-            <Link href={databaseHomeLink}>Tables</Link>
-          </h2>
-        )}
-        {isShareMode ? (
-          "shareMode"
-        ) : (
-          <DatabaseSelect databases={databaseList} defaultValue={database} />
-        )}
-      </div>
-      <Separator className="my-2" />
-      <ScrollArea className="grow px-2">
-        <div className="space-y-1 p-2">
-          {loading ? (
-            <TableListLoading />
+    <>
+      <div className={cn("flex h-full flex-col p-4", className)}>
+        <div className="flex items-center justify-between">
+          {!isShareMode && (
+            <h2 className="relative px-6 text-lg font-semibold tracking-tight">
+              <Link href={databaseHomeLink}>Tables</Link>
+            </h2>
+          )}
+          {isShareMode ? (
+            "shareMode"
           ) : (
-            allTables?.map((table, i) => {
-              const link = isShareMode
-                ? `/share/${database}/${table.id}?` + searchParams.toString()
-                : `/${database}/${table.id}`
-              return (
-                <TableItem
-                  tableName={table.name}
-                  databaseName={database}
-                  tableId={table.id}
-                  key={table.id}
-                >
-                  <Button
-                    variant={tableName === table.id ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => handleClickTable(table.id)}
-                    className="w-full justify-start font-normal"
-                    asChild
-                  >
-                    <Link href={link}>{table.name}</Link>
-                  </Button>
-                </TableItem>
-              )
-            })
+            <DatabaseSelect databases={databaseList} defaultValue={database} />
           )}
         </div>
-      </ScrollArea>
-      <CreateTableDialog />
-    </div>
+        <Separator className="my-2" />
+        <ScrollArea className="grow px-2">
+          <div className="space-y-1 p-2">
+            {loading ? (
+              <TableListLoading />
+            ) : (
+              allTables?.map((table, i) => {
+                const link = isShareMode
+                  ? `/share/${database}/${table.id}?` + searchParams.toString()
+                  : `/${database}/${table.id}`
+                return (
+                  <TableItem
+                    tableName={table.name}
+                    databaseName={database}
+                    tableId={table.id}
+                    key={table.id}
+                  >
+                    <Button
+                      variant={tableName === table.id ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => handleClickTable(table.id)}
+                      className="w-full justify-start font-normal"
+                      asChild
+                    >
+                      <Link href={link}>
+                        <ItemIcon type={table.type} className="pr-2" />
+                        {table.name}
+                      </Link>
+                    </Button>
+                  </TableItem>
+                )
+              })
+            )}
+          </div>
+        </ScrollArea>
+        <CreateTableDialog />
+      </div>
+    </>
   )
 }

@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import {
   Bot,
@@ -12,8 +13,8 @@ import {
 } from "lucide-react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { usePeer } from "@/hooks/use-peer"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { usePeer } from "@/hooks/use-peer"
 import { useTable } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
 import {
@@ -112,7 +113,9 @@ export function DropdownMenuDemo() {
         <DropdownMenuSeparator />
         <DropdownMenuItem>
           <Github className="mr-2 h-4 w-4" />
-          <span>GitHub</span>
+          <Link href="https://github.com/mayneyao/eidos" target="_blank">
+            <span>GitHub</span>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem>
           <LifeBuoy className="mr-2 h-4 w-4" />

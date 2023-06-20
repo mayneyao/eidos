@@ -1,65 +1,56 @@
 import DataEditor, {
   DataEditorProps,
   DataEditorRef,
-  EditableGridCell,
-  GridCell,
   GridCellKind,
-  GridColumn,
-  GridMouseEventArgs,
-  Item,
+  HeaderClickedEventArgs
 } from "@glideapps/glide-data-grid"
 
-import { cn, getRawTableNameById } from "@/lib/utils"
-import { tableInterface2GridColumn } from "@/components/grid/helper"
 import { useDatabaseAppStore } from "@/app/[database]/store"
 
+import "@glideapps/glide-data-grid-cells/dist/index.css"
 import "@glideapps/glide-data-grid/dist/index.css"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
-import { GetRowThemeCallback } from "@glideapps/glide-data-grid/dist/ts/data-grid/data-grid-render"
-import { useClickAway, useKeyPress, useSize } from "ahooks"
+import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
+import React, { useEffect, useMemo, useRef } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
+import { useUiColumns } from "@/hooks/use-ui-columns"
 
+import { customCells } from "../cells"
 import { Button } from "../ui/button"
-import { FieldAppendPanel } from "./field-append-panel"
+import { FieldEditor } from "./fields"
+import { headerIcons } from "./fields/header-icons"
 import { ContextMenuDemo } from "./grid-context-menu"
+import { useColumns } from "./hooks/use-col"
+import { useDataSource } from "./hooks/use-data-source"
+import { useDrop } from "./hooks/use-drop"
+import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
-import { darkTheme } from "./theme"
-import { useColumns } from "@/hooks/use-columns"
+import "./styles.css"
+import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
   smoothScrollX: true,
   smoothScrollY: true,
   getCellsForSelection: true,
   width: "100%",
+  rowHeight: 36,
+  headerHeight: 36,
   freezeColumns: 1,
   rowMarkers: "clickable-visible" as any,
   trailingRowOptions: {
-    tint: true,
+    tint: false,
     hint: "New",
     sticky: true,
   },
   // auto handle copy and paste
   onPaste: true,
+  headerIcons: headerIcons,
   // experimental: {
-  //   paddingBottom: 300
-  // }
-}
-
-const oddRowOrHoverRowThemeOverride = (isDarkMode: boolean) => {
-  if (isDarkMode) {
-    return {
-      bgCell: "#2d2d2d",
-      bgCellMedium: "#3a3a3a",
-    }
-  }
-  return {
-    bgCell: "#f7f7f7",
-    bgCellMedium: "#f0f0f0",
-  }
+  //   paddingBottom: 14,
+  // },
 }
 
 interface IGridProps {
@@ -71,24 +62,28 @@ export default function Grid(props: IGridProps) {
   const [showSearch, setShowSearch] = React.useState(false)
   const { tableName, databaseName } = props
   const { theme } = useTheme()
-  const _theme = theme === "light" ? {} : darkTheme
+  const _theme = theme === "light" ? lightTheme : darkTheme
   const { setCurrentTableSchema } = useDatabaseAppStore()
   const glideDataGridRef = useRef<DataEditorRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
-
   const {
     data,
-    schema,
     tableSchema,
     updateCell,
+    deleteFieldByColIndex,
     addField,
     addRow,
     deleteRows,
   } = useTable(tableName, databaseName)
 
-  const myColumns = useColumns(tableName, databaseName)
+  const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
+
+  const { getCellContent, onCellEdited } = useDataSource(
+    tableName,
+    databaseName
+  )
   const {
     isAddFieldEditorOpen,
     setIsAddFieldEditorOpen,
@@ -96,7 +91,6 @@ export default function Grid(props: IGridProps) {
     setSelection,
     clearSelection,
   } = useTableAppStore()
-  const ref = useRef<HTMLDivElement>(null)
 
   // handle undo redo
   useKeyPress("ctrl.z", (e) => {
@@ -118,36 +112,6 @@ export default function Grid(props: IGridProps) {
     }
   }, [freezeColumns])
 
-  // handle column width
-  const _columns = useMemo(() => {
-    return tableInterface2GridColumn(schema[0])
-  }, [schema])
-
-  const hasResized = React.useRef(new Set<number>())
-  const [columns, setColumns] = React.useState<GridColumn[]>(_columns)
-  useEffect(() => {
-    setColumns(_columns)
-  }, [_columns])
-
-  const onColumnResize = React.useCallback(
-    (column: GridColumn, newSize: number) => {
-      const index = columns.findIndex((ci) => ci.title === column.title)
-      const newColumns = [...columns]
-      newColumns.splice(index, 1, {
-        ...columns[index],
-        width: newSize,
-      })
-      // const _newColumns = newColumns.map((x, i) => ({ ...x, grow: hasResized.current.has(i) ? undefined : (5 + i) / 5 }));
-      setColumns(newColumns)
-    },
-    [columns]
-  )
-
-  // effect
-  useClickAway(() => {
-    isAddFieldEditorOpen && setIsAddFieldEditorOpen(false)
-  }, ref)
-
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
   }, [setCurrentTableSchema, tableSchema])
@@ -160,113 +124,84 @@ export default function Grid(props: IGridProps) {
   useEffect(() => {
     clearSelection()
   }, [tableName, databaseName, clearSelection])
-
-  // hover row style modification
-  const [hoverRow, setHoverRow] = React.useState<number | undefined>(undefined)
-  const onItemHovered = React.useCallback((args: GridMouseEventArgs) => {
-    const [_, row] = args.location
-    setHoverRow(args.kind !== "cell" ? undefined : row)
-  }, [])
-
-  const getRowThemeOverride = React.useCallback<GetRowThemeCallback>(
-    (row) => {
-      const isDarkMode = theme === "dark"
-      const isOddRow = row % 2 === 1
-      if (isOddRow) return oddRowOrHoverRowThemeOverride(isDarkMode)
-      if (row !== hoverRow) return undefined
-      return oddRowOrHoverRowThemeOverride(isDarkMode)
-    },
-    [hoverRow, theme]
-  )
-
+  const { onColumnResize, columns } = useColumns(uiColumns)
   // data handle
-  const getData = useCallback(
-    (cell: Item): GridCell => {
-      const [columnIndex, rowIndex] = cell
-      const content = data[rowIndex]?.[columnIndex] ?? ""
-      const field = columns[columnIndex]
-      let readonly = false
-      if (field.title === "_id") {
-        readonly = true
-      }
-      return {
-        kind: GridCellKind.Text,
-        allowOverlay: true,
-        readonly,
-        displayData: `${content}`,
-        data: `${content}`,
-      }
+  // TODO: refactor
+
+  const { menu, setMenu } = useTableAppStore()
+
+  const onHeaderClicked = React.useCallback(
+    (col: number, e: HeaderClickedEventArgs) => {
+      setMenu({
+        col,
+        bounds: e.bounds,
+      })
+      e.preventDefault()
     },
-    [data, columns]
+    [setMenu]
   )
 
-  // event handle
-  const onCellEdited = React.useCallback(
-    async (cell: Item, newValue: EditableGridCell) => {
-      if (newValue.kind !== GridCellKind.Text) {
-        // we only have text cells, might as well just die here.
-        return
-      }
-      if (!columns) return
-      updateCell(cell[0], cell[1], newValue.data)
+  const { onItemHovered, getRowThemeOverride } = useHover({ theme })
+  const { onDragLeave, onDrop, onDragOverCell, highlights } = useDrop({
+    getCellContent: (cell) => {
+      const [col, row] = cell
+      const field = columns[col]
+      const uiCol = uiColumnMap.get(field.title)
+      return { kind: (uiCol?.type as any) ?? GridCellKind.Text }
     },
-    [columns, updateCell]
-  )
+    setCellValue: updateCell,
+  })
 
   return (
     <div className="h-full p-2" ref={containerRef}>
-      <div className="flex h-full overflow-hidden rounded-md">
+      <div className="relative flex h-full overflow-hidden rounded-md border-t border-t-slate-200">
         <ContextMenuDemo deleteRows={deleteRows}>
-          <DataEditor
-            {...config}
-            ref={glideDataGridRef}
-            theme={_theme}
-            showSearch={showSearch}
-            gridSelection={selection}
-            onItemHovered={onItemHovered}
-            getRowThemeOverride={getRowThemeOverride}
-            onGridSelectionChange={setSelection}
-            onColumnResize={(col, _newSize, colIndex, newSizeWithGrow) => {
-              hasResized.current.add(colIndex)
-              onColumnResize(col, newSizeWithGrow)
-            }}
-            getCellContent={getData}
-            maxColumnAutoWidth={500}
-            maxColumnWidth={2000}
-            fillHandle={true}
-            columns={columns ?? []}
-            rows={data.length}
-            rightElement={
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setIsAddFieldEditorOpen(true)
-                  addField(`newField${columns.length + 1}`, "text")
-                }}
-              >
-                <Plus size={16} />
-              </Button>
-            }
-            rightElementProps={{
-              sticky: true,
-              fill: true,
-            }}
-            onCellEdited={onCellEdited}
-            onRowAppended={() => {
-              addRow()
-            }}
-          />
+          {Boolean(uiColumns.length) && (
+            <DataEditor
+              {...config}
+              customRenderers={customCells}
+              ref={glideDataGridRef}
+              theme={_theme}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              onDragOverCell={onDragOverCell}
+              highlightRegions={highlights}
+              showSearch={showSearch}
+              gridSelection={selection}
+              onItemHovered={onItemHovered}
+              // getRowThemeOverride={getRowThemeOverride}
+              onHeaderClicked={onHeaderClicked}
+              onHeaderContextMenu={onHeaderClicked}
+              onGridSelectionChange={setSelection}
+              onColumnResize={onColumnResize}
+              getCellContent={getCellContent}
+              maxColumnAutoWidth={500}
+              maxColumnWidth={2000}
+              fillHandle={true}
+              columns={columns ?? []}
+              rows={data.length}
+              rightElement={
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setIsAddFieldEditorOpen(true)
+                  }}
+                >
+                  <Plus size={16} />
+                </Button>
+              }
+              rightElementProps={{
+                sticky: true,
+                fill: false,
+              }}
+              onCellEdited={onCellEdited}
+              onRowAppended={() => {
+                addRow()
+              }}
+            />
+          )}
         </ContextMenuDemo>
-        {isAddFieldEditorOpen && (
-          <div
-            ref={ref}
-            className={cn(
-              "fixed right-0 z-50 h-screen w-[400px] bg-white shadow-lg"
-            )}
-          >
-            <FieldAppendPanel />
-          </div>
-        )}
+        <FieldEditor tableName={tableName} databaseName={databaseName} />
       </div>
       <div id="portal" />
     </div>

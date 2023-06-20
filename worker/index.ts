@@ -1,8 +1,8 @@
 import { MsgType } from "@/lib/const"
+import { getSpaceDatabasePath } from "@/lib/fs"
 import { logger } from "@/lib/log"
 
 import { SqlDatabase, Sqlite } from "./sql"
-import { getSpaceDatabasePath } from "@/lib/fs"
 
 // current DB
 let _db: SqlDatabase | null = null
@@ -12,14 +12,15 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
   if (!sqlite.sqlite3) {
     throw new Error("sqlite3 not initialized")
   }
-
   const { dbName, method, params } = data
-  if (!_db || (dbName && dbName !== _db.db.filename)) {
+  if (!_db || (dbName && dbName !== _db.dbName)) {
+    //
     _db = await loadDatabase(dbName)
   }
   const _method = method as keyof SqlDatabase
   const callMethod = (_db[_method] as Function).bind(_db)
   const res = await callMethod(...params)
+
   port.postMessage({
     id,
     data: {
@@ -34,8 +35,11 @@ async function loadDatabase(dbName: string) {
   if (_db?.db.filename === filename) {
     return _db
   }
-  console.log(filename)
-  const db = sqlite.db(filename, "c")
+  const db = sqlite.db({
+    path: filename,
+    flags: "c",
+    name: dbName,
+  })
   logger.info(`switch to database[${dbName}]`)
   return db
 }
