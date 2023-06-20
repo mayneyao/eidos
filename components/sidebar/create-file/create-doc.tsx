@@ -44,10 +44,11 @@ export const CreateDoc = ({
           </Label>
           <Input
             id="name"
-            placeholder="e.g. books"
+            placeholder="document name"
             className="col-span-3"
             value={docName}
             onChange={(e) => setDocName(e.target.value)}
+            autoComplete="off"
           />
         </div>
       </div>

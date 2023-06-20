@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useKeyPress } from "ahooks"
 
@@ -10,6 +10,9 @@ interface AutoSavePluginProps {
 export function AutoSavePlugin(props: AutoSavePluginProps) {
   const [editor] = useLexicalComposerContext()
   const { onSave, initContent } = props
+  const versionRef = useRef(0)
+  const lastSaveVersionRef = useRef(0)
+
   useKeyPress("ctrl.s", (e) => {
     e.preventDefault()
     handleMarkdownToggle()
@@ -22,23 +25,36 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
       try {
         state = JSON.parse(initContent ?? "{}")
       } catch (error) {}
-      if (state) {
+      if (initContent && state) {
         setTimeout(() => {
           const parsedState = editor.parseEditorState(state)
           editor.setEditorState(parsedState)
         }, 0)
       }
     })
+    editor.registerTextContentListener((text: string) => {
+      versionRef.current++
+    })
   }, [initContent, editor])
 
   const handleMarkdownToggle = useCallback(() => {
-    editor.update(() => {
-      //   const markdown = $convertToMarkdownString(allTransformers)
-      //   onSave(markdown)
+    if (lastSaveVersionRef.current === versionRef.current) {
+    } else {
       const json = editor.getEditorState().toJSON()
-      onSave(JSON.stringify(json))
-    })
+      const content = JSON.stringify(json)
+      onSave(content)
+      lastSaveVersionRef.current = versionRef.current
+    }
   }, [editor, onSave])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      handleMarkdownToggle()
+    }, 1000 * 10)
+    return () => {
+      clearInterval(timer)
+    }
+  }, [])
 
   return null
 }

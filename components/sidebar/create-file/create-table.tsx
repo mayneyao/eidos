@@ -70,6 +70,7 @@ export const CreateTable = ({
             className="col-span-3"
             value={tableName}
             onChange={(e) => setTableName(e.target.value)}
+            autoComplete="off"
           />
         </div>
         <div className="grid grid-cols-4 items-center gap-4">

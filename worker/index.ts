@@ -5,7 +5,7 @@ import { logger } from "@/lib/log"
 import { DataSpace, Sqlite } from "./sql"
 
 // current DB
-let _db: DataSpace | null = null
+let _dataspace: DataSpace | null = null
 const sqlite = new Sqlite()
 
 const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
@@ -13,12 +13,12 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
     throw new Error("sqlite3 not initialized")
   }
   const { dbName, method, params } = data
-  if (!_db || (dbName && dbName !== _db.dbName)) {
+  if (!_dataspace || (dbName && dbName !== _dataspace.dbName)) {
     //
-    _db = await loadDatabase(dbName)
+    _dataspace = await loadDatabase(dbName)
   }
   const _method = method as keyof DataSpace
-  const callMethod = (_db[_method] as Function).bind(_db)
+  const callMethod = (_dataspace[_method] as Function).bind(_dataspace)
   const res = await callMethod(...params)
 
   port.postMessage({
@@ -32,8 +32,8 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
 
 async function loadDatabase(dbName: string) {
   const filename = await getSpaceDatabasePath(dbName)
-  if (_db?.db.filename === filename) {
-    return _db
+  if (_dataspace?.db.filename === filename) {
+    return _dataspace
   }
   const db = sqlite.db({
     path: filename,
@@ -56,7 +56,7 @@ onmessage = async (e) => {
       await handleFunctionCall(data, id, e.ports[0])
       break
     case MsgType.SwitchDatabase:
-      _db = await loadDatabase(data.databaseName)
+      _dataspace = await loadDatabase(data.databaseName)
       postMessage({
         id,
         data: {

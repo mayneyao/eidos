@@ -47,14 +47,18 @@ export function Editor(props: EditorProps) {
             ref={ref}
             id="editor-container"
           >
-            <div className="editor-inner h-full">
+            <div className="editor-inner relative h-full">
               <RichTextPlugin
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
                     <ContentEditable className="editor-input prose p-2 outline-none" />
                   </div>
                 }
-                placeholder={<div />}
+                placeholder={
+                  <div className="pointer-events-none absolute left-2 top-3 text-[#aaa]">
+                    press / for Command
+                  </div>
+                }
                 ErrorBoundary={LexicalErrorBoundary}
               />
               <AllPlugins />
