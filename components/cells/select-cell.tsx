@@ -67,8 +67,7 @@ const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
         align="start"
         sideOffset={-6}
         alignOffset={-9}
-        onMouseDown={(e) => console.log(e)}
-        onMouseDownCapture={console.log}
+        // onMouseDownCapture={console.log}
         asChild={true}
       >
         <Command>

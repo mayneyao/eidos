@@ -13,7 +13,10 @@ export abstract class BaseField<T, P, R = string> {
    */
   column: UIColumn<P>
   constructor(column: UIColumn<P>) {
-    this.column = column
+    this.column = {
+      ...column,
+      property: JSON.parse((column.property as any) ?? "{}") as any,
+    }
   }
 
   /**

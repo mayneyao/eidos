@@ -1,40 +1,34 @@
 import DataEditor, {
   DataEditorProps,
   DataEditorRef,
-  EditableGridCell,
-  GridCell,
   GridCellKind,
-  HeaderClickedEventArgs,
-  Item,
-  Rectangle,
+  HeaderClickedEventArgs
 } from "@glideapps/glide-data-grid"
 
-import { columnsHandleMap } from "@/components/grid/helper"
 import { useDatabaseAppStore } from "@/app/[database]/store"
 
-import "@glideapps/glide-data-grid/dist/index.css"
 import "@glideapps/glide-data-grid-cells/dist/index.css"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
+import "@glideapps/glide-data-grid/dist/index.css"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
+import React, { useEffect, useMemo, useRef } from "react"
 
-import "./styles.css"
-import { allFieldTypesMap } from "@/lib/fields"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
-import { customCells, useExtraCells } from "../cells"
+import { customCells } from "../cells"
 import { Button } from "../ui/button"
-import { FieldAppendPanel } from "./fields/field-append-panel"
-import { FieldEditorDropdown } from "./fields/field-editor-dropdown"
+import { FieldEditor } from "./fields"
 import { headerIcons } from "./fields/header-icons"
 import { ContextMenuDemo } from "./grid-context-menu"
 import { useColumns } from "./hooks/use-col"
+import { useDataSource } from "./hooks/use-data-source"
 import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
+import "./styles.css"
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -54,9 +48,9 @@ const defaultConfig: Partial<DataEditorProps> = {
   // auto handle copy and paste
   onPaste: true,
   headerIcons: headerIcons,
-  experimental: {
-    paddingBottom: 14,
-  },
+  // experimental: {
+  //   paddingBottom: 14,
+  // },
 }
 
 interface IGridProps {
@@ -85,6 +79,11 @@ export default function Grid(props: IGridProps) {
   } = useTable(tableName, databaseName)
 
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
+
+  const { getCellContent, onCellEdited } = useDataSource(
+    tableName,
+    databaseName
+  )
   const {
     isAddFieldEditorOpen,
     setIsAddFieldEditorOpen,
@@ -128,70 +127,8 @@ export default function Grid(props: IGridProps) {
   const { onColumnResize, columns } = useColumns(uiColumns)
   // data handle
   // TODO: refactor
-  const getData = useCallback(
-    (cell: Item): GridCell => {
-      const [columnIndex, rowIndex] = cell
-      const content = data[rowIndex]?.[columnIndex] ?? ""
-      const field = columns[columnIndex]
-      const emptyCell: GridCell = {
-        kind: GridCellKind.Text,
-        data: content,
-        displayData: `${content}`,
-        allowOverlay: true,
-      }
-      if (!field) {
-        return emptyCell
-      }
-      const uiCol = uiColumnMap.get(field.title)
-      if (!uiCol) {
-        return emptyCell
-      }
-      let colHandle = columnsHandleMap[uiCol.type]
-      if (!colHandle) {
-        const FieldClass = allFieldTypesMap[uiCol.type]
-        if (FieldClass) {
-          const field = new FieldClass(uiCol)
-          return field.getCellContent(content as never)
-        } else {
-          throw new Error(`field type ${uiCol.type} not found`)
-        }
-      }
-      return colHandle.getContent(content)
-    },
-    [data, columns, uiColumnMap]
-  )
 
-  // event handle
-  const onCellEdited = React.useCallback(
-    async (cell: Item, newValue: EditableGridCell) => {
-      console.log("onCellEdited", cell, newValue)
-      const field = columns[cell[0]]
-      if (!field) {
-        return
-      }
-      const uiCol = uiColumnMap.get(field.title)
-      if (!uiCol) {
-        return
-      }
-      let colHandle = columnsHandleMap[uiCol.type]
-      if (!colHandle) {
-        const FieldClass = allFieldTypesMap[uiCol.type]
-        if (FieldClass) {
-          const field = new FieldClass(uiCol)
-          const rawData = field.cellData2RawData(newValue as never)
-          console.log(newValue, rawData)
-          return updateCell(cell[0], cell[1], rawData)
-        }
-      }
-      return updateCell(cell[0], cell[1], newValue.data)
-    },
-    [columns, uiColumnMap, updateCell]
-  )
-
-  const [menu, setMenu] = React.useState<{
-    col: number
-    bounds: Rectangle
-  }>()
+  const { menu, setMenu } = useTableAppStore()
 
   const onHeaderClicked = React.useCallback(
     (col: number, e: HeaderClickedEventArgs) => {
@@ -201,7 +138,7 @@ export default function Grid(props: IGridProps) {
       })
       e.preventDefault()
     },
-    []
+    [setMenu]
   )
 
   const { onItemHovered, getRowThemeOverride } = useHover({ theme })
@@ -217,7 +154,7 @@ export default function Grid(props: IGridProps) {
 
   return (
     <div className="h-full p-2" ref={containerRef}>
-      <div className="flex h-full overflow-hidden rounded-md border-t border-t-slate-200">
+      <div className="relative flex h-full overflow-hidden rounded-md border-t border-t-slate-200">
         <ContextMenuDemo deleteRows={deleteRows}>
           {Boolean(uiColumns.length) && (
             <DataEditor
@@ -237,7 +174,7 @@ export default function Grid(props: IGridProps) {
               onHeaderContextMenu={onHeaderClicked}
               onGridSelectionChange={setSelection}
               onColumnResize={onColumnResize}
-              getCellContent={getData}
+              getCellContent={getCellContent}
               maxColumnAutoWidth={500}
               maxColumnWidth={2000}
               fillHandle={true}
@@ -264,16 +201,7 @@ export default function Grid(props: IGridProps) {
             />
           )}
         </ContextMenuDemo>
-        {isAddFieldEditorOpen && (
-          <FieldAppendPanel addField={addField} uiColumns={uiColumns} />
-        )}
-        <FieldEditorDropdown
-          menu={menu}
-          setMenu={setMenu}
-          databaseName={databaseName}
-          tableName={tableName}
-          deleteFieldByColIndex={deleteFieldByColIndex}
-        />
+        <FieldEditor tableName={tableName} databaseName={databaseName} />
       </div>
       <div id="portal" />
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Rectangle } from "@glideapps/glide-data-grid"
 import { useClickAway } from "ahooks"
+import { Settings2, Trash2 } from "lucide-react"
 import { useLayer } from "react-laag"
 
 import { cn } from "@/lib/utils"
@@ -19,22 +20,25 @@ import {
 import { Input } from "@/components/ui/input"
 import { CommonMenuItem } from "@/components/common-menu-item"
 
+import { useTableAppStore } from "../store"
 import { checkNewFieldNameIsOk } from "./helper"
 
 interface IFieldEditorDropdownProps {
-  menu?: {
-    col: number
-    bounds: Rectangle
-  }
   tableName: string
   databaseName: string
-  setMenu: (menu?: { col: number; bounds: Rectangle }) => void
   deleteFieldByColIndex: (col: number) => void
 }
 
 export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
-  const { menu, setMenu, deleteFieldByColIndex, tableName, databaseName } =
-    props
+  const { deleteFieldByColIndex, tableName, databaseName } = props
+  const {
+    menu,
+    setMenu,
+    setIsFieldPropertiesEditorOpen,
+    currentUiColumn,
+    setCurrentUiColumn,
+  } = useTableAppStore()
+
   const isOpen = menu !== undefined
   const ref = useRef<HTMLDivElement>(null)
   const ref2 = useRef<HTMLDivElement>(null)
@@ -44,15 +48,22 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const { updateFieldName } = useTable(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
-  const currentField = uiColumns[currentColIndex!]
+
   const [newFieldName, setNewFieldName] = useState<string>(
-    currentField?.name ?? ""
+    currentUiColumn?.name ?? ""
   )
+
+  useEffect(() => {
+    const currentField = uiColumns[currentColIndex!]
+    setCurrentUiColumn(currentField)
+  }, [currentColIndex, setCurrentUiColumn, uiColumns])
+
   const [error, setError] = useState<string>()
 
   const handleNewFieldNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value
-    const isOk = checkNewFieldNameIsOk(newName, currentField, uiColumns)
+    if (!currentUiColumn) return
+    const isOk = checkNewFieldNameIsOk(newName, currentUiColumn, uiColumns)
     if (!isOk) {
       if (newName.length === 0) {
         setError("Field name cannot be empty")
@@ -66,11 +77,12 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   }
 
   const handleChangeFieldName = async () => {
-    const tableColumnName = currentField.table_column_name
-    if (currentField.name === newFieldName) {
+    if (!currentUiColumn) return
+    const tableColumnName = currentUiColumn.table_column_name
+    if (currentUiColumn.name === newFieldName) {
       return
     }
-    const isOk = checkNewFieldNameIsOk(newFieldName, currentField, uiColumns)
+    const isOk = checkNewFieldNameIsOk(newFieldName, currentUiColumn, uiColumns)
     if (isOk) {
       updateFieldName(tableColumnName, newFieldName)
       setMenu(undefined)
@@ -85,10 +97,10 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   }, [menu])
 
   useEffect(() => {
-    if (currentField) {
-      setNewFieldName(currentField.name)
+    if (currentUiColumn) {
+      setNewFieldName(currentUiColumn.name)
     }
-  }, [currentField])
+  }, [currentUiColumn])
   const { layerProps, renderLayer } = useLayer({
     isOpen,
     auto: true,
@@ -108,6 +120,11 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     },
   })
 
+  const handleEditFieldPropertiesClick = (e: any) => {
+    e.stopPropagation()
+    setIsFieldPropertiesEditorOpen(true)
+    setMenu(undefined)
+  }
   const handleDeleteFieldClick = () => {
     setCurrentColIndex(menu?.col)
     setMenu(undefined)
@@ -162,12 +179,24 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 />
                 {error && <div className="text-red-500">{error}</div>}
               </div>
+
+              <CommonMenuItem
+                className="pl-4"
+                onClick={handleEditFieldPropertiesClick}
+              >
+                <Settings2 className="mr-2 h-4 w-4" />
+                Edit Property
+              </CommonMenuItem>
+
               {menu?.col != 0 && (
                 <DialogTrigger
                   onClick={handleDeleteFieldClick}
                   className="w-full"
                 >
-                  <CommonMenuItem className="pl-4">Delete Field</CommonMenuItem>
+                  <CommonMenuItem className="pl-4">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Field
+                  </CommonMenuItem>
                 </DialogTrigger>
               )}
               <DialogContent className="max-w-[300px]">

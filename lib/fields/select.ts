@@ -9,12 +9,18 @@ type Tag = {
   color: string
 }
 
-type SelectProperty = {
+export type SelectProperty = {
   options: Tag[]
 }
 
 const DefaultOptTags = ["foo", "bar", "baz", "qux", "quux"]
-const DefaultOptColors = ["ff99c8", "fcf6bd", "d0f4de", "a9def9", "e4c1f9"]
+export const DefaultOptColors = [
+  "ff99c8",
+  "fcf6bd",
+  "d0f4de",
+  "a9def9",
+  "e4c1f9",
+]
 const defaultOptions = DefaultOptTags.map((tag, i) => ({
   tag,
   color: `#${DefaultOptColors[i]}`,
