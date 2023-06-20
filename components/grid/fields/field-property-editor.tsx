@@ -45,7 +45,7 @@ export const FieldPropertyEditor = ({
     PropertyEditorTypeMap[currentField?.type ?? "select"] ?? NotImplementEditor
   return (
     <div
-      className="absolute right-0 top-0 h-full w-[400px] bg-slate-50"
+      className="absolute right-0 top-0 h-full w-[400px] bg-slate-50 dark:bg-slate-950"
       ref={ref}
     >
       <Editor uiColumn={currentField!} onPropertyChange={onPropertyChange} />

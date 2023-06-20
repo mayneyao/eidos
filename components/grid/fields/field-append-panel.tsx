@@ -65,7 +65,9 @@ export function FieldAppendPanel({
   return (
     <div
       ref={ref}
-      className={cn("absolute right-0 z-50 h-screen w-[400px] bg-white shadow-lg")}
+      className={cn(
+        "absolute right-0 z-50 h-screen w-[400px] bg-white shadow-lg dark:bg-slate-950"
+      )}
     >
       {selectedFieldType ? (
         <div>{selectedFieldType}</div>
