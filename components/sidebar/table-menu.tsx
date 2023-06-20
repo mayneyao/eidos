@@ -1,23 +1,10 @@
 import { useRouter } from "next/navigation"
 
-import { useSqlite } from "@/hooks/use-sqlite"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
+import { IFileNode, useSqlite } from "@/hooks/use-sqlite"
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuShortcut,
   ContextMenuSub,
   ContextMenuSubContent,
@@ -25,46 +12,17 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 
-export function AlertDialogDemo() {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline">Show Dialog</Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete your
-            account and remove your data from our servers.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction>Continue</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
-
-interface ITableItemProps {
-  tableName: string
+interface INodeItemProps {
   databaseName: string
-  tableId: string
+  node: IFileNode
   children?: React.ReactNode
 }
 
-export function TableItem({
-  tableName,
-  tableId,
-  databaseName,
-  children,
-}: ITableItemProps) {
-  const { deleteTable, duplicateTable } = useSqlite(databaseName)
+export function NodeItem({ databaseName, children, node }: INodeItemProps) {
+  const { duplicateTable, deleteNode } = useSqlite(databaseName)
   const router = useRouter()
   const handleDeleteTable = () => {
-    deleteTable(tableId)
+    deleteNode(node)
     router.push(`/${databaseName}`)
   }
   return (
@@ -79,14 +37,17 @@ export function TableItem({
           Forward
           <ContextMenuShortcut>⌘]</ContextMenuShortcut>
         </ContextMenuItem> */}
-        <ContextMenuItem
-          inset
-          onClick={() => duplicateTable(tableName, `${tableName}_copy`)}
-          disabled
-        >
-          Duplicate
-          {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
-        </ContextMenuItem>
+        {node.type === "table" && (
+          <ContextMenuItem
+            inset
+            onClick={() => duplicateTable(node.name, `${node.name}_copy`)}
+            disabled
+          >
+            Duplicate
+            {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
+          </ContextMenuItem>
+        )}
+
         <ContextMenuSub>
           <ContextMenuSubTrigger inset>Export </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-48">
@@ -94,7 +55,7 @@ export function TableItem({
               Export As...
               <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
             </ContextMenuItem> */}
-            <ContextMenuItem>Csv(.csv)</ContextMenuItem>
+            <ContextMenuItem disabled>Csv(.csv)</ContextMenuItem>
             <ContextMenuItem disabled>Excel(.xlsx)</ContextMenuItem>
             {/* <ContextMenuSeparator /> */}
             {/* <ContextMenuItem>Developer Tools</ContextMenuItem> */}

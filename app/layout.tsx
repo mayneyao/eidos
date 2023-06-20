@@ -31,12 +31,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <>
       <html lang="en" suppressHydrationWarning>
-        <body
-          className={cn(
-            "h-screen bg-background font-sans antialiased",
-            fontSans.variable
-          )}
-        >
+        <body className={cn("h-screen bg-background font-sans antialiased")}>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             {/* APP MODEL， a sidebar and main */}
             <div className="flex h-screen w-screen overflow-auto">

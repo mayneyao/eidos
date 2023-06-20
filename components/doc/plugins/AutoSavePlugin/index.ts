@@ -1,7 +1,6 @@
+import { useCallback, useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useKeyPress } from "ahooks"
-import { useCallback, useEffect } from "react"
-
 
 interface AutoSavePluginProps {
   onSave: (markdown: string) => void
@@ -19,13 +18,15 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   useEffect(() => {
     editor.update(() => {
       //   $convertFromMarkdownString(initContent ?? "", allTransformers)
-      let state
+      let state: any
       try {
         state = JSON.parse(initContent ?? "{}")
       } catch (error) {}
       if (state) {
-        const parsedState = editor.parseEditorState(state)
-        editor.setEditorState(parsedState)
+        setTimeout(() => {
+          const parsedState = editor.parseEditorState(state)
+          editor.setEditorState(parsedState)
+        }, 0)
       }
     })
   }, [initContent, editor])
