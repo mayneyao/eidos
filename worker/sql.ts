@@ -4,6 +4,7 @@ import sqlite3InitModule, {
 } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
+import { getDocContent, updateDocFile } from "@/lib/fs"
 import { logger } from "@/lib/log"
 import { ColumnTableName, TreeTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
@@ -98,6 +99,15 @@ export class SqlDatabase {
     );`)
   }
 
+  // update doc mount on sqlite for now,maybe change to fs later
+  public async updateDoc(docId: string, content: string) {
+    await updateDocFile(this.dbName, docId, content)
+  }
+
+  public async getDoc(docId: string) {
+    return await getDocContent(this.dbName, docId)
+  }
+
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
     const res: any[] = []
@@ -113,8 +123,8 @@ export class SqlDatabase {
     return res
   }
 
-  public async listAllTables() {
-    return this.exec2(`SELECT * FROM ${TreeTableName} WHERE type='table';`)
+  public async listAllNodes() {
+    return this.exec2(`SELECT * FROM ${TreeTableName};`)
   }
   public async listUiColumns(tableName: string) {
     return this.exec2(`SELECT * FROM ${ColumnTableName} WHERE table_name=?;`, [

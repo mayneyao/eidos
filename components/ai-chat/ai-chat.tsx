@@ -31,7 +31,7 @@ export const AIChat = () => {
   const divRef = useRef<HTMLDivElement>()
   const { aiMessages: messages, setAiMessages: setMessages } =
     useDatabaseAppStore()
-  const { allTables } = useSqliteStore()
+  const { allNodes: allTables } = useSqliteStore()
 
   const cleanMessages = useCallback(() => {
     setMessages([])

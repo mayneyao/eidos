@@ -5,10 +5,10 @@ import type { SqlDatabase } from "@/worker/sql"
 import { create } from "zustand"
 
 import { TreeTableName } from "@/lib/sqlite/const"
-import { getRawTableNameById, uuidv4 } from "@/lib/utils"
+import { getRawDocNameById, getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { createTemplateTableSql } from "@/components/grid/helper"
 
-export type ITable = {
+export type IFileNode = {
   id: string
   name: string
   type: string
@@ -21,8 +21,8 @@ interface SqliteState {
   currentDatabase: string
   setCurrentDatabase: (database: string) => void
 
-  allTables: ITable[]
-  setAllTables: (tables: ITable[]) => void
+  allNodes: IFileNode[]
+  setAllNodes: (tables: IFileNode[]) => void
 
   selectedTable: string
   setSelectedTable: (table: string) => void
@@ -44,8 +44,8 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
   currentDatabase: "",
   setCurrentDatabase: (database) => set({ currentDatabase: database }),
 
-  allTables: [],
-  setAllTables: (tables) => set({ allTables: tables }),
+  allNodes: [],
+  setAllNodes: (tables) => set({ allNodes: tables }),
 
   selectedTable: "",
   setSelectedTable: (table) => set({ selectedTable: table }),
@@ -65,19 +65,19 @@ export const useSqlite = (dbName?: string) => {
   const {
     isInitialized,
     sqliteProxy: sqlWorker,
-    setAllTables,
+    setAllNodes,
   } = useSqliteStore()
 
-  const queryAllTables = useCallback(async () => {
+  const queryAllNodes = useCallback(async () => {
     if (!sqlWorker) return
-    const allTables = await sqlWorker.listAllTables()
-    console.log("table list loaded", allTables)
-    return allTables
+    const allNodes = await sqlWorker.listAllNodes()
+    console.log("node list loaded", allNodes)
+    return allNodes
   }, [sqlWorker])
 
-  const updateTableList = async () => {
-    await queryAllTables().then((tables) => {
-      tables && setAllTables(tables)
+  const updateNodeList = async () => {
+    await queryAllNodes().then((nodes) => {
+      nodes && setAllNodes(nodes)
     })
   }
   const withTransaction = async (callback: () => Promise<void>) => {
@@ -118,14 +118,35 @@ export const useSqlite = (dbName?: string) => {
       tableId,
       sql,
     })
-    await updateTableList()
+    await updateNodeList()
     return tableId
+  }
+
+  const createDoc = async (docName: string) => {
+    if (!sqlWorker) return
+    const docId = uuidv4().split("-").join("")
+    await sqlWorker.sql`INSERT INTO ${Symbol(
+      TreeTableName
+    )} (id,name,type) VALUES (${docId}, ${docName},'doc');`
+    await updateNodeList()
+    return docId
+  }
+
+  const updateDoc = async (docId: string, content: string) => {
+    if (!sqlWorker) return
+    await sqlWorker.updateDoc(docId, content)
+  }
+
+  const getDoc = async (docId: string) => {
+    if (!sqlWorker) return
+    const doc = await sqlWorker.getDoc(docId)
+    return doc
   }
 
   const updateTableListWithSql = async (sql: string) => {
     if (!sqlWorker) return
     await sqlWorker.sql`${sql}`
-    await updateTableList()
+    await updateNodeList()
   }
 
   const createTableWithSqlAndInsertSqls = async (props: {
@@ -142,7 +163,7 @@ export const useSqlite = (dbName?: string) => {
       tableId,
       sql: createTableSql,
     })
-    await updateTableList()
+    await updateNodeList()
     if (insertSql) {
       for (let index = 0; index < insertSql.length; index++) {
         const { sql, bind } = insertSql[index]
@@ -158,7 +179,7 @@ export const useSqlite = (dbName?: string) => {
   ) => {
     if (!sqlWorker) return
     await sqlWorker.sql`${createTableSql}`
-    await updateTableList()
+    await updateNodeList()
     if (insertSql) {
       await sqlWorker.sql`${insertSql}`
     }
@@ -167,7 +188,7 @@ export const useSqlite = (dbName?: string) => {
   const updateTableData = async (sql: string) => {
     if (!sqlWorker) return
     await sqlWorker.sql`${sql}`
-    await updateTableList()
+    await updateNodeList()
   }
 
   const deleteTable = async (tableId: string) => {
@@ -179,7 +200,7 @@ export const useSqlite = (dbName?: string) => {
       TreeTableName
     )} WHERE id = ${tableId}`
     await sqlWorker.sql`COMMIT`
-    await updateTableList()
+    await updateNodeList()
   }
 
   const renameTable = async (oldTableName: string, newTableName: string) => {
@@ -187,7 +208,7 @@ export const useSqlite = (dbName?: string) => {
     await sqlWorker.sql`ALTER TABLE ${Symbol(oldTableName)} RENAME TO ${Symbol(
       newTableName
     )}`
-    await updateTableList()
+    await updateNodeList()
   }
 
   const duplicateTable = async (oldTableName: string, newTableName: string) => {
@@ -195,7 +216,7 @@ export const useSqlite = (dbName?: string) => {
     await sqlWorker.sql`CREATE TABLE ${Symbol(
       newTableName
     )} AS SELECT * FROM ${Symbol(oldTableName)}`
-    await updateTableList()
+    await updateNodeList()
   }
 
   const handleSql = async (sql: string) => {
@@ -245,7 +266,7 @@ export const useSqlite = (dbName?: string) => {
     deleteTable,
     renameTable,
     duplicateTable,
-    queryAllTables,
+    queryAllTables: queryAllNodes,
     createTableWithSql,
     createTableWithSqlAndInsertSqls,
     updateTableData,
@@ -253,5 +274,8 @@ export const useSqlite = (dbName?: string) => {
     undo,
     redo,
     withTransaction,
+    createDoc,
+    updateDoc,
+    getDoc,
   }
 }

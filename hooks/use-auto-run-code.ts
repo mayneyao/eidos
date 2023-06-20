@@ -1,18 +1,19 @@
 import { useCallback } from "react"
 import { v4 as uuidV4 } from "uuid"
 
-import { useConfigStore } from "@/app/settings/store"
 import { getCodeFromMarkdown } from "@/lib/markdown"
+import { useConfigStore } from "@/app/settings/store"
 
 import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite } from "./use-sqlite"
 import { useTable } from "./use-table"
 
 export const useAutoRunCode = () => {
-  const { database, tableName: table }  = useCurrentPathInfo()
+  const { database, tableName: table } = useCurrentPathInfo()
   const { handleSql } = useSqlite(database)
   const { aiConfig } = useConfigStore()
-  const { runQuery } = useTable(table, database)
+  // FIXME: now ai-chat is global, maybe not in table page
+  const { runQuery } = useTable(table ?? "", database)
 
   const handleRunSql = useCallback(
     async (sql: string) => {
