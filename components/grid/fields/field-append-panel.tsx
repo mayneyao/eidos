@@ -4,6 +4,7 @@ import * as React from "react"
 import { useClickAway } from "ahooks"
 import {
   BaselineIcon,
+  HashIcon,
   CalendarDaysIcon,
   CheckSquareIcon,
   ImageIcon,
@@ -31,7 +32,7 @@ export function FieldAppendPanel({
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
   const fieldTypes = [
     { name: "Text", value: "text", icon: BaselineIcon },
-    { name: "Number", value: "number", icon: BaselineIcon },
+    { name: "Number", value: "number", icon: HashIcon },
     { name: "Select", value: "select", icon: TagIcon },
     { name: "MultiSelect", value: "multi-select", icon: TagsIcon },
     {
