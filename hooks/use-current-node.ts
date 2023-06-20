@@ -3,7 +3,7 @@ import { useParams } from "next/navigation"
 
 import { IFileNode, useSqliteStore } from "./use-sqlite"
 
-export const useCurrentNodeType = () => {
+export const useCurrentNode = () => {
   const { database, table } = useParams()
 
   const { allNodes } = useSqliteStore()
@@ -14,5 +14,5 @@ export const useCurrentNodeType = () => {
     }, {} as Record<string, IFileNode>)
   }, [allNodes])
 
-  return nodeMap[table]?.type ?? "unknown"
+  return nodeMap[table]
 }

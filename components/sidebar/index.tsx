@@ -7,6 +7,7 @@ import { File, FileSpreadsheet } from "lucide-react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllDatabases } from "@/hooks/use-database"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
@@ -39,9 +40,14 @@ const ItemIcon = ({
 
 export const SideBar = ({ className }: any) => {
   const { database, tableName: tableName } = useCurrentPathInfo()
+  const currentNode = useCurrentNode()
   const [loading, setLoading] = useState(true)
   const { queryAllTables } = useSqlite(database)
-  const { setSelectedTable, allNodes: allTables, setAllNodes: setAllTables } = useSqliteStore()
+  const {
+    setSelectedTable,
+    allNodes,
+    setAllNodes: setAllTables,
+  } = useSqliteStore()
   const databaseList = useAllDatabases()
   const { isShareMode } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useAppRuntimeStore()
@@ -82,27 +88,29 @@ export const SideBar = ({ className }: any) => {
             {loading ? (
               <TableListLoading />
             ) : (
-              allTables?.map((table, i) => {
+              allNodes?.map((node, i) => {
                 const link = isShareMode
-                  ? `/share/${database}/${table.id}?` + searchParams.toString()
-                  : `/${database}/${table.id}`
+                  ? `/share/${database}/${node.id}?` + searchParams.toString()
+                  : `/${database}/${node.id}`
                 return (
                   <TableItem
-                    tableName={table.name}
+                    tableName={node.name}
                     databaseName={database}
-                    tableId={table.id}
-                    key={table.id}
+                    tableId={node.id}
+                    key={node.id}
                   >
                     <Button
-                      variant={tableName === table.id ? "secondary" : "ghost"}
+                      variant={
+                        node.id === currentNode?.id ? "secondary" : "ghost"
+                      }
                       size="sm"
-                      onClick={() => handleClickTable(table.id)}
+                      onClick={() => handleClickTable(node.id)}
                       className="w-full justify-start font-normal"
                       asChild
                     >
                       <Link href={link}>
-                        <ItemIcon type={table.type} className="pr-2" />
-                        {table.name}
+                        <ItemIcon type={node.type} className="pr-2" />
+                        {node.name}
                       </Link>
                     </Button>
                   </TableItem>

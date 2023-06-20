@@ -22,7 +22,11 @@ const editorConfig: any = {
   nodes: AllNodes,
 }
 
-export function Editor() {
+interface EditorProps {
+  docId: string
+}
+
+export function Editor(props: EditorProps) {
   const ref = React.useRef<HTMLDivElement>(null)
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null)
@@ -32,24 +36,32 @@ export function Editor() {
     }
   }
   return (
-    <LexicalComposer initialConfig={editorConfig}>
-      <div className="editor-container h-full" ref={ref} id="editor-container">
-        <div className="editor-inner h-full">
-          <RichTextPlugin
-            contentEditable={
-              <div className="editor relative" ref={onRef}>
-                <ContentEditable className="editor-input prose p-2 outline-none" />
-              </div>
-            }
-            placeholder={<div />}
-            ErrorBoundary={LexicalErrorBoundary}
-          />
-          <AllPlugins />
-          {floatingAnchorElem && (
-            <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
-          )}
-        </div>
+    <div className="flex  items-center justify-center">
+      <div className="h-full w-[900px]">
+        <LexicalComposer initialConfig={editorConfig}>
+          <div
+            className="editor-container h-full"
+            ref={ref}
+            id="editor-container"
+          >
+            <div className="editor-inner h-full">
+              <RichTextPlugin
+                contentEditable={
+                  <div className="editor relative" ref={onRef}>
+                    <ContentEditable className="editor-input prose p-2 outline-none" />
+                  </div>
+                }
+                placeholder={<div />}
+                ErrorBoundary={LexicalErrorBoundary}
+              />
+              <AllPlugins />
+              {floatingAnchorElem && (
+                <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
+              )}
+            </div>
+          </div>
+        </LexicalComposer>
       </div>
-    </LexicalComposer>
+    </div>
   )
 }

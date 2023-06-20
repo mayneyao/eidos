@@ -6,6 +6,11 @@
  *
  *
  */
+
+code.not-prose::after {
+  display: none;
+}
+
 .PlaygroundEditorTheme__ltr {
   text-align: left;
 }

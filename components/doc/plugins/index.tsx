@@ -7,6 +7,7 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin"
 
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
+import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import { SQLPlugin } from "./SQLPlugin"
 
 export const AllPlugins = () => {
@@ -20,6 +21,7 @@ export const AllPlugins = () => {
       <CheckListPlugin />
       <CodeHighlightPlugin />
       <LinkPlugin />
+      <ComponentPickerMenuPlugin />
       <MarkdownShortcutPlugin
         transformers={[CHECK_LIST, CODE, INLINE_CODE, ...TRANSFORMERS]}
       />

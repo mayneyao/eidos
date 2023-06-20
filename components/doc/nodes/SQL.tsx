@@ -1,4 +1,5 @@
 import * as React from "react"
+import { SqlDatabase } from "@/worker/sql"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
   DecoratorBlockNode,
@@ -27,7 +28,11 @@ function SQLComponent({ className, format, nodeKey, sql }: SQLProps) {
   const [res, setRes] = React.useState("")
 
   React.useEffect(() => {
-    ;(window as any).sqlite.sql`${sql}`.then((res: any) => {
+    if (!sql) {
+      return
+    }
+    const sqlite: SqlDatabase = (window as any).sqlite
+    sqlite.exec2(sql).then((res: any) => {
       setRes(JSON.stringify(res))
     })
   }, [sql])
@@ -60,7 +65,7 @@ export class SQLNode extends DecoratorBlockNode {
   }
 
   static clone(node: SQLNode): SQLNode {
-    return new SQLNode(node.__id, node.__format, node.__key)
+    return new SQLNode(node.sql, node.__format, node.__key)
   }
 
   static importJSON(serializedNode: SerializedSQLNode): SQLNode {
@@ -85,10 +90,6 @@ export class SQLNode extends DecoratorBlockNode {
 
   updateDOM(): false {
     return false
-  }
-
-  getId(): string {
-    return this.__id
   }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {

@@ -28,11 +28,5 @@ export const SQLPlugin = () => {
     )
   }, [editor])
 
-  return <div>
-    <button onClick={() => {
-      editor.dispatchCommand(INSERT_SQL_COMMAND, "SELECT count(*)  as allCount FROM tb_a0adf70bdb504e7e8dd72a0db9250145")
-    }}>
-      insert sql
-    </button>
-  </div>
+  return null
 }
