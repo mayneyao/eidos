@@ -370,7 +370,7 @@ code.not-prose::after {
   border-style: solid;
   position: absolute;
   display: block;
-  top: 6px;
+  top: 12px;
   width: 3px;
   left: 7px;
   right: 7px;
