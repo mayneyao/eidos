@@ -35,7 +35,7 @@ export const AIMessage = ({
       return <code className="language-none">{children}</code>
     },
     codeblock: function Code(props) {
-      const { lang='sql', text } = props
+      const { lang = "sql", text } = props
       const codeHtml = Prism.highlight(text, Prism.languages[lang], lang)
       // if it's a d3 codeblock, we need to render it differently
       if (lang === "js" && text.includes("d3.")) {
@@ -67,7 +67,7 @@ export const AIMessage = ({
     },
   }
   return (
-    <div className="grow">
+    <div className="prose grow dark:prose-invert">
       {message && <Markdown markdown={message} renderers={renderers} />}
       <div id={`chart-${msgIndex}`} />
     </div>

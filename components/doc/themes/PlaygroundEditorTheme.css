@@ -336,7 +336,7 @@ code.not-prose::after {
   content: "";
   width: 16px;
   height: 16px;
-  top: 2px;
+  top: 6px;
   left: 0;
   cursor: pointer;
   display: block;

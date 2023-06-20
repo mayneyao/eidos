@@ -14,5 +14,5 @@ export const useCurrentNode = () => {
     }, {} as Record<string, IFileNode>)
   }, [allNodes])
 
-  return nodeMap[table]
+  return table ? nodeMap[table] : null
 }

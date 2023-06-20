@@ -112,6 +112,12 @@ export class DataSpace {
     await deleteDocFile(this.dbName, docId)
   }
 
+  // FIXME: there are some problem with headless lexical run in worker
+  // return markdown string, compute in worker
+  // public async asyncGetDocMarkdown(docId: string) {
+  //   return await getDocMarkdown(this.dbName, docId)
+  // }
+
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
     const res: any[] = []

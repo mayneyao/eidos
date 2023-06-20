@@ -42,6 +42,65 @@ export const getOpenAI = (token: string) => {
   return openai
 }
 
+const getPrompt = (context: {
+  tableSchema?: string
+  uiColumns?: IUIColumn[]
+  allTables: IFileNode[]
+  allUiColumns: IUIColumn[]
+  databaseName: string
+  currentDocMarkdown?: string
+}) => {
+  const {
+    currentDocMarkdown,
+    tableSchema,
+    allTables,
+    databaseName,
+    uiColumns,
+    allUiColumns,
+  } = context
+  if (currentDocMarkdown) {
+    return `- don't call functions. 
+- answer with user's input language.
+- answer questions based on document below:
+---- doc start ----
+${context.currentDocMarkdown}
+---- doc end ----
+`
+  }
+
+  let allTableInfo = "here is all tables info:\n"
+
+  allTables.forEach((table) => {
+    if (table.type !== "table") return
+    allTableInfo += `- name: ${table.name}\n -tableName: tb_${table.id}\n -all columns: \n`
+    allUiColumns.forEach((column) => {
+      if (column.table_name === `tb_${table.id}`) {
+        allTableInfo += `   - name: ${column.name}\n   - tableColumnName: ${column.table_column_name}\n`
+      }
+    })
+    allTableInfo += "\n---------\n"
+  })
+
+  const contextPrompt = tableSchema
+    ? `\ncontext below:
+- database name: ${databaseName}
+- current table schema:\n${tableSchema}
+- current table ui columns: ${JSON.stringify(uiColumns)}
+\n${allTableInfo}
+`
+    : `context below:
+- database name: ${databaseName}
+\n${allTableInfo}
+
+- currentDocMarkdown:
+${context.currentDocMarkdown}
+`
+  // - all tables: ${JSON.stringify(allTables)}
+  // - all ui columns: ${JSON.stringify(allUiColumns)}
+  const systemPrompt = contextPrompt + baseSysPrompt
+  return systemPrompt
+}
+
 export const askAI =
   (openai?: OpenAIApi) =>
   async (
@@ -52,41 +111,12 @@ export const askAI =
       allTables: IFileNode[]
       allUiColumns: IUIColumn[]
       databaseName: string
+      currentDocMarkdown?: string
     }
   ) => {
     if (!openai) return
-    const { tableSchema, allTables, databaseName, uiColumns, allUiColumns } =
-      context
-    let allTableInfo = "here is all tables info:\n"
-
-    allTables.forEach((table) => {
-      if (table.type !== "table") return
-      allTableInfo += `- name: ${table.name}\n -tableName: tb_${table.id}\n -all columns: \n`
-      allUiColumns.forEach((column) => {
-        if (column.table_name === `tb_${table.id}`) {
-          allTableInfo += `   - name: ${column.name}\n   - tableColumnName: ${column.table_column_name}\n`
-        }
-      })
-      allTableInfo += "\n---------\n"
-    })
-
-    const contextPrompt = tableSchema
-      ? `\ncontext below:
-- database name: ${databaseName}
-- current table schema:\n${tableSchema}
-- current table ui columns: ${JSON.stringify(uiColumns)}
-\n${allTableInfo}
-`
-      : `context below:
-- database name: ${databaseName}
-\n${allTableInfo}
-`
-    // - all tables: ${JSON.stringify(allTables)}
-    // - all ui columns: ${JSON.stringify(allUiColumns)}
-    const systemPrompt = contextPrompt + baseSysPrompt
-    // console.log(systemPrompt)
-    console.log(functions)
-    console.log(systemPrompt)
+    const systemPrompt = getPrompt(context)
+    console.log("systemPrompt", systemPrompt)
     const completion = await openai.createChatCompletion({
       model: "gpt-3.5-turbo-0613",
       temperature: 0,
