@@ -51,7 +51,7 @@ export function Editor(props: EditorProps) {
               <RichTextPlugin
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
-                    <ContentEditable className="editor-input prose p-2 outline-none" />
+                    <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert" />
                   </div>
                 }
                 placeholder={
