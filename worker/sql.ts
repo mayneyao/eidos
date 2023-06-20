@@ -113,8 +113,8 @@ export class SqlDatabase {
     return res
   }
 
-  public async listAllTables() {
-    return this.exec2(`SELECT * FROM ${TreeTableName} WHERE type='table';`)
+  public async listAllNodes() {
+    return this.exec2(`SELECT * FROM ${TreeTableName};`)
   }
   public async listUiColumns(tableName: string) {
     return this.exec2(`SELECT * FROM ${ColumnTableName} WHERE table_name=?;`, [

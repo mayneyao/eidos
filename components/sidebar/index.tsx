@@ -15,7 +15,7 @@ import { DatabaseSelect } from "@/components/database-select"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
-import { CreateTableDialog } from "./create-table"
+import { CreateFileDialog } from "./create-file"
 import { TableListLoading } from "./loading"
 import { TableItem } from "./table-menu"
 
@@ -41,7 +41,7 @@ export const SideBar = ({ className }: any) => {
   const { database, tableName: tableName } = useCurrentPathInfo()
   const [loading, setLoading] = useState(true)
   const { queryAllTables } = useSqlite(database)
-  const { setSelectedTable, allTables, setAllTables } = useSqliteStore()
+  const { setSelectedTable, allNodes: allTables, setAllNodes: setAllTables } = useSqliteStore()
   const databaseList = useAllDatabases()
   const { isShareMode } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useAppRuntimeStore()
@@ -111,7 +111,7 @@ export const SideBar = ({ className }: any) => {
             )}
           </div>
         </ScrollArea>
-        <CreateTableDialog />
+        <CreateFileDialog />
       </div>
     </>
   )

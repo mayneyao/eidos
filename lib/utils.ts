@@ -41,3 +41,7 @@ export const generateColumnName = () => {
   // random 4 characters
   return `cl_${Math.random().toString(36).substring(2, 6)}`
 }
+
+export const getRawDocNameById = (id: string) => {
+  return `doc_${id}`
+}
