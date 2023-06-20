@@ -6,11 +6,12 @@ import { IUIColumn } from "@/hooks/use-table"
 import { functionParamsSchemaMap, functions } from "./functions"
 
 const baseSysPrompt = `
---------
+
 you must abide by the following rules:
 - user just know name of table and name of column, don't know tableName and tableColumnName
-- tableName and tableColumnName are actually exist in sqlite database. you will use them to query database
-- you can call function which provided by system. you should say something  when you get the result of function call
+- tableName and tableColumnName are actually exist in sqlite database. you will use them to query database.
+- tableColumnName will be mapped, such as 'title : cl_a4ef', title is name of column, cl_a4ef is tableColumnName, you will use cl_a4ef to query database. otherwise you will be punished.
+- data from query which can be trusted, you can display it directly, don't need to check it.
 `
 // after 0613, openai support function call. we don't need prompt below
 // const baseSysPrompt = `you're a database master, help use query database and generate d3.js chart if user want. must abide by the following rules:
@@ -75,17 +76,18 @@ ${context.currentDocMarkdown}
     allTableInfo += `- name: ${table.name}\n -tableName: tb_${table.id}\n -all columns: \n`
     allUiColumns.forEach((column) => {
       if (column.table_name === `tb_${table.id}`) {
-        allTableInfo += `   - name: ${column.name}\n   - tableColumnName: ${column.table_column_name}\n`
+        allTableInfo += `   - ${column.name} : ${column.table_column_name}\n`
       }
     })
     allTableInfo += "\n---------\n"
   })
 
   const contextPrompt = tableSchema
-    ? `\ncontext below:
+    ? `
+\ncontext below:
+----------------
 - database name: ${databaseName}
 - current table schema:\n${tableSchema}
-- current table ui columns: ${JSON.stringify(uiColumns)}
 \n${allTableInfo}
 `
     : `context below:

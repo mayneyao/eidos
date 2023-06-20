@@ -55,6 +55,7 @@ export const AIChat = () => {
 
   const cleanMessages = useCallback(() => {
     setMessages([])
+    setLoading(false)
   }, [setMessages])
 
   const textInputRef = useRef<HTMLTextAreaElement>()
