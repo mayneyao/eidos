@@ -14,6 +14,7 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
     return {
       kind: GridCellKind.Image,
       data: data,
+      copyData: rawData,
       allowOverlay: true,
       allowAdd: true,
     }

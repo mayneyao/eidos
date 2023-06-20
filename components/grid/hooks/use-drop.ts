@@ -1,6 +1,7 @@
 import React from "react"
-import { DataEditorProps, GridCellKind, Item } from "@glideapps/glide-data-grid"
+import { DataEditorProps, Item } from "@glideapps/glide-data-grid"
 
+import { FieldType } from "@/lib/fields/const"
 import { saveFile } from "@/lib/fs"
 import { useCurrentDomain } from "@/app/[database]/hook"
 
@@ -13,7 +14,7 @@ const SUPPORTED_IMAGE_TYPES = new Set([
 
 interface IProps {
   setCellValue: (col: number, row: number, value: any) => void
-  getCellContent: (cell: Item) => { kind: GridCellKind }
+  getCellContent: (cell: Item) => { kind: string }
 }
 
 export const useDrop = (props: IProps) => {
@@ -50,8 +51,10 @@ export const useDrop = (props: IProps) => {
       const newFileName = `${fileHash}.${fileExtension}`
 
       const newFileUrl = `${domain}/files/${newFileName}`
-      setCellValue(cell[0], cell[1], newFileUrl)
-      saveFile(file, newFileName)
+      saveFile(file, newFileName).then(() => {
+        setCellValue(cell[0], cell[1], newFileUrl)
+      })
+
       setLastDropCell(cell)
     },
     [setCellValue, domain]
@@ -75,7 +78,7 @@ export const useDrop = (props: IProps) => {
       }
 
       const [col, row] = cell
-      if (getCellContent(cell).kind === GridCellKind.Image) {
+      if (getCellContent(cell).kind === FieldType.File) {
         setHighlights([
           {
             color: "#44BB0022",
