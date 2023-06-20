@@ -1,17 +1,17 @@
 import { useState } from "react"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useGoto } from "@/hooks/use-goto"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   DialogDescription,
   DialogFooter,
-  DialogHeader
+  DialogHeader,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useGoto } from "@/hooks/use-goto"
-import { useSqlite } from "@/hooks/use-sqlite"
 
 import { csvFile2Sql } from "../helper"
 
@@ -31,7 +31,7 @@ export const CreateTable = ({
 
   const handleCreateTable = async () => {
     if (file) {
-      const res = await csvFile2Sql(file, tableName.trim())
+      const res = await csvFile2Sql(file)
       setImporting(true)
       await createTableWithSqlAndInsertSqls({
         tableId: res.tableId,
