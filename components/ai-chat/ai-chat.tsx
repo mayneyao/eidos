@@ -11,6 +11,7 @@ import { useAI } from "@/hooks/use-ai"
 import { useAutoRunCode } from "@/hooks/use-auto-run-code"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqliteStore } from "@/hooks/use-sqlite"
+import { useTableStore } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
@@ -21,6 +22,7 @@ import { AIChatMessage } from "./ai-chat-message"
 
 export const AIChat = () => {
   const { currentTableSchema } = useDatabaseAppStore()
+  const { uiColumns } = useTableStore()
   const { askAI } = useAI()
   const { database } = useCurrentPathInfo()
   const { aiConfig } = useConfigStore()
@@ -31,7 +33,7 @@ export const AIChat = () => {
   const divRef = useRef<HTMLDivElement>()
   const { aiMessages: messages, setAiMessages: setMessages } =
     useDatabaseAppStore()
-  const { allNodes: allTables } = useSqliteStore()
+  const { allNodes: allTables, allUiColumns } = useSqliteStore()
 
   const cleanMessages = useCallback(() => {
     setMessages([])
@@ -48,6 +50,8 @@ export const AIChat = () => {
     const response = await askAI(_messages, {
       tableSchema: currentTableSchema,
       allTables,
+      uiColumns,
+      allUiColumns,
       databaseName: database,
     })
   }
@@ -60,7 +64,9 @@ export const AIChat = () => {
       const response = await askAI(_messages, {
         tableSchema: currentTableSchema,
         allTables,
+        uiColumns,
         databaseName: database,
+        allUiColumns,
       })
 
       if (response?.finish_reason == "function_call") {
@@ -84,13 +90,16 @@ export const AIChat = () => {
               tableSchema: currentTableSchema,
               allTables,
               databaseName: database,
+              allUiColumns,
             })
-            const _newMessages = [
-              ...newMessages,
-              { role: "assistant", content: newResponse?.message?.content },
-            ]
-            console.log({ _newMessages })
-            setMessages(_newMessages as any)
+            if (newResponse?.message?.content) {
+              const _newMessages = [
+                ...newMessages,
+                { role: "assistant", content: newResponse?.message?.content },
+              ]
+              console.log({ _newMessages })
+              setMessages(_newMessages as any)
+            }
           }
         }
       } else if (response?.message) {
