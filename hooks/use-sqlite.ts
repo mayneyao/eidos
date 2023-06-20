@@ -132,6 +132,17 @@ export const useSqlite = (dbName?: string) => {
     return docId
   }
 
+  const updateDoc = async (docId: string, content: string) => {
+    if (!sqlWorker) return
+    await sqlWorker.updateDoc(docId, content)
+  }
+
+  const getDoc = async (docId: string) => {
+    if (!sqlWorker) return
+    const doc = await sqlWorker.getDoc(docId)
+    return doc
+  }
+
   const updateTableListWithSql = async (sql: string) => {
     if (!sqlWorker) return
     await sqlWorker.sql`${sql}`
@@ -264,5 +275,7 @@ export const useSqlite = (dbName?: string) => {
     redo,
     withTransaction,
     createDoc,
+    updateDoc,
+    getDoc,
   }
 }

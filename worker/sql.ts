@@ -4,6 +4,7 @@ import sqlite3InitModule, {
 } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
+import { getDocContent, updateDocFile } from "@/lib/fs"
 import { logger } from "@/lib/log"
 import { ColumnTableName, TreeTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
@@ -96,6 +97,15 @@ export class SqlDatabase {
       table_column_name TEXT,
       property TEXT
     );`)
+  }
+
+  // update doc mount on sqlite for now,maybe change to fs later
+  public async updateDoc(docId: string, content: string) {
+    await updateDocFile(this.dbName, docId, content)
+  }
+
+  public async getDoc(docId: string) {
+    return await getDocContent(this.dbName, docId)
   }
 
   // return object array

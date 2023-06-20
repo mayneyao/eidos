@@ -8,6 +8,7 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 
 import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
+import { AutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import defaultTheme from "./themes/default"
 
@@ -24,6 +25,8 @@ const editorConfig: any = {
 
 interface EditorProps {
   docId: string
+  onSave: (content: string) => void
+  initContent?: string
 }
 
 export function Editor(props: EditorProps) {
@@ -55,6 +58,10 @@ export function Editor(props: EditorProps) {
                 ErrorBoundary={LexicalErrorBoundary}
               />
               <AllPlugins />
+              <AutoSavePlugin
+                onSave={props.onSave}
+                initContent={props.initContent}
+              />
               {floatingAnchorElem && (
                 <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
               )}

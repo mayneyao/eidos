@@ -47,3 +47,31 @@ export const saveFile = async (file: File, name?: string) => {
   await writable.close()
   return fileHandle
 }
+
+export const updateDocFile = async (
+  spaceName: string,
+  docId: string,
+  content: string
+) => {
+  const opfsRoot = await navigator.storage.getDirectory()
+  const docFileName = `${docId}.md`
+  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces")
+  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName)
+  const fileHandle = await spaceDirHandle.getFileHandle(docFileName, {
+    create: true,
+  })
+  const writable = await (fileHandle as any).createWritable()
+  await writable.write(content)
+  await writable.close()
+  console.log("update doc file", docFileName)
+}
+
+export const getDocContent = async (spaceName: string, docId: string) => {
+  const opfsRoot = await navigator.storage.getDirectory()
+  const docFileName = `${docId}.md`
+  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces")
+  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName)
+  const fileHandle = await spaceDirHandle.getFileHandle(docFileName)
+  const file = await fileHandle.getFile()
+  return await file.text()
+}
