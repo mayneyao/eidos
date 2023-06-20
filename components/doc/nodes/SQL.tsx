@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SqlDatabase } from "@/worker/sql"
+import { DataSpace } from "@/worker/sql"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
   DecoratorBlockNode,
@@ -31,7 +31,7 @@ function SQLComponent({ className, format, nodeKey, sql }: SQLProps) {
     if (!sql) {
       return
     }
-    const sqlite: SqlDatabase = (window as any).sqlite
+    const sqlite: DataSpace = (window as any).sqlite
     sqlite.exec2(sql).then((res: any) => {
       setRes(JSON.stringify(res))
     })

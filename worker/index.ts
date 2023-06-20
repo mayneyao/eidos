@@ -2,10 +2,10 @@ import { MsgType } from "@/lib/const"
 import { getSpaceDatabasePath } from "@/lib/fs"
 import { logger } from "@/lib/log"
 
-import { SqlDatabase, Sqlite } from "./sql"
+import { DataSpace, Sqlite } from "./sql"
 
 // current DB
-let _db: SqlDatabase | null = null
+let _db: DataSpace | null = null
 const sqlite = new Sqlite()
 
 const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
@@ -17,7 +17,7 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
     //
     _db = await loadDatabase(dbName)
   }
-  const _method = method as keyof SqlDatabase
+  const _method = method as keyof DataSpace
   const callMethod = (_db[_method] as Function).bind(_db)
   const res = await callMethod(...params)
 

@@ -1,12 +1,14 @@
 "use client"
 
 import { useCallback } from "react"
-import type { SqlDatabase } from "@/worker/sql"
+import type { DataSpace } from "@/worker/sql"
 import { create } from "zustand"
 
 import { TreeTableName } from "@/lib/sqlite/const"
 import { getRawDocNameById, getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { createTemplateTableSql } from "@/components/grid/helper"
+
+import { IUIColumn } from "./use-table"
 
 export type IFileNode = {
   id: string
@@ -24,6 +26,9 @@ interface SqliteState {
   allNodes: IFileNode[]
   setAllNodes: (tables: IFileNode[]) => void
 
+  allUiColumns: IUIColumn[]
+  setAllUiColumns: (columns: IUIColumn[]) => void
+
   selectedTable: string
   setSelectedTable: (table: string) => void
 
@@ -32,8 +37,8 @@ interface SqliteState {
 
   // const [sqlWorker, setSQLWorker] = useState<SqlDatabase>()
 
-  sqliteProxy: SqlDatabase | null
-  setSqliteProxy: (sqlWorker: SqlDatabase) => void
+  sqliteProxy: DataSpace | null
+  setSqliteProxy: (sqlWorker: DataSpace) => void
 }
 
 // not using persist
@@ -46,6 +51,9 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
 
   allNodes: [],
   setAllNodes: (tables) => set({ allNodes: tables }),
+
+  allUiColumns: [],
+  setAllUiColumns: (columns) => set({ allUiColumns: columns }),
 
   selectedTable: "",
   setSelectedTable: (table) => set({ selectedTable: table }),
@@ -66,6 +74,7 @@ export const useSqlite = (dbName?: string) => {
     isInitialized,
     sqliteProxy: sqlWorker,
     setAllNodes,
+    setAllUiColumns,
   } = useSqliteStore()
 
   const queryAllNodes = useCallback(async () => {
@@ -75,11 +84,23 @@ export const useSqlite = (dbName?: string) => {
     return allNodes
   }, [sqlWorker])
 
-  const updateNodeList = async () => {
+  const queryAllUiColumns = useCallback(async () => {
+    console.log("queryAllUiColumns")
+    if (!sqlWorker) return
+    const allUiColumns = await sqlWorker.listAllUiColumns()
+    // console.log("ui column list loaded", allUiColumns)
+    return allUiColumns
+  }, [sqlWorker])
+
+  const updateNodeList = useCallback(async () => {
     await queryAllNodes().then((nodes) => {
       nodes && setAllNodes(nodes)
     })
-  }
+    await queryAllUiColumns().then((columns) => {
+      columns && setAllUiColumns(columns)
+    })
+  }, [queryAllNodes, queryAllUiColumns, setAllNodes, setAllUiColumns])
+
   const withTransaction = async (callback: () => Promise<void>) => {
     if (!sqlWorker) return
     try {
@@ -203,6 +224,29 @@ export const useSqlite = (dbName?: string) => {
     await updateNodeList()
   }
 
+  const deleteDoc = async (docId: string) => {
+    if (!sqlWorker) return
+    await sqlWorker.sql`DELETE FROM ${Symbol(
+      TreeTableName
+    )} WHERE id = ${docId}`
+    await sqlWorker
+    await updateNodeList()
+  }
+
+  const deleteNode = async (node: IFileNode) => {
+    if (!sqlWorker) return
+    switch (node.type) {
+      case "table":
+        await deleteTable(node.id)
+        break
+      case "doc":
+        await deleteDoc(node.id)
+        break
+      default:
+        break
+    }
+  }
+
   const renameTable = async (oldTableName: string, newTableName: string) => {
     if (!sqlWorker) return
     await sqlWorker.sql`ALTER TABLE ${Symbol(oldTableName)} RENAME TO ${Symbol(
@@ -267,6 +311,7 @@ export const useSqlite = (dbName?: string) => {
     renameTable,
     duplicateTable,
     queryAllTables: queryAllNodes,
+    updateNodeList,
     createTableWithSql,
     createTableWithSqlAndInsertSqls,
     updateTableData,
@@ -277,5 +322,6 @@ export const useSqlite = (dbName?: string) => {
     createDoc,
     updateDoc,
     getDoc,
+    deleteNode,
   }
 }

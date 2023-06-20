@@ -75,3 +75,11 @@ export const getDocContent = async (spaceName: string, docId: string) => {
   const file = await fileHandle.getFile()
   return await file.text()
 }
+
+export const deleteDocFile = async (spaceName: string, docId: string) => {
+  const opfsRoot = await navigator.storage.getDirectory()
+  const docFileName = `${docId}.md`
+  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces")
+  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName)
+  await spaceDirHandle.removeEntry(docFileName)
+}

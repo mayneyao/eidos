@@ -4,7 +4,7 @@ import sqlite3InitModule, {
 } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
-import { getDocContent, updateDocFile } from "@/lib/fs"
+import { deleteDocFile, getDocContent, updateDocFile } from "@/lib/fs"
 import { logger } from "@/lib/log"
 import { ColumnTableName, TreeTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
@@ -61,11 +61,11 @@ export class Sqlite {
     }
     // const db = new this.sqlite3.oo1.DB(name, flags, vfs)
     const db = new this.sqlite3.oo1.OpfsDb(path, flags)
-    return new SqlDatabase(db, this.config.experiment.undoRedo, name)
+    return new DataSpace(db, this.config.experiment.undoRedo, name)
   }
 }
 
-export class SqlDatabase {
+export class DataSpace {
   db: Database
   undoRedoManager: SQLiteUndoRedo
   activeUndoManager: boolean
@@ -108,6 +108,10 @@ export class SqlDatabase {
     return await getDocContent(this.dbName, docId)
   }
 
+  public async deleteDoc(docId: string) {
+    await deleteDocFile(this.dbName, docId)
+  }
+
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
     const res: any[] = []
@@ -130,6 +134,15 @@ export class SqlDatabase {
     return this.exec2(`SELECT * FROM ${ColumnTableName} WHERE table_name=?;`, [
       tableName,
     ])
+  }
+
+  /**
+   * this will return all ui columns in this space
+   * @param tableName
+   * @returns
+   */
+  public async listAllUiColumns() {
+    return this.exec2(`SELECT * FROM ${ColumnTableName} ;`)
   }
 
   public undo() {

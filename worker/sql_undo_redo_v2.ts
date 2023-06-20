@@ -1,6 +1,6 @@
 import { logger } from "@/lib/log"
 
-import { SqlDatabase } from "./sql"
+import { DataSpace } from "./sql"
 
 interface StackEntry {
   begin: number
@@ -19,8 +19,8 @@ interface UndoRedoState {
 
 export class SQLiteUndoRedo {
   undo: UndoRedoState
-  db: SqlDatabase
-  constructor(db: SqlDatabase) {
+  db: DataSpace
+  constructor(db: DataSpace) {
     this.db = db
     this.undo = {
       active: false,
@@ -127,7 +127,7 @@ export class SQLiteUndoRedo {
     // eval(body.join("\n"));
   }
 
-  private async _makeTriggersForTbl(db: SqlDatabase, tbl: string) {
+  private async _makeTriggersForTbl(db: DataSpace, tbl: string) {
     const collist = await db.sql`pragma table_info(${Symbol(tbl)})`
     let sql = `CREATE TEMP TRIGGER _${tbl}_it AFTER INSERT ON ${tbl} BEGIN\n`
     sql += "  INSERT INTO undolog VALUES(NULL,"
@@ -163,7 +163,7 @@ export class SQLiteUndoRedo {
     return sql
   }
 
-  private async createTriggers(db: SqlDatabase, tables: string[]) {
+  private async createTriggers(db: DataSpace, tables: string[]) {
     try {
       db.exec("DROP TABLE IF EXISTS undolog")
     } catch (err) {
