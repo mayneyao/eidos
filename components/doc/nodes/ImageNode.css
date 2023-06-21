@@ -1,0 +1,168 @@
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ *
+ */
+
+.ImageNode__contentEditable {
+  min-height: 20px;
+  border: 0px;
+  resize: none;
+  cursor: text;
+  caret-color: rgb(5, 5, 5);
+  display: block;
+  position: relative;
+  outline: 0px;
+  padding: 10px;
+  user-select: text;
+  font-size: 12px;
+  width: calc(100% - 20px);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ImageNode__placeholder {
+  font-size: 12px;
+  color: #888;
+  overflow: hidden;
+  position: absolute;
+  text-overflow: ellipsis;
+  top: 10px;
+  left: 10px;
+  user-select: none;
+  white-space: nowrap;
+  display: inline-block;
+  pointer-events: none;
+}
+
+.image-control-wrapper--resizing {
+  touch-action: none;
+}
+
+/* for editor-image */
+div.editor-image {
+  cursor: default;
+  display: inline-block;
+  position: relative;
+  user-select: none;
+}
+
+.editor-image img {
+  max-width: 100%;
+  cursor: default;
+}
+
+.editor-image img.focused {
+  outline: 2px solid rgb(60, 132, 244);
+  user-select: none;
+}
+
+.editor-image img.focused.draggable {
+  cursor: grab;
+}
+
+.editor-image img.focused.draggable:active {
+  cursor: grabbing;
+}
+
+.editor-image .image-caption-container .tree-view-output {
+  margin: 0;
+  border-radius: 0;
+}
+
+.editor-image .image-caption-container {
+  display: block;
+  /* position: absolute; */
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  padding: 0;
+  margin: 0;
+  border-top: 1px solid #fff;
+  background-color: rgba(255, 255, 255, 0.9);
+  min-width: 100px;
+  color: #000;
+  overflow: hidden;
+}
+
+.editor-image .image-caption-button {
+  display: block;
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  width: 30%;
+  padding: 10px;
+  margin: 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 5px;
+  background-color: rgba(0, 0, 0, 0.5);
+  min-width: 100px;
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
+}
+
+.editor-image .image-caption-button:hover {
+  background-color: rgba(60, 132, 244, 0.5);
+}
+
+.editor-image .image-resizer {
+  display: block;
+  width: 7px;
+  height: 7px;
+  position: absolute;
+  background-color: rgb(60, 132, 244);
+  border: 1px solid #fff;
+}
+
+.editor-image .image-resizer.image-resizer-n {
+  top: -6px;
+  left: 48%;
+  cursor: n-resize;
+}
+
+.editor-image .image-resizer.image-resizer-ne {
+  top: -6px;
+  right: -6px;
+  cursor: ne-resize;
+}
+
+.editor-image .image-resizer.image-resizer-e {
+  bottom: 48%;
+  right: -6px;
+  cursor: e-resize;
+}
+
+.editor-image .image-resizer.image-resizer-se {
+  bottom: -2px;
+  right: -6px;
+  cursor: nwse-resize;
+}
+
+.editor-image .image-resizer.image-resizer-s {
+  bottom: -2px;
+  left: 48%;
+  cursor: s-resize;
+}
+
+.editor-image .image-resizer.image-resizer-sw {
+  bottom: -2px;
+  left: -6px;
+  cursor: sw-resize;
+}
+
+.editor-image .image-resizer.image-resizer-w {
+  bottom: 48%;
+  left: -6px;
+  cursor: w-resize;
+}
+
+.editor-image .image-resizer.image-resizer-nw {
+  top: -6px;
+  left: -6px;
+  cursor: nw-resize;
+}

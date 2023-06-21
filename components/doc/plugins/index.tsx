@@ -10,9 +10,11 @@ import AutoLinkPlugin from "./AutoLinkPlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
+import ImagesPlugin from "./ImagesPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { SQLPlugin } from "./SQLPlugin"
 import { allTransformers } from "./const"
+import DragDropPaste from "./DragDropPaste"
 
 export const AllPlugins = () => {
   return (
@@ -29,6 +31,8 @@ export const AllPlugins = () => {
       <CheckListPlugin />
       <LinkPlugin />
       <AutoLinkPlugin />
+      <ImagesPlugin />
+      <DragDropPaste />
       {/* {!isEditable && <LexicalClickableLinkPlugin />} */}
       <ComponentPickerMenuPlugin />
       <MarkdownShortcutPlugin transformers={allTransformers} />

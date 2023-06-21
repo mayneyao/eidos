@@ -1,9 +1,8 @@
-import React from "react"
 import { DataEditorProps, Item } from "@glideapps/glide-data-grid"
+import React from "react"
 
 import { FieldType } from "@/lib/fields/const"
-import { saveFile } from "@/lib/fs"
-import { useCurrentDomain } from "@/app/[database]/hook"
+import { uploadFile2OPFS } from "@/lib/fs"
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",
@@ -22,7 +21,6 @@ export const useDrop = (props: IProps) => {
   const [highlights, setHighlights] = React.useState<
     DataEditorProps["highlightRegions"]
   >([])
-  const domain = useCurrentDomain()
 
   const [lastDropCell, setLastDropCell] = React.useState<Item | undefined>()
 
@@ -45,19 +43,13 @@ export const useDrop = (props: IProps) => {
         return
       }
 
-      const imgUrl = URL.createObjectURL(file)
-      const fileHash = imgUrl.split("/").pop()
-      const fileExtension = file.name.split(".").pop()
-      const newFileName = `${fileHash}.${fileExtension}`
-
-      const newFileUrl = `${domain}/files/${newFileName}`
-      saveFile(file, newFileName).then(() => {
+      uploadFile2OPFS(file).then((newFileUrl) => {
         setCellValue(cell[0], cell[1], newFileUrl)
       })
 
       setLastDropCell(cell)
     },
-    [setCellValue, domain]
+    [setCellValue]
   )
 
   const onDragOverCell = React.useCallback(
