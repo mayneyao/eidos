@@ -229,7 +229,7 @@ export const useSqlite = (dbName?: string) => {
     await sqlWorker.sql`DELETE FROM ${Symbol(
       TreeTableName
     )} WHERE id = ${docId}`
-    await sqlWorker
+    await sqlWorker.deleteDoc(docId)
     await updateNodeList()
   }
 
