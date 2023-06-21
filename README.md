@@ -1,12 +1,16 @@
-# Notion/Airtable-Like Database running in Browser
+# Eidos 
 
-This project is a local-first, web application for creating and managing databases in the browser. It uses sqlite-wasm to run the database engine locally on the user's machine, meaning all data is stored in the browser and there's no need for a server.
+A Notion-Like all-in-one workspace for everyone
 
 ## Features
 
-- 100% Local-first, support offline, you own your data!
-- No server required
-- PWA support
+- 💻 Runs on web browsers without any installation required.
+- 🔒 100% local-first, You own your data.
+- 🚀 lightning-fast without any server. 
+- 🤖 Deeply integrated with AI to converse with your data in the most natural way.
+- 📄 Perfect integration between documents and databases, allowing you to reference data in any form, with features like summary calculation and note-taking.
+- 🚀 Easily extensible, you can expand field types, document blocks, and AI functions to create your own unique workspace.
+- 🧑‍🤝‍🧑 Plus version enhances multi-user collaboration, sharing, versioning, and control, while still being local-first.
 
 ## Roadmap
 
