@@ -40,6 +40,7 @@ export default function TablePage() {
       )}
       {node?.type === "doc" && (
         <Editor
+          isEditable
           docId={params.docId!}
           onSave={handleSaveDoc}
           initContent={initContent}

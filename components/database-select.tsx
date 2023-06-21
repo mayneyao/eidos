@@ -1,11 +1,8 @@
 "use client"
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
 import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
+import * as React from "react"
 
-import { cn } from "@/lib/utils"
-import { useGoto } from "@/hooks/use-goto"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -30,6 +27,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { useGoto } from "@/hooks/use-goto"
+import { cn } from "@/lib/utils"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -50,11 +49,10 @@ export function DatabaseSelect({
   const [databaseName, setDatabaseName] = React.useState("")
   const goto = useGoto()
 
-  const router = useRouter()
   const handleSelect = (currentValue: string) => {
     setValue(currentValue === value ? "" : currentValue)
     setOpen(false)
-    router.push(`/${currentValue}`)
+    goto(currentValue)
   }
 
   const handleCreateDatabase = () => {

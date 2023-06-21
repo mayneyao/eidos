@@ -28,6 +28,7 @@ interface EditorProps {
   docId: string
   onSave: (content: string) => void
   initContent?: string
+  isEditable: boolean
 }
 
 export function Editor(props: EditorProps) {
@@ -39,10 +40,14 @@ export function Editor(props: EditorProps) {
       setFloatingAnchorElem(_floatingAnchorElem)
     }
   }
+  const initConfig = {
+    ...editorConfig,
+    editable: props.isEditable,
+  }
   return (
     <div className="flex  items-center justify-center">
       <div className="h-full w-[900px]">
-        <LexicalComposer initialConfig={editorConfig}>
+        <LexicalComposer initialConfig={initConfig}>
           <div
             className="editor-container h-full"
             ref={ref}

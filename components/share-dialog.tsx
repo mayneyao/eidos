@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { Share2 } from "lucide-react"
 
 import { useCopyToClipboard } from "@/hooks/use-copy"
+import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { usePeer } from "@/hooks/use-peer"
 import { Button } from "@/components/ui/button"
@@ -21,12 +22,16 @@ import { toast } from "./ui/use-toast"
 
 export function ShareDialog() {
   const { peerId } = usePeer()
-  const { database, tableId: table } = useCurrentPathInfo()
+  const currentNode = useCurrentNode()
+
+  const { space } = useCurrentPathInfo()
   const currentDomain = useCurrentDomain()
   const [open, setOpen] = useState(false)
   const shareLink = useMemo(() => {
-    return `${currentDomain}/share/${database}/${table}?peerId=${peerId}`
-  }, [currentDomain, database, table, peerId])
+    if (!currentNode) return ""
+    return `${currentDomain}/share/${space}/${currentNode?.id}?peerId=${peerId}`
+  }, [currentDomain, space, currentNode, peerId])
+
   const [link, copy] = useCopyToClipboard()
   const handleCopy = () => {
     copy(shareLink)

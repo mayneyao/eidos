@@ -1,5 +1,6 @@
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin"
+import LexicalClickableLinkPlugin from "@lexical/react/LexicalClickableLinkPlugin"
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
@@ -9,12 +10,12 @@ import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin
 import AutoLinkPlugin from "./AutoLinkPlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
+import DragDropPaste from "./DragDropPaste"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ImagesPlugin from "./ImagesPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { SQLPlugin } from "./SQLPlugin"
 import { allTransformers } from "./const"
-import DragDropPaste from "./DragDropPaste"
 
 export const AllPlugins = () => {
   return (
@@ -33,7 +34,7 @@ export const AllPlugins = () => {
       <AutoLinkPlugin />
       <ImagesPlugin />
       <DragDropPaste />
-      {/* {!isEditable && <LexicalClickableLinkPlugin />} */}
+      <LexicalClickableLinkPlugin />
       <ComponentPickerMenuPlugin />
       <MarkdownShortcutPlugin transformers={allTransformers} />
       <FloatingLinkEditorPlugin />
