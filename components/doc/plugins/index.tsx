@@ -4,7 +4,9 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin"
+import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 
+import AutoLinkPlugin from "./AutoLinkPlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
@@ -20,9 +22,13 @@ export const AllPlugins = () => {
       <HistoryPlugin />
       <AutoFocusPlugin />
       <ListPlugin />
-      <ListMaxIndentLevelPlugin maxDepth={3} />
+      {/* TabIndentationPlugin let you type `Tab` to indent a list item, ListMaxIndentLevelPlugin let you control the max indent level */}
+      <TabIndentationPlugin />
+      {/* don't be a dick, don't nest lists too deep */}
+      <ListMaxIndentLevelPlugin maxDepth={18} />
       <CheckListPlugin />
       <LinkPlugin />
+      <AutoLinkPlugin />
       {/* {!isEditable && <LexicalClickableLinkPlugin />} */}
       <ComponentPickerMenuPlugin />
       <MarkdownShortcutPlugin transformers={allTransformers} />
