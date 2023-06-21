@@ -8,6 +8,7 @@ import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPl
 import { AutoSavePlugin } from "./AutoSavePlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
+import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { SQLPlugin } from "./SQLPlugin"
 import { allTransformers } from "./const"
 
@@ -19,9 +20,10 @@ export const AllPlugins = () => {
       <HistoryPlugin />
       <AutoFocusPlugin />
       <ListPlugin />
+      <ListMaxIndentLevelPlugin maxDepth={3} />
       <CheckListPlugin />
-      <CodeHighlightPlugin />
       <LinkPlugin />
+      {/* {!isEditable && <LexicalClickableLinkPlugin />} */}
       <ComponentPickerMenuPlugin />
       <MarkdownShortcutPlugin transformers={allTransformers} />
     </>

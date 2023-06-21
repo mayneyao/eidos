@@ -10,6 +10,7 @@ import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
 import { AutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
+import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
 import defaultTheme from "./themes/default"
 
 const editorConfig: any = {
@@ -66,8 +67,11 @@ export function Editor(props: EditorProps) {
                 onSave={props.onSave}
                 initContent={props.initContent}
               />
+              <FloatingTextFormatToolbarPlugin />
               {floatingAnchorElem && (
-                <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
+                <>
+                  <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
+                </>
               )}
             </div>
           </div>
