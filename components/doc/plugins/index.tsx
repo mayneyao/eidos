@@ -5,9 +5,9 @@ import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin"
 
-import { AutoSavePlugin } from "./AutoSavePlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
+import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { SQLPlugin } from "./SQLPlugin"
 import { allTransformers } from "./const"
@@ -26,6 +26,7 @@ export const AllPlugins = () => {
       {/* {!isEditable && <LexicalClickableLinkPlugin />} */}
       <ComponentPickerMenuPlugin />
       <MarkdownShortcutPlugin transformers={allTransformers} />
+      <FloatingLinkEditorPlugin />
     </>
   )
 }
