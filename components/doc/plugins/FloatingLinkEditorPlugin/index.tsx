@@ -195,7 +195,7 @@ function FloatingLinkEditor({
   }
 
   return (
-    <div ref={editorRef} className="link-editor">
+    <div ref={editorRef} className="link-editor bg-slate-50 dark:bg-slate-700">
       {!isLink ? null : isEditMode ? (
         <div className="flex w-full items-center justify-between gap-2">
           <Input

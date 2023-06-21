@@ -53,9 +53,9 @@ export function Editor(props: EditorProps) {
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
                     <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert" />
-                    <div>
+                    {/* <div className="h-12 w-full">
                       click here to create a new block
-                    </div>
+                    </div> */}
                   </div>
                 }
                 placeholder={

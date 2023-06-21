@@ -11,15 +11,13 @@ import {
 } from "@lexical/markdown"
 
 export const allTransformers = [
-//   CHECK_LIST,
-//   CODE,
-//   HEADING,
-//   HIGHLIGHT,
-//   INLINE_CODE,
-//   LINK,
-//   ORDERED_LIST,
-//   QUOTE,
+  CHECK_LIST,
+  CODE,
+  HEADING,
+  HIGHLIGHT,
+  INLINE_CODE,
+  LINK,
+  ORDERED_LIST,
+  QUOTE,
   ...TRANSFORMERS,
 ]
-
-console.log(allTransformers)
