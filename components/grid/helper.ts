@@ -69,10 +69,9 @@ CREATE TABLE ${tableName} (
   ,no             INTEGER  NULL
   ,title          TEXT  NULL
   ,checked        BOOLEAN  NULL
-  ,tags           TEXT  NULL
 );
 INSERT INTO ${tableName}(_id,no,title,checked) VALUES ('${uuidv4()}',1,'foo',1);
-INSERT INTO ${tableName}(_id,no,title,checked,tags) VALUES ('${uuidv4()}',2,'bar',1, 'foo,bar');
+INSERT INTO ${tableName}(_id,no,title,checked) VALUES ('${uuidv4()}',2,'bar',1);
 INSERT INTO ${tableName}(_id,no,title) VALUES ('${uuidv4()}',3,'baz');
 
 --- insert ui-column to table
@@ -80,7 +79,6 @@ INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES
 INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('no', 'number', '${tableName}', 'no');
 INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('title', 'text', '${tableName}', 'title');
 INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('checked', 'checkbox', '${tableName}', 'checked');
-INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('tags', 'multi-select', '${tableName}', 'tags');
 `
   return templateTableSql
 }

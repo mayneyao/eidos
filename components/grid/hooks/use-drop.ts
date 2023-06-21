@@ -1,5 +1,5 @@
-import { DataEditorProps, Item } from "@glideapps/glide-data-grid"
 import React from "react"
+import { DataEditorProps, Item } from "@glideapps/glide-data-grid"
 
 import { FieldType } from "@/lib/fields/const"
 import { uploadFile2OPFS } from "@/lib/fs"
@@ -33,6 +33,7 @@ export const useDrop = (props: IProps) => {
       }
 
       const { files } = dataTransfer
+
       // This only supports one image, for simplicity.
       if (files.length !== 1) {
         return
@@ -46,6 +47,20 @@ export const useDrop = (props: IProps) => {
       uploadFile2OPFS(file).then((newFileUrl) => {
         setCellValue(cell[0], cell[1], newFileUrl)
       })
+
+      // upload multiple files, it's works but have some bugs
+      // if (
+      //   !Array.from(files).every((file) => SUPPORTED_IMAGE_TYPES.has(file.type))
+      // ) {
+      //   return
+      // }
+
+      // Promise.all(Array.from(files).map((file) => uploadFile2OPFS(file))).then(
+      //   (res) => {
+      //     const cv = res.join(",")
+      //     setCellValue(cell[0], cell[1], cv)
+      //   }
+      // )
 
       setLastDropCell(cell)
     },
