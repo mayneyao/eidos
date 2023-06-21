@@ -2,8 +2,7 @@ import React from "react"
 import { DataEditorProps, Item } from "@glideapps/glide-data-grid"
 
 import { FieldType } from "@/lib/fields/const"
-import { saveFile } from "@/lib/fs"
-import { useCurrentDomain } from "@/app/[database]/hook"
+import { uploadFile2OPFS } from "@/lib/fs"
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",
@@ -22,7 +21,6 @@ export const useDrop = (props: IProps) => {
   const [highlights, setHighlights] = React.useState<
     DataEditorProps["highlightRegions"]
   >([])
-  const domain = useCurrentDomain()
 
   const [lastDropCell, setLastDropCell] = React.useState<Item | undefined>()
 
@@ -35,6 +33,7 @@ export const useDrop = (props: IProps) => {
       }
 
       const { files } = dataTransfer
+
       // This only supports one image, for simplicity.
       if (files.length !== 1) {
         return
@@ -45,19 +44,27 @@ export const useDrop = (props: IProps) => {
         return
       }
 
-      const imgUrl = URL.createObjectURL(file)
-      const fileHash = imgUrl.split("/").pop()
-      const fileExtension = file.name.split(".").pop()
-      const newFileName = `${fileHash}.${fileExtension}`
-
-      const newFileUrl = `${domain}/files/${newFileName}`
-      saveFile(file, newFileName).then(() => {
+      uploadFile2OPFS(file).then((newFileUrl) => {
         setCellValue(cell[0], cell[1], newFileUrl)
       })
 
+      // upload multiple files, it's works but have some bugs
+      // if (
+      //   !Array.from(files).every((file) => SUPPORTED_IMAGE_TYPES.has(file.type))
+      // ) {
+      //   return
+      // }
+
+      // Promise.all(Array.from(files).map((file) => uploadFile2OPFS(file))).then(
+      //   (res) => {
+      //     const cv = res.join(",")
+      //     setCellValue(cell[0], cell[1], cv)
+      //   }
+      // )
+
       setLastDropCell(cell)
     },
-    [setCellValue, domain]
+    [setCellValue]
   )
 
   const onDragOverCell = React.useCallback(

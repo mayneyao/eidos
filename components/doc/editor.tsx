@@ -10,6 +10,7 @@ import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
 import { AutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
+import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
 import defaultTheme from "./themes/default"
 
 const editorConfig: any = {
@@ -52,6 +53,9 @@ export function Editor(props: EditorProps) {
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
                     <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert" />
+                    {/* <div className="h-12 w-full">
+                      click here to create a new block
+                    </div> */}
                   </div>
                 }
                 placeholder={
@@ -66,8 +70,11 @@ export function Editor(props: EditorProps) {
                 onSave={props.onSave}
                 initContent={props.initContent}
               />
+              <FloatingTextFormatToolbarPlugin />
               {floatingAnchorElem && (
-                <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
+                <>
+                  <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
+                </>
               )}
             </div>
           </div>

@@ -1,3 +1,23 @@
-import { CHECK_LIST, CODE, INLINE_CODE, TRANSFORMERS } from "@lexical/markdown"
+import {
+  CHECK_LIST,
+  CODE,
+  HEADING,
+  HIGHLIGHT,
+  INLINE_CODE,
+  LINK,
+  ORDERED_LIST,
+  QUOTE,
+  TRANSFORMERS,
+} from "@lexical/markdown"
 
-export const allTransformers = [CHECK_LIST, CODE, INLINE_CODE, ...TRANSFORMERS]
+export const allTransformers = [
+  CHECK_LIST,
+  CODE,
+  HEADING,
+  HIGHLIGHT,
+  INLINE_CODE,
+  LINK,
+  ORDERED_LIST,
+  QUOTE,
+  ...TRANSFORMERS,
+]
