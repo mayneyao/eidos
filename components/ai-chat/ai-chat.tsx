@@ -1,7 +1,7 @@
 "use client"
 
 // for now it's under database page, maybe move to global later
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useKeyPress } from "ahooks"
 import { Loader2, Paintbrush } from "lucide-react"
@@ -9,8 +9,11 @@ import { Loader2, Paintbrush } from "lucide-react"
 import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
 import { useAI } from "@/hooks/use-ai"
 import { useAutoRunCode } from "@/hooks/use-auto-run-code"
+import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqliteStore } from "@/hooks/use-sqlite"
+import { useDocEditor } from "@/hooks/use-doc-editor"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { useTableStore } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
@@ -21,20 +24,38 @@ import { AIChatMessage } from "./ai-chat-message"
 
 export const AIChat = () => {
   const { currentTableSchema } = useDatabaseAppStore()
+  const { uiColumns } = useTableStore()
   const { askAI } = useAI()
   const { database } = useCurrentPathInfo()
+  const currentNode = useCurrentNode()
   const { aiConfig } = useConfigStore()
+  const { sqlite } = useSqlite(database)
+
+  const { getDocMarkdown } = useDocEditor(sqlite)
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const { handleFunctionCall, handleRunCode } = useAutoRunCode()
+  const [currentDocMarkdown, setCurrentDocMarkdown] = useState("")
 
   const divRef = useRef<HTMLDivElement>()
   const { aiMessages: messages, setAiMessages: setMessages } =
     useDatabaseAppStore()
-  const { allNodes: allTables } = useSqliteStore()
+  const { allNodes: allTables, allUiColumns } = useSqliteStore()
+
+  useEffect(() => {
+    if (currentNode?.type === "doc") {
+      console.log("fetching doc markdown")
+      getDocMarkdown(currentNode.id).then((res) => {
+        setCurrentDocMarkdown(res)
+      })
+    } else {
+      setCurrentDocMarkdown("")
+    }
+  }, [currentNode?.id, currentNode?.type, getDocMarkdown])
 
   const cleanMessages = useCallback(() => {
     setMessages([])
+    setLoading(false)
   }, [setMessages])
 
   const textInputRef = useRef<HTMLTextAreaElement>()
@@ -43,14 +64,16 @@ export const AIChat = () => {
     textInputRef.current?.focus()
   })
 
-  const runFromIndex = async (index: number) => {
-    const _messages = messages.slice(0, index + 1)
-    const response = await askAI(_messages, {
-      tableSchema: currentTableSchema,
-      allTables,
-      databaseName: database,
-    })
-  }
+  // const runFromIndex = async (index: number) => {
+  //   const _messages = messages.slice(0, index + 1)
+  //   const response = await askAI(_messages, {
+  //     tableSchema: currentTableSchema,
+  //     allTables,
+  //     uiColumns,
+  //     allUiColumns,
+  //     databaseName: database,
+  //   })
+  // }
 
   // useTableChange(cleanMessages)
 
@@ -60,7 +83,10 @@ export const AIChat = () => {
       const response = await askAI(_messages, {
         tableSchema: currentTableSchema,
         allTables,
+        uiColumns,
         databaseName: database,
+        allUiColumns,
+        currentDocMarkdown,
       })
 
       if (response?.finish_reason == "function_call") {
@@ -84,13 +110,17 @@ export const AIChat = () => {
               tableSchema: currentTableSchema,
               allTables,
               databaseName: database,
+              allUiColumns,
+              currentDocMarkdown,
             })
-            const _newMessages = [
-              ...newMessages,
-              { role: "assistant", content: newResponse?.message?.content },
-            ]
-            console.log({ _newMessages })
-            setMessages(_newMessages as any)
+            if (newResponse?.message?.content) {
+              const _newMessages = [
+                ...newMessages,
+                { role: "assistant", content: newResponse?.message?.content },
+              ]
+              console.log({ _newMessages })
+              setMessages(_newMessages as any)
+            }
           }
         }
       } else if (response?.message) {

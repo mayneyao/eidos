@@ -2,6 +2,7 @@ import Papa from "papaparse"
 import { v4 as uuidv4 } from "uuid"
 
 import { logger } from "@/lib/log"
+import { ColumnTableName } from "@/lib/sqlite/const"
 import { getRawTableNameById } from "@/lib/utils"
 
 export type ISqls = {
@@ -9,10 +10,10 @@ export type ISqls = {
   bind: any[]
 }[]
 export const csvFile2Sql = async (
-  file: File,
-  tableName: string
+  file: File
 ): Promise<{
   createTableSql: string
+  columns: string[]
   tableId: string
   sqls: ISqls
 }> => {
@@ -20,6 +21,7 @@ export const csvFile2Sql = async (
   const tableId = uuidv4().split("-").join("")
   let createTableSql = ""
   const sqls: ISqls = []
+  let columns: string[] = []
 
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
@@ -30,22 +32,27 @@ export const csvFile2Sql = async (
         resolve({
           createTableSql,
           sqls,
+          columns,
           tableId,
         })
       },
       step: (results: any, parser: any) => {
         const rawTableName = getRawTableNameById(tableId)
         if (!hasCreateTable) {
-          const columns = Object.keys(results.data)
+          columns = Object.keys(results.data)
           createTableSql = `
   CREATE TABLE ${rawTableName} (
-    _id VARCHAR(32) PRIMARY KEY NOT NULL
-    ,${columns.join(" VARCHAR(100)  NULL,\n") + " VARCHAR(100)  NULL"}
+    _id TEXT PRIMARY KEY NOT NULL
+    ,${columns.join(" TEXT  NULL,\n") + " VARCHAR(100)  NULL"}
   );
+  INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('_id', 'text', '${rawTableName}', '_id');
   `
+          columns.forEach((column) => {
+            createTableSql += `INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('${column}', 'text', '${rawTableName}', '${column}');`
+          })
+
           hasCreateTable = true
         } else {
-          const columns = Object.keys(results.data)
           const values = Object.values(results.data)
           const _values = [uuidv4(), ...values].map((item: any) => `'${item}'`)
           const _columns = ["_id", ...columns]

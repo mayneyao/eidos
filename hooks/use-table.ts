@@ -32,6 +32,7 @@ export type IUIColumn = {
   name: string
   type: string
   table_column_name: string
+  table_name: string
   property: any
 }
 
@@ -247,11 +248,13 @@ export const useTable = (tableName: string, databaseName: string) => {
   const runQuery = useCallback(
     async (querySql: string) => {
       if (sqlite) {
-        const res = await sqlite.sql`${querySql}`
+        const res = await sqlite.exec2(querySql)
+        console.log(res)
         if (checkSqlIsModifyTableSchema(querySql)) {
           updateTableSchema()
         }
         if (checkSqlIsOnlyQuery(querySql)) {
+          return res;
           const originSchema = tableSchema ? sqlToJSONSchema2(tableSchema) : []
           const fields = originSchema[0]?.columns?.map((col) => col.name) ?? []
           const compactJsonTablesArray = aggregateSql2columns(querySql, fields)

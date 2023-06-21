@@ -48,11 +48,17 @@ export const saveFile = async (file: File, name?: string) => {
   return fileHandle
 }
 
+let _content: string
+
 export const updateDocFile = async (
   spaceName: string,
   docId: string,
   content: string
 ) => {
+  if (_content === content) {
+    console.log("content not changed, skip update doc file")
+    return
+  }
   const opfsRoot = await navigator.storage.getDirectory()
   const docFileName = `${docId}.md`
   const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces")
@@ -63,6 +69,7 @@ export const updateDocFile = async (
   const writable = await (fileHandle as any).createWritable()
   await writable.write(content)
   await writable.close()
+  _content = content
   console.log("update doc file", docFileName)
 }
 
@@ -74,4 +81,12 @@ export const getDocContent = async (spaceName: string, docId: string) => {
   const fileHandle = await spaceDirHandle.getFileHandle(docFileName)
   const file = await fileHandle.getFile()
   return await file.text()
+}
+
+export const deleteDocFile = async (spaceName: string, docId: string) => {
+  const opfsRoot = await navigator.storage.getDirectory()
+  const docFileName = `${docId}.md`
+  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces")
+  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName)
+  await spaceDirHandle.removeEntry(docFileName)
 }

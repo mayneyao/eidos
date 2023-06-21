@@ -46,8 +46,8 @@ export const lightTheme: Theme = {
   textLight: "#B2B2C0",
   textBubble: "#313139",
 
-  bgIconHeader: "#FFFFFF",
-  fgIconHeader: "#aaaaaa",
+  bgIconHeader: "#aaaaaa",
+  fgIconHeader: "#FFFFFF",
   textHeader: "#313139",
   textGroupHeader: "#313139BB",
   textHeaderSelected: "#FFFFFF",

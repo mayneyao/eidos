@@ -336,7 +336,7 @@ code.not-prose::after {
   content: "";
   width: 16px;
   height: 16px;
-  top: 2px;
+  top: 6px;
   left: 0;
   cursor: pointer;
   display: block;
@@ -370,7 +370,7 @@ code.not-prose::after {
   border-style: solid;
   position: absolute;
   display: block;
-  top: 6px;
+  top: 12px;
   width: 3px;
   left: 7px;
   right: 7px;

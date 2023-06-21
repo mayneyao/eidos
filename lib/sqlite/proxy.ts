@@ -1,4 +1,4 @@
-import { SqlDatabase } from "@/worker/sql"
+import { DataSpace } from "@/worker/sql"
 import { DataConnection } from "peerjs"
 
 import { toast } from "@/components/ui/use-toast"
@@ -129,7 +129,7 @@ export const getSqliteProxy = (
     sqlite = new LocalSqlite(getWorker())
   }
 
-  return new Proxy<SqlDatabase>({} as any, {
+  return new Proxy<DataSpace>({} as any, {
     get(target, method) {
       if (method == "_config") {
         return config

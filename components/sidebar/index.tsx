@@ -18,7 +18,7 @@ import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
 import { CreateFileDialog } from "./create-file"
 import { TableListLoading } from "./loading"
-import { TableItem } from "./table-menu"
+import { NodeItem } from "./table-menu"
 
 const ItemIcon = ({
   type,
@@ -39,18 +39,14 @@ const ItemIcon = ({
 }
 
 export const SideBar = ({ className }: any) => {
-  const { database, tableName: tableName } = useCurrentPathInfo()
+  const { database } = useCurrentPathInfo()
   const currentNode = useCurrentNode()
   const [loading, setLoading] = useState(true)
-  const { queryAllTables } = useSqlite(database)
-  const {
-    setSelectedTable,
-    allNodes,
-    setAllNodes: setAllTables,
-  } = useSqliteStore()
+  const { updateNodeList } = useSqlite(database)
+  const { setSelectedTable, allNodes } = useSqliteStore()
   const databaseList = useAllDatabases()
   const { isShareMode } = useAppRuntimeStore()
-  const { isSidebarOpen, setSidebarOpen } = useAppRuntimeStore()
+  const { setSidebarOpen } = useAppRuntimeStore()
 
   const handleClickTable = (table: string) => {
     setSidebarOpen(false)
@@ -58,11 +54,10 @@ export const SideBar = ({ className }: any) => {
   }
   useEffect(() => {
     console.log("side bar loading all tables ")
-    queryAllTables().then((tables) => {
-      tables && setAllTables(tables)
+    updateNodeList().then(() => {
       setLoading(false)
     })
-  }, [queryAllTables, setAllTables])
+  }, [updateNodeList])
   const searchParams = useSearchParams()
 
   const databaseHomeLink = `/${database}`
@@ -93,12 +88,7 @@ export const SideBar = ({ className }: any) => {
                   ? `/share/${database}/${node.id}?` + searchParams.toString()
                   : `/${database}/${node.id}`
                 return (
-                  <TableItem
-                    tableName={node.name}
-                    databaseName={database}
-                    tableId={node.id}
-                    key={node.id}
-                  >
+                  <NodeItem node={node} databaseName={database} key={node.id}>
                     <Button
                       variant={
                         node.id === currentNode?.id ? "secondary" : "ghost"
@@ -113,7 +103,7 @@ export const SideBar = ({ className }: any) => {
                         {node.name}
                       </Link>
                     </Button>
-                  </TableItem>
+                  </NodeItem>
                 )
               })
             )}
