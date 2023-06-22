@@ -69,34 +69,91 @@ export const updateDocFile = async (
     console.log("content not changed, skip update doc file")
     return
   }
-  const opfsRoot = await navigator.storage.getDirectory()
+  const opfsDoc = opfsDocManager
   const docFileName = `${docId}.md`
-  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces")
-  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName)
-  const fileHandle = await spaceDirHandle.getFileHandle(docFileName, {
-    create: true,
-  })
-  const writable = await (fileHandle as any).createWritable()
-  await writable.write(content)
-  await writable.close()
+  const paths = ["spaces", spaceName, docFileName]
+  await opfsDoc.updateDocFile(paths, content)
   _content = content
   console.log("update doc file", docFileName)
 }
 
 export const getDocContent = async (spaceName: string, docId: string) => {
-  const opfsRoot = await navigator.storage.getDirectory()
+  const opfsDoc = opfsDocManager
   const docFileName = `${docId}.md`
-  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces")
-  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName)
-  const fileHandle = await spaceDirHandle.getFileHandle(docFileName)
-  const file = await fileHandle.getFile()
-  return await file.text()
+  const paths = ["spaces", spaceName, docFileName]
+  return await opfsDoc.getDocContent(paths)
 }
 
 export const deleteDocFile = async (spaceName: string, docId: string) => {
-  const opfsRoot = await navigator.storage.getDirectory()
+  const opfsDoc = opfsDocManager
   const docFileName = `${docId}.md`
+  const paths = ["spaces", spaceName, docFileName]
+  return await opfsDoc.deleteDocFile(paths)
+}
+
+export const getAllDays = async (spaceName: string) => {
+  const opfsRoot = await navigator.storage.getDirectory()
   const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces")
   const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName)
-  await spaceDirHandle.removeEntry(docFileName)
+  const everydayDirHandle = await spaceDirHandle.getDirectoryHandle("everyday")
+
+  // list all entries in everyday folder
+  const entries = []
+  for await (let entry of (everydayDirHandle as any).values()) {
+    entries.push(entry)
+  }
+  return entries
 }
+
+export class OpfsDoc {
+  private getDirHandle = async (_paths: string[]) => {
+    const paths = [..._paths]
+    const opfsRoot = await navigator.storage.getDirectory()
+    let dirHandle = opfsRoot
+    for (let path of paths) {
+      dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
+    }
+    return dirHandle
+  }
+
+  updateDocFile = async (_paths: string[], content: string) => {
+    const paths = [..._paths]
+    if (paths.length === 0) {
+      throw new Error("paths can't be empty")
+    }
+    const filename = paths.pop()
+    const dirHandle = await this.getDirHandle(paths)
+    const fileHandle = await dirHandle.getFileHandle(filename!, {
+      create: true,
+    })
+    const writable = await (fileHandle as any).createWritable()
+    await writable.write(content)
+    await writable.close()
+  }
+
+  getDocContent = async (_paths: string[]) => {
+    const paths = [..._paths]
+    if (paths.length === 0) {
+      throw new Error("paths can't be empty")
+    }
+    const filename = paths.pop()
+    const dirHandle = await this.getDirHandle(paths)
+    const fileHandle = await dirHandle.getFileHandle(filename!, {
+      create: true,
+    })
+    const file = await fileHandle.getFile()
+    return await file.text()
+  }
+
+  deleteDocFile = async (_paths: string[]) => {
+    const paths = [..._paths]
+    if (paths.length === 0) {
+      throw new Error("paths can't be empty")
+    }
+    const filename = paths.pop()
+    const dirHandle = await this.getDirHandle(paths)
+    await dirHandle.removeEntry(filename!)
+  }
+}
+
+export const opfsDocManager = new OpfsDoc()
