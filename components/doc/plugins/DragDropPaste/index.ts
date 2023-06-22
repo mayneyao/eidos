@@ -12,7 +12,7 @@ import { isMimeType } from "@lexical/utils"
 import { COMMAND_PRIORITY_LOW } from "lexical"
 import { useEffect } from "react"
 
-import { uploadFile2OPFS } from "@/lib/fs"
+import { uploadFile2OPFS } from "@/lib/opfs"
 
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 

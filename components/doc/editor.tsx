@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
+import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
@@ -25,10 +26,13 @@ const editorConfig: any = {
 }
 
 interface EditorProps {
-  docId: string
+  docId?: string
   onSave: (content: string) => void
   initContent?: string
   isEditable: boolean
+  autoSave?: boolean
+  placeholder?: string
+  autoFocus?: boolean
 }
 
 export function Editor(props: EditorProps) {
@@ -45,46 +49,44 @@ export function Editor(props: EditorProps) {
     editable: props.isEditable,
   }
   return (
-    <div className="flex  items-center justify-center">
-      <div className="h-full w-[900px]">
-        <LexicalComposer initialConfig={initConfig}>
-          <div
-            className="editor-container h-full"
-            ref={ref}
-            id="editor-container"
-          >
-            <div className="editor-inner relative h-full">
-              <RichTextPlugin
-                contentEditable={
-                  <div className="editor relative" ref={onRef}>
-                    <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert" />
-                    {/* <div className="h-12 w-full">
-                      click here to create a new block
-                    </div> */}
-                  </div>
-                }
-                placeholder={
-                  <div className="pointer-events-none absolute left-2 top-3 text-[#aaa]">
-                    press / for Command
-                  </div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-              <AllPlugins />
-              <AutoSavePlugin
-                onSave={props.onSave}
-                initContent={props.initContent}
-              />
-              <FloatingTextFormatToolbarPlugin />
-              {floatingAnchorElem && (
-                <>
-                  <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
-                </>
-              )}
-            </div>
+    <div className="h-full w-full">
+      <LexicalComposer initialConfig={initConfig}>
+        <div
+          className="editor-container h-full w-full"
+          ref={ref}
+          id="editor-container"
+        >
+          <div className="editor-inner relative h-full w-full">
+            <RichTextPlugin
+              contentEditable={
+                <div className="editor relative" ref={onRef}>
+                  <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert" />
+                  <div className="h-12 w-full" role="safe-bottom-padding"></div>
+                </div>
+              }
+              placeholder={
+                <div className="pointer-events-none absolute left-2 top-3 text-base text-[#aaa]">
+                  <span>{props.placeholder ?? "press / for Command"}</span>
+                </div>
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+            <AllPlugins />
+            {props.autoFocus && <AutoFocusPlugin />}
+            <AutoSavePlugin
+              onSave={props.onSave}
+              autoSave={props.autoSave}
+              initContent={props.initContent}
+            />
+            <FloatingTextFormatToolbarPlugin />
+            {floatingAnchorElem && (
+              <>
+                <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
+              </>
+            )}
           </div>
-        </LexicalComposer>
-      </div>
+        </div>
+      </LexicalComposer>
     </div>
   )
 }

@@ -2,7 +2,7 @@ import React from "react"
 import { DataEditorProps, Item } from "@glideapps/glide-data-grid"
 
 import { FieldType } from "@/lib/fields/const"
-import { uploadFile2OPFS } from "@/lib/fs"
+import { uploadFile2OPFS } from "@/lib/opfs"
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",

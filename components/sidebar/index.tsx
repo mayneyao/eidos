@@ -3,14 +3,20 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { File, FileSpreadsheet } from "lucide-react"
+import {
+  CalendarDays,
+  Database,
+  File,
+  FileSpreadsheet,
+  Files,
+} from "lucide-react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllDatabases } from "@/hooks/use-database"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { IFileNode, useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { Separator } from "@/components/ui/separator"
 import { DatabaseSelect } from "@/components/database-select"
 
@@ -19,6 +25,73 @@ import { ScrollArea } from "../ui/scroll-area"
 import { CreateFileDialog } from "./create-file"
 import { TableListLoading } from "./loading"
 import { NodeItem } from "./table-menu"
+
+const CurrentItemTree = ({
+  allNodes,
+  spaceName,
+  isShareMode,
+  currentNode,
+  Icon,
+  title,
+}: {
+  allNodes: IFileNode[]
+  spaceName: string
+  isShareMode: boolean
+  currentNode: IFileNode | null
+  title: string
+  Icon: React.ReactNode
+}) => {
+  const [showNodes, setShowNodes] = useState(false)
+  const searchParams = useSearchParams()
+
+  const handleToggleShowNodes = () => {
+    setShowNodes(!showNodes)
+  }
+  return (
+    <>
+      <Button
+        variant={"ghost"}
+        size="sm"
+        onClick={handleToggleShowNodes}
+        className="w-full justify-start font-normal"
+        asChild
+      >
+        <span className="cursor-pointer">
+          {Icon}
+          {title}
+        </span>
+      </Button>
+      {showNodes && (
+        <ScrollArea className="grow px-2">
+          <div className="space-y-1 p-2">
+            {allNodes?.map((node, i) => {
+              const link = isShareMode
+                ? `/share/${spaceName}/${node.id}?` + searchParams.toString()
+                : `/${spaceName}/${node.id}`
+              return (
+                <NodeItem node={node} databaseName={spaceName} key={node.id}>
+                  <Button
+                    variant={
+                      node.id === currentNode?.id ? "secondary" : "ghost"
+                    }
+                    size="sm"
+                    className="w-full justify-start font-normal"
+                    asChild
+                  >
+                    <Link href={link}>
+                      <ItemIcon type={node.type} className="pr-2" />
+                      {node.name}
+                    </Link>
+                  </Button>
+                </NodeItem>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      )}
+    </>
+  )
+}
 
 const ItemIcon = ({
   type,
@@ -43,22 +116,16 @@ export const SideBar = ({ className }: any) => {
   const currentNode = useCurrentNode()
   const [loading, setLoading] = useState(true)
   const { updateNodeList } = useSqlite(database)
-  const { setSelectedTable, allNodes } = useSqliteStore()
+  const { allNodes } = useSqliteStore()
   const databaseList = useAllDatabases()
   const { isShareMode } = useAppRuntimeStore()
-  const { setSidebarOpen } = useAppRuntimeStore()
 
-  const handleClickTable = (table: string) => {
-    setSidebarOpen(false)
-    setSelectedTable(table)
-  }
   useEffect(() => {
     console.log("side bar loading all tables ")
     updateNodeList().then(() => {
       setLoading(false)
     })
   }, [updateNodeList])
-  const searchParams = useSearchParams()
 
   const databaseHomeLink = `/${database}`
 
@@ -66,11 +133,11 @@ export const SideBar = ({ className }: any) => {
     <>
       <div className={cn("flex h-full flex-col p-4", className)}>
         <div className="flex items-center justify-between">
-          {!isShareMode && (
+          {/* {!isShareMode && (
             <h2 className="relative px-6 text-lg font-semibold tracking-tight">
-              <Link href={databaseHomeLink}>Tables</Link>
+              <Link href={databaseHomeLink}>Eidos</Link>
             </h2>
-          )}
+          )} */}
           {isShareMode ? (
             "shareMode"
           ) : (
@@ -78,38 +145,45 @@ export const SideBar = ({ className }: any) => {
           )}
         </div>
         <Separator className="my-2" />
-        <ScrollArea className="grow px-2">
-          <div className="space-y-1 p-2">
-            {loading ? (
-              <TableListLoading />
-            ) : (
-              allNodes?.map((node, i) => {
-                const link = isShareMode
-                  ? `/share/${database}/${node.id}?` + searchParams.toString()
-                  : `/${database}/${node.id}`
-                return (
-                  <NodeItem node={node} databaseName={database} key={node.id}>
-                    <Button
-                      variant={
-                        node.id === currentNode?.id ? "secondary" : "ghost"
-                      }
-                      size="sm"
-                      onClick={() => handleClickTable(node.id)}
-                      className="w-full justify-start font-normal"
-                      asChild
-                    >
-                      <Link href={link}>
-                        <ItemIcon type={node.type} className="pr-2" />
-                        {node.name}
-                      </Link>
-                    </Button>
-                  </NodeItem>
-                )
-              })
-            )}
-          </div>
-        </ScrollArea>
-        <CreateFileDialog />
+        <div className="flex  h-full flex-col justify-between">
+          {loading ? (
+            <TableListLoading />
+          ) : (
+            <div>
+              {!isShareMode && (
+                <Button
+                  variant={"ghost"}
+                  size="sm"
+                  className="w-full justify-start font-normal"
+                  asChild
+                >
+                  <Link href={`/${database}/everyday`}>
+                    <CalendarDays className="pr-2" />
+                    Everyday
+                  </Link>
+                </Button>
+              )}
+
+              <CurrentItemTree
+                title="Tables"
+                spaceName={database}
+                allNodes={allNodes.filter((node) => node.type === "table")}
+                isShareMode={isShareMode}
+                Icon={<Database className="pr-2" />}
+                currentNode={currentNode}
+              />
+              <CurrentItemTree
+                title="Documents"
+                spaceName={database}
+                allNodes={allNodes.filter((node) => node.type === "doc")}
+                isShareMode={isShareMode}
+                currentNode={currentNode}
+                Icon={<Files className="pr-2" />}
+              />
+            </div>
+          )}
+          <CreateFileDialog />
+        </div>
       </div>
     </>
   )

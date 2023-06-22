@@ -1,4 +1,3 @@
-import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin"
 import LexicalClickableLinkPlugin from "@lexical/react/LexicalClickableLinkPlugin"
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
@@ -23,7 +22,6 @@ export const AllPlugins = () => {
       <SQLPlugin />
       <CodeHighlightPlugin />
       <HistoryPlugin />
-      <AutoFocusPlugin />
       <ListPlugin />
       {/* TabIndentationPlugin let you type `Tab` to indent a list item, ListMaxIndentLevelPlugin let you control the max indent level */}
       <TabIndentationPlugin />
