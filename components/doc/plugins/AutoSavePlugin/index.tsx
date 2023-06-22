@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useKeyPress } from "ahooks"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 interface AutoSavePluginProps {
   onSave: (markdown: string) => void
@@ -13,6 +16,7 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   const { onSave, initContent } = props
   const versionRef = useRef(0)
   const lastSaveVersionRef = useRef(0)
+  const [content, setContent] = useState<string>("")
 
   useKeyPress("ctrl.s", (e) => {
     e.preventDefault()
@@ -60,5 +64,23 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
     }
   }, [handleMarkdownToggle, props.autoSave])
 
+  const handleImport = () => {
+    editor.update(() => {
+      const parsedState = editor.parseEditorState(content)
+      editor.setEditorState(parsedState)
+    })
+  }
+
   return null
+  // import editor state in dev mode
+  return (
+    <div>
+      <Input
+        type="text"
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+      />
+      <Button onClick={handleImport}>import</Button>
+    </div>
+  )
 }
