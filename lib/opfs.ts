@@ -4,6 +4,12 @@
  * - spaces
  *  - space1
  *    - db.sqlite3
+ *    - everyday
+ *      - 2021-01-01.md
+ *      - 2021-01-02.md
+ *    - docs
+ *     - 1234567890.md
+ *     - 1234567891.md
  *  - space2
  *    - db.sqlite3
  * - files
@@ -71,7 +77,7 @@ export const updateDocFile = async (
   }
   const opfsDoc = opfsDocManager
   const docFileName = `${docId}.md`
-  const paths = ["spaces", spaceName, docFileName]
+  const paths = ["spaces", spaceName, "docs", docFileName]
   await opfsDoc.updateDocFile(paths, content)
   _content = content
   console.log("update doc file", docFileName)
@@ -80,14 +86,14 @@ export const updateDocFile = async (
 export const getDocContent = async (spaceName: string, docId: string) => {
   const opfsDoc = opfsDocManager
   const docFileName = `${docId}.md`
-  const paths = ["spaces", spaceName, docFileName]
+  const paths = ["spaces", spaceName, "docs", docFileName]
   return await opfsDoc.getDocContent(paths)
 }
 
 export const deleteDocFile = async (spaceName: string, docId: string) => {
   const opfsDoc = opfsDocManager
   const docFileName = `${docId}.md`
-  const paths = ["spaces", spaceName, docFileName]
+  const paths = ["spaces", spaceName, "docs", docFileName]
   return await opfsDoc.deleteDocFile(paths)
 }
 
@@ -124,6 +130,7 @@ export class OpfsDoc {
     }
     return entries
   }
+
   updateDocFile = async (_paths: string[], content: string) => {
     const paths = [..._paths]
     if (paths.length === 0) {
