@@ -20,7 +20,9 @@ export default function IndexPage() {
   }, [lastOpenedDatabase, goto])
   return (
     <div className="flex h-screen w-screen items-center justify-center">
-      <DatabaseSelect databases={databaseList} />
+      <div className="w-[200px]">
+        <DatabaseSelect databases={databaseList} />
+      </div>
     </div>
   )
 }

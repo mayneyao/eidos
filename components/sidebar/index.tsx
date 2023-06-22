@@ -141,7 +141,12 @@ export const SideBar = ({ className }: any) => {
           {isShareMode ? (
             "shareMode"
           ) : (
-            <DatabaseSelect databases={databaseList} defaultValue={database} />
+            <>
+              <DatabaseSelect
+                databases={databaseList}
+                defaultValue={database}
+              />
+            </>
           )}
         </div>
         <Separator className="my-2" />

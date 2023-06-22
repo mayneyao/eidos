@@ -111,19 +111,19 @@ export const getAllDays = async (spaceName: string) => {
   return entries
 }
 
-export class OpfsDoc {
-  private getDirHandle = async (_paths: string[]) => {
-    const paths = [..._paths]
-    const opfsRoot = await navigator.storage.getDirectory()
-    let dirHandle = opfsRoot
-    for (let path of paths) {
-      dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
-    }
-    return dirHandle
+export const getDirHandle = async (_paths: string[]) => {
+  const paths = [..._paths]
+  const opfsRoot = await navigator.storage.getDirectory()
+  let dirHandle = opfsRoot
+  for (let path of paths) {
+    dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
   }
+  return dirHandle
+}
 
+export class OpfsDoc {
   listDir = async (_paths: string[]) => {
-    const dirHandle = await this.getDirHandle(_paths)
+    const dirHandle = await getDirHandle(_paths)
     const entries = []
     for await (let entry of (dirHandle as any).values()) {
       entries.push(entry)
@@ -137,7 +137,7 @@ export class OpfsDoc {
       throw new Error("paths can't be empty")
     }
     const filename = paths.pop()
-    const dirHandle = await this.getDirHandle(paths)
+    const dirHandle = await getDirHandle(paths)
     const fileHandle = await dirHandle.getFileHandle(filename!, {
       create: true,
     })
@@ -152,7 +152,7 @@ export class OpfsDoc {
       throw new Error("paths can't be empty")
     }
     const filename = paths.pop()
-    const dirHandle = await this.getDirHandle(paths)
+    const dirHandle = await getDirHandle(paths)
     const fileHandle = await dirHandle.getFileHandle(filename!, {
       create: true,
     })
@@ -166,7 +166,7 @@ export class OpfsDoc {
       throw new Error("paths can't be empty")
     }
     const filename = paths.pop()
-    const dirHandle = await this.getDirHandle(paths)
+    const dirHandle = await getDirHandle(paths)
     await dirHandle.removeEntry(filename!)
   }
 }
