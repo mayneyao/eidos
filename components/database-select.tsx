@@ -1,8 +1,10 @@
 "use client"
 
-import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
 import * as React from "react"
+import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
 
+import { cn } from "@/lib/utils"
+import { useGoto } from "@/hooks/use-goto"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -27,8 +29,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useGoto } from "@/hooks/use-goto"
-import { cn } from "@/lib/utils"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -70,7 +70,7 @@ export function DatabaseSelect({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-[180px] justify-between"
+            className="w-full min-w-[180px] justify-between"
           >
             {value
               ? databases.find((db) => db === value)
@@ -78,7 +78,7 @@ export function DatabaseSelect({
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[180px] p-0">
+        <PopoverContent className="w-full min-w-[180px] p-0">
           <Command>
             <CommandList>
               <CommandInput

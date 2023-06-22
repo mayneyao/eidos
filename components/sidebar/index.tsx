@@ -116,16 +116,10 @@ export const SideBar = ({ className }: any) => {
   const currentNode = useCurrentNode()
   const [loading, setLoading] = useState(true)
   const { updateNodeList } = useSqlite(database)
-  const { setSelectedTable, allNodes } = useSqliteStore()
+  const { allNodes } = useSqliteStore()
   const databaseList = useAllDatabases()
   const { isShareMode } = useAppRuntimeStore()
-  const { setSidebarOpen } = useAppRuntimeStore()
-  const [currentItem, setCurrentItem] = useState("")
 
-  const handleClickTable = (table: string) => {
-    setSidebarOpen(false)
-    setSelectedTable(table)
-  }
   useEffect(() => {
     console.log("side bar loading all tables ")
     updateNodeList().then(() => {
@@ -139,11 +133,11 @@ export const SideBar = ({ className }: any) => {
     <>
       <div className={cn("flex h-full flex-col p-4", className)}>
         <div className="flex items-center justify-between">
-          {!isShareMode && (
+          {/* {!isShareMode && (
             <h2 className="relative px-6 text-lg font-semibold tracking-tight">
               <Link href={databaseHomeLink}>Eidos</Link>
             </h2>
-          )}
+          )} */}
           {isShareMode ? (
             "shareMode"
           ) : (
