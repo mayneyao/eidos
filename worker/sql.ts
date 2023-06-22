@@ -4,8 +4,13 @@ import sqlite3InitModule, {
 } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
-import { deleteDocFile, getDocContent, updateDocFile } from "@/lib/opfs"
 import { logger } from "@/lib/log"
+import {
+  deleteDocFile,
+  getDocContent,
+  opfsDocManager,
+  updateDocFile,
+} from "@/lib/opfs"
 import { ColumnTableName, TreeTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 
@@ -110,6 +115,17 @@ export class DataSpace {
 
   public async deleteDoc(docId: string) {
     await deleteDocFile(this.dbName, docId)
+  }
+
+  public async createDayNote(day: string, content: string) {
+    await opfsDocManager.updateDocFile(
+      ["spaces", this.dbName, "everyday", day],
+      content
+    )
+  }
+
+  public async listDays() {
+    return await opfsDocManager.listDir(["spaces", this.dbName, "everyday"])
   }
 
   // FIXME: there are some problem with headless lexical run in worker

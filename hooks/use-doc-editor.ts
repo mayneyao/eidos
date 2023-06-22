@@ -1,10 +1,10 @@
-import { useCallback } from "react"
 import { DataSpace } from "@/worker/sql"
 import { CodeHighlightNode, CodeNode } from "@lexical/code"
 import { createHeadlessEditor } from "@lexical/headless"
 import { AutoLinkNode, LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
 import {
+  $convertFromMarkdownString,
   $convertToMarkdownString,
   CHECK_LIST,
   CODE,
@@ -13,8 +13,8 @@ import {
 } from "@lexical/markdown"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
+import { useCallback } from "react"
 
-import { getDocContent } from "@/lib/opfs"
 
 export const allTransformers = [CHECK_LIST, CODE, INLINE_CODE, ...TRANSFORMERS]
 
@@ -52,5 +52,19 @@ export const useDocEditor = (sqlite: DataSpace | null) => {
     },
     [sqlite]
   )
-  return { getDocMarkdown }
+  const convertMarkdown2State = useCallback(
+    async (markdown: string): Promise<string> => {
+      return new Promise((resolve) => {
+        editor.update(() => {
+          $convertFromMarkdownString(markdown, allTransformers)
+          const json = editor.getEditorState().toJSON()
+          const content = JSON.stringify(json)
+          resolve(content)
+        })
+      })
+    },
+    []
+  )
+
+  return { getDocMarkdown, convertMarkdown2State }
 }

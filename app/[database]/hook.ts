@@ -66,7 +66,7 @@ export const useLayoutInit = () => {
 
   useEffect(() => {
     initPeer()
-  }, [])
+  }, [initPeer])
 
   useEffect(() => {
     const worker = getWorker()

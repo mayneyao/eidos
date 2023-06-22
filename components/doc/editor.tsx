@@ -19,7 +19,7 @@ const editorConfig: any = {
   theme: defaultTheme,
   // Handling of errors during update
   onError(error: any) {
-    throw error
+    console.error(error)
   },
   // Any custom nodes go here
   nodes: AllNodes,
