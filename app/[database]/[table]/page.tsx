@@ -39,12 +39,14 @@ export default function TablePage() {
         <Grid tableName={params.tableName!} databaseName={params.database} />
       )}
       {node?.type === "doc" && (
-        <Editor
-          isEditable
-          docId={params.docId!}
-          onSave={handleSaveDoc}
-          initContent={initContent}
-        />
+        <div className="prose mx-auto flex p-10 lg:prose-xl xl:prose-2xl">
+          <Editor
+            isEditable
+            docId={params.docId!}
+            onSave={handleSaveDoc}
+            initContent={initContent}
+          />
+        </div>
       )}
     </>
   )

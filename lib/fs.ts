@@ -116,6 +116,14 @@ export class OpfsDoc {
     return dirHandle
   }
 
+  listDir = async (_paths: string[]) => {
+    const dirHandle = await this.getDirHandle(_paths)
+    const entries = []
+    for await (let entry of (dirHandle as any).values()) {
+      entries.push(entry)
+    }
+    return entries
+  }
   updateDocFile = async (_paths: string[], content: string) => {
     const paths = [..._paths]
     if (paths.length === 0) {

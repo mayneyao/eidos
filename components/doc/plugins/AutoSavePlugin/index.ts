@@ -5,6 +5,7 @@ import { useKeyPress } from "ahooks"
 interface AutoSavePluginProps {
   onSave: (markdown: string) => void
   initContent?: string
+  autoSave?: boolean
 }
 
 export function AutoSavePlugin(props: AutoSavePluginProps) {
@@ -48,13 +49,15 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   }, [editor, onSave])
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      handleMarkdownToggle()
-    }, 1000 * 10)
-    return () => {
-      clearInterval(timer)
+    if (props.autoSave) {
+      const timer = setInterval(() => {
+        handleMarkdownToggle()
+      }, 1000 * 10)
+      return () => {
+        clearInterval(timer)
+      }
     }
-  }, [])
+  }, [handleMarkdownToggle, props.autoSave])
 
   return null
 }
