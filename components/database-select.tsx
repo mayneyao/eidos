@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Check, ChevronsUpDown, Download, PlusCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useGoto } from "@/hooks/use-goto"
@@ -48,6 +49,11 @@ export function DatabaseSelect({
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [databaseName, setDatabaseName] = React.useState("")
   const goto = useGoto()
+  const router = useRouter()
+
+  const handleGoSpaceManagement = () => {
+    router.push("/space-manage")
+  }
 
   const handleSelect = (currentValue: string) => {
     setValue(currentValue === value ? "" : currentValue)
@@ -116,6 +122,9 @@ export function DatabaseSelect({
                     <PlusCircle className="mr-2 h-5 w-5" /> Create New
                   </CommandItem>
                 </DialogTrigger>
+                <CommandItem onSelect={handleGoSpaceManagement}>
+                  <Download className="mr-2 h-5 w-5" /> Import/Export
+                </CommandItem>
               </CommandGroup>
             </CommandList>
           </Command>
