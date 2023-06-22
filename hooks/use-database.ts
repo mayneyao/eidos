@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 
-import { getAllSpaceNames } from "@/lib/fs"
+import { getAllSpaceNames } from "@/lib/opfs"
 
 import { useSqliteStore } from "./use-sqlite"
 

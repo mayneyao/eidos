@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 
-import { opfsDocManager } from "@/lib/fs"
+import { opfsDocManager } from "@/lib/opfs"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Editor } from "@/components/doc/editor"
 
@@ -35,7 +35,6 @@ export default function EverydayPage() {
         } else {
           _days = [today, ...existDays]
         }
-        console.log(_days, existDays)
         setDays(_days)
         const res = await Promise.all(
           _days.map(async (day) => {

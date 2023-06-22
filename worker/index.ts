@@ -1,5 +1,5 @@
 import { MsgType } from "@/lib/const"
-import { getSpaceDatabasePath } from "@/lib/fs"
+import { getSpaceDatabasePath } from "@/lib/opfs"
 import { logger } from "@/lib/log"
 
 import { DataSpace, Sqlite } from "./sql"

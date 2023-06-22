@@ -14,7 +14,7 @@ import {
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
 
-import { getDocContent } from "@/lib/fs"
+import { getDocContent } from "@/lib/opfs"
 
 export const allTransformers = [CHECK_LIST, CODE, INLINE_CODE, ...TRANSFORMERS]
 

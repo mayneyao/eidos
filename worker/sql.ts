@@ -4,7 +4,7 @@ import sqlite3InitModule, {
 } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
-import { deleteDocFile, getDocContent, updateDocFile } from "@/lib/fs"
+import { deleteDocFile, getDocContent, updateDocFile } from "@/lib/opfs"
 import { logger } from "@/lib/log"
 import { ColumnTableName, TreeTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"

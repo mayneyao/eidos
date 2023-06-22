@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 
-import { opfsDocManager } from "@/lib/fs"
+import { opfsDocManager } from "@/lib/opfs"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Editor } from "@/components/doc/editor"
 

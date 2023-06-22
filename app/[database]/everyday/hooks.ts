@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { getAllDays } from "@/lib/fs"
+import { getAllDays } from "@/lib/opfs"
 
 export const useAllDays = (spaceName: string) => {
   const [days, setDays] = useState<string[]>([])
