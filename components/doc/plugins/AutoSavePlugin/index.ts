@@ -39,6 +39,7 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   }, [initContent, editor])
 
   const handleMarkdownToggle = useCallback(() => {
+    if (!editor.isEditable) return
     if (lastSaveVersionRef.current === versionRef.current) {
     } else {
       const json = editor.getEditorState().toJSON()

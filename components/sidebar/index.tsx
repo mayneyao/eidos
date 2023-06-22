@@ -156,17 +156,20 @@ export const SideBar = ({ className }: any) => {
             <TableListLoading />
           ) : (
             <div>
-              <Button
-                variant={"ghost"}
-                size="sm"
-                className="w-full justify-start font-normal"
-                asChild
-              >
-                <Link href={`/${database}/everyday`}>
-                  <CalendarDays className="pr-2" />
-                  Everyday
-                </Link>
-              </Button>
+              {!isShareMode && (
+                <Button
+                  variant={"ghost"}
+                  size="sm"
+                  className="w-full justify-start font-normal"
+                  asChild
+                >
+                  <Link href={`/${database}/everyday`}>
+                    <CalendarDays className="pr-2" />
+                    Everyday
+                  </Link>
+                </Button>
+              )}
+
               <CurrentItemTree
                 title="Tables"
                 spaceName={database}

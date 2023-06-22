@@ -49,49 +49,44 @@ export function Editor(props: EditorProps) {
     editable: props.isEditable,
   }
   return (
-    <div className="flex items-center justify-center">
-      <div className="h-full w-full">
-        <LexicalComposer initialConfig={initConfig}>
-          <div
-            className="editor-container h-full"
-            ref={ref}
-            id="editor-container"
-          >
-            <div className="editor-inner relative h-full">
-              <RichTextPlugin
-                contentEditable={
-                  <div className="editor relative" ref={onRef}>
-                    <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert" />
-                    <div
-                      className="h-12 w-full"
-                      role="safe-bottom-padding"
-                    ></div>
-                  </div>
-                }
-                placeholder={
-                  <div className="pointer-events-none absolute left-2 top-3 text-[#aaa]">
-                    {props.placeholder ?? "press / for Command"}
-                  </div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-              <AllPlugins />
-              {props.autoFocus && <AutoFocusPlugin />}
-              <AutoSavePlugin
-                onSave={props.onSave}
-                autoSave={props.autoSave}
-                initContent={props.initContent}
-              />
-              <FloatingTextFormatToolbarPlugin />
-              {floatingAnchorElem && (
-                <>
-                  <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
-                </>
-              )}
-            </div>
+    <div className="h-full w-full">
+      <LexicalComposer initialConfig={initConfig}>
+        <div
+          className="editor-container h-full w-full"
+          ref={ref}
+          id="editor-container"
+        >
+          <div className="editor-inner relative h-full w-full">
+            <RichTextPlugin
+              contentEditable={
+                <div className="editor relative" ref={onRef}>
+                  <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert" />
+                  <div className="h-12 w-full" role="safe-bottom-padding"></div>
+                </div>
+              }
+              placeholder={
+                <div className="pointer-events-none absolute left-2 top-3 text-base text-[#aaa]">
+                  <span>{props.placeholder ?? "press / for Command"}</span>
+                </div>
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+            <AllPlugins />
+            {props.autoFocus && <AutoFocusPlugin />}
+            <AutoSavePlugin
+              onSave={props.onSave}
+              autoSave={props.autoSave}
+              initContent={props.initContent}
+            />
+            <FloatingTextFormatToolbarPlugin />
+            {floatingAnchorElem && (
+              <>
+                <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
+              </>
+            )}
           </div>
-        </LexicalComposer>
-      </div>
+        </div>
+      </LexicalComposer>
     </div>
   )
 }
