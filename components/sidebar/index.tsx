@@ -1,121 +1,27 @@
 "use client"
 
+import { Database, Files } from "lucide-react"
 import { useEffect, useState } from "react"
-import Link from "next/link"
-import { useSearchParams } from "next/navigation"
-import {
-  CalendarDays,
-  Database,
-  File,
-  FileSpreadsheet,
-  Files,
-} from "lucide-react"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { DatabaseSelect } from "@/components/database-select"
+import { Separator } from "@/components/ui/separator"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllDatabases } from "@/hooks/use-database"
-import { IFileNode, useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { Separator } from "@/components/ui/separator"
-import { DatabaseSelect } from "@/components/database-select"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 
-import { Button } from "../ui/button"
-import { ScrollArea } from "../ui/scroll-area"
 import { CreateFileDialog } from "./create-file"
+import { EverydaySidebarItem } from "./everyday"
+import { CurrentItemTree } from "./item-tree"
 import { TableListLoading } from "./loading"
-import { NodeItem } from "./table-menu"
-
-const CurrentItemTree = ({
-  allNodes,
-  spaceName,
-  isShareMode,
-  currentNode,
-  Icon,
-  title,
-}: {
-  allNodes: IFileNode[]
-  spaceName: string
-  isShareMode: boolean
-  currentNode: IFileNode | null
-  title: string
-  Icon: React.ReactNode
-}) => {
-  const [showNodes, setShowNodes] = useState(false)
-  const searchParams = useSearchParams()
-
-  const handleToggleShowNodes = () => {
-    setShowNodes(!showNodes)
-  }
-  return (
-    <>
-      <Button
-        variant={"ghost"}
-        size="sm"
-        onClick={handleToggleShowNodes}
-        className="w-full justify-start font-normal"
-        asChild
-      >
-        <span className="cursor-pointer">
-          {Icon}
-          {title}
-        </span>
-      </Button>
-      {showNodes && (
-        <ScrollArea className="grow px-2">
-          <div className="space-y-1 p-2">
-            {allNodes?.map((node, i) => {
-              const link = isShareMode
-                ? `/share/${spaceName}/${node.id}?` + searchParams.toString()
-                : `/${spaceName}/${node.id}`
-              return (
-                <NodeItem node={node} databaseName={spaceName} key={node.id}>
-                  <Button
-                    variant={
-                      node.id === currentNode?.id ? "secondary" : "ghost"
-                    }
-                    size="sm"
-                    className="w-full justify-start font-normal"
-                    asChild
-                  >
-                    <Link href={link}>
-                      <ItemIcon type={node.type} className="pr-2" />
-                      {node.name}
-                    </Link>
-                  </Button>
-                </NodeItem>
-              )
-            })}
-          </div>
-        </ScrollArea>
-      )}
-    </>
-  )
-}
-
-const ItemIcon = ({
-  type,
-  className,
-}: {
-  type: string
-  className?: string
-}) => {
-  const _className = cn("opacity-60", className)
-  switch (type) {
-    case "table":
-      return <FileSpreadsheet className={_className} />
-    case "doc":
-      return <File className={_className} />
-    default:
-      return <File className={_className} />
-  }
-}
 
 export const SideBar = ({ className }: any) => {
-  const { database } = useCurrentPathInfo()
+  const { space } = useCurrentPathInfo()
   const currentNode = useCurrentNode()
   const [loading, setLoading] = useState(true)
-  const { updateNodeList } = useSqlite(database)
+  const { updateNodeList } = useSqlite(space)
   const { allNodes } = useSqliteStore()
   const databaseList = useAllDatabases()
   const { isShareMode } = useAppRuntimeStore()
@@ -126,8 +32,6 @@ export const SideBar = ({ className }: any) => {
       setLoading(false)
     })
   }, [updateNodeList])
-
-  const databaseHomeLink = `/${database}`
 
   return (
     <>
@@ -142,10 +46,7 @@ export const SideBar = ({ className }: any) => {
             "shareMode"
           ) : (
             <>
-              <DatabaseSelect
-                databases={databaseList}
-                defaultValue={database}
-              />
+              <DatabaseSelect databases={databaseList} defaultValue={space} />
             </>
           )}
         </div>
@@ -155,23 +56,10 @@ export const SideBar = ({ className }: any) => {
             <TableListLoading />
           ) : (
             <div>
-              {!isShareMode && (
-                <Button
-                  variant={"ghost"}
-                  size="sm"
-                  className="w-full justify-start font-normal"
-                  asChild
-                >
-                  <Link href={`/${database}/everyday`}>
-                    <CalendarDays className="pr-2" />
-                    Everyday
-                  </Link>
-                </Button>
-              )}
-
+              {!isShareMode && <EverydaySidebarItem space={space} />}
               <CurrentItemTree
                 title="Tables"
-                spaceName={database}
+                spaceName={space}
                 allNodes={allNodes.filter((node) => node.type === "table")}
                 isShareMode={isShareMode}
                 Icon={<Database className="pr-2" />}
@@ -179,7 +67,7 @@ export const SideBar = ({ className }: any) => {
               />
               <CurrentItemTree
                 title="Documents"
-                spaceName={database}
+                spaceName={space}
                 allNodes={allNodes.filter((node) => node.type === "doc")}
                 isShareMode={isShareMode}
                 currentNode={currentNode}

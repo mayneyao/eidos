@@ -71,6 +71,7 @@
     "react-day-picker": "^8.7.1",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.44.3",
+    "react-infinite-scroll-hook": "^4.1.1",
     "react-laag": "^2.0.5",
     "react-marked-renderer": "^1.1.2",
     "react-responsive-carousel": "^3.2.23",

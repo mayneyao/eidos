@@ -78,6 +78,7 @@ specifiers:
   react-day-picker: ^8.7.1
   react-dom: ^18.2.0
   react-hook-form: ^7.44.3
+  react-infinite-scroll-hook: ^4.1.1
   react-laag: ^2.0.5
   react-marked-renderer: ^1.1.2
   react-responsive-carousel: ^3.2.23
@@ -151,6 +152,7 @@ dependencies:
   react-day-picker: 8.7.1_kzhlcyde2l6xjiirkbg7jzhosa
   react-dom: 18.2.0_react@18.2.0
   react-hook-form: 7.44.3_react@18.2.0
+  react-infinite-scroll-hook: 4.1.1_react@18.2.0
   react-laag: 2.0.5_biqbaboplfbrettd7655fr4n2y
   react-marked-renderer: 1.1.2_react@18.2.0
   react-responsive-carousel: 3.2.23
@@ -6526,6 +6528,24 @@ packages:
     engines: {node: '>=12.22.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18
+    dependencies:
+      react: 18.2.0
+    dev: false
+
+  /react-infinite-scroll-hook/4.1.1_react@18.2.0:
+    resolution: {integrity: sha512-1bu2572rF3DtjFMhIOzoasLMdYW0vMWxROtl99M5FYGSxm84Ro4aNBZW6ivgE45ofus4Ymo7jIS0Be3zcuLk8g==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      react: '>=16.8.0'
+    dependencies:
+      react: 18.2.0
+      react-intersection-observer-hook: 2.1.1_react@18.2.0
+    dev: false
+
+  /react-intersection-observer-hook/2.1.1_react@18.2.0:
+    resolution: {integrity: sha512-MeFGpYtcfHB9v6oGqQuHAbSwaWBpd7yZ4wMIeVtboWRdGusAF4V+/8QQ0OKZ36Ez19grYnoDVhRUCjtwI2ZVaw==}
+    peerDependencies:
+      react: '>=16.8.0'
     dependencies:
       react: 18.2.0
     dev: false
