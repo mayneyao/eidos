@@ -164,6 +164,14 @@ export const useSqlite = (dbName?: string) => {
     return doc
   }
 
+  const renameNode = async (nodeId: string, newName: string) => {
+    if (!sqlWorker) return
+    await sqlWorker.sql`UPDATE ${Symbol(
+      TreeTableName
+    )} SET name = ${newName} WHERE id = ${nodeId};`
+    await updateNodeList()
+  }
+
   const updateTableListWithSql = async (sql: string) => {
     if (!sqlWorker) return
     await sqlWorker.sql`${sql}`
@@ -247,14 +255,6 @@ export const useSqlite = (dbName?: string) => {
     }
   }
 
-  const renameTable = async (oldTableName: string, newTableName: string) => {
-    if (!sqlWorker) return
-    await sqlWorker.sql`ALTER TABLE ${Symbol(oldTableName)} RENAME TO ${Symbol(
-      newTableName
-    )}`
-    await updateNodeList()
-  }
-
   const duplicateTable = async (oldTableName: string, newTableName: string) => {
     if (!sqlWorker) return
     await sqlWorker.sql`CREATE TABLE ${Symbol(
@@ -308,7 +308,6 @@ export const useSqlite = (dbName?: string) => {
     sqlite: isInitialized ? sqlWorker : null,
     createTable,
     deleteTable,
-    renameTable,
     duplicateTable,
     queryAllTables: queryAllNodes,
     updateNodeList,
@@ -321,6 +320,7 @@ export const useSqlite = (dbName?: string) => {
     withTransaction,
     createDoc,
     updateDoc,
+    renameNode,
     getDoc,
     deleteNode,
   }

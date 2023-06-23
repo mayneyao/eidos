@@ -57,6 +57,6 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set) => ({
   isMobileSidebarOpen: false,
   setMobileSidebarOpen: (isMobileSidebarOpen) => set({ isMobileSidebarOpen }),
 
-  isSidebarOpen: false,
+  isSidebarOpen: true,
   setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
 }))
