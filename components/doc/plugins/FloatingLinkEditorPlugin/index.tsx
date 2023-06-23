@@ -233,14 +233,14 @@ function FloatingLinkEditor({
       ) : (
         <div className="flex w-full items-center justify-between gap-2">
           <a
-            className="text-blue-500"
+            className="overflow-hidden text-blue-500"
             href={sanitizeUrl(linkUrl)}
             target="_blank"
             rel="noopener noreferrer"
           >
             {linkUrl}
           </a>
-          <div>
+          <div className="flex">
             <Button
               variant="ghost"
               role="button"
