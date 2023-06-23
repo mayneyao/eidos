@@ -1,10 +1,12 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { File, FileSpreadsheet } from "lucide-react"
+import { File, FileSpreadsheet, Plus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { IFileNode } from "@/hooks/use-sqlite"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useGoto } from "@/hooks/use-goto"
+import { IFileNode, useSqlite } from "@/hooks/use-sqlite"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
@@ -17,34 +19,73 @@ export const CurrentItemTree = ({
   currentNode,
   Icon,
   title,
+  type,
 }: {
   allNodes: IFileNode[]
   spaceName: string
   isShareMode: boolean
   currentNode: IFileNode | null
   title: string
+  type: "table" | "doc"
   Icon: React.ReactNode
 }) => {
   const [showNodes, setShowNodes] = useState(false)
   const searchParams = useSearchParams()
+
+  const { space } = useCurrentPathInfo()
+
+  const { createDoc, createTable } = useSqlite(space)
+  const goto = useGoto()
+
+  const handleCreateDoc = async () => {
+    const docId = await createDoc("Untitled")
+    goto(space, docId)
+  }
+
+  const handleCreateTable = async () => {
+    const tableId = await createTable("Untitled")
+    goto(space, tableId)
+  }
+
+  const handleCreateNode = () => {
+    switch (type) {
+      case "table":
+        handleCreateTable()
+        break
+      case "doc":
+        handleCreateDoc()
+        break
+    }
+    setShowNodes(true)
+  }
 
   const handleToggleShowNodes = () => {
     setShowNodes(!showNodes)
   }
   return (
     <>
-      <Button
-        variant={"ghost"}
-        size="sm"
-        onClick={handleToggleShowNodes}
-        className="w-full justify-start font-normal"
-        asChild
-      >
-        <span className="cursor-pointer">
-          {Icon}
-          {title}
-        </span>
-      </Button>
+      <div className="flex items-center">
+        <Button
+          variant={"ghost"}
+          size="sm"
+          onClick={handleToggleShowNodes}
+          className="flex w-full justify-start font-normal"
+          asChild
+        >
+          <span className="cursor-pointer select-none">
+            {Icon}
+            {title}
+          </span>
+        </Button>
+        <Button
+          className=""
+          variant="ghost"
+          size="sm"
+          onClick={handleCreateNode}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
       {showNodes && (
         <ScrollArea className="grow px-2">
           <div className="space-y-1 p-2">

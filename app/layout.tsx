@@ -12,14 +12,14 @@ import { ShortCuts } from "@/components/shortcuts"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
 
-import { useDatabaseAppStore } from "./[database]/store"
+import { useSpaceAppStore } from "./[database]/store"
 
 interface RootLayoutProps {
   children: React.ReactNode
 }
 
 export default function RootLayout({ children }: RootLayoutProps) {
-  const { isAiOpen } = useDatabaseAppStore()
+  const { isAiOpen } = useSpaceAppStore()
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {

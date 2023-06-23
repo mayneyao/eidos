@@ -113,6 +113,13 @@ export class DataSpace {
     return await getDocContent(this.dbName, docId)
   }
 
+  // public async renameDoc(docId: string, newName: string) {
+  //   await opfsDocManager.renameDocFile(
+  //     ["spaces", this.dbName, "docs", `${docId}.md`],
+  //     `${newName}.md`
+  //   )
+  // }
+
   public async deleteDoc(docId: string) {
     await deleteDocFile(this.dbName, docId)
   }

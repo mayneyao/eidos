@@ -1,16 +1,16 @@
 "use client"
 
-import { Database, Files } from "lucide-react"
 import { useEffect, useState } from "react"
+import { Database, Files } from "lucide-react"
 
-import { DatabaseSelect } from "@/components/database-select"
-import { Separator } from "@/components/ui/separator"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllDatabases } from "@/hooks/use-database"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { Separator } from "@/components/ui/separator"
+import { DatabaseSelect } from "@/components/database-select"
 
 import { CreateFileDialog } from "./create-file"
 import { EverydaySidebarItem } from "./everyday"
@@ -51,7 +51,7 @@ export const SideBar = ({ className }: any) => {
           )}
         </div>
         <Separator className="my-2" />
-        <div className="flex  h-full flex-col justify-between">
+        <div className="flex h-full flex-col justify-between overflow-y-auto">
           {loading ? (
             <TableListLoading />
           ) : (
@@ -59,6 +59,7 @@ export const SideBar = ({ className }: any) => {
               {!isShareMode && <EverydaySidebarItem space={space} />}
               <CurrentItemTree
                 title="Tables"
+                type="table"
                 spaceName={space}
                 allNodes={allNodes.filter((node) => node.type === "table")}
                 isShareMode={isShareMode}
@@ -67,6 +68,7 @@ export const SideBar = ({ className }: any) => {
               />
               <CurrentItemTree
                 title="Documents"
+                type="doc"
                 spaceName={space}
                 allNodes={allNodes.filter((node) => node.type === "doc")}
                 isShareMode={isShareMode}

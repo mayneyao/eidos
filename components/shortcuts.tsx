@@ -3,7 +3,7 @@
 import { useKeyPress } from "ahooks"
 import { useTheme } from "next-themes"
 
-import { useDatabaseAppStore } from "@/app/[database]/store"
+import { useSpaceAppStore } from "@/app/[database]/store"
 
 /**
  * global shortcuts, register here
@@ -11,7 +11,7 @@ import { useDatabaseAppStore } from "@/app/[database]/store"
  */
 export function ShortCuts() {
   const { setTheme, theme } = useTheme()
-  const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
+  const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
 
   useKeyPress("shift.ctrl.l", (e) => {
     e.preventDefault()

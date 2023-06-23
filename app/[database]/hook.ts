@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useKeyPress } from "ahooks"
 import * as d3 from "d3"
 
 import { MsgType } from "@/lib/const"
@@ -12,6 +13,7 @@ import { usePeer } from "@/hooks/use-peer"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 
 import { useConfigStore } from "../settings/store"
+import { useSpaceAppStore } from "./store"
 
 export const useTableChange = (callback: Function) => {
   const { database, tableName: table } = useCurrentPathInfo()
@@ -59,10 +61,15 @@ export const useLayoutInit = () => {
   const { setCurrentDatabase, currentDatabase } = useSqliteStore()
   const { experiment } = useConfigStore()
   const { sqlite } = useSqlite(database)
+  const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
 
   useLastOpened()
 
   const { initPeer } = usePeer()
+
+  useKeyPress("ctrl.backslash", () => {
+    setSidebarOpen(!isSidebarOpen)
+  })
 
   useEffect(() => {
     initPeer()

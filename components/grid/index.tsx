@@ -2,17 +2,17 @@ import DataEditor, {
   DataEditorProps,
   DataEditorRef,
   GridCellKind,
-  HeaderClickedEventArgs
+  HeaderClickedEventArgs,
 } from "@glideapps/glide-data-grid"
 
-import { useDatabaseAppStore } from "@/app/[database]/store"
+import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid-cells/dist/index.css"
 import "@glideapps/glide-data-grid/dist/index.css"
+import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
-import React, { useEffect, useMemo, useRef } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
@@ -63,7 +63,7 @@ export default function Grid(props: IGridProps) {
   const { tableName, databaseName } = props
   const { theme } = useTheme()
   const _theme = theme === "light" ? lightTheme : darkTheme
-  const { setCurrentTableSchema } = useDatabaseAppStore()
+  const { setCurrentTableSchema } = useSpaceAppStore()
   const glideDataGridRef = useRef<DataEditorRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { undo, redo } = useSqlite(databaseName)
@@ -84,13 +84,8 @@ export default function Grid(props: IGridProps) {
     tableName,
     databaseName
   )
-  const {
-    isAddFieldEditorOpen,
-    setIsAddFieldEditorOpen,
-    selection,
-    setSelection,
-    clearSelection,
-  } = useTableAppStore()
+  const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
+    useTableAppStore()
 
   // handle undo redo
   useKeyPress("ctrl.z", (e) => {
@@ -154,7 +149,7 @@ export default function Grid(props: IGridProps) {
 
   return (
     <div className="h-full p-2" ref={containerRef}>
-      <div className="relative flex h-full overflow-hidden rounded-md border-t border-t-slate-200">
+      <div className="relative flex h-full overflow-hidden rounded-md">
         <ContextMenuDemo deleteRows={deleteRows}>
           {Boolean(uiColumns.length) && (
             <DataEditor

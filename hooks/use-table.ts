@@ -13,7 +13,7 @@ import {
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
 import { generateColumnName } from "@/lib/utils"
-import { useDatabaseAppStore } from "@/app/[database]/store"
+import { useSpaceAppStore } from "@/app/[database]/store"
 import { useConfigStore } from "@/app/settings/store"
 
 import { useSqlite } from "./use-sqlite"
@@ -62,7 +62,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     setCurrentSchema: setSchema,
     currentTableSchema: tableSchema,
     setCurrentTableSchema: setTableSchema,
-  } = useDatabaseAppStore()
+  } = useSpaceAppStore()
   // const [tableSchema, setTableSchema] = useState<string>()
 
   // FIXME: bug, when aggregate query, id will be null, cant update as expected

@@ -169,6 +169,19 @@ export class OpfsDoc {
     const dirHandle = await getDirHandle(paths)
     await dirHandle.removeEntry(filename!)
   }
+
+  renameDocFile = async (_paths: string[], newName: string) => {
+    const paths = [..._paths]
+    if (paths.length === 0) {
+      throw new Error("paths can't be empty")
+    }
+    const filename = paths.pop()
+    const dirHandle = await getDirHandle(paths)
+    const fileHandle = (await dirHandle.getFileHandle(filename!, {
+      create: true,
+    })) as any
+    await fileHandle.move(newName)
+  }
 }
 
 export const opfsDocManager = new OpfsDoc()

@@ -10,9 +10,6 @@ interface AppRuntimeState {
 
   isShareMode: boolean
   setShareMode: (isShareMode: boolean) => void
-
-  isSidebarOpen: boolean
-  setSidebarOpen: (isSidebarOpen: boolean) => void
 }
 
 // need persist, store user config in localstorage
@@ -22,7 +19,4 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
 
   isShareMode: false,
   setShareMode: (isShareMode) => set({ isShareMode }),
-
-  isSidebarOpen: false,
-  setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
 }))

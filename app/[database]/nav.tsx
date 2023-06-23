@@ -6,6 +6,7 @@ import {
   Github,
   Keyboard,
   LifeBuoy,
+  Menu,
   MoreHorizontal,
   RotateCcw,
   Settings,
@@ -31,7 +32,7 @@ import { AvatarList } from "@/components/avatar-list"
 import { ShareDialog } from "@/components/share-dialog"
 
 import { useCurrentDomain } from "./hook"
-import { useDatabaseAppStore } from "./store"
+import { useSpaceAppStore } from "./store"
 
 export function DropdownMenuDemo() {
   const currentDomain = useCurrentDomain()
@@ -137,7 +138,8 @@ export function DropdownMenuDemo() {
 }
 
 export const Nav = () => {
-  const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
+  const { isAiOpen, setIsAiOpen, isSidebarOpen, setSidebarOpen } =
+    useSpaceAppStore()
 
   const { database, tableName: table } = useCurrentPathInfo()
   const { reload } = useTable(table ?? "", database)
@@ -145,21 +147,32 @@ export const Nav = () => {
   const nameList = currentCollaborators.map((c) => c.name)
   const { isShareMode } = useAppRuntimeStore()
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!isSidebarOpen)
+  }
   const toggleAi = () => {
     setIsAiOpen(!isAiOpen)
   }
 
   return (
-    <div className="flex h-8 items-center justify-between self-end">
-      <AvatarList nameList={nameList} />
-      <Button variant="ghost" onClick={reload}>
-        <RotateCcw className="h-5 w-5" />
-      </Button>
-      {!isShareMode && <ShareDialog />}
-      <Button variant="ghost" onClick={toggleAi}>
-        <Bot className="h-5 w-5" />
-      </Button>
-      <DropdownMenuDemo></DropdownMenuDemo>
+    <div className="flex h-8 w-full border-separate items-center justify-between border-b">
+      {!isSidebarOpen && (
+        <Button variant="ghost" size="sm" onClick={toggleSidebar}>
+          <Menu className="h-5 w-5" />
+        </Button>
+      )}
+      <div className="grow" />
+      <div className="flex justify-between self-end">
+        <AvatarList nameList={nameList} />
+        <Button variant="ghost" onClick={reload}>
+          <RotateCcw className="h-5 w-5" />
+        </Button>
+        {!isShareMode && <ShareDialog />}
+        <Button variant="ghost" onClick={toggleAi}>
+          <Bot className="h-5 w-5" />
+        </Button>
+        <DropdownMenuDemo></DropdownMenuDemo>
+      </div>
     </div>
   )
 }

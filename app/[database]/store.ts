@@ -5,7 +5,7 @@ import { sqlToJSONSchema2 } from "@/lib/sqlite/helper"
 
 // import { devtools, persist } from 'zustand/middleware'
 
-interface IDatabaseAppState {
+interface ISpaceAppState {
   isAiOpen: boolean
   setIsAiOpen: (isAiOpen: boolean) => void
 
@@ -27,9 +27,15 @@ interface IDatabaseAppState {
   // it's for render table
   data: any[]
   setData: (data: any[]) => void
+
+  isMobileSidebarOpen: boolean
+  setMobileSidebarOpen: (isMobileSidebarOpen: boolean) => void
+
+  isSidebarOpen: boolean
+  setSidebarOpen: (isSidebarOpen: boolean) => void
 }
 
-export const useDatabaseAppStore = create<IDatabaseAppState>()((set) => ({
+export const useSpaceAppStore = create<ISpaceAppState>()((set) => ({
   isAiOpen: false,
   setIsAiOpen: (isAiOpen) => set({ isAiOpen }),
 
@@ -47,4 +53,10 @@ export const useDatabaseAppStore = create<IDatabaseAppState>()((set) => ({
 
   data: [],
   setData: (data) => set({ data }),
+
+  isMobileSidebarOpen: false,
+  setMobileSidebarOpen: (isMobileSidebarOpen) => set({ isMobileSidebarOpen }),
+
+  isSidebarOpen: true,
+  setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
 }))

@@ -1,12 +1,15 @@
 "use client"
 
 // for now it's under database page, maybe move to global later
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import Link from "next/link"
-import { useKeyPress } from "ahooks"
 import { Loader2, Paintbrush } from "lucide-react"
+import Link from "next/link"
+import { useCallback, useEffect, useRef, useState } from "react"
 
-import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
+import { useSpaceAppStore } from "@/app/[database]/store"
+import { useConfigStore } from "@/app/settings/store"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/components/ui/use-toast"
 import { useAI } from "@/hooks/use-ai"
 import { useAutoRunCode } from "@/hooks/use-auto-run-code"
 import { useCurrentNode } from "@/hooks/use-current-node"
@@ -14,16 +17,11 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useDocEditor } from "@/hooks/use-doc-editor"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useTableStore } from "@/hooks/use-table"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { toast } from "@/components/ui/use-toast"
-import { useDatabaseAppStore } from "@/app/[database]/store"
-import { useConfigStore } from "@/app/settings/store"
+import { handleOpenAIFunctionCall } from "@/lib/ai/openai"
 
 import { AIChatMessage } from "./ai-chat-message"
 
 export const AIChat = () => {
-  const { currentTableSchema } = useDatabaseAppStore()
   const { uiColumns } = useTableStore()
   const { askAI } = useAI()
   const { database } = useCurrentPathInfo()
@@ -38,8 +36,11 @@ export const AIChat = () => {
   const [currentDocMarkdown, setCurrentDocMarkdown] = useState("")
 
   const divRef = useRef<HTMLDivElement>()
-  const { aiMessages: messages, setAiMessages: setMessages } =
-    useDatabaseAppStore()
+  const {
+    currentTableSchema,
+    aiMessages: messages,
+    setAiMessages: setMessages,
+  } = useSpaceAppStore()
   const { allNodes: allTables, allUiColumns } = useSqliteStore()
 
   useEffect(() => {
@@ -59,23 +60,6 @@ export const AIChat = () => {
   }, [setMessages])
 
   const textInputRef = useRef<HTMLTextAreaElement>()
-
-  useKeyPress("ctrl.forwardslash", () => {
-    textInputRef.current?.focus()
-  })
-
-  // const runFromIndex = async (index: number) => {
-  //   const _messages = messages.slice(0, index + 1)
-  //   const response = await askAI(_messages, {
-  //     tableSchema: currentTableSchema,
-  //     allTables,
-  //     uiColumns,
-  //     allUiColumns,
-  //     databaseName: database,
-  //   })
-  // }
-
-  // useTableChange(cleanMessages)
 
   const sendMessages = async (_messages: any) => {
     setLoading(true)
