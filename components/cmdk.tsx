@@ -18,7 +18,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
-import { useDatabaseAppStore } from "@/app/[database]/store"
+import { useSpaceAppStore } from "@/app/[database]/store"
 
 export function CommandDialogDemo() {
   // const [open, setOpen] = React.useState(false)
@@ -31,7 +31,7 @@ export function CommandDialogDemo() {
     setCmdkOpen(!isCmdkOpen)
   })
 
-  const { isAiOpen, setIsAiOpen } = useDatabaseAppStore()
+  const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
   const { lastOpenedDatabase } = useAppStore()
 
   const goto = (path: string) => () => {

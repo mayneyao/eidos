@@ -33,34 +33,32 @@ export function NodeItem({ databaseName, children, node }: INodeItemProps) {
           Remove
           <ContextMenuShortcut>del</ContextMenuShortcut>
         </ContextMenuItem>
-        {/* <ContextMenuItem inset disabled>
-          Forward
-          <ContextMenuShortcut>⌘]</ContextMenuShortcut>
-        </ContextMenuItem> */}
+        <ContextMenuItem inset>Rename</ContextMenuItem>
         {node.type === "table" && (
-          <ContextMenuItem
-            inset
-            onClick={() => duplicateTable(node.name, `${node.name}_copy`)}
-            disabled
-          >
-            Duplicate
-            {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
-          </ContextMenuItem>
-        )}
-
-        <ContextMenuSub>
-          <ContextMenuSubTrigger inset>Export </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-48">
-            {/* <ContextMenuItem>
+          <>
+            <ContextMenuItem
+              inset
+              onClick={() => duplicateTable(node.name, `${node.name}_copy`)}
+              disabled
+            >
+              Duplicate
+              {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
+            </ContextMenuItem>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger inset>Export </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48">
+                {/* <ContextMenuItem>
               Export As...
               <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
             </ContextMenuItem> */}
-            <ContextMenuItem disabled>Csv(.csv)</ContextMenuItem>
-            <ContextMenuItem disabled>Excel(.xlsx)</ContextMenuItem>
-            {/* <ContextMenuSeparator /> */}
-            {/* <ContextMenuItem>Developer Tools</ContextMenuItem> */}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+                <ContextMenuItem disabled>Csv(.csv)</ContextMenuItem>
+                <ContextMenuItem disabled>Excel(.xlsx)</ContextMenuItem>
+                {/* <ContextMenuSeparator /> */}
+                {/* <ContextMenuItem>Developer Tools</ContextMenuItem> */}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </>
+        )}
 
         {/*<ContextMenuSeparator />
         <ContextMenuCheckboxItem checked>

@@ -11,11 +11,12 @@ import { SideBar } from "@/components/sidebar"
 
 import { useLayoutInit } from "./hook"
 import { Nav } from "./nav"
+import { useSpaceAppStore } from "./store"
 
 const MobileSideBar = () => {
-  const { isSidebarOpen, setSidebarOpen } = useAppRuntimeStore()
+  const { isMobileSidebarOpen, setMobileSidebarOpen } = useSpaceAppStore()
   return (
-    <Sheet open={isSidebarOpen} onOpenChange={setSidebarOpen}>
+    <Sheet open={isMobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
       <SheetTrigger className="block md:hidden">
         <Menu size={32} />
       </SheetTrigger>
@@ -35,6 +36,7 @@ export function DatabaseLayoutBase({
 }) {
   const { sqlite } = useSqlite()
   const { isShareMode } = useAppRuntimeStore()
+  const { isSidebarOpen } = useSpaceAppStore()
 
   // event listen should be in useLayoutInit, and just listen once
   useLayoutInit()
@@ -48,21 +50,16 @@ export function DatabaseLayoutBase({
   // when chat is open  2:7:3
   // when chat is close 2:10
   return (
-    <div
-      className={cn(
-        "relative  grid h-screen  grid-cols-9 md:grid-cols-12",
-        className
-      )}
-    >
-      <div className={cn("col-span-3 hidden h-full md:block xl:col-span-2")}>
-        <SideBar />
-      </div>
+    <div className={cn("relative  flex h-screen ", className)}>
       <div
         className={cn(
-          "flex h-full flex-col lg:border-l",
-          "col-span-9 xl:col-span-10"
+          "h-full w-[350px] overflow-x-hidden transition-all duration-150 ease-in-out",
+          isSidebarOpen ? "hidden  md:block" : "w-0"
         )}
       >
+        <SideBar />
+      </div>
+      <div className={cn("flex h-full grow flex-col lg:border-l")}>
         <div className="flex justify-between p-2 md:justify-end">
           <MobileSideBar />
           <Nav />
