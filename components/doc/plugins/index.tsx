@@ -14,6 +14,7 @@ import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ImagesPlugin from "./ImagesPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { SQLPlugin } from "./SQLPlugin"
+import { ShortcutPlugin } from "./ShortcutPlugin"
 import { allTransformers } from "./const"
 
 export const AllPlugins = () => {
@@ -29,6 +30,7 @@ export const AllPlugins = () => {
       <ListMaxIndentLevelPlugin maxDepth={18} />
       <CheckListPlugin />
       <LinkPlugin />
+      <ShortcutPlugin />
       <AutoLinkPlugin />
       <ImagesPlugin />
       <DragDropPaste />
