@@ -6,12 +6,19 @@ import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
+import { useKeyPress } from "ahooks"
+import { $getSelection } from "lexical"
+
+// import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+// import { useSqlite } from "@/hooks/use-sqlite"
+// import { useTodo } from "@/hooks/use-todo"
 
 import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
 import { AutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
+// import { TodoPlugin } from "./plugins/TodoPlugin"
 import defaultTheme from "./themes/default"
 
 const editorConfig: any = {
@@ -36,6 +43,14 @@ interface EditorProps {
 }
 
 export function Editor(props: EditorProps) {
+  // FIXME: should be pass from props
+  // const { space } = useCurrentPathInfo()
+  // const { sqlite } = useSqlite(space)
+  // const { addTodo, updateTodo, deleteTodo, deleteByListId } = useTodo(
+  //   sqlite,
+  //   props.docId
+  // )
+  //
   const ref = React.useRef<HTMLDivElement>(null)
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null)
@@ -72,6 +87,12 @@ export function Editor(props: EditorProps) {
               ErrorBoundary={LexicalErrorBoundary}
             />
             <AllPlugins />
+            {/* <TodoPlugin
+              onItemAdded={addTodo}
+              onItemUpdate={updateTodo}
+              onItemRemoved={deleteTodo}
+              deleteByListId={deleteByListId}
+            /> */}
             {props.autoFocus && <AutoFocusPlugin />}
             <AutoSavePlugin
               onSave={props.onSave}

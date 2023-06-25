@@ -7,3 +7,6 @@ export const TreeTableName = `eidos__tree`
 
 // store ui-column definition
 export const ColumnTableName = `eidos__columns`
+
+// store todo list
+export const TodoTableName = `eidos__todo`

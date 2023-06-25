@@ -1,4 +1,4 @@
-import { DataSpace } from "@/worker/sql"
+import { DataSpace } from "@/worker/DataSpace"
 import { DataConnection } from "peerjs"
 
 import { toast } from "@/components/ui/use-toast"

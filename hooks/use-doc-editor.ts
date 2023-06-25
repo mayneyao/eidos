@@ -1,4 +1,4 @@
-import { DataSpace } from "@/worker/sql"
+import { DataSpace } from "@/worker/DataSpace"
 import { CodeHighlightNode, CodeNode } from "@lexical/code"
 import { createHeadlessEditor } from "@lexical/headless"
 import { AutoLinkNode, LinkNode } from "@lexical/link"

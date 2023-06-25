@@ -1,6 +1,6 @@
 import { logger } from "@/lib/log"
 
-import { DataSpace } from "./sql"
+import { DataSpace } from "./DataSpace"
 
 interface StackEntry {
   begin: number

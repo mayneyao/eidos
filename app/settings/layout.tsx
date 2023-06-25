@@ -18,19 +18,23 @@ import { useLastOpened } from "../[database]/hook"
 
 const sidebarNavItems = [
   {
-    title: "⚙General",
+    title: "General",
     href: "/settings",
   },
   {
-    title: "🤖AI",
+    title: "AI",
     href: "/settings/ai",
   },
   {
-    title: "🌙Appearance",
+    title: "API",
+    href: "/settings/api",
+  },
+  {
+    title: "Appearance",
     href: "/settings/appearance",
   },
   {
-    title: "⚗Experiment",
+    title: "Experiment",
     href: "/settings/experiment",
   },
   // {
