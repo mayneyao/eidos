@@ -49,6 +49,8 @@
     "@radix-ui/react-toggle": "^1.0.3",
     "@rkusa/wasm-sqlite": "^0.1.1",
     "@sqlite.org/sqlite-wasm": "3.42.0-build1",
+    "@trpc/client": "^10.32.0",
+    "@trpc/server": "^10.32.0",
     "ahooks": "^3.7.7",
     "class-variance-authority": "^0.4.0",
     "clsx": "^1.2.1",

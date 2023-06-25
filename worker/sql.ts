@@ -11,7 +11,11 @@ import {
   opfsDocManager,
   updateDocFile,
 } from "@/lib/opfs"
-import { ColumnTableName, TreeTableName } from "@/lib/sqlite/const"
+import {
+  ColumnTableName,
+  TodoTableName,
+  TreeTableName,
+} from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
@@ -101,6 +105,15 @@ export class DataSpace {
       table_name TEXT,
       table_column_name TEXT,
       property TEXT
+    );
+
+    --- todo list
+    CREATE TABLE IF NOT EXISTS ${TodoTableName} (
+      content TEXT,
+      done BOOLEAN,
+      doc_id TEXT,
+      list_id TEXT,
+      node_key TEXT
     );`)
   }
 
