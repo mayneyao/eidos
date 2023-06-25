@@ -1,8 +1,10 @@
 import { MsgType } from "@/lib/const"
-import { getSpaceDatabasePath } from "@/lib/opfs"
 import { logger } from "@/lib/log"
+import { getSpaceDatabasePath } from "@/lib/opfs"
 
-import { DataSpace, Sqlite } from "./sql"
+import { Sqlite } from "./sql"
+import { DataSpace } from "./DataSpace"
+import { initWs } from "./ws"
 
 // current DB
 let _dataspace: DataSpace | null = null
@@ -47,6 +49,7 @@ async function loadDatabase(dbName: string) {
 async function main() {
   await sqlite.init()
   postMessage("init")
+  initWs()
 }
 
 onmessage = async (e) => {

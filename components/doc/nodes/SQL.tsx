@@ -1,5 +1,5 @@
 import * as React from "react"
-import { DataSpace } from "@/worker/sql"
+import { DataSpace } from "@/worker/DataSpace"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
   DecoratorBlockNode,
