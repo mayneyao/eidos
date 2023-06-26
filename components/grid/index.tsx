@@ -29,6 +29,7 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
+import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -69,21 +70,26 @@ export default function Grid(props: IGridProps) {
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
   const {
-    data,
+    count,
     tableSchema,
     updateCell,
-    deleteFieldByColIndex,
-    addField,
+    // deleteFieldByColIndex,
+    // addField,
     addRow,
     deleteRows,
+    getRowData,
   } = useTable(tableName, databaseName)
-
+  const { toCell, onEdited } = useDataSource(tableName, databaseName)
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
 
-  const { getCellContent, onCellEdited } = useDataSource(
-    tableName,
-    databaseName
-  )
+  const {
+    getCellContent,
+    onVisibleRegionChanged,
+    onCellEdited,
+    getCellsForSelection,
+    refreshCurrentPages,
+  } = useAsyncData<any>(50, 5, getRowData, toCell, onEdited, glideDataGridRef)
+
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
     useTableAppStore()
 
@@ -144,7 +150,7 @@ export default function Grid(props: IGridProps) {
       const uiCol = uiColumnMap.get(field.title)
       return { kind: (uiCol?.type as any) ?? GridCellKind.Text }
     },
-    setCellValue: updateCell,
+    setCellValue: (col, row, value) => onCellEdited?.([col, row], value),
   })
 
   return (
@@ -154,6 +160,8 @@ export default function Grid(props: IGridProps) {
           {Boolean(uiColumns.length) && (
             <DataEditor
               {...config}
+              getCellsForSelection={getCellsForSelection}
+              onVisibleRegionChanged={onVisibleRegionChanged}
               customRenderers={customCells}
               ref={glideDataGridRef}
               theme={_theme}
@@ -174,7 +182,7 @@ export default function Grid(props: IGridProps) {
               maxColumnWidth={2000}
               fillHandle={true}
               columns={columns ?? []}
-              rows={data.length}
+              rows={count}
               rightElement={
                 <Button
                   variant="ghost"
@@ -192,6 +200,7 @@ export default function Grid(props: IGridProps) {
               onCellEdited={onCellEdited}
               onRowAppended={() => {
                 addRow()
+                refreshCurrentPages()
               }}
             />
           )}

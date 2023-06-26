@@ -11,7 +11,7 @@ export class NumberField extends BaseField<NumberCell, NumberProperty, number> {
     return {
       kind: GridCellKind.Number,
       data: rawData,
-      displayData: `${rawData}`,
+      displayData: rawData == null ? "" : `${rawData}`,
       allowOverlay: true,
     }
   }

@@ -13,6 +13,7 @@ import {
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
 import { generateColumnName } from "@/lib/utils"
+import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { useSpaceAppStore } from "@/app/[database]/store"
 import { useConfigStore } from "@/app/settings/store"
 
@@ -58,6 +59,8 @@ export const useTable = (tableName: string, databaseName: string) => {
   const {
     data,
     setData,
+    count,
+    setCount,
     currentSchema: schema,
     setCurrentSchema: setSchema,
     currentTableSchema: tableSchema,
@@ -133,9 +136,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     await updateTableSchema()
   }, [refreshRows, updateTableSchema, tableName])
 
-  const updateCell = async (col: number, row: number, value: any) => {
-    const filedName = schema[0]?.columns?.[col].name
-    const rowId = data[row][0]
+  const updateCell = async (rowId: string, filedName: string, value: any) => {
     if (sqlite) {
       if (filedName !== "_id") {
         sqlite.sql`UPDATE ${Symbol(tableName)} SET ${Symbol(
@@ -145,8 +146,6 @@ export const useTable = (tableName: string, databaseName: string) => {
       // get the updated value, but it will block ui update. expect to success if not throw error
       // const result2 = await sqlite.sql`SELECT ${filedName} FROM ${Symbol(tableName)} where _id = '${rowId}'`;
       // data[row][col] = result2[0]
-      data[row][col] = value
-      setData([...data])
     }
   }
 
@@ -217,9 +216,12 @@ export const useTable = (tableName: string, databaseName: string) => {
   const addRow = async (params?: any[]) => {
     if (sqlite) {
       const uuid = uuidv4()
-      await sqlite.sql`INSERT INTO ${Symbol(tableName)}(_id) VALUES (${uuid})`
+      const res = await sqlite.sql`INSERT INTO ${Symbol(
+        tableName
+      )}(_id) VALUES (${uuid})`
+      console.log({ res })
       await updateTableSchema()
-      await refreshRows()
+      setCount(count + 1)
     }
   }
 
@@ -254,7 +256,7 @@ export const useTable = (tableName: string, databaseName: string) => {
           updateTableSchema()
         }
         if (checkSqlIsOnlyQuery(querySql)) {
-          return res;
+          return res
           const originSchema = tableSchema ? sqlToJSONSchema2(tableSchema) : []
           const fields = originSchema[0]?.columns?.map((col) => col.name) ?? []
           const compactJsonTablesArray = aggregateSql2columns(querySql, fields)
@@ -298,18 +300,35 @@ export const useTable = (tableName: string, databaseName: string) => {
     ]
   )
 
+  const getRowData = useCallback(
+    async (range: RowRange): Promise<any[]> => {
+      const [offset, limit] = range
+      let data: any[] = []
+      if (sqlite && tableName) {
+        data = await sqlite.sql2`SELECT * FROM ${Symbol(
+          tableName
+        )} LIMIT ${limit} OFFSET ${offset}`
+      }
+      return data
+    },
+    [sqlite, tableName]
+  )
+
   useEffect(() => {
     if (sqlite && tableName) {
-      sqlite.sql`SELECT * FROM ${Symbol(tableName)};`.then((res: any) => {
-        setData(res)
+      sqlite.sql`SELECT COUNT(*) FROM ${Symbol(tableName)}`.then((res) => {
+        const count = res[0]?.[0]
+        setCount(count)
         updateTableSchema()
       })
     }
-  }, [setData, sqlite, tableName, updateTableSchema])
+  }, [setData, sqlite, tableName, updateTableSchema, setCount])
 
   return {
     data,
     setData,
+    count,
+    getRowData,
     schema,
     updateCell,
     addField,

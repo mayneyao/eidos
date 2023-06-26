@@ -28,6 +28,9 @@ interface ISpaceAppState {
   data: any[]
   setData: (data: any[]) => void
 
+  count: number
+  setCount: (count: number) => void
+
   isMobileSidebarOpen: boolean
   setMobileSidebarOpen: (isMobileSidebarOpen: boolean) => void
 
@@ -53,6 +56,9 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set) => ({
 
   data: [],
   setData: (data) => set({ data }),
+
+  count: 0,
+  setCount: (count) => set({ count }),
 
   isMobileSidebarOpen: false,
   setMobileSidebarOpen: (isMobileSidebarOpen) => set({ isMobileSidebarOpen }),

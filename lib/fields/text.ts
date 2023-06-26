@@ -10,8 +10,8 @@ export class TextField extends BaseField<TextCell, TextProperty> {
   getCellContent(rawData: string): TextCell {
     return {
       kind: GridCellKind.Text,
-      data: rawData,
-      displayData: `${rawData}`,
+      data: rawData ?? "",
+      displayData: rawData ?? "",
       allowOverlay: true,
     }
   }

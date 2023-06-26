@@ -1,38 +1,33 @@
-import React, { useCallback } from "react"
-import {
-  EditableGridCell,
-  GridCell,
-  GridCellKind,
-  Item,
-} from "@glideapps/glide-data-grid"
+import React from "react"
+import { GridCell, GridCellKind } from "@glideapps/glide-data-grid"
 
 import { allFieldTypesMap } from "@/lib/fields"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { columnsHandleMap } from "../helper"
+import { RowEditedCallback } from "./use-async-data"
 import { useColumns } from "./use-col"
 
 export const useDataSource = (tableName: string, databaseName: string) => {
-  const { data, updateCell } = useTable(tableName, databaseName)
+  const { updateCell } = useTable(tableName, databaseName)
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
   const { columns } = useColumns(uiColumns)
 
-  const getCellContent = useCallback(
-    (cell: Item): GridCell => {
-      const [columnIndex, rowIndex] = cell
-      const content = data[rowIndex]?.[columnIndex] ?? ""
-      const field = columns[columnIndex]
+  const toCell = React.useCallback(
+    (rowData: any, col: number) => {
+      const field = uiColumns[col]
+      const cv = rowData[field.table_column_name]
       const emptyCell: GridCell = {
         kind: GridCellKind.Text,
-        data: content,
-        displayData: `${content}`,
+        data: cv,
+        displayData: `${cv}`,
         allowOverlay: true,
       }
       if (!field) {
         return emptyCell
       }
-      const uiCol = uiColumnMap.get(field.title)
+      const uiCol = uiColumnMap.get(field.name)
       if (!uiCol) {
         return emptyCell
       }
@@ -41,45 +36,53 @@ export const useDataSource = (tableName: string, databaseName: string) => {
         const FieldClass = allFieldTypesMap[uiCol.type]
         if (FieldClass) {
           const field = new FieldClass(uiCol)
-          return field.getCellContent(content as never)
+          return field.getCellContent(cv as never)
         } else {
           throw new Error(`field type ${uiCol.type} not found`)
         }
       }
-      return colHandle.getContent(content)
+      return colHandle.getContent(cv)
     },
-    [data, columns, uiColumnMap]
+    [uiColumnMap, uiColumns]
   )
 
-  // event handle
-  const onCellEdited = React.useCallback(
-    async (cell: Item, newValue: EditableGridCell) => {
-      console.log("onCellEdited", cell, newValue)
-      const field = columns[cell[0]]
+  const onEdited: RowEditedCallback<any> = React.useCallback(
+    (cell, newVal, rowData) => {
+      // console.log("onCellEdited", cell, newVal, rowData)
+      const [col] = cell
+      const field = uiColumns[col]
+
       if (!field) {
-        return
+        return rowData
       }
-      const uiCol = uiColumnMap.get(field.title)
+      const uiCol = uiColumnMap.get(field.name)
       if (!uiCol) {
-        return
+        return rowData
       }
       let colHandle = columnsHandleMap[uiCol.type]
+      const rowId = rowData._id
+      const fieldName = field.table_column_name
       if (!colHandle) {
         const FieldClass = allFieldTypesMap[uiCol.type]
         if (FieldClass) {
           const field = new FieldClass(uiCol)
-          const rawData = field.cellData2RawData(newValue as never)
-          console.log(newValue, rawData)
-          return updateCell(cell[0], cell[1], rawData)
+          const rawData = field.cellData2RawData(newVal as never)
+          updateCell(rowId, fieldName, rawData)
+          const newRowData: any = {
+            ...rowData,
+            [uiCol.table_column_name]: rawData,
+          }
+          return newRowData
         }
       }
-      return updateCell(cell[0], cell[1], newValue.data)
+      // error
+      updateCell(rowId, fieldName, newVal.data)
+      return rowData
     },
-    [columns, uiColumnMap, updateCell]
+    [uiColumns, uiColumnMap, updateCell]
   )
-
   return {
-    getCellContent,
-    onCellEdited,
+    toCell,
+    onEdited,
   }
 }

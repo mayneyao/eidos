@@ -111,7 +111,6 @@ const renderer: CustomRenderer<RatingCell> = {
     )
   },
   onPaste: (val, d) => {
-    console.log(val, d)
     const num = Number.parseInt(val)
     return {
       ...d,
