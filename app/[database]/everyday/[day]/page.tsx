@@ -19,7 +19,6 @@ export default function EverydayPage() {
   )
 
   useEffect(() => {
-    console.log(opfsDocManager, filepath)
     opfsDocManager.getDocContent(filepath).then((content) => {
       setInitContent(content)
     })

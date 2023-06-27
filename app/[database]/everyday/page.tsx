@@ -32,11 +32,12 @@ export default function EverydayPage() {
   const [currentDay, setCurrentDay] = useState<string>("")
 
   const handleDocSave = (day: string) => {
-    return (content: string) =>
+    return (content: string) => {
       opfsDocManager.updateDocFile(
         ["spaces", params.database, "everyday", `${day}.md`],
         content
       )
+    }
   }
   const handleClick = (day: string) => {
     setCurrentDay(day)
@@ -44,8 +45,8 @@ export default function EverydayPage() {
 
   return (
     <div className="prose mx-auto flex flex-col gap-2 p-10 dark:prose-invert lg:prose-xl xl:prose-2xl">
-      {items.map((content, index) => {
-        const day = days[index]
+      {days.map((day, index) => {
+        const content = items[index]
         return (
           <div
             key={day}

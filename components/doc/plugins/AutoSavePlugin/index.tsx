@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { useKeyPress } from "ahooks"
+import { useDebounceFn, useKeyPress } from "ahooks"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,9 +18,24 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   const lastSaveVersionRef = useRef(0)
   const [content, setContent] = useState<string>("")
 
+  const handleSave = useCallback(() => {
+    if (!editor.isEditable) return
+    if (lastSaveVersionRef.current === versionRef.current) {
+    } else {
+      const json = editor.getEditorState().toJSON()
+      const content = JSON.stringify(json)
+      onSave(content)
+      lastSaveVersionRef.current = versionRef.current
+    }
+  }, [editor, onSave])
+
+  const { run: debounceSave } = useDebounceFn(handleSave, {
+    wait: 3000,
+  })
+
   useKeyPress("ctrl.s", (e) => {
     e.preventDefault()
-    handleMarkdownToggle()
+    handleSave()
   })
 
   useEffect(() => {
@@ -37,32 +52,16 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
         }, 0)
       }
     })
-    editor.registerTextContentListener((text: string) => {
+    const unRegister = editor.registerTextContentListener((text: string) => {
       versionRef.current++
+      editor.update(() => {
+        debounceSave()
+      })
     })
-  }, [initContent, editor])
-
-  const handleMarkdownToggle = useCallback(() => {
-    if (!editor.isEditable) return
-    if (lastSaveVersionRef.current === versionRef.current) {
-    } else {
-      const json = editor.getEditorState().toJSON()
-      const content = JSON.stringify(json)
-      onSave(content)
-      lastSaveVersionRef.current = versionRef.current
+    return () => {
+      unRegister()
     }
-  }, [editor, onSave])
-
-  useEffect(() => {
-    if (props.autoSave) {
-      const timer = setInterval(() => {
-        handleMarkdownToggle()
-      }, 1000 * 10)
-      return () => {
-        clearInterval(timer)
-      }
-    }
-  }, [handleMarkdownToggle, props.autoSave])
+  }, [initContent, editor, debounceSave])
 
   const handleImport = () => {
     editor.update(() => {

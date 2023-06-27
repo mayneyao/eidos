@@ -154,6 +154,7 @@ export class OpfsDoc {
     const writable = await (fileHandle as any).createWritable()
     await writable.write(content)
     await writable.close()
+    console.log("update doc file", filename)
   }
 
   getDocContent = async (_paths: string[]) => {
