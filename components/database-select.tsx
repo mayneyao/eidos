@@ -143,7 +143,7 @@ export function DatabaseSelect({
               <Label htmlFor="database-name">Space name</Label>
               <Input
                 id="database-name"
-                placeholder="e.g. mydb"
+                placeholder="e.g. personal"
                 value={databaseName}
                 onChange={(e) => setDatabaseName(e.target.value)}
               />

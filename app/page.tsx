@@ -2,14 +2,14 @@
 
 import { useEffect } from "react"
 
-import { useAllDatabases } from "@/hooks/use-database"
 import { useGoto } from "@/hooks/use-goto"
+import { useAllSpaces } from "@/hooks/use-space"
 import { DatabaseSelect } from "@/components/database-select"
 
 import { useLastOpened } from "./[database]/hook"
 
 export default function IndexPage() {
-  const databaseList = useAllDatabases()
+  const { spaceList } = useAllSpaces()
   const { lastOpenedDatabase } = useLastOpened()
   const goto = useGoto()
 
@@ -21,7 +21,7 @@ export default function IndexPage() {
   return (
     <div className="flex h-screen w-screen items-center justify-center">
       <div className="w-[200px]">
-        <DatabaseSelect databases={databaseList} />
+        <DatabaseSelect databases={spaceList} />
       </div>
     </div>
   )

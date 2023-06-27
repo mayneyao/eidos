@@ -6,29 +6,27 @@ import { Download } from "lucide-react"
 
 import { getAllSpaceNames } from "@/lib/opfs"
 import { exportSpace, importSpace } from "@/lib/space"
-import { useAllDatabases } from "@/hooks/use-database"
+import { useAllSpaces } from "@/hooks/use-space"
 import { useSqliteStore } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
 
 export default function SpaceManagerPage() {
-  const spaceList = useAllDatabases()
+  const { spaceList, updateSpaceList } = useAllSpaces()
   const [loading, setLoading] = useState(false)
   const [file, setFile] = useState(null)
   const [spaceName, setSpaceName] = useState("")
   const handleFileChange = (e: any) => {
     e.target.files[0] && setFile(e.target.files[0])
   }
-  const { setDatabaseList } = useSqliteStore()
 
   const handleImport = async () => {
     if (!file) return
     setLoading(true)
     await importSpace(spaceName, file)
     setLoading(false)
-    const newSpaceNames = await getAllSpaceNames()
-    setDatabaseList(newSpaceNames)
+    updateSpaceList()
     toast({
       title: "Imported",
       description: `Space ${spaceName} imported`,

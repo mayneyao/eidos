@@ -7,7 +7,7 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useAllDatabases } from "@/hooks/use-database"
+import { useAllSpaces } from "@/hooks/use-space"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { Separator } from "@/components/ui/separator"
 import { DatabaseSelect } from "@/components/database-select"
@@ -23,7 +23,7 @@ export const SideBar = ({ className }: any) => {
   const [loading, setLoading] = useState(true)
   const { updateNodeList } = useSqlite(space)
   const { allNodes } = useSqliteStore()
-  const databaseList = useAllDatabases()
+  const { spaceList } = useAllSpaces()
   const { isShareMode } = useAppRuntimeStore()
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export const SideBar = ({ className }: any) => {
             "shareMode"
           ) : (
             <>
-              <DatabaseSelect databases={databaseList} defaultValue={space} />
+              <DatabaseSelect databases={spaceList} defaultValue={space} />
             </>
           )}
         </div>

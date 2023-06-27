@@ -32,8 +32,8 @@ interface SqliteState {
   selectedTable: string
   setSelectedTable: (table: string) => void
 
-  databaseList: string[]
-  setDatabaseList: (databaseList: string[]) => void
+  spaceList: string[]
+  setSpaceList: (spaceList: string[]) => void
 
   // const [sqlWorker, setSQLWorker] = useState<SqlDatabase>()
 
@@ -58,8 +58,8 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
   selectedTable: "",
   setSelectedTable: (table) => set({ selectedTable: table }),
 
-  databaseList: [],
-  setDatabaseList: (databaseList) => set({ databaseList }),
+  spaceList: [],
+  setSpaceList: (spaceList) => set({ spaceList }),
 
   sqliteProxy: null,
   setSqliteProxy: (sqlWorker) => {
