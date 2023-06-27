@@ -90,7 +90,7 @@ export const updateDocFile = async (
   const paths = ["spaces", spaceName, "docs", docFileName]
   await opfsDoc.updateDocFile(paths, content)
   _content = content
-  console.log("update doc file", docFileName)
+  // console.log("update doc file", docFileName)
 }
 
 export const getDocContent = async (spaceName: string, docId: string) => {

@@ -3,13 +3,13 @@
 import { useEffect } from "react"
 
 import { useGoto } from "@/hooks/use-goto"
-import { useAllSpaces } from "@/hooks/use-space"
+import { useSpace } from "@/hooks/use-space"
 import { DatabaseSelect } from "@/components/database-select"
 
 import { useLastOpened } from "./[database]/hook"
 
 export default function IndexPage() {
-  const { spaceList } = useAllSpaces()
+  const { spaceList } = useSpace()
   const { lastOpenedDatabase } = useLastOpened()
   const goto = useGoto()
 

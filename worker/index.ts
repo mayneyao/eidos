@@ -2,8 +2,8 @@ import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import { getSpaceDatabasePath } from "@/lib/opfs"
 
-import { Sqlite } from "./sql"
 import { DataSpace } from "./DataSpace"
+import { Sqlite } from "./sql"
 import { initWs } from "./ws"
 
 // current DB
@@ -42,7 +42,6 @@ async function loadDatabase(dbName: string) {
     flags: "c",
     name: dbName,
   })
-  logger.info(`switch to database[${dbName}]`)
   return db
 }
 
@@ -60,11 +59,27 @@ onmessage = async (e) => {
       break
     case MsgType.SwitchDatabase:
       _dataspace = await loadDatabase(data.databaseName)
+      logger.info(`switch to database[${data.databaseName}]`)
       postMessage({
         id,
         data: {
           msg: "switchDatabase success",
           dbName: data.databaseName,
+        },
+      })
+      return
+    case MsgType.CreateSpace:
+      /**
+       * switch database will auto create database if not exists, but it's not obvious
+       * so we add this api to make it more clear
+       */
+      await loadDatabase(data.spaceName)
+      logger.info(`create database[${data.spaceName}]`)
+      postMessage({
+        id,
+        data: {
+          msg: "createSpace success",
+          space: data.spaceName,
         },
       })
       return

@@ -11,6 +11,7 @@ import { uuidv4 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { usePeer } from "@/hooks/use-peer"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { useWorker } from "@/hooks/use-worker"
 
 import { useConfigStore } from "../settings/store"
 import { useSpaceAppStore } from "./store"
@@ -57,12 +58,13 @@ export const useLastOpened = () => {
 
 export const useLayoutInit = () => {
   const { database } = useCurrentPathInfo()
-  const { setInitialized, setSqliteProxy: setSqlWorker } = useSqliteStore()
+  const { setSqliteProxy: setSqlWorker } = useSqliteStore()
   const { setCurrentDatabase, currentDatabase } = useSqliteStore()
   const { experiment } = useConfigStore()
   const { sqlite } = useSqlite(database)
   const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
 
+  const { isInitialized, initWorker } = useWorker()
   useLastOpened()
 
   const { initPeer } = usePeer()
@@ -108,16 +110,12 @@ export const useLayoutInit = () => {
   }, [database, setCurrentDatabase, currentDatabase, sqlite])
 
   useEffect(() => {
-    const worker = getWorker()
-    worker.onmessage = async (e) => {
-      if (e.data === "init") {
-        console.log("sqlite is loaded")
-        setInitialized(true)
-      }
+    if (!isInitialized) {
+      initWorker()
     }
     const sqlWorker = getSqliteProxy(database)
     setSqlWorker(sqlWorker)
-  }, [database, setInitialized, setSqlWorker])
+  }, [database, setSqlWorker, isInitialized, initWorker])
 
   useEffect(() => {
     setCurrentDatabase(database)

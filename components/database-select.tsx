@@ -2,10 +2,12 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { da } from "date-fns/locale"
 import { Check, ChevronsUpDown, Download, PlusCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useGoto } from "@/hooks/use-goto"
+import { useSpace } from "@/hooks/use-space"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -50,6 +52,8 @@ export function DatabaseSelect({
   const [databaseName, setDatabaseName] = React.useState("")
   const goto = useGoto()
   const router = useRouter()
+  const { createSpace } = useSpace()
+  const [loading, setLoading] = React.useState(false)
 
   const handleGoSpaceManagement = () => {
     router.push("/space-manage")
@@ -63,8 +67,12 @@ export function DatabaseSelect({
 
   const handleCreateDatabase = () => {
     if (databaseName) {
-      setShowNewTeamDialog(false)
-      goto(databaseName)
+      setLoading(true)
+      createSpace(databaseName).then((res) => {
+        setLoading(false)
+        setShowNewTeamDialog(false)
+        goto(databaseName)
+      })
     }
   }
 
@@ -152,8 +160,12 @@ export function DatabaseSelect({
         </div>
         <DialogFooter>
           <Button variant="outline">Cancel</Button>
-          <Button type="submit" onClick={handleCreateDatabase}>
-            Continue
+          <Button
+            type="submit"
+            onClick={handleCreateDatabase}
+            disabled={loading}
+          >
+            {loading ? "Creating" : "Continue"}
           </Button>
         </DialogFooter>
       </DialogContent>

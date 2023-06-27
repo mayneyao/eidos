@@ -5,4 +5,5 @@ export enum MsgType {
   SetConfig = "SetConfig",
   CallFunction = "CallFunction",
   SwitchDatabase = "SwitchDatabase",
+  CreateSpace = "CreateSpace",
 }

@@ -3,14 +3,14 @@
 import "@/styles/globals.css"
 import { useEffect } from "react"
 
-import { fontSans } from "@/lib/fonts"
-import { cn } from "@/lib/utils"
-import { Toaster } from "@/components/ui/toaster"
 import { AIChat } from "@/components/ai-chat/ai-chat"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { ShortCuts } from "@/components/shortcuts"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toaster"
+import { useWorker } from "@/hooks/use-worker"
+import { cn } from "@/lib/utils"
 
 import { useSpaceAppStore } from "./[database]/store"
 
@@ -20,6 +20,14 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   const { isAiOpen } = useSpaceAppStore()
+  const { isInitialized, initWorker } = useWorker()
+
+  useEffect(() => {
+    // load worker when app start
+    if (!isInitialized) {
+      initWorker()
+    }
+  }, [initWorker, isInitialized])
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {

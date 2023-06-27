@@ -6,14 +6,14 @@ import { Download } from "lucide-react"
 
 import { getAllSpaceNames } from "@/lib/opfs"
 import { exportSpace, importSpace } from "@/lib/space"
-import { useAllSpaces } from "@/hooks/use-space"
+import { useSpace } from "@/hooks/use-space"
 import { useSqliteStore } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
 
 export default function SpaceManagerPage() {
-  const { spaceList, updateSpaceList } = useAllSpaces()
+  const { spaceList, updateSpaceList } = useSpace()
   const [loading, setLoading] = useState(false)
   const [file, setFile] = useState(null)
   const [spaceName, setSpaceName] = useState("")
