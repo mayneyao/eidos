@@ -6,13 +6,14 @@
  *
  */
 
+import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { DRAG_DROP_PASTE } from "@lexical/rich-text"
 import { isMimeType } from "@lexical/utils"
 import { COMMAND_PRIORITY_LOW } from "lexical"
-import { useEffect } from "react"
 
 import { uploadFile2OPFS } from "@/lib/opfs"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 
@@ -26,6 +27,8 @@ const ACCEPTABLE_IMAGE_TYPES = [
 
 export default function DragDropPaste(): null {
   const [editor] = useLexicalComposerContext()
+  // should not be here, but we need to make sure the space is set
+  const { space } = useCurrentPathInfo()
   useEffect(() => {
     return editor.registerCommand(
       DRAG_DROP_PASTE,
@@ -33,7 +36,7 @@ export default function DragDropPaste(): null {
         ;(async () => {
           const filesResult = await Promise.all(
             files.map(async (file) => {
-              const fileUrl = await uploadFile2OPFS(file)
+              const fileUrl = await uploadFile2OPFS(file, space)
               return {
                 file,
                 result: fileUrl,

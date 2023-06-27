@@ -1,8 +1,14 @@
 import React from "react"
-import { DataEditorProps, Item } from "@glideapps/glide-data-grid"
+import {
+  DataEditorProps,
+  GridCellKind,
+  ImageCell,
+  Item,
+} from "@glideapps/glide-data-grid"
 
 import { FieldType } from "@/lib/fields/const"
 import { uploadFile2OPFS } from "@/lib/opfs"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",
@@ -17,6 +23,7 @@ interface IProps {
 }
 
 export const useDrop = (props: IProps) => {
+  const { space } = useCurrentPathInfo()
   const { setCellValue, getCellContent } = props
   const [highlights, setHighlights] = React.useState<
     DataEditorProps["highlightRegions"]
@@ -44,8 +51,14 @@ export const useDrop = (props: IProps) => {
         return
       }
 
-      uploadFile2OPFS(file).then((newFileUrl) => {
-        setCellValue(cell[0], cell[1], newFileUrl)
+      uploadFile2OPFS(file, space).then((newFileUrl) => {
+        setCellValue(cell[0], cell[1], {
+          kind: GridCellKind.Image,
+          data: [newFileUrl],
+          copyData: newFileUrl,
+          allowOverlay: true,
+          allowAdd: true,
+        } as ImageCell)
       })
 
       // upload multiple files, it's works but have some bugs
@@ -64,7 +77,7 @@ export const useDrop = (props: IProps) => {
 
       setLastDropCell(cell)
     },
-    [setCellValue]
+    [setCellValue, space]
   )
 
   const onDragOverCell = React.useCallback(

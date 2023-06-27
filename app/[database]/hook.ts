@@ -98,7 +98,6 @@ export const useLayoutInit = () => {
         },
         id: switchDdMsgId,
       })
-      console.log("switching database", switchDdMsgId)
       worker.onmessage = (e) => {
         const { id: returnId, data } = e.data
         if (returnId === switchDdMsgId) {
@@ -122,5 +121,9 @@ export const useLayoutInit = () => {
 
   useEffect(() => {
     setCurrentDatabase(database)
+    navigator?.serviceWorker?.controller?.postMessage({
+      type: "space",
+      data: database,
+    })
   }, [database, setCurrentDatabase])
 }
