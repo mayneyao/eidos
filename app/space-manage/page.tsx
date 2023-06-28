@@ -1,16 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
 import { Download } from "lucide-react"
+import Link from "next/link"
+import { useState } from "react"
 
-import { getAllSpaceNames } from "@/lib/opfs"
-import { exportSpace, importSpace } from "@/lib/space"
-import { useSpace } from "@/hooks/use-space"
-import { useSqliteStore } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
+import { useSpace } from "@/hooks/use-space"
+import { exportSpace, importSpace } from "@/lib/space"
 
 export default function SpaceManagerPage() {
   const { spaceList, updateSpaceList } = useSpace()
@@ -30,11 +28,30 @@ export default function SpaceManagerPage() {
     toast({
       title: "Imported",
       description: `Space ${spaceName} imported`,
+      action: (
+        <Link href={`/${spaceName}`}>
+          <Button variant="outline">Open</Button>
+        </Link>
+      ),
     })
   }
 
   return (
     <div className="prose mx-auto flex flex-col gap-2 p-10 dark:prose-invert">
+      Import Space from file
+      {loading && <div>importing...</div>}
+      <div className="mt-2 flex items-center gap-2">
+        <Input
+          type="text"
+          onChange={(e) => setSpaceName(e.target.value)}
+          placeholder="space name"
+        />
+        <Input type="file" onChange={handleFileChange} className="w-[200px]" />
+        <Button onClick={handleImport} disabled={spaceName.length < 1 || !file}>
+          Import{" "}
+        </Button>
+      </div>
+      <hr />
       {spaceList.map((space) => {
         return (
           <div
@@ -50,20 +67,6 @@ export default function SpaceManagerPage() {
           </div>
         )
       })}
-      <hr />
-      Import Space from file
-      {loading && <div>importing...</div>}
-      <div className="mt-2 flex items-center gap-2">
-        <Input
-          type="text"
-          onChange={(e) => setSpaceName(e.target.value)}
-          placeholder="space name"
-        />
-        <Input type="file" onChange={handleFileChange} className="w-[200px]" />
-        <Button onClick={handleImport} disabled={spaceName.length < 1}>
-          Import{" "}
-        </Button>
-      </div>
     </div>
   )
 }

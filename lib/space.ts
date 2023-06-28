@@ -2,6 +2,22 @@ import JSZip from "jszip"
 
 import { getDirHandle } from "@/lib/opfs"
 
+const readFileIntoZip = async (
+  zip: JSZip,
+  file: File,
+  fileName: string,
+  type: "text" | "arraybuffer"
+) => {
+  if (type === "text") {
+    const content = await file.text()
+    zip.file(fileName, content)
+  }
+  if (type === "arraybuffer") {
+    const content = await file.arrayBuffer()
+    zip.file(fileName, content, { binary: true })
+  }
+}
+
 /**
  * use JSZip to export a space which is a directory in opfs
  * @param space
@@ -13,13 +29,10 @@ export async function exportSpace(space: string) {
   for await (let entry of (dirHandle as any).values()) {
     if (entry.kind === "file") {
       const file = await entry.getFile()
-      if (entry.name.endsWith(".sqlite3")) {
+      if (entry.name.includes(".sqlite3")) {
         const content = await file.arrayBuffer()
         zip.file(entry.name, content, { binary: true })
         continue
-      } else {
-        const content = await file.text()
-        zip.file(entry.name, content)
       }
     }
     if (entry.kind === "directory") {
@@ -27,8 +40,15 @@ export async function exportSpace(space: string) {
       for await (let _entry of entry.values()) {
         if (_entry.kind === "file") {
           const file = await _entry.getFile()
-          const content = await file.text()
-          dir.file(_entry.name, content)
+          switch (entry.name) {
+            case "everyday":
+            case "docs":
+              readFileIntoZip(dir, file, _entry.name, "text")
+              break
+            case "files":
+              readFileIntoZip(dir, file, _entry.name, "arraybuffer")
+              break
+          }
         }
       }
     }
@@ -42,6 +62,21 @@ export async function exportSpace(space: string) {
   a.click()
   a.remove()
   URL.revokeObjectURL(url)
+}
+
+const writeFile = async (
+  dirHandle: FileSystemDirectoryHandle,
+  fileName: string,
+  file: JSZip.JSZipObject,
+  type: "text" | "arraybuffer"
+) => {
+  const content = await file.async(type)
+  const fileHandle = await dirHandle.getFileHandle(fileName, {
+    create: true,
+  })
+  const writable = await (fileHandle as any).createWritable()
+  await writable.write(content)
+  await writable.close()
 }
 
 /**
@@ -65,25 +100,21 @@ export const importSpace = async (space: string, file: File) => {
     } else {
       const paths = path.split("/")
       if (paths.length === 2) {
-        const content = await file.async("text")
         const [dirName, fileName] = paths
-        const _dirHandle = dirMap[dirName]
-        const fileHandle = await _dirHandle.getFileHandle(fileName, {
-          create: true,
-        })
-        const writable = await (fileHandle as any).createWritable()
-        await writable.write(content)
-        await writable.close()
+        const dirHandle = dirMap[dirName]
+        switch (dirName) {
+          case "everyday":
+          case "docs":
+            await writeFile(dirHandle, fileName, file, "text")
+            break
+          case "files":
+            await writeFile(dirHandle, fileName, file, "arraybuffer")
+            break
+        }
       } else if (paths.length === 1) {
         const [fileName] = paths
-        const fileHandle = await dirHandle.getFileHandle(fileName, {
-          create: true,
-        })
         if (fileName.endsWith(".sqlite3")) {
-          const content = await file.async("arraybuffer")
-          const writable = await (fileHandle as any).createWritable()
-          await writable.write(content)
-          await writable.close()
+          await writeFile(dirHandle, fileName, file, "arraybuffer")
         }
       } else {
         throw Error(`invalid path: ${path}`)
