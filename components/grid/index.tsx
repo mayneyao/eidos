@@ -9,10 +9,10 @@ import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid-cells/dist/index.css"
 import "@glideapps/glide-data-grid/dist/index.css"
-import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
+import React, { useEffect, useMemo, useRef } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
@@ -29,6 +29,8 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
+
+import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -69,21 +71,37 @@ export default function Grid(props: IGridProps) {
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
   const {
-    data,
+    count,
     tableSchema,
-    updateCell,
-    deleteFieldByColIndex,
-    addField,
-    addRow,
+    // deleteFieldByColIndex,
+    // addField,
     deleteRows,
+    getRowData,
+    addRow,
+    setCount,
   } = useTable(tableName, databaseName)
-
+  const { toCell, onEdited } = useDataSource(tableName, databaseName)
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
 
-  const { getCellContent, onCellEdited } = useDataSource(
-    tableName,
-    databaseName
+  const {
+    getCellContent,
+    onVisibleRegionChanged,
+    onCellEdited,
+    getCellsForSelection,
+    handleAddRow,
+    handleDelRows,
+  } = useAsyncData<any>(
+    50,
+    5,
+    getRowData,
+    toCell,
+    onEdited,
+    glideDataGridRef,
+    addRow,
+    deleteRows,
+    setCount
   )
+
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
     useTableAppStore()
 
@@ -144,16 +162,18 @@ export default function Grid(props: IGridProps) {
       const uiCol = uiColumnMap.get(field.title)
       return { kind: (uiCol?.type as any) ?? GridCellKind.Text }
     },
-    setCellValue: updateCell,
+    setCellValue: (col, row, value) => onCellEdited?.([col, row], value),
   })
 
   return (
     <div className="h-full p-2" ref={containerRef}>
       <div className="relative flex h-full overflow-hidden rounded-md">
-        <ContextMenuDemo deleteRows={deleteRows}>
+        <ContextMenuDemo deleteRows={handleDelRows}>
           {Boolean(uiColumns.length) && (
             <DataEditor
               {...config}
+              getCellsForSelection={getCellsForSelection}
+              onVisibleRegionChanged={onVisibleRegionChanged}
               customRenderers={customCells}
               ref={glideDataGridRef}
               theme={_theme}
@@ -174,7 +194,7 @@ export default function Grid(props: IGridProps) {
               maxColumnWidth={2000}
               fillHandle={true}
               columns={columns ?? []}
-              rows={data.length}
+              rows={count}
               rightElement={
                 <Button
                   variant="ghost"
@@ -190,9 +210,7 @@ export default function Grid(props: IGridProps) {
                 fill: false,
               }}
               onCellEdited={onCellEdited}
-              onRowAppended={() => {
-                addRow()
-              }}
+              onRowAppended={handleAddRow}
             />
           )}
         </ContextMenuDemo>

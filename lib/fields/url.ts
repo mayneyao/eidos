@@ -12,7 +12,8 @@ export class URLField extends BaseField<URLCell, URLProperty> {
   getCellContent(rawData: string): URLCell {
     return {
       kind: GridCellKind.Uri,
-      data: rawData,
+      data: rawData ?? "",
+      displayData: rawData ?? "",
       allowOverlay: true,
     }
   }

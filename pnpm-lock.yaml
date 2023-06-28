@@ -42,6 +42,7 @@ specifiers:
   '@trpc/server': ^10.32.0
   '@types/d3': ^7.4.0
   '@types/jest': ^29.5.2
+  '@types/lodash': ^4.14.195
   '@types/node': ^17.0.45
   '@types/papaparse': ^5.3.7
   '@types/prismjs': ^1.26.0
@@ -187,6 +188,7 @@ devDependencies:
   '@tailwindcss/typography': 0.5.9_tailwindcss@3.3.2
   '@types/d3': 7.4.0
   '@types/jest': 29.5.2
+  '@types/lodash': 4.14.195
   '@types/node': 17.0.45
   '@types/papaparse': 5.3.7
   '@types/prismjs': 1.26.0
@@ -3222,6 +3224,10 @@ packages:
 
   /@types/json5/0.0.29:
     resolution: {integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==}
+    dev: true
+
+  /@types/lodash/4.14.195:
+    resolution: {integrity: sha512-Hwx9EUgdwf2GLarOjQp5ZH8ZmblzcbTBC2wtQWNKARBSxM9ezRIAUpeDTgoQRAFB0+8CNWXVA9+MaSOzOF3nPg==}
     dev: true
 
   /@types/marked/4.3.1:
