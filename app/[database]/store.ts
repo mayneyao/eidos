@@ -23,11 +23,6 @@ interface ISpaceAppState {
   currentSchema: ReturnType<typeof sqlToJSONSchema2>
   setCurrentSchema: (schema: ReturnType<typeof sqlToJSONSchema2>) => void
 
-  // const [data, setData] = useState<any[]>([])
-  // it's for render table
-  data: any[]
-  setData: (data: any[]) => void
-
   count: number
   setCount: (count: number) => void
 
@@ -53,9 +48,6 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set) => ({
 
   currentSchema: [],
   setCurrentSchema: (schema) => set({ currentSchema: schema }),
-
-  data: [],
-  setData: (data) => set({ data }),
 
   count: 0,
   setCount: (count) => set({ count }),

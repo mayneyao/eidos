@@ -9,10 +9,10 @@ import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid-cells/dist/index.css"
 import "@glideapps/glide-data-grid/dist/index.css"
-import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
+import React, { useEffect, useMemo, useRef } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
@@ -29,6 +29,7 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
+
 import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"
 
@@ -72,12 +73,12 @@ export default function Grid(props: IGridProps) {
   const {
     count,
     tableSchema,
-    updateCell,
     // deleteFieldByColIndex,
     // addField,
-    addRow,
     deleteRows,
     getRowData,
+    addRow,
+    setCount,
   } = useTable(tableName, databaseName)
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
@@ -87,8 +88,19 @@ export default function Grid(props: IGridProps) {
     onVisibleRegionChanged,
     onCellEdited,
     getCellsForSelection,
-    refreshCurrentPages,
-  } = useAsyncData<any>(50, 5, getRowData, toCell, onEdited, glideDataGridRef)
+    handleAddRow,
+    handleDelRows,
+  } = useAsyncData<any>(
+    50,
+    5,
+    getRowData,
+    toCell,
+    onEdited,
+    glideDataGridRef,
+    addRow,
+    deleteRows,
+    setCount
+  )
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
     useTableAppStore()
@@ -156,7 +168,7 @@ export default function Grid(props: IGridProps) {
   return (
     <div className="h-full p-2" ref={containerRef}>
       <div className="relative flex h-full overflow-hidden rounded-md">
-        <ContextMenuDemo deleteRows={deleteRows}>
+        <ContextMenuDemo deleteRows={handleDelRows}>
           {Boolean(uiColumns.length) && (
             <DataEditor
               {...config}
@@ -198,10 +210,7 @@ export default function Grid(props: IGridProps) {
                 fill: false,
               }}
               onCellEdited={onCellEdited}
-              onRowAppended={() => {
-                addRow()
-                refreshCurrentPages()
-              }}
+              onRowAppended={handleAddRow}
             />
           )}
         </ContextMenuDemo>

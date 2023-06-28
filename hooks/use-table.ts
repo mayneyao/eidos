@@ -5,11 +5,9 @@ import { create } from "zustand"
 import { MsgType } from "@/lib/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import {
-  aggregateSql2columns,
   checkSqlIsModifyTableData,
   checkSqlIsModifyTableSchema,
   checkSqlIsOnlyQuery,
-  queryData2JSON,
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
 import { generateColumnName } from "@/lib/utils"
@@ -57,8 +55,6 @@ export const useTable = (tableName: string, databaseName: string) => {
   const { sqlite, withTransaction } = useSqlite(databaseName)
   const { setUiColumns, uiColumns } = useTableStore()
   const {
-    data,
-    setData,
     count,
     setCount,
     currentSchema: schema,
@@ -68,39 +64,14 @@ export const useTable = (tableName: string, databaseName: string) => {
   } = useSpaceAppStore()
   // const [tableSchema, setTableSchema] = useState<string>()
 
-  // FIXME: bug, when aggregate query, id will be null, cant update as expected
-  const refreshRows = useCallback(
-    async (rowIds?: string[], columns?: string[]) => {
-      if (!sqlite) return
-      const columnsString = columns ? columns.join(",") : "*"
-      console.log(rowIds, columns)
-      if (!rowIds) {
-        await sqlite.sql`SELECT ${Symbol(columnsString)} FROM ${Symbol(
-          tableName
-        )};`.then((res: any) => {
-          setData(res)
-        })
-      }
-      if (rowIds) {
-        await sqlite.sql`SELECT ${Symbol(columnsString)} FROM ${Symbol(
-          tableName
-        )} where _id in ${rowIds};`.then((res: any) => {
-          setData(res)
-        })
-      }
-    },
-    [setData, sqlite, tableName]
-  )
-
   useEffect(() => {
     window.onmessage = (e) => {
       const { type, data } = e.data
       if (type === MsgType.DataUpdateSignal && data.database === databaseName) {
         console.log("refreshRows")
-        refreshRows()
       }
     }
-  }, [refreshRows, databaseName])
+  }, [databaseName])
 
   const updateUiColumns = useCallback(async () => {
     if (!sqlite) return
@@ -132,9 +103,8 @@ export const useTable = (tableName: string, databaseName: string) => {
   const reload = useCallback(async () => {
     console.log(tableName)
     if (!tableName) return
-    await refreshRows()
     await updateTableSchema()
-  }, [refreshRows, updateTableSchema, tableName])
+  }, [updateTableSchema, tableName])
 
   const updateCell = async (rowId: string, filedName: string, value: any) => {
     if (sqlite) {
@@ -186,7 +156,6 @@ export const useTable = (tableName: string, databaseName: string) => {
           ColumnTableName
         )} (name,type,table_name,table_column_name) VALUES (${fieldName},${fieldType},${tableName},${tableColumnName});`
       })
-      await refreshRows()
       await updateTableSchema()
       await updateUiColumns()
     }
@@ -202,7 +171,6 @@ export const useTable = (tableName: string, databaseName: string) => {
         ColumnTableName
       )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
     })
-    await refreshRows()
     await updateUiColumns()
     await updateTableSchema()
   }
@@ -222,25 +190,16 @@ export const useTable = (tableName: string, databaseName: string) => {
       console.log({ res })
       await updateTableSchema()
       setCount(count + 1)
+      return uuid
     }
   }
 
-  const deleteRows = async (startIndex: number, endIndex: number) => {
+  const deleteRows = async (rowIds: string[]) => {
     if (sqlite) {
-      const rowIds = data.slice(startIndex, endIndex).map((row) => row[0])
       await sqlite.sql`DELETE FROM ${Symbol(tableName)} WHERE _id IN ${rowIds}`
       await updateTableSchema()
-      await refreshRows()
     }
   }
-
-  const getCurrentRowIds = useCallback(() => {
-    const res = data.map((row) => row[0]).filter(Boolean)
-    if (res.length === 0) {
-      return undefined
-    }
-    return res
-  }, [data])
 
   const getCurrentColumns = useCallback(() => {
     return schema[0]?.columns?.map((col) => col.name)
@@ -257,47 +216,16 @@ export const useTable = (tableName: string, databaseName: string) => {
         }
         if (checkSqlIsOnlyQuery(querySql)) {
           return res
-          const originSchema = tableSchema ? sqlToJSONSchema2(tableSchema) : []
-          const fields = originSchema[0]?.columns?.map((col) => col.name) ?? []
-          const compactJsonTablesArray = aggregateSql2columns(querySql, fields)
-          const queryFields =
-            compactJsonTablesArray.columns.map((col: any) => col.name) ?? []
-          if (aiConfig.autoRunScope.includes("UI.REFRESH")) {
-            setSchema([compactJsonTablesArray])
-            if (res.length === 1 && !res[0]) {
-              setData([])
-            } else {
-              setData(res)
-            }
-          }
-
-          const jsonData = queryData2JSON(res, queryFields)
-          return jsonData
         }
         if (checkSqlIsModifyTableData(querySql)) {
           const columns = getCurrentColumns()
           if (querySql.includes("UPDATE")) {
-            const rowIds = getCurrentRowIds()
-            refreshRows(rowIds, columns)
-          } else {
-            refreshRows(undefined, columns)
           }
-          refreshRows()
         }
         return res
       }
     },
-    [
-      sqlite,
-      updateTableSchema,
-      tableSchema,
-      aiConfig.autoRunScope,
-      setSchema,
-      setData,
-      refreshRows,
-      getCurrentRowIds,
-      getCurrentColumns,
-    ]
+    [sqlite, updateTableSchema, getCurrentColumns]
   )
 
   const getRowData = useCallback(
@@ -322,11 +250,9 @@ export const useTable = (tableName: string, databaseName: string) => {
         updateTableSchema()
       })
     }
-  }, [setData, sqlite, tableName, updateTableSchema, setCount])
+  }, [sqlite, tableName, updateTableSchema, setCount])
 
   return {
-    data,
-    setData,
     count,
     getRowData,
     schema,
@@ -341,5 +267,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     tableSchema,
     runQuery,
     reload,
+    sqlite,
+    setCount,
   }
 }

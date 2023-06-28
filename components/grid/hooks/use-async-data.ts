@@ -29,7 +29,10 @@ export function useAsyncData<TRowType>(
   getRowData: RowCallback<TRowType>,
   toCell: RowToCell<TRowType>,
   onEdited: RowEditedCallback<TRowType>,
-  gridRef: React.MutableRefObject<DataEditorRef | null>
+  gridRef: React.MutableRefObject<DataEditorRef | null>,
+  addRow: () => void,
+  delRows: (rowIds: string[]) => Promise<void>,
+  setCount: (count: number) => void
 ): Pick<
   DataEditorProps,
   | "getCellContent"
@@ -37,7 +40,8 @@ export function useAsyncData<TRowType>(
   | "onCellEdited"
   | "getCellsForSelection"
 > & {
-  refreshCurrentPages: () => void
+  handleAddRow: () => void
+  handleDelRows: (start: number, end: number) => void
 } {
   pageSize = Math.max(pageSize, 1)
   const loadingRef = React.useRef(CompactSelection.empty())
@@ -160,18 +164,31 @@ export function useAsyncData<TRowType>(
     [onEdited]
   )
 
-  const refreshCurrentPages = React.useCallback(() => {
-    // not working
-    return;
+  const handleAddRow = React.useCallback(async () => {
+    const rowId = await addRow()
+    if (rowId === undefined) return
     const vr = visiblePagesRef.current
     getCellsForSelection(vr)()
-  }, [getCellsForSelection])
+    dataRef.current.push({ _id: rowId } as any)
+  }, [addRow, getCellsForSelection])
+
+  const handleDelRows = async (startIndex: number, endIndex: number) => {
+    const rowIds = dataRef.current
+      .slice(startIndex, endIndex)
+      .map((row: any) => row._id)
+    // remove from data
+    const count = endIndex - startIndex
+    dataRef.current.splice(startIndex, count)
+    setCount(dataRef.current.length)
+    await delRows(rowIds)
+  }
 
   return {
     getCellContent,
     onVisibleRegionChanged,
     onCellEdited,
     getCellsForSelection,
-    refreshCurrentPages,
+    handleAddRow,
+    handleDelRows,
   }
 }
