@@ -37,7 +37,6 @@ interface EditorProps {
   onSave: (content: string) => void
   initContent?: string
   isEditable: boolean
-  autoSave?: boolean
   placeholder?: string
   autoFocus?: boolean
 }
@@ -96,7 +95,6 @@ export function Editor(props: EditorProps) {
             {props.autoFocus && <AutoFocusPlugin />}
             <AutoSavePlugin
               onSave={props.onSave}
-              autoSave={props.autoSave}
               initContent={props.initContent}
             />
             <FloatingTextFormatToolbarPlugin />

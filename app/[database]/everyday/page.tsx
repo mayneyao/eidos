@@ -56,9 +56,8 @@ export default function EverydayPage() {
             <Link href={`/${params.database}/everyday/${day}`}>{day}</Link>
             <Editor
               autoFocus={index === 0}
-              isEditable
+              isEditable={currentDay === day}
               placeholder=""
-              autoSave={currentDay === day}
               onSave={handleDocSave(day)}
               initContent={content}
             />
