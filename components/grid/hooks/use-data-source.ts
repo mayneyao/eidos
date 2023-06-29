@@ -7,16 +7,21 @@ import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { columnsHandleMap } from "../helper"
 import { RowEditedCallback } from "./use-async-data"
-import { useColumns } from "./use-col"
 
 export const useDataSource = (tableName: string, databaseName: string) => {
   const { updateCell, updateFieldProperty } = useTable(tableName, databaseName)
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
-  const { columns } = useColumns(uiColumns)
 
   const toCell = React.useCallback(
     (rowData: any, col: number) => {
       const field = uiColumns[col]
+      if (!field)
+        return {
+          kind: GridCellKind.Text,
+          data: null,
+          displayData: "",
+          allowOverlay: true,
+        }
       const cv = rowData[field.table_column_name]
       const emptyCell: GridCell = {
         kind: GridCellKind.Text,

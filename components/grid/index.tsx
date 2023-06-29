@@ -9,17 +9,17 @@ import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid-cells/dist/index.css"
 import "@glideapps/glide-data-grid/dist/index.css"
+import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
-import React, { useEffect, useMemo, useRef } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
-import { customCells } from "./cells"
 import { Button } from "../ui/button"
+import { customCells } from "./cells"
 import { FieldEditor } from "./fields"
 import { headerIcons } from "./fields/header-icons"
 import { ContextMenuDemo } from "./grid-context-menu"
@@ -29,7 +29,6 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
-
 import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"
 
@@ -70,6 +69,7 @@ export default function Grid(props: IGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
+
   const {
     count,
     tableSchema,
@@ -82,6 +82,7 @@ export default function Grid(props: IGridProps) {
   } = useTable(tableName, databaseName)
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
+  const { onColumnResize, columns } = useColumns(uiColumns)
 
   const {
     getCellContent,
@@ -137,7 +138,6 @@ export default function Grid(props: IGridProps) {
   useEffect(() => {
     clearSelection()
   }, [tableName, databaseName, clearSelection])
-  const { onColumnResize, columns } = useColumns(uiColumns)
   // data handle
   // TODO: refactor
 
