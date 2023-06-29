@@ -21,7 +21,8 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
   }
 
   cellData2RawData(cell: FileCell) {
-    console.log(cell)
-    return cell.data.join(",")
+    return {
+      rawData: cell.data.join(","),
+    }
   }
 }

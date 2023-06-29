@@ -1,6 +1,6 @@
 import { GridCellKind } from "@glideapps/glide-data-grid"
 
-import { DatePickerCell } from "@/components/cells/date-picker-cell"
+import { DatePickerCell } from "@/components/grid/cells/date-picker-cell"
 
 import { BaseField } from "./base"
 
@@ -26,6 +26,8 @@ export class DateField extends BaseField<DateCell, DateProperty, string> {
   }
 
   cellData2RawData(cell: DateCell) {
-    return cell.data.displayDate
+    return {
+      rawData: cell.data.displayDate,
+    }
   }
 }

@@ -4,7 +4,7 @@ import { useClickAway } from "ahooks"
 import { IUIColumn } from "@/hooks/use-table"
 
 import { useTableAppStore } from "../store"
-import { SelectPropertyEditor } from "./property/select-property-editor"
+import { SelectPropertyEditor } from "./property/select/select-property-editor"
 
 const PropertyEditorTypeMap: {
   [type: string]: React.FC<{
@@ -27,14 +27,16 @@ export const FieldPropertyEditor = ({
   updateFieldProperty,
 }: IFieldPropertyEditorProps) => {
   const ref = React.useRef<HTMLDivElement>(null)
-  const {
-    setIsFieldPropertiesEditorOpen,
-    currentUiColumn: currentField,
-    setCurrentUiColumn: setCurrentField,
-  } = useTableAppStore()
-  useClickAway(() => {
-    setIsFieldPropertiesEditorOpen(false)
-  }, [ref])
+  const { setIsFieldPropertiesEditorOpen, currentUiColumn: currentField } =
+    useTableAppStore()
+
+  useClickAway(
+    (e) => {
+      console.log(e.target)
+      setIsFieldPropertiesEditorOpen(false)
+    },
+    [ref]
+  )
 
   const onPropertyChange = (property: any) => {
     currentField &&

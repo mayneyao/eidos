@@ -165,12 +165,14 @@ export function useAsyncData<TRowType>(
   )
 
   const handleAddRow = React.useCallback(async () => {
-    const rowId = await addRow()
-    if (rowId === undefined) return
-    const vr = visiblePagesRef.current
-    getCellsForSelection(vr)()
-    dataRef.current.push({ _id: rowId } as any)
-  }, [addRow, getCellsForSelection])
+    setCount(dataRef.current.length + 1)
+    try {
+      const rowId = await addRow()
+      dataRef.current.push({ _id: rowId } as any)
+    } catch (error) {
+      setCount(dataRef.current.length)
+    }
+  }, [addRow, setCount])
 
   const handleDelRows = async (startIndex: number, endIndex: number) => {
     const rowIds = dataRef.current

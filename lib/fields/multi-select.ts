@@ -14,18 +14,21 @@ type MultiSelectProperty = {
   options: Tag[]
 }
 
-const DefaultOptTags = ["foo", "bar", "baz", "qux", "quux"]
-const DefaultOptColors = ["ff99c8", "fcf6bd", "d0f4de", "a9def9", "e4c1f9"]
-const defaultOptions = DefaultOptTags.map((tag, i) => ({
-  tag,
-  color: `#${DefaultOptColors[i]}`,
-}))
+// const DefaultOptTags = ["foo", "bar", "baz", "qux", "quux"]
+// const DefaultOptColors = ["ff99c8", "fcf6bd", "d0f4de", "a9def9", "e4c1f9"]
+// const defaultOptions = DefaultOptTags.map((tag, i) => ({
+//   tag,
+//   color: `#${DefaultOptColors[i]}`,
+// }))
 
 export class MultiSelectField extends BaseField<
   MultiSelectCell,
   MultiSelectProperty,
   string
 > {
+  getDefaultFieldProperty(): MultiSelectProperty {
+    throw new Error("Method not implemented.")
+  }
   static type = "multi-select"
 
   /**
@@ -39,7 +42,7 @@ export class MultiSelectField extends BaseField<
       kind: GridCellKind.Custom,
       data: {
         kind: "tags-cell",
-        possibleTags: this.column.property?.options ?? defaultOptions,
+        possibleTags: this.column.property?.options ?? [],
         tags: rawData ? rawData.split(",") : [],
       },
       copyData: rawData,
@@ -47,6 +50,14 @@ export class MultiSelectField extends BaseField<
     }
   }
   cellData2RawData(cell: MultiSelectCell) {
-    return cell.data.tags.join(",")
+    return {
+      rawData: cell.data.tags.join(","),
+    }
+  }
+
+  createFieldProperty() {
+    return {
+      options: [],
+    }
   }
 }

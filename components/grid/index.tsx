@@ -18,7 +18,7 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
-import { customCells } from "../cells"
+import { customCells } from "./cells"
 import { Button } from "../ui/button"
 import { FieldEditor } from "./fields"
 import { headerIcons } from "./fields/header-icons"
