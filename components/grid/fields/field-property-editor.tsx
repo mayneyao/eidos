@@ -13,6 +13,7 @@ const PropertyEditorTypeMap: {
   }>
 } = {
   select: SelectPropertyEditor,
+  "multi-select": SelectPropertyEditor,
 }
 
 const NotImplementEditor = () => {

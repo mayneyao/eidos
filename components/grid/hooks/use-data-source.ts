@@ -82,6 +82,7 @@ export const useDataSource = (tableName: string, databaseName: string) => {
               field.column.property
             )
           }
+          console.log("updateCell", { rowId, fieldName, rawData })
           updateCell(rowId, fieldName, rawData)
           const newRowData: any = {
             ...rowData,

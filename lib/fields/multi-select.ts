@@ -1,25 +1,12 @@
 import { GridCellKind } from "@glideapps/glide-data-grid"
-import { TagsCellType } from "@glideapps/glide-data-grid-cells"
 
+import { MultiSelectCell } from "@/components/grid/cells/multi-select-cell"
+
+import { uuidv4 } from "../utils"
 import { BaseField } from "./base"
+import { SelectField, SelectProperty } from "./select"
 
-type Tag = {
-  tag: string
-  color: string
-}
-
-type MultiSelectCell = TagsCellType
-
-type MultiSelectProperty = {
-  options: Tag[]
-}
-
-// const DefaultOptTags = ["foo", "bar", "baz", "qux", "quux"]
-// const DefaultOptColors = ["ff99c8", "fcf6bd", "d0f4de", "a9def9", "e4c1f9"]
-// const defaultOptions = DefaultOptTags.map((tag, i) => ({
-//   tag,
-//   color: `#${DefaultOptColors[i]}`,
-// }))
+type MultiSelectProperty = SelectProperty
 
 export class MultiSelectField extends BaseField<
   MultiSelectCell,
@@ -31,6 +18,25 @@ export class MultiSelectField extends BaseField<
   }
   static type = "multi-select"
 
+  get type() {
+    return MultiSelectField.type
+  }
+
+  get options() {
+    return this.column.property?.options ?? []
+  }
+
+  // TODO: refactor multi-select and select to use the same code
+  addOption(name: string) {
+    const options = this.column.property?.options ?? []
+    const newOptions = [
+      { id: uuidv4(), name, color: SelectField.defaultColor },
+      ...options,
+    ]
+    this.column.property.options = newOptions
+    return newOptions
+  }
+
   /**
    * in database we store the tags as a string, so we need to convert it to an array of strings
    * e.g. "tag1,tag2,tag3" => ["tag1", "tag2", "tag3"]
@@ -41,17 +47,31 @@ export class MultiSelectField extends BaseField<
     return {
       kind: GridCellKind.Custom,
       data: {
-        kind: "tags-cell",
-        possibleTags: this.column.property?.options ?? [],
-        tags: rawData ? rawData.split(",") : [],
+        kind: "multi-select-cell",
+        allowedValues: this.column.property?.options ?? [],
+        values: rawData ? rawData.split(/[\s,]+/) : [],
       },
       copyData: rawData,
       allowOverlay: true,
     }
   }
   cellData2RawData(cell: MultiSelectCell) {
+    const allowedOptionIds = new Set(this.options.map((i) => i.id))
+    const newValues = []
+    let shouldUpdateColumnProperty = false
+    for (const value of cell.data.values) {
+      if (allowedOptionIds.has(value)) {
+        newValues.push(value)
+      } else {
+        // a new option name is entered, create a new option
+        const newOption = this.addOption(value)
+        newValues.push(newOption[0].id)
+        shouldUpdateColumnProperty = true
+      }
+    }
     return {
-      rawData: cell.data.tags.join(","),
+      rawData: newValues.join(","),
+      shouldUpdateColumnProperty,
     }
   }
 
