@@ -17,6 +17,8 @@ export class NumberField extends BaseField<NumberCell, NumberProperty, number> {
   }
 
   cellData2RawData(cell: NumberCell) {
-    return cell.data
+    return {
+      rawData: cell.data,
+    }
   }
 }

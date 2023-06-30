@@ -7,16 +7,21 @@ import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { columnsHandleMap } from "../helper"
 import { RowEditedCallback } from "./use-async-data"
-import { useColumns } from "./use-col"
 
 export const useDataSource = (tableName: string, databaseName: string) => {
-  const { updateCell } = useTable(tableName, databaseName)
+  const { updateCell, updateFieldProperty } = useTable(tableName, databaseName)
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
-  const { columns } = useColumns(uiColumns)
 
   const toCell = React.useCallback(
     (rowData: any, col: number) => {
       const field = uiColumns[col]
+      if (!field)
+        return {
+          kind: GridCellKind.Text,
+          data: null,
+          displayData: "",
+          allowOverlay: true,
+        }
       const cv = rowData[field.table_column_name]
       const emptyCell: GridCell = {
         kind: GridCellKind.Text,
@@ -66,7 +71,18 @@ export const useDataSource = (tableName: string, databaseName: string) => {
         const FieldClass = allFieldTypesMap[uiCol.type]
         if (FieldClass) {
           const field = new FieldClass(uiCol)
-          const rawData = field.cellData2RawData(newVal as never)
+          const res = field.cellData2RawData(newVal as never)
+          const rawData = res.rawData
+          const shouldUpdateColumnProperty = (res as any)
+            .shouldUpdateColumnProperty
+          // when field property changed, update field property
+          if (shouldUpdateColumnProperty) {
+            updateFieldProperty(
+              field.column.table_column_name,
+              field.column.property
+            )
+          }
+          console.log("updateCell", { rowId, fieldName, rawData })
           updateCell(rowId, fieldName, rawData)
           const newRowData: any = {
             ...rowData,
@@ -79,7 +95,7 @@ export const useDataSource = (tableName: string, databaseName: string) => {
       updateCell(rowId, fieldName, newVal.data)
       return rowData
     },
-    [uiColumns, uiColumnMap, updateCell]
+    [uiColumns, uiColumnMap, updateCell, updateFieldProperty]
   )
   return {
     toCell,

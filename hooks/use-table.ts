@@ -184,12 +184,7 @@ export const useTable = (tableName: string, databaseName: string) => {
   const addRow = async (params?: any[]) => {
     if (sqlite) {
       const uuid = uuidv4()
-      const res = await sqlite.sql`INSERT INTO ${Symbol(
-        tableName
-      )}(_id) VALUES (${uuid})`
-      console.log({ res })
-      await updateTableSchema()
-      setCount(count + 1)
+      await sqlite.sql`INSERT INTO ${Symbol(tableName)}(_id) VALUES (${uuid})`
       return uuid
     }
   }

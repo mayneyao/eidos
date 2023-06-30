@@ -56,6 +56,27 @@ const CommandInput = React.forwardRef<
 
 CommandInput.displayName = CommandPrimitive.Input.displayName
 
+/**
+ * hidden search icon
+ */
+const CommandInput2 = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive.Input>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
+>(({ className, ...props }, ref) => (
+  <div className="flex grow items-center" cmdk-input-wrapper="">
+    <CommandPrimitive.Input
+      ref={ref}
+      className={cn(
+        "flex h-6 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  </div>
+))
+
+CommandInput2.displayName = CommandPrimitive.Input.displayName
+
 const CommandList = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
@@ -146,6 +167,7 @@ export {
   Command,
   CommandDialog,
   CommandInput,
+  CommandInput2,
   CommandList,
   CommandEmpty,
   CommandGroup,

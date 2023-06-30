@@ -10,6 +10,7 @@ import {
 } from "@glideapps/glide-data-grid"
 import { Check } from "lucide-react"
 
+import { SelectField, SelectOption } from "@/lib/fields/select"
 import { cn } from "@/lib/utils"
 import {
   Command,
@@ -29,10 +30,7 @@ import { roundedRect } from "./helper"
 interface SelectCellProps {
   readonly kind: "select-cell"
   readonly value: string
-  readonly allowedValues: readonly {
-    tag: string
-    color: string
-  }[]
+  readonly allowedValues: readonly SelectOption[]
   readonly readonly?: boolean
 }
 
@@ -42,6 +40,7 @@ const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
   const { value: cell, onFinishedEditing, initialValue } = p
   const { allowedValues, value: valueIn } = cell.data
 
+  const oldOptionName = allowedValues.find((item) => item.id == valueIn)?.name
   const handleSelect = (value: string) => {
     setValue(value)
     onFinishedEditing({
@@ -76,35 +75,36 @@ const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
             // value={value}
             onValueChange={setValue}
           />
-          <CommandEmpty>Create option(todo)</CommandEmpty>
+          <CommandEmpty>Create some options</CommandEmpty>
           <CommandGroup>
             {allowedValues.map((option) => (
               <CommandItem
-                key={option.tag}
-                value={option.tag}
+                key={option.id}
+                value={option.name}
                 onSelect={(currentValue) => {
-                  handleSelect(currentValue === valueIn ? "" : currentValue)
+                  handleSelect(currentValue === oldOptionName ? "" : option.id)
                 }}
               >
                 <Check
                   className={cn(
                     "mr-2 h-4 w-4",
-                    valueIn === option.tag ? "opacity-100" : "opacity-0"
+                    valueIn === option.id ? "opacity-100" : "opacity-0"
                   )}
                 />
                 <span
                   className="rounded-sm px-2"
                   style={{
-                    background: option.color,
+                    background: SelectField.getColorValue(option.color),
                   }}
                 >
-                  {option.tag}
+                  {option.name}
                 </span>
               </CommandItem>
             ))}
             {Boolean(value.length) &&
-              allowedValues.findIndex((item) => item.tag == value) == -1 && (
+              allowedValues.findIndex((item) => item.name == value) == -1 && (
                 <CommandItem
+                  autoFocus
                   key={value}
                   value={value}
                   onSelect={(currentValue) => {
@@ -127,7 +127,14 @@ const renderer: CustomRenderer<SelectCell> = {
   draw: (args, cell) => {
     const { ctx, theme, rect } = args
     const { value, allowedValues } = cell.data
-    const color = allowedValues.find((t) => t.tag === value)?.color
+    const displayValue = allowedValues.find((t) => t.id === value)?.name ?? ""
+    // if (!value || !displayValue) {
+    // if has value but no displayValue, it's means the value is not in allowedValues, we will display a blank box, we don't delete the value, let user to delete it
+    if (!value) {
+      return true
+    }
+    const colorName = allowedValues.find((t) => t.id === value)?.color
+    const color = SelectField.getColorValue(colorName ?? "default")
     const drawArea: Rectangle = {
       x: rect.x + theme.cellHorizontalPadding,
       y: rect.y + theme.cellVerticalPadding,
@@ -140,7 +147,7 @@ const renderer: CustomRenderer<SelectCell> = {
       1,
       Math.floor(drawArea.height / (tagHeight + innerPad))
     )
-    const metrics = measureTextCached(value, ctx)
+    const metrics = measureTextCached(displayValue, ctx)
     const width = metrics.width + innerPad * 2
     let x = drawArea.x
     let y =
@@ -154,7 +161,7 @@ const renderer: CustomRenderer<SelectCell> = {
     }
     ctx.fillStyle = theme.textDark
     ctx.fillText(
-      value,
+      displayValue,
       rect.x + theme.cellHorizontalPadding + innerPad,
       rect.y + rect.height / 2 + getMiddleCenterBias(ctx, theme)
     )
@@ -169,7 +176,7 @@ const renderer: CustomRenderer<SelectCell> = {
     return {
       ...d,
       value: (d as any as SelectCell).data.allowedValues
-        .map((i) => i.tag)
+        .map((i) => i.name)
         .includes(v)
         ? v
         : d.value,

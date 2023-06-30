@@ -1,6 +1,6 @@
 import { GridCellKind } from "@glideapps/glide-data-grid"
 
-import { RatingCell } from "@/components/cells/rating-cell"
+import { RatingCell } from "@/components/grid/cells/rating-cell"
 
 import { BaseField } from "./base"
 
@@ -22,6 +22,8 @@ export class RatingField extends BaseField<RatingCell, RatingProperty, number> {
   }
 
   cellData2RawData(cell: RatingCell) {
-    return cell.data.rating
+    return {
+      rawData: cell.data.rating,
+    }
   }
 }

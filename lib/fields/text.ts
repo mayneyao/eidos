@@ -17,6 +17,8 @@ export class TextField extends BaseField<TextCell, TextProperty> {
   }
 
   cellData2RawData(cell: TextCell) {
-    return cell.data
+    return {
+      rawData: cell.data,
+    }
   }
 }

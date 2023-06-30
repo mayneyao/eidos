@@ -35,3 +35,12 @@ export function roundedRect(
   ctx.arcTo(x, y + height, x, y + height - radius.bl, radius.bl)
   ctx.arcTo(x, y, x + radius.tl, y, radius.tl)
 }
+
+export const removeItemFromArray = (_arr: any[], item: any) => {
+  const arr = [..._arr]
+  const index = arr.indexOf(item)
+  if (index !== -1) {
+    arr.splice(index, 1)
+  }
+  return arr
+}

@@ -3,7 +3,16 @@ import { IUIColumn } from "@/hooks/use-table"
 type UIColumn<P> = Omit<IUIColumn, "property"> & {
   property: P
 }
-export abstract class BaseField<T, P, R = string> {
+
+interface IBaseField<T, P, R> {
+  column: UIColumn<P>
+  getCellContent(rawData: any): T
+  cellData2RawData(cell: T): any
+}
+
+export abstract class BaseField<T, P, R = string>
+  implements IBaseField<T, P, R>
+{
   static type: string
 
   /**
@@ -26,5 +35,16 @@ export abstract class BaseField<T, P, R = string> {
    */
   abstract getCellContent(rawData: any): T
 
-  abstract cellData2RawData(cell: T): any
+  abstract cellData2RawData(cell: T): {
+    rawData: any
+    shouldUpdateFieldProperty?: boolean
+  }
+
+  /**
+   * every field should have a property, when you create a new field, you should implement this method
+   * @returns
+   */
+  getDefaultFieldProperty(): P {
+    return {} as P
+  }
 }
