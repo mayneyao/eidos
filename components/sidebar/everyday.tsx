@@ -1,5 +1,6 @@
 import { useState } from "react"
-import Link from "next/link"
+import { Link } from "react-router-dom";
+
 import { CalendarDays } from "lucide-react"
 
 import { useDocEditor } from "@/hooks/use-doc-editor"
@@ -75,7 +76,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
             className="w-full justify-start font-normal"
             asChild
           >
-            <Link href={`/${space}/everyday`}>
+            <Link to={`/${space}/everyday`}>
               <CalendarDays className="pr-2" />
               Everyday
             </Link>

@@ -1,5 +1,6 @@
 import { useMemo } from "react"
-import { useParams } from "next/navigation"
+import {  useParams } from 'react-router-dom';
+
 
 import { IFileNode, useSqliteStore } from "./use-sqlite"
 

@@ -3,12 +3,12 @@ import DataEditor, {
   DataEditorRef,
   GridCellKind,
   HeaderClickedEventArgs,
-} from "@glideapps/glide-data-grid"
+} from "@platools/glide-data-grid"
 
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid-cells/dist/index.css"
-import "@glideapps/glide-data-grid/dist/index.css"
+import "@platools/glide-data-grid/dist/index.css"
 import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"

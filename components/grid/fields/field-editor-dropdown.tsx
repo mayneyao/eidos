@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Rectangle } from "@glideapps/glide-data-grid"
+import { Rectangle } from "@platools/glide-data-grid"
 import { useClickAway } from "ahooks"
 import { Settings2, Trash2 } from "lucide-react"
 import { useLayer } from "react-laag"

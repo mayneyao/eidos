@@ -1,4 +1,4 @@
-import { GridCellKind, GridColumnIcon } from "@glideapps/glide-data-grid"
+import { GridCellKind, GridColumnIcon } from "@platools/glide-data-grid"
 
 export const defaultAllColumnsHandle = [
   {

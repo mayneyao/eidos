@@ -39,7 +39,7 @@ export const SideBar = ({ className }: any) => {
         <div className="flex items-center justify-between">
           {/* {!isShareMode && (
             <h2 className="relative px-6 text-lg font-semibold tracking-tight">
-              <Link href={databaseHomeLink}>Eidos</Link>
+              <Link to={databaseHomeLink}>Eidos</Link>
             </h2>
           )} */}
           {isShareMode ? (

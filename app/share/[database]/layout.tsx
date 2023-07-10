@@ -1,6 +1,6 @@
 "use client"
 
-import { useParams, useSearchParams } from "next/navigation"
+import { Outlet, useSearchParams } from "react-router-dom";
 import { useEffect } from "react"
 
 import { DatabaseLayoutBase } from "@/app/[database]/base-layout"
@@ -12,33 +12,29 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
-interface RootLayoutProps {
-  children: React.ReactNode
-}
-
 const SwitchProxyWrapper = ({ children }: any) => {
-  const searchParams = useSearchParams()
+  let [searchParams] = useSearchParams();
   const sharePeerId = searchParams.get("peerId")
   const { profile } = useConfigStore()
   const { conn } = usePeerConnect(sharePeerId, profile.username)
   const { setSqliteProxy } = useSqliteStore()
-  const { database }  = useCurrentPathInfo()
+  const { space }  = useCurrentPathInfo()
   useEffect(() => {
     // TODO: handle connection
     if (conn) {
-      const sqliteProxy = getSqliteProxy(database, {
+      const sqliteProxy = getSqliteProxy(space, {
         isShareMode: true,
         connection: conn,
       })
       console.log(`share mode setSqlWorker`)
       setSqliteProxy(sqliteProxy)
     }
-  }, [conn, database, setSqliteProxy])
+  }, [conn, space, setSqliteProxy])
   return <>{children}</>
 }
 
-export default function ShareDatabaseLayout({ children }: RootLayoutProps) {
-  const searchParams = useSearchParams()
+export default function ShareDatabaseLayout() {
+  const [searchParams] = useSearchParams()
   const sharePeerId = searchParams.get("peerId")
   const { profile } = useConfigStore()
   const { isConnected } = usePeerConnect(sharePeerId, profile.username)
@@ -59,7 +55,9 @@ export default function ShareDatabaseLayout({ children }: RootLayoutProps) {
         isConnected ? "border-green-400" : "border-red-400"
       )}
     >
-      <SwitchProxyWrapper>{children}</SwitchProxyWrapper>
+      <SwitchProxyWrapper>
+        <Outlet/>
+      </SwitchProxyWrapper>
     </DatabaseLayoutBase>
   )
 }

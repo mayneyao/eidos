@@ -1,15 +1,16 @@
-"use client"
+"use client";
 
 // import { Metadata } from "next"
-import { useKeyPress } from "ahooks"
-import { Minimize2 } from "lucide-react"
+import { useKeyPress } from "ahooks";
+import { Minimize2 } from "lucide-react";
 
-import { useGoto } from "@/hooks/use-goto"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { SidebarNav } from "@/app/settings/components/sidebar-nav"
+import { useGoto } from "@/hooks/use-goto";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { SidebarNav } from "@/app/settings/components/sidebar-nav";
 
-import { useLastOpened } from "../[database]/hook"
+import { useLastOpened } from "../[database]/hook";
+import { Outlet } from "react-router-dom";
 
 // export const metadata: Metadata = {
 //   title: "Forms",
@@ -41,20 +42,16 @@ const sidebarNavItems = [
   //   title: "Display",
   //   href: "/settings/display",
   // },
-]
+];
 
-interface SettingsLayoutProps {
-  children: React.ReactNode
-}
-
-export default function SettingsLayout({ children }: SettingsLayoutProps) {
-  const { lastOpenedTable, lastOpenedDatabase } = useLastOpened()
-  const goto = useGoto()
-  const goBack = () => goto(lastOpenedDatabase, lastOpenedTable)
+export default function SettingsLayout() {
+  const { lastOpenedTable, lastOpenedDatabase } = useLastOpened();
+  const goto = useGoto();
+  const goBack = () => goto(lastOpenedDatabase, lastOpenedTable);
   useKeyPress("esc", (e) => {
-    e.preventDefault()
-    goBack()
-  })
+    e.preventDefault();
+    goBack();
+  });
 
   return (
     <div className="grid w-full grid-cols-5 ">
@@ -76,10 +73,12 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
           <aside className="-mx-4 lg:w-1/5">
             <SidebarNav items={sidebarNavItems} />
           </aside>
-          <div className="flex-1 lg:max-w-2xl">{children}</div>
+          <div className="flex-1 lg:max-w-2xl">
+            <Outlet />
+          </div>
         </div>
       </div>
       <div className="col-span-1" />
     </div>
-  )
+  );
 }

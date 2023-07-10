@@ -56,6 +56,6 @@ export default function DragDropPaste(): null {
       },
       COMMAND_PRIORITY_LOW
     )
-  }, [editor])
+  }, [editor, space])
   return null
 }

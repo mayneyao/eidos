@@ -1,12 +1,11 @@
 "use client"
 
 
+import { Outlet } from "react-router-dom"
 import { DatabaseLayoutBase } from "./base-layout"
 
-export default function DatabaseLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return <DatabaseLayoutBase>{children}</DatabaseLayoutBase>
+export default function DatabaseLayout() {
+  return <DatabaseLayoutBase>
+    <Outlet/>
+  </DatabaseLayoutBase>
 }

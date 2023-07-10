@@ -3,7 +3,7 @@ import {
   CustomRenderer,
   GridCellKind,
   Item,
-} from "@glideapps/glide-data-grid"
+} from "@platools/glide-data-grid"
 
 import { cn } from "@/lib/utils"
 
@@ -84,7 +84,6 @@ const renderer: CustomRenderer<RatingCell> = {
     return true
   },
   provideEditor: () => {
-    // eslint-disable-next-line react/display-name
     return (p) => (
       <div className="flex items-center py-[6px] text-gray-300">
         {[0, 1, 2, 3, 4].map((index) => (

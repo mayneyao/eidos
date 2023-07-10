@@ -1,6 +1,5 @@
 import React from "react"
-import { GridMouseEventArgs } from "@glideapps/glide-data-grid"
-import { GetRowThemeCallback } from "@glideapps/glide-data-grid/dist/ts/data-grid/data-grid-render"
+import { GridMouseEventArgs } from "@platools/glide-data-grid"
 
 const oddRowOrHoverRowThemeOverride = (isDarkMode: boolean) => {
   if (isDarkMode) {
@@ -22,8 +21,8 @@ export const useHover = ({ theme }: { theme?: string }) => {
     setHoverRow(args.kind !== "cell" ? undefined : row)
   }, [])
 
-  const getRowThemeOverride = React.useCallback<GetRowThemeCallback>(
-    (row) => {
+  const getRowThemeOverride = React.useCallback<any>(
+    (row:any) => {
       const isDarkMode = theme === "dark"
       const isOddRow = row % 2 === 1
       if (isOddRow) return oddRowOrHoverRowThemeOverride(isDarkMode)

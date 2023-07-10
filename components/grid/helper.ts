@@ -1,4 +1,4 @@
-import { GridCellKind, GridColumn } from "@glideapps/glide-data-grid"
+import { GridCellKind, GridColumn } from "@platools/glide-data-grid"
 import { v4 as uuidv4 } from "uuid"
 
 import { ColumnTableName } from "@/lib/sqlite/const"

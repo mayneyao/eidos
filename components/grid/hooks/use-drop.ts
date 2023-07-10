@@ -4,7 +4,7 @@ import {
   GridCellKind,
   ImageCell,
   Item,
-} from "@glideapps/glide-data-grid"
+} from "@platools/glide-data-grid"
 
 import { FieldType } from "@/lib/fields/const"
 import { uploadFile2OPFS } from "@/lib/opfs"

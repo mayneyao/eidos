@@ -1,4 +1,4 @@
-import { GridColumnIcon, SpriteMap } from "@glideapps/glide-data-grid"
+import { GridColumnIcon, SpriteMap } from "@platools/glide-data-grid"
 
 import { FieldType } from "@/lib/fields/const"
 

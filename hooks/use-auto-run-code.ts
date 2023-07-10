@@ -9,7 +9,7 @@ import { useSqlite } from "./use-sqlite"
 import { useTable } from "./use-table"
 
 export const useAutoRunCode = () => {
-  const { database, tableName: table } = useCurrentPathInfo()
+  const { space:database, tableName: table } = useCurrentPathInfo()
   const { handleSql } = useSqlite(database)
   const { aiConfig } = useConfigStore()
   // FIXME: now ai-chat is global, maybe not in table page
@@ -49,7 +49,7 @@ export const useAutoRunCode = () => {
     }
   ) => {
     const { msgIndex, width } = context
-    // eslint-disable-next-line no-eval
+     
     try {
       ;(window as any)._CANVAS_ID_ = `#chart-${msgIndex}`
       ;(window as any)._CHART_WIDTH_ = width - 50

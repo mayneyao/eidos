@@ -2,7 +2,7 @@ import {
   CompactSelection,
   GridSelection,
   Rectangle,
-} from "@glideapps/glide-data-grid"
+} from "@platools/glide-data-grid"
 import { create } from "zustand"
 
 import { IUIColumn } from "@/hooks/use-table"

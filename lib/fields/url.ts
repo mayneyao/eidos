@@ -1,4 +1,4 @@
-import { GridCellKind, UriCell } from "@glideapps/glide-data-grid"
+import { GridCellKind, UriCell } from "@platools/glide-data-grid"
 
 import { BaseField } from "./base"
 
@@ -13,7 +13,6 @@ export class URLField extends BaseField<URLCell, URLProperty> {
     return {
       kind: GridCellKind.Uri,
       data: rawData ?? "",
-      displayData: rawData ?? "",
       allowOverlay: true,
     }
   }

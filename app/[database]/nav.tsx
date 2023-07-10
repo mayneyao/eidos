@@ -1,5 +1,5 @@
-import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { Link, useNavigate } from "react-router-dom";
+
 import {
   Bot,
   Cloud,
@@ -31,18 +31,16 @@ import {
 import { AvatarList } from "@/components/avatar-list"
 import { ShareDialog } from "@/components/share-dialog"
 
-import { useCurrentDomain } from "./hook"
 import { useSpaceAppStore } from "./store"
 
 export function DropdownMenuDemo() {
-  const currentDomain = useCurrentDomain()
-  const router = useRouter()
-  const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
+  const router = useNavigate();
+    const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
   const toggleCMDK = () => {
     setCmdkOpen(!isCmdkOpen)
   }
   const goSettings = () => {
-    router.push("/settings")
+    router("/settings")
   }
   return (
     <DropdownMenu>
@@ -114,7 +112,7 @@ export function DropdownMenuDemo() {
         <DropdownMenuSeparator />
         <DropdownMenuItem>
           <Github className="mr-2 h-4 w-4" />
-          <Link href="https://github.com/mayneyao/eidos" target="_blank">
+          <Link to="https://github.com/mayneyao/eidos" target="_blank">
             <span>GitHub</span>
           </Link>
         </DropdownMenuItem>
@@ -141,7 +139,7 @@ export const Nav = () => {
   const { isAiOpen, setIsAiOpen, isSidebarOpen, setSidebarOpen } =
     useSpaceAppStore()
 
-  const { database, tableName: table } = useCurrentPathInfo()
+  const { space:database, tableName: table } = useCurrentPathInfo()
   const { reload } = useTable(table ?? "", database)
   const { currentCollaborators } = usePeer()
   const nameList = currentCollaborators.map((c) => c.name)

@@ -1,13 +1,12 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
-import { useKeyPress } from "ahooks"
-import { Bot, Forward, Home, Palette, Settings } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useNavigate } from "react-router-dom";
 
-import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useKeyPress } from "ahooks";
+import { Bot, Forward, Home, Palette, Settings } from "lucide-react";
+import { useTheme } from "next-themes";
+
+import { useSpaceAppStore } from "@/app/[database]/store";
 import {
   CommandDialog,
   CommandEmpty,
@@ -17,39 +16,40 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
-} from "@/components/ui/command"
-import { useSpaceAppStore } from "@/app/[database]/store"
+} from "@/components/ui/command";
+import { useAppStore } from "@/lib/store/app-store";
+import { useAppRuntimeStore } from "@/lib/store/runtime-store";
 
 export function CommandDialogDemo() {
   // const [open, setOpen] = React.useState(false)
-  const { isCmdkOpen, setCmdkOpen } = useAppRuntimeStore()
+  const { isCmdkOpen, setCmdkOpen } = useAppRuntimeStore();
 
-  const { theme, setTheme } = useTheme()
-  const router = useRouter()
+  const { theme, setTheme } = useTheme();
+  const router = useNavigate();
   useKeyPress("ctrl.k", (e) => {
-    e.preventDefault()
-    setCmdkOpen(!isCmdkOpen)
-  })
+    e.preventDefault();
+    setCmdkOpen(!isCmdkOpen);
+  });
 
-  const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
-  const { lastOpenedDatabase } = useAppStore()
+  const { isAiOpen, setIsAiOpen } = useSpaceAppStore();
+  const { lastOpenedDatabase } = useAppStore();
 
   const goto = (path: string) => () => {
-    setCmdkOpen(false)
-    router.push(path)
-  }
-  const goHome = goto(`/${lastOpenedDatabase}`)
+    setCmdkOpen(false);
+    router(path);
+  };
+  const goHome = goto(`/${lastOpenedDatabase}`);
 
-  const goShare = goto("/share")
+  const goShare = goto("/share");
 
   const switchTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light")
-  }
+    setTheme(theme === "light" ? "dark" : "light");
+  };
 
   const toggleAI = () => {
-    setCmdkOpen(false)
-    setIsAiOpen(!isAiOpen)
-  }
+    setCmdkOpen(false);
+    setIsAiOpen(!isAiOpen);
+  };
 
   return (
     <CommandDialog open={isCmdkOpen} onOpenChange={setCmdkOpen}>
@@ -85,5 +85,5 @@ export function CommandDialogDemo() {
         </CommandGroup>
       </CommandList>
     </CommandDialog>
-  )
+  );
 }

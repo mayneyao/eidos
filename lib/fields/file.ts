@@ -1,4 +1,4 @@
-import { GridCellKind, ImageCell } from "@glideapps/glide-data-grid"
+import { GridCellKind, ImageCell } from "@platools/glide-data-grid"
 
 import { BaseField } from "./base"
 
@@ -14,7 +14,6 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
     return {
       kind: GridCellKind.Image,
       data: data,
-      copyData: rawData,
       allowOverlay: true,
       allowAdd: true,
     }

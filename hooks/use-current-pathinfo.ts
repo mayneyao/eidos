@@ -1,4 +1,5 @@
-import { useParams } from "next/navigation"
+import {  useParams } from 'react-router-dom';
+
 
 import { getRawTableNameById } from "@/lib/utils"
 
@@ -12,7 +13,7 @@ export const useCurrentPathInfo = () => {
     case "table":
       return {
         database,
-        space: database,
+        space: database!,
         // space = database
         // rawTableName stored in sqlite
         tableName: table ? getRawTableNameById(table) : "",
@@ -22,14 +23,14 @@ export const useCurrentPathInfo = () => {
     case "doc":
       return {
         database,
-        space: database,
+        space: database!,
         docId: table,
       }
     default:
       // for old version
       return {
         database,
-        space: database,
+        space: database!,
         tableName: "",
         tableId: table,
       }

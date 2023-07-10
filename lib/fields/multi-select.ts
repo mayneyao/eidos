@@ -1,4 +1,4 @@
-import { GridCellKind } from "@glideapps/glide-data-grid"
+import { GridCellKind } from "@platools/glide-data-grid"
 
 import { MultiSelectCell } from "@/components/grid/cells/multi-select-cell"
 

@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useParams } from "next/navigation"
+import {  useParams } from 'react-router-dom';
+
 
 import { opfsDocManager } from "@/lib/opfs"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -16,7 +17,7 @@ export default function EverydayPage() {
   const filepath = useMemo(
     () => ["spaces", params.database, "everyday", filename],
     [params.database, filename]
-  )
+  ) as string[]
 
   useEffect(() => {
     opfsDocManager.getDocContent(filepath).then((content) => {

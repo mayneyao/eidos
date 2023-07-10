@@ -1,5 +1,5 @@
 import React, { useEffect } from "react"
-import { GridColumn } from "@glideapps/glide-data-grid"
+import { GridColumn } from "@platools/glide-data-grid"
 
 import { IUIColumn } from "@/hooks/use-table"
 

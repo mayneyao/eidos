@@ -1,7 +1,8 @@
 "use client"
 
 import { Download } from "lucide-react"
-import Link from "next/link"
+import { Link } from "react-router-dom";
+
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -29,7 +30,7 @@ export default function SpaceManagerPage() {
       title: "Imported",
       description: `Space ${spaceName} imported`,
       action: (
-        <Link href={`/${spaceName}`}>
+        <Link to={`/${spaceName}`}>
           <Button variant="outline">Open</Button>
         </Link>
       ),
@@ -59,7 +60,7 @@ export default function SpaceManagerPage() {
             className="flex  items-center justify-between rounded-sm px-2 py-1"
           >
             <div className="grow">
-              <Link href={`/${space}`}>{space}</Link>
+              <Link to={`/${space}`}>{space}</Link>
             </div>
             <Button variant="ghost" onClick={() => exportSpace(space)}>
               <Download className="h-4 w-4" />
