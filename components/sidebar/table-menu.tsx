@@ -1,5 +1,6 @@
 import { MouseEventHandler, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom";
+
 import { useClickAway } from "ahooks"
 
 import { IFileNode, useSqlite } from "@/hooks/use-sqlite"
@@ -37,10 +38,10 @@ export function NodeItem({ databaseName, children, node }: INodeItemProps) {
     setRenameOpen(false)
   }, [renameInputRef])
 
-  const router = useRouter()
-  const handleDeleteTable = () => {
+  const router = useNavigate();
+    const handleDeleteTable = () => {
     deleteNode(node)
-    router.push(`/${databaseName}`)
+    router(`/${databaseName}`)
   }
   const handleRename: MouseEventHandler<HTMLDivElement> = (e) => {
     setRenameOpen(true)

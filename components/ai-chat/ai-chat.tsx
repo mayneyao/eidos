@@ -2,7 +2,8 @@
 
 // for now it's under database page, maybe move to global later
 import { Loader2, Paintbrush } from "lucide-react"
-import Link from "next/link"
+import { Link } from "react-router-dom";
+
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { useSpaceAppStore } from "@/app/[database]/store"
@@ -24,7 +25,7 @@ import { AIChatMessage } from "./ai-chat-message"
 export const AIChat = () => {
   const { uiColumns } = useTableStore()
   const { askAI } = useAI()
-  const { database } = useCurrentPathInfo()
+  const { space:database } = useCurrentPathInfo()
   const currentNode = useCurrentNode()
   const { aiConfig } = useConfigStore()
   const { sqlite } = useSqlite(database)
@@ -151,7 +152,7 @@ export const AIChat = () => {
           <p className="p-2">
             you need to set your openai token in{" "}
             <span>
-              <Link href="/settings/ai" className="text-cyan-500">
+              <Link to="/settings/ai" className="text-cyan-500">
                 settings
               </Link>
             </span>{" "}

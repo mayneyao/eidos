@@ -26,7 +26,6 @@ const renderer: CustomRenderer<DatePickerCell> = {
     drawTextCell(args, displayDate, cell.contentAlign)
     return true
   },
-  // eslint-disable-next-line react/display-name
   provideEditor: () => (p) => {
     const cellData = p.value.data
     const { format, date } = cellData

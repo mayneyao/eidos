@@ -57,7 +57,7 @@ export const useLastOpened = () => {
 }
 
 export const useLayoutInit = () => {
-  const { database } = useCurrentPathInfo()
+  const { space:database } = useCurrentPathInfo()
   const { setSqliteProxy: setSqlWorker } = useSqliteStore()
   const { setCurrentDatabase, currentDatabase } = useSqliteStore()
   const { experiment } = useConfigStore()

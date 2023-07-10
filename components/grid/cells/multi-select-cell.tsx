@@ -65,13 +65,13 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
 
   const clickRemoveOption = (e: any) => {
     const optionId = e.target.dataset.id
-    const set = new Set(values)
+    const set = new Set<string>(values)
     set.delete(optionId)
     setNewValues(Array.from(set))
   }
   const handleSelect = (value?: string) => {
     if (!value) return
-    const set = new Set(values)
+    const set = new Set<string>(values)
     if (set.has(value)) {
       set.delete(value)
     } else {

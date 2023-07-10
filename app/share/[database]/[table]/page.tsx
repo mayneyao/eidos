@@ -1,19 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import dynamic from "next/dynamic"
 
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Editor } from "@/components/doc/editor"
-
-const Grid = dynamic(
-  () => {
-    return import("@/components/grid")
-  },
-  { ssr: false }
-)
+import Grid from "@/components/grid"
 
 export default function TablePage() {
   const params = useCurrentPathInfo()
@@ -36,7 +29,7 @@ export default function TablePage() {
   return (
     <>
       {node?.type === "table" && (
-        <Grid tableName={params.tableName!} databaseName={params.database} />
+        <Grid tableName={params.tableName!} databaseName={params.space} />
       )}
       {node?.type === "doc" && (
         <div className="prose mx-auto flex flex-col gap-2 p-10 dark:prose-invert lg:prose-xl xl:prose-2xl">

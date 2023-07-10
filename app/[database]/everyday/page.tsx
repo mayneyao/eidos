@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
+import { Link } from "react-router-dom";
+
 import useInfiniteScroll from "react-infinite-scroll-hook"
 
 import { opfsDocManager } from "@/lib/opfs"
@@ -14,7 +15,7 @@ import { useAllDays } from "./hooks"
 export default function EverydayPage() {
   const params = useCurrentPathInfo()
   const { loading, days, items, hasNextPage, error, loadMore } = useAllDays(
-    params.database
+    params.space
   )
   const [sentryRef] = useInfiniteScroll({
     loading,
@@ -34,7 +35,7 @@ export default function EverydayPage() {
   const handleDocSave = (day: string) => {
     return (content: string) => {
       opfsDocManager.updateDocFile(
-        ["spaces", params.database, "everyday", `${day}.md`],
+        ["spaces", params.space, "everyday", `${day}.md`],
         content
       )
     }
@@ -53,7 +54,7 @@ export default function EverydayPage() {
             className="border-b border-slate-300"
             onClick={() => handleClick(day)}
           >
-            <Link href={`/${params.database}/everyday/${day}`}>{day}</Link>
+            <Link to={`/${params.database}/everyday/${day}`}>{day}</Link>
             <Editor
               autoFocus={index === 0}
               isEditable={currentDay === day}

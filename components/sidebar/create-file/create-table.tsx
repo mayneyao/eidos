@@ -25,8 +25,8 @@ export const CreateTable = ({
   const [progress, setProgress] = useState(0)
   const [file, setFile] = useState<File | null>(null)
   const params = useCurrentPathInfo()
-  const { database } = params
-  const { createTable, createTableWithSqlAndInsertSqls } = useSqlite(database)
+  const { space } = params
+  const { createTable, createTableWithSqlAndInsertSqls } = useSqlite(space)
   const goto = useGoto()
 
   const handleCreateTable = async () => {
@@ -41,11 +41,11 @@ export const CreateTable = ({
         callback: setProgress,
       })
       setImporting(false)
-      goto(database, res.tableId)
+      goto(space, res.tableId)
       setOpen(false)
     } else {
       const tableId = await createTable(tableName)
-      goto(database, tableId)
+      goto(space, tableId)
       setOpen(false)
     }
     setFile(null)

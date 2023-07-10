@@ -1,6 +1,6 @@
 import { useState } from "react"
-import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { Link,useSearchParams } from "react-router-dom";
+
 import { File, FileSpreadsheet, Plus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -30,7 +30,7 @@ export const CurrentItemTree = ({
   Icon: React.ReactNode
 }) => {
   const [showNodes, setShowNodes] = useState(false)
-  const searchParams = useSearchParams()
+  const [searchParams] = useSearchParams()
 
   const { space } = useCurrentPathInfo()
 
@@ -103,7 +103,7 @@ export const CurrentItemTree = ({
                     className="w-full justify-start font-normal"
                     asChild
                   >
-                    <Link href={link}>
+                    <Link to={link}>
                       <ItemIcon type={node.type} className="pr-2" />
                       {node.name}
                     </Link>

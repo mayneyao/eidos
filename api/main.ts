@@ -6,7 +6,13 @@ import { wsMap } from "./helper"
 import { appRouter } from "./router"
 
 const server = http.createServer(
-  createOpenApiHttpHandler({ router: appRouter })
+  createOpenApiHttpHandler({
+    router: appRouter,
+    createContext: undefined,
+    responseMeta: undefined,
+    onError: undefined,
+    maxBodySize: undefined
+  })
 )
 
 export const wss = new WebSocketServer({ server })

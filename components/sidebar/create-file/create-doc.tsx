@@ -19,13 +19,13 @@ export const CreateDoc = ({
 }) => {
   const [docName, setDocName] = useState("")
   const params = useCurrentPathInfo()
-  const { database } = params
-  const { createDoc } = useSqlite(database)
+  const { space } = params
+  const { createDoc } = useSqlite(space)
   const goto = useGoto()
 
   const handleCreateDoc = async () => {
     const docId = await createDoc(docName)
-    goto(database, docId)
+    goto(space, docId)
     setOpen(false)
   }
 

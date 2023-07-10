@@ -13,7 +13,6 @@ export class URLField extends BaseField<URLCell, URLProperty> {
     return {
       kind: GridCellKind.Uri,
       data: rawData ?? "",
-      displayData: rawData ?? "",
       allowOverlay: true,
     }
   }
