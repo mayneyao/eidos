@@ -1,5 +1,5 @@
 import React from "react"
-import { GridCell, GridCellKind } from "@glideapps/glide-data-grid"
+import { GridCell, GridCellKind } from "@platools/glide-data-grid"
 
 import { allFieldTypesMap } from "@/lib/fields"
 import { useTable } from "@/hooks/use-table"

@@ -15,7 +15,7 @@
     "dev:api": "tsx ./api/main.ts"
   },
   "dependencies": {
-    "@platools/glide-data-grid": "^5.2.1",
+    "@platools/glide-data-grid": "^5.2.3",
     "@glideapps/glide-data-grid-cells": "^5.2.1",
     "@hookform/resolvers": "^3.1.0",
     "@lexical/clipboard": "^0.11.1",
@@ -112,7 +112,7 @@
     "@typescript-eslint/parser": "^5.59.7",
     "@vitejs/plugin-react": "^4.0.1",
     "autoprefixer": "^10.4.14",
-    "eslint": "^8.41.0",
+    "eslint": "^8.44.0",
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^4.6.0",

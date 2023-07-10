@@ -1,4 +1,4 @@
-import { Theme } from "@glideapps/glide-data-grid"
+import { Theme } from "@platools/glide-data-grid"
 
 export const darkTheme = {
   accentColor: "hsl(0,0%,100%)",
