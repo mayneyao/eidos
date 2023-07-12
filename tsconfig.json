@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
     "module": "ESNext",
     "skipLibCheck": true,
     "allowJs": true,
@@ -31,7 +31,8 @@
     "**/*.ts",
     "**/*.tsx",
     "**/*.js",
-    ".eslintrc.cjs"
+    ".eslintrc.cjs",
+    "prettier.config.cjs"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

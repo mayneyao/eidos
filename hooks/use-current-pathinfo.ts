@@ -1,5 +1,4 @@
-import {  useParams } from 'react-router-dom';
-
+import { useParams } from "react-router-dom"
 
 import { getRawTableNameById } from "@/lib/utils"
 
