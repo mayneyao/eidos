@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect } from "react"
 import {
   CellArray,
   CompactSelection,
@@ -23,6 +23,7 @@ export type RowEditedCallback<T> = (
 ) => T | undefined
 
 export function useAsyncData<TRowType>(
+  tableName: string,
   pageSize: number,
   maxConcurrency: number,
   // offset limit
@@ -46,7 +47,6 @@ export function useAsyncData<TRowType>(
   pageSize = Math.max(pageSize, 1)
   const loadingRef = React.useRef(CompactSelection.empty())
   const dataRef = React.useRef<TRowType[]>([])
-
   const [visiblePages, setVisiblePages] = React.useState<Rectangle>({
     x: 0,
     y: 0,
@@ -140,7 +140,13 @@ export function useAsyncData<TRowType>(
     [getCellContent, loadPage, maxConcurrency, pageSize]
   )
 
-  React.useEffect(() => {
+  useEffect(() => {
+    // refresh data when table name changes
+    loadingRef.current = CompactSelection.empty()
+    dataRef.current = []
+  }, [tableName])
+
+  useEffect(() => {
     const r = visiblePages
     const firstPage = Math.max(0, Math.floor((r.y - pageSize / 2) / pageSize))
     const lastPage = Math.floor((r.y + r.height + pageSize / 2) / pageSize)
@@ -184,6 +190,19 @@ export function useAsyncData<TRowType>(
     setCount(dataRef.current.length)
     await delRows(rowIds)
   }
+
+  const refreshCurrentVisible = React.useCallback(() => {
+    const vr = visiblePagesRef.current
+    const damageList: { cell: [number, number] }[] = []
+    for (let row = vr.y; row < vr.y + vr.height; row++) {
+      for (let col = vr.x; col < vr.x + vr.width; col++) {
+        damageList.push({
+          cell: [col, row],
+        })
+      }
+    }
+    gridRef.current?.updateCells(damageList)
+  }, [gridRef])
 
   return {
     getCellContent,

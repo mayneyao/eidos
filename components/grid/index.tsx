@@ -92,6 +92,7 @@ export default function Grid(props: IGridProps) {
     handleAddRow,
     handleDelRows,
   } = useAsyncData<any>(
+    tableName,
     50,
     5,
     getRowData,
