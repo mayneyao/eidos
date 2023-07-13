@@ -1,5 +1,3 @@
-import { Link, useNavigate } from "react-router-dom";
-
 import {
   Bot,
   Cloud,
@@ -12,6 +10,7 @@ import {
   Settings,
   Share2,
 } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -34,8 +33,8 @@ import { ShareDialog } from "@/components/share-dialog"
 import { useSpaceAppStore } from "./store"
 
 export function DropdownMenuDemo() {
-  const router = useNavigate();
-    const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
+  const router = useNavigate()
+  const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
   const toggleCMDK = () => {
     setCmdkOpen(!isCmdkOpen)
   }
@@ -53,16 +52,6 @@ export function DropdownMenuDemo() {
         <DropdownMenuLabel>All data hosted on Local 🖥</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          {/* <DropdownMenuItem>
-            <User className="mr-2 h-4 w-4" />
-            <span>Command Palette</span>
-            <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
-          </DropdownMenuItem> */}
-          {/* <DropdownMenuItem>
-            <CreditCard className="mr-2 h-4 w-4" />
-            <span>Billing</span>
-            <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
-          </DropdownMenuItem> */}
           <DropdownMenuItem onSelect={toggleCMDK}>
             <Keyboard className="mr-2 h-4 w-4" />
             <span>Command Palette</span>
@@ -74,48 +63,13 @@ export function DropdownMenuDemo() {
             {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
           </DropdownMenuItem>
         </DropdownMenuGroup>
-        {/* <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <Users className="mr-2 h-4 w-4" />
-            <span>Team</span>
-          </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <UserPlus className="mr-2 h-4 w-4" />
-              <span>Invite users</span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem>
-                  <Mail className="mr-2 h-4 w-4" />
-                  <span>Email</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  <span>Message</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  <span>More...</span>
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
-          <DropdownMenuItem>
-            <Plus className="mr-2 h-4 w-4" />
-            <span>New Team</span>
-            <DropdownMenuShortcut>⌘+T</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuGroup> */}
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <Github className="mr-2 h-4 w-4" />
-          <Link to="https://github.com/mayneyao/eidos" target="_blank">
+        <Link to="https://github.com/mayneyao/eidos" target="_blank">
+          <DropdownMenuItem>
+            <Github className="mr-2 h-4 w-4" />
             <span>GitHub</span>
-          </Link>
-        </DropdownMenuItem>
+          </DropdownMenuItem>
+        </Link>
         <DropdownMenuItem>
           <LifeBuoy className="mr-2 h-4 w-4" />
           <span>Support</span>
@@ -139,7 +93,7 @@ export const Nav = () => {
   const { isAiOpen, setIsAiOpen, isSidebarOpen, setSidebarOpen } =
     useSpaceAppStore()
 
-  const { space:database, tableName: table } = useCurrentPathInfo()
+  const { space: database, tableName: table } = useCurrentPathInfo()
   const { reload } = useTable(table ?? "", database)
   const { currentCollaborators } = usePeer()
   const nameList = currentCollaborators.map((c) => c.name)
