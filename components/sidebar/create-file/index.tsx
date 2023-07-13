@@ -16,7 +16,7 @@ export function CreateFileDialog() {
       <DialogTrigger asChild>
         <Button
           size="sm"
-          className="dark:bg-dark-800 sticky bottom-0 min-h-[32px] w-full bg-white font-normal"
+          className="dark:bg-dark-800 sticky bottom-0 min-h-[32px] w-full bg-white font-normal dark:bg-black"
           variant="outline"
         >
           <Plus size={16} className="mr-2" />
