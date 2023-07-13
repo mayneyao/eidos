@@ -7,15 +7,12 @@ import {
   Menu,
   MoreHorizontal,
   RotateCcw,
-  Settings,
-  Share2,
+  Settings
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { usePeer } from "@/hooks/use-peer"
-import { useTable } from "@/hooks/use-table"
+import { AvatarList } from "@/components/avatar-list"
+import { ShareDialog } from "@/components/share-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -27,8 +24,10 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { AvatarList } from "@/components/avatar-list"
-import { ShareDialog } from "@/components/share-dialog"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { usePeer } from "@/hooks/use-peer"
+import { useTable } from "@/hooks/use-table"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { useSpaceAppStore } from "./store"
 

@@ -1,9 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Link } from "react-router-dom";
-
 import useInfiniteScroll from "react-infinite-scroll-hook"
+import { Link } from "react-router-dom"
 
 import { opfsDocManager } from "@/lib/opfs"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -27,7 +26,7 @@ export default function EverydayPage() {
     // `rootMargin` is passed to `IntersectionObserver`.
     // We can use it to trigger 'onLoadMore' when the sentry comes near to become
     // visible, instead of becoming fully visible on the screen.
-    rootMargin: "0px 0px 400px 0px",
+    // rootMargin: "0px 0px 200px 0px",
   })
 
   const [currentDay, setCurrentDay] = useState<string>("")
@@ -46,7 +45,7 @@ export default function EverydayPage() {
 
   return (
     <div className="prose mx-auto flex flex-col gap-2 p-10 dark:prose-invert lg:prose-xl xl:prose-2xl">
-      {days.map((day, index) => {
+      {days.slice(0, items.length).map((day, index) => {
         const content = items[index]
         return (
           <div
@@ -56,6 +55,7 @@ export default function EverydayPage() {
           >
             <Link to={`/${params.database}/everyday/${day}`}>{day}</Link>
             <Editor
+              docId={day}
               autoFocus={index === 0}
               isEditable={currentDay === day}
               placeholder=""

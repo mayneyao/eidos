@@ -10,15 +10,34 @@ interface AutoSavePluginProps {
   initContent?: string
 }
 
+const DefaultState = {
+  root: {
+    children: [
+      {
+        children: [],
+        direction: null,
+        format: "",
+        indent: 0,
+        type: "paragraph",
+        version: 1,
+      },
+    ],
+    direction: null,
+    format: "",
+    indent: 0,
+    type: "root",
+    version: 1,
+  },
+}
+
 export function AutoSavePlugin(props: AutoSavePluginProps) {
   const [editor] = useLexicalComposerContext()
   const { onSave, initContent } = props
   const versionRef = useRef(0)
   const lastSaveVersionRef = useRef(0)
   const [content, setContent] = useState<string>("")
-
   const handleSave = useCallback(() => {
-    if (!editor.isEditable) return
+    if (!editor.isEditable()) return
     if (lastSaveVersionRef.current === versionRef.current) {
     } else {
       const json = editor.getEditorState().toJSON()
@@ -41,10 +60,15 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
     editor.update(() => {
       //   $convertFromMarkdownString(initContent ?? "", allTransformers)
       let state: any
-      try {
-        state = JSON.parse(initContent ?? "{}")
-      } catch (error) {}
-      if (initContent && state) {
+      if (initContent) {
+        try {
+          state = JSON.parse(initContent ?? "")
+        } catch (error) {}
+      } else {
+        state = DefaultState
+      }
+      // even no init content, we should set editor state
+      if (state) {
         setTimeout(() => {
           const parsedState = editor.parseEditorState(state)
           editor.setEditorState(parsedState)

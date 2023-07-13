@@ -1,13 +1,11 @@
 "use client"
 
-import React, { useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
-import { useKeyPress } from "ahooks"
-import { $getSelection } from "lexical"
+import React, { useState } from "react"
 
 // import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 // import { useSqlite } from "@/hooks/use-sqlite"
