@@ -57,6 +57,7 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   })
 
   useEffect(() => {
+    console.log(initContent)
     editor.update(() => {
       //   $convertFromMarkdownString(initContent ?? "", allTransformers)
       let state: any
@@ -67,14 +68,13 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
       } else {
         state = DefaultState
       }
-      // even no init content, we should set editor state
-      if (state) {
-        setTimeout(() => {
-          const parsedState = editor.parseEditorState(state)
-          editor.setEditorState(parsedState)
-        }, 0)
-      }
+      console.log({ state, initContent })
+      const parsedState = editor.parseEditorState(state)
+      editor.setEditorState(parsedState)
     })
+  }, [editor, initContent])
+
+  useEffect(() => {
     const unRegister = editor.registerTextContentListener((text: string) => {
       versionRef.current++
       editor.update(() => {
@@ -84,7 +84,7 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
     return () => {
       unRegister()
     }
-  }, [initContent, editor, debounceSave])
+  }, [editor, debounceSave])
 
   const handleImport = () => {
     editor.update(() => {

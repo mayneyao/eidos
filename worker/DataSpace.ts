@@ -1,34 +1,34 @@
-import { Database } from "@sqlite.org/sqlite-wasm";
-import { MsgType } from "@/lib/const";
-import { logger } from "@/lib/log";
-import {
-  deleteDocFile,
-  getDocContent,
-  opfsDocManager,
-  updateDocFile
-} from "@/lib/opfs";
+import { Database } from "@sqlite.org/sqlite-wasm"
+
+import { MsgType } from "@/lib/const"
+import { logger } from "@/lib/log"
+import { opfsDocManager } from "@/lib/opfs"
 import {
   ColumnTableName,
   TodoTableName,
-  TreeTableName
-} from "@/lib/sqlite/const";
-import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper";
-import { SQLiteUndoRedo } from "./sql_undo_redo_v2";
+  TreeTableName,
+} from "@/lib/sqlite/const"
+import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 
+import { DocTable } from "./meta_table/doc"
+import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 
 export class DataSpace {
-  db: Database;
-  undoRedoManager: SQLiteUndoRedo;
-  activeUndoManager: boolean;
-  dbName: string;
+  db: Database
+  undoRedoManager: SQLiteUndoRedo
+  activeUndoManager: boolean
+  dbName: string
+  //  meta table
+  doc: DocTable
   constructor(db: Database, activeUndoManager: boolean, dbName: string) {
-    this.db = db;
-    this.initMetaTable();
-    this.dbName = dbName;
-    this.undoRedoManager = new SQLiteUndoRedo(this);
-    this.activeUndoManager = activeUndoManager;
+    this.db = db
+    this.initMetaTable()
+    this.dbName = dbName
+    this.undoRedoManager = new SQLiteUndoRedo(this)
+    this.doc = new DocTable(this)
+    this.activeUndoManager = activeUndoManager
     if (activeUndoManager) {
-      this.activeAllTablesUndoRedo();
+      this.activeAllTablesUndoRedo()
     }
   }
 
@@ -56,16 +56,21 @@ export class DataSpace {
       doc_id TEXT,
       list_id TEXT,
       node_key TEXT
-    );`);
+    );`)
+  }
+
+  public async addDoc(docId: string, content: string) {
+    await this.doc.add({ id: docId, content })
   }
 
   // update doc mount on sqlite for now,maybe change to fs later
   public async updateDoc(docId: string, content: string) {
-    await updateDocFile(this.dbName, docId, content);
+    await this.doc.set(docId, { id: docId, content })
   }
 
   public async getDoc(docId: string) {
-    return await getDocContent(this.dbName, docId);
+    const doc = await this.doc.get(docId)
+    return doc?.content
   }
 
   // public async renameDoc(docId: string, newName: string) {
@@ -75,18 +80,18 @@ export class DataSpace {
   //   )
   // }
   public async deleteDoc(docId: string) {
-    await deleteDocFile(this.dbName, docId);
+    await this.doc.del(docId)
   }
 
   public async createDayNote(day: string, content: string) {
     await opfsDocManager.updateDocFile(
       ["spaces", this.dbName, "everyday", day],
       content
-    );
+    )
   }
 
   public async listDays() {
-    return await opfsDocManager.listDir(["spaces", this.dbName, "everyday"]);
+    return await opfsDocManager.listDir(["spaces", this.dbName, "everyday"])
   }
 
   // FIXME: there are some problem with headless lexical run in worker
@@ -96,26 +101,26 @@ export class DataSpace {
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
-    const res: any[] = [];
+    const res: any[] = []
     this.db.exec({
       sql,
       bind,
       returnValue: "resultRows",
       rowMode: "object",
       callback: (row) => {
-        res.push(row);
+        res.push(row)
       },
-    });
-    return res;
+    })
+    return res
   }
 
   public async listAllNodes() {
-    return this.exec2(`SELECT * FROM ${TreeTableName};`);
+    return this.exec2(`SELECT * FROM ${TreeTableName};`)
   }
   public async listUiColumns(tableName: string) {
     return this.exec2(`SELECT * FROM ${ColumnTableName} WHERE table_name=?;`, [
       tableName,
-    ]);
+    ])
   }
 
   /**
@@ -124,49 +129,49 @@ export class DataSpace {
    * @returns
    */
   public async listAllUiColumns() {
-    return this.exec2(`SELECT * FROM ${ColumnTableName} ;`);
+    return this.exec2(`SELECT * FROM ${ColumnTableName} ;`)
   }
 
   public undo() {
     if (!this.activeUndoManager) {
-      throw new Error("undoRedo not active");
+      throw new Error("undoRedo not active")
     }
-    this.undoRedoManager.callUndo();
+    this.undoRedoManager.callUndo()
   }
 
   public redo() {
     if (!this.activeUndoManager) {
-      throw new Error("undoRedo not active");
+      throw new Error("undoRedo not active")
     }
-    this.undoRedoManager.callRedo();
+    this.undoRedoManager.callRedo()
   }
 
   private async activeAllTablesUndoRedo() {
     const allTables = await this
-      .sql`SELECT name FROM sqlite_master WHERE type='table';`;
+      .sql`SELECT name FROM sqlite_master WHERE type='table';`
     // [undefined] why?
-    const tables = allTables.map((item) => item[0])?.filter(Boolean);
-    logger.info(tables);
+    const tables = allTables.map((item) => item[0])?.filter(Boolean)
+    logger.info(tables)
     if (!tables) {
-      return;
+      return
     }
-    this.undoRedoManager.activate(tables);
+    this.undoRedoManager.activate(tables)
   }
 
   public execute(sql: string, bind: any[] = []) {
-    const res: any[] = [];
+    const res: any[] = []
     this.db.exec({
       sql,
       bind,
       callback: (row) => {
-        res.push(row);
+        res.push(row)
       },
-    });
+    })
 
     return {
       fetchone: () => res[0],
       fetchall: () => res,
-    };
+    }
   }
 
   // just execute, no return
@@ -177,7 +182,7 @@ export class DataSpace {
       callback: (row) => {
         // logger.info(row)
       },
-    });
+    })
   }
 
   private execSqlWithBind(
@@ -185,7 +190,7 @@ export class DataSpace {
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
-    const res: any[] = [];
+    const res: any[] = []
     try {
       this.db.exec({
         sql,
@@ -193,12 +198,12 @@ export class DataSpace {
         returnValue: "resultRows",
         rowMode,
         callback: (row) => {
-          res.push(row);
+          res.push(row)
         },
-      });
+      })
     } catch (error: any) {
-      logger.error(error);
-      logger.info({ sql, bind });
+      logger.error(error)
+      logger.info({ sql, bind })
       postMessage({
         type: MsgType.Error,
         data: {
@@ -208,10 +213,10 @@ export class DataSpace {
             bind,
           },
         },
-      });
-      throw error;
+      })
+      throw error
     }
-    return res;
+    return res
   }
 
   /**
@@ -227,18 +232,18 @@ export class DataSpace {
    * @returns
    */
   public async sql(strings: TemplateStringsArray, ...values: any[]) {
-    const { sql, bind } = buildSql(strings, ...values);
-    const res = this.execSqlWithBind(sql, bind);
+    const { sql, bind } = buildSql(strings, ...values)
+    const res = this.execSqlWithBind(sql, bind)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
       // delay trigger event
-      setTimeout(() => this.undoRedoManager.event(), 0);
+      setTimeout(() => this.undoRedoManager.event(), 0)
     }
-    return res;
+    return res
   }
 
   // just for type check
-  public sql2 = this.sql;
+  public sql2 = this.sql
 
   /**
    * Symbol can't be transformed between main thread and worker thread.
@@ -253,18 +258,18 @@ export class DataSpace {
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
-    const res = this.execSqlWithBind(sql, bind, rowMode);
+    const res = this.execSqlWithBind(sql, bind, rowMode)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
       // delay trigger event
-      setTimeout(() => this.undoRedoManager.event(), 30);
+      setTimeout(() => this.undoRedoManager.event(), 30)
     }
-    return res;
+    return res
   }
 
   // return object array
   public async sql4mainThread2(sql: string, bind: any[] = []) {
-    return this.execSqlWithBind(sql, bind, "object");
+    return this.execSqlWithBind(sql, bind, "object")
   }
 
   public onUpdate() {
@@ -273,13 +278,13 @@ export class DataSpace {
       data: {
         database: this.dbName,
       },
-    });
-    console.log("onUpdate");
+    })
+    console.log("onUpdate")
   }
 
   public async withTransaction(fn: Function) {
-    this.db.exec("BEGIN TRANSACTION;");
-    await fn();
-    this.db.exec("COMMIT;");
+    this.db.exec("BEGIN TRANSACTION;")
+    await fn()
+    this.db.exec("COMMIT;")
   }
 }

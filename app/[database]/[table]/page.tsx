@@ -22,6 +22,10 @@ export default function TablePage() {
     if (node?.type === "doc") {
       getDoc(params.docId!).then((content) => {
         content && setInitContent(content)
+        console.log(
+          params.docId,
+          content
+        )
       })
     }
   }, [getDoc, node?.type, params.docId])

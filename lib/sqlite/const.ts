@@ -10,3 +10,9 @@ export const ColumnTableName = `eidos__columns`
 
 // store todo list
 export const TodoTableName = `eidos__todo`
+
+// store file
+export const FileTableName = `eidos__files`
+
+// store doc
+export const DocTableName = `eidos__docs`
