@@ -1,7 +1,6 @@
+import { useCallback, useEffect, useRef } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useDebounceFn, useKeyPress } from "ahooks"
-import { useCallback, useEffect, useRef } from "react"
-
 
 interface AutoSavePluginProps {
   onSave: (markdown: string) => void
@@ -46,7 +45,7 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   }, [editor, onSave])
 
   const { run: debounceSave } = useDebounceFn(handleSave, {
-    wait: 1000,
+    wait: 500,
   })
 
   useKeyPress("ctrl.s", (e) => {
