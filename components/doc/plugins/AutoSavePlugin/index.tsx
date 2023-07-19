@@ -1,9 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useDebounceFn, useKeyPress } from "ahooks"
-
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 
 interface AutoSavePluginProps {
   onSave: (markdown: string) => void
@@ -35,7 +32,7 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   const { onSave, initContent } = props
   const versionRef = useRef(0)
   const lastSaveVersionRef = useRef(0)
-  const [content, setContent] = useState<string>("")
+
   const handleSave = useCallback(() => {
     if (!editor.isEditable()) return
     if (lastSaveVersionRef.current === versionRef.current) {
@@ -48,7 +45,7 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   }, [editor, onSave])
 
   const { run: debounceSave } = useDebounceFn(handleSave, {
-    wait: 3000,
+    wait: 500,
   })
 
   useKeyPress("ctrl.s", (e) => {
@@ -59,22 +56,23 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
   useEffect(() => {
     editor.update(() => {
       //   $convertFromMarkdownString(initContent ?? "", allTransformers)
-      let state: any
+      let state = JSON.stringify(DefaultState)
       if (initContent) {
         try {
-          state = JSON.parse(initContent ?? "")
-        } catch (error) {}
-      } else {
-        state = DefaultState
-      }
-      // even no init content, we should set editor state
-      if (state) {
-        setTimeout(() => {
+          state = initContent
+        } catch (error) {
+        } finally {
           const parsedState = editor.parseEditorState(state)
           editor.setEditorState(parsedState)
-        }, 0)
+        }
+      } else {
+        const parsedState = editor.parseEditorState(state)
+        editor.setEditorState(parsedState)
       }
     })
+  }, [editor, initContent])
+
+  useEffect(() => {
     const unRegister = editor.registerTextContentListener((text: string) => {
       versionRef.current++
       editor.update(() => {
@@ -84,25 +82,7 @@ export function AutoSavePlugin(props: AutoSavePluginProps) {
     return () => {
       unRegister()
     }
-  }, [initContent, editor, debounceSave])
-
-  const handleImport = () => {
-    editor.update(() => {
-      const parsedState = editor.parseEditorState(content)
-      editor.setEditorState(parsedState)
-    })
-  }
+  }, [editor, debounceSave])
 
   return null
-  // import editor state in dev mode
-  return (
-    <div>
-      <Input
-        type="text"
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-      />
-      <Button onClick={handleImport}>import</Button>
-    </div>
-  )
 }

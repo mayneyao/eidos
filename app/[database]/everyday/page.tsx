@@ -4,8 +4,8 @@ import { useState } from "react"
 import useInfiniteScroll from "react-infinite-scroll-hook"
 import { Link } from "react-router-dom"
 
-import { opfsDocManager } from "@/lib/opfs"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
 
@@ -13,9 +13,10 @@ import { useAllDays } from "./hooks"
 
 export default function EverydayPage() {
   const params = useCurrentPathInfo()
-  const { loading, days, items, hasNextPage, error, loadMore } = useAllDays(
+  const { loading, days, hasNextPage, error, loadMore } = useAllDays(
     params.space
   )
+  const { sqlite } = useSqlite(params.space)
   const [sentryRef] = useInfiniteScroll({
     loading,
     hasNextPage,
@@ -33,10 +34,7 @@ export default function EverydayPage() {
 
   const handleDocSave = (day: string) => {
     return (content: string) => {
-      opfsDocManager.updateDocFile(
-        ["spaces", params.space, "everyday", `${day}.md`],
-        content
-      )
+      sqlite?.updateDoc(day, content, true)
     }
   }
   const handleClick = (day: string) => {
@@ -45,21 +43,21 @@ export default function EverydayPage() {
 
   return (
     <div className="prose mx-auto flex flex-col gap-2 p-10 dark:prose-invert lg:prose-xl xl:prose-2xl">
-      {days.slice(0, items.length).map((day, index) => {
-        const content = items[index]
+      {days.map((day, index) => {
+        const content = day.content
         return (
           <div
-            key={day}
+            key={day.id}
             className="border-b border-slate-300"
-            onClick={() => handleClick(day)}
+            onClick={() => handleClick(day.id)}
           >
-            <Link to={`/${params.database}/everyday/${day}`}>{day}</Link>
+            <Link to={`/${params.database}/everyday/${day.id}`}>{day.id}</Link>
             <Editor
-              docId={day}
+              docId={day.id}
               autoFocus={index === 0}
-              isEditable={currentDay === day}
+              isEditable={currentDay === day.id}
               placeholder=""
-              onSave={handleDocSave(day)}
+              onSave={handleDocSave(day.id)}
               initContent={content}
             />
           </div>

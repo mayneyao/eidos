@@ -76,36 +76,36 @@ export const saveFile = async (file: File, space: string, name?: string) => {
 
 let _content: string
 
-export const updateDocFile = async (
-  spaceName: string,
-  docId: string,
-  content: string
-) => {
-  if (_content === content) {
-    console.log("content not changed, skip update doc file")
-    return
-  }
-  const opfsDoc = opfsDocManager
-  const docFileName = `${docId}.md`
-  const paths = ["spaces", spaceName, "docs", docFileName]
-  await opfsDoc.updateDocFile(paths, content)
-  _content = content
-  // console.log("update doc file", docFileName)
-}
+// export const updateDocFile = async (
+//   spaceName: string,
+//   docId: string,
+//   content: string
+// ) => {
+//   if (_content === content) {
+//     console.log("content not changed, skip update doc file")
+//     return
+//   }
+//   const opfsDoc = opfsDocManager
+//   const docFileName = `${docId}.md`
+//   const paths = ["spaces", spaceName, "docs", docFileName]
+//   await opfsDoc.updateDocFile(paths, content)
+//   _content = content
+//   // console.log("update doc file", docFileName)
+// }
 
-export const getDocContent = async (spaceName: string, docId: string) => {
-  const opfsDoc = opfsDocManager
-  const docFileName = `${docId}.md`
-  const paths = ["spaces", spaceName, "docs", docFileName]
-  return await opfsDoc.getDocContent(paths)
-}
+// export const getDocContent = async (spaceName: string, docId: string) => {
+//   const opfsDoc = opfsDocManager
+//   const docFileName = `${docId}.md`
+//   const paths = ["spaces", spaceName, "docs", docFileName]
+//   return await opfsDoc.getDocContent(paths)
+// }
 
-export const deleteDocFile = async (spaceName: string, docId: string) => {
-  const opfsDoc = opfsDocManager
-  const docFileName = `${docId}.md`
-  const paths = ["spaces", spaceName, "docs", docFileName]
-  return await opfsDoc.deleteDocFile(paths)
-}
+// export const deleteDocFile = async (spaceName: string, docId: string) => {
+//   const opfsDoc = opfsDocManager
+//   const docFileName = `${docId}.md`
+//   const paths = ["spaces", spaceName, "docs", docFileName]
+//   return await opfsDoc.deleteDocFile(paths)
+// }
 
 export const getAllDays = async (spaceName: string) => {
   const opfsRoot = await navigator.storage.getDirectory()
@@ -195,4 +195,5 @@ export class OpfsDoc {
   }
 }
 
+// deprecated
 export const opfsDocManager = new OpfsDoc()

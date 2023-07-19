@@ -21,7 +21,7 @@ export default function TablePage() {
   useEffect(() => {
     if (node?.type === "doc") {
       getDoc(params.docId!).then((content) => {
-        content && setInitContent(content)
+        setInitContent(content)
       })
     }
   }, [getDoc, node?.type, params.docId])

@@ -1,12 +1,12 @@
 "use client"
 
-import { useCallback } from "react"
 import type { DataSpace } from "@/worker/DataSpace"
+import { useCallback } from "react"
 import { create } from "zustand"
 
-import { TreeTableName } from "@/lib/sqlite/const"
-import { getRawDocNameById, getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { createTemplateTableSql } from "@/components/grid/helper"
+import { TreeTableName } from "@/lib/sqlite/const"
+import { getRawTableNameById, uuidv4 } from "@/lib/utils"
 
 import { IUIColumn } from "./use-table"
 
@@ -149,6 +149,7 @@ export const useSqlite = (dbName?: string) => {
     await sqlWorker.sql`INSERT INTO ${Symbol(
       TreeTableName
     )} (id,name,type) VALUES (${docId}, ${docName},'doc');`
+    await sqlWorker.addDoc(docId, "")
     await updateNodeList()
     return docId
   }

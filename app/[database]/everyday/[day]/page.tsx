@@ -1,32 +1,26 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import {  useParams } from 'react-router-dom';
+import { useEffect, useState } from "react"
+import { useParams } from "react-router-dom"
 
-
-import { opfsDocManager } from "@/lib/opfs"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Editor } from "@/components/doc/editor"
 
 export default function EverydayPage() {
   const params = useCurrentPathInfo()
   const { day } = useParams()
+  const { sqlite } = useSqlite(params.space)
   const [initContent, setInitContent] = useState("")
-  const filename = `${day}.md`
-
-  const filepath = useMemo(
-    () => ["spaces", params.database, "everyday", filename],
-    [params.database, filename]
-  ) as string[]
 
   useEffect(() => {
-    opfsDocManager.getDocContent(filepath).then((content) => {
+    sqlite?.getDoc(day!).then((content) => {
       setInitContent(content)
     })
-  }, [filepath])
+  }, [day, sqlite])
 
   const handleSaveDoc = (content: string) => {
-    opfsDocManager.updateDocFile(filepath, content)
+    sqlite?.updateDoc(day!, content, true)
   }
 
   return (

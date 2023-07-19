@@ -1,13 +1,13 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { useNavigate } from "react-router-dom";
-import { Check, ChevronsUpDown, Download, PlusCircle } from "lucide-react";
+import * as React from "react"
+import { Check, ChevronsUpDown, Download, PlusCircle } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 
-import { cn } from "@/lib/utils";
-import { useGoto } from "@/hooks/use-goto";
-import { useSpace } from "@/hooks/use-space";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils"
+import { useGoto } from "@/hooks/use-goto"
+import { useSpace } from "@/hooks/use-space"
+import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
@@ -16,7 +16,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@/components/ui/command";
+} from "@/components/ui/command"
 import {
   Dialog,
   DialogContent,
@@ -25,55 +25,58 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/components/ui/popover"
 
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
+import { Input } from "./ui/input"
+import { Label } from "./ui/label"
 
 interface IDatabaseSelectorProps {
-  databases: string[];
-  defaultValue?: string;
+  databases: string[]
+  defaultValue?: string
 }
 
 export function DatabaseSelect({
   databases,
   defaultValue,
 }: IDatabaseSelectorProps) {
-  const [open, setOpen] = React.useState(false);
-  const [value, setValue] = React.useState(defaultValue ?? "");
-  const [searchValue, setSearchValue] = React.useState("");
-  const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false);
-  const [databaseName, setDatabaseName] = React.useState("");
-  const goto = useGoto();
-  const router = useNavigate();
-  const { createSpace } = useSpace();
-  const [loading, setLoading] = React.useState(false);
+  const [open, setOpen] = React.useState(false)
+  const [value, setValue] = React.useState(defaultValue ?? "")
+  const [searchValue, setSearchValue] = React.useState("")
+  const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
+  const [databaseName, setDatabaseName] = React.useState("")
+  const goto = useGoto()
+  const router = useNavigate()
+  const { createSpace } = useSpace()
+  const [loading, setLoading] = React.useState(false)
+  const { updateSpaceList } = useSpace()
 
   const handleGoSpaceManagement = () => {
-    router("/space-manage");
-  };
+    router("/space-manage")
+  }
 
   const handleSelect = (currentValue: string) => {
-    setValue(currentValue === value ? "" : currentValue);
-    setOpen(false);
-    goto(currentValue);
-  };
+    setValue(currentValue === value ? "" : currentValue)
+    setOpen(false)
+    goto(currentValue)
+  }
 
   const handleCreateDatabase = () => {
     if (databaseName) {
-      setLoading(true);
+      setLoading(true)
       createSpace(databaseName).then(() => {
-        setLoading(false);
-        setShowNewTeamDialog(false);
-        goto(databaseName);
-      });
+        setLoading(false)
+        setShowNewTeamDialog(false)
+        setValue(databaseName)
+        goto(databaseName)
+      })
+      updateSpaceList()
     }
-  };
+  }
 
   return (
     <Dialog open={showNewTeamDialog} onOpenChange={setShowNewTeamDialog}>
@@ -122,8 +125,8 @@ export function DatabaseSelect({
                 <DialogTrigger asChild>
                   <CommandItem
                     onSelect={() => {
-                      setOpen(false);
-                      setShowNewTeamDialog(true);
+                      setOpen(false)
+                      setShowNewTeamDialog(true)
                     }}
                   >
                     <PlusCircle className="mr-2 h-5 w-5" /> Create New
@@ -169,5 +172,5 @@ export function DatabaseSelect({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

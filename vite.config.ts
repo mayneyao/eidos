@@ -17,7 +17,7 @@ export default defineConfig({
       manifest: {
         name: "Eidos",
         short_name: "Eidos",
-        description: "a all-in-one workspace for everyone",
+        description: "an all-in-one workspace for everyone",
         theme_color: "#ffffff",
         icons: [
           {

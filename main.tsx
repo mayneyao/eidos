@@ -34,6 +34,10 @@ const router = createBrowserRouter([
         element: <HomePage />,
       },
       {
+        path: "offline",
+        element: <HomePage />,
+      },
+      {
         path: "settings",
         element: <SettingsLayout />,
         children: [
