@@ -2,7 +2,6 @@ import { Database } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
-import { opfsDocManager } from "@/lib/opfs"
 import {
   ColumnTableName,
   TodoTableName,
@@ -59,13 +58,18 @@ export class DataSpace {
     );`)
   }
 
-  public async addDoc(docId: string, content: string) {
-    await this.doc.add({ id: docId, content })
+  public async addDoc(docId: string, content: string, isDayPage = false) {
+    await this.doc.add({ id: docId, content, isDayPage })
   }
 
   // update doc mount on sqlite for now,maybe change to fs later
-  public async updateDoc(docId: string, content: string) {
-    await this.doc.set(docId, { id: docId, content })
+  public async updateDoc(docId: string, content: string, isDayPage = false) {
+    const res = await this.doc.get(docId)
+    if (!res) {
+      await this.doc.add({ id: docId, content, isDayPage })
+    } else {
+      await this.doc.set(docId, { id: docId, content })
+    }
   }
 
   public async getDoc(docId: string) {
@@ -83,15 +87,12 @@ export class DataSpace {
     await this.doc.del(docId)
   }
 
-  public async createDayNote(day: string, content: string) {
-    await opfsDocManager.updateDocFile(
-      ["spaces", this.dbName, "everyday", day],
-      content
-    )
+  public async listDays(page: number) {
+    return await this.doc.listDayPage(page)
   }
 
-  public async listDays() {
-    return await opfsDocManager.listDir(["spaces", this.dbName, "everyday"])
+  public async listAllDays() {
+    return await this.doc.listAllDayPages()
   }
 
   // FIXME: there are some problem with headless lexical run in worker

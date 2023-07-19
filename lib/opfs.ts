@@ -195,4 +195,5 @@ export class OpfsDoc {
   }
 }
 
+// deprecated
 export const opfsDocManager = new OpfsDoc()

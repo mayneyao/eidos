@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useTransition } from "react"
 
-import { opfsDocManager } from "@/lib/opfs"
+import { useSqlite } from "@/hooks/use-sqlite"
 
 const getToday = () => {
   const today = new Date()
@@ -11,74 +11,59 @@ const getToday = () => {
   return date
 }
 
+type IDay = {
+  id: string
+  content: string
+}
 const EachPageSize = 7
 export const useAllDays = (spaceName: string) => {
-  const [days, setDays] = useState<string[]>([])
-  const [daysContent, setDaysContent] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
+  const [days, setDays] = useState<IDay[]>([])
   const [currentPage, setCurrentPage] = useState(0)
   const [error, setError] = useState<Error | null>(null)
-  const hasNextPage = days.length > daysContent.length
+  const [hasNextPage, setHasNextPage] = useState(true)
+  const { sqlite } = useSqlite(spaceName)
+  const [isPending, startTransition] = useTransition()
 
   const loadMore = useCallback(async () => {
-    const _days = days.slice(
-      currentPage * EachPageSize,
-      (currentPage + 1) * EachPageSize
-    )
-    setLoading(true)
-    const res = await Promise.all(
-      _days.map(async (day) => {
-        return opfsDocManager.getDocContent([
-          "spaces",
-          spaceName,
-          "everyday",
-          day + ".md",
-        ])
+    const res = await sqlite?.listDays(currentPage + 1)
+    startTransition(() => {
+      if (!res?.length) {
+        setHasNextPage(false)
+        return
+      }
+      setDays((days) => {
+        return [...days, ...res]
       })
-    )
-    setDaysContent((daysContent) => {
-      return [...daysContent, ...res]
+      setCurrentPage(currentPage + 1)
+      if (res.length < EachPageSize) {
+        setHasNextPage(false)
+      }
     })
-    setLoading(false)
-    setCurrentPage(currentPage + 1)
-  }, [currentPage, days, spaceName])
+  }, [currentPage, sqlite])
 
   useEffect(() => {
     const today = getToday()
-    opfsDocManager
-      .listDir(["spaces", spaceName, "everyday"])
-      .then(async (days: FileSystemFileHandle[]) => {
-        const existDays = days.map((d) => d.name.split(".")[0])
-        const todayIndex = existDays.indexOf(today)
-        let _days: string[]
-        if (todayIndex > -1) {
-          const beforeToday = existDays.slice(todayIndex + 1)
-          _days = [today, ...beforeToday]
-        } else {
-          _days = [today, ...existDays]
-        }
-        setDays(_days)
-        const res = await Promise.all(
-          _days.slice(0, EachPageSize).map(async (day) => {
-            return opfsDocManager.getDocContent([
-              "spaces",
-              spaceName,
-              "everyday",
-              day + ".md",
-            ])
-          })
-        )
-        setDaysContent((daysContent) => {
-          return [...daysContent, ...res]
-        })
-      })
-  }, [spaceName])
+    sqlite?.listDays(0).then(async (days) => {
+      const existDays = days.map((d) => d.id)
+      const todayIndex = existDays.indexOf(today)
+      let _days: IDay[] = days
+      if (todayIndex == -1) {
+        _days = [
+          {
+            id: today,
+            content: "",
+          },
+          ...days,
+        ]
+      }
+      setDays(_days)
+    })
+  }, [spaceName, sqlite])
 
   return {
-    loading,
+    loading: isPending,
     error,
     days,
-    items: daysContent,
     hasNextPage,
     loadMore,
   }
