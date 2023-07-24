@@ -32,7 +32,8 @@
     "**/*.tsx",
     "**/*.js",
     ".eslintrc.cjs",
-    "prettier.config.cjs"
+    "prettier.config.cjs",
+    "jest.config.cjs"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

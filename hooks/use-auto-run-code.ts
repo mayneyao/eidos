@@ -1,16 +1,17 @@
 import { useCallback } from "react"
 import { v4 as uuidV4 } from "uuid"
 
-import { getCodeFromMarkdown } from "@/lib/markdown"
 import { useConfigStore } from "@/app/settings/store"
+import { getCodeFromMarkdown } from "@/lib/markdown"
+import { uuidv4 } from "@/lib/utils"
 
 import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite } from "./use-sqlite"
 import { useTable } from "./use-table"
 
 export const useAutoRunCode = () => {
-  const { space:database, tableName: table } = useCurrentPathInfo()
-  const { handleSql } = useSqlite(database)
+  const { space: database, tableName: table } = useCurrentPathInfo()
+  const { handleSql, sqlite } = useSqlite(database)
   const { aiConfig } = useConfigStore()
   // FIXME: now ai-chat is global, maybe not in table page
   const { runQuery } = useTable(table ?? "", database)
@@ -49,7 +50,7 @@ export const useAutoRunCode = () => {
     }
   ) => {
     const { msgIndex, width } = context
-     
+
     try {
       ;(window as any)._CANVAS_ID_ = `#chart-${msgIndex}`
       ;(window as any)._CHART_WIDTH_ = width - 50
@@ -108,6 +109,19 @@ export const useAutoRunCode = () => {
           return await handleRunSql(sql)
         }
         return "permission denied"
+      case "createQuickAction":
+        const { name, params, nodes } = parameters
+        try {
+          await sqlite?.addAction({
+            id: uuidv4(),
+            name,
+            params,
+            nodes,
+          })
+          return "ok"
+        } catch (error: any) {
+          return error.message
+        }
       default:
         throw new Error(`function ${name} not supported auto run`)
     }

@@ -9,6 +9,7 @@ import {
 } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 
+import { ActionTable } from "./meta_table/action"
 import { DocTable } from "./meta_table/doc"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 
@@ -19,12 +20,14 @@ export class DataSpace {
   dbName: string
   //  meta table
   doc: DocTable
+  action: ActionTable
   constructor(db: Database, activeUndoManager: boolean, dbName: string) {
     this.db = db
     this.initMetaTable()
     this.dbName = dbName
     this.undoRedoManager = new SQLiteUndoRedo(this)
     this.doc = new DocTable(this)
+    this.action = new ActionTable(this)
     this.activeUndoManager = activeUndoManager
     if (activeUndoManager) {
       this.activeAllTablesUndoRedo()
@@ -56,6 +59,15 @@ export class DataSpace {
       list_id TEXT,
       node_key TEXT
     );`)
+  }
+
+  // actions
+  public async addAction(data: any) {
+    await this.action.add(data)
+  }
+
+  public async listActions() {
+    return this.action.list()
   }
 
   public async addDoc(docId: string, content: string, isDayPage = false) {

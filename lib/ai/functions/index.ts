@@ -1,9 +1,10 @@
 import { z } from "zod"
 import { zodToJsonSchema } from "zod-to-json-schema"
 
+import createQuickAction from "./quick-action"
 import sqlQuery from "./sql-query"
 
-const allFunctions = [sqlQuery]
+const allFunctions = [sqlQuery, createQuickAction]
 export const functions = allFunctions.map((f) => {
   // console.log(zodToJsonSchema(f.schema))
   return {
