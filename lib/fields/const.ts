@@ -1,6 +1,7 @@
 export enum FieldType {
   Number = "number",
   Text = "text",
+  Title = "title",
   Checkbox = "checkbox",
   Date = "date",
   File = "file",

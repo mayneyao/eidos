@@ -5,14 +5,6 @@ import { IUIColumn } from "@/hooks/use-table"
 
 import { functionParamsSchemaMap, functions } from "./functions"
 
-const baseSysPrompt = `
-
-you must abide by the following rules:
-- user just know name of table and name of column, don't know tableName and tableColumnName
-- tableName and tableColumnName are actually exist in sqlite database. you will use them to query database.
-- tableColumnName will be mapped, such as 'title : cl_a4ef', title is name of column, cl_a4ef is tableColumnName, you will use cl_a4ef to query database. otherwise you will be punished.
-- data from query which can be trusted, you can display it directly, don't need to check it.
-`
 // after 0613, openai support function call. we don't need prompt below
 // const baseSysPrompt = `you're a database master, help use query database and generate d3.js chart if user want. must abide by the following rules:
 
@@ -43,14 +35,17 @@ export const getOpenAI = (token: string) => {
   return openai
 }
 
-const getPrompt = (context: {
-  tableSchema?: string
-  uiColumns?: IUIColumn[]
-  allTables: IFileNode[]
-  allUiColumns: IUIColumn[]
-  databaseName: string
-  currentDocMarkdown?: string
-}) => {
+const getPrompt = (
+  baseSysPrompt: string,
+  context: {
+    tableSchema?: string
+    uiColumns?: IUIColumn[]
+    allTables: IFileNode[]
+    allUiColumns: IUIColumn[]
+    databaseName: string
+    currentDocMarkdown?: string
+  }
+) => {
   const {
     currentDocMarkdown,
     tableSchema,
@@ -104,7 +99,7 @@ ${context.currentDocMarkdown}
 }
 
 export const askAI =
-  (openai?: OpenAIApi) =>
+  (baseSysPrompt: string, openai?: OpenAIApi) =>
   async (
     messages: any[],
     context: {
@@ -117,7 +112,7 @@ export const askAI =
     }
   ) => {
     if (!openai) return
-    const systemPrompt = getPrompt(context)
+    const systemPrompt = getPrompt(baseSysPrompt, context)
     console.log("systemPrompt", systemPrompt)
     const completion = await openai.createChatCompletion({
       model: "gpt-3.5-turbo-0613",

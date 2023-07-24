@@ -1,10 +1,10 @@
-import { OpenAIApi } from "openai"
 import { useEffect, useState } from "react"
+import { OpenAIApi } from "openai"
 
-import { useConfigStore } from "@/app/settings/store"
 import { askAI, getOpenAI } from "@/lib/ai/openai"
+import { useConfigStore } from "@/app/settings/store"
 
-export const useAI = () => {
+export const useAI = (baseSysPrompt: string) => {
   const { aiConfig } = useConfigStore()
   const { token } = aiConfig
   const [openai, setOpenai] = useState<OpenAIApi>()
@@ -16,7 +16,7 @@ export const useAI = () => {
     }
   }, [token])
 
-  const _askAI = askAI(openai)
+  const _askAI = askAI(baseSysPrompt, openai)
 
   return { askAI: _askAI }
 }

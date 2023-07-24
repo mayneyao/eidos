@@ -1,3 +1,7 @@
+import { shortenId } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useGoto } from "@/hooks/use-goto"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -16,16 +20,39 @@ import {
 
 import { useTableAppStore } from "./store"
 
-export function ContextMenuDemo({ children, deleteRows }: any) {
+export function ContextMenuDemo({ children, deleteRows, getRowByIndex }: any) {
   const { selection, clearSelection } = useTableAppStore()
-
   const count = selection.current?.range.height ?? 0
+
+  const { space, tableId } = useCurrentPathInfo()
+  const { getOrCreateTableSubDoc } = useSqlite(space)
+  const goto = useGoto()
+  const openRow = async () => {
+    if (!selection.current) {
+      return
+    }
+    const rowIndex = selection.current?.range.y
+    const row = getRowByIndex(rowIndex)
+    console.log("open row", row._id)
+    const shortId = shortenId(row._id)
+    await getOrCreateTableSubDoc({
+      docId: shortId,
+      title: row.title,
+      tableId: tableId!,
+    })
+    goto(space, shortId)
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger className="h-full w-full">
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
+        <ContextMenuItem inset onSelect={openRow}>
+          Open
+          {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
+        </ContextMenuItem>
         <ContextMenuItem
           inset
           onClick={() => {
@@ -42,10 +69,6 @@ export function ContextMenuDemo({ children, deleteRows }: any) {
         <ContextMenuItem inset disabled>
           Forward
           <ContextMenuShortcut>⌘]</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem inset>
-          Reload
-          <ContextMenuShortcut>⌘R</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger inset>More Tools</ContextMenuSubTrigger>
