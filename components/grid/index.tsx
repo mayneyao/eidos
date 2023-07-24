@@ -91,6 +91,7 @@ export default function Grid(props: IGridProps) {
     getCellsForSelection,
     handleAddRow,
     handleDelRows,
+    getRowByIndex,
   } = useAsyncData<any>(
     tableName,
     50,
@@ -169,7 +170,7 @@ export default function Grid(props: IGridProps) {
   return (
     <div className="h-full p-2" ref={containerRef}>
       <div className="relative flex h-full overflow-hidden rounded-md">
-        <ContextMenuDemo deleteRows={handleDelRows}>
+        <ContextMenuDemo deleteRows={handleDelRows} getRowByIndex={getRowByIndex}>
           {Boolean(uiColumns.length) && (
             <DataEditor
               {...config}

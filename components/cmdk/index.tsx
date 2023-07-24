@@ -64,7 +64,6 @@ export function CommandDialogDemo() {
         placeholder="Type a command or search..."
         value={input}
         onValueChange={setInput}
-        autoFocus
       />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>

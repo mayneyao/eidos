@@ -15,7 +15,6 @@ export default function TablePage() {
   const handleSaveDoc = (content: string) => {
     updateDoc(params.docId!, content)
   }
-
   const [initContent, setInitContent] = useState<string>("")
 
   useEffect(() => {

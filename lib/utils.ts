@@ -45,3 +45,8 @@ export const generateColumnName = () => {
 export const getRawDocNameById = (id: string) => {
   return `doc_${id}`
 }
+
+// uuidv4 remove - and _ to make it shorter
+export const shortenId = (id: string) => {
+  return id.replace(/-/g, "").replace(/_/g, "")
+}

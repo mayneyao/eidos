@@ -1,12 +1,12 @@
 "use client"
 
-import type { DataSpace } from "@/worker/DataSpace"
 import { useCallback } from "react"
+import type { DataSpace } from "@/worker/DataSpace"
 import { create } from "zustand"
 
-import { createTemplateTableSql } from "@/components/grid/helper"
 import { TreeTableName } from "@/lib/sqlite/const"
 import { getRawTableNameById, uuidv4 } from "@/lib/utils"
+import { createTemplateTableSql } from "@/components/grid/helper"
 
 import { IUIColumn } from "./use-table"
 
@@ -79,7 +79,7 @@ export const useSqlite = (dbName?: string) => {
 
   const queryAllNodes = useCallback(async () => {
     if (!sqlWorker) return
-    const allNodes = await sqlWorker.listAllNodes()
+    const allNodes = await sqlWorker.listTreeNodes()
     console.log("node list loaded", allNodes)
     return allNodes
   }, [sqlWorker])
@@ -122,9 +122,11 @@ export const useSqlite = (dbName?: string) => {
     const { tableName, tableId, sql } = data
     await withTransaction(async () => {
       await sqlWorker.sql`${sql}`
-      await sqlWorker.sql`INSERT INTO ${Symbol(
-        TreeTableName
-      )} (id,name,type) VALUES (${tableId}, ${tableName},'table');`
+      await sqlWorker.addTreeNode({
+        id: tableId,
+        name: tableName,
+        type: "table",
+      })
     })
   }
   // create table with default template
@@ -146,12 +148,33 @@ export const useSqlite = (dbName?: string) => {
   const createDoc = async (docName: string) => {
     if (!sqlWorker) return
     const docId = uuidv4().split("-").join("")
-    await sqlWorker.sql`INSERT INTO ${Symbol(
-      TreeTableName
-    )} (id,name,type) VALUES (${docId}, ${docName},'doc');`
+    await sqlWorker.addTreeNode({
+      id: docId,
+      name: docName,
+      type: "doc",
+    })
     await sqlWorker.addDoc(docId, "")
     await updateNodeList()
     return docId
+  }
+
+  const getOrCreateTableSubDoc = async (data: {
+    docId: string
+    tableId: string
+    title: string
+  }) => {
+    if (!sqlWorker) return
+    const { docId, tableId, title } = data
+    const res = await sqlWorker.getTreeNode(docId)
+    if (!res) {
+      await sqlWorker.addTreeNode({
+        id: docId,
+        name: title,
+        type: "doc",
+        parentId: tableId,
+      })
+      await sqlWorker.addDoc(docId, "")
+    }
   }
 
   const updateDoc = async (docId: string, content: string) => {
@@ -324,5 +347,6 @@ export const useSqlite = (dbName?: string) => {
     renameNode,
     getDoc,
     deleteNode,
+    getOrCreateTableSubDoc,
   }
 }

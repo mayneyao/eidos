@@ -43,6 +43,7 @@ export function useAsyncData<TRowType>(
 > & {
   handleAddRow: () => void
   handleDelRows: (start: number, end: number) => void
+  getRowByIndex: (index: number) => TRowType | undefined
 } {
   pageSize = Math.max(pageSize, 1)
   const loadingRef = React.useRef(CompactSelection.empty())
@@ -204,6 +205,10 @@ export function useAsyncData<TRowType>(
     gridRef.current?.updateCells(damageList)
   }, [gridRef])
 
+  const getRowByIndex = (index: number) => {
+    return dataRef.current[index]
+  }
+
   return {
     getCellContent,
     onVisibleRegionChanged,
@@ -211,5 +216,6 @@ export function useAsyncData<TRowType>(
     getCellsForSelection,
     handleAddRow,
     handleDelRows,
+    getRowByIndex,
   }
 }

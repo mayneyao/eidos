@@ -2,15 +2,12 @@ import { Database } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
-import {
-  ColumnTableName,
-  TodoTableName,
-  TreeTableName,
-} from "@/lib/sqlite/const"
+import { ColumnTableName, TodoTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 
 import { ActionTable } from "./meta_table/action"
 import { DocTable } from "./meta_table/doc"
+import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 
 export class DataSpace {
@@ -21,6 +18,7 @@ export class DataSpace {
   //  meta table
   doc: DocTable
   action: ActionTable
+  tree: TreeTable
   constructor(db: Database, activeUndoManager: boolean, dbName: string) {
     this.db = db
     this.initMetaTable()
@@ -28,6 +26,7 @@ export class DataSpace {
     this.undoRedoManager = new SQLiteUndoRedo(this)
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
+    this.tree = new TreeTable(this)
     this.activeUndoManager = activeUndoManager
     if (activeUndoManager) {
       this.activeAllTablesUndoRedo()
@@ -36,12 +35,6 @@ export class DataSpace {
 
   private initMetaTable() {
     this.exec(`
-    --- sidebar-tree
-    CREATE TABLE IF NOT EXISTS ${TreeTableName} (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      type TEXT
-    );
     --- ui column definition
     CREATE TABLE IF NOT EXISTS ${ColumnTableName} (
       name TEXT,
@@ -127,13 +120,24 @@ export class DataSpace {
     return res
   }
 
-  public async listAllNodes() {
-    return this.exec2(`SELECT * FROM ${TreeTableName};`)
+  public async listTreeNodes() {
+    return this.tree.list()
   }
+
+  public async addTreeNode(data: ITreeNode) {
+    return this.tree.add(data)
+  }
+
+  public async getTreeNode(id: string) {
+    return this.tree.get(id)
+  }
+
   public async listUiColumns(tableName: string) {
-    return this.exec2(`SELECT * FROM ${ColumnTableName} WHERE table_name=?;`, [
-      tableName,
-    ])
+    const cols = await this.exec2(
+      `SELECT * FROM ${ColumnTableName} WHERE table_name=?;`,
+      [tableName]
+    )
+    return cols.filter((col) => !col.name.startsWith("_"))
   }
 
   /**

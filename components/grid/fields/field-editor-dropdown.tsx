@@ -187,7 +187,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 Edit Property
               </CommonMenuItem>
 
-              {menu?.col != 0 && (
+              {currentUiColumn?.type !== "title" && (
                 <DialogTrigger
                   onClick={handleDeleteFieldClick}
                   className="w-full"
