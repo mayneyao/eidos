@@ -13,6 +13,7 @@ import SettingsAccountPage from "@/app/settings/account/page"
 import SettingsAIPage from "@/app/settings/ai/page"
 import SettingsApiPage from "@/app/settings/api/page"
 import SettingsAppearancePage from "@/app/settings/appearance/page"
+import { BackupSettings } from "@/app/settings/backup/page"
 import SettingsExperimentPage from "@/app/settings/experiment/page"
 // settings
 import SettingsLayout from "@/app/settings/layout"
@@ -64,6 +65,10 @@ const router = createBrowserRouter([
           {
             path: "experiment",
             element: <SettingsExperimentPage />,
+          },
+          {
+            path: "backup",
+            element: <BackupSettings />,
           },
         ],
       },

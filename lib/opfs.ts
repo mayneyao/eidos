@@ -39,6 +39,20 @@ export const getSpaceDatabasePath = async (spaceName: string) => {
   return `/spaces/${spaceName}/db.sqlite3`
 }
 
+export const getSpaceDatabaseFileHandle = async (spaceName: string) => {
+  const opfsRoot = await navigator.storage.getDirectory()
+  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
+    create: true,
+  })
+  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName, {
+    create: true,
+  })
+  const dbFileHandle = await spaceDirHandle.getFileHandle("db.sqlite3", {
+    create: true,
+  })
+  return dbFileHandle
+}
+
 export const uploadFile2OPFS = async (
   file: File,
   spaceName: string,

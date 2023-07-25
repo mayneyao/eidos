@@ -1,10 +1,9 @@
-import sqlite3InitModule, {
-  Sqlite3Static,
-} from "@sqlite.org/sqlite-wasm"
+import sqlite3InitModule, { Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { logger } from "@/lib/log"
 
 import { DataSpace } from "./DataSpace"
+import { SimpleBackUp } from "./backup"
 
 const log = logger.info
 const error = logger.error
@@ -12,16 +11,29 @@ const error = logger.error
 export class Sqlite {
   sqlite3?: Sqlite3Static
   config?: any
+  backupServer: SimpleBackUp
   constructor() {
     this.config = {
       experiment: {
         undo: false,
       },
+      backupServer: {
+        url: "",
+        token: "",
+        autoSaveGap: 10,
+      },
     }
+    this.backupServer = new SimpleBackUp(
+      this.config.backupServer.url,
+      this.config.backupServer.token,
+      this.config.backupServer.autoSaveGap
+    )
   }
 
   setConfig(config: any) {
     this.config = config
+    const { url, token, autoSaveGap } = this.config.backupServer
+    this.backupServer.setConfig(url, token, autoSaveGap)
   }
 
   getSQLite3 = async function (): Promise<Sqlite3Static> {
@@ -59,5 +71,3 @@ export class Sqlite {
     return new DataSpace(db, this.config.experiment.undoRedo, name)
   }
 }
-
-
