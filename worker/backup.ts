@@ -25,19 +25,18 @@ export class SimpleBackUp {
 
   private checkConfig() {
     if (!this.backupUrl || !this.token) {
-      return
+      throw new Error("backup url or token not set")
     }
   }
 
   public setCurrentSpace(space: string | null) {
     this.space = space
     console.log("set current space", space)
-    this.pull()
+    this.pull(space)
   }
 
-  private async pull() {
+  public async pull(space: string | null, justCreateNew = false) {
     this.checkConfig()
-    const space = this.space
     if (!space) {
       return
     }
@@ -57,6 +56,14 @@ export class SimpleBackUp {
       const fileHandle = await getSpaceDatabaseFileHandle(space)
       const file = await fileHandle.getFile()
       const lastModified = file.lastModified
+      if (justCreateNew) {
+        const arrayBuffer = await res.arrayBuffer()
+        console.log(arrayBuffer)
+        const writable = await fileHandle.createWritable()
+        await writable.write(arrayBuffer)
+        await writable.close()
+        return
+      }
       if (lastBackupTime > lastModified) {
         console.log("need to update", file.name)
         // get binary data then write to file
@@ -66,6 +73,9 @@ export class SimpleBackUp {
         await writable.write(arrayBuffer)
         await writable.close()
         console.log(`${space} pull success`)
+      } else {
+        // has conflict
+        console.warn("it's seems that there is a conflict", space)
       }
     } else {
       console.log(`${space} pull failed`, res.status, res.statusText)

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { SimpleBackUp } from "@/worker/backup"
 import { Check, ChevronsUpDown, Download, PlusCircle } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
@@ -31,7 +32,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { useConfigStore } from "@/app/settings/store"
 
+import { Checkbox } from "./ui/checkbox"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 
@@ -54,6 +57,11 @@ export function DatabaseSelect({
   const { createSpace } = useSpace()
   const [loading, setLoading] = React.useState(false)
   const { updateSpaceList } = useSpace()
+  const [shouldCreateFromBackup, setShouldCreateFromBackup] =
+    React.useState(false)
+
+  const { backupServer } = useConfigStore()
+  const hasBackupServer = backupServer.token && backupServer.url
 
   const handleGoSpaceManagement = () => {
     router("/space-manage")
@@ -65,9 +73,14 @@ export function DatabaseSelect({
     goto(currentValue)
   }
 
-  const handleCreateDatabase = () => {
+  const handleCreateDatabase = async () => {
     if (databaseName) {
       setLoading(true)
+      if (hasBackupServer && shouldCreateFromBackup) {
+        const { token, url, autoSaveGap } = backupServer
+        const backup = new SimpleBackUp(url, token, autoSaveGap)
+        await backup.pull(databaseName, true)
+      }
       createSpace(databaseName).then(() => {
         setLoading(false)
         setShowNewTeamDialog(false)
@@ -157,6 +170,19 @@ export function DatabaseSelect({
                 value={databaseName}
                 onChange={(e) => setDatabaseName(e.target.value)}
               />
+            </div>
+          </div>
+          <div className="space-y-4 py-2 pb-4">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="shouldCreateFromBackup"
+                checked={shouldCreateFromBackup}
+                disabled={!hasBackupServer}
+                onCheckedChange={() =>
+                  setShouldCreateFromBackup(!shouldCreateFromBackup)
+                }
+              />
+              <Label htmlFor="shouldCreateFromBackup">Create from backup</Label>
             </div>
           </div>
         </div>
