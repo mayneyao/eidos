@@ -1,16 +1,16 @@
-"use client";
+"use client"
 
 // import { Metadata } from "next"
-import { useKeyPress } from "ahooks";
-import { Minimize2 } from "lucide-react";
+import { useKeyPress } from "ahooks"
+import { Minimize2 } from "lucide-react"
+import { Outlet } from "react-router-dom"
 
-import { useGoto } from "@/hooks/use-goto";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { SidebarNav } from "@/app/settings/components/sidebar-nav";
+import { useGoto } from "@/hooks/use-goto"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import { SidebarNav } from "@/app/settings/components/sidebar-nav"
 
-import { useLastOpened } from "../[database]/hook";
-import { Outlet } from "react-router-dom";
+import { useLastOpened } from "../[database]/hook"
 
 // export const metadata: Metadata = {
 //   title: "Forms",
@@ -35,23 +35,23 @@ const sidebarNavItems = [
     href: "/settings/appearance",
   },
   {
+    title: "Backup",
+    href: "/settings/backup",
+  },
+  {
     title: "Experiment",
     href: "/settings/experiment",
   },
-  // {
-  //   title: "Display",
-  //   href: "/settings/display",
-  // },
-];
+]
 
 export default function SettingsLayout() {
-  const { lastOpenedTable, lastOpenedDatabase } = useLastOpened();
-  const goto = useGoto();
-  const goBack = () => goto(lastOpenedDatabase, lastOpenedTable);
+  const { lastOpenedTable, lastOpenedDatabase } = useLastOpened()
+  const goto = useGoto()
+  const goBack = () => goto(lastOpenedDatabase, lastOpenedTable)
   useKeyPress("esc", (e) => {
-    e.preventDefault();
-    goBack();
-  });
+    e.preventDefault()
+    goBack()
+  })
 
   return (
     <div className="grid w-full grid-cols-5 ">
@@ -80,5 +80,5 @@ export default function SettingsLayout() {
       </div>
       <div className="col-span-1" />
     </div>
-  );
+  )
 }

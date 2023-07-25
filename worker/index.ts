@@ -35,6 +35,7 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
 async function loadDatabase(dbName: string) {
   const filename = await getSpaceDatabasePath(dbName)
   if (_dataspace?.db.filename === filename) {
+    sqlite.backupServer.setCurrentSpace(_dataspace.dbName)
     return _dataspace
   }
   const db = sqlite.db({
@@ -42,6 +43,7 @@ async function loadDatabase(dbName: string) {
     flags: "c",
     name: dbName,
   })
+  sqlite.backupServer.setCurrentSpace(db.dbName)
   return db
 }
 
@@ -49,6 +51,7 @@ async function main() {
   await sqlite.init()
   postMessage("init")
   initWs()
+  sqlite.backupServer.init()
 }
 
 onmessage = async (e) => {
