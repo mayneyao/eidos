@@ -1,21 +1,22 @@
 "use client"
 
-import { Download } from "lucide-react"
-import { Link } from "react-router-dom";
-
 import { useState } from "react"
+import { Download, UploadCloud } from "lucide-react"
+import { Link } from "react-router-dom"
 
+import { exportSpace, importSpace } from "@/lib/space"
+import { useSpace } from "@/hooks/use-space"
+import { useSync } from "@/hooks/use-sync"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
-import { useSpace } from "@/hooks/use-space"
-import { exportSpace, importSpace } from "@/lib/space"
 
 export default function SpaceManagerPage() {
   const { spaceList, updateSpaceList } = useSpace()
   const [loading, setLoading] = useState(false)
   const [file, setFile] = useState(null)
   const [spaceName, setSpaceName] = useState("")
+  const { push } = useSync()
   const handleFileChange = (e: any) => {
     e.target.files[0] && setFile(e.target.files[0])
   }
@@ -62,6 +63,9 @@ export default function SpaceManagerPage() {
             <div className="grow">
               <Link to={`/${space}`}>{space}</Link>
             </div>
+            <Button variant="ghost" onClick={() => push(space)}>
+              <UploadCloud className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" onClick={() => exportSpace(space)}>
               <Download className="h-4 w-4" />
             </Button>

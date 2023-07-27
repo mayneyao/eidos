@@ -84,7 +84,7 @@ export class SimpleBackUp {
     }
   }
 
-  private async push() {
+  public async push() {
     this.checkConfig()
     const space = this.space
     if (!space) {
