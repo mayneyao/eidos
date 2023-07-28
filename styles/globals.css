@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 /* fix prism code wrap */
-pre[class*="language-" ],
+pre[class*="language-"],
 code[class*="language-"] {
-    white-space: normal!important;
-    overflow: auto;
-    word-break: break-word!important;
+  white-space: normal !important;
+  overflow: auto;
+  word-break: break-word !important;
 }
 
 @layer base {
@@ -86,4 +86,10 @@ code[class*="language-"] {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+body {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }

@@ -6,7 +6,6 @@ import {
   LifeBuoy,
   Menu,
   MoreHorizontal,
-  RotateCcw,
   Settings
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
@@ -106,18 +105,21 @@ export const Nav = () => {
   }
 
   return (
-    <div className="flex h-8 w-full border-separate items-center justify-between border-b">
-      {!isSidebarOpen && (
-        <Button variant="ghost" size="sm" onClick={toggleSidebar}>
-          <Menu className="h-5 w-5" />
-        </Button>
-      )}
+    <div className="flex h-8 w-full border-separate items-center justify-between">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={toggleSidebar}
+        className="hidden md:block"
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
       <div className="grow" />
       <div className="flex justify-between self-end">
         <AvatarList nameList={nameList} />
-        <Button variant="ghost" onClick={reload}>
+        {/* <Button variant="ghost" onClick={reload}>
           <RotateCcw className="h-5 w-5" />
-        </Button>
+        </Button> */}
         {!isShareMode && <ShareDialog />}
         <Button variant="ghost" onClick={toggleAi}>
           <Bot className="h-5 w-5" />
