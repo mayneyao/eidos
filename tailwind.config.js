@@ -1,10 +1,15 @@
 const { fontFamily } = require("tailwindcss/defaultTheme")
+const defaultTheme = require("tailwindcss/defaultTheme")
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
   content: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
   theme: {
+    screens: {
+      xs: "350px",
+      ...defaultTheme.screens,
+    },
     container: {
       center: true,
       padding: "2rem",

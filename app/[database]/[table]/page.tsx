@@ -31,7 +31,7 @@ export default function TablePage() {
         <Grid tableName={params.tableName!} databaseName={params.space} />
       )}
       {node?.type === "doc" && (
-        <div className="prose mx-auto flex p-10 lg:prose-xl xl:prose-2xl">
+        <div className="prose mx-auto flex p-10 xs:prose-sm lg:prose-xl xl:prose-2xl xs:p-5">
           <Editor
             isEditable
             docId={params.docId!}
