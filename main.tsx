@@ -5,8 +5,10 @@ import { RouterProvider, createBrowserRouter } from "react-router-dom"
 import NodePage from "@/app/[database]/[table]/page"
 import EverydayPage from "@/app/[database]/everyday/[day]/page"
 import EverydayHomePage from "@/app/[database]/everyday/page"
+import { FileManager } from "@/app/[database]/files/page"
 // space
 import SpaceLayout from "@/app/[database]/layout"
+import SpaceHomePage from "@/app/[database]/page"
 import RootLayout from "@/app/layout"
 import HomePage from "@/app/page"
 import SettingsAccountPage from "@/app/settings/account/page"
@@ -80,6 +82,14 @@ const router = createBrowserRouter([
         path: ":database",
         element: <SpaceLayout />,
         children: [
+          {
+            index: true,
+            element: <SpaceHomePage />,
+          },
+          {
+            path: "fs",
+            element: <FileManager />,
+          },
           {
             path: "everyday",
             children: [

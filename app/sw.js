@@ -29,34 +29,28 @@ self.addEventListener("fetch", async (event) => {
       readFileFromOpfs(space, url.pathname).then((file) => {
         const headers = new Headers()
         headers.append("Content-Type", getContentType(url.pathname))
+        headers.append("Cross-Origin-Embedder-Policy", "require-corp")
         return new Response(file, { headers })
       })
     )
   }
 })
 
-async function readFileFromOpfs(space, pathname) {
-  const filename = pathname.split("/").pop()
+async function getDirHandle(_paths) {
+  const paths = [..._paths]
   const opfsRoot = await navigator.storage.getDirectory()
-  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
-    create: true,
-  })
-  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(space, {
-    create: true,
-  })
-  const filesDirHandle = await spaceDirHandle.getDirectoryHandle("files", {
-    create: true,
-  })
-  let existingFileHandle
-  try {
-    existingFileHandle = await filesDirHandle.getFileHandle(filename)
-  } catch (error) {
-    // file should be sorted in space files folder, but if not, try to find it in root files folder
-    const filesDirHandle = await opfsRoot.getDirectoryHandle("files", {
-      create: true,
-    })
-    existingFileHandle = await filesDirHandle.getFileHandle(filename)
+  let dirHandle = opfsRoot
+  for (let path of paths) {
+    dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
   }
+  return dirHandle
+}
+
+async function readFileFromOpfs(space, pathname) {
+  const paths = decodeURIComponent(space + pathname).split("/")
+  const filename = paths.pop()
+  const dirHandle = await getDirHandle(["spaces", ...paths])
+  const existingFileHandle = await dirHandle.getFileHandle(filename)
   return existingFileHandle.getFile()
 }
 
@@ -70,6 +64,8 @@ function getContentType(filename) {
       return "image/jpeg"
     case "gif":
       return "image/gif"
+    case "pdf":
+      return "application/pdf"
     default:
       return "application/octet-stream"
   }
