@@ -314,6 +314,7 @@ code.not-prose::after {
   padding: 0;
   margin: 0;
   list-style-position: inside;
+  padding-left: 0.75rem !important;
 }
 
 ul .PlaygroundEditorTheme__listItem {
@@ -321,7 +322,7 @@ ul .PlaygroundEditorTheme__listItem {
   margin-left: 8px;
   margin-right: 8px;
   padding-left: 24px;
-  padding-right: 24px;
+  /* padding-right: 24px; */
   list-style-type: none;
   outline: none;
 }
@@ -359,18 +360,34 @@ ul
 .PlaygroundEditorTheme__listItemChecked {
   text-decoration: line-through;
 }
+
 .PlaygroundEditorTheme__listItemUnchecked:before,
 .PlaygroundEditorTheme__listItemChecked:before {
   content: "";
   width: 16px;
   height: 16px;
-  top: 6px;
   left: 0;
   cursor: pointer;
   display: block;
   background-size: cover;
   position: absolute;
+  margin-right: 1rem;
 }
+
+@media (max-width: 1280px) {
+  .PlaygroundEditorTheme__listItemUnchecked:before,
+  .PlaygroundEditorTheme__listItemChecked:before {
+    top: 6px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .PlaygroundEditorTheme__listItemUnchecked:before,
+  .PlaygroundEditorTheme__listItemChecked:before {
+    top: 10px;
+  }
+}
+
 .PlaygroundEditorTheme__listItemUnchecked[dir="rtl"]:before,
 .PlaygroundEditorTheme__listItemChecked[dir="rtl"]:before {
   left: auto;

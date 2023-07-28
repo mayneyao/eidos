@@ -17,10 +17,10 @@ const MobileSideBar = () => {
   const { isMobileSidebarOpen, setMobileSidebarOpen } = useSpaceAppStore()
   return (
     <Sheet open={isMobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-      <SheetTrigger className="block md:hidden">
-        <Menu size={32} />
+      <SheetTrigger className="flex md:hidden">
+        <Menu className="h-6 w-6" />
       </SheetTrigger>
-      <SheetContent size="content" position="left">
+      <SheetContent size="content" position="left" className="w-[300px]">
         <SideBar className="p-2" />
       </SheetContent>
     </Sheet>
@@ -59,13 +59,13 @@ export function DatabaseLayoutBase({
       >
         <SideBar />
       </div>
-      <div className={cn("flex h-full grow flex-col lg:border-l")}>
+      <div className={cn("flex h-full w-full grow flex-col lg:border-l")}>
         <div className="flex justify-between p-2 md:justify-end">
           <MobileSideBar />
           <Nav />
         </div>
         <div className="z-[1] flex h-[calc(100vh-4rem)] grow overflow-auto">
-          <div className="grow">{children}</div>
+          <div className="w-full grow">{children}</div>
         </div>
       </div>
     </div>

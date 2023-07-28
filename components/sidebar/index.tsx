@@ -1,16 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Database, Files } from "lucide-react"
+import { useEffect, useState } from "react"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { DatabaseSelect } from "@/components/database-select"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { Separator } from "@/components/ui/separator"
-import { DatabaseSelect } from "@/components/database-select"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 
 import { CreateFileDialog } from "./create-file"
 import { EverydaySidebarItem } from "./everyday"
@@ -50,7 +49,7 @@ export const SideBar = ({ className }: any) => {
             </>
           )}
         </div>
-        <Separator className="my-2" />
+        <div className="my-2" />
         <div className="flex h-full flex-col justify-between overflow-y-auto">
           {loading ? (
             <TableListLoading />

@@ -49,9 +49,9 @@ const defaultConfig: Partial<DataEditorProps> = {
   // auto handle copy and paste
   onPaste: true,
   headerIcons: headerIcons,
-  // experimental: {
-  //   paddingBottom: 14,
-  // },
+  experimental: {
+    paddingBottom: 14,
+  },
 }
 
 interface IGridProps {
@@ -169,8 +169,11 @@ export default function Grid(props: IGridProps) {
 
   return (
     <div className="h-full p-2" ref={containerRef}>
-      <div className="relative flex h-full overflow-hidden rounded-md">
-        <ContextMenuDemo deleteRows={handleDelRows} getRowByIndex={getRowByIndex}>
+      <div className="relative flex h-full overflow-hidden rounded-md border-t">
+        <ContextMenuDemo
+          deleteRows={handleDelRows}
+          getRowByIndex={getRowByIndex}
+        >
           {Boolean(uiColumns.length) && (
             <DataEditor
               {...config}

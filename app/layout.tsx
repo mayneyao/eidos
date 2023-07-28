@@ -32,7 +32,7 @@ export default function RootLayout() {
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           {/* APP MODEL， a sidebar and main */}
           <div className="flex h-screen w-screen overflow-auto">
-            <div className="h-full grow">
+            <div className="h-full w-full grow">
               <Outlet />
             </div>
             {isAiOpen && <AIChat />}
