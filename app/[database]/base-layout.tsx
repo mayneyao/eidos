@@ -2,6 +2,8 @@
 
 import { Menu } from "lucide-react"
 
+// import SplitPane, { Pane } from "react-split-pane"
+
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
@@ -35,7 +37,7 @@ export function DatabaseLayoutBase({
   className?: string
 }) {
   const { sqlite } = useSqlite()
-  const { isShareMode } = useAppRuntimeStore()
+  const { isShareMode, currentPreviewFileUrl } = useAppRuntimeStore()
   const { isSidebarOpen } = useSpaceAppStore()
 
   // event listen should be in useLayoutInit, and just listen once
@@ -51,21 +53,27 @@ export function DatabaseLayoutBase({
   // when chat is close 2:10
   return (
     <div className={cn("relative  flex h-screen ", className)}>
-      <div
-        className={cn(
-          "h-full w-[350px] overflow-x-hidden transition-all duration-150 ease-in-out",
-          isSidebarOpen ? "hidden  md:block" : "w-0"
-        )}
-      >
-        <SideBar />
-      </div>
-      <div className={cn("flex h-full w-full grow flex-col lg:border-l")}>
-        <div className="flex justify-between p-2 md:justify-end">
-          <MobileSideBar />
-          <Nav />
+      {currentPreviewFileUrl && (
+        <iframe className="hidden h-full w-full  md:block" src={currentPreviewFileUrl}></iframe>
+      )}
+
+      <div className="flex h-full w-full">
+        <div
+          className={cn(
+            "h-full w-[350px] grow overflow-x-hidden transition-all duration-150 ease-in-out",
+            isSidebarOpen ? "hidden  md:block" : "w-0"
+          )}
+        >
+          <SideBar />
         </div>
-        <div className="z-[1] flex h-[calc(100vh-4rem)] grow overflow-auto">
-          <div className="w-full grow">{children}</div>
+        <div className={cn("flex h-full w-full grow flex-col lg:border-l")}>
+          <div className="flex justify-between p-2 md:justify-end">
+            <MobileSideBar />
+            <Nav />
+          </div>
+          <div className="z-[1] flex h-[calc(100vh-4rem)] grow overflow-auto">
+            <div className="w-full grow">{children}</div>
+          </div>
         </div>
       </div>
     </div>

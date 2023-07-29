@@ -80,6 +80,7 @@
     "react-marked-renderer": "^1.1.2",
     "react-responsive-carousel": "^3.2.23",
     "react-router-dom": "^6.14.1",
+    "react-selecto": "^1.26.0",
     "sharp": "^0.31.3",
     "sort-by": "^1.2.0",
     "sql-ddl-to-json-schema": "^4.0.10",

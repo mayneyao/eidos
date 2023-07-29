@@ -9,16 +9,47 @@ const useFsStore = create<{
   setCurrentPath: (currentPath: string[]) => void
   entries: FileSystemFileHandle[]
   setEntries: (entries: FileSystemFileHandle[]) => void
+  selectedEntries: Map<string, boolean>
+  addSelectedEntry: (name: string, isDir: boolean) => void
+  removeSelectedEntry: (name: string) => void
+  setSelectedEntries: (selectedEntries: Map<string, boolean>) => void
+  prevSelectedEntries: Map<string, boolean>
+  setPrevSelectedEntries: (prevSelectedEntries: Map<string, boolean>) => void
 }>((set) => ({
   currentPath: [],
   setCurrentPath: (currentPath) => set({ currentPath }),
   entries: [],
   setEntries: (entries) => set({ entries }),
+  selectedEntries: new Map(),
+  addSelectedEntry: (name, isDir) =>
+    set((state) => {
+      state.selectedEntries.set(name, isDir)
+      return { selectedEntries: state.selectedEntries }
+    }),
+  removeSelectedEntry: (name) =>
+    set((state) => {
+      state.selectedEntries.delete(name)
+      return { selectedEntries: state.selectedEntries }
+    }),
+  setSelectedEntries: (selectedEntries) => set({ selectedEntries }),
+  prevSelectedEntries: new Map(),
+  setPrevSelectedEntries: (prevSelectedEntries) => set({ prevSelectedEntries }),
 }))
 
 export const useFileSystem = () => {
   const { space } = useCurrentPathInfo()
-  const { entries, setEntries, currentPath, setCurrentPath } = useFsStore()
+  const {
+    entries,
+    setEntries,
+    currentPath,
+    setCurrentPath,
+    addSelectedEntry,
+    removeSelectedEntry,
+    selectedEntries,
+    prevSelectedEntries,
+    setPrevSelectedEntries,
+    setSelectedEntries,
+  } = useFsStore()
 
   const isRootDir = currentPath.length === 0
   const goRootDir = useCallback(() => {
@@ -80,13 +111,32 @@ export const useFileSystem = () => {
   const getFileUrlPath = useCallback(
     (name: string) => {
       if (isRootDir) {
-        return `/files/${name}`
+        return `/${space}/files/${name}`
       } else {
-        return `/files/${currentPath.join("/")}/${name}`
+        return `/${space}/files/${currentPath.join("/")}/${name}`
       }
     },
-    [currentPath, isRootDir]
+    [currentPath, isRootDir, space]
   )
+
+  const deleteFiles = useCallback(
+    async (
+      names: {
+        name: string
+        isDir: boolean
+      }[]
+    ) => {
+      for (const { name, isDir } of names) {
+        await opfsManager.deleteEntry(
+          ["spaces", space, "files", ...currentPath, name],
+          isDir
+        )
+      }
+      await refresh()
+    },
+    [currentPath, refresh, space]
+  )
+
   return {
     isRootDir,
     entries,
@@ -98,5 +148,12 @@ export const useFileSystem = () => {
     enterPathByIndex,
     goRootDir,
     getFileUrlPath,
+    deleteFiles,
+    addSelectedEntry,
+    removeSelectedEntry,
+    selectedEntries,
+    setSelectedEntries,
+    prevSelectedEntries,
+    setPrevSelectedEntries,
   }
 }

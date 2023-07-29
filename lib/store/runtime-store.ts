@@ -10,6 +10,9 @@ interface AppRuntimeState {
 
   isShareMode: boolean
   setShareMode: (isShareMode: boolean) => void
+
+  currentPreviewFileUrl: string
+  setCurrentPreviewFileUrl: (currentPreviewFileUrl: string) => void
 }
 
 // need persist, store user config in localstorage
@@ -19,4 +22,8 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
 
   isShareMode: false,
   setShareMode: (isShareMode) => set({ isShareMode }),
+
+  currentPreviewFileUrl: "",
+  setCurrentPreviewFileUrl: (currentPreviewFileUrl) =>
+    set({ currentPreviewFileUrl }),
 }))

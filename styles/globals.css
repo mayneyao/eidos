@@ -93,3 +93,8 @@ body {
   width: 100vw;
   overflow: hidden;
 }
+
+/* select */
+.selected {
+  background-color: hsl(var(--secondary));
+}

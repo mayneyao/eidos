@@ -210,14 +210,22 @@ export class OpfsManager {
     await writable.close()
   }
 
-  deleteFile = async (_paths: string[]) => {
+  deleteEntry = async (_paths: string[], isDir = false) => {
     const paths = [..._paths]
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
     }
-    const filename = paths.pop()
-    const dirHandle = await getDirHandle(paths)
-    await dirHandle.removeEntry(filename!)
+    if (isDir) {
+      const dirHandle = await getDirHandle(paths)
+      // The remove() method is currently only implemented in Chrome. You can feature-detect support via 'remove' in FileSystemFileHandle.prototype.
+      await (dirHandle as any).remove({
+        recursive: true,
+      })
+    } else {
+      const filename = paths.pop()
+      const dirHandle = await getDirHandle(paths)
+      await dirHandle.removeEntry(filename!)
+    }
   }
 
   renameFile = async (_paths: string[], newName: string) => {

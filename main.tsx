@@ -87,7 +87,7 @@ const router = createBrowserRouter([
             element: <SpaceHomePage />,
           },
           {
-            path: "fs",
+            path: "opfs",
             element: <FileManager />,
           },
           {
