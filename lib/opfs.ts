@@ -145,10 +145,10 @@ export const getDirHandle = async (_paths: string[]) => {
   return dirHandle
 }
 
-export class OpfsDoc {
+export class OpfsManager {
   listDir = async (_paths: string[]) => {
     const dirHandle = await getDirHandle(_paths)
-    const entries = []
+    const entries: FileSystemFileHandle[] = []
     for await (let entry of (dirHandle as any).values()) {
       entries.push(entry)
     }
@@ -185,17 +185,50 @@ export class OpfsDoc {
     return await file.text()
   }
 
-  deleteDocFile = async (_paths: string[]) => {
+  addDir = async (_paths: string[], dirName: string) => {
     const paths = [..._paths]
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
     }
-    const filename = paths.pop()
     const dirHandle = await getDirHandle(paths)
-    await dirHandle.removeEntry(filename!)
+    const r = await dirHandle.getDirectoryHandle(dirName, { create: true })
+    // const opfsRoot = await navigator.storage.getDirectory()
+    // const path = await opfsRoot.resolve(r)
   }
 
-  renameDocFile = async (_paths: string[], newName: string) => {
+  addFile = async (_paths: string[], file: File) => {
+    const paths = [..._paths]
+    if (paths.length === 0) {
+      throw new Error("paths can't be empty")
+    }
+    const dirHandle = await getDirHandle(paths)
+    const fileHandle = await dirHandle.getFileHandle(file.name, {
+      create: true,
+    })
+    const writable = await (fileHandle as any).createWritable()
+    await writable.write(file)
+    await writable.close()
+  }
+
+  deleteEntry = async (_paths: string[], isDir = false) => {
+    const paths = [..._paths]
+    if (paths.length === 0) {
+      throw new Error("paths can't be empty")
+    }
+    if (isDir) {
+      const dirHandle = await getDirHandle(paths)
+      // The remove() method is currently only implemented in Chrome. You can feature-detect support via 'remove' in FileSystemFileHandle.prototype.
+      await (dirHandle as any).remove({
+        recursive: true,
+      })
+    } else {
+      const filename = paths.pop()
+      const dirHandle = await getDirHandle(paths)
+      await dirHandle.removeEntry(filename!)
+    }
+  }
+
+  renameFile = async (_paths: string[], newName: string) => {
     const paths = [..._paths]
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
@@ -210,4 +243,4 @@ export class OpfsDoc {
 }
 
 // deprecated
-export const opfsDocManager = new OpfsDoc()
+export const opfsManager = new OpfsManager()

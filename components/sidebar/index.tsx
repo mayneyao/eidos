@@ -1,16 +1,18 @@
 "use client"
 
-import { Database, Files } from "lucide-react"
 import { useEffect, useState } from "react"
+import { Database, FileBoxIcon, Files } from "lucide-react"
+import { Link } from "react-router-dom"
 
-import { DatabaseSelect } from "@/components/database-select"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { DatabaseSelect } from "@/components/database-select"
 
+import { Button } from "../ui/button"
 import { CreateFileDialog } from "./create-file"
 import { EverydaySidebarItem } from "./everyday"
 import { CurrentItemTree } from "./item-tree"
@@ -55,7 +57,22 @@ export const SideBar = ({ className }: any) => {
             <TableListLoading />
           ) : (
             <div>
-              {!isShareMode && <EverydaySidebarItem space={space} />}
+              {!isShareMode && (
+                <>
+                  <EverydaySidebarItem space={space} />
+                  <Button
+                    variant={"ghost"}
+                    size="sm"
+                    className="w-full justify-start font-normal"
+                    asChild
+                  >
+                    <Link to={`/${space}/opfs`}>
+                      <FileBoxIcon className="pr-2" />
+                      Files
+                    </Link>
+                  </Button>
+                </>
+              )}
               <CurrentItemTree
                 title="Tables"
                 type="table"

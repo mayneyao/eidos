@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       srcDir: "app",
-      filename: "sw.js",
+      filename: "sw.ts",
       strategies: "injectManifest",
       injectManifest: {
         maximumFileSizeToCacheInBytes: 3000000,

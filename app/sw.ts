@@ -1,5 +1,19 @@
 import { precacheAndRoute } from "workbox-precaching"
 
+declare var self: ServiceWorkerGlobalScope
+
+// import { getDirHandle } from "@/lib/opfs"
+
+const getDirHandle = async (_paths: string[]) => {
+  const paths = [..._paths]
+  const opfsRoot = await navigator.storage.getDirectory()
+  let dirHandle = opfsRoot
+  for (let path of paths) {
+    dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
+  }
+  return dirHandle
+}
+
 precacheAndRoute(self.__WB_MANIFEST)
 
 // This code executes in its own worker or thread
@@ -11,7 +25,7 @@ self.addEventListener("activate", (event) => {
   console.log("Service worker activated")
 })
 
-let space
+let space: string
 self.addEventListener("message", function (event) {
   if (event.data.type === "space") {
     space = event.data.data
@@ -23,44 +37,28 @@ self.addEventListener("fetch", async (event) => {
   const url = new URL(event.request.url)
   if (
     url.origin === self.location.origin &&
-    url.pathname.startsWith(`/files/`)
+    url.pathname.startsWith(`/${space}/files/`)
   ) {
     event.respondWith(
-      readFileFromOpfs(space, url.pathname).then((file) => {
+      readFileFromOpfs(url.pathname).then((file) => {
         const headers = new Headers()
         headers.append("Content-Type", getContentType(url.pathname))
+        headers.append("Cross-Origin-Embedder-Policy", "require-corp")
         return new Response(file, { headers })
       })
     )
   }
 })
 
-async function readFileFromOpfs(space, pathname) {
-  const filename = pathname.split("/").pop()
-  const opfsRoot = await navigator.storage.getDirectory()
-  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
-    create: true,
-  })
-  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(space, {
-    create: true,
-  })
-  const filesDirHandle = await spaceDirHandle.getDirectoryHandle("files", {
-    create: true,
-  })
-  let existingFileHandle
-  try {
-    existingFileHandle = await filesDirHandle.getFileHandle(filename)
-  } catch (error) {
-    // file should be sorted in space files folder, but if not, try to find it in root files folder
-    const filesDirHandle = await opfsRoot.getDirectoryHandle("files", {
-      create: true,
-    })
-    existingFileHandle = await filesDirHandle.getFileHandle(filename)
-  }
+async function readFileFromOpfs(pathname: string) {
+  const paths = decodeURIComponent(pathname).split("/").filter(Boolean)
+  const filename = paths.pop()
+  const dirHandle = await getDirHandle(["spaces", ...paths])
+  const existingFileHandle = await dirHandle.getFileHandle(filename!)
   return existingFileHandle.getFile()
 }
 
-function getContentType(filename) {
+function getContentType(filename: string) {
   const extension = filename.split(".").pop()
   switch (extension) {
     case "png":
@@ -70,6 +68,8 @@ function getContentType(filename) {
       return "image/jpeg"
     case "gif":
       return "image/gif"
+    case "pdf":
+      return "application/pdf"
     default:
       return "application/octet-stream"
   }
