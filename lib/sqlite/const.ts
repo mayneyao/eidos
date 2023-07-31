@@ -19,3 +19,6 @@ export const DocTableName = `eidos__docs`
 
 // quick actions
 export const ActionTableName = `eidos__actions`
+
+// store view
+export const ViewTableName = `eidos__views`
