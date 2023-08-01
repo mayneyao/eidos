@@ -118,7 +118,7 @@ export const CurrentItemTree = ({
   )
 }
 
-const ItemIcon = ({
+export const ItemIcon = ({
   type,
   className,
 }: {
