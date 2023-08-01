@@ -77,7 +77,9 @@ export const SideBar = ({ className }: any) => {
                 title="Tables"
                 type="table"
                 spaceName={space}
-                allNodes={allNodes.filter((node) => node.type === "table")}
+                allNodes={allNodes.filter(
+                  (node) => node.type === "table" && !node.parentId
+                )}
                 isShareMode={isShareMode}
                 Icon={<Database className="pr-2" />}
                 currentNode={currentNode}
@@ -86,7 +88,9 @@ export const SideBar = ({ className }: any) => {
                 title="Documents"
                 type="doc"
                 spaceName={space}
-                allNodes={allNodes.filter((node) => node.type === "doc")}
+                allNodes={allNodes.filter(
+                  (node) => node.type === "doc" && !node.parentId
+                )}
                 isShareMode={isShareMode}
                 currentNode={currentNode}
                 Icon={<Files className="pr-2" />}

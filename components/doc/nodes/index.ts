@@ -5,6 +5,7 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 
 import { ImageNode } from "./ImageNode"
+import { MentionNode } from "./MentionNode"
 // custom node
 import { SQLNode } from "./SQL"
 
@@ -20,4 +21,5 @@ export const AllNodes = [
   SQLNode,
   ImageNode,
   HashtagNode,
+  MentionNode,
 ]

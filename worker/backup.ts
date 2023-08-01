@@ -25,8 +25,10 @@ export class SimpleBackUp {
 
   private checkConfig() {
     if (!this.backupUrl || !this.token) {
-      throw new Error("backup url or token not set")
+      console.warn("backup url or token is empty, auto backup is not available")
+      return false
     }
+    return true
   }
 
   public setCurrentSpace(space: string | null) {
@@ -36,7 +38,10 @@ export class SimpleBackUp {
   }
 
   public async pull(space: string | null, justCreateNew = false) {
-    this.checkConfig()
+    const isConfigOk = this.checkConfig()
+    if (!isConfigOk) {
+      return
+    }
     if (!space) {
       return
     }
@@ -85,7 +90,10 @@ export class SimpleBackUp {
   }
 
   public async push() {
-    this.checkConfig()
+    const isConfigOk = this.checkConfig()
+    if (!isConfigOk) {
+      return
+    }
     const space = this.space
     if (!space) {
       console.log("no space to backup")

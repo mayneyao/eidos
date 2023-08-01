@@ -42,7 +42,7 @@ export class TreeTable implements BaseTable<ITreeNode> {
     }
     return res[0] as ITreeNode
   }
-  
+
   set(id: string, data: ITreeNode): Promise<boolean> {
     throw new Error("Method not implemented.")
   }
@@ -50,10 +50,17 @@ export class TreeTable implements BaseTable<ITreeNode> {
     throw new Error("Method not implemented.")
   }
 
-  async list(): Promise<ITreeNode[]> {
-    const res = await this.dataSpace.exec2(
-      `SELECT * FROM ${TreeTableName} where parentId is null;`
-    )
+  async list(query?: string, withSubNode?: boolean): Promise<ITreeNode[]> {
+    let sql = `SELECT * FROM ${TreeTableName} `
+    if (query) {
+      sql += ` WHERE name like ?`
+    }
+    if (query && !withSubNode) {
+      sql += ` AND parentId is null;`
+    }
+    const bind = query ? [`%${query}%`] : undefined
+    console.log(sql, bind)
+    const res = await this.dataSpace.exec2(sql, bind)
     return res.map((row) => row as ITreeNode)
   }
 }
