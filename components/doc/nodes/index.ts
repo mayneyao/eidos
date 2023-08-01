@@ -8,6 +8,7 @@ import { ImageNode } from "./ImageNode"
 import { MentionNode } from "./MentionNode"
 // custom node
 import { SQLNode } from "./SQL"
+import { DatabaseTableNode } from "./DatabaseTableNode"
 
 export const AllNodes = [
   HeadingNode,
@@ -22,4 +23,5 @@ export const AllNodes = [
   ImageNode,
   HashtagNode,
   MentionNode,
+  DatabaseTableNode,
 ]

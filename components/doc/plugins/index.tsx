@@ -11,6 +11,7 @@ import AutoLinkPlugin from "./AutoLinkPlugin"
 // import AutocompletePlugin from "./AutocompletePlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
+import { DatabasePlugin } from "./DatabasePlugin"
 import DragDropPaste from "./DragDropPaste"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ImagesPlugin from "./ImagesPlugin"
@@ -29,6 +30,7 @@ export const AllPlugins = () => {
       <HashtagPlugin />
       <ListPlugin />
       <NewMentionsPlugin />
+      <DatabasePlugin />
       {/* <AutocompletePlugin /> */}
       {/* TabIndentationPlugin let you type `Tab` to indent a list item, ListMaxIndentLevelPlugin let you control the max indent level */}
       <TabIndentationPlugin />

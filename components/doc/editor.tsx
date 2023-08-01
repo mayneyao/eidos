@@ -16,6 +16,7 @@ import { AllPlugins } from "./plugins"
 import { AutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
+import { SafeBottomPaddingPlugin } from "./plugins/SafeBottomPaddingPlugin"
 // import { TodoPlugin } from "./plugins/TodoPlugin"
 import defaultTheme from "./themes/default"
 
@@ -60,6 +61,7 @@ export function Editor(props: EditorProps) {
     ...editorConfig,
     editable: props.isEditable,
   }
+
   return (
     <div className="h-full w-full">
       <LexicalComposer initialConfig={initConfig}>
@@ -73,7 +75,7 @@ export function Editor(props: EditorProps) {
               contentEditable={
                 <div className="editor relative" ref={onRef}>
                   <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert xl:prose-xl" />
-                  <div className="h-12 w-full" role="safe-bottom-padding"></div>
+                  <SafeBottomPaddingPlugin />
                 </div>
               }
               placeholder={
