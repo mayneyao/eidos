@@ -1,20 +1,19 @@
-import { useEffect, useState } from "react"
+import { ITreeNode } from "@/worker/meta_table/tree"
+import { useMemo } from "react"
 import { useParams } from "react-router-dom"
 
-import { IFileNode, useSqlite } from "./use-sqlite"
+import { useSqliteStore } from "./use-sqlite"
 
 export const useCurrentNode = () => {
-  const [node, setNode] = useState<IFileNode | null>(null)
-  const { database, table } = useParams()
-  const { sqlite } = useSqlite(database)
+  const { allNodes } = useSqliteStore()
+  const { database, table: nodeId } = useParams()
 
-  useEffect(() => {
-    if (!sqlite || !table) {
-      return
-    }
-    sqlite.getTreeNode(table).then((res) => {
-      setNode(res)
-    })
-  }, [database, sqlite, table])
-  return node
+  const allNodesMap = useMemo(() => {
+    return allNodes.reduce((acc, cur) => {
+      acc[cur.id] = cur
+      return acc
+    }, {} as Record<string, ITreeNode>)
+  }, [allNodes])
+
+  return nodeId ? allNodesMap[nodeId] : null
 }

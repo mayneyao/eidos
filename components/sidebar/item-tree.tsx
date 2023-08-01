@@ -1,12 +1,12 @@
 import { useState } from "react"
-import { Link,useSearchParams } from "react-router-dom";
-
+import { ITreeNode } from "@/worker/meta_table/tree"
 import { File, FileSpreadsheet, Plus } from "lucide-react"
+import { Link, useSearchParams } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
-import { IFileNode, useSqlite } from "@/hooks/use-sqlite"
+import { useSqlite } from "@/hooks/use-sqlite"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
@@ -21,10 +21,10 @@ export const CurrentItemTree = ({
   title,
   type,
 }: {
-  allNodes: IFileNode[]
+  allNodes: ITreeNode[]
   spaceName: string
   isShareMode: boolean
-  currentNode: IFileNode | null
+  currentNode: ITreeNode | null
   title: string
   type: "table" | "doc"
   Icon: React.ReactNode

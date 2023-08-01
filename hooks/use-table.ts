@@ -15,6 +15,7 @@ import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { useSpaceAppStore } from "@/app/[database]/store"
 import { useConfigStore } from "@/app/settings/store"
 
+import { useCurrentNode } from "./use-current-node"
 import { useSqlite } from "./use-sqlite"
 
 // PRAGMA table_info('table_name') will return IColumn[]
@@ -237,15 +238,16 @@ export const useTable = (tableName: string, databaseName: string) => {
     [sqlite, tableName]
   )
 
+  const node = useCurrentNode()
   useEffect(() => {
-    if (sqlite && tableName) {
+    if (sqlite && tableName && node?.type === "table") {
       sqlite.sql`SELECT COUNT(*) FROM ${Symbol(tableName)}`.then((res) => {
         const count = res[0]?.[0]
         setCount(count)
         updateTableSchema()
       })
     }
-  }, [sqlite, tableName, updateTableSchema, setCount])
+  }, [sqlite, tableName, updateTableSchema, setCount, node?.type])
 
   return {
     count,

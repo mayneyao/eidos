@@ -1,9 +1,9 @@
 import { MouseEventHandler, useRef, useState } from "react"
-import { useNavigate } from "react-router-dom";
-
+import { ITreeNode } from "@/worker/meta_table/tree"
 import { useClickAway } from "ahooks"
+import { useNavigate } from "react-router-dom"
 
-import { IFileNode, useSqlite } from "@/hooks/use-sqlite"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -24,7 +24,7 @@ import { Input } from "../ui/input"
 
 interface INodeItemProps {
   databaseName: string
-  node: IFileNode
+  node: ITreeNode
   children?: React.ReactNode
 }
 
@@ -38,8 +38,8 @@ export function NodeItem({ databaseName, children, node }: INodeItemProps) {
     setRenameOpen(false)
   }, [renameInputRef])
 
-  const router = useNavigate();
-    const handleDeleteTable = () => {
+  const router = useNavigate()
+  const handleDeleteTable = () => {
     deleteNode(node)
     router(`/${databaseName}`)
   }
