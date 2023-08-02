@@ -57,6 +57,7 @@ const defaultConfig: Partial<DataEditorProps> = {
 interface IGridProps {
   tableName: string
   databaseName: string
+  isEmbed?: boolean
 }
 
 export default function Grid(props: IGridProps) {
@@ -125,11 +126,20 @@ export default function Grid(props: IGridProps) {
   const freezeColumns = isSm ? 0 : 1
 
   const config = useMemo(() => {
+    const _config = props.isEmbed
+      ? {
+          // height: "100%",
+          experimental: {
+            paddingBottom: 0,
+          },
+        }
+      : {}
     return {
       ...defaultConfig,
       freezeColumns,
+      ..._config,
     }
-  }, [freezeColumns])
+  }, [freezeColumns, props.isEmbed])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)

@@ -2,6 +2,10 @@ code.not-prose::after {
   display: none;
 }
 
+code::before {
+  display: none;
+}
+
 .eidos_editor_theme__ltr {
   text-align: left;
 }
@@ -88,10 +92,10 @@ code.not-prose::after {
   cursor: pointer;
 }
 .eidos_editor_theme__code {
-  background-color: rgb(240, 242, 245);
+  background-color: hsl(var(--secondary));
   font-family: Menlo, Consolas, Monaco, monospace;
   display: block;
-  padding: 8px 8px 8px 52px;
+  padding: 8px 8px 8px 24px;
   line-height: 1.53;
   font-size: 13px;
   margin: 0;
@@ -423,30 +427,40 @@ ul
 .eidos_editor_theme__nestedListItem:after {
   display: none;
 }
+
+/* code */
 .eidos_editor_theme__tokenComment {
-  color: slategray;
+  color: var(--token-comment-color);
 }
+
 .eidos_editor_theme__tokenPunctuation {
-  color: #999;
+  color: var(--token-punctuation-color);
 }
+
 .eidos_editor_theme__tokenProperty {
-  color: #905;
+  color: var(--token-property-color);
 }
+
 .eidos_editor_theme__tokenSelector {
-  color: #690;
+  color: var(--token-selector-color);
 }
+
 .eidos_editor_theme__tokenOperator {
-  color: #9a6e3a;
+  color: var(--token-operator-color);
 }
+
 .eidos_editor_theme__tokenAttr {
-  color: #07a;
+  color: var(--token-attr-color);
 }
+
 .eidos_editor_theme__tokenVariable {
-  color: #e90;
+  color: var(--token-variable-color);
 }
+
 .eidos_editor_theme__tokenFunction {
-  color: #dd4a68;
+  color: var(--token-function-color);
 }
+
 .eidos_editor_theme__mark {
   background: rgba(255, 212, 0, 0.14);
   border-bottom: 2px solid rgba(255, 212, 0, 0.3);

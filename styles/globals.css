@@ -42,6 +42,15 @@ code[class*="language-"] {
     --ring: 215 20.2% 65.1%;
 
     --radius: 0.5rem;
+
+    --token-comment-color: #6c757d;
+    --token-punctuation-color: #999;
+    --token-property-color: #905;
+    --token-selector-color: #690;
+    --token-operator-color: #9a6e3a;
+    --token-attr-color: #07a;
+    --token-variable-color: #e90;
+    --token-function-color: #dd4a68;
   }
 
   .dark {
@@ -75,6 +84,15 @@ code[class*="language-"] {
     --ring: 216 34% 17%;
 
     --radius: 0.5rem;
+
+    --token-comment-color: #6c757d;
+    --token-punctuation-color: #999;
+    --token-property-color: #d19a66;
+    --token-selector-color: #c678dd;
+    --token-operator-color: #a9a9a9;
+    --token-attr-color: #56a8a8;
+    --token-variable-color: #e09062;
+    --token-function-color: #cb6d90;
   }
 }
 

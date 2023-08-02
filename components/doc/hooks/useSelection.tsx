@@ -36,8 +36,10 @@ export function useMouseSelection(
 
     function handleMouseDown(e: MouseEvent) {
       const editorContainer = document.querySelector(".editor-input")
+      const dragHandle = document.querySelector(".draggable-block-menu")
       const isClickOnEditor = editorContainer?.contains(e.target as Node)
-      if (isClickOnEditor) {
+      const isClickOnDragHandle = dragHandle?.contains(e.target as Node)
+      if (isClickOnEditor || isClickOnDragHandle) {
         return
       }
       setSelecting(true)

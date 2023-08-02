@@ -9,7 +9,7 @@ import Grid from "@/components/grid"
 const DatabaseTableComponent = (props: { id: string }) => {
   const { space } = useCurrentPathInfo()
   const rawTableName = getRawTableNameById(props.id)
-  return <Grid tableName={rawTableName} databaseName={space} />
+  return <Grid tableName={rawTableName} databaseName={space} isEmbed />
 }
 
 export class DatabaseTableNode extends DecoratorNode<ReactNode> {
