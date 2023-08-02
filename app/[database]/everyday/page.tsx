@@ -59,6 +59,7 @@ export default function EverydayPage() {
               placeholder=""
               onSave={handleDocSave(day.id)}
               initContent={content}
+              disableSelectionPlugin
             />
           </div>
         )

@@ -1,15 +1,12 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
-
-// import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-// import { useSqlite } from "@/hooks/use-sqlite"
-// import { useTodo } from "@/hooks/use-todo"
+import { useDebounceFn } from "ahooks"
 
 import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
@@ -17,7 +14,7 @@ import { AutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
 import { SafeBottomPaddingPlugin } from "./plugins/SafeBottomPaddingPlugin"
-// import { TodoPlugin } from "./plugins/TodoPlugin"
+import { SelectionPlugin } from "./plugins/SelectionPlugin"
 import defaultTheme from "./themes/default"
 
 const editorConfig: any = {
@@ -38,18 +35,16 @@ interface EditorProps {
   isEditable: boolean
   placeholder?: string
   autoFocus?: boolean
+  title?: string
+  showTitle?: boolean
+  onTitleChange?: (title: string) => void
+  disableSelectionPlugin?: boolean
 }
 
 export function Editor(props: EditorProps) {
-  // FIXME: should be pass from props
-  // const { space } = useCurrentPathInfo()
-  // const { sqlite } = useSqlite(space)
-  // const { addTodo, updateTodo, deleteTodo, deleteByListId } = useTodo(
-  //   sqlite,
-  //   props.docId
-  // )
-  //
+  const canChangeTitle = props.onTitleChange !== undefined
   const ref = React.useRef<HTMLDivElement>(null)
+  const [title, setTitle] = useState(props.title ?? "")
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null)
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
@@ -62,50 +57,73 @@ export function Editor(props: EditorProps) {
     editable: props.isEditable,
   }
 
+  const { run: handleSave } = useDebounceFn(
+    (title: string) => {
+      props.onTitleChange?.(title)
+      console.log("save title", title)
+    },
+    {
+      wait: 1000,
+    }
+  )
+
+  useEffect(() => {
+    handleSave(title)
+  }, [handleSave, title])
+
   return (
-    <div className="h-full w-full">
-      <LexicalComposer initialConfig={initConfig}>
-        <div
-          className="editor-container h-full w-full"
-          ref={ref}
-          id="editor-container"
-        >
-          <div className="editor-inner relative h-full w-full">
-            <RichTextPlugin
-              contentEditable={
-                <div className="editor relative" ref={onRef}>
-                  <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert xl:prose-xl" />
-                  <SafeBottomPaddingPlugin />
-                </div>
-              }
-              placeholder={
-                <div className="pointer-events-none absolute left-3 top-6 text-base text-[#aaa] xl:left-6 xl:top-10">
-                  <span>{props.placeholder ?? "press / for Command"}</span>
-                </div>
-              }
-              ErrorBoundary={LexicalErrorBoundary}
-            />
-            <AllPlugins />
-            {/* <TodoPlugin
-              onItemAdded={addTodo}
-              onItemUpdate={updateTodo}
-              onItemRemoved={deleteTodo}
-              deleteByListId={deleteByListId}
-            /> */}
-            {props.autoFocus && <AutoFocusPlugin />}
-            <AutoSavePlugin
-              onSave={props.onSave}
-              initContent={props.initContent}
-            />
-            <FloatingTextFormatToolbarPlugin />
-            {floatingAnchorElem && (
-              <>
-                <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
-              </>
-            )}
+    <>
+      <div className="prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-2xl xs:p-5">
+        {props.showTitle && (
+          <input
+            placeholder="Untitled"
+            className="my-4 bg-transparent text-4xl font-bold outline-none"
+            value={title}
+            disabled={!canChangeTitle}
+            onChange={(e) => {
+              setTitle(e.target.value)
+            }}
+          />
+        )}
+        <LexicalComposer initialConfig={initConfig}>
+          <div
+            className="editor-container h-full w-full"
+            ref={ref}
+            id="editor-container"
+          >
+            <div className="editor-inner relative h-full w-full">
+              <RichTextPlugin
+                contentEditable={
+                  <div className="editor relative" ref={onRef}>
+                    <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert xl:prose-xl" />
+                    <SafeBottomPaddingPlugin />
+                  </div>
+                }
+                placeholder={
+                  <div className="pointer-events-none absolute left-3 top-4 text-base text-[#aaa]">
+                    <span>{props.placeholder ?? "press / for Command"}</span>
+                  </div>
+                }
+                ErrorBoundary={LexicalErrorBoundary}
+              />
+
+              <AllPlugins />
+              {props.autoFocus && <AutoFocusPlugin />}
+              <AutoSavePlugin
+                onSave={props.onSave}
+                initContent={props.initContent}
+              />
+              <FloatingTextFormatToolbarPlugin />
+              {floatingAnchorElem && (
+                <>
+                  <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </LexicalComposer>
-    </div>
+          {props.disableSelectionPlugin ? <></> : <SelectionPlugin />}
+        </LexicalComposer>
+      </div>
+    </>
   )
 }

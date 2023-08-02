@@ -43,11 +43,48 @@ export class TreeTable implements BaseTable<ITreeNode> {
     return res[0] as ITreeNode
   }
 
-  set(id: string, data: ITreeNode): Promise<boolean> {
-    throw new Error("Method not implemented.")
+  async updateName(id: string, name: string): Promise<boolean> {
+    try {
+      await this.dataSpace.exec2(
+        `UPDATE ${TreeTableName} SET name = ? WHERE id = ?;`,
+        [name, id]
+      )
+      return Promise.resolve(true)
+    } catch (error) {
+      return Promise.resolve(false)
+    }
   }
+
+  async set(id: string, data: ITreeNode): Promise<boolean> {
+    await this.dataSpace.exec2(
+      `UPDATE ${TreeTableName} SET name = ? , type = ? , parentId = ? WHERE id = ?;`,
+      [data.name, data.type, data.parentId, id]
+    )
+    return Promise.resolve(true)
+  }
+
   del(id: string): Promise<boolean> {
     throw new Error("Method not implemented.")
+  }
+
+  // @deprecated Proxy can't pass to main thread
+  makeProxyRow(row: any): ITreeNode {
+    const dataSpace = this.dataSpace
+    return new Proxy(row, {
+      get(target, p, receiver) {
+        if (p === "children") {
+          return []
+        }
+        return Reflect.get(target, p, receiver)
+      },
+      set(target, p: string, value, receiver) {
+        dataSpace.exec(`UPDATE ${TreeTableName} SET ${p} = ? WHERE id = ?;`, [
+          value,
+          target.id,
+        ])
+        return Reflect.set(target, p, value, receiver)
+      },
+    })
   }
 
   async list(query?: string, withSubNode?: boolean): Promise<ITreeNode[]> {
@@ -61,6 +98,6 @@ export class TreeTable implements BaseTable<ITreeNode> {
     const bind = query ? [`%${query}%`] : undefined
     console.log(sql, bind)
     const res = await this.dataSpace.exec2(sql, bind)
-    return res.map((row) => row as ITreeNode)
+    return res.map((row) => row)
   }
 }

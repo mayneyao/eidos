@@ -124,6 +124,10 @@ export class DataSpace {
     return this.tree.list(q, withSubNode)
   }
 
+  public async updateTreeNodeName(id: string, name: string) {
+    return this.tree.updateName(id, name)
+  }
+
   public async addTreeNode(data: ITreeNode) {
     return this.tree.add(data)
   }
