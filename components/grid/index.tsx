@@ -81,7 +81,10 @@ export default function Grid(props: IGridProps) {
     setCount,
   } = useTable(tableName, databaseName)
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
-  const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
+  const { uiColumns, uiColumnMap, getFieldByIndex } = useUiColumns(
+    tableName,
+    databaseName
+  )
   const { onColumnResize, columns } = useColumns(uiColumns)
 
   const {
@@ -173,6 +176,7 @@ export default function Grid(props: IGridProps) {
         <ContextMenuDemo
           deleteRows={handleDelRows}
           getRowByIndex={getRowByIndex}
+          getFieldByIndex={getFieldByIndex}
         >
           {Boolean(uiColumns.length) && (
             <DataEditor

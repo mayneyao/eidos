@@ -1,46 +1,85 @@
-import { shortenId } from "@/lib/utils"
+import { useCallback } from "react"
+
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger
+} from "@/components/ui/context-menu"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
 import { useSqlite } from "@/hooks/use-sqlite"
-import {
-  ContextMenu,
-  ContextMenuCheckboxItem,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuLabel,
-  ContextMenuRadioGroup,
-  ContextMenuRadioItem,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+import { IUIColumn } from "@/hooks/use-table"
+import { shortenId } from "@/lib/utils"
 
 import { useTableAppStore } from "./store"
 
-export function ContextMenuDemo({ children, deleteRows, getRowByIndex }: any) {
+export function ContextMenuDemo({
+  children,
+  deleteRows,
+  getRowByIndex,
+  getFieldByIndex,
+}: {
+  getFieldByIndex: (index: number) => IUIColumn
+  deleteRows: (start: number, end: number) => void
+  getRowByIndex: (index: number) => any
+  children: React.ReactNode
+}) {
   const { selection, clearSelection } = useTableAppStore()
   const count = selection.current?.range.height ?? 0
 
   const { space, tableId } = useCurrentPathInfo()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const goto = useGoto()
-  const openRow = async () => {
+  const getRow = useCallback(() => {
     if (!selection.current) {
       return
     }
     const rowIndex = selection.current?.range.y
     const row = getRowByIndex(rowIndex)
-    console.log("open row", row._id)
+    return row
+  }, [getRowByIndex, selection])
+
+  const getField = useCallback(() => {
+    if (!selection.current) {
+      return
+    }
+    const cellIndex = selection.current?.range.x
+    const field = getFieldByIndex(cellIndex)
+    return field
+  }, [getFieldByIndex, selection])
+
+  const getCell = useCallback(() => {
+    const row = getRow()
+    const field = getField()
+    if (!row || !field) return
+    const cell = row[field.table_column_name!]
+    return cell
+  }, [getField, getRow])
+
+  const openRow = async (right?: boolean) => {
+    const row = getRow()
+    if (!row) return
     const shortId = shortenId(row._id)
     await getOrCreateTableSubDoc({
       docId: shortId,
       title: row.title,
       tableId: tableId!,
     })
-    goto(space, shortId)
+    if (right) {
+      goto(space, tableId, shortId)
+    } else {
+      goto(space, shortId)
+    }
+  }
+  const currentField = getField()
+
+  const openURl = () => {
+    const cell = getCell()
+    if (!cell) return
+    window.open(cell, "_blank")
   }
 
   return (
@@ -49,9 +88,11 @@ export function ContextMenuDemo({ children, deleteRows, getRowByIndex }: any) {
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onSelect={openRow}>
+        <ContextMenuItem inset onSelect={() => openRow()}>
           Open
-          {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
+        </ContextMenuItem>
+        <ContextMenuItem inset onSelect={() => openRow(true)}>
+          Open Right
         </ContextMenuItem>
         <ContextMenuItem
           inset
@@ -70,7 +111,7 @@ export function ContextMenuDemo({ children, deleteRows, getRowByIndex }: any) {
           Forward
           <ContextMenuShortcut>⌘]</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuSub>
+        {/* <ContextMenuSub>
           <ContextMenuSubTrigger inset>More Tools</ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-48">
             <ContextMenuItem>
@@ -82,22 +123,15 @@ export function ContextMenuDemo({ children, deleteRows, getRowByIndex }: any) {
             <ContextMenuSeparator />
             <ContextMenuItem>Developer Tools</ContextMenuItem>
           </ContextMenuSubContent>
-        </ContextMenuSub>
+        </ContextMenuSub> */}
         <ContextMenuSeparator />
-        <ContextMenuCheckboxItem checked>
-          Show Bookmarks Bar
-          <ContextMenuShortcut>⌘⇧B</ContextMenuShortcut>
-        </ContextMenuCheckboxItem>
-        <ContextMenuCheckboxItem>Show Full URLs</ContextMenuCheckboxItem>
-        <ContextMenuSeparator />
-        <ContextMenuRadioGroup value="pedro">
-          <ContextMenuLabel inset>People</ContextMenuLabel>
-          <ContextMenuSeparator />
-          <ContextMenuRadioItem value="pedro">
-            Pedro Duarte
-          </ContextMenuRadioItem>
-          <ContextMenuRadioItem value="colm">Colm Tuite</ContextMenuRadioItem>
-        </ContextMenuRadioGroup>
+        {currentField?.type === "url" && (
+          <>
+            <ContextMenuItem inset onSelect={openURl}>
+              Open URL
+            </ContextMenuItem>
+          </>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   )
