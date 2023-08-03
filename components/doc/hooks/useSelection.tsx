@@ -21,7 +21,6 @@ export function useMouseSelection(
   getSelectionItems: () => NodeListOf<Element>
 ) {
   const [editor] = useLexicalComposerContext()
-  const [hasSelectionItems, setHasSelectionItems] = useState(false)
   const [isSelecting, setSelecting] = useState(false)
   const [startX, setStartX] = useState(0)
   const [startY, setStartY] = useState(0)
@@ -37,8 +36,11 @@ export function useMouseSelection(
     opacity: 0.5,
   })
 
-  useKeyPress(["delete", "backspace"], () => {
+  useKeyPress(["delete", "backspace"], (e) => {
     if (selectedKeySet.size > 0) {
+      if (e.key === "Backspace") {
+        e.preventDefault()
+      }
       editor.update(() => {
         selectedKeySet.forEach((key) => {
           const node = $getNodeByKey(key) as LexicalNode
@@ -79,11 +81,13 @@ export function useMouseSelection(
       })
     }
     function handleMouseDown(e: MouseEvent) {
+      const docTitle = document.querySelector("#doc-title")
       const editorContainer = document.querySelector(".editor-input")
       const dragHandle = document.querySelector(".draggable-block-menu")
       const isClickOnEditor = editorContainer?.contains(e.target as Node)
       const isClickOnDragHandle = dragHandle?.contains(e.target as Node)
-      if (isClickOnEditor || isClickOnDragHandle) {
+      const isClickOnDocTitle = docTitle?.contains(e.target as Node)
+      if (isClickOnEditor || isClickOnDragHandle || isClickOnDocTitle) {
         return
       }
       setSelecting(true)
@@ -194,14 +198,7 @@ export function useMouseSelection(
         container.removeEventListener("mouseleave", handleMouseLeave)
       }
     }
-  }, [
-    isSelecting,
-    startX,
-    startY,
-    boxStyle,
-    getSelectionItems,
-    hasSelectionItems,
-  ])
+  }, [isSelecting, startX, startY, boxStyle, getSelectionItems])
 
   return { boxStyle }
 }

@@ -79,6 +79,7 @@ export function Editor(props: EditorProps) {
       >
         {props.showTitle && (
           <input
+            id="doc-title"
             placeholder="Untitled"
             className="my-4 bg-transparent text-4xl font-bold text-primary outline-none"
             value={title}

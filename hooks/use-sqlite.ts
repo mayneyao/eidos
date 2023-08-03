@@ -82,7 +82,7 @@ export const useSqlite = (dbName?: string) => {
   const queryAllNodes = useCallback(async () => {
     if (!sqlWorker) return
     const allNodes = await sqlWorker.listTreeNodes()
-    console.log("node list loaded", allNodes)
+    // console.log("node list loaded", allNodes)
     return allNodes
   }, [sqlWorker])
 
