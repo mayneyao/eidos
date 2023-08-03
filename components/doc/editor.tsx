@@ -73,7 +73,7 @@ export function Editor(props: EditorProps) {
 
   return (
     <>
-      <div className="prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-2xl xs:p-5">
+      <div className="prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-2xl xs:p-5" id="eidos-editor-container">
         {props.showTitle && (
           <input
             placeholder="Untitled"

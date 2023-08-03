@@ -32,8 +32,21 @@ export function useMouseSelection(
   })
 
   useEffect(() => {
-    const container = document.body
+    const container = document.querySelector("#main-content") as HTMLElement
 
+    function disableSelection() {
+      container.setAttribute("style", "user-select: none")
+      document.querySelectorAll("#main-content > *").forEach((el) => {
+        ;(el as HTMLElement).style.userSelect = "none"
+      })
+    }
+
+    function enableSelection() {
+      container.setAttribute("style", "user-select: auto")
+      document.querySelectorAll("#main-content > *").forEach((el) => {
+        ;(el as HTMLElement).style.userSelect = "auto"
+      })
+    }
     function handleMouseDown(e: MouseEvent) {
       const editorContainer = document.querySelector(".editor-input")
       const dragHandle = document.querySelector(".draggable-block-menu")
@@ -54,6 +67,9 @@ export function useMouseSelection(
         top: `${clientY}px`,
         display: "block",
       })
+      // allElements under editor-input should not be selectable
+      disableSelection()
+      removeAllSelection()
     }
 
     function handleMouseMove(e: MouseEvent) {
@@ -101,7 +117,8 @@ export function useMouseSelection(
       })
     }
 
-    function handleMouseUp() {
+    function handleMouseUp(e: MouseEvent) {
+      e.stopImmediatePropagation()
       setSelecting(false)
       setBoxStyle({
         ...boxStyle,
@@ -111,6 +128,7 @@ export function useMouseSelection(
         width: "",
         height: "",
       })
+      enableSelection()
     }
 
     function handleMouseLeave() {
