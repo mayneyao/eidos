@@ -60,6 +60,8 @@ export default function EverydayPage() {
               onSave={handleDocSave(day.id)}
               initContent={content}
               disableSelectionPlugin
+              disableSafeBottomPaddingPlugin
+              disableUpdateTitle
             />
           </div>
         )

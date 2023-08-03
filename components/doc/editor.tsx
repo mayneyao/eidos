@@ -39,12 +39,15 @@ interface EditorProps {
   showTitle?: boolean
   onTitleChange?: (title: string) => void
   disableSelectionPlugin?: boolean
+  disableSafeBottomPaddingPlugin?: boolean
+  disableUpdateTitle?: boolean
 }
 
 export function Editor(props: EditorProps) {
   const canChangeTitle = props.onTitleChange !== undefined
   const ref = React.useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState(props.title ?? "")
+
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null)
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
@@ -59,8 +62,7 @@ export function Editor(props: EditorProps) {
 
   const { run: handleSave } = useDebounceFn(
     (title: string) => {
-      props.onTitleChange?.(title)
-      console.log("save title", title)
+      !props.disableUpdateTitle && props.onTitleChange?.(title)
     },
     {
       wait: 1000,
@@ -70,6 +72,10 @@ export function Editor(props: EditorProps) {
   useEffect(() => {
     handleSave(title)
   }, [handleSave, title])
+
+  useEffect(() => {
+    setTitle(props.title ?? "")
+  }, [props.title])
 
   return (
     <>
@@ -81,8 +87,9 @@ export function Editor(props: EditorProps) {
           <input
             id="doc-title"
             placeholder="Untitled"
-            className="my-4 bg-transparent text-4xl font-bold text-primary outline-none"
+            className="my-4 w-full truncate bg-transparent text-4xl font-bold text-primary outline-none"
             value={title}
+            title={title}
             disabled={!canChangeTitle}
             onChange={(e) => {
               setTitle(e.target.value)
@@ -99,8 +106,10 @@ export function Editor(props: EditorProps) {
               <RichTextPlugin
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
-                    <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert xl:prose-xl" />
-                    <SafeBottomPaddingPlugin />
+                    <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert xs:prose-sm lg:prose-xl xl:prose-2xl" />
+                    {!props.disableSafeBottomPaddingPlugin && (
+                      <SafeBottomPaddingPlugin />
+                    )}
                   </div>
                 }
                 placeholder={
