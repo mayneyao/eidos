@@ -1,6 +1,6 @@
-import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { $insertNodeToNearestRoot } from "@lexical/utils"
+import { useEffect } from "react"
+// import { $insertNodeToNearestRoot } from "@lexical/utils"
 import {
   $createParagraphNode,
   $insertNodes,
@@ -30,6 +30,8 @@ export const SafeBottomPaddingPlugin = () => {
     )
   }, [editor])
 
+  return null
+  // disabled for now
   return (
     <div
       className="h-56 w-full"
