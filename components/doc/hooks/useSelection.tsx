@@ -15,11 +15,12 @@ type BoxStyle = {
   opacity?: number
 }
 
-const selectedKeySet = new Set<string>()
-
 export function useMouseSelection(
   getSelectionItems: () => NodeListOf<Element>
 ) {
+  // const selectedKeySet = new Set<string>()
+  const [selectedKeySet, setSelectedKeySet] = useState(new Set<string>())
+
   const [editor] = useLexicalComposerContext()
   const [isSelecting, setSelecting] = useState(false)
   const [startX, setStartX] = useState(0)
@@ -36,17 +37,18 @@ export function useMouseSelection(
     opacity: 0.5,
   })
 
+  const clearSelectedKetSet = () => {
+    setSelectedKeySet(new Set())
+  }
   useKeyPress(["delete", "backspace"], (e) => {
     if (selectedKeySet.size > 0) {
-      if (e.key === "Backspace") {
-        e.preventDefault()
-      }
+      e.preventDefault()
       editor.update(() => {
         selectedKeySet.forEach((key) => {
           const node = $getNodeByKey(key) as LexicalNode
           node?.remove()
         })
-        selectedKeySet.clear()
+        clearSelectedKetSet()
       })
     }
   })
@@ -151,6 +153,7 @@ export function useMouseSelection(
           const key = (box as HTMLElement).getAttribute("data-key")
           if (key) {
             selectedKeySet.add(key)
+            setSelectedKeySet(new Set(selectedKeySet))
           }
         }
       })
@@ -180,7 +183,7 @@ export function useMouseSelection(
         ;(box as HTMLElement).style.backgroundColor = ""
         ;(box as HTMLElement).style.userSelect = ""
       })
-      selectedKeySet.clear()
+      clearSelectedKetSet()
     }
 
     if (container) {
@@ -198,7 +201,7 @@ export function useMouseSelection(
         container.removeEventListener("mouseleave", handleMouseLeave)
       }
     }
-  }, [isSelecting, startX, startY, boxStyle, getSelectionItems])
+  }, [isSelecting, startX, startY, boxStyle, getSelectionItems, selectedKeySet])
 
   return { boxStyle }
 }

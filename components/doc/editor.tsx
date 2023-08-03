@@ -104,7 +104,7 @@ export function Editor(props: EditorProps) {
                   </div>
                 }
                 placeholder={
-                  <div className="pointer-events-none absolute left-3 top-4 text-base text-[#aaa]">
+                  <div className="pointer-events-none absolute left-3 top-3 text-base text-[#aaa] xl:top-4">
                     <span>{props.placeholder ?? "press / for Command"}</span>
                   </div>
                 }
