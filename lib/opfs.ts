@@ -1,18 +1,13 @@
 /**
  * opfs file structure:
- *
  * - spaces
  *  - space1
  *    - db.sqlite3
- *    - everyday
- *      - 2021-01-01.md
- *      - 2021-01-02.md
- *    - docs
- *     - 1234567890.md
- *     - 1234567891.md
+ *    - files
+ *      - 1234567890.png
+ *      - 0987654321.png
  *  - space2
  *    - db.sqlite3
- * - files
  *
  * spaces
  * - what is a space? a space is a folder that contains a sqlite3 database, default name is db.sqlite3.
@@ -33,6 +28,28 @@ export const getAllSpaceNames = async (): Promise<string[]> => {
     spaces.push(name)
   }
   return spaces
+}
+
+export class OpfsSpaceManager {
+  async list(): Promise<string[]> {
+    const opfsRoot = await navigator.storage.getDirectory()
+    const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
+      create: true,
+    })
+    const spaces = []
+    for await (let name of (spacesDirHandle as any).keys()) {
+      spaces.push(name)
+    }
+    return spaces
+  }
+
+  async remove(spaceName: string) {
+    const opfsRoot = await navigator.storage.getDirectory()
+    const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
+      create: true,
+    })
+    await spacesDirHandle.removeEntry(spaceName, { recursive: true })
+  }
 }
 
 export const getSpaceDatabasePath = async (spaceName: string) => {
@@ -62,7 +79,7 @@ export const uploadFile2OPFS = async (
   const fileHash = imgUrl.split("/").pop()
   const fileExtension = file.name.split(".").pop()
   const newFileName = `${fileHash}.${fileExtension}`
-  const newFileUrl = `${domain}/files/${newFileName}`
+  const newFileUrl = `/${spaceName}/files/${newFileName}`
   await saveFile(file, spaceName, newFileName)
   return newFileUrl
 }
@@ -87,39 +104,6 @@ export const saveFile = async (file: File, space: string, name?: string) => {
   await writable.close()
   return fileHandle
 }
-
-let _content: string
-
-// export const updateDocFile = async (
-//   spaceName: string,
-//   docId: string,
-//   content: string
-// ) => {
-//   if (_content === content) {
-//     console.log("content not changed, skip update doc file")
-//     return
-//   }
-//   const opfsDoc = opfsDocManager
-//   const docFileName = `${docId}.md`
-//   const paths = ["spaces", spaceName, "docs", docFileName]
-//   await opfsDoc.updateDocFile(paths, content)
-//   _content = content
-//   // console.log("update doc file", docFileName)
-// }
-
-// export const getDocContent = async (spaceName: string, docId: string) => {
-//   const opfsDoc = opfsDocManager
-//   const docFileName = `${docId}.md`
-//   const paths = ["spaces", spaceName, "docs", docFileName]
-//   return await opfsDoc.getDocContent(paths)
-// }
-
-// export const deleteDocFile = async (spaceName: string, docId: string) => {
-//   const opfsDoc = opfsDocManager
-//   const docFileName = `${docId}.md`
-//   const paths = ["spaces", spaceName, "docs", docFileName]
-//   return await opfsDoc.deleteDocFile(paths)
-// }
 
 export const getAllDays = async (spaceName: string) => {
   const opfsRoot = await navigator.storage.getDirectory()

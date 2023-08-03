@@ -6,7 +6,6 @@
  *
  */
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer"
@@ -31,15 +30,15 @@ import {
   type NodeSelection,
   type RangeSelection,
 } from "lexical"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 
-import "./ImageNode.css"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
+import "./ImageNode.css"
 
-import { cn } from "@/lib/utils"
 
 import { $isImageNode } from "./ImageNode"
 // import { useSettings } from "../context/SettingsContext"
