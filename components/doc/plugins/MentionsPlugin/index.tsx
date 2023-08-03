@@ -192,7 +192,9 @@ function MentionsTypeaheadMenuItem({
       onClick={onClick}
     >
       {option.picture}
-      <span className="text truncate">{option.name}</span>
+      <span className="text truncate" title={option.name}>
+        {option.name}
+      </span>
     </li>
   )
 }
