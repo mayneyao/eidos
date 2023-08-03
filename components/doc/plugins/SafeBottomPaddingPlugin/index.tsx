@@ -32,7 +32,7 @@ export const SafeBottomPaddingPlugin = () => {
 
   return (
     <div
-      className="h-12 w-full"
+      className="h-56 w-full"
       role="safe-bottom-padding"
       onClick={inertPlaceholder}
     ></div>

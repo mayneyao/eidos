@@ -73,7 +73,10 @@ export function Editor(props: EditorProps) {
 
   return (
     <>
-      <div className="prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-2xl xs:p-5" id="eidos-editor-container">
+      <div
+        className="prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-2xl xs:p-5"
+        id="eidos-editor-container"
+      >
         {props.showTitle && (
           <input
             placeholder="Untitled"
@@ -87,11 +90,11 @@ export function Editor(props: EditorProps) {
         )}
         <LexicalComposer initialConfig={initConfig}>
           <div
-            className="editor-container h-full w-full"
+            className="editor-container w-full"
             ref={ref}
             id="editor-container"
           >
-            <div className="editor-inner relative h-full w-full">
+            <div className="editor-inner relative w-full">
               <RichTextPlugin
                 contentEditable={
                   <div className="editor relative" ref={onRef}>

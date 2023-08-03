@@ -280,29 +280,34 @@ code::before {
 }
 .eidos_editor_theme__ol1 {
   padding: 0;
+  padding-left: 0.75rem !important;
   margin: 0;
   list-style-position: inside;
 }
 .eidos_editor_theme__ol2 {
   padding: 0;
+  padding-left: 0.75rem !important;
   margin: 0 1rem;
   list-style-type: upper-alpha;
   list-style-position: inside;
 }
 .eidos_editor_theme__ol3 {
   padding: 0;
+  padding-left: 0.75rem !important;
   margin: 0 1rem;
   list-style-type: lower-alpha;
   list-style-position: inside;
 }
 .eidos_editor_theme__ol4 {
   padding: 0;
+  padding-left: 0.75rem !important;
   margin: 0 1rem;
   list-style-type: upper-roman;
   list-style-position: inside;
 }
 .eidos_editor_theme__ol5 {
   padding: 0;
+  padding-left: 0.75rem !important;
   margin: 0 1rem;
   list-style-type: lower-roman;
   list-style-position: inside;
