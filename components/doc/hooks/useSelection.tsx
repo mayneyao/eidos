@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react"
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { useKeyPress } from "ahooks"
+import { $getNodeByKey, $getRoot, LexicalNode } from "lexical"
 
 type BoxStyle = {
   display: string
@@ -12,9 +15,12 @@ type BoxStyle = {
   opacity?: number
 }
 
+const selectedKeySet = new Set<string>()
+
 export function useMouseSelection(
   getSelectionItems: () => NodeListOf<Element>
 ) {
+  const [editor] = useLexicalComposerContext()
   const [hasSelectionItems, setHasSelectionItems] = useState(false)
   const [isSelecting, setSelecting] = useState(false)
   const [startX, setStartX] = useState(0)
@@ -30,6 +36,31 @@ export function useMouseSelection(
     position: "absolute",
     opacity: 0.5,
   })
+
+  useKeyPress(["delete", "backspace"], () => {
+    if (selectedKeySet.size > 0) {
+      editor.update(() => {
+        selectedKeySet.forEach((key) => {
+          const node = $getNodeByKey(key) as LexicalNode
+          node?.remove()
+        })
+        selectedKeySet.clear()
+      })
+    }
+  })
+
+  useEffect(() => {
+    return editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        const root = $getRoot()
+        root.getChildren().forEach((child) => {
+          const key = child.getKey()
+          const element = editor.getElementByKey(key)
+          element?.setAttribute("data-key", key)
+        })
+      })
+    })
+  }, [editor])
 
   useEffect(() => {
     const container = document.querySelector("#main-content") as HTMLElement
@@ -113,6 +144,10 @@ export function useMouseSelection(
             boxBottom >= top)
         if (isIntersect) {
           ;(box as HTMLElement).style.backgroundColor = "rgb(173 216 230 / 27%)"
+          const key = (box as HTMLElement).getAttribute("data-key")
+          if (key) {
+            selectedKeySet.add(key)
+          }
         }
       })
     }
@@ -141,6 +176,7 @@ export function useMouseSelection(
         ;(box as HTMLElement).style.backgroundColor = ""
         ;(box as HTMLElement).style.userSelect = ""
       })
+      selectedKeySet.clear()
     }
 
     if (container) {
