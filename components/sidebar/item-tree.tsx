@@ -38,12 +38,12 @@ export const CurrentItemTree = ({
   const goto = useGoto()
 
   const handleCreateDoc = async () => {
-    const docId = await createDoc("Untitled")
+    const docId = await createDoc("")
     goto(space, docId)
   }
 
   const handleCreateTable = async () => {
-    const tableId = await createTable("Untitled")
+    const tableId = await createTable("")
     goto(space, tableId)
   }
 
@@ -105,7 +105,9 @@ export const CurrentItemTree = ({
                   >
                     <Link to={link}>
                       <ItemIcon type={node.type} className="pr-2" />
-                      {node.name}
+                      <span className="truncate" title={node.name}>
+                        {node.name.length === 0 ? "Untitled" : node.name}
+                      </span>
                     </Link>
                   </Button>
                 </NodeItem>

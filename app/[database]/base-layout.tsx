@@ -54,7 +54,10 @@ export function DatabaseLayoutBase({
   return (
     <div className={cn("relative  flex h-screen ", className)}>
       {currentPreviewFileUrl && (
-        <iframe className="hidden h-full w-full  md:block" src={currentPreviewFileUrl}></iframe>
+        <iframe
+          className="hidden h-full w-full  md:block"
+          src={currentPreviewFileUrl}
+        ></iframe>
       )}
 
       <div className="flex h-full w-full">
@@ -72,7 +75,9 @@ export function DatabaseLayoutBase({
             <Nav />
           </div>
           <div className="z-[1] flex h-[calc(100vh-4rem)] grow overflow-auto">
-            <div className="w-full grow">{children}</div>
+            <main id="main-content" className="w-full grow">
+              {children}
+            </main>
           </div>
         </div>
       </div>

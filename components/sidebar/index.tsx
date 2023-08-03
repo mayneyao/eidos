@@ -23,12 +23,12 @@ export const SideBar = ({ className }: any) => {
   const currentNode = useCurrentNode()
   const [loading, setLoading] = useState(true)
   const { updateNodeList } = useSqlite(space)
-  const { allNodes } = useSqliteStore()
+  const { allNodes: _allNodes } = useSqliteStore()
   const { spaceList } = useSpace()
   const { isShareMode } = useAppRuntimeStore()
+  const allNodes = [..._allNodes].reverse()
 
   useEffect(() => {
-    console.log("side bar loading all tables ")
     updateNodeList().then(() => {
       setLoading(false)
     })
@@ -85,7 +85,7 @@ export const SideBar = ({ className }: any) => {
                 currentNode={currentNode}
               />
               <CurrentItemTree
-                title="Documents"
+                title="Drafts"
                 type="doc"
                 spaceName={space}
                 allNodes={allNodes.filter(

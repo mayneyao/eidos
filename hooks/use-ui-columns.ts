@@ -24,5 +24,12 @@ export const useUiColumns = (tableName: string, databaseName: string) => {
     return map
   }, [uiColumns])
 
-  return { uiColumns, uiColumnMap, updateUiColumns }
+  const getFieldByIndex = useCallback(
+    (index: number) => {
+      return uiColumns[index]
+    },
+    [uiColumns]
+  )
+
+  return { uiColumns, uiColumnMap, updateUiColumns, getFieldByIndex }
 }

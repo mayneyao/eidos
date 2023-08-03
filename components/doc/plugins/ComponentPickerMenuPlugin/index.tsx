@@ -6,16 +6,13 @@
  *
  */
 
-import "./index.css"
 import { useCallback, useMemo, useState } from "react"
-import * as React from "react"
 import { $createCodeNode } from "@lexical/code"
 import {
   INSERT_CHECK_LIST_COMMAND,
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
 } from "@lexical/list"
-import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode"
 import {
@@ -35,8 +32,9 @@ import {
 } from "lexical"
 import * as ReactDOM from "react-dom"
 
+import "./index.css"
 import { useModal } from "../../hooks/useModal"
-import { INSERT_SQL_COMMAND } from "../SQLPlugin"
+import { SelectDatabaseTableDialog } from "../DatabasePlugin/SelectDatabaseTableDialog"
 import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
 
 class ComponentPickerOption extends MenuOption {
@@ -257,6 +255,18 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         //   INSERT_SQL_COMMAND,
         //   "SELECT count(*)  as allCount FROM tb_a0adf70bdb504e7e8dd72a0db9250145"
         // ),
+      }),
+
+      new ComponentPickerOption("DatabaseTable", {
+        icon: <i className="icon link" />,
+        keywords: ["database", "table"],
+        onSelect: () =>
+          showModal("Insert Database Table", (onClose) => (
+            <SelectDatabaseTableDialog
+              activeEditor={editor}
+              onClose={onClose}
+            />
+          )),
       }),
 
       ...["left", "center", "right", "justify"].map(

@@ -1,13 +1,13 @@
 "use client"
 
+import { useCallback } from "react"
 import type { DataSpace } from "@/worker/DataSpace"
 import { ITreeNode } from "@/worker/meta_table/tree"
-import { useCallback } from "react"
 import { create } from "zustand"
 
-import { createTemplateTableSql } from "@/components/grid/helper"
 import { TreeTableName } from "@/lib/sqlite/const"
 import { getRawTableNameById, uuidv4 } from "@/lib/utils"
+import { createTemplateTableSql } from "@/components/grid/helper"
 
 import { IUIColumn } from "./use-table"
 
@@ -82,7 +82,7 @@ export const useSqlite = (dbName?: string) => {
   const queryAllNodes = useCallback(async () => {
     if (!sqlWorker) return
     const allNodes = await sqlWorker.listTreeNodes()
-    console.log("node list loaded", allNodes)
+    // console.log("node list loaded", allNodes)
     return allNodes
   }, [sqlWorker])
 
@@ -338,6 +338,12 @@ export const useSqlite = (dbName?: string) => {
     sqlWorker?.undo()
   }
 
+  const updateNodeName = async (nodeId: string, newName: string) => {
+    if (!sqlWorker) return
+    await sqlWorker.updateTreeNodeName(nodeId, newName)
+    await updateNodeList()
+  }
+
   return {
     sqlite: isInitialized ? sqlWorker : null,
     createTable,
@@ -358,5 +364,6 @@ export const useSqlite = (dbName?: string) => {
     getDoc,
     deleteNode,
     getOrCreateTableSubDoc,
+    updateNodeName,
   }
 }

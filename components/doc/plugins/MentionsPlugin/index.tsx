@@ -6,6 +6,7 @@
  *
  */
 
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { ITreeNode } from "@/worker/meta_table/tree"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
@@ -15,7 +16,6 @@ import {
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import { $getSelection, $insertNodes, RangeSelection, TextNode } from "lexical"
-import { useCallback, useEffect, useMemo, useState } from "react"
 import * as ReactDOM from "react-dom"
 
 import { useQueryNode } from "@/hooks/use-query-node"
@@ -30,10 +30,6 @@ const DocumentMentionsRegex = {
   NAME,
   PUNCTUATION,
 }
-
-const CapitalizedNameMentionsRegex = new RegExp(
-  "(^|[^#])((?:" + DocumentMentionsRegex.NAME + "{" + 1 + ",})$)"
-)
 
 const PUNC = DocumentMentionsRegex.PUNCTUATION
 
@@ -115,28 +111,6 @@ function useMentionLookupService(mentionString: string | null) {
   return results
 }
 
-function checkForCapitalizedNameMentions(
-  text: string,
-  minMatchLength: number
-): MenuTextMatch | null {
-  const match = CapitalizedNameMentionsRegex.exec(text)
-  if (match !== null) {
-    // The strategy ignores leading whitespace but we need to know it's
-    // length to add it to the leadOffset
-    const maybeLeadingWhitespace = match[1]
-
-    const matchingString = match[2]
-    if (matchingString != null && matchingString.length >= minMatchLength) {
-      return {
-        leadOffset: match.index + maybeLeadingWhitespace.length,
-        matchingString,
-        replaceableString: matchingString,
-      }
-    }
-  }
-  return null
-}
-
 function checkForAtSignMentions(
   text: string,
   minMatchLength: number
@@ -165,7 +139,14 @@ function checkForAtSignMentions(
 
 function getPossibleQueryMatch(text: string): MenuTextMatch | null {
   const match = checkForAtSignMentions(text, 1)
-  return match === null ? checkForCapitalizedNameMentions(text, 3) : match
+  if (text.startsWith("@") && match === null) {
+    return {
+      leadOffset: 0,
+      matchingString: "",
+      replaceableString: "@",
+    }
+  }
+  return match
 }
 
 class MentionTypeaheadOption extends MenuOption {
@@ -211,7 +192,9 @@ function MentionsTypeaheadMenuItem({
       onClick={onClick}
     >
       {option.picture}
-      <span className="text">{option.name}</span>
+      <span className="text truncate" title={option.name}>
+        {option.name}
+      </span>
     </li>
   )
 }
@@ -222,7 +205,6 @@ export default function NewMentionsPlugin(): JSX.Element | null {
   const [queryString, setQueryString] = useState<string | null>(null)
 
   const results = useMentionLookupService(queryString)
-  // useWhyDidYouUpdate("NewMentionsPlugin", { results, queryString })
 
   const checkForSlashTriggerMatch = useBasicTypeaheadTriggerMatch("/", {
     minLength: 0,
@@ -236,7 +218,23 @@ export default function NewMentionsPlugin(): JSX.Element | null {
             new MentionTypeaheadOption(
               result.name,
               result.id,
-              <i className="icon user" />
+              (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mr-1 inline-block h-5 w-5 opacity-60"
+                >
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              )
             )
         )
         .slice(0, SUGGESTION_LIST_LENGTH_LIMIT),
@@ -268,14 +266,17 @@ export default function NewMentionsPlugin(): JSX.Element | null {
       if (slashMatch !== null) {
         return null
       }
-      return getPossibleQueryMatch(text)
+      const match = getPossibleQueryMatch(text)
+      // console.log("match", match)
+      return match
     },
     [checkForSlashTriggerMatch, editor]
   )
+  const handleQueryChange = setQueryString
 
   return (
     <LexicalTypeaheadMenuPlugin<MentionTypeaheadOption>
-      onQueryChange={setQueryString}
+      onQueryChange={handleQueryChange}
       onSelectOption={onSelectOption}
       triggerFn={checkForMentionMatch}
       options={options}
@@ -298,7 +299,7 @@ export default function NewMentionsPlugin(): JSX.Element | null {
                       onMouseEnter={() => {
                         setHighlightedIndex(i)
                       }}
-                      key={option.key}
+                      key={option.id}
                       option={option}
                     />
                   ))}
