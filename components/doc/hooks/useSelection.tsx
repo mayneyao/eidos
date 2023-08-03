@@ -83,6 +83,7 @@ export function useMouseSelection(
       })
     }
     function handleMouseDown(e: MouseEvent) {
+      removeAllSelection()
       const docTitle = document.querySelector("#doc-title")
       const editorContainer = document.querySelector(".editor-input")
       const dragHandle = document.querySelector(".draggable-block-menu")
@@ -106,7 +107,6 @@ export function useMouseSelection(
       })
       // allElements under editor-input should not be selectable
       disableSelection()
-      removeAllSelection()
     }
 
     function handleMouseMove(e: MouseEvent) {

@@ -80,7 +80,7 @@ export function Editor(props: EditorProps) {
   return (
     <>
       <div
-        className="prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-2xl xs:p-5"
+        className="prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-xl xs:p-5"
         id="eidos-editor-container"
       >
         {props.showTitle && (
@@ -106,7 +106,7 @@ export function Editor(props: EditorProps) {
               <RichTextPlugin
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
-                    <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert xs:prose-sm lg:prose-xl xl:prose-2xl" />
+                    <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert xs:prose-sm lg:prose-xl xl:prose-xl" />
                     {!props.disableSafeBottomPaddingPlugin && (
                       <SafeBottomPaddingPlugin />
                     )}
