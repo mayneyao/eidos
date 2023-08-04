@@ -8,6 +8,8 @@ import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { useDebounceFn } from "ahooks"
 
+import { cn } from "@/lib/utils"
+
 import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
 import { AutoSavePlugin } from "./plugins/AutoSavePlugin"
@@ -41,6 +43,7 @@ interface EditorProps {
   disableSelectionPlugin?: boolean
   disableSafeBottomPaddingPlugin?: boolean
   disableUpdateTitle?: boolean
+  className?: string
 }
 
 export function Editor(props: EditorProps) {
@@ -80,7 +83,10 @@ export function Editor(props: EditorProps) {
   return (
     <>
       <div
-        className="prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-xl xs:p-5"
+        className={cn(
+          "prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-xl xs:p-5",
+          props.className
+        )}
         id="eidos-editor-container"
       >
         {props.showTitle && (

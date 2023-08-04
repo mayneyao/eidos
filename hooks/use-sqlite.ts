@@ -87,7 +87,7 @@ export const useSqlite = (dbName?: string) => {
   }, [sqlWorker])
 
   const queryAllUiColumns = useCallback(async () => {
-    console.log("queryAllUiColumns")
+    // console.log("queryAllUiColumns")
     if (!sqlWorker) return
     const allUiColumns = await sqlWorker.listAllUiColumns()
     // console.log("ui column list loaded", allUiColumns)
