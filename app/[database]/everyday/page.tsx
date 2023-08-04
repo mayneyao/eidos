@@ -62,6 +62,7 @@ export default function EverydayPage() {
               disableSelectionPlugin
               disableSafeBottomPaddingPlugin
               disableUpdateTitle
+              className="ml-0"
             />
           </div>
         )
