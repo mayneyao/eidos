@@ -1,13 +1,15 @@
 "use client"
 
-import { ITreeNode } from "@/worker/meta_table/tree"
+import { useEffect } from "react"
 import { useDebounceFn, useKeyPress } from "ahooks"
 import { Bot, Forward, Home, Palette, Settings } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import { useSpaceAppStore } from "@/app/[database]/store"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useQueryNode } from "@/hooks/use-query-node"
 import {
   CommandDialog,
   CommandEmpty,
@@ -18,23 +20,20 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useQueryNode } from "@/hooks/use-query-node"
-import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useSpaceAppStore } from "@/app/[database]/store"
 
-import { ItemIcon } from "../sidebar/item-tree"
 import { ActionList } from "./action"
-import { useInput } from "./hooks"
+import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
+import { NodeCommandItems } from "./nodes"
+import { SpaceCommandItems } from "./spaces"
 
 export function CommandDialogDemo() {
-  // const [open, setOpen] = React.useState(false)
   const { isCmdkOpen, setCmdkOpen } = useAppRuntimeStore()
   const { input, setInput, mode } = useInput()
   const { queryNodes } = useQueryNode()
   const { theme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
-  const [searchNodes, setSearchNodes] = useState<ITreeNode[]>([])
+  const { setSearchNodes } = useCMDKStore()
   const router = useNavigate()
   useKeyPress("ctrl.k", (e) => {
     e.preventDefault()
@@ -56,10 +55,7 @@ export function CommandDialogDemo() {
   const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
   const { lastOpenedDatabase } = useAppStore()
 
-  const goto = (path: string) => () => {
-    setCmdkOpen(false)
-    router(path)
-  }
+  const goto = useCMDKGoto()
   const goHome = goto(`/${lastOpenedDatabase}`)
 
   const goShare = goto("/share")
@@ -103,24 +99,8 @@ export function CommandDialogDemo() {
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />
-        {Boolean(space && searchNodes.length) && (
-          <>
-            <CommandGroup heading="Nodes">
-              {searchNodes.map((node) => (
-                <CommandItem
-                  key={node.id}
-                  onSelect={goto(`/${space}/${node.id}`)}
-                  value={node.name}
-                >
-                  <ItemIcon type={node.type} className="mr-2 h-4 w-4" />
-                  <span>{node.name}</span>
-                  <CommandShortcut>Jump to</CommandShortcut>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            <CommandSeparator />
-          </>
-        )}
+        <SpaceCommandItems />
+        <NodeCommandItems />
         <CommandGroup heading="Settings">
           <CommandItem onSelect={switchTheme}>
             <Palette className="mr-2 h-4 w-4" />

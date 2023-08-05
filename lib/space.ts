@@ -18,6 +18,12 @@ const readFileIntoZip = async (
   }
 }
 
+export async function removeSpace(space: string) {
+  const dir = ["spaces"]
+  const dirHandle = await getDirHandle(dir)
+  await dirHandle.removeEntry(space, { recursive: true })
+}
+
 /**
  * use JSZip to export a space which is a directory in opfs
  * @param space
