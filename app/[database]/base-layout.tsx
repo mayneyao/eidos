@@ -74,11 +74,12 @@ export function DatabaseLayoutBase({
             <MobileSideBar />
             <Nav />
           </div>
-          <div className="z-[1] flex h-[calc(100vh-4rem)] grow overflow-auto">
-            <main id="main-content" className="w-full grow">
-              {children}
-            </main>
-          </div>
+          <main
+            id="main-content"
+            className="z-[1] flex w-full grow overflow-auto"
+          >
+            {children}
+          </main>
         </div>
       </div>
     </div>

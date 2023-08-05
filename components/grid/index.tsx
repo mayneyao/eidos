@@ -181,7 +181,7 @@ export default function Grid(props: IGridProps) {
   })
 
   return (
-    <div className="h-full p-2" ref={containerRef}>
+    <div className="h-full w-full p-2" ref={containerRef}>
       <div className="relative flex h-full overflow-hidden rounded-md border-t">
         <ContextMenuDemo
           deleteRows={handleDelRows}
