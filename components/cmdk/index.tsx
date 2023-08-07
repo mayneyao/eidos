@@ -1,15 +1,18 @@
 "use client"
 
-import { useEffect } from "react"
 import { useDebounceFn, useKeyPress } from "ahooks"
-import { Bot, Forward, Home, Palette, Settings } from "lucide-react"
+import {
+  Bot,
+  CalendarDays,
+  Clock3Icon,
+  Forward,
+  Palette,
+  Settings
+} from "lucide-react"
 import { useTheme } from "next-themes"
-import { useNavigate } from "react-router-dom"
+import { useEffect } from "react"
 
-import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useQueryNode } from "@/hooks/use-query-node"
+import { useSpaceAppStore } from "@/app/[database]/store"
 import {
   CommandDialog,
   CommandEmpty,
@@ -20,7 +23,11 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
-import { useSpaceAppStore } from "@/app/[database]/store"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useQueryNode } from "@/hooks/use-query-node"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { getToday } from "@/lib/utils"
 
 import { ActionList } from "./action"
 import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
@@ -34,7 +41,6 @@ export function CommandDialogDemo() {
   const { theme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
   const { setSearchNodes } = useCMDKStore()
-  const router = useNavigate()
   useKeyPress("ctrl.k", (e) => {
     e.preventDefault()
     setCmdkOpen(!isCmdkOpen)
@@ -56,8 +62,10 @@ export function CommandDialogDemo() {
   const { lastOpenedDatabase } = useAppStore()
 
   const goto = useCMDKGoto()
-  const goHome = goto(`/${lastOpenedDatabase}`)
+  const goEveryday = goto(`/${lastOpenedDatabase}/everyday`)
 
+  const today = getToday()
+  const goToday = goto(`/${lastOpenedDatabase}/everyday/${today}`)
   const goShare = goto("/share")
 
   const switchTheme = () => {
@@ -85,13 +93,17 @@ export function CommandDialogDemo() {
           <span className="text-gray-400">No results</span>
         </CommandEmpty>
         <CommandGroup heading="Suggestions">
+          <CommandItem onSelect={goToday}>
+            <Clock3Icon className="mr-2 h-4 w-4" />
+            <span>Today</span>
+          </CommandItem>
+          <CommandItem onSelect={goEveryday}>
+            <CalendarDays className="mr-2 h-4 w-4" />
+            <span>Everyday</span>
+          </CommandItem>
           <CommandItem onSelect={toggleAI}>
             <Bot className="mr-2 h-4 w-4" />
             <span>AI</span>
-          </CommandItem>
-          <CommandItem onSelect={goHome}>
-            <Home className="mr-2 h-4 w-4" />
-            <span>Home</span>
           </CommandItem>
           <CommandItem onSelect={goShare}>
             <Forward className="mr-2 h-4 w-4" />
