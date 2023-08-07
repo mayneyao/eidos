@@ -90,7 +90,12 @@ export function useMouseSelection(
       const isClickOnEditor = editorContainer?.contains(e.target as Node)
       const isClickOnDragHandle = dragHandle?.contains(e.target as Node)
       const isClickOnDocTitle = docTitle?.contains(e.target as Node)
-      if (isClickOnEditor || isClickOnDragHandle || isClickOnDocTitle) {
+      if (
+        isSelecting ||
+        isClickOnEditor ||
+        isClickOnDragHandle ||
+        isClickOnDocTitle
+      ) {
         return
       }
       setSelecting(true)
