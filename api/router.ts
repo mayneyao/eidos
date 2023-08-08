@@ -4,19 +4,20 @@ import { z } from "zod"
 
 import { uuidv4 } from "@/lib/utils"
 
-import { deserializedMsg, serializedMsg } from "./helper"
+import { deserializedMsg, msgDataType, serializedMsg } from "./helper"
 import { wsMap } from "./main"
 
 const t = initTRPC.meta<OpenApiMeta>().create() /* 👈 */
 
 export const appRouter = t.router({
-  sayHello: t.procedure
-    .meta({ /* 👉 */ openapi: { method: "GET", path: "/say-hello" } })
-    .input(z.object({ name: z.string() }))
-    .output(z.object({ greeting: z.string() }))
+  rpc: t.procedure
+    .meta({ /* 👉 */ openapi: { method: "POST", path: "/rpc" } })
+    .input(msgDataType)
+    .output(z.any())
     .query(({ input }) => {
+      const msgId = uuidv4()
       const msg = serializedMsg({
-        id: uuidv4(),
+        id: msgId,
         data: input,
       })
       const ws = wsMap.get("worker")
@@ -24,8 +25,9 @@ export const appRouter = t.router({
       return new Promise((resolve, reject) => {
         ws?.on("message", (message) => {
           const msg = deserializedMsg(message.toString())
-          console.log("Received message from worker:", msg)
-          resolve({ greeting: `Hello ${input.name}!` })
+          if (msg.id == msgId) {
+            resolve(msg)
+          }
         })
       })
     }),

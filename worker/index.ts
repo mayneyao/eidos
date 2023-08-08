@@ -14,7 +14,8 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
   if (!sqlite.sqlite3) {
     throw new Error("sqlite3 not initialized")
   }
-  const { dbName, method, params } = data
+  const { method, params = [] } = data
+  const dbName = data.dbName || data.space
   if (!_dataspace || (dbName && dbName !== _dataspace.dbName)) {
     //
     _dataspace = await loadDatabase(dbName)
@@ -50,7 +51,7 @@ async function loadDatabase(dbName: string) {
 async function main() {
   await sqlite.init()
   postMessage("init")
-  initWs()
+  initWs(handleFunctionCall)
   sqlite.backupServer.init()
 }
 

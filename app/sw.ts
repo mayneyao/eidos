@@ -2,8 +2,6 @@ import { precacheAndRoute } from "workbox-precaching"
 
 declare var self: ServiceWorkerGlobalScope
 
-// import { getDirHandle } from "@/lib/opfs"
-
 const getDirHandle = async (_paths: string[]) => {
   const paths = [..._paths]
   const opfsRoot = await navigator.storage.getDirectory()

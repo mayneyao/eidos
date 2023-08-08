@@ -1,11 +1,16 @@
-export const initWs = () => {
-  const ws = new WebSocket("ws://localhost:3333")
+import { deserializedMsg } from "@/api/helper"
 
+export const initWs = (handleFunctionCall: Function) => {
+  const ws = new WebSocket("ws://localhost:3333")
   ws.onopen = () => {
     console.log("Connected to server")
   }
   ws.onmessage = (e) => {
-    console.log("Received message from server:", e.data)
-    ws.send(e.data)
+    const channel = new MessageChannel()
+    const msg = deserializedMsg(e.data)
+    handleFunctionCall(msg.data, msg.id, channel.port1)
+    channel.port2.onmessage = (e) => {
+      ws.send(JSON.stringify(e.data))
+    }
   }
 }

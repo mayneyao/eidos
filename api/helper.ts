@@ -1,9 +1,15 @@
 import { WebSocket } from "ws"
 import { z } from "zod"
 
+export const msgDataType = z.object({
+  space: z.string(),
+  method: z.string(),
+  params: z.array(z.any()),
+})
+
 const msgType = z.object({
   id: z.string(),
-  data: z.any(),
+  data: msgDataType,
 })
 
 type IMsg = z.infer<typeof msgType>
@@ -25,15 +31,8 @@ export const deserializedMsg = (
 } => {
   try {
     const res = JSON.parse(str)
-    const { success } = msgType.safeParse(res)
-    if (success) {
-      return {
-        ...res,
-        success: true,
-      }
-    }
+    return res
   } catch (error) {
     throw new Error("invalid msg")
   }
-  return { id: "", data: null, success: false }
 }
