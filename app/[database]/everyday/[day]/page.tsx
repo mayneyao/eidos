@@ -24,7 +24,7 @@ export default function EverydayPage() {
   }
 
   return (
-    <div className="prose mx-auto p-4 lg:prose-xl xl:prose-2xl">
+    <div className="prose mx-auto w-full p-4 lg:prose-xl xl:prose-2xl">
       <Editor
         isEditable
         onSave={handleSaveDoc}
