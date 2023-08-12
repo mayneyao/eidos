@@ -72,7 +72,9 @@ export const FileManager = () => {
                     {isFile ? (
                       <div className="flex cursor-pointer">
                         <FileIcon className="mt-1 h-5 w-5" />
-                        <div className="w-[350px] pl-2">{name}</div>
+                        <div className="w-[350px] truncate pl-2" title={name}>
+                          {name}
+                        </div>
                       </div>
                     ) : (
                       <div
@@ -80,7 +82,9 @@ export const FileManager = () => {
                         onDoubleClick={() => handleEnterDir(name)}
                       >
                         <FolderIcon className="mt-1 h-5 w-5" />
-                        <div className="w-[350px] pl-2">{name}</div>
+                        <div className="w-[350px] truncate pl-2" title={name}>
+                          {name}
+                        </div>
                       </div>
                     )}
                   </li>
