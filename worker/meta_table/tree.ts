@@ -96,7 +96,6 @@ export class TreeTable implements BaseTable<ITreeNode> {
       sql += ` AND parentId is null;`
     }
     const bind = query ? [`%${query}%`] : undefined
-    console.log(sql, bind)
     const res = await this.dataSpace.exec2(sql, bind)
     return res.map((row) => row)
   }

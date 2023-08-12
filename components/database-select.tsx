@@ -6,6 +6,7 @@ import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { importSpace } from "@/lib/space"
+import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
 import { useGoto } from "@/hooks/use-goto"
 import { useSpace } from "@/hooks/use-space"
@@ -41,19 +42,16 @@ import { Label } from "./ui/label"
 
 interface IDatabaseSelectorProps {
   databases: string[]
-  defaultValue?: string
 }
 
-export function DatabaseSelect({
-  databases,
-  defaultValue,
-}: IDatabaseSelectorProps) {
+export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [open, setOpen] = React.useState(false)
   const [file, setFile] = React.useState(null)
   const handleFileChange = (e: any) => {
     e.target.files[0] && setFile(e.target.files[0])
   }
-  const [value, setValue] = React.useState(defaultValue ?? "")
+  const { lastOpenedDatabase, setLastOpenedDatabase } = useAppStore()
+
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [databaseName, setDatabaseName] = React.useState("")
@@ -73,7 +71,7 @@ export function DatabaseSelect({
   }
 
   const handleSelect = (currentValue: string) => {
-    setValue(currentValue === value ? "" : currentValue)
+    setLastOpenedDatabase(currentValue)
     setOpen(false)
     goto(currentValue)
   }
@@ -93,7 +91,7 @@ export function DatabaseSelect({
       }
       setLoading(false)
       setShowNewTeamDialog(false)
-      setValue(databaseName)
+      setLastOpenedDatabase(databaseName)
       goto(databaseName)
       updateSpaceList()
     }
@@ -109,8 +107,8 @@ export function DatabaseSelect({
             aria-expanded={open}
             className="w-full min-w-[180px] justify-between"
           >
-            {value
-              ? databases.find((db) => db === value)
+            {lastOpenedDatabase
+              ? databases.find((db) => db === lastOpenedDatabase)
               : "Select Database..."}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -132,7 +130,9 @@ export function DatabaseSelect({
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        value === database ? "opacity-100" : "opacity-0"
+                        lastOpenedDatabase === database
+                          ? "opacity-100"
+                          : "opacity-0"
                       )}
                     />
                     {database}

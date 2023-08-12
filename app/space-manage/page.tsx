@@ -1,39 +1,31 @@
 "use client"
 
+import { useState } from "react"
 import {
   Download,
   MoreHorizontalIcon,
   Trash2Icon,
   UploadCloud,
 } from "lucide-react"
-import { useState } from "react"
 import { Link } from "react-router-dom"
 
+import { exportSpace, removeSpace } from "@/lib/space"
+import { useSpace } from "@/hooks/use-space"
+import { useSync } from "@/hooks/use-sync"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { toast } from "@/components/ui/use-toast"
-import { useSpace } from "@/hooks/use-space"
-import { useSync } from "@/hooks/use-sync"
-import { exportSpace, importSpace, removeSpace } from "@/lib/space"
 
 type IActionMode = "remove" | "export" | "upload"
 export default function SpaceManagerPage() {
   const { spaceList, updateSpaceList } = useSpace()
-  const [loading, setLoading] = useState(false)
-  const [file, setFile] = useState(null)
-  const [spaceName, setSpaceName] = useState("")
   const [mode, setMode] = useState<IActionMode>()
   const [modeLoading, setModeLoading] = useState(false)
   const { push } = useSync()
-  const handleFileChange = (e: any) => {
-    e.target.files[0] && setFile(e.target.files[0])
-  }
 
   const handleAction = async (space: string, mode: IActionMode) => {
     setModeLoading(true)
@@ -53,40 +45,9 @@ export default function SpaceManagerPage() {
     setModeLoading(false)
   }
 
-  const handleImport = async () => {
-    if (!file) return
-    setLoading(true)
-    await importSpace(spaceName, file)
-    setLoading(false)
-    updateSpaceList()
-    toast({
-      title: "Imported",
-      description: `Space ${spaceName} imported`,
-      action: (
-        <Link to={`/${spaceName}`}>
-          <Button variant="outline">Open</Button>
-        </Link>
-      ),
-    })
-  }
-
   return (
     <div className="prose mx-auto flex flex-col gap-2 p-10 dark:prose-invert">
-      Import Space from file
-      <div className="mt-2 flex items-center gap-2">
-        <Input
-          type="text"
-          onChange={(e) => setSpaceName(e.target.value)}
-          placeholder="space name"
-        />
-        <Input type="file" onChange={handleFileChange} className="w-[200px]" />
-        <Button onClick={handleImport} disabled={spaceName.length < 1 || !file}>
-          Import{" "}
-        </Button>
-      </div>
-      {loading && <div>importing...</div>}
       {modeLoading && <div>{mode} ...</div>}
-      <hr />
       {spaceList.map((space) => {
         return (
           <div

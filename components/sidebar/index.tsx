@@ -47,7 +47,7 @@ export const SideBar = ({ className }: any) => {
             "shareMode"
           ) : (
             <>
-              <DatabaseSelect databases={spaceList} defaultValue={space} />
+              <DatabaseSelect databases={spaceList} />
             </>
           )}
         </div>
