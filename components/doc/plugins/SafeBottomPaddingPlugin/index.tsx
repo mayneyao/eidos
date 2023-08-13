@@ -16,6 +16,8 @@ export const SafeBottomPaddingPlugin = () => {
   const [editor] = useLexicalComposerContext()
 
   const inertPlaceholder = () => {
+    // disable inert placeholder when editor is empty
+    return;
     editor.dispatchCommand(INSERT_NEW_PARAGRAPH_COMMAND, undefined)
   }
   useEffect(() => {
