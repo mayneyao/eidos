@@ -15,7 +15,7 @@ export default function IndexPage() {
 
   useEffect(() => {
     if (lastOpenedDatabase) {
-      // goto(lastOpenedDatabase)
+      goto(lastOpenedDatabase)
     }
   }, [lastOpenedDatabase, goto])
   return (
