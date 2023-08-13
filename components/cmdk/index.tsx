@@ -1,18 +1,25 @@
 "use client"
 
+import { useEffect } from "react"
 import { useDebounceFn, useKeyPress } from "ahooks"
+import { useCommandState } from "cmdk"
 import {
   Bot,
   CalendarDays,
   Clock3Icon,
+  FilePlus2Icon,
   Forward,
   Palette,
-  Settings
+  Settings,
 } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useEffect } from "react"
 
-import { useSpaceAppStore } from "@/app/[database]/store"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { getToday } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useQueryNode } from "@/hooks/use-query-node"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   CommandDialog,
   CommandEmpty,
@@ -23,12 +30,9 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useQueryNode } from "@/hooks/use-query-node"
-import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { getToday } from "@/lib/utils"
+import { useSpaceAppStore } from "@/app/[database]/store"
 
+import { Button } from "../ui/button"
 import { ActionList } from "./action"
 import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
 import { NodeCommandItems } from "./nodes"
@@ -61,6 +65,7 @@ export function CommandDialogDemo() {
   const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
   const { lastOpenedDatabase } = useAppStore()
 
+  const { createDoc } = useSqlite()
   const goto = useCMDKGoto()
   const goEveryday = goto(`/${lastOpenedDatabase}/everyday`)
 
@@ -77,6 +82,11 @@ export function CommandDialogDemo() {
     setIsAiOpen(!isAiOpen)
   }
 
+  const createNewDoc = async () => {
+    const docId = await createDoc("")
+    goto(`/${lastOpenedDatabase}/${docId}`)()
+  }
+
   if (mode === "action") {
     return <ActionList />
   }
@@ -90,7 +100,7 @@ export function CommandDialogDemo() {
       />
       <CommandList>
         <CommandEmpty>
-          <span className="text-gray-400">No results</span>
+          <span>not found "{input}"</span>
         </CommandEmpty>
         <CommandGroup heading="Suggestions">
           <CommandItem onSelect={goToday}>
@@ -100,6 +110,10 @@ export function CommandDialogDemo() {
           <CommandItem onSelect={goEveryday}>
             <CalendarDays className="mr-2 h-4 w-4" />
             <span>Everyday</span>
+          </CommandItem>
+          <CommandItem onSelect={createNewDoc}>
+            <FilePlus2Icon className="mr-2 h-4 w-4" />
+            <span>New Draft Doc</span>
           </CommandItem>
           <CommandItem onSelect={toggleAI}>
             <Bot className="mr-2 h-4 w-4" />
