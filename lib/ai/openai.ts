@@ -1,6 +1,6 @@
+import { ITreeNode } from "@/worker/meta_table/tree"
 import { ChatCompletionResponseMessage, Configuration, OpenAIApi } from "openai"
 
-import { IFileNode } from "@/hooks/use-sqlite"
 import { IUIColumn } from "@/hooks/use-table"
 
 import { functionParamsSchemaMap, functions } from "./functions"
@@ -40,7 +40,7 @@ const getPrompt = (
   context: {
     tableSchema?: string
     uiColumns?: IUIColumn[]
-    allTables: IFileNode[]
+    allTables: ITreeNode[]
     allUiColumns: IUIColumn[]
     databaseName: string
     currentDocMarkdown?: string
@@ -105,7 +105,7 @@ export const askAI =
     context: {
       tableSchema?: string
       uiColumns?: IUIColumn[]
-      allTables: IFileNode[]
+      allTables: ITreeNode[]
       allUiColumns: IUIColumn[]
       databaseName: string
       currentDocMarkdown?: string

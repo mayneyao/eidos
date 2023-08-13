@@ -7,7 +7,7 @@ import DataEditor, {
 
 import { useSpaceAppStore } from "@/app/[database]/store"
 
-import "@glideapps/glide-data-grid-cells/dist/index.css"
+// import "@glideapps/glide-data-grid-cells/dist/index.css"
 import "@platools/glide-data-grid/dist/index.css"
 import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
@@ -57,6 +57,7 @@ const defaultConfig: Partial<DataEditorProps> = {
 interface IGridProps {
   tableName: string
   databaseName: string
+  isEmbed?: boolean
 }
 
 export default function Grid(props: IGridProps) {
@@ -81,7 +82,10 @@ export default function Grid(props: IGridProps) {
     setCount,
   } = useTable(tableName, databaseName)
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
-  const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
+  const { uiColumns, uiColumnMap, getFieldByIndex } = useUiColumns(
+    tableName,
+    databaseName
+  )
   const { onColumnResize, columns } = useColumns(uiColumns)
 
   const {
@@ -122,11 +126,20 @@ export default function Grid(props: IGridProps) {
   const freezeColumns = isSm ? 0 : 1
 
   const config = useMemo(() => {
+    const _config = props.isEmbed
+      ? {
+          // height: "100%",
+          experimental: {
+            paddingBottom: 0,
+          },
+        }
+      : {}
     return {
       ...defaultConfig,
       freezeColumns,
+      ..._config,
     }
-  }, [freezeColumns])
+  }, [freezeColumns, props.isEmbed])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
@@ -168,11 +181,12 @@ export default function Grid(props: IGridProps) {
   })
 
   return (
-    <div className="h-full p-2" ref={containerRef}>
+    <div className="h-full w-full p-2" ref={containerRef}>
       <div className="relative flex h-full overflow-hidden rounded-md border-t">
         <ContextMenuDemo
           deleteRows={handleDelRows}
           getRowByIndex={getRowByIndex}
+          getFieldByIndex={getFieldByIndex}
         >
           {Boolean(uiColumns.length) && (
             <DataEditor

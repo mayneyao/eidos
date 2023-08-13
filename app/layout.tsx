@@ -4,7 +4,6 @@ import "@/styles/globals.css"
 import { useEffect } from "react"
 import { Outlet } from "react-router-dom"
 
-import { cn } from "@/lib/utils"
 import { useWorker } from "@/hooks/use-worker"
 import { Toaster } from "@/components/ui/toaster"
 import { AIChat } from "@/components/ai-chat/ai-chat"
@@ -27,22 +26,18 @@ export default function RootLayout() {
   }, [initWorker, isInitialized])
 
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={cn("h-screen bg-background font-sans antialiased")}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          {/* APP MODEL， a sidebar and main */}
-          <div className="flex h-screen w-screen overflow-auto">
-            <div className="h-full w-full grow">
-              <Outlet />
-            </div>
-            {isAiOpen && <AIChat />}
-          </div>
-          <CommandDialogDemo />
-          <ShortCuts />
-          <TailwindIndicator />
-          <Toaster />
-        </ThemeProvider>
-      </body>
-    </html>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      {/* APP MODEL， a sidebar and main */}
+      <div className="flex h-screen w-screen overflow-auto">
+        <div className="h-full w-full grow">
+          <Outlet />
+        </div>
+        {isAiOpen && <AIChat />}
+      </div>
+      <CommandDialogDemo />
+      <ShortCuts />
+      <TailwindIndicator />
+      <Toaster />
+    </ThemeProvider>
   )
 }

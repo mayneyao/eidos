@@ -2,8 +2,6 @@ import { precacheAndRoute } from "workbox-precaching"
 
 declare var self: ServiceWorkerGlobalScope
 
-// import { getDirHandle } from "@/lib/opfs"
-
 const getDirHandle = async (_paths: string[]) => {
   const paths = [..._paths]
   const opfsRoot = await navigator.storage.getDirectory()
@@ -33,16 +31,27 @@ self.addEventListener("message", function (event) {
   }
 })
 
+function isFileUrl(pathname: string) {
+  return (
+    pathname.startsWith(`/${space}/files/`) || pathname.startsWith(`/files/`)
+  )
+}
+
+function getFixedFieldPathname(pathname: string) {
+  if (pathname.startsWith(`/files/`)) {
+    return `/${space}` + pathname
+  }
+  return pathname
+}
+
 self.addEventListener("fetch", async (event) => {
   const url = new URL(event.request.url)
-  if (
-    url.origin === self.location.origin &&
-    url.pathname.startsWith(`/${space}/files/`)
-  ) {
+  if (url.origin === self.location.origin && isFileUrl(url.pathname)) {
+    const _pathname = getFixedFieldPathname(url.pathname)
     event.respondWith(
-      readFileFromOpfs(url.pathname).then((file) => {
+      readFileFromOpfs(_pathname).then((file) => {
         const headers = new Headers()
-        headers.append("Content-Type", getContentType(url.pathname))
+        headers.append("Content-Type", getContentType(_pathname))
         headers.append("Cross-Origin-Embedder-Policy", "require-corp")
         return new Response(file, { headers })
       })

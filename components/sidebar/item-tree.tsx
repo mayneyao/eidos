@@ -1,12 +1,12 @@
 import { useState } from "react"
-import { Link,useSearchParams } from "react-router-dom";
-
+import { ITreeNode } from "@/worker/meta_table/tree"
 import { File, FileSpreadsheet, Plus } from "lucide-react"
+import { Link, useSearchParams } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
-import { IFileNode, useSqlite } from "@/hooks/use-sqlite"
+import { useSqlite } from "@/hooks/use-sqlite"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
@@ -21,10 +21,10 @@ export const CurrentItemTree = ({
   title,
   type,
 }: {
-  allNodes: IFileNode[]
+  allNodes: ITreeNode[]
   spaceName: string
   isShareMode: boolean
-  currentNode: IFileNode | null
+  currentNode: ITreeNode | null
   title: string
   type: "table" | "doc"
   Icon: React.ReactNode
@@ -38,12 +38,12 @@ export const CurrentItemTree = ({
   const goto = useGoto()
 
   const handleCreateDoc = async () => {
-    const docId = await createDoc("Untitled")
+    const docId = await createDoc("")
     goto(space, docId)
   }
 
   const handleCreateTable = async () => {
-    const tableId = await createTable("Untitled")
+    const tableId = await createTable("")
     goto(space, tableId)
   }
 
@@ -105,7 +105,9 @@ export const CurrentItemTree = ({
                   >
                     <Link to={link}>
                       <ItemIcon type={node.type} className="pr-2" />
-                      {node.name}
+                      <span className="truncate" title={node.name}>
+                        {node.name.length === 0 ? "Untitled" : node.name}
+                      </span>
                     </Link>
                   </Button>
                 </NodeItem>
@@ -118,7 +120,7 @@ export const CurrentItemTree = ({
   )
 }
 
-const ItemIcon = ({
+export const ItemIcon = ({
   type,
   className,
 }: {

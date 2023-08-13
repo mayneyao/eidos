@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useState, useTransition } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
-
-const getToday = () => {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = (today.getMonth() + 1).toString().padStart(2, "0")
-  const day = today.getDate().toString().padStart(2, "0")
-  const date = `${year}-${month}-${day}`
-  return date
-}
+import { getToday } from "@/lib/utils"
 
 type IDay = {
   id: string

@@ -2,6 +2,7 @@
 
 import { useCallback } from "react"
 import type { DataSpace } from "@/worker/DataSpace"
+import { ITreeNode } from "@/worker/meta_table/tree"
 import { create } from "zustand"
 
 import { TreeTableName } from "@/lib/sqlite/const"
@@ -10,12 +11,6 @@ import { createTemplateTableSql } from "@/components/grid/helper"
 
 import { IUIColumn } from "./use-table"
 
-export type IFileNode = {
-  id: string
-  name: string
-  type: string
-}
-
 interface SqliteState {
   isInitialized: boolean
   setInitialized: (isInitialized: boolean) => void
@@ -23,8 +18,11 @@ interface SqliteState {
   currentDatabase: string
   setCurrentDatabase: (database: string) => void
 
-  allNodes: IFileNode[]
-  setAllNodes: (tables: IFileNode[]) => void
+  currentNode: ITreeNode | null
+  setCurrentNode: (node: ITreeNode | null) => void
+
+  allNodes: ITreeNode[]
+  setAllNodes: (tables: ITreeNode[]) => void
 
   allUiColumns: IUIColumn[]
   setAllUiColumns: (columns: IUIColumn[]) => void
@@ -48,6 +46,9 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
 
   currentDatabase: "",
   setCurrentDatabase: (database) => set({ currentDatabase: database }),
+
+  currentNode: null,
+  setCurrentNode: (node) => set({ currentNode: node }),
 
   allNodes: [],
   setAllNodes: (tables) => set({ allNodes: tables }),
@@ -73,6 +74,7 @@ export const useSqlite = (dbName?: string) => {
   const {
     isInitialized,
     sqliteProxy: sqlWorker,
+    allNodes,
     setAllNodes,
     setAllUiColumns,
   } = useSqliteStore()
@@ -80,12 +82,12 @@ export const useSqlite = (dbName?: string) => {
   const queryAllNodes = useCallback(async () => {
     if (!sqlWorker) return
     const allNodes = await sqlWorker.listTreeNodes()
-    console.log("node list loaded", allNodes)
+    // console.log("node list loaded", allNodes)
     return allNodes
   }, [sqlWorker])
 
   const queryAllUiColumns = useCallback(async () => {
-    console.log("queryAllUiColumns")
+    // console.log("queryAllUiColumns")
     if (!sqlWorker) return
     const allUiColumns = await sqlWorker.listAllUiColumns()
     // console.log("ui column list loaded", allUiColumns)
@@ -167,12 +169,13 @@ export const useSqlite = (dbName?: string) => {
     const { docId, tableId, title } = data
     const res = await sqlWorker.getTreeNode(docId)
     if (!res) {
-      await sqlWorker.addTreeNode({
+      const treeNode = await sqlWorker.addTreeNode({
         id: docId,
         name: title,
         type: "doc",
         parentId: tableId,
       })
+      addNode2List(treeNode)
       await sqlWorker.addDoc(docId, "")
     }
   }
@@ -187,6 +190,13 @@ export const useSqlite = (dbName?: string) => {
     const doc = await sqlWorker.getDoc(docId)
     return doc
   }
+
+  const addNode2List = useCallback(
+    (node: ITreeNode) => {
+      setAllNodes([...allNodes, node])
+    },
+    [allNodes, setAllNodes]
+  )
 
   const renameNode = async (nodeId: string, newName: string) => {
     if (!sqlWorker) return
@@ -265,7 +275,7 @@ export const useSqlite = (dbName?: string) => {
     await updateNodeList()
   }
 
-  const deleteNode = async (node: IFileNode) => {
+  const deleteNode = async (node: ITreeNode) => {
     if (!sqlWorker) return
     switch (node.type) {
       case "table":
@@ -328,6 +338,12 @@ export const useSqlite = (dbName?: string) => {
     sqlWorker?.undo()
   }
 
+  const updateNodeName = async (nodeId: string, newName: string) => {
+    if (!sqlWorker) return
+    await sqlWorker.updateTreeNodeName(nodeId, newName)
+    await updateNodeList()
+  }
+
   return {
     sqlite: isInitialized ? sqlWorker : null,
     createTable,
@@ -348,5 +364,6 @@ export const useSqlite = (dbName?: string) => {
     getDoc,
     deleteNode,
     getOrCreateTableSubDoc,
+    updateNodeName,
   }
 }

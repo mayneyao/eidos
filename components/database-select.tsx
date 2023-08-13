@@ -2,9 +2,11 @@
 
 import * as React from "react"
 import { SimpleBackUp } from "@/worker/backup"
-import { Check, ChevronsUpDown, Download, PlusCircle } from "lucide-react"
+import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
+import { importSpace } from "@/lib/space"
+import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
 import { useGoto } from "@/hooks/use-goto"
 import { useSpace } from "@/hooks/use-space"
@@ -40,15 +42,16 @@ import { Label } from "./ui/label"
 
 interface IDatabaseSelectorProps {
   databases: string[]
-  defaultValue?: string
 }
 
-export function DatabaseSelect({
-  databases,
-  defaultValue,
-}: IDatabaseSelectorProps) {
+export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [open, setOpen] = React.useState(false)
-  const [value, setValue] = React.useState(defaultValue ?? "")
+  const [file, setFile] = React.useState(null)
+  const handleFileChange = (e: any) => {
+    e.target.files[0] && setFile(e.target.files[0])
+  }
+  const { lastOpenedDatabase, setLastOpenedDatabase } = useAppStore()
+
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [databaseName, setDatabaseName] = React.useState("")
@@ -68,7 +71,7 @@ export function DatabaseSelect({
   }
 
   const handleSelect = (currentValue: string) => {
-    setValue(currentValue === value ? "" : currentValue)
+    setLastOpenedDatabase(currentValue)
     setOpen(false)
     goto(currentValue)
   }
@@ -81,12 +84,15 @@ export function DatabaseSelect({
         const backup = new SimpleBackUp(url, token, autoSaveGap)
         await backup.pull(databaseName, true)
       }
-      createSpace(databaseName).then(() => {
-        setLoading(false)
-        setShowNewTeamDialog(false)
-        setValue(databaseName)
-        goto(databaseName)
-      })
+      if (file) {
+        await importSpace(databaseName, file)
+      } else {
+        await createSpace(databaseName)
+      }
+      setLoading(false)
+      setShowNewTeamDialog(false)
+      setLastOpenedDatabase(databaseName)
+      goto(databaseName)
       updateSpaceList()
     }
   }
@@ -101,8 +107,8 @@ export function DatabaseSelect({
             aria-expanded={open}
             className="w-full min-w-[180px] justify-between"
           >
-            {value
-              ? databases.find((db) => db === value)
+            {lastOpenedDatabase
+              ? databases.find((db) => db === lastOpenedDatabase)
               : "Select Database..."}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -124,7 +130,9 @@ export function DatabaseSelect({
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        value === database ? "opacity-100" : "opacity-0"
+                        lastOpenedDatabase === database
+                          ? "opacity-100"
+                          : "opacity-0"
                       )}
                     />
                     {database}
@@ -142,11 +150,12 @@ export function DatabaseSelect({
                       setShowNewTeamDialog(true)
                     }}
                   >
-                    <PlusCircle className="mr-2 h-5 w-5" /> Create New
+                    <PlusCircle className="mr-2 h-4 w-4" />{" "}
+                    <span>Create New</span>
                   </CommandItem>
                 </DialogTrigger>
                 <CommandItem onSelect={handleGoSpaceManagement}>
-                  <Download className="mr-2 h-5 w-5" /> Import/Export
+                  <Wrench className="mr-2 h-4 w-4" /> <span>Manage Space</span>
                 </CommandItem>
               </CommandGroup>
             </CommandList>
@@ -168,6 +177,7 @@ export function DatabaseSelect({
                 id="database-name"
                 placeholder="e.g. personal"
                 value={databaseName}
+                required
                 onChange={(e) => setDatabaseName(e.target.value)}
               />
             </div>
@@ -185,9 +195,25 @@ export function DatabaseSelect({
               <Label htmlFor="shouldCreateFromBackup">Create from backup</Label>
             </div>
           </div>
+          {!shouldCreateFromBackup && (
+            <div className="space-y-4 py-2 pb-4">
+              <div className="space-y-2">
+                <Label htmlFor="importFromFile">Import from file</Label>
+                <Input
+                  type="file"
+                  id="importFromFile"
+                  onChange={handleFileChange}
+                  className="w-[200px]"
+                  accept=".zip"
+                />
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter>
-          <Button variant="outline">Cancel</Button>
+          <Button variant="outline" onClick={() => setShowNewTeamDialog(false)}>
+            Cancel
+          </Button>
           <Button
             type="submit"
             onClick={handleCreateDatabase}

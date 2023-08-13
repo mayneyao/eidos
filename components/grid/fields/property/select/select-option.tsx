@@ -70,7 +70,7 @@ export const SelectOption = ({
           />
           <div
             onClick={handleDelete}
-            className="mt-4 flex cursor-pointer items-center gap-3 p-[6px] hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="mt-4 flex cursor-pointer items-center gap-3 p-[6px] hover:bg-secondary"
           >
             <Trash className="h-4 w-4 opacity-60" /> Delete
           </div>
@@ -80,7 +80,7 @@ export const SelectOption = ({
               <div
                 data-color={color.name}
                 onClick={handleColorChange}
-                className="flex cursor-pointer items-center gap-3 p-[6px] hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="flex cursor-pointer items-center gap-3 p-[6px] hover:bg-secondary"
               >
                 <div
                   className="h-3 w-3"

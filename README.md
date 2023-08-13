@@ -16,10 +16,10 @@ see [Eidos Project](https://github.com/users/mayneyao/projects/5)
 
 ## How to Use
 
-1. Clone the repository
+1. Clone the repository `git clone git@github.com:mayneyao/eidos.git`
 2. Run `pnpm install`
 3. Run `pnpm dev`
-4. You can now access the app in your browser at `http://localhost:3000`
+4. You can now access the app in your browser at http://localhost:5173
 
 ## Contributions
 

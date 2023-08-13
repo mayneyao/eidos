@@ -1,12 +1,25 @@
 "use client"
 
-import { useKeyPress } from "ahooks"
-import { Bot, Forward, Home, Palette, Settings } from "lucide-react"
+import { useEffect } from "react"
+import { useDebounceFn, useKeyPress } from "ahooks"
+import { useCommandState } from "cmdk"
+import {
+  Bot,
+  CalendarDays,
+  Clock3Icon,
+  FilePlus2Icon,
+  Forward,
+  Palette,
+  Settings,
+} from "lucide-react"
 import { useTheme } from "next-themes"
-import { useNavigate } from "react-router-dom"
 
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { getToday } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useQueryNode } from "@/hooks/use-query-node"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   CommandDialog,
   CommandEmpty,
@@ -19,30 +32,45 @@ import {
 } from "@/components/ui/command"
 import { useSpaceAppStore } from "@/app/[database]/store"
 
+import { Button } from "../ui/button"
 import { ActionList } from "./action"
-import { useInput } from "./hooks"
+import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
+import { NodeCommandItems } from "./nodes"
+import { SpaceCommandItems } from "./spaces"
 
 export function CommandDialogDemo() {
-  // const [open, setOpen] = React.useState(false)
   const { isCmdkOpen, setCmdkOpen } = useAppRuntimeStore()
   const { input, setInput, mode } = useInput()
-
+  const { queryNodes } = useQueryNode()
   const { theme, setTheme } = useTheme()
-  const router = useNavigate()
+  const { space } = useCurrentPathInfo()
+  const { setSearchNodes } = useCMDKStore()
   useKeyPress("ctrl.k", (e) => {
     e.preventDefault()
     setCmdkOpen(!isCmdkOpen)
   })
 
+  const updateSearchNodes = async (qs: string) => {
+    if (qs.length > 0) {
+      const nodes = await queryNodes(qs)
+      setSearchNodes(nodes ?? [])
+    }
+  }
+  const { run } = useDebounceFn(updateSearchNodes, { wait: 500 })
+
+  useEffect(() => {
+    space && run(input)
+  }, [input, run, space])
+
   const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
   const { lastOpenedDatabase } = useAppStore()
 
-  const goto = (path: string) => () => {
-    setCmdkOpen(false)
-    router(path)
-  }
-  const goHome = goto(`/${lastOpenedDatabase}`)
+  const { createDoc } = useSqlite()
+  const goto = useCMDKGoto()
+  const goEveryday = goto(`/${lastOpenedDatabase}/everyday`)
 
+  const today = getToday()
+  const goToday = goto(`/${lastOpenedDatabase}/everyday/${today}`)
   const goShare = goto("/share")
 
   const switchTheme = () => {
@@ -52,6 +80,11 @@ export function CommandDialogDemo() {
   const toggleAI = () => {
     setCmdkOpen(false)
     setIsAiOpen(!isAiOpen)
+  }
+
+  const createNewDoc = async () => {
+    const docId = await createDoc("")
+    goto(`/${lastOpenedDatabase}/${docId}`)()
   }
 
   if (mode === "action") {
@@ -66,15 +99,25 @@ export function CommandDialogDemo() {
         onValueChange={setInput}
       />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>
+          <span>not found "{input}"</span>
+        </CommandEmpty>
         <CommandGroup heading="Suggestions">
+          <CommandItem onSelect={goToday}>
+            <Clock3Icon className="mr-2 h-4 w-4" />
+            <span>Today</span>
+          </CommandItem>
+          <CommandItem onSelect={goEveryday}>
+            <CalendarDays className="mr-2 h-4 w-4" />
+            <span>Everyday</span>
+          </CommandItem>
+          <CommandItem onSelect={createNewDoc}>
+            <FilePlus2Icon className="mr-2 h-4 w-4" />
+            <span>New Draft Doc</span>
+          </CommandItem>
           <CommandItem onSelect={toggleAI}>
             <Bot className="mr-2 h-4 w-4" />
             <span>AI</span>
-          </CommandItem>
-          <CommandItem onSelect={goHome}>
-            <Home className="mr-2 h-4 w-4" />
-            <span>Home</span>
           </CommandItem>
           <CommandItem onSelect={goShare}>
             <Forward className="mr-2 h-4 w-4" />
@@ -82,6 +125,8 @@ export function CommandDialogDemo() {
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />
+        <SpaceCommandItems />
+        <NodeCommandItems />
         <CommandGroup heading="Settings">
           <CommandItem onSelect={switchTheme}>
             <Palette className="mr-2 h-4 w-4" />

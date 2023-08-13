@@ -118,6 +118,9 @@ export function BackupServerForm() {
                   autoComplete="off"
                   type="number"
                   {...field}
+                  {...form.register("autoSaveGap", {
+                    valueAsNumber: true,
+                  })}
                 />
               </FormControl>
               <FormDescription>

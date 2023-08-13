@@ -120,8 +120,12 @@ export class DataSpace {
     return res
   }
 
-  public async listTreeNodes() {
-    return this.tree.list()
+  public async listTreeNodes(q?: string, withSubNode?: boolean) {
+    return this.tree.list(q, withSubNode)
+  }
+
+  public async updateTreeNodeName(id: string, name: string) {
+    return this.tree.updateName(id, name)
   }
 
   public async addTreeNode(data: ITreeNode) {

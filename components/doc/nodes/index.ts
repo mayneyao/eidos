@@ -1,11 +1,14 @@
 import { CodeHighlightNode, CodeNode } from "@lexical/code"
+import { HashtagNode } from "@lexical/hashtag"
 import { AutoLinkNode, LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 
 import { ImageNode } from "./ImageNode"
+import { MentionNode } from "./MentionNode"
 // custom node
 import { SQLNode } from "./SQL"
+import { DatabaseTableNode } from "./DatabaseTableNode"
 
 export const AllNodes = [
   HeadingNode,
@@ -18,4 +21,7 @@ export const AllNodes = [
   LinkNode,
   SQLNode,
   ImageNode,
+  HashtagNode,
+  MentionNode,
+  DatabaseTableNode,
 ]
