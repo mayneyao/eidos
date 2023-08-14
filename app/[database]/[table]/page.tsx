@@ -7,6 +7,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Editor } from "@/components/doc/editor"
 import Grid from "@/components/grid"
+import { Table } from "@/components/table"
 
 export default function TablePage() {
   const params = useCurrentPathInfo()
@@ -27,7 +28,7 @@ export default function TablePage() {
   return (
     <>
       {node?.type === "table" && (
-        <Grid tableName={params.tableName!} databaseName={params.space} />
+        <Table tableName={params.tableName!} space={params.database!} />
       )}
       {node?.type === "doc" && (
         <Editor

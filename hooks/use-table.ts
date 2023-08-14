@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react"
+import { IView } from "@/worker/meta_table/view"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
 
@@ -10,7 +11,7 @@ import {
   checkSqlIsOnlyQuery,
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
-import { generateColumnName } from "@/lib/utils"
+import { generateColumnName, getTableIdByRawTableName } from "@/lib/utils"
 import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { useSpaceAppStore } from "@/app/[database]/store"
 import { useConfigStore } from "@/app/settings/store"
@@ -40,6 +41,9 @@ interface TableState {
   columns: IColumn[]
   uiColumns: IUIColumn[]
 
+  views: IView[]
+  setViews: (views: IView[]) => void
+
   setColumns: (columns: IColumn[]) => void
   setUiColumns: (columns: IUIColumn[]) => void
 }
@@ -48,13 +52,15 @@ interface TableState {
 export const useTableStore = create<TableState>()((set) => ({
   columns: [],
   uiColumns: [],
+  views: [],
+  setViews: (views) => set({ views }),
   setColumns: (columns) => set({ columns }),
   setUiColumns: (uiColumns) => set({ uiColumns }),
 }))
 
 export const useTable = (tableName: string, databaseName: string) => {
   const { sqlite, withTransaction } = useSqlite(databaseName)
-  const { setUiColumns, uiColumns } = useTableStore()
+  const { setUiColumns, uiColumns, views, setViews } = useTableStore()
   const {
     count,
     setCount,
@@ -79,6 +85,13 @@ export const useTable = (tableName: string, databaseName: string) => {
     const res = await sqlite.listUiColumns(tableName)
     setUiColumns(res)
   }, [setUiColumns, sqlite, tableName])
+
+  const updateViews = useCallback(async () => {
+    if (!sqlite) return
+    const tableId = getTableIdByRawTableName(tableName)
+    const res = await sqlite.listViews(tableId)
+    setViews(res)
+  }, [setViews, sqlite, tableName])
 
   const updateTableSchema = useCallback(async () => {
     if (!sqlite) return
@@ -266,5 +279,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     reload,
     sqlite,
     setCount,
+    views,
+    updateViews,
   }
 }
