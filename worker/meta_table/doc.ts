@@ -1,7 +1,6 @@
 import { DocTableName } from "@/lib/sqlite/const"
 
-import { DataSpace } from "../DataSpace"
-import { BaseTable } from "./base"
+import { BaseTable, BaseTableImpl } from "./base"
 
 interface IDoc {
   id: string
@@ -9,7 +8,7 @@ interface IDoc {
   isDayPage?: boolean
 }
 
-export class DocTable implements BaseTable<IDoc> {
+export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   name = DocTableName
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${this.name} (
@@ -18,9 +17,6 @@ export class DocTable implements BaseTable<IDoc> {
     isDayPage BOOLEAN DEFAULT 0
   );
 `
-  constructor(private dataSpace: DataSpace) {
-    this.dataSpace.exec(this.createTableSql)
-  }
 
   async listAllDayPages() {
     const res = await this.dataSpace.exec2(

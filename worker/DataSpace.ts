@@ -6,8 +6,10 @@ import { ColumnTableName, TodoTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 
 import { ActionTable } from "./meta_table/action"
+import { BaseTable } from "./meta_table/base"
 import { DocTable } from "./meta_table/doc"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
+import { IView, ViewTable } from "./meta_table/view"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 
 export class DataSpace {
@@ -19,14 +21,21 @@ export class DataSpace {
   doc: DocTable
   action: ActionTable
   tree: TreeTable
+  view: ViewTable
+
+  allTables: BaseTable<any>[] = []
   constructor(db: Database, activeUndoManager: boolean, dbName: string) {
     this.db = db
-    this.initMetaTable()
     this.dbName = dbName
-    this.undoRedoManager = new SQLiteUndoRedo(this)
+
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
     this.tree = new TreeTable(this)
+    this.view = new ViewTable(this)
+    this.allTables = [this.doc, this.action, this.tree, this.view]
+
+    this.initMetaTable()
+    this.undoRedoManager = new SQLiteUndoRedo(this)
     this.activeUndoManager = activeUndoManager
     if (activeUndoManager) {
       this.activeAllTablesUndoRedo()
@@ -52,6 +61,26 @@ export class DataSpace {
       list_id TEXT,
       node_key TEXT
     );`)
+    this.allTables.forEach((table) => {
+      this.exec(table.createTableSql)
+    })
+  }
+
+  // views
+  public async listViews(tableId: string) {
+    return await this.view.list(tableId)
+  }
+
+  public async addView(view: IView) {
+    return await this.view.add(view)
+  }
+
+  public async delView(viewId: string) {
+    return await this.view.del(viewId)
+  }
+
+  public async createDefaultView(tableId: string) {
+    return await this.view.createDefaultView(tableId)
   }
 
   // actions
