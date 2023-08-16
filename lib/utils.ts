@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { v4 as uuidv4 } from "uuid"
 
 export { v4 as uuidv4 } from "uuid"
 
@@ -37,6 +38,10 @@ export const getRawTableNameById = (id: string) => {
   return `tb_${id}`
 }
 
+export const getTableIdByRawTableName = (rawTableName: string) => {
+  return rawTableName.replace("tb_", "")
+}
+
 export const generateColumnName = () => {
   // random 4 characters
   return `cl_${Math.random().toString(36).substring(2, 6)}`
@@ -58,4 +63,8 @@ export const getToday = () => {
   const day = today.getDate().toString().padStart(2, "0")
   const date = `${year}-${month}-${day}`
   return date
+}
+
+export const getUuid = () => {
+  return shortenId(uuidv4())
 }

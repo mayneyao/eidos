@@ -29,6 +29,8 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
+import { cn } from "@/lib/utils"
+
 import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"
 
@@ -58,6 +60,7 @@ interface IGridProps {
   tableName: string
   databaseName: string
   isEmbed?: boolean
+  className?: string
 }
 
 export default function Grid(props: IGridProps) {
@@ -181,7 +184,10 @@ export default function Grid(props: IGridProps) {
   })
 
   return (
-    <div className="h-full w-full p-2" ref={containerRef}>
+    <div
+      className={cn("mb-2 h-full w-full p-2 pb-7", props.className)}
+      ref={containerRef}
+    >
       <div className="relative flex h-full overflow-hidden rounded-md border-t">
         <ContextMenuDemo
           deleteRows={handleDelRows}

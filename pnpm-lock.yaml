@@ -48,6 +48,7 @@ specifiers:
   '@types/prismjs': ^1.26.0
   '@types/react': ^18.2.7
   '@types/react-dom': ^18.2.4
+  '@types/react-window': ^1.8.5
   '@types/uuid': ^9.0.1
   '@types/ws': ^8.5.5
   '@typescript-eslint/eslint-plugin': ^5.61.0
@@ -80,6 +81,7 @@ specifiers:
   openai: ^3.3.0
   papaparse: ^5.4.1
   peerjs: ^1.4.7
+  pgsql-ast-parser: ^11.1.0
   postcss: ^8.4.24
   prettier: ^2.8.8
   prismjs: ^1.29.0
@@ -93,9 +95,11 @@ specifiers:
   react-responsive-carousel: ^3.2.23
   react-router-dom: ^6.14.1
   react-selecto: ^1.26.0
+  react-virtualized-auto-sizer: ^1.0.20
+  react-window: ^1.8.9
   sharp: ^0.31.3
   sort-by: ^1.2.0
-  sql-ddl-to-json-schema: ^4.0.10
+  sql-ddl-to-json-schema: ^4.1.0
   tailwind-merge: ^1.12.0
   tailwindcss: ^3.3.2
   tailwindcss-animate: ^1.0.5
@@ -171,6 +175,7 @@ dependencies:
   openai: 3.3.0
   papaparse: 5.4.1
   peerjs: 1.4.7
+  pgsql-ast-parser: 11.1.0
   prismjs: 1.29.0
   react: 18.2.0
   react-day-picker: 8.8.0_kzhlcyde2l6xjiirkbg7jzhosa
@@ -182,6 +187,8 @@ dependencies:
   react-responsive-carousel: 3.2.23
   react-router-dom: 6.14.1_biqbaboplfbrettd7655fr4n2y
   react-selecto: 1.26.0
+  react-virtualized-auto-sizer: 1.0.20_biqbaboplfbrettd7655fr4n2y
+  react-window: 1.8.9_biqbaboplfbrettd7655fr4n2y
   sharp: 0.31.3
   sort-by: 1.2.0
   sql-ddl-to-json-schema: 4.1.0
@@ -209,6 +216,7 @@ devDependencies:
   '@types/prismjs': 1.26.0
   '@types/react': 18.2.14
   '@types/react-dom': 18.2.6
+  '@types/react-window': 1.8.5
   '@types/uuid': 9.0.2
   '@types/ws': 8.5.5
   '@typescript-eslint/eslint-plugin': 5.61.0_24v3duij7ab7rtbfz4qzw7dc5u
@@ -4200,6 +4208,12 @@ packages:
     dependencies:
       '@types/react': 18.2.14
 
+  /@types/react-window/1.8.5:
+    resolution: {integrity: sha512-V9q3CvhC9Jk9bWBOysPGaWy/Z0lxYcTXLtLipkt2cnRj1JOSFNF7wqGpkScSXMgBwC+fnVRg/7shwgddBG5ICw==}
+    dependencies:
+      '@types/react': 18.2.14
+    dev: true
+
   /@types/react/18.2.14:
     resolution: {integrity: sha512-A0zjq+QN/O0Kpe30hA1GidzyFjatVvrpIvWLxD+xv67Vt91TWWgco9IvrJBkeyHm1trGaFS/FSGqPlhyeZRm0g==}
     dependencies:
@@ -7288,6 +7302,10 @@ packages:
     engines: {node: '>= 0.6'}
     dev: false
 
+  /memoize-one/5.2.1:
+    resolution: {integrity: sha512-zYiwtZUcYyXKo/np96AGZAckk+FWWsUdJ3cHGGmld7+AhvcWmQyGCYUh1hc4Q/pkOhb65dQR/pqCyK0cOaHz4Q==}
+    dev: false
+
   /merge-descriptors/1.0.1:
     resolution: {integrity: sha512-cCi6g3/Zr1iqQi6ySbseM1Xvooa98N0w31jzUYrXPX2xqObmFGHJ0tQ5u74H3mVh7wLouTseZyYIq39g8cNp1w==}
     dev: false
@@ -7682,6 +7700,13 @@ packages:
       eventemitter3: 4.0.7
       peerjs-js-binarypack: 1.0.1
       webrtc-adapter: 7.7.1
+    dev: false
+
+  /pgsql-ast-parser/11.1.0:
+    resolution: {integrity: sha512-c0XnjHzUyg2Z/3iB2Akk6+jDtsza4Jqw4bC5SSt9pQ3b+K4aQC75gJQDvsNYvFqQNaPHLCUunDLPc5SZsQQLIA==}
+    dependencies:
+      moo: 0.5.1
+      nearley: 2.20.1
     dev: false
 
   /picocolors/1.0.0:
@@ -8138,6 +8163,29 @@ packages:
       invariant: 2.2.4
       react: 18.2.0
       tslib: 2.6.0
+    dev: false
+
+  /react-virtualized-auto-sizer/1.0.20_biqbaboplfbrettd7655fr4n2y:
+    resolution: {integrity: sha512-OdIyHwj4S4wyhbKHOKM1wLSj/UDXm839Z3Cvfg2a9j+He6yDa6i5p0qQvEiCnyQlGO/HyfSnigQwuxvYalaAXA==}
+    peerDependencies:
+      react: ^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0-rc
+      react-dom: ^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0-rc
+    dependencies:
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+    dev: false
+
+  /react-window/1.8.9_biqbaboplfbrettd7655fr4n2y:
+    resolution: {integrity: sha512-+Eqx/fj1Aa5WnhRfj9dJg4VYATGwIUP2ItwItiJ6zboKWA6EX3lYDAXfGF2hyNqplEprhbtjbipiADEcwQ823Q==}
+    engines: {node: '>8.0.0'}
+    peerDependencies:
+      react: ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0
+      react-dom: ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0
+    dependencies:
+      '@babel/runtime': 7.22.6
+      memoize-one: 5.2.1
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
     dev: false
 
   /react/18.2.0:

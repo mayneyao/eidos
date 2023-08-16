@@ -6,12 +6,14 @@ import {
   LifeBuoy,
   Menu,
   MoreHorizontal,
-  Settings
+  Settings,
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { AvatarList } from "@/components/avatar-list"
-import { ShareDialog } from "@/components/share-dialog"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { usePeer } from "@/hooks/use-peer"
+import { useTable } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -23,10 +25,8 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { usePeer } from "@/hooks/use-peer"
-import { useTable } from "@/hooks/use-table"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { AvatarList } from "@/components/avatar-list"
+import { ShareDialog } from "@/components/share-dialog"
 
 import { useSpaceAppStore } from "./store"
 

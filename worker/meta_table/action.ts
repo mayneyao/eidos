@@ -1,7 +1,6 @@
 import { ActionTableName } from "@/lib/sqlite/const"
 
-import { DataSpace } from "../DataSpace"
-import { BaseTable } from "./base"
+import { BaseTable, BaseTableImpl } from "./base"
 
 type ParamType = "string" | "number" | "boolean"
 
@@ -23,7 +22,7 @@ export interface IAction {
   nodes: IFunction[]
 }
 
-export class ActionTable implements BaseTable<IAction> {
+export class ActionTable extends BaseTableImpl implements BaseTable<IAction> {
   name = ActionTableName
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${this.name} (
@@ -33,9 +32,6 @@ export class ActionTable implements BaseTable<IAction> {
     nodes TEXT
   );
 `
-  constructor(private dataSpace: DataSpace) {
-    this.dataSpace.exec(this.createTableSql)
-  }
 
   add(data: IAction): Promise<IAction> {
     this.dataSpace.exec2(`INSERT INTO ${this.name} VALUES (?, ?, ?, ?)`, [

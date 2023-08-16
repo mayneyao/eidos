@@ -1,7 +1,6 @@
 import { TreeTableName } from "@/lib/sqlite/const"
 
-import { DataSpace } from "../DataSpace"
-import { BaseTable } from "./base"
+import { BaseTable, BaseTableImpl } from "./base"
 
 export interface ITreeNode {
   id: string
@@ -10,7 +9,7 @@ export interface ITreeNode {
   parentId?: string
 }
 
-export class TreeTable implements BaseTable<ITreeNode> {
+export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
   name = TreeTableName
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${TreeTableName} (
@@ -20,9 +19,6 @@ export class TreeTable implements BaseTable<ITreeNode> {
     parentId TEXT NULL
   );
   `
-  constructor(private dataSpace: DataSpace) {
-    this.dataSpace.exec(this.createTableSql)
-  }
 
   add(data: ITreeNode): Promise<ITreeNode> {
     this.dataSpace.exec(
