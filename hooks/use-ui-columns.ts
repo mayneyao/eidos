@@ -24,6 +24,22 @@ export const useUiColumns = (tableName: string, databaseName: string) => {
     return map
   }, [uiColumns])
 
+  const nameRawIdMap = useMemo(() => {
+    const map = new Map<string, string>()
+    uiColumns.forEach((column) => {
+      map.set(column.name, column.table_column_name)
+    })
+    return map
+  }, [uiColumns])
+
+  const rawIdNameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    uiColumns.forEach((column) => {
+      map.set(column.table_column_name, column.name)
+    })
+    return map
+  }, [uiColumns])
+
   const getFieldByIndex = useCallback(
     (index: number) => {
       return uiColumns[index]
@@ -31,5 +47,12 @@ export const useUiColumns = (tableName: string, databaseName: string) => {
     [uiColumns]
   )
 
-  return { uiColumns, uiColumnMap, updateUiColumns, getFieldByIndex }
+  return {
+    uiColumns,
+    uiColumnMap,
+    updateUiColumns,
+    getFieldByIndex,
+    nameRawIdMap,
+    rawIdNameMap,
+  }
 }

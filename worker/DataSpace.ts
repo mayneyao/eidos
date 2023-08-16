@@ -4,6 +4,7 @@ import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import { ColumnTableName, TodoTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
+import { transformSql } from "@/lib/sqlite/sql-parser"
 
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
@@ -77,6 +78,10 @@ export class DataSpace {
 
   public async delView(viewId: string) {
     return await this.view.del(viewId)
+  }
+
+  public async updateView(viewId: string, view: Partial<IView>) {
+    return await this.view.set(viewId, view)
   }
 
   public async createDefaultView(tableId: string) {

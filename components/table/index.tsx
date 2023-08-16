@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react"
+import { ViewTypeEnum } from "@/worker/meta_table/view"
 import { PlusIcon } from "lucide-react"
 import { createSearchParams, useLocation, useNavigate } from "react-router-dom"
 
@@ -6,8 +7,9 @@ import { useTable } from "@/hooks/use-table"
 
 import Grid from "../grid"
 import { Button } from "../ui/button"
-import { useCurrentView, useView } from "./hooks"
+import { useCurrentView, useViewOperation } from "./hooks"
 import { ViewItem } from "./view-item"
+import { GalleryView } from "./views/gallery"
 
 interface ITableProps {
   space: string
@@ -20,9 +22,9 @@ export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
   const { updateViews, views } = useTable(tableName!, space)
   const navigate = useNavigate()
   const location = useLocation()
+  const { addView, delView } = useViewOperation()
   const { currentView, setCurrentViewId, defaultViewId } = useCurrentView()
 
-  const onlyOneView = views.length === 1
   const jump2View = useCallback(
     (viewId: string) => {
       if (isEmbed) {
@@ -40,7 +42,6 @@ export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
     [isEmbed, location.pathname, navigate, setCurrentViewId]
   )
 
-  const { addView, delView } = useView()
   const handleAddView = useCallback(async () => {
     const view = await addView()
     if (view) {
@@ -57,13 +58,15 @@ export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
     jump2View(defaultViewId)
   }
 
+  const onlyOneView = views.length === 1
   return (
-    <div className="relative h-full w-full overflow-hidden p-2">
+    <div className="h-full w-full overflow-hidden p-2">
       <div className="flex items-center ">
         {views.map((view) => {
           const isActive = view.id === currentView?.id
           return (
             <ViewItem
+              key={view.id}
               view={view}
               isActive={isActive}
               jump2View={jump2View}
@@ -76,10 +79,12 @@ export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
           <PlusIcon />
         </Button>
       </div>
-      {currentView?.type === "grid" && (
+      {currentView?.type === ViewTypeEnum.Grid && (
         <Grid tableName={tableName!} databaseName={space} />
       )}
-      {currentView?.type === "gallery" && <div>gallery</div>}
+      {currentView?.type === ViewTypeEnum.Gallery && (
+        <GalleryView space={space} tableName={tableName} view={currentView} />
+      )}
     </div>
   )
 }

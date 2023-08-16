@@ -39,8 +39,16 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   get(id: string): Promise<IView | null> {
     throw new Error("Method not implemented.")
   }
-  set(id: string, data: Partial<IView>): Promise<boolean> {
-    throw new Error("Method not implemented.")
+  
+  async set(id: string, data: Partial<IView>): Promise<boolean> {
+    const setKv = Object.entries(data)
+      .map(([k, v]) => `${k} = ?`)
+      .join(", ")
+    await this.dataSpace.exec2(
+      `UPDATE ${this.name} SET ${setKv} WHERE id = ?`,
+      [...Object.values(data), id]
+    )
+    return true
   }
 
   async del(id: string): Promise<boolean> {

@@ -18,6 +18,7 @@ import { useConfigStore } from "@/app/settings/store"
 
 import { useCurrentNode } from "./use-current-node"
 import { useSqlite } from "./use-sqlite"
+import { FieldType } from "@/lib/fields/const"
 
 // PRAGMA table_info('table_name') will return IColumn[]
 export type IColumn = {
@@ -31,7 +32,7 @@ export type IColumn = {
 
 export type IUIColumn = {
   name: string
-  type: string
+  type: FieldType
   table_column_name: string
   table_name: string
   property: any
