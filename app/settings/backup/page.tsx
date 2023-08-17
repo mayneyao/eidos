@@ -72,7 +72,7 @@ export function BackupServerForm() {
           name="url"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Server Url</FormLabel>
+              <FormLabel>Server URL</FormLabel>
               <FormControl>
                 <Input placeholder="https://" autoComplete="off" {...field} />
               </FormControl>

@@ -2,7 +2,6 @@
 
 import { useEffect } from "react"
 import { useDebounceFn, useKeyPress } from "ahooks"
-import { useCommandState } from "cmdk"
 import {
   Bot,
   CalendarDays,
@@ -32,11 +31,11 @@ import {
 } from "@/components/ui/command"
 import { useSpaceAppStore } from "@/app/[database]/store"
 
-import { Button } from "../ui/button"
 import { ActionList } from "./action"
 import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
 import { NodeCommandItems } from "./nodes"
 import { SpaceCommandItems } from "./spaces"
+import { SyscallAction } from "./syscall"
 
 export function CommandDialogDemo() {
   const { isCmdkOpen, setCmdkOpen } = useAppRuntimeStore()
@@ -90,6 +89,9 @@ export function CommandDialogDemo() {
   if (mode === "action") {
     return <ActionList />
   }
+  // if (mode === "syscall") {
+  //   return <SyscallAction />
+  // }
 
   return (
     <CommandDialog open={isCmdkOpen} onOpenChange={setCmdkOpen}>
