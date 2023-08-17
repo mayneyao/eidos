@@ -1,11 +1,9 @@
-import { IView } from "@/worker/meta_table/view"
 import { useCallback, useEffect } from "react"
+import { IView } from "@/worker/meta_table/view"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
 
-import { useSpaceAppStore } from "@/app/[database]/store"
-import { useConfigStore } from "@/app/settings/store"
-import { RowRange } from "@/components/grid/hooks/use-async-data"
+import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import {
   checkSqlIsModifyTableData,
@@ -14,8 +12,10 @@ import {
   sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
 import { generateColumnName, getTableIdByRawTableName } from "@/lib/utils"
+import { RowRange } from "@/components/grid/hooks/use-async-data"
+import { useSpaceAppStore } from "@/app/[database]/store"
+import { useConfigStore } from "@/app/settings/store"
 
-import { FieldType } from "@/lib/fields/const"
 import { useCurrentNode } from "./use-current-node"
 import { useSqlite } from "./use-sqlite"
 
