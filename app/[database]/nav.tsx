@@ -1,5 +1,6 @@
 import {
   Bot,
+  Cable,
   Cloud,
   Github,
   Keyboard,
@@ -7,10 +8,12 @@ import {
   Menu,
   MoreHorizontal,
   Settings,
+  Unplug,
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useAPIAgent } from "@/hooks/use-api-agent"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { usePeer } from "@/hooks/use-peer"
 import { useTable } from "@/hooks/use-table"
@@ -76,12 +79,6 @@ export function DropdownMenuDemo() {
           <Cloud className="mr-2 h-4 w-4" />
           <span>API</span>
         </DropdownMenuItem>
-        {/* <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
-          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-        </DropdownMenuItem> */}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -90,7 +87,7 @@ export function DropdownMenuDemo() {
 export const Nav = () => {
   const { isAiOpen, setIsAiOpen, isSidebarOpen, setSidebarOpen } =
     useSpaceAppStore()
-
+  const { connected } = useAPIAgent()
   const { space: database, tableName: table } = useCurrentPathInfo()
   const { reload } = useTable(table ?? "", database)
   const { currentCollaborators } = usePeer()
@@ -117,9 +114,16 @@ export const Nav = () => {
       <div className="grow" />
       <div className="flex justify-between self-end">
         <AvatarList nameList={nameList} />
-        {/* <Button variant="ghost" onClick={reload}>
-          <RotateCcw className="h-5 w-5" />
-        </Button> */}
+        <div
+          className="p-2"
+          title={connected ? "API Agent Connected" : "No API Agent Connected"}
+        >
+          {connected ? (
+            <Cable className="h-5 w-5 text-green-500" />
+          ) : (
+            <Unplug className="h-5 w-5 text-red-500" />
+          )}
+        </div>
         {!isShareMode && <ShareDialog />}
         <Button variant="ghost" onClick={toggleAi}>
           <Bot className="h-5 w-5" />

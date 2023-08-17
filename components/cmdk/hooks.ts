@@ -31,7 +31,8 @@ export const useCMDKGoto = () => {
 export const useInput = () => {
   const { input, setInput } = useCMDKStore()
   const isActionMode = input.startsWith("/")
-  const mode = isActionMode ? "action" : "search"
+  const isSystemMode = input.startsWith("!")
+  const mode = isActionMode ? "action" : isSystemMode ? "syscall" : "search"
   return {
     input,
     setInput,
