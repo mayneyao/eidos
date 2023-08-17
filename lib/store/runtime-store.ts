@@ -13,9 +13,11 @@ interface AppRuntimeState {
 
   currentPreviewFileUrl: string
   setCurrentPreviewFileUrl: (currentPreviewFileUrl: string) => void
+
+  isWebsocketConnected: boolean
+  setWebsocketConnected: (isWebsocketConnected: boolean) => void
 }
 
-// need persist, store user config in localstorage
 export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
   isCmdkOpen: false,
   setCmdkOpen: (isCmdkOpen) => set({ isCmdkOpen }),
@@ -26,4 +28,8 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
   currentPreviewFileUrl: "",
   setCurrentPreviewFileUrl: (currentPreviewFileUrl) =>
     set({ currentPreviewFileUrl }),
+
+  isWebsocketConnected: false,
+  setWebsocketConnected: (isWebsocketConnected) =>
+    set({ isWebsocketConnected }),
 }))

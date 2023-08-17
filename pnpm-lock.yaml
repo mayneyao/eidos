@@ -72,7 +72,7 @@ specifiers:
   lexical: ^0.11.3
   localforage: ^1.10.0
   lodash: ^4.17.21
-  lucide-react: 0.105.0-alpha.4
+  lucide-react: 0.268.0
   marked: ^5.0.5
   match-sorter: ^6.3.1
   next-themes: ^0.2.1
@@ -163,7 +163,7 @@ dependencies:
   lexical: 0.11.3
   localforage: 1.10.0
   lodash: 4.17.21
-  lucide-react: 0.105.0-alpha.4_react@18.2.0
+  lucide-react: 0.268.0_react@18.2.0
   marked: 5.1.1
   match-sorter: 6.3.1
   next-themes: 0.2.1_biqbaboplfbrettd7655fr4n2y
@@ -7135,8 +7135,8 @@ packages:
     dependencies:
       yallist: 4.0.0
 
-  /lucide-react/0.105.0-alpha.4_react@18.2.0:
-    resolution: {integrity: sha512-QclWOzKYj7sDW33jTQK4enmxL1LmI2SHFqEEP56EWhvs4mmlbbFe6ALYcdcdGysNISNovEbH5WBHg8tN5DLn0w==}
+  /lucide-react/0.268.0_react@18.2.0:
+    resolution: {integrity: sha512-XP/xY3ASJAViqNqVnDRcEfdxfRB7uNST8sqTLwZhL983ikmHMQ7qQak7ZxrnXOVhB3QDBawdr3ANq0P+iWHP/g==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0
     dependencies:

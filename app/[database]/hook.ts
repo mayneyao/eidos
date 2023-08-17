@@ -60,7 +60,7 @@ export const useLayoutInit = () => {
   const { space: database } = useCurrentPathInfo()
   const { setSqliteProxy: setSqlWorker } = useSqliteStore()
   const { setCurrentDatabase, currentDatabase } = useSqliteStore()
-  const { experiment, backupServer } = useConfigStore()
+  const { experiment, backupServer, apiAgentConfig } = useConfigStore()
   const { sqlite } = useSqlite(database)
   const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
 
@@ -84,10 +84,11 @@ export const useLayoutInit = () => {
       data: {
         experiment,
         backupServer,
+        apiAgentConfig,
       },
     })
     ;(window as any).d3 = d3
-  }, [experiment, backupServer])
+  }, [experiment, backupServer, apiAgentConfig])
 
   useEffect(() => {
     if (database && sqlite) {

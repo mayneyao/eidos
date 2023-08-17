@@ -9,6 +9,7 @@ import { initWs } from "./ws"
 // current DB
 let _dataspace: DataSpace | null = null
 const sqlite = new Sqlite()
+let ws: WebSocket
 
 const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
   if (!sqlite.sqlite3) {
@@ -51,7 +52,6 @@ async function loadDatabase(dbName: string) {
 async function main() {
   await sqlite.init()
   postMessage("init")
-  initWs(handleFunctionCall)
   sqlite.backupServer.init()
 }
 
@@ -89,7 +89,26 @@ onmessage = async (e) => {
       return
     case MsgType.SetConfig:
       sqlite.setConfig(data)
-      console.log("load config", data)
+      const { url, enabled } = data.apiAgentConfig
+      if (!enabled) {
+        ws?.close()
+      } else {
+        setTimeout(() => {
+          ws = initWs(handleFunctionCall, url)
+        }, 1000)
+      }
+      break
+    case MsgType.Syscall:
+      console.log(e.data)
+      ws.send(
+        JSON.stringify({
+          id,
+          data: {
+            method: MsgType.Syscall,
+            params: [data],
+          },
+        })
+      )
       break
     default:
       logger.warn("unknown msg type", type)

@@ -5,6 +5,7 @@ import { AIConfigFormValues } from "@/app/settings/ai/ai-form"
 import { BackupServerFormValues } from "@/app/settings/backup/page"
 import { ExperimentFormValues } from "@/app/settings/experiment/experiment-form"
 
+import { APIAgentFormValues } from "./api/page"
 import { ProfileFormValues } from "./profile-form"
 
 interface ConfigState {
@@ -17,6 +18,9 @@ interface ConfigState {
 
   backupServer: BackupServerFormValues
   setBackupServer: (backupServer: BackupServerFormValues) => void
+
+  apiAgentConfig: APIAgentFormValues
+  setAPIAgentConfig: (apiAgentConfig: APIAgentFormValues) => void
 }
 
 export const useConfigStore = create<ConfigState>()(
@@ -38,6 +42,11 @@ export const useConfigStore = create<ConfigState>()(
         token: "",
         autoSaveGap: 10,
       },
+      apiAgentConfig: {
+        url: "ws://localhost:3333",
+        enabled: false,
+      },
+      setAPIAgentConfig: (apiAgentConfig) => set({ apiAgentConfig }),
       setAiConfig: (aiConfig) => set({ aiConfig }),
       setExperiment: (experiment) => set({ experiment }),
       setProfile: (profile) => set({ profile }),
