@@ -84,7 +84,6 @@
     "react-window": "^1.8.9",
     "sharp": "^0.31.3",
     "sort-by": "^1.2.0",
-    "sql-ddl-to-json-schema": "^4.1.0",
     "tailwind-merge": "^1.12.0",
     "tailwindcss-animate": "^1.0.5",
     "utf-8-validate": "^6.0.3",

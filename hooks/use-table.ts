@@ -1,21 +1,19 @@
-import { IView } from "@/worker/meta_table/view"
 import { useCallback, useEffect } from "react"
+import { IView } from "@/worker/meta_table/view"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
 
-import { useSpaceAppStore } from "@/app/[database]/store"
-import { useConfigStore } from "@/app/settings/store"
-import { RowRange } from "@/components/grid/hooks/use-async-data"
+import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import {
   checkSqlIsModifyTableData,
   checkSqlIsModifyTableSchema,
   checkSqlIsOnlyQuery,
-  sqlToJSONSchema2,
 } from "@/lib/sqlite/helper"
 import { generateColumnName, getTableIdByRawTableName } from "@/lib/utils"
+import { RowRange } from "@/components/grid/hooks/use-async-data"
+import { useSpaceAppStore } from "@/app/[database]/store"
 
-import { FieldType } from "@/lib/fields/const"
 import { useCurrentNode } from "./use-current-node"
 import { useSqlite } from "./use-sqlite"
 
@@ -64,21 +62,9 @@ export const useTable = (tableName: string, databaseName: string) => {
   const {
     count,
     setCount,
-    currentSchema: schema,
-    setCurrentSchema: setSchema,
     currentTableSchema: tableSchema,
     setCurrentTableSchema: setTableSchema,
   } = useSpaceAppStore()
-  // const [tableSchema, setTableSchema] = useState<string>()
-
-  // useEffect(() => {
-  //   window.onmessage = (e) => {
-  //     const { type, data } = e.data
-  //     if (type === MsgType.DataUpdateSignal && data.database === databaseName) {
-  //       console.log("refreshRows")
-  //     }
-  //   }
-  // }, [databaseName])
 
   const updateUiColumns = useCallback(async () => {
     if (!sqlite) return
@@ -93,32 +79,10 @@ export const useTable = (tableName: string, databaseName: string) => {
     setViews(res)
   }, [setViews, sqlite, tableName])
 
-  const updateTableSchema = useCallback(async () => {
-    if (!sqlite) return
-    await sqlite.sql`SELECT * FROM sqlite_schema where name=${tableName}`.then(
-      (res: any) => {
-        // array mode
-        const sql = res[0][4] + ";"
-        // object mode
-        // const sql = res[0].sql + ";"
-        if (sql) {
-          setTableSchema(sql)
-          try {
-            const compactJsonTablesArray = sqlToJSONSchema2(sql)
-            setSchema(compactJsonTablesArray)
-          } catch (error) {
-            console.error("error", error)
-          }
-        }
-      }
-    )
-  }, [setSchema, setTableSchema, sqlite, tableName])
-
   const reload = useCallback(async () => {
     console.log(tableName)
     if (!tableName) return
-    await updateTableSchema()
-  }, [updateTableSchema, tableName])
+  }, [tableName])
 
   const updateCell = async (rowId: string, filedName: string, value: any) => {
     if (sqlite) {
@@ -141,36 +105,27 @@ export const useTable = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
-  const updateFieldProperty = async (
-    tableColumnName: string,
-    property: any
-  ) => {
+  const updateFieldProperty = async (field: IUIColumn, property: any) => {
     if (!sqlite) return
-    await sqlite.sql`UPDATE ${Symbol(
-      ColumnTableName
-    )} SET property = ${JSON.stringify(
-      property
-    )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+    await sqlite.updateColumnProperty({
+      tableName,
+      tableColumnName: field.table_column_name,
+      property,
+      isFormula: field.type === FieldType.Formula,
+    })
     await updateUiColumns()
   }
 
-  const addField = async (fieldName: string, fieldType: string) => {
-    const typeMap: any = {
-      text: "TEXT",
-    }
+  const addField = async (fieldName: string, fieldType: FieldType) => {
     if (sqlite) {
-      const table = Symbol(tableName)
-      const columnType = typeMap[fieldType] ?? "TEXT"
       const tableColumnName = generateColumnName()
-      await withTransaction(async () => {
-        await sqlite.sql`ALTER TABLE ${table} ADD COLUMN ${Symbol(
-          tableColumnName
-        )} ${Symbol(columnType)};`
-        await sqlite.sql`INSERT INTO ${Symbol(
-          ColumnTableName
-        )} (name,type,table_name,table_column_name) VALUES (${fieldName},${fieldType},${tableName},${tableColumnName});`
+      await sqlite.addColumn({
+        name: fieldName,
+        type: fieldType,
+        table_name: tableName,
+        table_column_name: tableColumnName,
+        property: {},
       })
-      await updateTableSchema()
       await updateUiColumns()
     }
   }
@@ -186,7 +141,6 @@ export const useTable = (tableName: string, databaseName: string) => {
       )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
     })
     await updateUiColumns()
-    await updateTableSchema()
   }
 
   const deleteFieldByColIndex = async (colIndex: number) => {
@@ -206,35 +160,27 @@ export const useTable = (tableName: string, databaseName: string) => {
   const deleteRows = async (rowIds: string[]) => {
     if (sqlite) {
       await sqlite.sql`DELETE FROM ${Symbol(tableName)} WHERE _id IN ${rowIds}`
-      await updateTableSchema()
     }
   }
 
-  const getCurrentColumns = useCallback(() => {
-    return schema[0]?.columns?.map((col) => col.name)
-  }, [schema])
-
-  const { aiConfig } = useConfigStore()
   const runQuery = useCallback(
     async (querySql: string) => {
       if (sqlite) {
         const res = await sqlite.exec2(querySql)
         console.log(res)
         if (checkSqlIsModifyTableSchema(querySql)) {
-          updateTableSchema()
         }
         if (checkSqlIsOnlyQuery(querySql)) {
           return res
         }
         if (checkSqlIsModifyTableData(querySql)) {
-          const columns = getCurrentColumns()
           if (querySql.includes("UPDATE")) {
           }
         }
         return res
       }
     },
-    [sqlite, updateTableSchema, getCurrentColumns]
+    [sqlite]
   )
 
   const getRowData = useCallback(
@@ -257,15 +203,13 @@ export const useTable = (tableName: string, databaseName: string) => {
       sqlite.sql`SELECT COUNT(*) FROM ${Symbol(tableName)}`.then((res) => {
         const count = res[0]?.[0]
         setCount(count)
-        updateTableSchema()
       })
     }
-  }, [sqlite, tableName, updateTableSchema, setCount, node?.type])
+  }, [sqlite, tableName, setCount, node?.type])
 
   return {
     count,
     getRowData,
-    schema,
     updateCell,
     addField,
     updateFieldName,

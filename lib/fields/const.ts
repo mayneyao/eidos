@@ -9,4 +9,5 @@ export enum FieldType {
   Rating = "rating",
   Select = "select",
   URL = "url",
+  Formula = "formula",
 }

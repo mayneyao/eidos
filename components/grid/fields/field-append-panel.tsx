@@ -1,22 +1,24 @@
 "use client"
 
-import * as React from "react"
 import { useClickAway } from "ahooks"
 import {
   BaselineIcon,
-  HashIcon,
   CalendarDaysIcon,
   CheckSquareIcon,
+  HashIcon,
   ImageIcon,
   LinkIcon,
+  SigmaIcon,
   StarIcon,
   TagIcon,
   TagsIcon,
 } from "lucide-react"
+import * as React from "react"
 
-import { cn } from "@/lib/utils"
-import { IUIColumn } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
+import { IUIColumn } from "@/hooks/use-table"
+import { FieldType } from "@/lib/fields/const"
+import { cn } from "@/lib/utils"
 
 import { useTableAppStore } from "../store"
 
@@ -24,26 +26,28 @@ export function FieldAppendPanel({
   addField,
   uiColumns,
 }: {
-  addField: (fieldName: string, fieldType: string) => Promise<void>
+  addField: (fieldName: string, fieldType: FieldType) => Promise<void>
   uiColumns: IUIColumn[]
 }) {
   const [selectedFieldType, setSelectedFieldType] = React.useState<string>()
   const ref = React.useRef<HTMLDivElement>(null)
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
   const fieldTypes = [
-    { name: "Text", value: "text", icon: BaselineIcon },
-    { name: "Number", value: "number", icon: HashIcon },
-    { name: "Select", value: "select", icon: TagIcon },
-    { name: "MultiSelect", value: "multi-select", icon: TagsIcon },
+    { name: "Text", value: FieldType.Text, icon: BaselineIcon },
+    { name: "Number", value: FieldType.Number, icon: HashIcon },
+    { name: "Select", value: FieldType.Select, icon: TagIcon },
+    { name: "MultiSelect", value: FieldType.MultiSelect, icon: TagsIcon },
     {
       name: "Checkbox",
-      value: "checkbox",
+      value: FieldType.Checkbox,
       icon: CheckSquareIcon,
     },
-    { name: "Rating", value: "rating", icon: StarIcon },
-    { name: "URL", value: "url", icon: LinkIcon },
-    { name: "Date", value: "date", icon: CalendarDaysIcon },
-    { name: "Files", value: "file", icon: ImageIcon },
+    { name: "Rating", value: FieldType.Rating, icon: StarIcon },
+
+    { name: "URL", value: FieldType.URL, icon: LinkIcon },
+    { name: "Date", value: FieldType.Date, icon: CalendarDaysIcon },
+    { name: "Files", value: FieldType.File, icon: ImageIcon },
+    { name: "Formula", value: FieldType.Formula, icon: SigmaIcon },
   ]
 
   const handleAddField = (field: (typeof fieldTypes)[0]) => {

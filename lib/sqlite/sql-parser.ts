@@ -26,10 +26,14 @@ export const transformSql = (
   rawTableName: string,
   columnNameMap: Map<string, string>
 ): string => {
+  const lowerCaseColumnNameMap = new Map<string, string>()
+  columnNameMap.forEach((v, k) => {
+    lowerCaseColumnNameMap.set(k.toLowerCase(), v)
+  })
   // create a mapper
   const mapper = astMapper((map) => ({
     ref: (t) => {
-      const rawName = columnNameMap.get(t.name)
+      const rawName = lowerCaseColumnNameMap.get(t.name)
       if (rawName) {
         return {
           ...t,

@@ -4,6 +4,7 @@ import { useClickAway } from "ahooks"
 import { IUIColumn } from "@/hooks/use-table"
 
 import { useTableAppStore } from "../store"
+import { FormulaPropertyEditor } from "./property/formula/formula-property-editor"
 import { SelectPropertyEditor } from "./property/select/select-property-editor"
 
 const PropertyEditorTypeMap: {
@@ -14,6 +15,7 @@ const PropertyEditorTypeMap: {
 } = {
   select: SelectPropertyEditor,
   "multi-select": SelectPropertyEditor,
+  formula: FormulaPropertyEditor,
 }
 
 const NotImplementEditor = () => {
@@ -21,7 +23,7 @@ const NotImplementEditor = () => {
 }
 
 interface IFieldPropertyEditorProps {
-  updateFieldProperty: (fieldName: string, property: any) => void
+  updateFieldProperty: (fieldName: IUIColumn, property: any) => void
 }
 
 export const FieldPropertyEditor = ({
@@ -33,15 +35,13 @@ export const FieldPropertyEditor = ({
 
   useClickAway(
     (e) => {
-      console.log(e.target)
       setIsFieldPropertiesEditorOpen(false)
     },
     [ref]
   )
 
   const onPropertyChange = (property: any) => {
-    currentField &&
-      updateFieldProperty(currentField?.table_column_name, property)
+    currentField && updateFieldProperty(currentField, property)
   }
 
   const Editor =

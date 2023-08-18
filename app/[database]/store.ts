@@ -1,8 +1,6 @@
 import { ChatCompletionResponseMessage } from "openai"
 import { create } from "zustand"
 
-import { sqlToJSONSchema2 } from "@/lib/sqlite/helper"
-
 // import { devtools, persist } from 'zustand/middleware'
 
 interface ISpaceAppState {
@@ -17,11 +15,6 @@ interface ISpaceAppState {
 
   currentQuery: string
   setCurrentQuery: (currentQuery: string) => void
-
-  // const [schema, setSchema] = useState<ReturnType<typeof sqlToJSONSchema2>>([])
-  // it's for render table
-  currentSchema: ReturnType<typeof sqlToJSONSchema2>
-  setCurrentSchema: (schema: ReturnType<typeof sqlToJSONSchema2>) => void
 
   count: number
   setCount: (count: number) => void
@@ -45,9 +38,6 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set) => ({
 
   currentQuery: "",
   setCurrentQuery: (currentQuery) => set({ currentQuery }),
-
-  currentSchema: [],
-  setCurrentSchema: (schema) => set({ currentSchema: schema }),
 
   count: 0,
   setCount: (count) => set({ count }),

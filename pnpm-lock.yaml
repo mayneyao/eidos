@@ -97,7 +97,6 @@ specifiers:
   react-window: ^1.8.9
   sharp: ^0.31.3
   sort-by: ^1.2.0
-  sql-ddl-to-json-schema: ^4.1.0
   tailwind-merge: ^1.12.0
   tailwindcss: ^3.3.2
   tailwindcss-animate: ^1.0.5
@@ -186,7 +185,6 @@ dependencies:
   react-window: 1.8.9_biqbaboplfbrettd7655fr4n2y
   sharp: 0.31.3
   sort-by: 1.2.0
-  sql-ddl-to-json-schema: 4.1.0
   tailwind-merge: 1.13.2
   tailwindcss-animate: 1.0.6_tailwindcss@3.3.2
   utf-8-validate: 6.0.3
@@ -6957,6 +6955,7 @@ packages:
 
   /json-schema/0.4.0:
     resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
+    dev: true
 
   /json-stable-stringify-without-jsonify/1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
@@ -8394,15 +8393,6 @@ packages:
   /sprintf-js/1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
     dev: true
-
-  /sql-ddl-to-json-schema/4.1.0:
-    resolution: {integrity: sha512-Vt6j9RvkPhaTVB6fHBFaLFqTEsndABY4EznOe+iTh1pp0y5EV3m/IijqQ0N3Q4khfgGpKeJSzw9VI4CRbSwHKQ==}
-    engines: {node: '>=8.6.0 <=20'}
-    dependencies:
-      json-schema: 0.4.0
-      moo: 0.5.1
-      nearley: 2.20.1
-    dev: false
 
   /stack-utils/2.0.6:
     resolution: {integrity: sha512-XlkWvfIm6RmsWtNJx+uqtKLS8eqFbxUg0ZzLXqY0caEy9l7hruX8IpiDnjsLavoBgqCCR71TqWO8MaXYheJ3RQ==}
