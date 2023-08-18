@@ -1,11 +1,3 @@
-import { Parser } from "sql-ddl-to-json-schema"
-
-const parser = new Parser("mysql")
-
-export function sqlToJSONSchema2(sqlQuery: string) {
-  return parser.feed(sqlQuery).toCompactJson()
-}
-
 export function isReadOnlySql(sql: string) {
   const readonlySqls = ["SELECT", "PRAGMA", "EXPLAIN", "ANALYZE"]
   return readonlySqls.some((item) => sql.trim().toUpperCase().startsWith(item))
