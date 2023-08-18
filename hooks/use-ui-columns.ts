@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo } from "react"
 
+import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite } from "./use-sqlite"
 import { IUIColumn, useTableStore } from "./use-table"
 
+export const useCurrentUiColumns = () => {
+  const { space, tableName } = useCurrentPathInfo()
+  return useUiColumns(tableName!, space!)
+}
 export const useUiColumns = (tableName: string, databaseName: string) => {
   const { sqlite } = useSqlite(databaseName)
   const { uiColumns, setUiColumns } = useTableStore()
   const updateUiColumns = useCallback(async () => {
     if (!sqlite) return
-    const res = await sqlite.listUiColumns(tableName)
+    const res = await sqlite.listUiColumns(tableName!)
     setUiColumns(res)
   }, [setUiColumns, sqlite, tableName])
 

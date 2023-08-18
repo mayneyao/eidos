@@ -4,8 +4,8 @@ import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
 
 import { useSpaceAppStore } from "@/app/[database]/store"
-import { useConfigStore } from "@/app/settings/store"
 import { RowRange } from "@/components/grid/hooks/use-async-data"
+import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import {
   checkSqlIsModifyTableData,
@@ -15,7 +15,6 @@ import {
 } from "@/lib/sqlite/helper"
 import { generateColumnName, getTableIdByRawTableName } from "@/lib/utils"
 
-import { FieldType } from "@/lib/fields/const"
 import { useCurrentNode } from "./use-current-node"
 import { useSqlite } from "./use-sqlite"
 
@@ -69,16 +68,6 @@ export const useTable = (tableName: string, databaseName: string) => {
     currentTableSchema: tableSchema,
     setCurrentTableSchema: setTableSchema,
   } = useSpaceAppStore()
-  // const [tableSchema, setTableSchema] = useState<string>()
-
-  // useEffect(() => {
-  //   window.onmessage = (e) => {
-  //     const { type, data } = e.data
-  //     if (type === MsgType.DataUpdateSignal && data.database === databaseName) {
-  //       console.log("refreshRows")
-  //     }
-  //   }
-  // }, [databaseName])
 
   const updateUiColumns = useCallback(async () => {
     if (!sqlite) return
@@ -141,34 +130,26 @@ export const useTable = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
-  const updateFieldProperty = async (
-    tableColumnName: string,
-    property: any
-  ) => {
+  const updateFieldProperty = async (field: IUIColumn, property: any) => {
     if (!sqlite) return
-    await sqlite.sql`UPDATE ${Symbol(
-      ColumnTableName
-    )} SET property = ${JSON.stringify(
-      property
-    )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+    await sqlite.updateColumnProperty({
+      tableName,
+      tableColumnName: field.table_column_name,
+      property,
+      isFormula: field.type === FieldType.Formula,
+    })
     await updateUiColumns()
   }
 
-  const addField = async (fieldName: string, fieldType: string) => {
-    const typeMap: any = {
-      text: "TEXT",
-    }
+  const addField = async (fieldName: string, fieldType: FieldType) => {
     if (sqlite) {
-      const table = Symbol(tableName)
-      const columnType = typeMap[fieldType] ?? "TEXT"
       const tableColumnName = generateColumnName()
-      await withTransaction(async () => {
-        await sqlite.sql`ALTER TABLE ${table} ADD COLUMN ${Symbol(
-          tableColumnName
-        )} ${Symbol(columnType)};`
-        await sqlite.sql`INSERT INTO ${Symbol(
-          ColumnTableName
-        )} (name,type,table_name,table_column_name) VALUES (${fieldName},${fieldType},${tableName},${tableColumnName});`
+      await sqlite.addColumn({
+        name: fieldName,
+        type: fieldType,
+        table_name: tableName,
+        table_column_name: tableColumnName,
+        property: {},
       })
       await updateTableSchema()
       await updateUiColumns()
@@ -214,7 +195,6 @@ export const useTable = (tableName: string, databaseName: string) => {
     return schema[0]?.columns?.map((col) => col.name)
   }, [schema])
 
-  const { aiConfig } = useConfigStore()
   const runQuery = useCallback(
     async (querySql: string) => {
       if (sqlite) {

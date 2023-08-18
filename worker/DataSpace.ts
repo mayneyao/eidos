@@ -2,12 +2,13 @@ import { Database } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
-import { ColumnTableName, TodoTableName } from "@/lib/sqlite/const"
+import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
-import { transformSql } from "@/lib/sqlite/sql-parser"
+import { IColumn, IUIColumn } from "@/hooks/use-table"
 
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
+import { ColumnTable } from "./meta_table/column"
 import { DocTable } from "./meta_table/doc"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
@@ -23,6 +24,7 @@ export class DataSpace {
   action: ActionTable
   tree: TreeTable
   view: ViewTable
+  column: ColumnTable
 
   allTables: BaseTable<any>[] = []
   constructor(db: Database, activeUndoManager: boolean, dbName: string) {
@@ -33,7 +35,8 @@ export class DataSpace {
     this.action = new ActionTable(this)
     this.tree = new TreeTable(this)
     this.view = new ViewTable(this)
-    this.allTables = [this.doc, this.action, this.tree, this.view]
+    this.column = new ColumnTable(this)
+    this.allTables = [this.doc, this.action, this.tree, this.view, this.column]
 
     this.initMetaTable()
     this.undoRedoManager = new SQLiteUndoRedo(this)
@@ -44,24 +47,6 @@ export class DataSpace {
   }
 
   private initMetaTable() {
-    this.exec(`
-    --- ui column definition
-    CREATE TABLE IF NOT EXISTS ${ColumnTableName} (
-      name TEXT,
-      type TEXT,
-      table_name TEXT,
-      table_column_name TEXT,
-      property TEXT
-    );
-
-    --- todo list
-    CREATE TABLE IF NOT EXISTS ${TodoTableName} (
-      content TEXT,
-      done BOOLEAN,
-      doc_id TEXT,
-      list_id TEXT,
-      node_key TEXT
-    );`)
     this.allTables.forEach((table) => {
       this.exec(table.createTableSql)
     })
@@ -86,6 +71,20 @@ export class DataSpace {
 
   public async createDefaultView(tableId: string) {
     return await this.view.createDefaultView(tableId)
+  }
+
+  // columns
+  public async addColumn(data: IUIColumn) {
+    return await this.column.add(data)
+  }
+
+  public async updateColumnProperty(data: {
+    tableName: string
+    tableColumnName: string
+    property: any
+    isFormula?: boolean
+  }) {
+    return await this.column.updateProperty(data)
   }
 
   // actions
@@ -174,11 +173,7 @@ export class DataSpace {
   }
 
   public async listUiColumns(tableName: string) {
-    const cols = await this.exec2(
-      `SELECT * FROM ${ColumnTableName} WHERE table_name=?;`,
-      [tableName]
-    )
-    return cols.filter((col) => !col.name.startsWith("_"))
+    return this.column.list(tableName)
   }
 
   /**
@@ -291,6 +286,7 @@ export class DataSpace {
    */
   public async sql(strings: TemplateStringsArray, ...values: any[]) {
     const { sql, bind } = buildSql(strings, ...values)
+    // console.log(sql, bind)
     const res = this.execSqlWithBind(sql, bind)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
