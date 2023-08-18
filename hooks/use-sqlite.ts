@@ -122,14 +122,7 @@ export const useSqlite = (dbName?: string) => {
   }) => {
     if (!sqlWorker) return
     const { tableName, tableId, sql } = data
-    await withTransaction(async () => {
-      await sqlWorker.sql`${sql}`
-      await sqlWorker.addTreeNode({
-        id: tableId,
-        name: tableName,
-        type: "table",
-      })
-    })
+    await sqlWorker.createTable(tableId, tableName, sql)
   }
   // create table with default template
   const createTable = async (tableName: string) => {

@@ -1,4 +1,3 @@
-
 import { DataSpace } from "../DataSpace"
 import { MetaTable } from "./base"
 import { IView } from "./view"

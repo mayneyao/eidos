@@ -116,14 +116,17 @@ export class DataSpace {
     return doc?.content
   }
 
-  // public async renameDoc(docId: string, newName: string) {
-  //   await opfsDocManager.renameDocFile(
-  //     ["spaces", this.dbName, "docs", `${docId}.md`],
-  //     `${newName}.md`
-  //   )
-  // }
   public async deleteDoc(docId: string) {
     await this.doc.del(docId)
+  }
+
+  public async createTable(id: string, name: string, tableSchema: string) {
+    this.withTransaction(async () => {
+      this.addTreeNode({ id, name, type: "table" })
+      await this.sql`${tableSchema}`
+      // create view for table
+      await this.createDefaultView(id)
+    })
   }
 
   public async listDays(page: number) {
