@@ -45,13 +45,13 @@ export const GalleryCard = ({
             if (field?.type == FieldType.URL) {
               return (
                 <div key={k} className="truncate" title={value}>
-                  {fieldName}: <a href={value}>{value}</a>
+                  <a href={value}>{value}</a>
                 </div>
               )
             }
             return (
               <div key={k} className="truncate" title={value}>
-                {fieldName}: {value}
+                {value}
               </div>
             )
           })}

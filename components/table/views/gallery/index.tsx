@@ -1,5 +1,5 @@
+import { useEffect, useRef, useState } from "react"
 import { IView } from "@/worker/meta_table/view"
-import { useState } from "react"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { VariableSizeGrid as Grid } from "react-window"
 
@@ -18,6 +18,7 @@ interface IGalleryViewProps {
 export const GalleryView = ({ tableName, space, view }: IGalleryViewProps) => {
   const [size, setSize] = useState<any>()
   const { data } = useVideData(view)
+  const ref = useRef<Grid>(null)
   const { uiColumns, uiColumnMap, getFieldByIndex, rawIdNameMap } =
     useUiColumns(tableName, space)
 
@@ -25,10 +26,17 @@ export const GalleryView = ({ tableName, space, view }: IGalleryViewProps) => {
     size?.scaledWidth ?? 0
   )
   const cardHeight = computeCardHeight(view.query, rawIdNameMap.size)
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.resetAfterRowIndex(0)
+    }
+  }, [cardHeight])
+
   return (
     <AutoSizer className="m-3 h-full" onResize={setSize}>
       {({ height, width }) => (
         <Grid
+          ref={ref}
           columnCount={columnCount}
           columnWidth={() => cardWidth}
           height={height}
@@ -43,6 +51,7 @@ export const GalleryView = ({ tableName, space, view }: IGalleryViewProps) => {
             getFieldByIndex,
             rawIdNameMap,
           }}
+          className="pb-[128px]"
         >
           {GalleryCard}
         </Grid>
