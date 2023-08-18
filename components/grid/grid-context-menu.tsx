@@ -5,7 +5,6 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuShortcut,
   ContextMenuTrigger
 } from "@/components/ui/context-menu"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -105,25 +104,8 @@ export function ContextMenuDemo({
             clearSelection()
           }}
         >
-          Delete Rows ({count})<ContextMenuShortcut>⌘[</ContextMenuShortcut>
+          Delete Rows ({count})
         </ContextMenuItem>
-        <ContextMenuItem inset disabled>
-          Forward
-          <ContextMenuShortcut>⌘]</ContextMenuShortcut>
-        </ContextMenuItem>
-        {/* <ContextMenuSub>
-          <ContextMenuSubTrigger inset>More Tools</ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-48">
-            <ContextMenuItem>
-              Save Page As...
-              <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuItem>Create Shortcut...</ContextMenuItem>
-            <ContextMenuItem>Name Window...</ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem>Developer Tools</ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub> */}
         <ContextMenuSeparator />
         {currentField?.type === "url" && (
           <>

@@ -303,6 +303,8 @@ export class DataSpace {
   // just for type check
   public sql2 = this.sql
 
+  // rename for public rpc
+  public sqlQuery = this.sql4mainThread
   /**
    * Symbol can't be transformed between main thread and worker thread.
    * so we need to parse sql in main thread, then call this function. it will equal to call `sql` function in worker thread
