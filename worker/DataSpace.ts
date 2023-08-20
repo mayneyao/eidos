@@ -127,6 +127,16 @@ export class DataSpace {
     return this.doc.getMarkdown(docId)
   }
 
+  /**
+   * if you want to create or update a day page, you should pass a day page id. page id is like 2021-01-01
+   * @param docId
+   * @param mdStr
+   * @returns
+   */
+  public async createOrUpdateDocWithMarkdown(docId: string, mdStr: string) {
+    return this.doc.createOrUpdateWithMarkdown(docId, mdStr)
+  }
+
   public async deleteDoc(docId: string) {
     await this.doc.del(docId)
   }

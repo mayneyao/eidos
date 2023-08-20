@@ -1,5 +1,5 @@
-import { _getDocMarkdown } from "@/hooks/use-doc-editor"
 import { DocTableName } from "@/lib/sqlite/const"
+import { _convertMarkdown2State, _getDocMarkdown } from "@/hooks/use-doc-editor"
 
 import { BaseTable, BaseTableImpl } from "./base"
 
@@ -80,5 +80,30 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
 
   async getMarkdown(id: string) {
     return await _getDocMarkdown(this.dataSpace, id)
+  }
+
+  async createOrUpdateWithMarkdown(id: string, mdStr: string) {
+    // if id is year-month-day, then isDayPage = true
+    let isDayPage = /^\d{4}-\d{2}-\d{2}$/.test(id)
+    const res = await this.get(id)
+    const content = await _convertMarkdown2State(mdStr)
+    try {
+      if (!res) {
+        await this.add({ id, content, isDayPage })
+      } else {
+        await this.set(id, { id, content, isDayPage })
+      }
+      return {
+        id,
+        success: true,
+      }
+    } catch (error) {
+      console.error(error)
+      return {
+        id,
+        success: false,
+        msg: `${JSON.stringify(error)}`,
+      }
+    }
   }
 }
