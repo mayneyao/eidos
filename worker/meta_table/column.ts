@@ -62,19 +62,21 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IUIColumn> {
     isFormula?: boolean
   }) {
     const { tableName, tableColumnName, property, isFormula } = data
-    await this.dataSpace.sql`UPDATE ${Symbol(
-      ColumnTableName
-    )} SET property = ${JSON.stringify(
-      property
-    )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
-    if (isFormula) {
-      this.dataSpace.exec(
-        `
-        ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};
-        ALTER TABLE ${tableName} ADD COLUMN ${tableColumnName} GENERATED ALWAYS AS (${property.formula});
-        `
-      )
-    }
+    await this.dataSpace.withTransaction(async () => {
+      await this.dataSpace.sql`UPDATE ${Symbol(
+        ColumnTableName
+      )} SET property = ${JSON.stringify(
+        property
+      )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+      if (isFormula) {
+        this.dataSpace.exec(
+          `
+          ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};
+          ALTER TABLE ${tableName} ADD COLUMN ${tableColumnName} GENERATED ALWAYS AS (${property.formula});
+          `
+        )
+      }
+    })
   }
 
   async list(tableName: string): Promise<IUIColumn[]> {
