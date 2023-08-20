@@ -1,6 +1,4 @@
 import { Play } from "lucide-react"
-
-import "./prism-config"
 import Prism from "prismjs"
 
 import { Button } from "@/components/ui/button"
@@ -38,7 +36,8 @@ export const AIMessage = ({
     },
     codeblock: function Code(props) {
       const { lang = "sql", text } = props
-      const codeHtml = Prism.highlight(text, Prism.languages[lang], lang)
+      const grammar = Prism.languages[lang] ?? Prism.languages["sql"]
+      const codeHtml = Prism.highlight(text, grammar, lang)
       // if it's a d3 codeblock, we need to render it differently
       if (lang === "js" && text.includes("d3.")) {
         return <div />
