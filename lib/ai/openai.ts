@@ -1,5 +1,6 @@
 import { ITreeNode } from "@/worker/meta_table/tree"
-import { ChatCompletionResponseMessage, Configuration, OpenAIApi } from "openai"
+import { ChatRequest, FunctionCallHandler, nanoid } from "ai"
+import OpenAI from "openai"
 
 import { IUIColumn } from "@/hooks/use-table"
 
@@ -28,14 +29,14 @@ import { functionParamsSchemaMap, functions } from "./functions"
 // `
 
 export const getOpenAI = (token: string) => {
-  const configuration = new Configuration({
+  const configuration = {
     apiKey: token ?? process.env.OPENAI_API_KEY,
-  })
-  const openai = new OpenAIApi(configuration)
+  }
+  const openai = new OpenAI(configuration)
   return openai
 }
 
-const getPrompt = (
+export const getPrompt = (
   baseSysPrompt: string,
   context: {
     tableSchema?: string
@@ -99,7 +100,7 @@ ${context.currentDocMarkdown}
 }
 
 export const askAI =
-  (baseSysPrompt: string, openai?: OpenAIApi) =>
+  (baseSysPrompt: string, openai?: OpenAI) =>
   async (
     messages: any[],
     context: {
@@ -114,7 +115,7 @@ export const askAI =
     if (!openai) return
     const systemPrompt = getPrompt(baseSysPrompt, context)
     console.log("systemPrompt", systemPrompt)
-    const completion = await openai.createChatCompletion({
+    const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo-0613",
       temperature: 0,
       messages: [
@@ -127,15 +128,13 @@ export const askAI =
       functions,
       function_call: "auto",
     })
-    return completion.data.choices[0]
+    return completion.choices[0]
   }
 
-export const handleOpenAIFunctionCall = async (
-  response: ChatCompletionResponseMessage,
-  handleFunctionCall: (name: string, argumentsStr: string) => Promise<any>
-) => {
-  if (response.function_call) {
-    const { name, arguments: argumentsStr } = response.function_call
+type IGetFunctionCallHandler = (handleFunctionCall: any) => FunctionCallHandler
+export const getFunctionCallHandler: IGetFunctionCallHandler =
+  (handleFunctionCall: any) => async (chatMessages, functionCall) => {
+    const { name, arguments: argumentsStr } = functionCall
     if (!name) return
     let argumentsObj
     try {
@@ -151,9 +150,18 @@ export const handleOpenAIFunctionCall = async (
     console.log(
       `function_call: ${name}, arguments: ${JSON.stringify(argumentsObj)}`
     )
-    return {
-      resp: await handleFunctionCall(name, argumentsObj),
-      name: name,
+    const funCallResp = await handleFunctionCall(name, argumentsObj)
+
+    const functionResponse: ChatRequest = {
+      messages: [
+        ...chatMessages,
+        {
+          id: nanoid(),
+          name,
+          role: "function" as const,
+          content: JSON.stringify(funCallResp),
+        },
+      ],
     }
+    return functionResponse
   }
-}

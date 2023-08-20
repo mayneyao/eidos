@@ -1,5 +1,4 @@
 import { Bot, Trash2, User } from "lucide-react"
-import { ChatCompletionResponseMessage } from "openai"
 
 import { AIMessage } from "./ai-chat-message-prisma"
 
@@ -9,7 +8,7 @@ export const AIChatMessage = ({
   handleRunCode,
 }: {
   msgIndex: number
-  message: ChatCompletionResponseMessage
+  message: any
   handleRunCode: any
 }) => {
   return (

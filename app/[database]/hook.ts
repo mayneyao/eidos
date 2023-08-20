@@ -2,7 +2,11 @@ import { useEffect, useState } from "react"
 import { useKeyPress } from "ahooks"
 import * as d3 from "d3"
 
-import { MsgType } from "@/lib/const"
+import {
+  MainServiceWorkerMsgType,
+  MsgType,
+  mainServiceWorkerChannel,
+} from "@/lib/const"
 import { getSqliteProxy } from "@/lib/sqlite/proxy"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppStore } from "@/lib/store/app-store"
@@ -60,7 +64,8 @@ export const useLayoutInit = () => {
   const { space: database } = useCurrentPathInfo()
   const { setSqliteProxy: setSqlWorker } = useSqliteStore()
   const { setCurrentDatabase, currentDatabase } = useSqliteStore()
-  const { experiment, backupServer, apiAgentConfig } = useConfigStore()
+  const { experiment, backupServer, apiAgentConfig, aiConfig } =
+    useConfigStore()
   const { sqlite } = useSqlite(database)
   const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
 
@@ -87,8 +92,16 @@ export const useLayoutInit = () => {
         apiAgentConfig,
       },
     })
+    // TODO: combine setConfig and setData with env class
+    mainServiceWorkerChannel.postMessage({
+      type: MainServiceWorkerMsgType.SetData,
+      data: {
+        key: "apiKey",
+        value: aiConfig.token,
+      },
+    })
     ;(window as any).d3 = d3
-  }, [experiment, backupServer, apiAgentConfig])
+  }, [experiment, backupServer, apiAgentConfig, aiConfig.token])
 
   useEffect(() => {
     if (database && sqlite) {
@@ -121,9 +134,12 @@ export const useLayoutInit = () => {
 
   useEffect(() => {
     setCurrentDatabase(database)
-    navigator?.serviceWorker?.controller?.postMessage({
-      type: "space",
-      data: database,
+    mainServiceWorkerChannel.postMessage({
+      type: MainServiceWorkerMsgType.SetData,
+      data: {
+        key: "space",
+        value: database,
+      },
     })
   }, [database, setCurrentDatabase])
 }

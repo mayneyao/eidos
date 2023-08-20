@@ -13,3 +13,10 @@ export enum MsgType {
   WebSocketConnected = "WebSocketConnected",
   WebSocketDisconnected = "WebSocketDisconnected",
 }
+
+export enum MainServiceWorkerMsgType {
+  // msg window => service worker
+  SetData = "SetData",
+}
+
+export const mainServiceWorkerChannel = new BroadcastChannel("main-sw")

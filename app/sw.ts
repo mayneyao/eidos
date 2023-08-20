@@ -1,5 +1,8 @@
 import { precacheAndRoute } from "workbox-precaching"
 
+import { chatAPIHandle } from "@/lib/ai/sw-server"
+import { workerEnv } from "@/lib/env"
+
 declare var self: ServiceWorkerGlobalScope
 
 const getDirHandle = async (_paths: string[]) => {
@@ -23,21 +26,15 @@ self.addEventListener("activate", (event) => {
   console.log("Service worker activated")
 })
 
-let space: string
-self.addEventListener("message", function (event) {
-  if (event.data.type === "space") {
-    space = event.data.data
-    console.log(space)
-  }
-})
-
 function isFileUrl(pathname: string) {
+  const space = workerEnv.get("space")
   return (
     pathname.startsWith(`/${space}/files/`) || pathname.startsWith(`/files/`)
   )
 }
 
 function getFixedFieldPathname(pathname: string) {
+  const space = workerEnv.get("space")
   if (pathname.startsWith(`/files/`)) {
     return `/${space}` + pathname
   }
@@ -56,6 +53,9 @@ self.addEventListener("fetch", async (event) => {
         return new Response(file, { headers })
       })
     )
+  }
+  if (url.pathname == "/api/chat") {
+    event.respondWith(chatAPIHandle(event))
   }
 })
 

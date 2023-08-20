@@ -1,5 +1,8 @@
 import { useCallback } from "react"
-import { DataSpace } from "@/worker/DataSpace"
+import type { DataSpace } from "@/worker/DataSpace"
+
+import "@/lib/prism-config"
+// lexical code highlight depends on prismjs which run in worker prism-config disable messageHandler otherwise it will throw error
 import { CodeHighlightNode, CodeNode } from "@lexical/code"
 import { createHeadlessEditor } from "@lexical/headless"
 import { AutoLinkNode, LinkNode } from "@lexical/link"
