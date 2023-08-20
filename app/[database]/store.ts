@@ -1,4 +1,3 @@
-import { ChatCompletionResponseMessage } from "openai"
 import { create } from "zustand"
 
 // import { devtools, persist } from 'zustand/middleware'
@@ -7,8 +6,8 @@ interface ISpaceAppState {
   isAiOpen: boolean
   setIsAiOpen: (isAiOpen: boolean) => void
 
-  aiMessages: ChatCompletionResponseMessage[]
-  setAiMessages: (aiMessages: ChatCompletionResponseMessage[]) => void
+  aiMessages: any[]
+  setAiMessages: (aiMessages: any[]) => void
 
   currentTableSchema: string
   setCurrentTableSchema: (currentTableSchema: string) => void
