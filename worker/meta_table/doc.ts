@@ -1,3 +1,4 @@
+import { _getDocMarkdown } from "@/hooks/use-doc-editor"
 import { DocTableName } from "@/lib/sqlite/const"
 
 import { BaseTable, BaseTableImpl } from "./base"
@@ -75,5 +76,9 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   async del(id: string) {
     this.dataSpace.exec(`DELETE FROM ${this.name} WHERE id = ?`, [id])
     return true
+  }
+
+  async getMarkdown(id: string) {
+    return await _getDocMarkdown(this.dataSpace, id)
   }
 }

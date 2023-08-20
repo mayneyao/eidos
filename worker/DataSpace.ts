@@ -1,10 +1,10 @@
 import { Database } from "@sqlite.org/sqlite-wasm"
 
-import { IUIColumn } from "@/hooks/use-table"
 import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
+import { IUIColumn } from "@/hooks/use-table"
 
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
@@ -103,6 +103,7 @@ export class DataSpace {
     return this.action.list()
   }
 
+  // docs
   public async addDoc(docId: string, content: string, isDayPage = false) {
     await this.doc.add({ id: docId, content, isDayPage })
   }
@@ -120,6 +121,10 @@ export class DataSpace {
   public async getDoc(docId: string) {
     const doc = await this.doc.get(docId)
     return doc?.content
+  }
+
+  public async getDocMarkdown(docId: string) {
+    return this.doc.getMarkdown(docId)
   }
 
   public async deleteDoc(docId: string) {
