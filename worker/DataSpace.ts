@@ -1,10 +1,10 @@
 import { Database } from "@sqlite.org/sqlite-wasm"
 
+import { IUIColumn } from "@/hooks/use-table"
 import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
-import { IColumn, IUIColumn } from "@/hooks/use-table"
 
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
@@ -13,6 +13,7 @@ import { DocTable } from "./meta_table/doc"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
+import { ALL_UDF } from "./udf"
 
 export class DataSpace {
   db: Database
@@ -44,8 +45,14 @@ export class DataSpace {
     if (activeUndoManager) {
       this.activeAllTablesUndoRedo()
     }
+    this.initUDF()
   }
 
+  private initUDF() {
+    ALL_UDF.forEach((udf) => {
+      this.db.createFunction(udf)
+    })
+  }
   private initMetaTable() {
     this.allTables.forEach((table) => {
       this.exec(table.createTableSql)
@@ -339,8 +346,15 @@ export class DataSpace {
   }
 
   public async withTransaction(fn: Function) {
-    this.db.exec("BEGIN TRANSACTION;")
-    await fn()
-    this.db.exec("COMMIT;")
+    // TODO: use this.db.transaction replace
+    try {
+      this.db.exec("BEGIN TRANSACTION;")
+      await fn()
+    } catch (error) {
+      this.db.exec("ROLLBACK;")
+      throw error
+    } finally {
+      this.db.exec("COMMIT;")
+    }
   }
 }
