@@ -36,7 +36,7 @@ specifiers:
   '@radix-ui/react-toast': ^1.1.4
   '@radix-ui/react-toggle': ^1.0.3
   '@rkusa/wasm-sqlite': ^0.1.1
-  '@sqlite.org/sqlite-wasm': 3.42.0-build1
+  '@sqlite.org/sqlite-wasm': 3.42.0-build7
   '@tailwindcss/typography': ^0.5.9
   '@types/d3': ^7.4.0
   '@types/jest': ^29.5.2
@@ -149,7 +149,7 @@ dependencies:
   '@radix-ui/react-toast': 1.1.4_hrrtw4it2dqo6rzcqzvl36ff7i
   '@radix-ui/react-toggle': 1.0.3_hrrtw4it2dqo6rzcqzvl36ff7i
   '@rkusa/wasm-sqlite': 0.1.1
-  '@sqlite.org/sqlite-wasm': 3.42.0-build1
+  '@sqlite.org/sqlite-wasm': 3.42.0-build7
   ahooks: 3.7.8_react@18.2.0
   bufferutil: 4.0.7
   class-variance-authority: 0.4.0_typescript@5.1.6
@@ -3858,9 +3858,11 @@ packages:
       '@sinonjs/commons': 3.0.0
     dev: true
 
-  /@sqlite.org/sqlite-wasm/3.42.0-build1:
-    resolution: {integrity: sha512-uUKiCihaIMkIUBtzgiAM0+/mB/VQTb2P1U+ZbvNFPCyyIiFDdxIacn7+3WW1DTHYWmjCx1O70bw+iVbHyNrDUg==}
+  /@sqlite.org/sqlite-wasm/3.42.0-build7:
+    resolution: {integrity: sha512-3c8zpD8w9ex9ZA+y86tv85bj9zioRsCTt9MkVPEwAjhZ8InjxeoLZTyCw0LpH6fF9N2V1iZCKeFoDVbimv1q8g==}
     hasBin: true
+    optionalDependencies:
+      comlink: 4.4.1
     dev: false
 
   /@surma/rollup-plugin-off-main-thread/2.2.3:
@@ -4976,6 +4978,12 @@ packages:
     dependencies:
       delayed-stream: 1.0.0
     dev: false
+
+  /comlink/4.4.1:
+    resolution: {integrity: sha512-+1dlx0aY5Jo1vHy/tSsIGpSkN4tS9rZSW8FIhG0JH/crs9wwweswIo/POr451r7bZww3hFbPAKnTpimzL/mm4Q==}
+    requiresBuild: true
+    dev: false
+    optional: true
 
   /command-score/0.1.2:
     resolution: {integrity: sha512-VtDvQpIJBvBatnONUsPzXYFVKQQAhuf3XTNOAsdBxCNO/QCtUUd8LSgjn0GVarBkCad6aJCZfXgrjYbl/KRr7w==}
