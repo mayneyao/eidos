@@ -1,7 +1,12 @@
-import { useCallback, useEffect } from "react"
 import { ViewTypeEnum } from "@/worker/meta_table/view"
 import { PlusIcon } from "lucide-react"
-import { createSearchParams, useLocation, useNavigate } from "react-router-dom"
+import { useCallback, useEffect } from "react"
+import {
+  createSearchParams,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom"
 
 import { useTable } from "@/hooks/use-table"
 
@@ -24,6 +29,8 @@ export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
   const location = useLocation()
   const { addView, delView } = useViewOperation()
   const { currentView, setCurrentViewId, defaultViewId } = useCurrentView()
+  const [searchParams] = useSearchParams()
+  const sharePeerId = searchParams.get("peerId")
 
   const jump2View = useCallback(
     (viewId: string) => {
@@ -34,12 +41,17 @@ export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
       }
       navigate({
         pathname: location.pathname,
-        search: `?${createSearchParams({
-          v: viewId,
-        })}`,
+        search: sharePeerId
+          ? `?${createSearchParams({
+              v: viewId,
+              peerId: sharePeerId,
+            })}`
+          : `?${createSearchParams({
+              v: viewId,
+            })}`,
       })
     },
-    [isEmbed, location.pathname, navigate, setCurrentViewId]
+    [isEmbed, location.pathname, navigate, setCurrentViewId, sharePeerId]
   )
 
   const handleAddView = useCallback(async () => {

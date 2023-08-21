@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from "react"
 
+import { Editor } from "@/components/doc/editor"
+import { Table } from "@/components/table"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { Editor } from "@/components/doc/editor"
-import Grid from "@/components/grid"
-import { Table } from "@/components/table"
 
 export default function TablePage() {
   const params = useCurrentPathInfo()

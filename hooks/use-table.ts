@@ -15,6 +15,7 @@ import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { useCurrentNode } from "./use-current-node"
+import { useSqlWorker } from "./use-sql-worker"
 import { useSqlite } from "./use-sqlite"
 
 // PRAGMA table_info('table_name') will return IColumn[]
@@ -57,7 +58,8 @@ export const useTableStore = create<TableState>()((set) => ({
 }))
 
 export const useTable = (tableName: string, databaseName: string) => {
-  const { sqlite, withTransaction } = useSqlite(databaseName)
+  const { withTransaction } = useSqlite(databaseName)
+  const sqlite = useSqlWorker()
   const { setUiColumns, uiColumns, views, setViews } = useTableStore()
   const {
     count,

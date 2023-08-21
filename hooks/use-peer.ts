@@ -7,6 +7,7 @@ import {
   ICollaborator,
   IMsg,
 } from "@/lib/collaboration/interface"
+import { EidosDataEventChannelName } from "@/lib/const"
 import { getWorker } from "@/lib/sqlite/worker"
 
 interface PeerState {
@@ -81,6 +82,7 @@ const serverConfig = {
   path: "/myapp",
 }
 
+// only call once
 export const usePeerConnect = (connectId: string | null, name?: string) => {
   const { connectMap, removeConnect, addConnect } = usePeerStore()
   const { peer, peerId } = usePeer()
@@ -141,21 +143,22 @@ export const usePeer = () => {
     currentCollaborators,
   } = usePeerStore()
 
+  // handle msg from clients
   const handleMsg = useCallback(
     (msg: IMsg, conn: DataConnection) => {
       switch (msg.type) {
-        case "JOIN":
+        case ECollaborationMsgType.JOIN:
           console.log("JOIN", msg.payload.collaborator)
           addCollaborator(msg.payload.collaborator)
           break
-        case "LEAVE":
+        case ECollaborationMsgType.LEAVE:
           console.log("LEAVE", msg.payload.collaborator)
           removeCollaborator(msg.payload.collaborator)
           break
-        case "MOVE_CURSOR":
+        case ECollaborationMsgType.MOVE_CURSOR:
           console.log("MOVE_CURSOR", msg.payload)
           break
-        case "QUERY":
+        case ECollaborationMsgType.QUERY:
           const worker = getWorker()
           // TODO: check sql syntax, for now only allow read-only query
           // TODO: advance permission system
@@ -187,11 +190,23 @@ export const usePeer = () => {
      */
     const OriginPeer = (await import("peerjs")).default
     const peer = new OriginPeer()
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
+
     peer.on("open", (id) => setPeerId(id))
     peer.on("connection", (conn) => {
       conn.on("data", (data) => {
         handleMsg(data as IMsg, conn)
       })
+      bc.onmessage = (e) => {
+        console.log("broadcast to clients", e.data)
+        conn?.send({
+          type: ECollaborationMsgType.FORWARD,
+          payload: e.data,
+        })
+      }
+    })
+    peer.on("disconnected", () => {
+      bc.close()
     })
     setPeer(peer)
   }, [handleMsg, setPeer, setPeerId])

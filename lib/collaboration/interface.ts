@@ -15,6 +15,9 @@ export enum ECollaborationMsgType {
   MOVE_CURSOR = "MOVE_CURSOR",
   QUERY = "QUERY",
   QUERY_RESP = "QUERY_RESP",
+
+  // forward broadcast message
+  FORWARD = "FORWARD",
 }
 
 export interface IMsgJoin {
@@ -55,9 +58,22 @@ export interface IMsgQuery {
   }
 }
 
+export interface IMsgForward {
+  type: ECollaborationMsgType.FORWARD
+  payload: {
+    collaboratorId: string
+    msg: any
+  }
+}
+
 export interface IMsgQueryResp {
   type: ECollaborationMsgType.QUERY_RESP
   payload: IQueryResp
 }
 
-export type IMsg = IMsgJoin | IMsgLeave | IMsgMoveCursor | IMsgQuery
+export type IMsg =
+  | IMsgJoin
+  | IMsgLeave
+  | IMsgMoveCursor
+  | IMsgQuery
+  | IMsgForward

@@ -13,6 +13,7 @@ import { DocTable } from "./meta_table/doc"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
+import { DataChangeTrigger } from "./trigger/data_change_trigger"
 import { ALL_UDF } from "./udf"
 
 export class DataSpace {
@@ -26,12 +27,13 @@ export class DataSpace {
   tree: TreeTable
   view: ViewTable
   column: ColumnTable
-
+  dataChangeTrigger: DataChangeTrigger
   allTables: BaseTable<any>[] = []
   constructor(db: Database, activeUndoManager: boolean, dbName: string) {
     this.db = db
     this.dbName = dbName
-
+    this.initUDF()
+    this.dataChangeTrigger = new DataChangeTrigger()
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
     this.tree = new TreeTable(this)
@@ -45,7 +47,6 @@ export class DataSpace {
     if (activeUndoManager) {
       this.activeAllTablesUndoRedo()
     }
-    this.initUDF()
   }
 
   private initUDF() {
@@ -57,6 +58,12 @@ export class DataSpace {
     this.allTables.forEach((table) => {
       this.exec(table.createTableSql)
     })
+  }
+  // table change callback
+  public async onTableChange(space: string, tableName: string) {
+    if (space === this.dbName) {
+      await this.dataChangeTrigger.createTrigger(this, tableName)
+    }
   }
 
   // views
