@@ -5,9 +5,10 @@ import { toast } from "@/components/ui/use-toast"
 
 import {
   ECollaborationMsgType,
+  IMsgForward,
   IMsgQueryResp,
 } from "../collaboration/interface"
-import { MsgType } from "../const"
+import { EidosDataEventChannelName, MsgType } from "../const"
 import { uuidv4 } from "../utils"
 import { buildSql } from "./helper"
 import { IQuery } from "./interface"
@@ -86,9 +87,10 @@ export class LocalSqlite implements ISqlite<Worker> {
 
 export class RemoteSqlite implements ISqlite<DataConnection> {
   connector: DataConnection
-
+  bc: BroadcastChannel
   constructor(connector: DataConnection) {
     this.connector = connector
+    this.bc = new BroadcastChannel(EidosDataEventChannelName)
   }
 
   send(data: any) {
@@ -107,6 +109,12 @@ export class RemoteSqlite implements ISqlite<DataConnection> {
           const _data = data as IMsgQueryResp
           if (_data.payload.id === thisCallId) {
             resolve(_data.payload.data.result)
+          }
+        }
+        if (type == ECollaborationMsgType.FORWARD) {
+          const _data = data as IMsgForward
+          if (_data.payload) {
+            this.bc.postMessage(_data.payload)
           }
         }
       })

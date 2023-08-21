@@ -6,6 +6,7 @@ import { ITreeNode } from "@/worker/meta_table/tree"
 import { create } from "zustand"
 
 import { TreeTableName } from "@/lib/sqlite/const"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { createTemplateTableSql } from "@/components/grid/helper"
 
@@ -78,6 +79,7 @@ export const useSqlite = (dbName?: string) => {
     setAllNodes,
     setAllUiColumns,
   } = useSqliteStore()
+  const { isShareMode } = useAppRuntimeStore()
 
   const queryAllNodes = useCallback(async () => {
     if (!sqlWorker) return
@@ -338,7 +340,7 @@ export const useSqlite = (dbName?: string) => {
   }
 
   return {
-    sqlite: isInitialized ? sqlWorker : null,
+    sqlite: isShareMode ? sqlWorker : isInitialized ? sqlWorker : null,
     createTable,
     deleteTable,
     duplicateTable,
