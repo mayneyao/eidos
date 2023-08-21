@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react"
 import { IView } from "@/worker/meta_table/view"
 import { useSearchParams } from "react-router-dom"
 
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+} from "@/lib/const"
 import { transformSql } from "@/lib/sqlite/sql-parser"
 import { getRawTableNameById } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -95,6 +100,46 @@ export const useVideData = (view: IView) => {
       })
     }
   }, [sqlite, query, tableName, view.id, nameRawIdMap])
+
+  useEffect(() => {
+    // TODO: Use a universal data source manager, which should be a singleton instance, with a mapping to store all data sources, and also an array to store the order.
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
+    bc.onmessage = (e: MessageEvent) => {
+      const { type, payload } = e.data
+      if (
+        type === EidosDataEventChannelMsgType.DataUpdateSignalType &&
+        payload.table === tableName
+      ) {
+        const { _new, _old } = payload
+        switch (payload.type) {
+          case DataUpdateSignalType.Insert:
+            setData((data) => [...data, _new])
+            break
+          case DataUpdateSignalType.Update:
+            setData((data) => {
+              const index = data.findIndex((d) => d._id == _old._id)
+              if (index !== -1) {
+                data[index] = payload._new
+              }
+              return [...data]
+            })
+            break
+          case DataUpdateSignalType.Delete:
+            setData((data) => {
+              const index = data.findIndex((d) => d.id == _old.id)
+              if (index !== -1) {
+                data.splice(index, 1)
+              }
+              return [...data]
+            })
+            break
+        }
+      }
+    }
+    return () => {
+      bc.close()
+    }
+  }, [tableName])
 
   return {
     data,

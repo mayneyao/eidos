@@ -13,6 +13,12 @@ import {
 import chunk from "lodash/chunk.js"
 import range from "lodash/range.js"
 
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+} from "@/lib/const"
+
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange) => Promise<readonly T[]>
 type RowToCell<T> = (row: T, col: number) => GridCell
@@ -195,7 +201,8 @@ export function useAsyncData<TRowType>(
   const refreshCurrentVisible = React.useCallback(() => {
     const vr = visiblePagesRef.current
     const damageList: { cell: [number, number] }[] = []
-    for (let row = vr.y; row < vr.y + vr.height; row++) {
+    const height = vr.height
+    for (let row = vr.y; row < vr.y + height; row++) {
       for (let col = vr.x; col < vr.x + vr.width; col++) {
         damageList.push({
           cell: [col, row],
@@ -208,6 +215,50 @@ export function useAsyncData<TRowType>(
   const getRowByIndex = (index: number) => {
     return dataRef.current[index]
   }
+
+  const getRowIndexById = (id: string) => {
+    const rowIndex = dataRef.current.findIndex((row: any) => row._id === id)
+    return rowIndex
+  }
+
+  useEffect(() => {
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
+    bc.onmessage = (ev) => {
+      const { type, payload } = ev.data
+      if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
+        const { table, _new, _old } = payload
+        if (tableName !== table) return
+        switch (payload.type) {
+          case DataUpdateSignalType.Update:
+            const rowIndex = getRowIndexById(_old._id)
+            if (rowIndex !== -1) {
+              dataRef.current[rowIndex] = _new
+              refreshCurrentVisible()
+            }
+            break
+          case DataUpdateSignalType.Delete:
+            const rowIndex2 = getRowIndexById(_old._id)
+            if (rowIndex2 !== -1) {
+              dataRef.current.splice(rowIndex2, 1)
+              refreshCurrentVisible()
+            }
+            break
+          case DataUpdateSignalType.Insert:
+            const rowIndex3 = getRowIndexById(_new._id)
+            if (rowIndex3 !== -1) {
+              dataRef.current.splice(rowIndex3, 1)
+              refreshCurrentVisible()
+            }
+            break
+          default:
+            break
+        }
+      }
+    }
+    return () => {
+      bc.close()
+    }
+  }, [refreshCurrentVisible, tableName])
 
   return {
     getCellContent,

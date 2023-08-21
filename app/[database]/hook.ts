@@ -20,13 +20,6 @@ import { useWorker } from "@/hooks/use-worker"
 import { useConfigStore } from "../settings/store"
 import { useSpaceAppStore } from "./store"
 
-export const useTableChange = (callback: Function) => {
-  const { database, tableName: table } = useCurrentPathInfo()
-  useEffect(() => {
-    callback()
-  }, [callback, database, table])
-}
-
 export const useCurrentDomain = () => {
   const [domain, setDomain] = useState("")
 
@@ -61,7 +54,7 @@ export const useLastOpened = () => {
 }
 
 export const useLayoutInit = () => {
-  const { space: database } = useCurrentPathInfo()
+  const { space: database, tableName } = useCurrentPathInfo()
   const { setSqliteProxy: setSqlWorker } = useSqliteStore()
   const { setCurrentDatabase, currentDatabase } = useSqliteStore()
   const { experiment, backupServer, apiAgentConfig, aiConfig } =
@@ -142,4 +135,11 @@ export const useLayoutInit = () => {
       },
     })
   }, [database, setCurrentDatabase])
+
+  useEffect(() => {
+    // when table name changed
+    if (database && tableName) {
+      sqlite?.onTableChange(database, tableName)
+    }
+  }, [database, tableName, sqlite])
 }
