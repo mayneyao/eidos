@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useMemo } from "react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
@@ -23,9 +23,6 @@ export const useSqlWorker = () => {
     () => checkSqlWorkerIsOk2Call(),
     [checkSqlWorkerIsOk2Call]
   )
-  useEffect(() => {
-    console.log("useSqlWorker:isOk2call", isOk2call)
-  }, [isOk2call])
 
   return isOk2call ? sqlWorker : undefined
 }
