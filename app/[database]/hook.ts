@@ -3,9 +3,9 @@ import { useKeyPress } from "ahooks"
 import * as d3 from "d3"
 
 import {
+  EidosSharedEnvChannelName,
   MainServiceWorkerMsgType,
   MsgType,
-  mainServiceWorkerChannel,
 } from "@/lib/const"
 import { getSqliteProxy } from "@/lib/sqlite/proxy"
 import { getWorker } from "@/lib/sqlite/worker"
@@ -20,6 +20,7 @@ import { useWorker } from "@/hooks/use-worker"
 import { useConfigStore } from "../settings/store"
 import { useSpaceAppStore } from "./store"
 
+const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
   const [domain, setDomain] = useState("")
 
@@ -85,16 +86,8 @@ export const useLayoutInit = () => {
         apiAgentConfig,
       },
     })
-    // TODO: combine setConfig and setData with env class
-    mainServiceWorkerChannel.postMessage({
-      type: MainServiceWorkerMsgType.SetData,
-      data: {
-        key: "apiKey",
-        value: aiConfig.token,
-      },
-    })
     ;(window as any).d3 = d3
-  }, [experiment, backupServer, apiAgentConfig, aiConfig.token])
+  }, [experiment, backupServer, apiAgentConfig])
 
   useEffect(() => {
     if (database && sqlite) {
@@ -127,14 +120,17 @@ export const useLayoutInit = () => {
 
   useEffect(() => {
     setCurrentDatabase(database)
+  }, [database, setCurrentDatabase])
+
+  useEffect(() => {
     mainServiceWorkerChannel.postMessage({
       type: MainServiceWorkerMsgType.SetData,
       data: {
-        key: "space",
-        value: database,
+        apiKey: aiConfig.token,
+        space: database,
       },
     })
-  }, [database, setCurrentDatabase])
+  }, [aiConfig.token, database])
 
   useEffect(() => {
     // when table name changed

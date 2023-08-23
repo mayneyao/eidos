@@ -35,9 +35,12 @@ export default defineConfig({
       registerType: "autoUpdate",
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
+        clientsClaim: true,
+        skipWaiting: true,
       },
       devOptions: {
         enabled: true,
+        type: "module",
       },
     }),
   ],

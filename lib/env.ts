@@ -1,4 +1,6 @@
-import { MainServiceWorkerMsgType, mainServiceWorkerChannel } from "./const"
+import { EidosSharedEnvChannelName, MainServiceWorkerMsgType } from "./const"
+
+const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 
 export class Env {
   private _env: Record<string, any>
@@ -9,12 +11,9 @@ export class Env {
 
   initListener() {
     mainServiceWorkerChannel.onmessage = (e) => {
-      const {
-        type,
-        data: { key, value },
-      } = e.data
+      const { type, data } = e.data
       if (type === MainServiceWorkerMsgType.SetData) {
-        this.set(key, value)
+        this._env = data
       }
     }
   }

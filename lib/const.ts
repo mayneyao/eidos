@@ -19,8 +19,6 @@ export enum MainServiceWorkerMsgType {
   SetData = "SetData",
 }
 
-export const mainServiceWorkerChannel = new BroadcastChannel("main-sw")
-
 export enum EidosDataEventChannelMsgType {
   DataUpdateSignalType = "DataUpdateSignalType",
 }
@@ -31,3 +29,4 @@ export enum DataUpdateSignalType {
 }
 
 export const EidosDataEventChannelName = "eidos-data-event"
+export const EidosSharedEnvChannelName = "eidos-shared-env"
