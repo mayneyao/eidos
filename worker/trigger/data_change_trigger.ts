@@ -12,10 +12,10 @@ export class DataChangeTrigger {
   constructor() {
     this.triggerMap = new Map()
   }
-  private getRowJSONObj(collist: string[], type: "new" | "old") {
+  private getRowJSONObj(collist: any[], type: "new" | "old") {
     let json_object = "json_object("
     for (const col of collist) {
-      const name = col[1]
+      const name = col.name
       json_object += `'${name}', ${type}.${name}, `
     }
     json_object += `'rowid', ${type}.rowid)`
@@ -48,11 +48,21 @@ export class DataChangeTrigger {
     )
   }
 
-  async createTrigger(db: DataSpace, tableName: string) {
+  async setTrigger(
+    db: DataSpace,
+    tableName: string,
+    collist: any[],
+    toDeleteColumns?: string[]
+  ) {
+    const _collist = collist.filter((col) => {
+      if (toDeleteColumns) {
+        return !toDeleteColumns.includes(col.name)
+      }
+      return true
+    })
     // console.log("create trigger for table", db.dbName, tableName)
-    const collist = await db.sql`pragma table_info(${Symbol(tableName)})`
-    const new_json_object = this.getRowJSONObj(collist, "new")
-    const old_json_object = this.getRowJSONObj(collist, "old")
+    const new_json_object = this.getRowJSONObj(_collist, "new")
+    const old_json_object = this.getRowJSONObj(_collist, "old")
 
     const updateSql = `CREATE TEMP TRIGGER data_update_trigger_${tableName}
     AFTER UPDATE ON ${tableName}

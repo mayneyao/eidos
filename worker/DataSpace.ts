@@ -60,9 +60,19 @@ export class DataSpace {
     })
   }
   // table change callback
-  public async onTableChange(space: string, tableName: string) {
+  public async onTableChange(
+    space: string,
+    tableName: string,
+    toDeleteColumns?: string[]
+  ) {
     if (space === this.dbName) {
-      await this.dataChangeTrigger.createTrigger(this, tableName)
+      const collist = await this.listRawColumns(tableName)
+      await this.dataChangeTrigger.setTrigger(
+        this,
+        tableName,
+        collist,
+        toDeleteColumns
+      )
     }
   }
 
@@ -90,6 +100,10 @@ export class DataSpace {
   // columns
   public async addColumn(data: IUIColumn) {
     return await this.column.add(data)
+  }
+
+  public async listRawColumns(tableName: string) {
+    return await this.db.selectObjects(`PRAGMA table_info(${tableName})`)
   }
 
   public async updateColumnProperty(data: {
