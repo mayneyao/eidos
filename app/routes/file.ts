@@ -8,14 +8,12 @@ export const pathname = (url: URL) => {
 
 export default async function handle(event: FetchEvent) {
   const url = new URL(event.request.url)
-  event.respondWith(
-    readFileFromOpfs(url.pathname).then((file) => {
-      const headers = new Headers()
-      headers.append("Content-Type", getContentType(url.pathname))
-      headers.append("Cross-Origin-Embedder-Policy", "require-corp")
-      return new Response(file, { headers })
-    })
-  )
+  return readFileFromOpfs(url.pathname).then((file) => {
+    const headers = new Headers()
+    headers.append("Content-Type", getContentType(url.pathname))
+    headers.append("Cross-Origin-Embedder-Policy", "require-corp")
+    return new Response(file, { headers })
+  })
 }
 
 const getDirHandle = async (_paths: string[]) => {

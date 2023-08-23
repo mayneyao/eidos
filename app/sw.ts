@@ -20,13 +20,14 @@ self.addEventListener("fetch", async (event) => {
   routes.forEach((route) => {
     if (typeof route.pathname === "function") {
       if (route.pathname(url)) {
-        route.handle(event)
+        event.respondWith(route.handle(event))
       }
     } else if (
+      typeof route.pathname === "string" &&
       route.pathname === url.pathname &&
       url.origin === self.location.origin
     ) {
-      route.handle(event)
+      event.respondWith(route.handle(event))
     }
   })
 })

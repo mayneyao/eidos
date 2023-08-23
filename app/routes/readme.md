@@ -11,6 +11,6 @@ _remember to register the route file to `app\routes\index.ts`_
 export const pathname = "/hello"
 export default function handler(event: FetchEvent) {
   // your logic here
-  event.respondWith(new Response("hello world"))
+  return new Response("hello world")
 }
 ```
