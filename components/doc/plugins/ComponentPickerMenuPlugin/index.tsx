@@ -6,7 +6,6 @@
  *
  */
 
-import { useCallback, useMemo, useState } from "react"
 import { $createCodeNode } from "@lexical/code"
 import {
   INSERT_CHECK_LIST_COMMAND,
@@ -22,30 +21,26 @@ import {
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import { $createHeadingNode, $createQuoteNode } from "@lexical/rich-text"
 import {
-  $addNodeStyle,
   $patchStyleText,
-  $setBlocksType,
+  $setBlocksType
 } from "@lexical/selection"
 import { INSERT_TABLE_COMMAND } from "@lexical/table"
 import {
-  $createNodeSelection,
   $createParagraphNode,
-  $createRangeSelection,
   $getSelection,
-  $isNodeSelection,
   $isRangeSelection,
   $isTextNode,
-  $setSelection,
   FORMAT_ELEMENT_COMMAND,
-  TextNode,
+  TextNode
 } from "lexical"
+import { useCallback, useMemo, useState } from "react"
 import * as ReactDOM from "react-dom"
 
-import "./index.css"
 import { useModal } from "../../hooks/useModal"
 import { SelectDatabaseTableDialog } from "../DatabasePlugin/SelectDatabaseTableDialog"
 import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
 import { bgColors, fgColors } from "../const"
+import "./index.css"
 
 class ComponentPickerOption extends MenuOption {
   // What shows up in the editor

@@ -93,7 +93,7 @@ export function Editor(props: EditorProps) {
           <input
             id="doc-title"
             placeholder="Untitled"
-            className="my-4 w-full truncate bg-transparent text-4xl font-bold text-primary outline-none"
+            className="my-4 w-full truncate bg-transparent text-4xl font-bold leading-[2.8rem] text-primary outline-none"
             value={title}
             title={title}
             disabled={!canChangeTitle}
