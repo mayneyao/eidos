@@ -12,11 +12,8 @@ import {
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useAPIAgent } from "@/hooks/use-api-agent"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { usePeer } from "@/hooks/use-peer"
-import { useTable } from "@/hooks/use-table"
+import { AvatarList } from "@/components/avatar-list"
+import { ShareDialog } from "@/components/share-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -28,8 +25,11 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { AvatarList } from "@/components/avatar-list"
-import { ShareDialog } from "@/components/share-dialog"
+import { useAPIAgent } from "@/hooks/use-api-agent"
+import { useCurrentNodePath } from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { usePeer } from "@/hooks/use-peer"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { useSpaceAppStore } from "./store"
 
@@ -84,12 +84,30 @@ export function DropdownMenuDemo() {
   )
 }
 
+const BreadCrumb = () => {
+  const paths = useCurrentNodePath()
+  const { space } = useCurrentPathInfo()
+  return (
+    <div className="flex items-center">
+      {paths.map((p, i) => (
+        <div key={p.id} className="flex items-center">
+          <Link to={`/${space}/${p.id}`} className="text-sm">
+            {p.name || "Untitled"}
+          </Link>
+          {i !== paths.length - 1 && (
+            <span className="mx-1 text-sm text-gray-400">/</span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export const Nav = () => {
   const { isAiOpen, setIsAiOpen, isSidebarOpen, setSidebarOpen } =
     useSpaceAppStore()
   const { connected } = useAPIAgent()
-  const { space: database, tableName: table } = useCurrentPathInfo()
-  const { reload } = useTable(table ?? "", database)
+
   const { currentCollaborators } = usePeer()
   const nameList = currentCollaborators.map((c) => c.name)
   const { isShareMode } = useAppRuntimeStore()
@@ -111,6 +129,7 @@ export const Nav = () => {
       >
         <Menu className="h-5 w-5" />
       </Button>
+      <BreadCrumb />
       <div className="grow" />
       <div className="flex justify-between self-end">
         <AvatarList nameList={nameList} />
