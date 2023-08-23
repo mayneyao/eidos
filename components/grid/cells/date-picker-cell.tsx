@@ -4,7 +4,7 @@ import {
   CustomRenderer,
   GridCellKind,
   drawTextCell,
-} from "@platools/glide-data-grid"
+} from "@glideapps/glide-data-grid"
 
 import { Calendar } from "@/components/ui/calendar"
 

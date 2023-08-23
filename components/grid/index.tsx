@@ -3,12 +3,12 @@ import DataEditor, {
   DataEditorRef,
   GridCellKind,
   HeaderClickedEventArgs,
-} from "@platools/glide-data-grid"
+} from "@glideapps/glide-data-grid"
 
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 // import "@glideapps/glide-data-grid-cells/dist/index.css"
-import "@platools/glide-data-grid/dist/index.css"
+import "@glideapps/glide-data-grid/dist/index.css"
 import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
@@ -42,11 +42,12 @@ const defaultConfig: Partial<DataEditorProps> = {
   rowHeight: 36,
   headerHeight: 36,
   freezeColumns: 1,
-  rowMarkers: "clickable-visible" as any,
+  rowMarkers: "both",
   trailingRowOptions: {
     tint: false,
     hint: "New",
-    sticky: true,
+    // there are some display bugs when sticky is true,
+    // sticky: true,
   },
   // auto handle copy and paste
   onPaste: true,

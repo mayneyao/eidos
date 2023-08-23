@@ -1,6 +1,6 @@
-import { Theme } from "@platools/glide-data-grid"
+import { Theme } from "@glideapps/glide-data-grid"
 
-export const darkTheme = {
+export const darkTheme: Partial<Theme> = {
   accentColor: "hsl(0,0%,100%)",
   accentLight: "hsl(222.2,47.4%,11.2%)",
 
@@ -36,7 +36,7 @@ export const darkTheme = {
     "Inter, Roboto, -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Ubuntu, noto, arial, sans-serif",
 }
 
-export const lightTheme: Theme = {
+export const lightTheme: Partial<Theme> = {
   accentColor: "#4F5DFF",
   accentFg: "#FFFFFF",
   accentLight: "rgba(62, 116, 253, 0.1)",

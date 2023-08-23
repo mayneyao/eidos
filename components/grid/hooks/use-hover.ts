@@ -1,5 +1,5 @@
 import React from "react"
-import { GridMouseEventArgs } from "@platools/glide-data-grid"
+import { GridMouseEventArgs } from "@glideapps/glide-data-grid"
 
 const oddRowOrHoverRowThemeOverride = (isDarkMode: boolean) => {
   if (isDarkMode) {

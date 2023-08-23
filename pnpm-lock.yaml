@@ -1,6 +1,7 @@
 lockfileVersion: 5.4
 
 specifiers:
+  '@glideapps/glide-data-grid': 5.3.0
   '@hookform/resolvers': ^3.1.0
   '@ianvs/prettier-plugin-sort-imports': ^3.7.2
   '@jest/globals': ^29.5.0
@@ -16,7 +17,6 @@ specifiers:
   '@lexical/selection': ^0.11.3
   '@lexical/table': ^0.11.3
   '@lexical/utils': ^0.11.3
-  '@platools/glide-data-grid': ^5.2.4
   '@radix-ui/react-alert-dialog': ^1.0.4
   '@radix-ui/react-avatar': ^1.0.3
   '@radix-ui/react-checkbox': ^1.0.4
@@ -117,6 +117,7 @@ specifiers:
   zustand: ^4.3.8
 
 dependencies:
+  '@glideapps/glide-data-grid': 5.3.0_wtnzenlbdwa2jsacqyfhrpaqzq
   '@hookform/resolvers': 3.1.1_react-hook-form@7.45.1
   '@lexical/clipboard': 0.11.3_lexical@0.11.3
   '@lexical/code': 0.11.3_lexical@0.11.3
@@ -130,7 +131,6 @@ dependencies:
   '@lexical/selection': 0.11.3_lexical@0.11.3
   '@lexical/table': 0.11.3_lexical@0.11.3
   '@lexical/utils': 0.11.3_lexical@0.11.3
-  '@platools/glide-data-grid': 5.2.4_wtnzenlbdwa2jsacqyfhrpaqzq
   '@radix-ui/react-alert-dialog': 1.0.4_hrrtw4it2dqo6rzcqzvl36ff7i
   '@radix-ui/react-avatar': 1.0.3_hrrtw4it2dqo6rzcqzvl36ff7i
   '@radix-ui/react-checkbox': 1.0.4_hrrtw4it2dqo6rzcqzvl36ff7i
@@ -2027,6 +2027,24 @@ packages:
       react-dom: 18.2.0_react@18.2.0
     dev: false
 
+  /@glideapps/glide-data-grid/5.3.0_wtnzenlbdwa2jsacqyfhrpaqzq:
+    resolution: {integrity: sha512-dqNrwFftKEy1kECWkOjBCIllugJhF55HL9f0vxgzInA7Im6h8O/WWpJdPiNsZcN8x4gXWB5M92vfJ0TsV7gcWw==}
+    peerDependencies:
+      lodash: ^4.17.19
+      marked: ^4.0.10
+      react: ^16.12.0 || 17.x || 18.x
+      react-dom: ^16.12.0 || 17.x || 18.x
+      react-responsive-carousel: ^3.2.7
+    dependencies:
+      canvas-hypertxt: 0.0.7
+      lodash: 4.17.21
+      marked: 5.1.1
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+      react-number-format: 5.2.2_biqbaboplfbrettd7655fr4n2y
+      react-responsive-carousel: 3.2.23
+    dev: false
+
   /@hookform/resolvers/3.1.1_react-hook-form@7.45.1:
     resolution: {integrity: sha512-tS16bAUkqjITNSvbJuO1x7MXbn7Oe8ZziDTJdA9mMvsoYthnOOiznOTGBYwbdlYBgU+tgpI/BtTU3paRbCuSlg==}
     peerDependencies:
@@ -2601,24 +2619,6 @@ packages:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.15.0
-
-  /@platools/glide-data-grid/5.2.4_wtnzenlbdwa2jsacqyfhrpaqzq:
-    resolution: {integrity: sha512-NPep0VPx9X4IURzxX3gWccOH9U+SgKSWOl2q38IJAvo95D1bzNhK9KxU4SiVexopEe3CcM+PWapgx2cgb5hPQg==}
-    peerDependencies:
-      lodash: ^4.17.19
-      marked: ^4.0.10
-      react: ^16.12.0 || 17.x || 18.x
-      react-dom: ^16.12.0 || 17.x || 18.x
-      react-responsive-carousel: ^3.2.7
-    dependencies:
-      canvas-hypertxt: 0.0.7
-      lodash: 4.17.21
-      marked: 5.1.1
-      react: 18.2.0
-      react-dom: 18.2.0_react@18.2.0
-      react-number-format: 5.2.2_biqbaboplfbrettd7655fr4n2y
-      react-responsive-carousel: 3.2.23
-    dev: false
 
   /@radix-ui/number/1.0.1:
     resolution: {integrity: sha512-T5gIdVO2mmPW3NNhjNgEP3cqMXjXL9UbO0BzWcXfvdBs+BohbQxvd/K5hSVKmn9/lbTdsQVKbUcP5WLCwvUbBg==}

@@ -1,4 +1,4 @@
-import { useCustomCells } from "@platools/glide-data-grid"
+import { useCustomCells } from "@glideapps/glide-data-grid"
 
 // import "@glideapps/glide-data-grid-cells"
 import DatePicker from "./date-picker-cell"

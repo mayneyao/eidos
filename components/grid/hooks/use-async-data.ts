@@ -9,7 +9,7 @@ import {
   GridCellKind,
   Item,
   Rectangle,
-} from "@platools/glide-data-grid"
+} from "@glideapps/glide-data-grid"
 import chunk from "lodash/chunk.js"
 import range from "lodash/range.js"
 

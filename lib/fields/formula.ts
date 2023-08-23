@@ -1,4 +1,4 @@
-import { GridCellKind, TextCell } from "@platools/glide-data-grid"
+import { GridCellKind, TextCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
 

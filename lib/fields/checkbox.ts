@@ -1,4 +1,4 @@
-import { BooleanCell, GridCellKind } from "@platools/glide-data-grid"
+import { BooleanCell, GridCellKind } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
 

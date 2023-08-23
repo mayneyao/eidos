@@ -7,7 +7,7 @@ import {
   Rectangle,
   getMiddleCenterBias,
   measureTextCached,
-} from "@platools/glide-data-grid"
+} from "@glideapps/glide-data-grid"
 import { XIcon } from "lucide-react"
 
 import { SelectField, SelectOption } from "@/lib/fields/select"

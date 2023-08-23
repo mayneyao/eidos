@@ -3,7 +3,7 @@ import {
   CustomRenderer,
   GridCellKind,
   Item,
-} from "@platools/glide-data-grid"
+} from "@glideapps/glide-data-grid"
 
 import { cn } from "@/lib/utils"
 
