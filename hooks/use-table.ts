@@ -135,6 +135,8 @@ export const useTable = (tableName: string, databaseName: string) => {
   const deleteField = async (tableColumnName: string) => {
     if (!sqlite) return
     await withTransaction(async () => {
+      // update trigger before delete column
+      await sqlite.onTableChange(databaseName, tableName, [tableColumnName])
       await sqlite.sql`ALTER TABLE ${Symbol(tableName)} DROP COLUMN ${Symbol(
         tableColumnName
       )};`
