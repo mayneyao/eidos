@@ -1,9 +1,8 @@
 import { OpenAIStream, StreamingTextResponse } from "ai"
 import OpenAI from "openai"
 
+import { functions } from "@/lib/ai/functions"
 import { workerEnv } from "@/lib/env"
-
-import { functions } from "./functions"
 
 const getOpenAI = () => {
   const apiKey = workerEnv.get("apiKey")
@@ -15,7 +14,8 @@ const getOpenAI = () => {
   })
 }
 
-export async function chatAPIHandle(event: FetchEvent) {
+export const pathname = "/api/chat"
+export default async function handle(event: FetchEvent) {
   const req = await event.request.json()
   const { messages } = req
   const openai = getOpenAI()

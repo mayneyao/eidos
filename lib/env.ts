@@ -13,7 +13,10 @@ export class Env {
     mainServiceWorkerChannel.onmessage = (e) => {
       const { type, data } = e.data
       if (type === MainServiceWorkerMsgType.SetData) {
-        this._env = data
+        this._env = {
+          ...this._env,
+          ...data,
+        }
       }
     }
   }

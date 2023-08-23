@@ -58,8 +58,7 @@ export const useLayoutInit = () => {
   const { space: database, tableName } = useCurrentPathInfo()
   const { setSqliteProxy: setSqlWorker } = useSqliteStore()
   const { setCurrentDatabase, currentDatabase } = useSqliteStore()
-  const { experiment, backupServer, apiAgentConfig, aiConfig } =
-    useConfigStore()
+  const { experiment, backupServer, apiAgentConfig } = useConfigStore()
   const { sqlite } = useSqlite(database)
   const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
 
@@ -126,11 +125,10 @@ export const useLayoutInit = () => {
     mainServiceWorkerChannel.postMessage({
       type: MainServiceWorkerMsgType.SetData,
       data: {
-        apiKey: aiConfig.token,
         space: database,
       },
     })
-  }, [aiConfig.token, database])
+  }, [database])
 
   useEffect(() => {
     // when table name changed
