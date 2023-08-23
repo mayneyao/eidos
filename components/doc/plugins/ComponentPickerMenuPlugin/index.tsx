@@ -21,12 +21,21 @@ import {
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import { $createHeadingNode, $createQuoteNode } from "@lexical/rich-text"
-import { $setBlocksType } from "@lexical/selection"
+import {
+  $addNodeStyle,
+  $patchStyleText,
+  $setBlocksType,
+} from "@lexical/selection"
 import { INSERT_TABLE_COMMAND } from "@lexical/table"
 import {
+  $createNodeSelection,
   $createParagraphNode,
+  $createRangeSelection,
   $getSelection,
+  $isNodeSelection,
   $isRangeSelection,
+  $isTextNode,
+  $setSelection,
   FORMAT_ELEMENT_COMMAND,
   TextNode,
 } from "lexical"
@@ -36,6 +45,7 @@ import "./index.css"
 import { useModal } from "../../hooks/useModal"
 import { SelectDatabaseTableDialog } from "../DatabasePlugin/SelectDatabaseTableDialog"
 import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
+import { bgColors, fgColors } from "../const"
 
 class ComponentPickerOption extends MenuOption {
   // What shows up in the editor
@@ -268,7 +278,6 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
             />
           )),
       }),
-
       ...["left", "center", "right", "justify"].map(
         (alignment) =>
           new ComponentPickerOption(`Align ${alignment}`, {
@@ -279,6 +288,57 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
               editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, alignment),
           })
       ),
+      ...bgColors.map(({ name, value }) => {
+        return new ComponentPickerOption(`Background ${name}`, {
+          icon: <i className="icon color" />,
+          keywords: ["bg", "background", name, `${name}bg`],
+          onSelect: () =>
+            editor.update(() => {
+              const selection = $getSelection()
+              if ($isRangeSelection(selection)) {
+                let maybeNode = selection.anchor.getNode()
+                if ($isTextNode(maybeNode)) {
+                  const _selection = maybeNode.select()
+                  _selection.anchor.offset = 0
+                  $patchStyleText(_selection, {
+                    "background-color": value,
+                  })
+                }
+              }
+            }),
+        })
+      }),
+      ...fgColors.map(({ name, value }) => {
+        return new ComponentPickerOption(`Color ${name}`, {
+          icon: <i className="icon color" />,
+          keywords: ["color", name],
+          onSelect: () =>
+            editor.update(() => {
+              const selection = $getSelection()
+              if ($isRangeSelection(selection)) {
+                let maybeNode = selection.anchor.getNode()
+                if ($isTextNode(maybeNode)) {
+                  const _selection = maybeNode.select()
+                  _selection.anchor.offset = 0
+                  $patchStyleText(_selection, {
+                    color: value,
+                  })
+                }
+              }
+            }),
+        })
+      }),
+
+      // ...["left", "center", "right", "justify"].map(
+      //   (alignment) =>
+      //     new ComponentPickerOption(`Align ${alignment}`, {
+      //       icon: <i className={`icon ${alignment}-align`} />,
+      //       keywords: ["align", "justify", alignment],
+      //       onSelect: () =>
+      //         // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
+      //         editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, alignment),
+      //     })
+      // ),
     ]
 
     const dynamicOptions = getDynamicOptions()

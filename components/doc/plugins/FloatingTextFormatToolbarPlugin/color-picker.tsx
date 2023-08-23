@@ -4,6 +4,7 @@ import { $getSelection, $isRangeSelection, LexicalEditor } from "lexical"
 import { useTheme } from "next-themes"
 
 import { cn } from "@/lib/utils"
+import { bgColors, fgColors } from "../const"
 
 // https://coolors.co/ffadad-ffd6a5-fdffb6-caffbf-9bf6ff-a0c4ff-bdb2ff-ffc6ff-fffffc
 // --melon: #ffadadff;
@@ -18,30 +19,6 @@ import { cn } from "@/lib/utils"
 
 // font color
 
-const fgColors = [
-  { name: "default", value: "inherit" },
-  { name: "light-red", value: "#ff8383ff" },
-  { name: "earth-yellow", value: "#ffc379ff" },
-  { name: "mindaro", value: "#c4c76cff" },
-  { name: "screamin-green", value: "#47873a" },
-  { name: "electric-blue", value: "#70f3ffff" },
-  { name: "ruddy-blue", value: "#75aaffff" },
-  { name: "tropical-indigo", value: "#9987ffff" },
-  { name: "violet-web-color", value: "#ff9affff" },
-]
-
-const bgColors = [
-  { name: "default", value: "inherit" },
-  { name: "melon", value: "#ffadadff" },
-  { name: "sunset", value: "#ffd6a5ff" },
-  { name: "cream", value: "#fdffb6ff" },
-  { name: "tea-green", value: "#caffbfff" },
-  { name: "electric-blue", value: "#9bf6ffff" },
-  { name: "jordy-blue", value: "#a0c4ffff" },
-  { name: "periwinkle", value: "#bdb2ffff" },
-  { name: "mauve", value: "#ffc6ffff" },
-]
-
 export const ColorPicker = ({
   activeEditor,
 }: {
@@ -52,6 +29,7 @@ export const ColorPicker = ({
       activeEditor.update(() => {
         const selection = $getSelection()
         if ($isRangeSelection(selection)) {
+          console.log(selection)
           $patchStyleText(selection, styles)
         }
       })
