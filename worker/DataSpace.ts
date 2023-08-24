@@ -210,10 +210,13 @@ export class DataSpace {
   }
 
   public async updateTreeNodeName(id: string, name: string) {
+    const node = await this.tree.get(id)
+    if (node?.name === name) {
+      return
+    }
     return this.withTransaction(async () => {
       await this.tree.updateName(id, name)
       // if this node is subDoc, we need to update row.title
-      const node = await this.tree.get(id)
       if (node?.parentId) {
         const parent = await this.tree.get(node.parentId)
         if (parent && parent.type === "table") {
