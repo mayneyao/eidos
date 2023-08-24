@@ -199,6 +199,7 @@ export class DataSpace {
     return res
   }
 
+  // tree
   public async listTreeNodes(q?: string, withSubNode?: boolean) {
     return this.tree.list(q, withSubNode)
   }
@@ -213,6 +214,10 @@ export class DataSpace {
 
   public async getTreeNode(id: string) {
     return this.tree.get(id)
+  }
+
+  public async moveDraftIntoTable(id: string, tableId: string) {
+    return this.tree.moveIntoTable(id, tableId)
   }
 
   public async listUiColumns(tableName: string) {

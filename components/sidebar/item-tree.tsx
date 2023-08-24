@@ -10,10 +10,11 @@ import { useSqlite } from "@/hooks/use-sqlite"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
-import { NodeItem } from "./table-menu"
+import { NodeItem } from "./node-menu"
 
 export const CurrentItemTree = ({
   allNodes,
+  allTableNodes = [],
   spaceName,
   isShareMode,
   currentNode,
@@ -22,6 +23,7 @@ export const CurrentItemTree = ({
   type,
 }: {
   allNodes: ITreeNode[]
+  allTableNodes?: ITreeNode[]
   spaceName: string
   isShareMode: boolean
   currentNode: ITreeNode | null
@@ -94,7 +96,12 @@ export const CurrentItemTree = ({
                 ? `/share/${spaceName}/${node.id}?` + searchParams.toString()
                 : `/${spaceName}/${node.id}`
               return (
-                <NodeItem node={node} databaseName={spaceName} key={node.id}>
+                <NodeItem
+                  node={node}
+                  databaseName={spaceName}
+                  key={node.id}
+                  tableNodes={allTableNodes}
+                >
                   <Button
                     variant={
                       node.id === currentNode?.id ? "secondary" : "ghost"

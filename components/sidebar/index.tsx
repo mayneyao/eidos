@@ -91,6 +91,9 @@ export const SideBar = ({ className }: any) => {
                 allNodes={allNodes.filter(
                   (node) => node.type === "doc" && !node.parentId
                 )}
+                allTableNodes={allNodes.filter(
+                  (node) => node.type === "table" && !node.parentId
+                )}
                 isShareMode={isShareMode}
                 currentNode={currentNode}
                 Icon={<Files className="pr-2" />}

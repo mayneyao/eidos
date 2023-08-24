@@ -8,7 +8,6 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuShortcut,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
@@ -25,11 +24,18 @@ import { Input } from "../ui/input"
 interface INodeItemProps {
   databaseName: string
   node: ITreeNode
+  tableNodes: ITreeNode[]
   children?: React.ReactNode
 }
 
-export function NodeItem({ databaseName, children, node }: INodeItemProps) {
-  const { duplicateTable, deleteNode, renameNode } = useSqlite(databaseName)
+export function NodeItem({
+  databaseName,
+  tableNodes,
+  children,
+  node,
+}: INodeItemProps) {
+  const { duplicateTable, deleteNode, renameNode, sqlite, updateNodeList } =
+    useSqlite(databaseName)
   const [renameOpen, setRenameOpen] = useState(false)
   const [newName, setNewName] = useState(node.name)
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -39,6 +45,13 @@ export function NodeItem({ databaseName, children, node }: INodeItemProps) {
   }, [renameInputRef])
 
   const router = useNavigate()
+
+  const moveDraftIntoTable = async (nodeId: string, tableId: string) => {
+    if (!sqlite) return
+    await sqlite.moveDraftIntoTable(nodeId, tableId)
+    await updateNodeList()
+  }
+
   const handleDeleteTable = () => {
     deleteNode(node)
     router(`/${databaseName}`)
@@ -114,22 +127,26 @@ export function NodeItem({ databaseName, children, node }: INodeItemProps) {
             </ContextMenuSub>
           </>
         )}
-
-        {/*<ContextMenuSeparator />
-        <ContextMenuCheckboxItem checked>
-          Show Bookmarks Bar
-          <ContextMenuShortcut>⌘⇧B</ContextMenuShortcut>
-        </ContextMenuCheckboxItem>
-        <ContextMenuCheckboxItem>Show Full URLs</ContextMenuCheckboxItem>
-        <ContextMenuSeparator />
-        <ContextMenuRadioGroup value="pedro">
-          <ContextMenuLabel inset>People</ContextMenuLabel>
-          <ContextMenuSeparator />
-          <ContextMenuRadioItem value="pedro">
-            Pedro Duarte
-          </ContextMenuRadioItem>
-          <ContextMenuRadioItem value="colm">Colm Tuite</ContextMenuRadioItem>
-        </ContextMenuRadioGroup> */}
+        {node.type === "doc" && (
+          <>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger inset>Move Into</ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48">
+                {tableNodes.map((tableNode) => (
+                  <ContextMenuItem
+                    key={tableNode.id}
+                    inset
+                    onClick={() => {
+                      moveDraftIntoTable(node.id, tableNode.id)
+                    }}
+                  >
+                    {tableNode.name || "Untitled"}
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   )

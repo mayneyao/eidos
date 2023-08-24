@@ -1,4 +1,5 @@
 import { TreeTableName } from "@/lib/sqlite/const"
+import { getRawTableNameById } from "@/lib/utils"
 
 import { BaseTable, BaseTableImpl } from "./base"
 
@@ -94,5 +95,28 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     const bind = query ? [`%${query}%`] : undefined
     const res = await this.dataSpace.exec2(sql, bind)
     return res.map((row) => row)
+  }
+
+  async moveIntoTable(id: string, tableId: string): Promise<boolean> {
+    try {
+      await this.dataSpace.withTransaction(async () => {
+        // update parentId
+        await this.dataSpace.exec2(
+          `UPDATE ${TreeTableName} SET parentId = ? WHERE id = ?;`,
+          [tableId, id]
+        )
+        // add new row in table
+        // row. _id = nodeId
+        const tableName = getRawTableNameById(tableId)
+        const title = (await this.get(id))?.name
+        await this.dataSpace.exec2(
+          `INSERT INTO ${tableName} (_id,title) VALUES (?,?);`,
+          [id, title]
+        )
+      })
+      return Promise.resolve(true)
+    } catch (error) {
+      return Promise.resolve(false)
+    }
   }
 }
