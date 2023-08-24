@@ -7,13 +7,19 @@ import {
   LifeBuoy,
   Menu,
   MoreHorizontal,
+  PinIcon,
+  PinOffIcon,
   Settings,
   Unplug,
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { AvatarList } from "@/components/avatar-list"
-import { ShareDialog } from "@/components/share-dialog"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useAPIAgent } from "@/hooks/use-api-agent"
+import { useCurrentNode, useCurrentNodePath } from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useNodeTree } from "@/hooks/use-node-tree"
+import { usePeer } from "@/hooks/use-peer"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -25,11 +31,8 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useAPIAgent } from "@/hooks/use-api-agent"
-import { useCurrentNodePath } from "@/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { usePeer } from "@/hooks/use-peer"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { AvatarList } from "@/components/avatar-list"
+import { ShareDialog } from "@/components/share-dialog"
 
 import { useSpaceAppStore } from "./store"
 
@@ -111,7 +114,8 @@ export const Nav = () => {
   const { currentCollaborators } = usePeer()
   const nameList = currentCollaborators.map((c) => c.name)
   const { isShareMode } = useAppRuntimeStore()
-
+  const currentNode = useCurrentNode()
+  const { pin, unpin } = useNodeTree()
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen)
   }
@@ -143,6 +147,25 @@ export const Nav = () => {
             <Unplug className="h-5 w-5 text-red-500" />
           )}
         </div>
+        {currentNode && (
+          <div
+            title={
+              currentNode?.isPinned
+                ? "this node is pinned, click to unpin"
+                : "click to pin this node"
+            }
+          >
+            {currentNode?.isPinned ? (
+              <Button variant="ghost" onClick={() => unpin(currentNode.id)}>
+                <PinOffIcon className="h-5 w-5" />
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={() => pin(currentNode.id)}>
+                <PinIcon className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
+        )}
         {!isShareMode && <ShareDialog />}
         <Button variant="ghost" onClick={toggleAi}>
           <Bot className="h-5 w-5" />

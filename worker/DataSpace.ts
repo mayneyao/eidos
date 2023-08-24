@@ -205,6 +205,10 @@ export class DataSpace {
     return this.tree.list(q, withSubNode)
   }
 
+  public async pinNode(id: string, isPinned: boolean) {
+    return this.tree.pin(id, isPinned)
+  }
+
   public async updateTreeNodeName(id: string, name: string) {
     return this.withTransaction(async () => {
       await this.tree.updateName(id, name)

@@ -21,6 +21,7 @@ export const CurrentItemTree = ({
   Icon,
   title,
   type,
+  disableAdd,
 }: {
   allNodes: ITreeNode[]
   allTableNodes?: ITreeNode[]
@@ -28,8 +29,9 @@ export const CurrentItemTree = ({
   isShareMode: boolean
   currentNode: ITreeNode | null
   title: string
-  type: "table" | "doc"
+  type: "table" | "doc" | "all"
   Icon: React.ReactNode
+  disableAdd?: boolean
 }) => {
   const [showNodes, setShowNodes] = useState(false)
   const [searchParams] = useSearchParams()
@@ -79,14 +81,16 @@ export const CurrentItemTree = ({
             {title}
           </span>
         </Button>
-        <Button
-          className=""
-          variant="ghost"
-          size="sm"
-          onClick={handleCreateNode}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
+        {!disableAdd && (
+          <Button
+            className=""
+            variant="ghost"
+            size="sm"
+            onClick={handleCreateNode}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
       </div>
       {showNodes && (
         <ScrollArea className="grow px-2">
