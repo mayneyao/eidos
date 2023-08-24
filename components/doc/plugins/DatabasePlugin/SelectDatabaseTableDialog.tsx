@@ -32,7 +32,7 @@ export const SelectDatabaseTableDialog = (props: DialogProps) => {
             className="cursor-pointer rounded-md px-2 py-1 hover:bg-secondary"
             onClick={() => handleQuery(table.id)}
           >
-            {table.name}
+            {table.name || "Untitled"}
           </li>
         )
       })}
