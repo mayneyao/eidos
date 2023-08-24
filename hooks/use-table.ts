@@ -16,7 +16,7 @@ import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { useCurrentNode } from "./use-current-node"
 import { useSqlWorker } from "./use-sql-worker"
-import { useSqlite } from "./use-sqlite"
+import { useSqlite, useSqliteStore } from "./use-sqlite"
 
 // PRAGMA table_info('table_name') will return IColumn[]
 export type IColumn = {
@@ -60,6 +60,7 @@ export const useTableStore = create<TableState>()((set) => ({
 export const useTable = (tableName: string, databaseName: string) => {
   const { withTransaction } = useSqlite(databaseName)
   const sqlite = useSqlWorker()
+  const { setNode } = useSqliteStore()
   const { setUiColumns, uiColumns, views, setViews } = useTableStore()
   const {
     count,
@@ -82,16 +83,25 @@ export const useTable = (tableName: string, databaseName: string) => {
   }, [setViews, sqlite, tableName])
 
   const reload = useCallback(async () => {
-    console.log(tableName)
     if (!tableName) return
   }, [tableName])
 
-  const updateCell = async (rowId: string, filedName: string, value: any) => {
+  const updateCell = async (rowId: string, fieldName: string, value: any) => {
     if (sqlite) {
-      if (filedName !== "_id") {
+      if (fieldName !== "_id") {
         sqlite.sql`UPDATE ${Symbol(tableName)} SET ${Symbol(
-          filedName
+          fieldName
         )} = ${value} WHERE _id = ${rowId}`
+      }
+      if (fieldName === "title") {
+        const node = await sqlite.getTreeNode(rowId)
+        if (node) {
+          await sqlite.updateTreeNodeName(node.id, value)
+          setNode({
+            id: node.id,
+            name: value,
+          })
+        }
       }
       // get the updated value, but it will block ui update. expect to success if not throw error
       // const result2 = await sqlite.sql`SELECT ${filedName} FROM ${Symbol(tableName)} where _id = '${rowId}'`;

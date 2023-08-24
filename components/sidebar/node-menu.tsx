@@ -3,6 +3,7 @@ import { ITreeNode } from "@/worker/meta_table/tree"
 import { useClickAway } from "ahooks"
 import { useNavigate } from "react-router-dom"
 
+import { useNodeTree } from "@/hooks/use-node-tree"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
   ContextMenu,
@@ -34,8 +35,9 @@ export function NodeItem({
   children,
   node,
 }: INodeItemProps) {
-  const { duplicateTable, deleteNode, renameNode, sqlite, updateNodeList } =
+  const { duplicateTable, deleteNode, renameNode, sqlite } =
     useSqlite(databaseName)
+  const { setNode } = useNodeTree()
   const [renameOpen, setRenameOpen] = useState(false)
   const [newName, setNewName] = useState(node.name)
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -49,7 +51,10 @@ export function NodeItem({
   const moveDraftIntoTable = async (nodeId: string, tableId: string) => {
     if (!sqlite) return
     await sqlite.moveDraftIntoTable(nodeId, tableId)
-    await updateNodeList()
+    setNode({
+      id: nodeId,
+      parentId: tableId,
+    })
   }
 
   const handleDeleteTable = () => {

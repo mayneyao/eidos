@@ -4,6 +4,7 @@ import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
+import { getRawTableNameById } from "@/lib/utils"
 import { IUIColumn } from "@/hooks/use-table"
 
 import { ActionTable } from "./meta_table/action"
@@ -205,7 +206,20 @@ export class DataSpace {
   }
 
   public async updateTreeNodeName(id: string, name: string) {
-    return this.tree.updateName(id, name)
+    return this.withTransaction(async () => {
+      await this.tree.updateName(id, name)
+      // if this node is subDoc, we need to update row.title
+      const node = await this.tree.get(id)
+      if (node?.parentId) {
+        const parent = await this.tree.get(node.parentId)
+        if (parent && parent.type === "table") {
+          const tableRawName = getRawTableNameById(parent.id)
+          await this.exec2(
+            `UPDATE ${tableRawName} SET title = ${name} WHERE id = ${id}`
+          )
+        }
+      }
+    })
   }
 
   public async addTreeNode(data: ITreeNode) {

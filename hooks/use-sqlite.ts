@@ -24,6 +24,9 @@ interface SqliteState {
 
   allNodes: ITreeNode[]
   setAllNodes: (tables: ITreeNode[]) => void
+  setNode: (node: Partial<ITreeNode> & { id: string }) => void
+  delNode: (nodeId: string) => void
+  addNode: (node: ITreeNode) => void
 
   allUiColumns: IUIColumn[]
   setAllUiColumns: (columns: IUIColumn[]) => void
@@ -69,6 +72,36 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
     ;(window as any).sqlite = sqlWorker
     return set({ sqliteProxy: sqlWorker })
   },
+
+  setNode: (node: Partial<ITreeNode> & { id: string }) => {
+    set((state) => {
+      const index = state.allNodes.findIndex((item) => item.id === node.id)
+      if (index !== -1) {
+        state.allNodes[index] = {
+          ...state.allNodes[index],
+          ...node,
+        }
+      }
+      return { allNodes: [...state.allNodes] }
+    })
+  },
+
+  delNode: (nodeId: string) => {
+    set((state) => {
+      const index = state.allNodes.findIndex((item) => item.id === nodeId)
+      if (index !== -1) {
+        state.allNodes.splice(index, 1)
+      }
+      return { allNodes: [...state.allNodes] }
+    })
+  },
+
+  addNode: (node: ITreeNode) => {
+    set((state) => {
+      state.allNodes.push(node)
+      return { allNodes: [...state.allNodes] }
+    })
+  },
 }))
 
 export const useSqlite = (dbName?: string) => {
@@ -77,6 +110,9 @@ export const useSqlite = (dbName?: string) => {
     sqliteProxy: sqlWorker,
     allNodes,
     setAllNodes,
+    setNode,
+    addNode,
+    delNode,
     setAllUiColumns,
   } = useSqliteStore()
   const { isShareMode } = useAppRuntimeStore()
@@ -138,7 +174,11 @@ export const useSqlite = (dbName?: string) => {
       tableId,
       sql,
     })
-    await updateNodeList()
+    addNode({
+      id: tableId,
+      name: tableName,
+      type: "table",
+    })
     return tableId
   }
 
@@ -151,7 +191,11 @@ export const useSqlite = (dbName?: string) => {
       type: "doc",
     })
     await sqlWorker.addDoc(docId, "")
-    await updateNodeList()
+    addNode({
+      id: docId,
+      name: docName,
+      type: "doc",
+    })
     return docId
   }
 
@@ -198,7 +242,7 @@ export const useSqlite = (dbName?: string) => {
     await sqlWorker.sql`UPDATE ${Symbol(
       TreeTableName
     )} SET name = ${newName} WHERE id = ${nodeId};`
-    await updateNodeList()
+    setNode({ id: nodeId, name: newName })
   }
 
   const updateTableListWithSql = async (sql: string) => {
@@ -221,7 +265,11 @@ export const useSqlite = (dbName?: string) => {
       tableId,
       sql: createTableSql,
     })
-    await updateNodeList()
+    addNode({
+      id: tableId,
+      name: tableName,
+      type: "table",
+    })
     if (insertSql) {
       for (let index = 0; index < insertSql.length; index++) {
         const { sql, bind } = insertSql[index]
@@ -258,7 +306,7 @@ export const useSqlite = (dbName?: string) => {
       TreeTableName
     )} WHERE id = ${tableId}`
     await sqlWorker.sql`COMMIT`
-    await updateNodeList()
+    delNode(tableId)
   }
 
   const deleteDoc = async (docId: string) => {
@@ -267,7 +315,7 @@ export const useSqlite = (dbName?: string) => {
       TreeTableName
     )} WHERE id = ${docId}`
     await sqlWorker.deleteDoc(docId)
-    await updateNodeList()
+    delNode(docId)
   }
 
   const deleteNode = async (node: ITreeNode) => {
@@ -336,7 +384,10 @@ export const useSqlite = (dbName?: string) => {
   const updateNodeName = async (nodeId: string, newName: string) => {
     if (!sqlWorker) return
     await sqlWorker.updateTreeNodeName(nodeId, newName)
-    await updateNodeList()
+    setNode({
+      id: nodeId,
+      name: newName,
+    })
   }
 
   return {

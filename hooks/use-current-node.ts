@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom"
 import { useSqliteStore } from "./use-sqlite"
 
 const useNodeMap = () => {
-  const { allNodes } = useSqliteStore()
+  const allNodes = useSqliteStore((state) => state.allNodes)
   const allNodesMap = useMemo(() => {
     return allNodes.reduce((acc, cur) => {
       acc[cur.id] = cur
