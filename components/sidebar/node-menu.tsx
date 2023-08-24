@@ -37,7 +37,7 @@ export function NodeItem({
 }: INodeItemProps) {
   const { duplicateTable, deleteNode, renameNode, sqlite } =
     useSqlite(databaseName)
-  const { setNode } = useNodeTree()
+  const { setNode, pin, unpin } = useNodeTree()
   const [renameOpen, setRenameOpen] = useState(false)
   const [newName, setNewName] = useState(node.name)
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -78,6 +78,7 @@ export function NodeItem({
       setRenameOpen(false)
     }
   }
+
   return (
     <ContextMenu>
       <Popover open={renameOpen}>
@@ -102,11 +103,19 @@ export function NodeItem({
       <ContextMenuContent className="w-64">
         <ContextMenuItem inset onClick={handleDeleteTable}>
           Delete
-          {/* <ContextMenuShortcut>del</ContextMenuShortcut> */}
         </ContextMenuItem>
         <ContextMenuItem inset onClick={handleRename}>
           Rename
         </ContextMenuItem>
+        {node.isPinned ? (
+          <ContextMenuItem inset onClick={() => unpin(node.id)}>
+            Unpin
+          </ContextMenuItem>
+        ) : (
+          <ContextMenuItem inset onClick={() => pin(node.id)}>
+            Pin
+          </ContextMenuItem>
+        )}
         {node.type === "table" && (
           <>
             <ContextMenuItem

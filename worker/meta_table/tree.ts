@@ -8,6 +8,8 @@ export interface ITreeNode {
   name: string
   type: "table" | "doc" | "subDoc"
   parentId?: string
+  // is pin to top
+  isPinned?: boolean
 }
 
 export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
@@ -17,7 +19,8 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     id TEXT PRIMARY KEY,
     name TEXT,
     type TEXT,
-    parentId TEXT NULL
+    parentId TEXT NULL,
+    isPinned BOOLEAN DEFAULT 0
   );
   `
 
@@ -56,6 +59,14 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     await this.dataSpace.exec2(
       `UPDATE ${TreeTableName} SET name = ? , type = ? , parentId = ? WHERE id = ?;`,
       [data.name, data.type, data.parentId, id]
+    )
+    return Promise.resolve(true)
+  }
+
+  async pin(id: string, isPinned: boolean): Promise<boolean> {
+    await this.dataSpace.exec2(
+      `UPDATE ${TreeTableName} SET isPinned = ? WHERE id = ?;`,
+      [isPinned, id]
     )
     return Promise.resolve(true)
   }

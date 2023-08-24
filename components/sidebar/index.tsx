@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Database, FileBoxIcon, Files } from "lucide-react"
+import { Database, FileBoxIcon, Files, PinIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -73,6 +73,16 @@ export const SideBar = ({ className }: any) => {
                   </Button>
                 </>
               )}
+              <CurrentItemTree
+                title="Pins"
+                type="table"
+                spaceName={space}
+                allNodes={allNodes.filter((node) => node.isPinned)}
+                isShareMode={isShareMode}
+                Icon={<PinIcon className="pr-2" />}
+                currentNode={currentNode}
+                disableAdd
+              />
               <CurrentItemTree
                 title="Tables"
                 type="table"
