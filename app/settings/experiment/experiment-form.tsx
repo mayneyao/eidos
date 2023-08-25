@@ -24,6 +24,7 @@ const experimentFormSchema = z.object({
   // }),
   aiChat: z.boolean().default(false),
   undoRedo: z.boolean().default(false),
+  enableAICompletionInDoc: z.boolean().default(false),
 })
 
 export type ExperimentFormValues = z.infer<typeof experimentFormSchema>
@@ -32,6 +33,7 @@ export type ExperimentFormValues = z.infer<typeof experimentFormSchema>
 const defaultValues: Partial<ExperimentFormValues> = {
   aiChat: false,
   undoRedo: false,
+  enableAICompletionInDoc: false,
 }
 
 export function ExperimentForm() {
@@ -59,46 +61,6 @@ export function ExperimentForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        {/* <FormField
-          control={form.control}
-          name="type"
-          render={({ field }) => (
-            <FormItem className="space-y-3">
-              <FormLabel>Notify me about...</FormLabel>
-              <FormControl>
-                <RadioGroup
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  className="flex flex-col space-y-1"
-                >
-                  <FormItem className="flex items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value="all" />
-                    </FormControl>
-                    <FormLabel className="font-normal">
-                      All new messages
-                    </FormLabel>
-                  </FormItem>
-                  <FormItem className="flex items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value="mentions" />
-                    </FormControl>
-                    <FormLabel className="font-normal">
-                      Direct messages and mentions
-                    </FormLabel>
-                  </FormItem>
-                  <FormItem className="flex items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value="none" />
-                    </FormControl>
-                    <FormLabel className="font-normal">Nothing</FormLabel>
-                  </FormItem>
-                </RadioGroup>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        /> */}
         <div>
           <h3 className="mb-4 text-lg font-medium">Feature</h3>
           <div className="space-y-4">
@@ -109,10 +71,10 @@ export function ExperimentForm() {
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">
-                      Undo Redo(alpha 🔨)
+                      Table undo/redo(beta🚀)
                     </FormLabel>
                     <FormDescription>
-                      Undo and redo your actions.
+                      Undo and redo your actions in table.
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -134,6 +96,26 @@ export function ExperimentForm() {
                     <FormDescription>
                       Chat with AI. generate SQL from natural language.
                     </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="enableAICompletionInDoc"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">
+                      AI Completion for Doc(alpha 🔨)
+                    </FormLabel>
+                    <FormDescription>Just like github copilot</FormDescription>
                   </div>
                   <FormControl>
                     <Switch

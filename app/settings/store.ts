@@ -34,6 +34,7 @@ export const useConfigStore = create<ConfigState>()(
       experiment: {
         undoRedo: false,
         aiChat: false,
+        enableAICompletionInDoc: false,
       },
       profile: {
         username: "",

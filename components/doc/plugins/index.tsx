@@ -7,7 +7,10 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin"
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 
+import { useConfigStore } from "@/app/settings/store"
+
 import AutoLinkPlugin from "./AutoLinkPlugin"
+import AutocompletePlugin from "./AutocompletePlugin"
 // import AutocompletePlugin from "./AutocompletePlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
@@ -22,6 +25,9 @@ import { ShortcutPlugin } from "./ShortcutPlugin"
 import { allTransformers } from "./const"
 
 export const AllPlugins = () => {
+  const {
+    experiment: { enableAICompletionInDoc },
+  } = useConfigStore()
   return (
     <>
       <SQLPlugin />
@@ -30,6 +36,7 @@ export const AllPlugins = () => {
       <HashtagPlugin />
       <ListPlugin />
       <NewMentionsPlugin />
+      {enableAICompletionInDoc && <AutocompletePlugin />}
       <DatabasePlugin />
       {/* <AutocompletePlugin /> */}
       {/* TabIndentationPlugin let you type `Tab` to indent a list item, ListMaxIndentLevelPlugin let you control the max indent level */}

@@ -1,4 +1,4 @@
-import { OpenAIStream, StreamingTextResponse, nanoid } from "ai"
+import { OpenAIStream, StreamingTextResponse } from "ai"
 import OpenAI from "openai"
 
 import { functions } from "@/lib/ai/functions"
