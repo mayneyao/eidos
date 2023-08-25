@@ -24,6 +24,7 @@ const AIConfigFormSchema = z.object({
   token: z.string().min(2, {
     message: "Name must be at least 2 characters.",
   }),
+  baseUrl: z.string().url().default("https://api.openai.com/v1"),
   autoRunScope: z.array(z.string()),
 })
 
@@ -102,6 +103,27 @@ export function AIConfigForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <FormField
+          control={form.control}
+          name="baseUrl"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Base URL</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="https://api.openai.com/v1"
+                  {...field}
+                  type="text"
+                />
+              </FormControl>
+              <FormDescription>
+                This is the base URL used to access the OpenAI API or API
+                compatible service.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="token"

@@ -412,11 +412,10 @@ export class DataSpace {
     try {
       this.db.exec("BEGIN TRANSACTION;")
       await fn()
+      this.db.exec("COMMIT;")
     } catch (error) {
       this.db.exec("ROLLBACK;")
       throw error
-    } finally {
-      this.db.exec("COMMIT;")
     }
   }
 }

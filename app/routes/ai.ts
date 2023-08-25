@@ -1,28 +1,25 @@
-import { OpenAIStream, StreamingTextResponse } from "ai"
+import { OpenAIStream, StreamingTextResponse, nanoid } from "ai"
 import OpenAI from "openai"
 
 import { functions } from "@/lib/ai/functions"
-import { workerEnv } from "@/lib/env"
-
-const getOpenAI = () => {
-  const apiKey = workerEnv.get("apiKey")
-  if (!apiKey) {
-    throw new Error("apiKey is not set")
-  }
-  return new OpenAI({
-    apiKey,
-  })
-}
 
 export const pathname = "/api/chat"
 export default async function handle(event: FetchEvent) {
   const req = await event.request.json()
-  const { messages } = req
-  const openai = getOpenAI()
+  const { messages, token, baseUrl, systemPrompt } = req
+  const openai = new OpenAI({
+    apiKey: token,
+    baseURL: baseUrl,
+  })
+  const sysPrompt = {
+    role: "system" as const,
+    content: systemPrompt,
+  }
   const response = await openai.chat.completions.create({
     model: "gpt-3.5-turbo-0613",
     stream: true,
-    messages,
+    messages: [...messages, sysPrompt],
+    max_tokens: 2048,
     functions,
   })
   const stream = OpenAIStream(response)

@@ -1,16 +1,11 @@
 // for now it's under database page, maybe move to global later
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { nanoid } from "ai"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { getFunctionCallHandler } from "@/lib/ai/openai"
-import { useAutoRunCode } from "@/hooks/use-auto-run-code"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useDocEditor } from "@/hooks/use-doc-editor"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { useConfigStore } from "@/app/settings/store"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -20,7 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useConfigStore } from "@/app/settings/store"
+import { useAutoRunCode } from "@/hooks/use-auto-run-code"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useDocEditor } from "@/hooks/use-doc-editor"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { getFunctionCallHandler } from "@/lib/ai/openai"
 
 import { AIChatMessage } from "./ai-chat-message"
 import { sysPrompts, useSystemPrompt } from "./hooks"
@@ -42,13 +41,7 @@ export default function Chat() {
   const functionCallHandler = getFunctionCallHandler(handleFunctionCall)
   const { systemPrompt, setCurrentDocMarkdown } =
     useSystemPrompt(currentSysPrompt)
-  const initialMessages = [
-    {
-      id: nanoid(),
-      role: "system" as const,
-      content: systemPrompt,
-    },
-  ]
+
   const {
     messages,
     setMessages,
@@ -60,7 +53,11 @@ export default function Chat() {
     stop,
   } = useChat({
     experimental_onFunctionCall: functionCallHandler,
-    initialMessages,
+    body: {
+      token: aiConfig.token,
+      baseUrl: aiConfig.baseUrl,
+      systemPrompt,
+    },
   })
   useEffect(() => {
     if (currentNode?.type === "doc") {

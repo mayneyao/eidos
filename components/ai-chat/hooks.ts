@@ -82,7 +82,11 @@ const usePromptContext = () => {
 export const useSystemPrompt = (currentSysPrompt: keyof typeof sysPrompts) => {
   const { context, setCurrentDocMarkdown } = usePromptContext()
   const baseSysPrompt = sysPrompts[currentSysPrompt]
-  const systemPrompt = getPrompt(baseSysPrompt, context)
+  const systemPrompt = getPrompt(
+    baseSysPrompt,
+    context,
+    currentSysPrompt === "base"
+  )
 
   return {
     systemPrompt,

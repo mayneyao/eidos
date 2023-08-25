@@ -45,8 +45,14 @@ export const getPrompt = (
     allUiColumns: IUIColumn[]
     databaseName: string
     currentDocMarkdown?: string
-  }
+  },
+  useBlankPrompt = false
 ) => {
+  let base =
+    "You are GPT Helper, 你是一个乐于助人的助手。Follow the user's instructions carefully. Respond using markdown. "
+  if (useBlankPrompt) {
+    return base
+  }
   const {
     currentDocMarkdown,
     tableSchema,
@@ -95,7 +101,7 @@ ${context.currentDocMarkdown}
 `
   // - all tables: ${JSON.stringify(allTables)}
   // - all ui columns: ${JSON.stringify(allUiColumns)}
-  const systemPrompt = contextPrompt + baseSysPrompt
+  const systemPrompt = base + contextPrompt + baseSysPrompt
   return systemPrompt
 }
 

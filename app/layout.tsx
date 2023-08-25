@@ -31,12 +31,13 @@ const useRootLayoutInit = () => {
       type: MainServiceWorkerMsgType.SetData,
       data: {
         apiKey: aiConfig.token,
+        baseUrl: aiConfig.baseUrl,
       },
     })
     return () => {
       mainServiceWorkerChannel.close()
     }
-  }, [aiConfig.token])
+  }, [aiConfig])
 }
 
 export default function RootLayout() {

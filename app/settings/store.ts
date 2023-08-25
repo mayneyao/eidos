@@ -28,6 +28,7 @@ export const useConfigStore = create<ConfigState>()(
     (set) => ({
       aiConfig: {
         token: "",
+        baseUrl: "https://api.openai.com/v1",
         autoRunScope: [],
       },
       experiment: {
