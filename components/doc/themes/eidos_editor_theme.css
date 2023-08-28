@@ -1,4 +1,4 @@
-code.not-prose::after {
+code::after {
   display: none;
 }
 
@@ -19,7 +19,7 @@ code::before {
   margin-bottom: 2px !important;
 }
 .eidos_editor_theme__quote {
-  margin: 0!important;
+  margin: 0 !important;
   font-size: 15px;
   color: rgb(101, 103, 107);
   border-left-color: rgb(206, 208, 212);

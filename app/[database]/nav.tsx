@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { useAPIAgent } from "@/hooks/use-api-agent"
 import { useCurrentNode, useCurrentNodePath } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useLink } from "@/hooks/use-goto"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { usePeer } from "@/hooks/use-peer"
 import { Button } from "@/components/ui/button"
@@ -93,11 +94,12 @@ export function DropdownMenuDemo() {
 const BreadCrumb = () => {
   const paths = useCurrentNodePath()
   const { space } = useCurrentPathInfo()
+  const { getLink } = useLink()
   return (
     <div className="flex items-center">
       {paths.map((p, i) => (
         <div key={p.id} className="flex items-center">
-          <Link to={`/${space}/${p.id}`} className="text-sm">
+          <Link to={getLink(`/${space}/${p.id}`)} className="text-sm">
             {p.name || "Untitled"}
           </Link>
           {i !== paths.length - 1 && (
@@ -114,11 +116,14 @@ export const Nav = () => {
     useSpaceAppStore()
   const { connected } = useAPIAgent()
 
-  const { disableDocAIComplete, setDisableDocAIComplete, isCompleteLoading } =
-    useAppRuntimeStore()
+  const {
+    disableDocAIComplete,
+    setDisableDocAIComplete,
+    isCompleteLoading,
+    isShareMode,
+  } = useAppRuntimeStore()
   const { currentCollaborators } = usePeer()
   const nameList = currentCollaborators.map((c) => c.name)
-  const { isShareMode } = useAppRuntimeStore()
   const currentNode = useCurrentNode()
   const { pin, unpin } = useNodeTree()
   const toggleSidebar = () => {

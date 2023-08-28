@@ -8,7 +8,7 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { Editor } from "@/components/doc/editor"
 import { Table } from "@/components/table"
 
-export default function TablePage() {
+export default function ShareNodePage() {
   const params = useCurrentPathInfo()
   const node = useCurrentNode()
   const { updateNodeName } = useSqlite(params.database)

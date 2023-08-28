@@ -44,7 +44,7 @@ export const SideBar = ({ className }: any) => {
             </h2>
           )} */}
           {isShareMode ? (
-            "shareMode"
+            "ShareMode"
           ) : (
             <>
               <DatabaseSelect databases={spaceList} />
@@ -71,18 +71,18 @@ export const SideBar = ({ className }: any) => {
                       Files
                     </Link>
                   </Button>
+                  <CurrentItemTree
+                    title="Pins"
+                    type="table"
+                    spaceName={space}
+                    allNodes={allNodes.filter((node) => node.isPinned)}
+                    isShareMode={isShareMode}
+                    Icon={<PinIcon className="pr-2" />}
+                    currentNode={currentNode}
+                    disableAdd
+                  />
                 </>
               )}
-              <CurrentItemTree
-                title="Pins"
-                type="table"
-                spaceName={space}
-                allNodes={allNodes.filter((node) => node.isPinned)}
-                isShareMode={isShareMode}
-                Icon={<PinIcon className="pr-2" />}
-                currentNode={currentNode}
-                disableAdd
-              />
               <CurrentItemTree
                 title="Tables"
                 type="table"
