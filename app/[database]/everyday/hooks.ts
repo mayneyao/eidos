@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState, useTransition } from "react"
 
-import { useSqlite } from "@/hooks/use-sqlite"
 import { getToday } from "@/lib/utils"
+import { useSqlite } from "@/hooks/use-sqlite"
 
 type IDay = {
   id: string
-  content: string
 }
 const EachPageSize = 7
 export const useAllDays = (spaceName: string) => {
@@ -43,7 +42,6 @@ export const useAllDays = (spaceName: string) => {
         _days = [
           {
             id: today,
-            content: "",
           },
           ...days,
         ]

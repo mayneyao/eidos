@@ -32,12 +32,11 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   async listDayPage(page: number = 0) {
     const pageSize = 7
     const res = await this.dataSpace.exec2(
-      `SELECT * FROM ${this.name} WHERE isDayPage = 1 ORDER BY id DESC LIMIT ?,?`,
+      `SELECT id FROM ${this.name} WHERE isDayPage = 1 ORDER BY id DESC LIMIT ?,?`,
       [page * pageSize, pageSize]
     )
     return res.map((item) => ({
       id: item.id,
-      content: item.content,
     }))
   }
 

@@ -4,10 +4,9 @@ import { useState } from "react"
 import useInfiniteScroll from "react-infinite-scroll-hook"
 import { Link } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { useAllDays } from "./hooks"
 
@@ -16,7 +15,6 @@ export default function EverydayPage() {
   const { loading, days, hasNextPage, error, loadMore } = useAllDays(
     params.space
   )
-  const { sqlite } = useSqlite(params.space)
   const [sentryRef] = useInfiniteScroll({
     loading,
     hasNextPage,
@@ -32,11 +30,6 @@ export default function EverydayPage() {
 
   const [currentDay, setCurrentDay] = useState<string>("")
 
-  const handleDocSave = (day: string) => {
-    return (content: string) => {
-      sqlite?.updateDoc(day, content, true)
-    }
-  }
   const handleClick = (day: string) => {
     setCurrentDay(day)
   }
@@ -44,7 +37,6 @@ export default function EverydayPage() {
   return (
     <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert lg:prose-xl xl:prose-xl 2xl:prose-2xl xs:p-5">
       {days.map((day, index) => {
-        const content = day.content
         return (
           <div
             key={day.id}
@@ -55,13 +47,12 @@ export default function EverydayPage() {
             <Editor
               docId={day.id}
               autoFocus={index === 0}
-              isEditable={currentDay === day.id}
+              isEditable
               placeholder=""
-              onSave={handleDocSave(day.id)}
-              initContent={content}
               disableSelectionPlugin
               disableSafeBottomPaddingPlugin
               disableUpdateTitle
+              disableManuallySave={currentDay !== day.id}
               className="ml-0"
             />
           </div>

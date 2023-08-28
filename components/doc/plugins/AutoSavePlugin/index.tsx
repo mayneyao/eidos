@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useDebounceFn, useKeyPress } from "ahooks"
 
+import { useSqlite } from "@/hooks/use-sqlite"
+
 interface AutoSavePluginProps {
-  onSave: (markdown: string) => void
-  initContent?: string
+  docId: string
+  disableManuallySave?: boolean
 }
 
 const DefaultState = {
@@ -27,62 +29,79 @@ const DefaultState = {
   },
 }
 
-export function AutoSavePlugin(props: AutoSavePluginProps) {
+// this plugin is just used for eidos doc not a general plugin
+export function EidosAutoSavePlugin(props: AutoSavePluginProps) {
   const [editor] = useLexicalComposerContext()
-  const { onSave, initContent } = props
-  const versionRef = useRef(0)
-  const lastSaveVersionRef = useRef(0)
+  const { docId } = props
+  const lock = useRef(false)
+  const { updateDoc, getDoc } = useSqlite()
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!editor.isEditable()) return
-    if (lastSaveVersionRef.current === versionRef.current) {
-    } else {
-      const json = editor.getEditorState().toJSON()
-      const content = JSON.stringify(json)
-      onSave(content)
-      lastSaveVersionRef.current = versionRef.current
-    }
-  }, [editor, onSave])
-
-  const { run: debounceSave } = useDebounceFn(handleSave, {
-    wait: 500,
-  })
+    const json = editor.getEditorState().toJSON()
+    const content = JSON.stringify(json)
+    await updateDoc(docId, content)
+  }, [docId, editor, updateDoc])
 
   useKeyPress("ctrl.s", (e) => {
     e.preventDefault()
+    if (props.disableManuallySave) {
+      return
+    }
     handleSave()
   })
 
   useEffect(() => {
-    editor.update(() => {
-      //   $convertFromMarkdownString(initContent ?? "", allTransformers)
+    lock.current = true
+    getDoc(docId).then((initContent) => {
       let state = JSON.stringify(DefaultState)
       if (initContent) {
         try {
           state = initContent
         } catch (error) {
         } finally {
-          const parsedState = editor.parseEditorState(state)
-          editor.setEditorState(parsedState)
+          editor.update(() => {
+            const parsedState = editor.parseEditorState(state)
+            editor.setEditorState(parsedState)
+            lock.current = false
+          })
         }
       } else {
-        const parsedState = editor.parseEditorState(state)
-        editor.setEditorState(parsedState)
+        editor.update(() => {
+          const parsedState = editor.parseEditorState(state)
+          editor.setEditorState(parsedState)
+          lock.current = false
+        })
       }
     })
-  }, [editor, initContent])
+  }, [editor, docId, getDoc])
+
+  const { run: debounceSave } = useDebounceFn(updateDoc, {
+    wait: 500,
+  })
 
   useEffect(() => {
-    const unRegister = editor.registerTextContentListener((text: string) => {
-      versionRef.current++
-      editor.update(() => {
-        debounceSave()
-      })
-    })
+    const unRegister = editor.registerUpdateListener(
+      ({ editorState, prevEditorState, tags }) => {
+        if (lock.current) {
+          return
+        }
+        editor.update(() => {
+          const json = editorState.toJSON()
+          const oldJson = prevEditorState.toJSON()
+          const content = JSON.stringify(json)
+          const oldContent = JSON.stringify(oldJson)
+          if (content === oldContent) {
+            return
+          }
+          debounceSave(docId, content)
+        })
+      }
+    )
     return () => {
       unRegister()
     }
-  }, [editor, debounceSave])
+  }, [editor, debounceSave, docId])
 
   return null
 }

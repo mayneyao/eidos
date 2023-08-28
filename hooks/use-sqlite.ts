@@ -1,14 +1,14 @@
 "use client"
 
-import { useCallback } from "react"
 import type { DataSpace } from "@/worker/DataSpace"
 import { ITreeNode } from "@/worker/meta_table/tree"
+import { useCallback } from "react"
 import { create } from "zustand"
 
+import { createTemplateTableSql } from "@/components/grid/helper"
 import { TreeTableName } from "@/lib/sqlite/const"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { getRawTableNameById, uuidv4 } from "@/lib/utils"
-import { createTemplateTableSql } from "@/components/grid/helper"
 
 import { IUIColumn } from "./use-table"
 
@@ -222,13 +222,17 @@ export const useSqlite = (dbName?: string) => {
   const updateDoc = async (docId: string, content: string) => {
     if (!sqlWorker) return
     await sqlWorker.updateDoc(docId, content)
+    console.log("doc updated", docId)
   }
 
-  const getDoc = async (docId: string) => {
-    if (!sqlWorker) return
-    const doc = await sqlWorker.getDoc(docId)
-    return doc
-  }
+  const getDoc = useCallback(
+    async (docId: string) => {
+      if (!sqlWorker) return
+      const doc = await sqlWorker.getDoc(docId)
+      return doc
+    },
+    [sqlWorker]
+  )
 
   const addNode2List = useCallback(
     (node: ITreeNode) => {

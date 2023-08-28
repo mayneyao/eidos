@@ -138,7 +138,6 @@ export function CommandDialogDemo() {
           <CommandItem onSelect={goto("/settings")}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
-            <CommandShortcut>⌘S</CommandShortcut>
           </CommandItem>
         </CommandGroup>
       </CommandList>

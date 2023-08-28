@@ -11,18 +11,7 @@ import { Table } from "@/components/table"
 export default function TablePage() {
   const params = useCurrentPathInfo()
   const node = useCurrentNode()
-  const { updateDoc, getDoc, updateNodeName } = useSqlite(params.database)
-  const handleSaveDoc = (content: string) => {
-    updateDoc(params.docId!, content)
-  }
-  const [initContent, setInitContent] = useState<string>("")
-  useEffect(() => {
-    if (node?.type === "doc") {
-      getDoc(params.docId!).then((content) => {
-        setInitContent(content)
-      })
-    }
-  }, [getDoc, node?.type, params.docId])
+  const { updateNodeName } = useSqlite(params.database)
 
   return (
     <>
@@ -33,8 +22,6 @@ export default function TablePage() {
         <Editor
           isEditable={false}
           docId={params.docId!}
-          onSave={handleSaveDoc}
-          initContent={initContent}
           title={node.name}
           showTitle
           onTitleChange={(title) => {

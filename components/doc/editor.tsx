@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 
 import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
-import { AutoSavePlugin } from "./plugins/AutoSavePlugin"
+import { EidosAutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
 import { SafeBottomPaddingPlugin } from "./plugins/SafeBottomPaddingPlugin"
@@ -32,13 +32,12 @@ const editorConfig: any = {
 
 interface EditorProps {
   docId?: string
-  onSave: (content: string) => void
-  initContent?: string
   isEditable: boolean
   placeholder?: string
   autoFocus?: boolean
   title?: string
   showTitle?: boolean
+  disableManuallySave?: boolean
   onTitleChange?: (title: string) => void
   disableSelectionPlugin?: boolean
   disableSafeBottomPaddingPlugin?: boolean
@@ -128,10 +127,12 @@ export function Editor(props: EditorProps) {
 
               <AllPlugins />
               {props.autoFocus && <AutoFocusPlugin />}
-              <AutoSavePlugin
-                onSave={props.onSave}
-                initContent={props.initContent}
-              />
+              {props.docId && (
+                <EidosAutoSavePlugin
+                  docId={props.docId}
+                  disableManuallySave={props.disableManuallySave}
+                />
+              )}
               <FloatingTextFormatToolbarPlugin />
               {floatingAnchorElem && (
                 <>
