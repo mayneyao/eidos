@@ -53,7 +53,7 @@ export const ViewItem = ({
     <>
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DropdownMenu onOpenChange={handleOpen} open={open}>
-          <DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild>
             <Button
               variant={isActive ? "secondary" : "ghost"}
               onClick={() => jump2View(view.id)}
