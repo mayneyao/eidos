@@ -4,7 +4,7 @@ import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
-import { getRawTableNameById } from "@/lib/utils"
+import { extractIdFromShortId, getRawTableNameById } from "@/lib/utils"
 import { IUIColumn } from "@/hooks/use-table"
 
 import { ActionTable } from "./meta_table/action"
@@ -222,7 +222,8 @@ export class DataSpace {
         if (parent && parent.type === "table") {
           const tableRawName = getRawTableNameById(parent.id)
           await this.exec2(
-            `UPDATE ${tableRawName} SET title = ${name} WHERE id = ${id}`
+            `UPDATE ${tableRawName} SET title = ? WHERE _id = ?`,
+            [name, extractIdFromShortId(id)]
           )
         }
       }

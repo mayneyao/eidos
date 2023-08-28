@@ -10,7 +10,11 @@ import {
   checkSqlIsModifyTableSchema,
   checkSqlIsOnlyQuery,
 } from "@/lib/sqlite/helper"
-import { generateColumnName, getTableIdByRawTableName } from "@/lib/utils"
+import {
+  generateColumnName,
+  getTableIdByRawTableName,
+  shortenId,
+} from "@/lib/utils"
 import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { useSpaceAppStore } from "@/app/[database]/store"
 
@@ -94,7 +98,7 @@ export const useTable = (tableName: string, databaseName: string) => {
         )} = ${value} WHERE _id = ${rowId}`
       }
       if (fieldName === "title") {
-        const node = await sqlite.getTreeNode(rowId)
+        const node = await sqlite.getTreeNode(shortenId(rowId))
         if (node) {
           await sqlite.updateTreeNodeName(node.id, value)
           setNode({

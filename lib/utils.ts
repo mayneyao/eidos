@@ -56,6 +56,13 @@ export const shortenId = (id: string) => {
   return id.replace(/-/g, "").replace(/_/g, "")
 }
 
+export const extractIdFromShortId = (shortId: string) => {
+  return `${shortId.slice(0, 8)}-${shortId.slice(8, 12)}-${shortId.slice(
+    12,
+    16
+  )}-${shortId.slice(16, 20)}-${shortId.slice(20)}`
+}
+
 export const getToday = () => {
   const today = new Date()
   const year = today.getFullYear()
