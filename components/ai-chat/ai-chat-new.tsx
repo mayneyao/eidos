@@ -1,11 +1,16 @@
 // for now it's under database page, maybe move to global later
 
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useConfigStore } from "@/app/settings/store"
+import { getFunctionCallHandler } from "@/lib/ai/openai"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAutoRunCode } from "@/hooks/use-auto-run-code"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useDocEditor } from "@/hooks/use-doc-editor"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -15,16 +20,23 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useAutoRunCode } from "@/hooks/use-auto-run-code"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useDocEditor } from "@/hooks/use-doc-editor"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { getFunctionCallHandler } from "@/lib/ai/openai"
+import { useConfigStore } from "@/app/settings/store"
 
 import { AIChatMessage } from "./ai-chat-message"
 import { sysPrompts, useSystemPrompt } from "./hooks"
 
 const promptKeys = Object.keys(sysPrompts)
+
+const models = [
+  "gpt-3.5-turbo",
+  "gpt-3.5-turbo-16k",
+  "gpt-3.5-turbo-0613",
+  "gpt-3.5-turbo-16k-0613",
+  "gpt-4",
+  "gpt-4-0613",
+  "gpt-4-32k",
+  "gpt-4-32k-0613",
+]
 
 export default function Chat() {
   const divRef = useRef<HTMLDivElement>()
@@ -42,6 +54,7 @@ export default function Chat() {
   const { systemPrompt, setCurrentDocMarkdown } =
     useSystemPrompt(currentSysPrompt)
 
+  const { aiModel, setAIModel } = useAppStore()
   const {
     messages,
     setMessages,
@@ -57,6 +70,7 @@ export default function Chat() {
       token: aiConfig.token,
       baseUrl: aiConfig.baseUrl,
       systemPrompt,
+      model: aiModel,
     },
   })
   useEffect(() => {
@@ -97,6 +111,16 @@ export default function Chat() {
             </SelectTrigger>
             <SelectContent>
               {promptKeys.map((key) => {
+                return <SelectItem value={key}>{key}</SelectItem>
+              })}
+            </SelectContent>
+          </Select>
+          <Select onValueChange={setAIModel as any} value={aiModel}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Model" />
+            </SelectTrigger>
+            <SelectContent>
+              {models.map((key) => {
                 return <SelectItem value={key}>{key}</SelectItem>
               })}
             </SelectContent>

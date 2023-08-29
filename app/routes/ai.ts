@@ -6,7 +6,7 @@ import { functions } from "@/lib/ai/functions"
 export const pathname = "/api/chat"
 export default async function handle(event: FetchEvent) {
   const req = await event.request.json()
-  const { messages, token, baseUrl, systemPrompt } = req
+  const { messages, token, baseUrl, systemPrompt, model } = req
   const openai = new OpenAI({
     apiKey: token,
     baseURL: baseUrl,
@@ -16,10 +16,9 @@ export default async function handle(event: FetchEvent) {
     content: systemPrompt,
   }
   const response = await openai.chat.completions.create({
-    model: "gpt-3.5-turbo-0613",
+    model: model ?? "gpt-3.5-turbo-0613",
     stream: true,
     messages: [...messages, sysPrompt],
-    max_tokens: 2048,
     functions,
   })
   const stream = OpenAIStream(response)
