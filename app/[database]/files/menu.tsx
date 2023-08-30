@@ -1,10 +1,12 @@
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useHnsw } from "@/hooks/use-hnsw"
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import { useConfigStore } from "@/app/settings/store"
 
 import { useSpaceAppStore } from "../store"
 import { useFileSystem } from "./hooks"
@@ -37,6 +39,8 @@ export function FileItemContextMenu({ children }: any) {
   const { selectedEntries, deleteFiles, getFileUrlPath } = useFileSystem()
   const { setCurrentPreviewFileUrl } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
+  const { createEmbedding } = useHnsw()
+  const { aiConfig } = useConfigStore()
 
   const moreThenOneSelected = selectedEntries.size > 1
   const selectedEntry =
@@ -73,7 +77,23 @@ export function FileItemContextMenu({ children }: any) {
     const [name, isDir] = selectedEntry
     if (name.endsWith(".pdf")) {
       setSidebarOpen(false)
-      setCurrentPreviewFileUrl(getFileUrlPath(name))
+      setCurrentPreviewFileUrl(window.location.origin + getFileUrlPath(name))
+    }
+  }
+
+  const handleCreateEmbedding = async () => {
+    const [name, isDir] = selectedEntry
+    if (name.endsWith(".pdf")) {
+      const url = window.location.origin + getFileUrlPath(name)
+      await createEmbedding({
+        id: url,
+        type: "file",
+        model: "text-embedding-ada-002",
+        provider: {
+          name: "openai",
+          token: aiConfig.token,
+        },
+      })
     }
   }
 
@@ -88,6 +108,9 @@ export function FileItemContextMenu({ children }: any) {
         </ContextMenuItem>
         <ContextMenuItem inset onSelect={previewFile}>
           Preview
+        </ContextMenuItem>
+        <ContextMenuItem inset onSelect={handleCreateEmbedding}>
+          Create embedding
         </ContextMenuItem>
         <ContextMenuItem inset onSelect={copyFileUrl}>
           Copy Url

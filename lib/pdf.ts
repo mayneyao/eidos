@@ -1,0 +1,39 @@
+const pdfjs = {} as any;
+
+
+const document = {
+  fonts: self.fonts,
+  createElement: (name: string) => {
+    if (name == "canvas") {
+      return new OffscreenCanvas(1, 1)
+    }
+    return null
+  },
+}
+
+export async function pdfLoader(file: File) {
+  //   const pdfjs = await getPdfjs()
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjs.getDocument({
+    data: arrayBuffer,
+    ownerDocument: document as any,
+  }).promise
+  const pages = []
+  for (let i = 0; i < pdf.numPages; i++) {
+    const pageNum = i + 1
+    const page = await pdf.getPage(pageNum)
+    const content = await page.getTextContent()
+    if (content.items.length === 0) {
+      continue
+    }
+    const text: string = content.items.map((item: any) => item.str).join("\n")
+    pages.push({
+      content: text,
+      meta: {
+        pageNum,
+        filename: file.name,
+      },
+    })
+  }
+  return pages
+}

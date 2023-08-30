@@ -130,6 +130,15 @@ export const getDirHandle = async (_paths: string[]) => {
 }
 
 export class OpfsManager {
+  getFileByURL = async (url: string) => {
+    const path = new URL(url).pathname
+    const parentPaths = path.split("/").slice(0, -1).filter(Boolean)
+    const parentDirHandle = await getDirHandle(["spaces", ...parentPaths])
+    const filename = path.split("/").pop()
+    const realFilename = decodeURIComponent(filename!)
+    const fileHandle = await parentDirHandle.getFileHandle(realFilename)
+    return fileHandle.getFile()
+  }
   listDir = async (_paths: string[]) => {
     const dirHandle = await getDirHandle(_paths)
     const entries: FileSystemFileHandle[] = []

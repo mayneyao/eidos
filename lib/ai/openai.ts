@@ -31,6 +31,7 @@ import { functionParamsSchemaMap, functions } from "./functions"
 export const getOpenAI = (token: string) => {
   const configuration = {
     apiKey: token ?? process.env.OPENAI_API_KEY,
+    dangerouslyAllowBrowser: true,
   }
   const openai = new OpenAI(configuration)
   return openai
@@ -105,37 +106,37 @@ ${context.currentDocMarkdown}
   return systemPrompt
 }
 
-export const askAI =
-  (baseSysPrompt: string, openai?: OpenAI) =>
-  async (
-    messages: any[],
-    context: {
-      tableSchema?: string
-      uiColumns?: IUIColumn[]
-      allTables: ITreeNode[]
-      allUiColumns: IUIColumn[]
-      databaseName: string
-      currentDocMarkdown?: string
-    }
-  ) => {
-    if (!openai) return
-    const systemPrompt = getPrompt(baseSysPrompt, context)
-    console.log("systemPrompt", systemPrompt)
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo-0613",
-      temperature: 0,
-      messages: [
-        ...messages,
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-      ],
-      functions,
-      function_call: "auto",
-    })
-    return completion.choices[0]
-  }
+// export const askAI =
+//   (baseSysPrompt: string, openai?: OpenAI) =>
+//   async (
+//     messages: any[],
+//     context: {
+//       tableSchema?: string
+//       uiColumns?: IUIColumn[]
+//       allTables: ITreeNode[]
+//       allUiColumns: IUIColumn[]
+//       databaseName: string
+//       currentDocMarkdown?: string
+//     }
+//   ) => {
+//     if (!openai) return
+//     const systemPrompt = getPrompt(baseSysPrompt, context)
+//     console.log("systemPrompt", systemPrompt)
+//     const completion = await openai.chat.completions.create({
+//       model: "gpt-3.5-turbo-0613",
+//       temperature: 0,
+//       messages: [
+//         ...messages,
+//         {
+//           role: "system",
+//           content: systemPrompt,
+//         },
+//       ],
+//       functions,
+//       function_call: "auto",
+//     })
+//     return completion.choices[0]
+//   }
 
 type IGetFunctionCallHandler = (handleFunctionCall: any) => FunctionCallHandler
 export const getFunctionCallHandler: IGetFunctionCallHandler =

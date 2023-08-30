@@ -22,3 +22,6 @@ export const ActionTableName = `eidos__actions`
 
 // store view
 export const ViewTableName = `eidos__views`
+
+// store embedding
+export const EmbeddingTableName = `eidos__embeddings`

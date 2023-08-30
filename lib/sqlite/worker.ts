@@ -8,7 +8,7 @@ export const getWorker = () => {
     worker = new Worker(new URL("@/worker/index.ts", import.meta.url), {
       type: "module",
     })
-    logger.info("load worker")
+    // logger.info("load worker")
   }
   return worker
 }

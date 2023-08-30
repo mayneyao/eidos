@@ -11,6 +11,7 @@ import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
 import { ColumnTable } from "./meta_table/column"
 import { DocTable } from "./meta_table/doc"
+import { EmbeddingTable } from "./meta_table/embedding"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
@@ -28,6 +29,7 @@ export class DataSpace {
   tree: TreeTable
   view: ViewTable
   column: ColumnTable
+  embedding: EmbeddingTable
   dataChangeTrigger: DataChangeTrigger
   allTables: BaseTable<any>[] = []
   constructor(db: Database, activeUndoManager: boolean, dbName: string) {
@@ -40,7 +42,16 @@ export class DataSpace {
     this.tree = new TreeTable(this)
     this.view = new ViewTable(this)
     this.column = new ColumnTable(this)
-    this.allTables = [this.doc, this.action, this.tree, this.view, this.column]
+    this.embedding = new EmbeddingTable(this)
+    //
+    this.allTables = [
+      this.doc,
+      this.action,
+      this.tree,
+      this.view,
+      this.column,
+      this.embedding,
+    ]
 
     this.initMetaTable()
     this.undoRedoManager = new SQLiteUndoRedo(this)
@@ -60,6 +71,7 @@ export class DataSpace {
       this.exec(table.createTableSql)
     })
   }
+
   // table change callback
   public async onTableChange(
     space: string,
@@ -313,6 +325,7 @@ export class DataSpace {
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
+    console.log(sql, bind)
     const res: any[] = []
     try {
       this.db.exec({
@@ -356,7 +369,7 @@ export class DataSpace {
    */
   public async sql(strings: TemplateStringsArray, ...values: any[]) {
     const { sql, bind } = buildSql(strings, ...values)
-    // console.log(sql, bind)
+    console.log(sql, bind)
     const res = this.execSqlWithBind(sql, bind)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
