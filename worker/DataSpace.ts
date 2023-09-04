@@ -131,12 +131,14 @@ export class DataSpace {
   }
 
   // update doc mount on sqlite for now,maybe change to fs later
-  public async updateDoc(docId: string, content: string, isDayPage = false) {
+  public async updateDoc(docId: string, content: string, _isDayPage = false) {
     const res = await this.doc.get(docId)
+    // yyyy-mm-dd is day page
+    const isDayPage = _isDayPage || /^\d{4}-\d{2}-\d{2}$/g.test(docId)
     if (!res) {
       await this.doc.add({ id: docId, content, isDayPage })
     } else {
-      await this.doc.set(docId, { id: docId, content })
+      await this.doc.set(docId, { id: docId, content, isDayPage })
     }
   }
 
