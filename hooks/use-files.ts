@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect } from "react"
+import { IFile } from "@/worker/meta_table/file"
 import { create } from "zustand"
 
 import { opfsManager } from "@/lib/opfs"
+import { getUuid } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+
+import { useSqlite } from "./use-sqlite"
 
 const useFsStore = create<{
   currentPath: string[]
@@ -36,6 +40,11 @@ const useFsStore = create<{
   setPrevSelectedEntries: (prevSelectedEntries) => set({ prevSelectedEntries }),
 }))
 
+/**
+ * every upload file will be record meta data in `eidos__files` table, but we can't pass file via postMessage,
+ * so we expose this hook to handle file upload\delete\update
+ * every mutation about file must be done via this hook.
+ */
 export const useFileSystem = () => {
   const { space } = useCurrentPathInfo()
   const {
@@ -50,6 +59,8 @@ export const useFileSystem = () => {
     setPrevSelectedEntries,
     setSelectedEntries,
   } = useFsStore()
+
+  const { sqlite } = useSqlite()
 
   const isRootDir = currentPath.length === 0
   const goRootDir = useCallback(() => {
@@ -89,15 +100,31 @@ export const useFileSystem = () => {
 
   const addFiles = useCallback(
     async (files: File[]) => {
+      if (!sqlite) {
+        throw new Error("add file failed, no sqlite instance")
+      }
       for (const file of files) {
-        await opfsManager.addFile(
+        const paths = await opfsManager.addFile(
           ["spaces", space, "files", ...currentPath],
           file
         )
+        if (!paths) {
+          throw new Error("add file failed")
+        }
+        const { name, size, type: mime } = file
+        const path = paths.join("/")
+        const fileInfo: IFile = {
+          id: getUuid(),
+          name,
+          size,
+          mime,
+          path,
+        }
+        await sqlite?.addFile(fileInfo)
       }
       await refresh()
     },
-    [currentPath, refresh, space]
+    [currentPath, refresh, space, sqlite]
   )
 
   const addDir = useCallback(
@@ -126,15 +153,22 @@ export const useFileSystem = () => {
         isDir: boolean
       }[]
     ) => {
+      if (!sqlite) {
+        throw new Error("delete file failed, no sqlite instance")
+      }
       for (const { name, isDir } of names) {
-        await opfsManager.deleteEntry(
-          ["spaces", space, "files", ...currentPath, name],
-          isDir
-        )
+        const paths = ["spaces", space, "files", ...currentPath, name]
+        await opfsManager.deleteEntry(paths, isDir)
+        const path = paths.join("/")
+        if (isDir) {
+          await sqlite?.deleteFileByPathPrefix(path)
+        } else {
+          await sqlite?.delFileByPath(path)
+        }
       }
       await refresh()
     },
-    [currentPath, refresh, space]
+    [currentPath, refresh, space, sqlite]
   )
 
   return {

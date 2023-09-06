@@ -201,6 +201,10 @@ export class OpfsManager {
     const writable = await (fileHandle as any).createWritable()
     await writable.write(file)
     await writable.close()
+    // fileHandle get path
+    const opfsRoot = await navigator.storage.getDirectory()
+    const relativePath = await opfsRoot.resolve(fileHandle)
+    return relativePath
   }
 
   deleteEntry = async (_paths: string[], isDir = false) => {
