@@ -7,8 +7,7 @@ import {
 } from "@glideapps/glide-data-grid"
 
 import { FieldType } from "@/lib/fields/const"
-import { uploadFile2OPFS } from "@/lib/opfs"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useFileSystem } from "@/hooks/use-files"
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",
@@ -23,12 +22,12 @@ interface IProps {
 }
 
 export const useDrop = (props: IProps) => {
-  const { space } = useCurrentPathInfo()
   const { setCellValue, getCellContent } = props
   const [highlights, setHighlights] = React.useState<
     DataEditorProps["highlightRegions"]
   >([])
 
+  const { addFiles } = useFileSystem()
   const [lastDropCell, setLastDropCell] = React.useState<Item | undefined>()
 
   const onDrop = React.useCallback(
@@ -51,7 +50,9 @@ export const useDrop = (props: IProps) => {
         return
       }
 
-      uploadFile2OPFS(file, space).then((newFileUrl) => {
+      addFiles([file]).then((fileInfos) => {
+        const fileInfo = fileInfos[0]
+        const newFileUrl = "/" + fileInfo.path.split("/").slice(1).join("/")
         setCellValue(cell[0], cell[1], {
           kind: GridCellKind.Image,
           data: [newFileUrl],
@@ -68,16 +69,9 @@ export const useDrop = (props: IProps) => {
       //   return
       // }
 
-      // Promise.all(Array.from(files).map((file) => uploadFile2OPFS(file))).then(
-      //   (res) => {
-      //     const cv = res.join(",")
-      //     setCellValue(cell[0], cell[1], cv)
-      //   }
-      // )
-
       setLastDropCell(cell)
     },
-    [setCellValue, space]
+    [addFiles, setCellValue]
   )
 
   const onDragOverCell = React.useCallback(

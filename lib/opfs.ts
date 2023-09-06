@@ -70,20 +70,6 @@ export const getSpaceDatabaseFileHandle = async (spaceName: string) => {
   return dbFileHandle
 }
 
-export const uploadFile2OPFS = async (
-  file: File,
-  spaceName: string,
-  domain = ""
-) => {
-  const imgUrl = URL.createObjectURL(file)
-  const fileHash = imgUrl.split("/").pop()
-  const fileExtension = file.name.split(".").pop()
-  const newFileName = `${fileHash}.${fileExtension}`
-  const newFileUrl = `/${spaceName}/files/${newFileName}`
-  await saveFile(file, spaceName, newFileName)
-  return newFileUrl
-}
-
 export const saveFile = async (file: File, space: string, name?: string) => {
   const opfsRoot = await navigator.storage.getDirectory()
   const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {

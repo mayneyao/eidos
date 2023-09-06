@@ -103,6 +103,7 @@ export const useFileSystem = () => {
       if (!sqlite) {
         throw new Error("add file failed, no sqlite instance")
       }
+      const res: IFile[] = []
       for (const file of files) {
         const paths = await opfsManager.addFile(
           ["spaces", space, "files", ...currentPath],
@@ -121,8 +122,10 @@ export const useFileSystem = () => {
           path,
         }
         await sqlite?.addFile(fileInfo)
+        res.push(fileInfo)
       }
       await refresh()
+      return res
     },
     [currentPath, refresh, space, sqlite]
   )

@@ -11,9 +11,10 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { DRAG_DROP_PASTE } from "@lexical/rich-text"
 import { isMimeType } from "@lexical/utils"
 import { COMMAND_PRIORITY_LOW } from "lexical"
+import { zip } from "lodash"
 
-import { uploadFile2OPFS } from "@/lib/opfs"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useFileSystem } from "@/hooks/use-files"
 
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 
@@ -29,25 +30,22 @@ export default function DragDropPaste(): null {
   const [editor] = useLexicalComposerContext()
   // should not be here, but we need to make sure the space is set
   const { space } = useCurrentPathInfo()
+  const { addFiles } = useFileSystem()
   useEffect(() => {
     return editor.registerCommand(
       DRAG_DROP_PASTE,
       (files) => {
         ;(async () => {
-          const filesResult = await Promise.all(
-            files.map(async (file) => {
-              const fileUrl = await uploadFile2OPFS(file, space)
-              return {
-                file,
-                result: fileUrl,
-              }
-            })
-          )
-          for (const { file, result } of filesResult) {
-            if (isMimeType(file, ACCEPTABLE_IMAGE_TYPES)) {
+          const _files = await addFiles(files)
+          const fileZip = zip(_files, files)
+          for (const [meta, file] of fileZip) {
+            const paths = meta!.path.split("/")
+            // skip spaces
+            const path = "/" + paths.slice(1).join("/")
+            if (isMimeType(file!, ACCEPTABLE_IMAGE_TYPES)) {
               editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-                altText: file.name,
-                src: result,
+                altText: file!.name,
+                src: path,
               })
             }
           }
@@ -56,6 +54,6 @@ export default function DragDropPaste(): null {
       },
       COMMAND_PRIORITY_LOW
     )
-  }, [editor, space])
+  }, [addFiles, editor, space])
   return null
 }
