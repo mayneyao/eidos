@@ -1,4 +1,5 @@
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useFileSystem } from "@/hooks/use-files"
 import { useHnsw } from "@/hooks/use-hnsw"
 import {
   ContextMenu,
@@ -9,7 +10,6 @@ import {
 import { useConfigStore } from "@/app/settings/store"
 
 import { useSpaceAppStore } from "../store"
-import { useFileSystem } from "./hooks"
 
 export function FileManagerContextMenu({ children }: any) {
   const { addDir, backDir, isRootDir } = useFileSystem()

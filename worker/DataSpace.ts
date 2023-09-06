@@ -12,6 +12,7 @@ import { BaseTable } from "./meta_table/base"
 import { ColumnTable } from "./meta_table/column"
 import { DocTable } from "./meta_table/doc"
 import { EmbeddingTable } from "./meta_table/embedding"
+import { FileTable, IFile } from "./meta_table/file"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
@@ -30,6 +31,7 @@ export class DataSpace {
   view: ViewTable
   column: ColumnTable
   embedding: EmbeddingTable
+  file: FileTable
   dataChangeTrigger: DataChangeTrigger
   allTables: BaseTable<any>[] = []
   constructor(db: Database, activeUndoManager: boolean, dbName: string) {
@@ -41,6 +43,7 @@ export class DataSpace {
     this.action = new ActionTable(this)
     this.tree = new TreeTable(this)
     this.view = new ViewTable(this)
+    this.file = new FileTable(this)
     this.column = new ColumnTable(this)
     this.embedding = new EmbeddingTable(this)
     //
@@ -51,6 +54,7 @@ export class DataSpace {
       this.view,
       this.column,
       this.embedding,
+      this.file,
     ]
 
     this.initMetaTable()
@@ -87,6 +91,26 @@ export class DataSpace {
         toDeleteColumns
       )
     }
+  }
+
+  // files
+  public async addFile(file: IFile) {
+    return await this.file.add(file)
+  }
+
+  public async delFile(id: string) {
+    return await this.file.del(id)
+  }
+
+  public async delFileByPath(path: string) {
+    const file = await this.file.getFileByPath(path)
+    if (!file) {
+      return
+    }
+    return await this.file.del(file.id)
+  }
+  public async deleteFileByPathPrefix(prefix: string) {
+    return await this.file.deleteFileByPathPrefix(prefix)
   }
 
   // views
@@ -143,12 +167,14 @@ export class DataSpace {
   }
 
   // update doc mount on sqlite for now,maybe change to fs later
-  public async updateDoc(docId: string, content: string, isDayPage = false) {
+  public async updateDoc(docId: string, content: string, _isDayPage = false) {
     const res = await this.doc.get(docId)
+    // yyyy-mm-dd is day page
+    const isDayPage = _isDayPage || /^\d{4}-\d{2}-\d{2}$/g.test(docId)
     if (!res) {
       await this.doc.add({ id: docId, content, isDayPage })
     } else {
-      await this.doc.set(docId, { id: docId, content })
+      await this.doc.set(docId, { id: docId, content, isDayPage })
     }
   }
 
