@@ -2,6 +2,7 @@
  * state store for runtime, for cross component communication
  */
 
+import { IFile } from "@/worker/meta_table/file"
 import { create } from "zustand"
 
 interface AppRuntimeState {
@@ -11,8 +12,8 @@ interface AppRuntimeState {
   isShareMode: boolean
   setShareMode: (isShareMode: boolean) => void
 
-  currentPreviewFileUrl: string
-  setCurrentPreviewFileUrl: (currentPreviewFileUrl: string) => void
+  currentPreviewFile: IFile | null
+  setCurrentPreviewFile: (currentPreviewFile: IFile) => void
 
   isWebsocketConnected: boolean
   setWebsocketConnected: (isWebsocketConnected: boolean) => void
@@ -31,9 +32,9 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
   isShareMode: false,
   setShareMode: (isShareMode) => set({ isShareMode }),
 
-  currentPreviewFileUrl: "",
-  setCurrentPreviewFileUrl: (currentPreviewFileUrl) =>
-    set({ currentPreviewFileUrl }),
+  currentPreviewFile: null,
+  setCurrentPreviewFile: (currentPreviewFile) =>
+    set({ currentPreviewFile: currentPreviewFile }),
 
   isWebsocketConnected: false,
   setWebsocketConnected: (isWebsocketConnected) =>

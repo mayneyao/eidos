@@ -1,6 +1,5 @@
-import { useCallback, useEffect } from "react"
+import { useCallback } from "react"
 
-import { PDFLoader } from "@/lib/ai/doc_loader/pdf"
 import { getWorker } from "@/lib/sqlite/worker"
 
 import { useSqliteStore } from "./use-sqlite"

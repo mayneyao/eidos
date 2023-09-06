@@ -1,6 +1,7 @@
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useFileSystem } from "@/hooks/use-files"
 import { useHnsw } from "@/hooks/use-hnsw"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -37,14 +38,17 @@ export function FileManagerContextMenu({ children }: any) {
 
 export function FileItemContextMenu({ children }: any) {
   const { selectedEntries, deleteFiles, getFileUrlPath } = useFileSystem()
-  const { setCurrentPreviewFileUrl } = useAppRuntimeStore()
+  const { setCurrentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
   const { createEmbedding } = useHnsw()
   const { aiConfig } = useConfigStore()
+  const { sqlite } = useSqlite()
 
   const moreThenOneSelected = selectedEntries.size > 1
   const selectedEntry =
     selectedEntries.size === 1 ? selectedEntries.entries().next().value : null
+
+  const isPdf = selectedEntry && selectedEntry[0].endsWith(".pdf")
 
   const handleRemove = () => {
     if (selectedEntry) {
@@ -73,27 +77,37 @@ export function FileItemContextMenu({ children }: any) {
     navigator.clipboard.writeText(window.location.origin + getFileUrlPath(name))
   }
 
-  const previewFile = () => {
+  const previewFile = async () => {
     const [name, isDir] = selectedEntry
+    const path = "spaces" + getFileUrlPath(name)
+    console.log(path)
+    const file = await sqlite?.getFileByPath(path)
+    console.log(file)
+    if (!file) {
+      return
+    }
     if (name.endsWith(".pdf")) {
       setSidebarOpen(false)
-      setCurrentPreviewFileUrl(window.location.origin + getFileUrlPath(name))
+      setCurrentPreviewFile(file)
     }
   }
 
   const handleCreateEmbedding = async () => {
     const [name, isDir] = selectedEntry
     if (name.endsWith(".pdf")) {
-      const url = window.location.origin + getFileUrlPath(name)
-      await createEmbedding({
-        id: url,
-        type: "file",
-        model: "text-embedding-ada-002",
-        provider: {
-          name: "openai",
-          token: aiConfig.token,
-        },
-      })
+      const path = "spaces" + getFileUrlPath(name)
+      const file = await sqlite?.getFileByPath(path)
+      if (file && !file.isVectorized) {
+        await createEmbedding({
+          id: file.id,
+          type: "file",
+          model: "text-embedding-ada-002",
+          provider: {
+            name: "openai",
+            token: aiConfig.token,
+          },
+        })
+      }
     }
   }
 
@@ -109,9 +123,11 @@ export function FileItemContextMenu({ children }: any) {
         <ContextMenuItem inset onSelect={previewFile}>
           Preview
         </ContextMenuItem>
-        <ContextMenuItem inset onSelect={handleCreateEmbedding}>
-          Create embedding
-        </ContextMenuItem>
+        {isPdf && (
+          <ContextMenuItem inset onSelect={handleCreateEmbedding}>
+            Create embedding
+          </ContextMenuItem>
+        )}
         <ContextMenuItem inset onSelect={copyFileUrl}>
           Copy Url
         </ContextMenuItem>

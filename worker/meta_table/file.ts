@@ -44,9 +44,20 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
 
   async deleteFileByPathPrefix(prefix: string): Promise<boolean> {
     try {
+      this.dataSpace.exec(`DELETE FROM ${this.name} WHERE path LIKE ?;`, [
+        `${prefix}%`,
+      ])
+      return Promise.resolve(true)
+    } catch (error) {
+      return Promise.resolve(false)
+    }
+  }
+
+  async updateVectorized(id: string, isVectorized: boolean): Promise<boolean> {
+    try {
       this.dataSpace.exec(
-        `DELETE FROM ${this.name} WHERE path LIKE ?;`,
-        [`${prefix}%`]
+        `UPDATE ${this.name} SET isVectorized = ? WHERE id = ?;`,
+        [isVectorized ? 1 : 0, id]
       )
       return Promise.resolve(true)
     } catch (error) {
@@ -54,9 +65,17 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     }
   }
 
-  get(id: string): Promise<IFile | null> {
-    throw new Error("Method not implemented.")
+  async get(id: string): Promise<IFile | null> {
+    const res = await this.dataSpace.exec2(
+      `SELECT * FROM ${this.name} WHERE id = ?;`,
+      [id]
+    )
+    if (res.length === 0) {
+      return null
+    }
+    return res[0] as IFile
   }
+  
   set(id: string, data: Partial<IFile>): Promise<boolean> {
     throw new Error("Method not implemented.")
   }

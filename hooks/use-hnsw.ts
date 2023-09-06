@@ -75,16 +75,11 @@ class EmbeddingManager {
       embedding,
     })
     if (!embedding) return []
-    let embeddingIndexMap: Map<number, IEmbedding>
     const { exists, vectorHnswIndex } = await getHnswIndex(model, scope)
+    const { embeddingIndexMap, embeddings: oldEmbeddings } =
+      await this.filterEmbeddings(model, scope)
     if (!exists) {
-      const {
-        embeddingIndexMap: _embeddingIndexMap,
-        embeddings: oldEmbeddings,
-      } = await this.filterEmbeddings(model, scope)
-      console.log(oldEmbeddings)
       vectorHnswIndex.addItems(oldEmbeddings, true)
-      embeddingIndexMap = _embeddingIndexMap
     }
     const { neighbors } = vectorHnswIndex.searchKnn(
       embedding,
@@ -119,13 +114,21 @@ class EmbeddingManager {
       default:
         throw new Error("unknown type")
     }
-    const pages = await loader!.load(id)
+    const file = await this.dataSpace.getFileById(id)
+    if (!file) {
+      throw new Error("file not found")
+    }
+    if (file.isVectorized) {
+      console.warn("file is already vectorized")
+      return
+    }
+    const pages = await loader!.load(file.path)
     if (!pages.length) return
     const embeddingMethod = this.getEmbeddingMethod(model, provider)
     const embeddings = await embeddingMethod(pages.map((page) => page.content))
     for (const [page, embedding] of zip(pages, embeddings)) {
       if (page && embedding) {
-        await this.dataSpace.embedding.add({
+        await this.dataSpace.addEmbedding({
           id: getUuid(),
           embedding: JSON.stringify(embedding),
           model,
@@ -135,6 +138,7 @@ class EmbeddingManager {
         })
       }
     }
+    await this.dataSpace.updateFileVectorized(id, true)
   }
 }
 

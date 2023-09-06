@@ -2,6 +2,7 @@
 
 import { Menu } from "lucide-react"
 
+import { opfsManager } from "@/lib/opfs"
 // import SplitPane, { Pane } from "react-split-pane"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -37,7 +38,7 @@ export function DatabaseLayoutBase({
   className?: string
 }) {
   const { sqlite } = useSqlite()
-  const { isShareMode, currentPreviewFileUrl } = useAppRuntimeStore()
+  const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useSpaceAppStore()
 
   // event listen should be in useLayoutInit, and just listen once
@@ -53,10 +54,10 @@ export function DatabaseLayoutBase({
   // when chat is close 2:10
   return (
     <div className={cn("relative  flex h-screen ", className)}>
-      {currentPreviewFileUrl && (
+      {currentPreviewFile && (
         <iframe
           className="hidden h-full w-full  md:block"
-          src={currentPreviewFileUrl}
+          src={opfsManager.getFileUrlByPath(currentPreviewFile.path)}
         ></iframe>
       )}
 

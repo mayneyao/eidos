@@ -36,14 +36,8 @@ async function queryEmbedding(data: {
 export const pathname = "/api/chat"
 export default async function handle(event: FetchEvent) {
   const req = await event.request.json()
-  const {
-    messages,
-    token,
-    baseUrl,
-    systemPrompt,
-    model,
-    currentPreviewFileUrl,
-  } = req
+  const { messages, token, baseUrl, systemPrompt, model, currentPreviewFile } =
+    req
   const openai = new OpenAI({
     apiKey: token,
     baseURL: baseUrl,
@@ -55,16 +49,14 @@ export default async function handle(event: FetchEvent) {
   const lastMsg = messages[messages.length - 1]
   let newMsgs = [...messages, sysPrompt]
   if (
-    currentPreviewFileUrl &&
-    // open pdf file
-    currentPreviewFileUrl.endsWith(".pdf") &&
+    currentPreviewFile &&
     // is user query
     lastMsg.role === "user"
   ) {
     const res = await queryEmbedding({
       query: lastMsg.content,
       model: "text-embedding-ada-002",
-      scope: currentPreviewFileUrl,
+      scope: currentPreviewFile.id,
       provider: {
         name: "openai",
         token: token,

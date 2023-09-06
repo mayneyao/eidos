@@ -1,22 +1,10 @@
+import { opfsManager } from "@/lib/opfs"
+import { pdfLoader } from "@/lib/pdf"
+
 export class PDFLoader {
-  async load(fileUrl: string): Promise<any[]> {
-    console.log(fileUrl)
-    const channel = new MessageChannel()
-    postMessage(
-      {
-        type: "loadPdf",
-        data: {
-          fileUrl,
-        },
-      },
-      [channel.port2]
-    )
-    const pages: any[] = await new Promise((resolve) => {
-      channel.port1.onmessage = (e) => {
-        console.log("pdf loader", e.data)
-        resolve(e.data)
-      }
-    })
+  async load(path: string): Promise<any[]> {
+    const file = await opfsManager.getFileByPath(path)
+    const pages = await pdfLoader(file)
     console.log("pages", pages)
     return pages
   }

@@ -121,6 +121,7 @@ export const useFileSystem = () => {
           mime,
           path,
         }
+        // TODO: handle duplicate file
         await sqlite?.addFile(fileInfo)
         res.push(fileInfo)
       }

@@ -1,11 +1,18 @@
 // for now it's under database page, maybe move to global later
 
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useConfigStore } from "@/app/settings/store"
+import { getFunctionCallHandler } from "@/lib/ai/openai"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useAutoRunCode } from "@/hooks/use-auto-run-code"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useDocEditor } from "@/hooks/use-doc-editor"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -15,14 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useAutoRunCode } from "@/hooks/use-auto-run-code"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useDocEditor } from "@/hooks/use-doc-editor"
-import { useHnsw } from "@/hooks/use-hnsw"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { getFunctionCallHandler } from "@/lib/ai/openai"
-import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useConfigStore } from "@/app/settings/store"
 
 import { AIChatMessage } from "./ai-chat-message"
 import { sysPrompts, useSystemPrompt } from "./hooks"
@@ -45,7 +45,7 @@ export default function Chat() {
   const textInputRef = useRef<HTMLTextAreaElement>()
   const [currentSysPrompt, setCurrentSysPrompt] =
     useState<keyof typeof sysPrompts>("base")
-  const { isShareMode, currentPreviewFileUrl } = useAppRuntimeStore()
+  const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
 
   const { queryEmbedding } = useHnsw()
   const currentNode = useCurrentNode()
@@ -75,7 +75,7 @@ export default function Chat() {
       baseUrl: aiConfig.baseUrl,
       systemPrompt,
       model: aiModel,
-      currentPreviewFileUrl,
+      currentPreviewFile,
     },
   })
   useEffect(() => {

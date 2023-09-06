@@ -11,7 +11,7 @@ import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
 import { ColumnTable } from "./meta_table/column"
 import { DocTable } from "./meta_table/doc"
-import { EmbeddingTable } from "./meta_table/embedding"
+import { EmbeddingTable, IEmbedding } from "./meta_table/embedding"
 import { FileTable, IFile } from "./meta_table/file"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
@@ -92,10 +92,22 @@ export class DataSpace {
       )
     }
   }
+  // embedding
+  public async addEmbedding(embedding: IEmbedding) {
+    return await this.embedding.add(embedding)
+  }
 
   // files
   public async addFile(file: IFile) {
     return await this.file.add(file)
+  }
+
+  public async getFileById(id: string) {
+    return await this.file.get(id)
+  }
+
+  public async getFileByPath(path: string) {
+    return await this.file.getFileByPath(path)
   }
 
   public async delFile(id: string) {
@@ -109,8 +121,13 @@ export class DataSpace {
     }
     return await this.file.del(file.id)
   }
+
   public async deleteFileByPathPrefix(prefix: string) {
     return await this.file.deleteFileByPathPrefix(prefix)
+  }
+
+  public async updateFileVectorized(id: string, isVectorized: boolean) {
+    return await this.file.updateVectorized(id, isVectorized)
   }
 
   // views

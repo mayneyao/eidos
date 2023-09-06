@@ -1,5 +1,10 @@
-const pdfjs = {} as any;
-
+const getPdfjs = async () => {
+  const pdfjs = await import("pdfjs-dist")
+  // @ts-ignore
+  const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.entry');
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+  return pdfjs
+}
 
 const document = {
   fonts: self.fonts,
@@ -12,7 +17,7 @@ const document = {
 }
 
 export async function pdfLoader(file: File) {
-  //   const pdfjs = await getPdfjs()
+  const pdfjs = await getPdfjs()
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({
     data: arrayBuffer,

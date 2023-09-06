@@ -116,6 +116,11 @@ export const getDirHandle = async (_paths: string[]) => {
 }
 
 export class OpfsManager {
+  getFileUrlByPath = (path: string) => {
+    const paths = path.split("/").slice(1)
+    return "/" + paths.join("/")
+  }
+
   getFileByURL = async (url: string) => {
     const path = new URL(url).pathname
     const parentPaths = path.split("/").slice(0, -1).filter(Boolean)
@@ -125,6 +130,13 @@ export class OpfsManager {
     const fileHandle = await parentDirHandle.getFileHandle(realFilename)
     return fileHandle.getFile()
   }
+
+  getFileByPath = async (path: string) => {
+    const paths = path.split("/")
+    const file = await this.getFile(paths)
+    return file
+  }
+
   listDir = async (_paths: string[]) => {
     const dirHandle = await getDirHandle(_paths)
     const entries: FileSystemFileHandle[] = []
@@ -150,7 +162,7 @@ export class OpfsManager {
     console.log("update doc file", filename)
   }
 
-  getDocContent = async (_paths: string[]) => {
+  getFile = async (_paths: string[]) => {
     const paths = [..._paths]
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
@@ -161,6 +173,11 @@ export class OpfsManager {
       create: true,
     })
     const file = await fileHandle.getFile()
+    return file
+  }
+
+  getDocContent = async (_paths: string[]) => {
+    const file = await this.getFile(_paths)
     return await file.text()
   }
 
