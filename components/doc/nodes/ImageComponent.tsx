@@ -6,9 +6,15 @@
  *
  */
 
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
+import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { ContentEditable } from "@lexical/react/LexicalContentEditable"
+import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
+import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer"
+import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection"
 import { mergeRegister } from "@lexical/utils"
 import {
@@ -30,16 +36,8 @@ import {
   type NodeSelection,
   type RangeSelection,
 } from "lexical"
-import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 
-import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
-import { ContentEditable } from "@lexical/react/LexicalContentEditable"
-import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
-import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
-import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import "./ImageNode.css"
-
-
 import { $isImageNode } from "./ImageNode"
 // import { useSettings } from "../context/SettingsContext"
 // import { useSharedHistoryContext } from "../context/SharedHistoryContext"

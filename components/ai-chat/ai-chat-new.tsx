@@ -7,9 +7,11 @@ import { Link } from "react-router-dom"
 
 import { getFunctionCallHandler } from "@/lib/ai/openai"
 import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useAutoRunCode } from "@/hooks/use-auto-run-code"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useDocEditor } from "@/hooks/use-doc-editor"
+import { useHnsw } from "@/hooks/use-hnsw"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,7 +45,9 @@ export default function Chat() {
   const textInputRef = useRef<HTMLTextAreaElement>()
   const [currentSysPrompt, setCurrentSysPrompt] =
     useState<keyof typeof sysPrompts>("base")
+  const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
 
+  const { queryEmbedding } = useHnsw()
   const currentNode = useCurrentNode()
   const { aiConfig } = useConfigStore()
   const { sqlite } = useSqlite()
@@ -71,6 +75,7 @@ export default function Chat() {
       baseUrl: aiConfig.baseUrl,
       systemPrompt,
       model: aiModel,
+      currentPreviewFile,
     },
   })
   useEffect(() => {
@@ -87,6 +92,8 @@ export default function Chat() {
   const handleEnter = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter") {
       e.preventDefault()
+      if (!input) return
+      if (isLoading) return
       handleSubmit(e as any)
     }
   }
@@ -111,7 +118,11 @@ export default function Chat() {
             </SelectTrigger>
             <SelectContent>
               {promptKeys.map((key) => {
-                return <SelectItem value={key}>{key}</SelectItem>
+                return (
+                  <SelectItem key={key} value={key}>
+                    {key}
+                  </SelectItem>
+                )
               })}
             </SelectContent>
           </Select>
@@ -121,7 +132,11 @@ export default function Chat() {
             </SelectTrigger>
             <SelectContent>
               {models.map((key) => {
-                return <SelectItem value={key}>{key}</SelectItem>
+                return (
+                  <SelectItem key={key} value={key}>
+                    {key}
+                  </SelectItem>
+                )
               })}
             </SelectContent>
           </Select>

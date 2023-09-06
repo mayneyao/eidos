@@ -70,20 +70,6 @@ export const getSpaceDatabaseFileHandle = async (spaceName: string) => {
   return dbFileHandle
 }
 
-export const uploadFile2OPFS = async (
-  file: File,
-  spaceName: string,
-  domain = ""
-) => {
-  const imgUrl = URL.createObjectURL(file)
-  const fileHash = imgUrl.split("/").pop()
-  const fileExtension = file.name.split(".").pop()
-  const newFileName = `${fileHash}.${fileExtension}`
-  const newFileUrl = `/${spaceName}/files/${newFileName}`
-  await saveFile(file, spaceName, newFileName)
-  return newFileUrl
-}
-
 export const saveFile = async (file: File, space: string, name?: string) => {
   const opfsRoot = await navigator.storage.getDirectory()
   const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
@@ -130,6 +116,27 @@ export const getDirHandle = async (_paths: string[]) => {
 }
 
 export class OpfsManager {
+  getFileUrlByPath = (path: string) => {
+    const paths = path.split("/").slice(1)
+    return "/" + paths.join("/")
+  }
+
+  getFileByURL = async (url: string) => {
+    const path = new URL(url).pathname
+    const parentPaths = path.split("/").slice(0, -1).filter(Boolean)
+    const parentDirHandle = await getDirHandle(["spaces", ...parentPaths])
+    const filename = path.split("/").pop()
+    const realFilename = decodeURIComponent(filename!)
+    const fileHandle = await parentDirHandle.getFileHandle(realFilename)
+    return fileHandle.getFile()
+  }
+
+  getFileByPath = async (path: string) => {
+    const paths = path.split("/")
+    const file = await this.getFile(paths)
+    return file
+  }
+
   listDir = async (_paths: string[]) => {
     const dirHandle = await getDirHandle(_paths)
     const entries: FileSystemFileHandle[] = []
@@ -155,7 +162,7 @@ export class OpfsManager {
     console.log("update doc file", filename)
   }
 
-  getDocContent = async (_paths: string[]) => {
+  getFile = async (_paths: string[]) => {
     const paths = [..._paths]
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
@@ -166,6 +173,11 @@ export class OpfsManager {
       create: true,
     })
     const file = await fileHandle.getFile()
+    return file
+  }
+
+  getDocContent = async (_paths: string[]) => {
+    const file = await this.getFile(_paths)
     return await file.text()
   }
 
@@ -192,6 +204,10 @@ export class OpfsManager {
     const writable = await (fileHandle as any).createWritable()
     await writable.write(file)
     await writable.close()
+    // fileHandle get path
+    const opfsRoot = await navigator.storage.getDirectory()
+    const relativePath = await opfsRoot.resolve(fileHandle)
+    return relativePath
   }
 
   deleteEntry = async (_paths: string[], isDir = false) => {

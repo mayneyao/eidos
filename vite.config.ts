@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
-export default defineConfig({
+const config = defineConfig({
   plugins: [
     react(),
     VitePWA({
@@ -58,4 +58,18 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm"],
   },
+  //     inlineDynamicImports :true
+  // build: {
+  //   rollupOptions: {
+  //     output: {
+  //       manualChunks: {
+  //         pdfjs: ["pdfjs-dist/build/pdf.js"],
+  //         pdfjsWorker: ["pdfjs-dist/build/pdf.worker.js"],
+  //       },
+  //       inlineDynamicImports: true,
+  //     },
+  //   },
+  // },
 })
+
+export default config

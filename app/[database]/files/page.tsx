@@ -3,9 +3,9 @@ import { useDrop } from "ahooks"
 import { FileIcon, FolderIcon, HomeIcon } from "lucide-react"
 import Selecto from "react-selecto"
 
+import { useFileSystem } from "@/hooks/use-files"
 import { Separator } from "@/components/ui/separator"
 
-import { useFileSystem } from "./hooks"
 import { FileItemContextMenu, FileManagerContextMenu } from "./menu"
 
 export const FileManager = () => {
