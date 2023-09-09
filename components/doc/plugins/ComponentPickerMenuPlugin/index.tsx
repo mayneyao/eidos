@@ -6,6 +6,7 @@
  *
  */
 
+import { useCallback, useMemo, useState } from "react"
 import { $createCodeNode } from "@lexical/code"
 import {
   INSERT_CHECK_LIST_COMMAND,
@@ -17,13 +18,9 @@ import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontal
 import {
   LexicalTypeaheadMenuPlugin,
   MenuOption,
-  useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import { $createHeadingNode, $createQuoteNode } from "@lexical/rich-text"
-import {
-  $patchStyleText,
-  $setBlocksType
-} from "@lexical/selection"
+import { $patchStyleText, $setBlocksType } from "@lexical/selection"
 import { INSERT_TABLE_COMMAND } from "@lexical/table"
 import {
   $createParagraphNode,
@@ -31,9 +28,8 @@ import {
   $isRangeSelection,
   $isTextNode,
   FORMAT_ELEMENT_COMMAND,
-  TextNode
+  TextNode,
 } from "lexical"
-import { useCallback, useMemo, useState } from "react"
 import * as ReactDOM from "react-dom"
 
 import { useModal } from "../../hooks/useModal"
@@ -41,6 +37,8 @@ import { SelectDatabaseTableDialog } from "../DatabasePlugin/SelectDatabaseTable
 import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
 import { bgColors, fgColors } from "../const"
 import "./index.css"
+import { AI_COMPLETE_COMMAND } from "../AutocompletePlugin/cmd"
+import { useBasicTypeaheadTriggerMatch } from "./hook"
 
 class ComponentPickerOption extends MenuOption {
   // What shows up in the editor
@@ -165,6 +163,11 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
 
   const options = useMemo(() => {
     const baseOptions = [
+      new ComponentPickerOption("AI Complete", {
+        icon: <i className="icon horizontal-rule" />,
+        keywords: ["ai", "auto"],
+        onSelect: () => editor.dispatchCommand(AI_COMPLETE_COMMAND, ""),
+      }),
       new ComponentPickerOption("Paragraph", {
         icon: <i className="icon paragraph" />,
         keywords: ["normal", "paragraph", "p", "text"],
@@ -273,16 +276,16 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
             />
           )),
       }),
-      ...["left", "center", "right", "justify"].map(
-        (alignment) =>
-          new ComponentPickerOption(`Align ${alignment}`, {
-            icon: <i className={`icon ${alignment}-align`} />,
-            keywords: ["align", "justify", alignment],
-            onSelect: () =>
-              // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
-              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, alignment),
-          })
-      ),
+      // ...["left", "center", "right", "justify"].map(
+      //   (alignment) =>
+      //     new ComponentPickerOption(`Align ${alignment}`, {
+      //       icon: <i className={`icon ${alignment}-align`} />,
+      //       keywords: ["align", "justify", alignment],
+      //       onSelect: () =>
+      //         // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
+      //         editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, alignment),
+      //     })
+      // ),
       ...bgColors.map(({ name, value }) => {
         return new ComponentPickerOption(`Background ${name}`, {
           icon: <i className="icon color" />,

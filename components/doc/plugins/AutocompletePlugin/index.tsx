@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { mergeRegister } from "@lexical/utils"
-import { useDebounceFn } from "ahooks"
 import { useCompletion } from "ai/react"
 import {
   $createTextNode,
@@ -11,28 +9,32 @@ import {
   $isTextNode,
   COMMAND_PRIORITY_LOW,
   KEY_ARROW_RIGHT_COMMAND,
+  KEY_ESCAPE_COMMAND,
   KEY_TAB_COMMAND,
   TextNode,
   type NodeKey,
 } from "lexical"
+import { useCallback, useEffect, useState } from "react"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useConfigStore } from "@/app/settings/store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { addSwipeRightListener } from "../../utils/swipe"
-
+import { AI_COMPLETE_COMMAND } from "./cmd"
 
 //  you can set completeSystemPrompt in localStorage to overwrite the default system prompt.
 const defaultSysPrompt = `
-your are a program to help user complete doc, your complete doc base on the user's input.
+1. your are a program to help user complete doc
+2. your complete doc base on the user's input.
+3. your are good at English and Chinese.
 
 example1:
-input: today i wa
-output: nt to go outside
+input: 雄关漫道真如铁, 
+output: 而今迈步从头越
 
 example2:
-input: what do you 
-output: like?
+input: today i wa
+output: nt to go outside
 `
 
 export default function AutocompletePlugin(): JSX.Element | null {
@@ -60,7 +62,7 @@ export default function AutocompletePlugin(): JSX.Element | null {
     setCompleteLoading(isLoading)
   }, [isLoading, setCompleteLoading])
 
-  function handleUpdate() {
+  const handleAIComplete = useCallback(() => {
     if (disableDocAIComplete) {
       return
     }
@@ -88,10 +90,8 @@ export default function AutocompletePlugin(): JSX.Element | null {
         }
       }
     })
-  }
-  const { run: debounceHandleUpdate } = useDebounceFn(handleUpdate, {
-    wait: 1000,
-  })
+  }, [complete, disableDocAIComplete, editor, isLoading, needHandle, stop])
+
   useEffect(() => {
     editor.update(() => {
       if (suggestion) {
@@ -109,6 +109,21 @@ export default function AutocompletePlugin(): JSX.Element | null {
         }
       }
     })
+
+    function $handleClearCompletionNode(e: Event) {
+      if (needHandle && completionNodeKey != null) {
+        editor.update(() => {
+          const completionNode = $getNodeByKey(completionNodeKey) as TextNode
+          // delete completion node
+          completionNode?.remove()
+        })
+        clearSuggestion()
+        setCompletionNodeKey(null)
+        setNeedHandle(false)
+        return true
+      }
+      return false
+    }
     function $handleAutocompleteIntent(): boolean {
       if (isLoading || !needHandle) {
         return false
@@ -116,7 +131,6 @@ export default function AutocompletePlugin(): JSX.Element | null {
       const selection = $getSelection()
       if ($isRangeSelection(selection)) {
         const maybeNode = selection.anchor.getNode()
-
         if ($isTextNode(maybeNode) && completionNodeKey != null) {
           const completionNode = $getNodeByKey(completionNodeKey) as TextNode
           completionNode?.setStyle("")
@@ -152,11 +166,6 @@ export default function AutocompletePlugin(): JSX.Element | null {
     const rootElem = editor.getRootElement()
 
     return mergeRegister(
-      //   editor.registerNodeTransform(
-      //     AutocompleteNode,
-      //     handleAutocompleteNodeTransform
-      //   ),
-      editor.registerUpdateListener(debounceHandleUpdate),
       editor.registerCommand(
         KEY_TAB_COMMAND,
         $handleKeypressCommand,
@@ -167,6 +176,19 @@ export default function AutocompletePlugin(): JSX.Element | null {
         $handleKeypressCommand,
         COMMAND_PRIORITY_LOW
       ),
+      editor.registerCommand(
+        KEY_ESCAPE_COMMAND,
+        $handleClearCompletionNode,
+        COMMAND_PRIORITY_LOW
+      ),
+      editor.registerCommand<string>(
+        AI_COMPLETE_COMMAND,
+        (payload) => {
+          handleAIComplete()
+          return true
+        },
+        COMMAND_PRIORITY_LOW
+      ),
       ...(rootElem !== null
         ? [addSwipeRightListener(rootElem, handleSwipeRight)]
         : [])
@@ -174,7 +196,7 @@ export default function AutocompletePlugin(): JSX.Element | null {
   }, [
     complete,
     completionNodeKey,
-    debounceHandleUpdate,
+    handleAIComplete,
     editor,
     isLoading,
     needHandle,
