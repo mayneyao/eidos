@@ -1,6 +1,7 @@
 import React from "react"
 import { useClickAway } from "ahooks"
 
+import { FieldType } from "@/lib/fields/const"
 import { IUIColumn } from "@/hooks/use-table"
 
 import { useTableAppStore } from "../store"
@@ -17,6 +18,12 @@ const PropertyEditorTypeMap: {
   "multi-select": SelectPropertyEditor,
   formula: FormulaPropertyEditor,
 }
+const BASE_Fields = [
+  FieldType.Text,
+  FieldType.Number,
+  FieldType.URL,
+  FieldType.File,
+]
 
 const NotImplementEditor = () => {
   return <div>Not implement</div>
@@ -24,10 +31,12 @@ const NotImplementEditor = () => {
 
 interface IFieldPropertyEditorProps {
   updateFieldProperty: (fieldName: IUIColumn, property: any) => void
+  changeFieldType: (rawFieldName: string, type: FieldType) => void
 }
 
 export const FieldPropertyEditor = ({
   updateFieldProperty,
+  changeFieldType,
 }: IFieldPropertyEditorProps) => {
   const ref = React.useRef<HTMLDivElement>(null)
   const { setIsFieldPropertiesEditorOpen, currentUiColumn: currentField } =
@@ -43,6 +52,9 @@ export const FieldPropertyEditor = ({
   const onPropertyChange = (property: any) => {
     currentField && updateFieldProperty(currentField, property)
   }
+  const handleChangeFieldType = (type: FieldType) => {
+    currentField && changeFieldType(currentField.table_column_name, type)
+  }
 
   const Editor =
     PropertyEditorTypeMap[currentField?.type ?? "select"] ?? NotImplementEditor
@@ -51,6 +63,21 @@ export const FieldPropertyEditor = ({
       className="absolute right-0 top-0 h-full w-[400px] bg-slate-50 dark:bg-slate-950"
       ref={ref}
     >
+      {/* simple implement change field type */}
+      {BASE_Fields.includes(currentField!.type) && (
+        <select
+          name="field-type"
+          id="field-type-select"
+          value={currentField?.type}
+          onChange={(e) => handleChangeFieldType(e.target.value as FieldType)}
+        >
+          {BASE_Fields.map((fieldType) => (
+            <option key={fieldType} value={fieldType}>
+              {fieldType}
+            </option>
+          ))}
+        </select>
+      )}
       <Editor uiColumn={currentField!} onPropertyChange={onPropertyChange} />
     </div>
   )

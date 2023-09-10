@@ -17,17 +17,19 @@ export const FieldEditor = (props: IFieldEditorProps) => {
     useTableAppStore()
   const { uiColumns } = useUiColumns(tableName, databaseName)
 
-  const { deleteFieldByColIndex, addField, updateFieldProperty } = useTable(
-    tableName,
-    databaseName
-  )
+  const {
+    deleteFieldByColIndex,
+    addField,
+    updateFieldProperty,
+    changeFieldType,
+  } = useTable(tableName, databaseName)
   return (
     <>
       {isAddFieldEditorOpen && (
         <FieldAppendPanel addField={addField} uiColumns={uiColumns} />
       )}
       {isFieldPropertiesEditorOpen && (
-        <FieldPropertyEditor updateFieldProperty={updateFieldProperty} />
+        <FieldPropertyEditor updateFieldProperty={updateFieldProperty}  changeFieldType={changeFieldType}/>
       )}
       <FieldEditorDropdown
         databaseName={databaseName}

@@ -121,6 +121,17 @@ export const useTable = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
+  const changeFieldType = async (
+    tableColumnName: string,
+    newType: FieldType
+  ) => {
+    if (!sqlite) return
+    await sqlite.sql`UPDATE ${Symbol(
+      ColumnTableName
+    )} SET type = ${newType} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+    await updateUiColumns()
+  }
+
   const updateFieldProperty = async (field: IUIColumn, property: any) => {
     if (!sqlite) return
     await sqlite.updateColumnProperty({
@@ -231,6 +242,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     updateCell,
     addField,
     updateFieldName,
+    changeFieldType,
     updateFieldProperty,
     deleteField,
     deleteFieldByColIndex,
