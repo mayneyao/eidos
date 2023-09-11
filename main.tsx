@@ -9,6 +9,8 @@ import { FileManager } from "@/app/[database]/files/page"
 // space
 import SpaceLayout from "@/app/[database]/layout"
 import SpaceHomePage from "@/app/[database]/page"
+// extensions
+import { ExtensionPage } from "@/app/extensions/page"
 import RootLayout from "@/app/layout"
 import HomePage from "@/app/page"
 import SettingsAccountPage from "@/app/settings/account/page"
@@ -39,6 +41,10 @@ const router = createBrowserRouter([
       {
         path: "offline",
         element: <HomePage />,
+      },
+      {
+        path: "extensions",
+        element: <ExtensionPage />,
       },
       {
         path: "settings",
