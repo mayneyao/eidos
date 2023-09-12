@@ -29,6 +29,8 @@ import SharePage from "@/app/share/page"
 // space-manage
 import SpaceManagePage from "@/app/space-manage/page"
 
+import { ExtensionContainer } from "./app/extensions/container"
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -45,6 +47,15 @@ const router = createBrowserRouter([
       {
         path: "extensions",
         element: <ExtensionPage />,
+      },
+      {
+        path: "ext",
+        children: [
+          {
+            path: ":ext",
+            element: <ExtensionContainer />,
+          },
+        ],
       },
       {
         path: "settings",

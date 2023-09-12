@@ -1,10 +1,9 @@
 import { useKeyPress } from "ahooks"
 import { Minimize2 } from "lucide-react"
-import { useState } from "react"
 
+import { useGoto } from "@/hooks/use-goto"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { useGoto } from "@/hooks/use-goto"
 
 import { useLastOpened } from "../[database]/hook"
 import { useAllExtensions } from "./hooks"
@@ -12,8 +11,7 @@ import { useAllExtensions } from "./hooks"
 export function ExtensionPage() {
   const { lastOpenedTable, lastOpenedDatabase } = useLastOpened()
   const goto = useGoto()
-  const [currentExt, setCurrentExt] = useState<string | null>(null)
-  const { extensions, uploadExtension } = useAllExtensions()
+  const { extensions, uploadExtension, getAllExtensions } = useAllExtensions()
   const goBack = () => goto(lastOpenedDatabase, lastOpenedTable)
   useKeyPress("esc", (e) => {
     e.preventDefault()
@@ -24,10 +22,11 @@ export function ExtensionPage() {
     const dirHandle: FileSystemDirectoryHandle = await (
       window as any
     ).showDirectoryPicker()
-    uploadExtension(dirHandle)
+    await uploadExtension(dirHandle)
+    await getAllExtensions()
   }
   const handleExtensionClick = async (extensionName: string) => {
-    setCurrentExt(extensionName)
+    window.open(`//${window.location.host}/ext/${extensionName}`)
   }
 
   return (
@@ -62,14 +61,6 @@ export function ExtensionPage() {
               )
             })}
             <Button onClick={handleUploadExtension}>upload extension</Button>
-            {currentExt && (
-              <iframe
-                src={`https://${currentExt}.ext.eidos.space`}
-                frameBorder="0"
-                width={1000}
-                height={1000}
-              ></iframe>
-            )}
           </div>
         </div>
       </div>

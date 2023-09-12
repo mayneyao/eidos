@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useCallback, useEffect } from "react"
 import { create } from "zustand"
 
 import { opfsManager } from "@/lib/opfs"
@@ -36,55 +36,54 @@ export const useAllExtensions = () => {
     return text
   }
 
-  useEffect(() => {
-    window.addEventListener("message", (event) => {
-      const { type, name } = event.data
-      if (type === "loadExtension") {
-        getExtensionIndex(name).then((text) => {
-          event.ports[0].postMessage({ type: "loadExtensionResp", text })
+  const handleMsg = useCallback((event: MessageEvent) => {
+    const { type, name } = event.data
+    if (type === "loadExtension") {
+      getExtensionIndex(name).then((text) => {
+        event.ports[0].postMessage({ type: "loadExtensionResp", text })
+      })
+    }
+    if (type === "loadExtensionAsset") {
+      const { url } = event.data
+      console.log("loadExtensionAsset", url)
+      const _url = new URL(url)
+      const extName = _url.hostname.split(".")[0]
+      const paths = _url.pathname.split("/").filter(Boolean)
+      opfsManager.getFile(["extensions", extName, ...paths]).then((file) => {
+        const contentType = file.type
+        file.text().then((text) => {
+          const data = {
+            type: "loadExtensionAssetResp",
+            text,
+            contentType,
+          }
+          console.log(data)
+          event.ports[0].postMessage(data)
         })
-      }
-      if (type === "loadExtensionAsset") {
-        const { url } = event.data
-        console.log("loadExtensionAsset", url)
-        const _url = new URL(url)
-        const extName = _url.hostname.split(".")[0]
-        const paths = _url.pathname.split("/").filter(Boolean)
-        opfsManager.getFile(["extensions", extName, ...paths]).then((file) => {
-          const contentType = file.type
-          file.text().then((text) => {
-            const data = {
-              type: "loadExtensionAssetResp",
-              text,
-              contentType,
-            }
-            console.log(data)
-            event.ports[0].postMessage(data)
-          })
-        })
-      }
-      console.log(event.data)
-    })
+      })
+    }
+    console.log(event.data)
   }, [])
 
+  const getAllExtensions = useCallback(async () => {
+    const extensionDirs = await opfsManager.listDir(["extensions"])
+    const allExtensions = await Promise.all(
+      extensionDirs.map(async (dir) => {
+        const packageJson = await opfsManager.getFile([
+          "extensions",
+          dir.name,
+          "package.json",
+        ])
+        const extInfo = await getExtInfo(packageJson)
+        return extInfo
+      })
+    )
+    setExtensions(allExtensions)
+  }, [setExtensions])
+
   useEffect(() => {
-    const getAllExtensions = async () => {
-      const extensionDirs = await opfsManager.listDir(["extensions"])
-      const allExtensions = await Promise.all(
-        extensionDirs.map(async (dir) => {
-          const packageJson = await opfsManager.getFile([
-            "extensions",
-            dir.name,
-            "package.json",
-          ])
-          const extInfo = await getExtInfo(packageJson)
-          return extInfo
-        })
-      )
-      setExtensions(allExtensions)
-    }
     getAllExtensions()
-  }, [extensions, setExtensions])
+  }, [extensions, getAllExtensions, setExtensions])
 
   const uploadExtension = async (
     dirHandle: FileSystemDirectoryHandle,
@@ -112,5 +111,7 @@ export const useAllExtensions = () => {
   return {
     extensions,
     uploadExtension,
+    getAllExtensions,
+    handleMsg,
   }
 }
