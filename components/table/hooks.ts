@@ -77,7 +77,7 @@ export const useCurrentView = () => {
   }
 }
 
-export const useVideData = (view: IView) => {
+export const useViewData = (view: IView) => {
   const { tableId, query } = view
   const tableName = getRawTableNameById(tableId)
   const { sqlite } = useSqlite()
