@@ -26,7 +26,8 @@ export const FileManager = () => {
   const dropRef = useRef(null)
   useDrop(dropRef, {
     onFiles: (files, e) => {
-      addFiles(files)
+      // when drop files into opfs via file manager, we don't use uuid as file name, keep the original name
+      addFiles(files, false)
     },
     onDom: (content: string, e) => {
       alert(`custom: ${content} dropped`)
