@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { AvatarList } from "@/components/avatar-list"
+import { DiscordIcon } from "@/components/icons/discord"
 import { ShareDialog } from "@/components/share-dialog"
 
 import { useConfigStore } from "../settings/store"
@@ -78,10 +79,12 @@ export function DropdownMenuDemo() {
             <span>GitHub</span>
           </DropdownMenuItem>
         </Link>
-        <DropdownMenuItem>
-          <LifeBuoy className="mr-2 h-4 w-4" />
-          <span>Support</span>
-        </DropdownMenuItem>
+        <Link to="https://discord.gg/7TsWH7tZ" target="_blank">
+          <DropdownMenuItem>
+            <DiscordIcon className="mr-2 h-4 w-4" />
+            <span>Discord</span>
+          </DropdownMenuItem>
+        </Link>
         <DropdownMenuItem disabled>
           <Cloud className="mr-2 h-4 w-4" />
           <span>API</span>
