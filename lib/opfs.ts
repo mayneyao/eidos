@@ -192,13 +192,16 @@ export class OpfsManager {
     // const path = await opfsRoot.resolve(r)
   }
 
-  addFile = async (_paths: string[], file: File) => {
+  addFile = async (_paths: string[], file: File, fileId?: string) => {
     const paths = [..._paths]
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
     }
     const dirHandle = await getDirHandle(paths)
-    const fileHandle = await dirHandle.getFileHandle(file.name, {
+    // if fileId is provided, use it as file name
+    const fileExt = file.name.split(".").pop()
+    const filename = fileId ? `${fileId}.${fileExt}` : file.name
+    const fileHandle = await dirHandle.getFileHandle(filename, {
       create: true,
     })
     const writable = await (fileHandle as any).createWritable()

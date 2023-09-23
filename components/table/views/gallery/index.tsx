@@ -5,7 +5,7 @@ import { VariableSizeGrid as Grid } from "react-window"
 
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
-import { useVideData } from "../../hooks"
+import { useViewData } from "../../hooks"
 import { GalleryCard } from "./gallery-card"
 import { computeCardHeight, getColumnWidthAndCount } from "./utils"
 
@@ -15,9 +15,13 @@ interface IGalleryViewProps {
   view: IView
 }
 
-export const GalleryView = ({ tableName, space, view }: IGalleryViewProps) => {
+export default function GalleryView({
+  tableName,
+  space,
+  view,
+}: IGalleryViewProps) {
   const [size, setSize] = useState<any>()
-  const { data } = useVideData(view)
+  const { data } = useViewData(view)
   const ref = useRef<Grid>(null)
   const { uiColumns, uiColumnMap, getFieldByIndex, rawIdNameMap } =
     useUiColumns(tableName, space)

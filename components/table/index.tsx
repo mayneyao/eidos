@@ -1,6 +1,6 @@
+import React, { useCallback, useEffect } from "react"
 import { ViewTypeEnum } from "@/worker/meta_table/view"
 import { PlusIcon } from "lucide-react"
-import { useCallback, useEffect } from "react"
 import {
   createSearchParams,
   useLocation,
@@ -14,7 +14,8 @@ import Grid from "../grid"
 import { Button } from "../ui/button"
 import { useCurrentView, useViewOperation } from "./hooks"
 import { ViewItem } from "./view-item"
-import { GalleryView } from "./views/gallery"
+
+const GalleryView = React.lazy(() => import("./views/gallery"))
 
 interface ITableProps {
   space: string

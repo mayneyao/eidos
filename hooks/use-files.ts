@@ -99,15 +99,17 @@ export const useFileSystem = () => {
   }, [refresh, currentPath])
 
   const addFiles = useCallback(
-    async (files: File[]) => {
+    async (files: File[], useUuId: boolean = true) => {
       if (!sqlite) {
         throw new Error("add file failed, no sqlite instance")
       }
       const res: IFile[] = []
       for (const file of files) {
+        const fileId = getUuid()
         const paths = await opfsManager.addFile(
           ["spaces", space, "files", ...currentPath],
-          file
+          file,
+          useUuId ? fileId : undefined
         )
         if (!paths) {
           throw new Error("add file failed")
@@ -115,7 +117,7 @@ export const useFileSystem = () => {
         const { name, size, type: mime } = file
         const path = paths.join("/")
         const fileInfo: IFile = {
-          id: getUuid(),
+          id: fileId,
           name,
           size,
           mime,

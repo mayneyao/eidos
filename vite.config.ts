@@ -1,5 +1,6 @@
 import path from "path"
 import react from "@vitejs/plugin-react"
+import { visualizer } from "rollup-plugin-visualizer"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
@@ -480,6 +481,13 @@ const config = defineConfig({
         enabled: true,
         type: "module",
       },
+    }),
+    visualizer({
+      gzipSize: true,
+      brotliSize: true,
+      emitFile: false,
+      filename: "dev-pkg-vis.html",
+      open: true,
     }),
   ],
   resolve: {

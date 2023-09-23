@@ -4,6 +4,8 @@ logs
 
 tsconfig.tsbuildinfo
 
+dev-pkg-vis.html
+
 # dependencies
 node_modules
 .pnp
