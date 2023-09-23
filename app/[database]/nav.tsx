@@ -1,4 +1,5 @@
 import {
+  BlocksIcon,
   Bot,
   Cable,
   Cloud,
@@ -66,6 +67,13 @@ export function DropdownMenuDemo() {
             <span>Command Palette</span>
             <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
           </DropdownMenuItem>
+          <Link to="/extensions">
+            <DropdownMenuItem>
+              <BlocksIcon className="mr-2 h-4 w-4" />
+              <span>Extensions</span>
+              {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
+            </DropdownMenuItem>
+          </Link>
           <DropdownMenuItem onSelect={goSettings}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>

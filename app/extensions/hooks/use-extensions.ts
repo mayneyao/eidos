@@ -27,7 +27,7 @@ export const getExtInfo = async (file: File): Promise<ExtensionType> => {
   return { name, version, description }
 }
 
-export const useAllExtensions = () => {
+export const useExtensions = () => {
   const { extensions, setExtensions } = useExtensionStore()
 
   const getExtensionIndex = async (name: string) => {
@@ -35,35 +35,6 @@ export const useAllExtensions = () => {
     const text = await file.text()
     return text
   }
-
-  const handleMsg = useCallback((event: MessageEvent) => {
-    const { type, name } = event.data
-    if (type === "loadExtension") {
-      getExtensionIndex(name).then((text) => {
-        event.ports[0].postMessage({ type: "loadExtensionResp", text })
-      })
-    }
-    if (type === "loadExtensionAsset") {
-      const { url } = event.data
-      console.log("loadExtensionAsset", url)
-      const _url = new URL(url)
-      const extName = _url.hostname.split(".")[0]
-      const paths = _url.pathname.split("/").filter(Boolean)
-      opfsManager.getFile(["extensions", extName, ...paths]).then((file) => {
-        const contentType = file.type
-        file.text().then((text) => {
-          const data = {
-            type: "loadExtensionAssetResp",
-            text,
-            contentType,
-          }
-          console.log(data)
-          event.ports[0].postMessage(data)
-        })
-      })
-    }
-    console.log(event.data)
-  }, [])
 
   const getAllExtensions = useCallback(async () => {
     const extensionDirs = await opfsManager.listDir(["extensions"])
@@ -108,10 +79,16 @@ export const useAllExtensions = () => {
       }
     }
   }
+
+  const removeExtension = async (name: string) => {
+    await opfsManager.deleteEntry(["extensions", name], true)
+    getAllExtensions()
+  }
   return {
     extensions,
+    removeExtension,
     uploadExtension,
     getAllExtensions,
-    handleMsg,
+    getExtensionIndex,
   }
 }

@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 
 import { useLastOpened } from "../[database]/hook"
-import { useAllExtensions } from "./hooks"
+import { useExtensions } from "./hooks/use-extensions"
 
 export function ExtensionPage() {
   const { lastOpenedTable, lastOpenedDatabase } = useLastOpened()
   const goto = useGoto()
-  const { extensions, uploadExtension, getAllExtensions } = useAllExtensions()
+  const { extensions, uploadExtension, getAllExtensions, removeExtension } =
+    useExtensions()
   const goBack = () => goto(lastOpenedDatabase, lastOpenedTable)
   useKeyPress("esc", (e) => {
     e.preventDefault()
@@ -46,17 +47,25 @@ export function ExtensionPage() {
         </div>
         <Separator className="my-6" />
         <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
-          <aside className="-mx-4 lg:w-1/5">
-            {/* <SidebarNav items={sidebarNavItems} /> */}
-          </aside>
           <div className="flex-1 lg:max-w-2xl">
             {extensions.map((extension) => {
               return (
-                <div
-                  onClick={() => handleExtensionClick(extension.name)}
-                  key={extension.name}
-                >
+                <div key={extension.name} className="flex items-center gap-2">
                   {extension.name}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => removeExtension(extension.name)}
+                  >
+                    del
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleExtensionClick(extension.name)}
+                  >
+                    open
+                  </Button>
                 </div>
               )
             })}
