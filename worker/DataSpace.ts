@@ -368,7 +368,7 @@ export class DataSpace {
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
-    console.log(sql, bind)
+    // console.log(sql, bind)
     const res: any[] = []
     try {
       this.db.exec({

@@ -9,6 +9,8 @@ import { FileManager } from "@/app/[database]/files/page"
 // space
 import SpaceLayout from "@/app/[database]/layout"
 import SpaceHomePage from "@/app/[database]/page"
+// extensions
+import { ExtensionPage } from "@/app/extensions/page"
 import RootLayout from "@/app/layout"
 import HomePage from "@/app/page"
 import SettingsAccountPage from "@/app/settings/account/page"
@@ -27,6 +29,8 @@ import SharePage from "@/app/share/page"
 // space-manage
 import SpaceManagePage from "@/app/space-manage/page"
 
+import { ExtensionContainer } from "./app/extensions/container"
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -39,6 +43,19 @@ const router = createBrowserRouter([
       {
         path: "offline",
         element: <HomePage />,
+      },
+      {
+        path: "extensions",
+        element: <ExtensionPage />,
+      },
+      {
+        path: "ext",
+        children: [
+          {
+            path: ":ext",
+            element: <ExtensionContainer />,
+          },
+        ],
       },
       {
         path: "settings",
