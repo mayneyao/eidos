@@ -20,6 +20,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+import { CommonSettingLayout } from "../common-setting-layout"
+
 type IActionMode = "remove" | "export" | "upload"
 export default function SpaceManagerPage() {
   const { spaceList, updateSpaceList } = useSpace()
@@ -46,7 +48,7 @@ export default function SpaceManagerPage() {
   }
 
   return (
-    <div className="prose mx-auto flex flex-col gap-2 p-10 dark:prose-invert">
+    <CommonSettingLayout title="Space Manage" description="">
       {modeLoading && <div>{mode} ...</div>}
       {spaceList.map((space) => {
         return (
@@ -85,6 +87,6 @@ export default function SpaceManagerPage() {
           </div>
         )
       })}
-    </div>
+    </CommonSettingLayout>
   )
 }
