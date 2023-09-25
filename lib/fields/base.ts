@@ -44,4 +44,8 @@ export abstract class BaseField<T, P, R = string>
   getDefaultFieldProperty(): P {
     return {} as P
   }
+
+  text2RawData(text: string) {
+    return text
+  }
 }

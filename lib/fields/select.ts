@@ -22,7 +22,19 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
   static colors = [
     {
       name: "default",
+      value: "cccccc",
+    },
+    {
+      name: "gray",
       value: "eeeeee",
+    },
+    {
+      name: "brown",
+      value: "e6c9a8",
+    },
+    {
+      name: "pink",
+      value: "ffd3e6",
     },
     {
       name: "red",
@@ -147,5 +159,21 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
       options.splice(index, 1)
     }
     this.column.property.options = options
+  }
+
+  /**
+   * @param text tag1
+   * return tag1id
+   */
+  text2RawData(text: string) {
+    const option = this.options.find((i) => i.name === text)
+    if (option) {
+      return option.id
+    } else {
+      // a new option name is entered, create a new option
+      return ""
+      const newOption = this.addOption(text)
+      return newOption[0].id
+    }
   }
 }

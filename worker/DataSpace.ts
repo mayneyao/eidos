@@ -1,11 +1,12 @@
 import { Database } from "@sqlite.org/sqlite-wasm"
 
+import { IUIColumn } from "@/hooks/use-table"
 import { MsgType } from "@/lib/const"
+import { allFieldTypesMap } from "@/lib/fields"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
-import { IUIColumn } from "@/hooks/use-table"
 
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
@@ -175,6 +176,11 @@ export class DataSpace {
   public async addRow(tableName: string, data: any) {
     // query ui columns
     const uiColumns = await this.column.list(tableName)
+    const fieldRawColumnNameFieldMap = uiColumns.reduce((acc, cur) => {
+      acc[cur.table_column_name] = cur
+      return acc
+    }, {} as Record<string, IUIColumn>)
+
     const fieldRawColumnMap = uiColumns.reduce((acc, cur) => {
       acc[cur.name] = cur.table_column_name
       return acc
@@ -183,11 +189,20 @@ export class DataSpace {
     // check key in data
     const { _id, ...restData } = data
     Object.keys(restData).forEach((key) => {
-      if (!fieldRawColumnMap[key]) {
+      const rawColumnName = fieldRawColumnMap[key]
+      if (!rawColumnName) {
         // delete key
         delete restData[key]
+      } else {
+        // transform text to raw data
+        const uiColumn = fieldRawColumnNameFieldMap[rawColumnName]
+        const fieldType = uiColumn.type
+        const fieldCls = allFieldTypesMap[fieldType]
+        const field = new fieldCls(uiColumn)
+        restData[key] = field.text2RawData(restData[key])
       }
     })
+    console.log(restData)
     const keys = [
       "_id",
       ...Object.keys(restData)

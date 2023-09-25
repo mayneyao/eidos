@@ -55,6 +55,30 @@ export class MultiSelectField extends BaseField<
       allowOverlay: true,
     }
   }
+
+  /**
+   * @param text tag1,tag2
+   * return tag1id,tag2id
+   */
+  text2RawData(text: string) {
+    console.log("text2RawData", text)
+    return text
+      .split(/[\s,]+/)
+      .map((value) => {
+        const option = this.options.find((i) => i.name === value)
+        if (option) {
+          return option.id
+        } else {
+          // a new option name is entered, create a new option
+          return null
+          // const newOption = this.addOption(value)
+          // return newOption[0].id
+        }
+      })
+      .filter(Boolean)
+      .join(",")
+  }
+
   cellData2RawData(cell: MultiSelectCell) {
     const allowedOptionIds = new Set(this.options.map((i) => i.id))
     const newValues = []
