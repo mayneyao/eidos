@@ -1,12 +1,12 @@
 import { Database } from "@sqlite.org/sqlite-wasm"
 
-import { IUIColumn } from "@/hooks/use-table"
 import { MsgType } from "@/lib/const"
 import { allFieldTypesMap } from "@/lib/fields"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
+import { IUIColumn } from "@/hooks/use-table"
 
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
@@ -274,6 +274,11 @@ export class DataSpace {
     })
   }
 
+  // table
+  public async isTableExist(id: string) {
+    return await this.table.isExist(id)
+  }
+  
   public async deleteTable(id: string) {
     await this.table.del(id)
   }

@@ -13,6 +13,12 @@ export class Table implements MetaTable<ITable> {
   add(data: ITable): Promise<ITable> {
     throw new Error("Method not implemented.")
   }
+
+  async isExist(id: string): Promise<boolean> {
+    const tableNode = await this.dataSpace.getTreeNode(id)
+    return Boolean(tableNode)
+  }
+  
   async get(id: string): Promise<ITable | null> {
     const views = await this.dataSpace.listViews(id)
     const tableNode = await this.dataSpace.getTreeNode(id)
