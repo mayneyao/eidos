@@ -1,14 +1,14 @@
 "use client"
 
+import { useCallback } from "react"
 import type { DataSpace } from "@/worker/DataSpace"
 import { ITreeNode } from "@/worker/meta_table/tree"
-import { useCallback } from "react"
 import { create } from "zustand"
 
-import { createTemplateTableSql } from "@/components/grid/helper"
 import { TreeTableName } from "@/lib/sqlite/const"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { getRawTableNameById, uuidv4 } from "@/lib/utils"
+import { createTemplateTableSql } from "@/components/grid/helper"
 
 import { IUIColumn } from "./use-table"
 
@@ -303,13 +303,7 @@ export const useSqlite = (dbName?: string) => {
 
   const deleteTable = async (tableId: string) => {
     if (!sqlWorker) return
-    const rawTableName = `tb_${tableId}`
-    await sqlWorker.sql`BEGIN TRANSACTION`
-    await sqlWorker.sql`DROP TABLE ${Symbol(rawTableName)}`
-    await sqlWorker.sql`DELETE FROM ${Symbol(
-      TreeTableName
-    )} WHERE id = ${tableId}`
-    await sqlWorker.sql`COMMIT`
+    await sqlWorker.deleteTable(tableId)
     delNode(tableId)
   }
 

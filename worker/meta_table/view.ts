@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   get(id: string): Promise<IView | null> {
     throw new Error("Method not implemented.")
   }
-  
+
   async set(id: string, data: Partial<IView>): Promise<boolean> {
     const setKv = Object.entries(data)
       .map(([k, v]) => `${k} = ?`)
@@ -59,6 +59,12 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       console.warn(error)
       return false
     }
+  }
+
+  async deleteByTableId(tableId: string) {
+    await this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE tableId = ?`, [
+      tableId,
+    ])
   }
 
   // methods

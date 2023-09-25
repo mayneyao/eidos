@@ -28,7 +28,18 @@ export class Table implements MetaTable<ITable> {
   set(id: string, data: Partial<ITable>): Promise<boolean> {
     throw new Error("Method not implemented.")
   }
-  del(id: string): Promise<boolean> {
-    throw new Error("Method not implemented.")
+  async del(id: string): Promise<boolean> {
+    const rawTableName = `tb_${id}`
+    await this.dataSpace.withTransaction(async () => {
+      // delete table
+      await this.dataSpace.exec2(`DROP TABLE ${rawTableName}`)
+      // delete fields
+      await this.dataSpace.column.deleteByRawTableName(rawTableName)
+      // delete views
+      await this.dataSpace.view.deleteByTableId(id)
+      // delete tree node
+      await this.dataSpace.tree.del(id)
+    })
+    return true
   }
 }

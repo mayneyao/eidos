@@ -4,7 +4,7 @@ import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
-import { extractIdFromShortId, getRawTableNameById } from "@/lib/utils"
+import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { IUIColumn } from "@/hooks/use-table"
 
 import { ActionTable } from "./meta_table/action"
@@ -13,6 +13,7 @@ import { ColumnTable } from "./meta_table/column"
 import { DocTable } from "./meta_table/doc"
 import { EmbeddingTable, IEmbedding } from "./meta_table/embedding"
 import { FileTable, IFile } from "./meta_table/file"
+import { Table } from "./meta_table/table"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
@@ -32,6 +33,7 @@ export class DataSpace {
   column: ColumnTable
   embedding: EmbeddingTable
   file: FileTable
+  table: Table
   dataChangeTrigger: DataChangeTrigger
   allTables: BaseTable<any>[] = []
   constructor(db: Database, activeUndoManager: boolean, dbName: string) {
@@ -39,6 +41,7 @@ export class DataSpace {
     this.dbName = dbName
     this.initUDF()
     this.dataChangeTrigger = new DataChangeTrigger()
+    this.table = new Table(this)
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
     this.tree = new TreeTable(this)
@@ -169,6 +172,35 @@ export class DataSpace {
     return await this.column.updateProperty(data)
   }
 
+  public async addRow(tableName: string, data: any) {
+    // query ui columns
+    const uiColumns = await this.column.list(tableName)
+    const fieldRawColumnMap = uiColumns.reduce((acc, cur) => {
+      acc[cur.name] = cur.table_column_name
+      return acc
+    }, {} as any)
+
+    // check key in data
+    const { _id, ...restData } = data
+    Object.keys(restData).forEach((key) => {
+      if (!fieldRawColumnMap[key]) {
+        // delete key
+        delete restData[key]
+      }
+    })
+    const keys = [
+      "_id",
+      ...Object.keys(restData)
+        .map((key) => fieldRawColumnMap[key])
+        .filter(Boolean),
+    ].join(",")
+    const values = [_id ?? uuidv4(), ...Object.values(restData)]
+    const _values = Array(values.length).fill("?").join(",")
+    const sql = `INSERT INTO ${tableName} (${keys}) VALUES (${_values})`
+    const bind = values
+    return await this.exec2(sql, bind)
+  }
+
   // actions
   public async addAction(data: any) {
     await this.action.add(data)
@@ -225,6 +257,10 @@ export class DataSpace {
       // create view for table
       await this.createDefaultView(id)
     })
+  }
+
+  public async deleteTable(id: string) {
+    await this.table.del(id)
   }
 
   public async listDays(page: number) {

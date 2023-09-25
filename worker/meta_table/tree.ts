@@ -71,8 +71,11 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     return Promise.resolve(true)
   }
 
-  del(id: string): Promise<boolean> {
-    throw new Error("Method not implemented.")
+  async del(id: string): Promise<boolean> {
+    await this.dataSpace.sql`DELETE FROM ${Symbol(
+      TreeTableName
+    )} WHERE id = ${id}`
+    return true
   }
 
   // @deprecated Proxy can't pass to main thread

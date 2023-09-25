@@ -55,6 +55,16 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IUIColumn> {
     throw new Error("Method not implemented.")
   }
 
+  /**
+   * @param tableName tb_<uuid>
+   */
+  async deleteByRawTableName(tableName: string) {
+    await this.dataSpace.exec2(
+      `DELETE FROM ${ColumnTableName} WHERE table_name=?;`,
+      [tableName]
+    )
+  }
+
   async updateProperty(data: {
     tableName: string
     tableColumnName: string
