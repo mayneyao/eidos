@@ -1,6 +1,7 @@
-import { GridCellKind, ImageCell } from "@glideapps/glide-data-grid"
+import type { ImageCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
+import { GridCellKind } from "./const"
 
 type FileProperty = {}
 

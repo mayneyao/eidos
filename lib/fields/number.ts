@@ -1,6 +1,7 @@
-import { GridCellKind, NumberCell } from "@glideapps/glide-data-grid"
+import type { NumberCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
+import { GridCellKind } from "./const"
 
 type NumberProperty = {}
 

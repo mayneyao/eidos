@@ -1,8 +1,7 @@
-import { GridCellKind } from "@glideapps/glide-data-grid"
-
-import { RatingCell } from "@/components/grid/cells/rating-cell"
+import type { RatingCell } from "@/components/grid/cells/rating-cell"
 
 import { BaseField } from "./base"
+import { GridCellKind } from "./const"
 
 type RatingProperty = {}
 

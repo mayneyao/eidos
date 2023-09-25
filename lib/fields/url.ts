@@ -1,6 +1,7 @@
-import { GridCellKind, UriCell } from "@glideapps/glide-data-grid"
+import type { UriCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
+import { GridCellKind } from "./const"
 
 type URLProperty = {}
 

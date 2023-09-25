@@ -1,9 +1,8 @@
-import { GridCellKind } from "@glideapps/glide-data-grid"
-
 import { MultiSelectCell } from "@/components/grid/cells/multi-select-cell"
 
 import { uuidv4 } from "../utils"
 import { BaseField } from "./base"
+import { GridCellKind } from "./const"
 import { SelectField, SelectProperty } from "./select"
 
 type MultiSelectProperty = SelectProperty

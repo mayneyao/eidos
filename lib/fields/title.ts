@@ -1,6 +1,7 @@
-import { GridCellKind, TextCell } from "@glideapps/glide-data-grid"
+import type { TextCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
+import { GridCellKind } from "./const"
 
 type TitleProperty = {}
 

@@ -1,8 +1,7 @@
-import { GridCellKind } from "@glideapps/glide-data-grid"
-
-import { DatePickerCell } from "@/components/grid/cells/date-picker-cell"
+import type { DatePickerCell } from "@/components/grid/cells/date-picker-cell"
 
 import { BaseField } from "./base"
+import { GridCellKind } from "./const"
 
 type DateProperty = {}
 

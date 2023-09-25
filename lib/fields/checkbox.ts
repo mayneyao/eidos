@@ -1,6 +1,7 @@
-import { BooleanCell, GridCellKind } from "@glideapps/glide-data-grid"
+import type { BooleanCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
+import { GridCellKind } from "./const"
 
 type CheckboxProperty = {}
 type CheckboxCell = BooleanCell

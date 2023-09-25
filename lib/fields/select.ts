@@ -1,9 +1,8 @@
-import { GridCellKind } from "@glideapps/glide-data-grid"
-
-import { SelectCell } from "@/components/grid/cells/select-cell"
+import type { SelectCell } from "@/components/grid/cells/select-cell"
 
 import { uuidv4 } from "../utils"
 import { BaseField } from "./base"
+import { GridCellKind } from "./const"
 
 export type SelectOption = {
   id: string
