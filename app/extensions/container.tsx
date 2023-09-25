@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react"
+import { useEffect, useRef } from "react"
 import { useParams, useSearchParams } from "react-router-dom"
 
 import { useExtMsg } from "./hooks/use-ext-msg"
@@ -13,8 +13,11 @@ export function ExtensionContainer() {
   const port = searchParams.get("port")
   const devUrl = `http://localhost:${port}`
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     window.addEventListener("message", handleMsg)
+    return () => {
+      window.removeEventListener("message", handleMsg)
+    }
   }, [handleMsg])
 
   return (

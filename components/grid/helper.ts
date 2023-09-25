@@ -66,18 +66,15 @@ export const createTemplateTableSql = (tableName: string) => {
   const templateTableSql = `
 CREATE TABLE ${tableName} (
   _id TEXT PRIMARY KEY NOT NULL
-  ,no             INTEGER  NULL
   ,title          TEXT  NULL
-  ,checked        BOOLEAN  NULL
 );
-INSERT INTO ${tableName}(_id,title,checked) VALUES ('${uuidv4()}','foo',1);
-INSERT INTO ${tableName}(_id,title,checked) VALUES ('${uuidv4()}','bar',1);
+INSERT INTO ${tableName}(_id,title) VALUES ('${uuidv4()}','foo');
+INSERT INTO ${tableName}(_id,title) VALUES ('${uuidv4()}','bar');
 INSERT INTO ${tableName}(_id,title) VALUES ('${uuidv4()}','baz');
 
 --- insert ui-column to table
 INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('_id', 'row-id', '${tableName}', '_id');
 INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('title', 'title', '${tableName}', 'title');
-INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('checked', 'checkbox', '${tableName}', 'checked');
 `
   return templateTableSql
 }
