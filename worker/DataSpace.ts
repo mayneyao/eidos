@@ -255,9 +255,25 @@ export class DataSpace {
    * if you want to create or update a day page, you should pass a day page id. page id is like 2021-01-01
    * @param docId
    * @param mdStr
+   * @param parentId
    * @returns
    */
-  public async createOrUpdateDocWithMarkdown(docId: string, mdStr: string) {
+  public async createOrUpdateDocWithMarkdown(
+    docId: string,
+    mdStr: string,
+    parentId?: string
+  ) {
+    if (parentId) {
+      return this.withTransaction(async () => {
+        await this.getOrCreateTreeNode({
+          id: docId,
+          name: docId,
+          parentId,
+          type: "doc",
+        })
+        return await this.doc.createOrUpdateWithMarkdown(docId, mdStr)
+      })
+    }
     return this.doc.createOrUpdateWithMarkdown(docId, mdStr)
   }
 
@@ -278,7 +294,7 @@ export class DataSpace {
   public async isTableExist(id: string) {
     return await this.table.isExist(id)
   }
-  
+
   public async deleteTable(id: string) {
     await this.table.del(id)
   }
@@ -342,6 +358,14 @@ export class DataSpace {
   }
 
   public async addTreeNode(data: ITreeNode) {
+    return this.tree.add(data)
+  }
+
+  public async getOrCreateTreeNode(data: ITreeNode) {
+    const node = await this.tree.get(data.id)
+    if (node) {
+      return node
+    }
     return this.tree.add(data)
   }
 

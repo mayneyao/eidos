@@ -6,7 +6,7 @@ import { BaseTable, BaseTableImpl } from "./base"
 export interface ITreeNode {
   id: string
   name: string
-  type: "table" | "doc" | "subDoc"
+  type: "table" | "doc"
   parentId?: string
   // is pin to top
   isPinned?: boolean
