@@ -153,6 +153,7 @@ export const useTable = (tableName: string, databaseName: string) => {
         table_column_name: tableColumnName,
         property: {},
       })
+      await sqlite.onTableChange(databaseName, tableName)
       await updateUiColumns()
     }
   }
