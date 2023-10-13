@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware"
 interface IActivationState {
   code: string
   isActivated: boolean
+  msg?: string
 
   setCode: (code: string) => void
   setIsActivated: (isActivated: boolean) => void
@@ -13,6 +14,7 @@ const useActivationCodeStore = create<IActivationState>()(
   persist(
     (set) => ({
       code: "",
+      msg: "happy hacking, just change isActivated to true to skip activation",
       isActivated: false,
       setCode: (code) => set({ code }),
       setIsActivated: (isActivated) => set({ isActivated }),

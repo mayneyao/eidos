@@ -33,7 +33,7 @@ export type ExperimentFormValues = z.infer<typeof experimentFormSchema>
 const defaultValues: Partial<ExperimentFormValues> = {
   aiChat: false,
   undoRedo: false,
-  enableAICompletionInDoc: false,
+  enableAICompletionInDoc: true,
 }
 
 export function ExperimentForm() {
