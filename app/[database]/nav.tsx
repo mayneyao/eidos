@@ -86,7 +86,7 @@ export function DropdownMenuDemo() {
             <span>GitHub</span>
           </DropdownMenuItem>
         </Link>
-        <Link to="https://discord.gg/7TsWH7tZ" target="_blank">
+        <Link to="https://discord.gg/KAeDX8VEpK" target="_blank">
           <DropdownMenuItem>
             <DiscordIcon className="mr-2 h-4 w-4" />
             <span>Discord</span>

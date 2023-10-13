@@ -2,22 +2,22 @@
 
 import "@/styles/globals.css"
 import { Suspense, lazy, useEffect, useState } from "react"
-import { Outlet } from "react-router-dom"
+import { Link, Outlet } from "react-router-dom"
 
-import {
-  EidosSharedEnvChannelName,
-  MainServiceWorkerMsgType,
-} from "@/lib/const"
-import { useActivationCode } from "@/hooks/use-activation-code"
-import { useWorker } from "@/hooks/use-worker"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Toaster } from "@/components/ui/toaster"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { Loading } from "@/components/loading"
 import { ShortCuts } from "@/components/shortcuts"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Toaster } from "@/components/ui/toaster"
+import { useActivationCode } from "@/hooks/use-activation-code"
+import { useWorker } from "@/hooks/use-worker"
+import {
+  EidosSharedEnvChannelName,
+  MainServiceWorkerMsgType,
+} from "@/lib/const"
 
 import { useSpaceAppStore } from "./[database]/store"
 import { useConfigStore } from "./settings/store"
@@ -71,6 +71,17 @@ const Activation = () => {
         <Button onClick={handleActive} disabled={loading}>
           Enter
         </Button>
+      </div>
+      <div className="mt-2 text-sm">
+        Eidos is currently in development. Join{" "}
+        <Link
+          to="https://wiki.eidos.space"
+          target="_blank"
+          className="text-blue-500"
+        >
+          Discord
+        </Link>{" "}
+        to gain early access.
       </div>
     </div>
   )
