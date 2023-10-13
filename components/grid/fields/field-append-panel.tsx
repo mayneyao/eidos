@@ -47,7 +47,7 @@ export function FieldAppendPanel({
     { name: "URL", value: FieldType.URL, icon: LinkIcon },
     { name: "Date", value: FieldType.Date, icon: CalendarDaysIcon },
     { name: "Files", value: FieldType.File, icon: ImageIcon },
-    { name: "Formula", value: FieldType.Formula, icon: SigmaIcon },
+    // { name: "Formula", value: FieldType.Formula, icon: SigmaIcon },
   ]
 
   const handleAddField = (field: (typeof fieldTypes)[0]) => {
