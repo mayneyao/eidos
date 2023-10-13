@@ -86,7 +86,7 @@ export function ExperimentForm() {
                 </FormItem>
               )}
             />
-            <FormField
+            {/* <FormField
               control={form.control}
               name="aiChat"
               render={({ field }) => (
@@ -105,8 +105,8 @@ export function ExperimentForm() {
                   </FormControl>
                 </FormItem>
               )}
-            />
-            <FormField
+            /> */}
+            {/* <FormField
               control={form.control}
               name="enableAICompletionInDoc"
               render={({ field }) => (
@@ -125,7 +125,7 @@ export function ExperimentForm() {
                   </FormControl>
                 </FormItem>
               )}
-            />
+            /> */}
           </div>
         </div>
         <Button type="submit">Update experiment</Button>

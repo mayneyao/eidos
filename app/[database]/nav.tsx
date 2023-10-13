@@ -1,11 +1,10 @@
 import {
   BlocksIcon,
+  BookOpenIcon,
   Bot,
   Cable,
-  Cloud,
   Github,
   Keyboard,
-  LifeBuoy,
   Menu,
   MoreHorizontal,
   PinIcon,
@@ -93,10 +92,12 @@ export function DropdownMenuDemo() {
             <span>Discord</span>
           </DropdownMenuItem>
         </Link>
-        <DropdownMenuItem disabled>
-          <Cloud className="mr-2 h-4 w-4" />
-          <span>API</span>
-        </DropdownMenuItem>
+        <Link to="https://wiki.eidos.space" target="_blank">
+          <DropdownMenuItem>
+            <BookOpenIcon className="mr-2 h-4 w-4" />
+            <span>Wiki</span>
+          </DropdownMenuItem>
+        </Link>
       </DropdownMenuContent>
     </DropdownMenu>
   )

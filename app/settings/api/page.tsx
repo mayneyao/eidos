@@ -92,8 +92,15 @@ export function APIAgentForm() {
                 </div>
               </FormControl>
               <FormDescription>
-                When enable, you can query data from Eidos Web APP through API
-                Agent.
+                When enabled, you can query data from Eidos Web APP through{" "}
+                <a
+                  href="https://github.com/mayneyao/eidos-api-agent-node"
+                  className="text-blue-500"
+                  target="_blank"
+                >
+                  API Agent
+                </a>
+                .
               </FormDescription>
               <FormMessage />
             </FormItem>

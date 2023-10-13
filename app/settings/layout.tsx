@@ -30,10 +30,10 @@ const sidebarNavItems = [
     title: "API",
     href: "/settings/api",
   },
-  {
-    title: "Appearance",
-    href: "/settings/appearance",
-  },
+  // {
+  //   title: "Appearance",
+  //   href: "/settings/appearance",
+  // },
   {
     title: "Backup",
     href: "/settings/backup",
