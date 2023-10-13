@@ -1,14 +1,17 @@
 "use client"
 
 import "@/styles/globals.css"
-import { Suspense, lazy, useEffect } from "react"
+import { Suspense, lazy, useEffect, useState } from "react"
 import { Outlet } from "react-router-dom"
 
 import {
   EidosSharedEnvChannelName,
   MainServiceWorkerMsgType,
 } from "@/lib/const"
+import { useActivationCode } from "@/hooks/use-activation-code"
 import { useWorker } from "@/hooks/use-worker"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Toaster } from "@/components/ui/toaster"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { Loading } from "@/components/loading"
@@ -41,9 +44,42 @@ const useRootLayoutInit = () => {
   }, [aiConfig])
 }
 
+const Activation = () => {
+  const { active } = useActivationCode()
+  const [code, setCode] = useState("")
+  const [loading, setLoading] = useState(false)
+  const handleActive = async () => {
+    setLoading(true)
+    await active(code)
+    setLoading(false)
+  }
+  return (
+    <div className="flex h-screen w-screen flex-col items-center justify-center">
+      <div className="flex gap-2">
+        <Input
+          autoFocus
+          className="w-[300px]"
+          placeholder="Enter Code"
+          value={code}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleActive()
+            }
+          }}
+          onChange={(e) => setCode(e.target.value)}
+        />
+        <Button onClick={handleActive} disabled={loading}>
+          Enter
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export default function RootLayout() {
   const { isAiOpen } = useSpaceAppStore()
   const { isInitialized, initWorker } = useWorker()
+  const { isActivated } = useActivationCode()
 
   useEffect(() => {
     // load worker when app start
@@ -56,21 +92,27 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      {/* APP MODEL， a sidebar and main */}
-      <div className="flex h-screen w-screen overflow-auto">
-        <div className="h-full w-full grow">
-          <Outlet />
-        </div>
-        {isAiOpen && (
-          <Suspense fallback={<Loading />}>
-            <AIChat />
-          </Suspense>
-        )}
-      </div>
-      <CommandDialogDemo />
-      <ShortCuts />
-      <TailwindIndicator />
-      <Toaster />
+      {isActivated ? (
+        <>
+          {/* APP MODEL， a sidebar and main */}
+          <div className="flex h-screen w-screen overflow-auto">
+            <div className="h-full w-full grow">
+              <Outlet />
+            </div>
+            {isAiOpen && (
+              <Suspense fallback={<Loading />}>
+                <AIChat />
+              </Suspense>
+            )}
+          </div>
+          <CommandDialogDemo />
+          <ShortCuts />
+          <TailwindIndicator />
+          <Toaster />
+        </>
+      ) : (
+        <Activation />
+      )}
     </ThemeProvider>
   )
 }
