@@ -72,7 +72,7 @@ const Activation = () => {
           Enter
         </Button>
       </div>
-      <div className="mt-2 text-sm">
+      <div className="mt-2 p-2 text-sm">
         Eidos is currently in development. Join{" "}
         <Link
           to="https://discord.gg/KAeDX8VEpK"
@@ -118,12 +118,12 @@ export default function RootLayout() {
           </div>
           <CommandDialogDemo />
           <ShortCuts />
-          <TailwindIndicator />
-          <Toaster />
         </>
       ) : (
         <Activation />
       )}
+      <TailwindIndicator />
+      <Toaster />
     </ThemeProvider>
   )
 }

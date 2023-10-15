@@ -1,6 +1,8 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+import { useToast } from "@/components/ui/use-toast"
+
 interface IActivationState {
   code: string
   isActivated: boolean
@@ -28,6 +30,7 @@ const useActivationCodeStore = create<IActivationState>()(
 
 export const useActivationCode = () => {
   const { isActivated, setIsActivated, setCode } = useActivationCodeStore()
+  const { toast } = useToast()
 
   const active = async (key: string) => {
     const res = await fetch(`https://active.eidos.space/active?code=${key}`, {
@@ -40,6 +43,10 @@ export const useActivationCode = () => {
       return true
     } else {
       const text = await res.text()
+      toast({
+        title: "Activation failed",
+        description: text,
+      })
       throw new Error(text)
     }
   }
