@@ -35,6 +35,7 @@ export const useConfigStore = create<ConfigState>()(
         undoRedo: false,
         aiChat: false,
         enableAICompletionInDoc: false,
+        enableFileManager: false,
       },
       profile: {
         username: "",

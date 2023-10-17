@@ -11,6 +11,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { DatabaseSelect } from "@/components/database-select"
+import { useConfigStore } from "@/app/settings/store"
 
 import { Button } from "../ui/button"
 import { CreateFileDialog } from "./create-file"
@@ -33,6 +34,10 @@ export const SideBar = ({ className }: any) => {
       setLoading(false)
     })
   }, [updateNodeList])
+
+  const {
+    experiment: { enableFileManager },
+  } = useConfigStore()
 
   return (
     <>
@@ -60,17 +65,19 @@ export const SideBar = ({ className }: any) => {
               {!isShareMode && (
                 <>
                   <EverydaySidebarItem space={space} />
-                  <Button
-                    variant={"ghost"}
-                    size="sm"
-                    className="w-full justify-start font-normal"
-                    asChild
-                  >
-                    <Link to={`/${space}/opfs`}>
-                      <FileBoxIcon className="pr-2" />
-                      Files
-                    </Link>
-                  </Button>
+                  {enableFileManager && (
+                    <Button
+                      variant={"ghost"}
+                      size="sm"
+                      className="w-full justify-start font-normal"
+                      asChild
+                    >
+                      <Link to={`/${space}/opfs`}>
+                        <FileBoxIcon className="pr-2" />
+                        Files
+                      </Link>
+                    </Button>
+                  )}
                   <CurrentItemTree
                     title="Pins"
                     type="table"

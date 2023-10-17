@@ -25,6 +25,7 @@ const experimentFormSchema = z.object({
   aiChat: z.boolean().default(false),
   undoRedo: z.boolean().default(false),
   enableAICompletionInDoc: z.boolean().default(false),
+  enableFileManager: z.boolean().default(false),
 })
 
 export type ExperimentFormValues = z.infer<typeof experimentFormSchema>
@@ -34,6 +35,7 @@ const defaultValues: Partial<ExperimentFormValues> = {
   aiChat: false,
   undoRedo: false,
   enableAICompletionInDoc: true,
+  enableFileManager: false,
 }
 
 export function ExperimentForm() {
@@ -75,6 +77,28 @@ export function ExperimentForm() {
                     </FormLabel>
                     <FormDescription>
                       Undo and redo your actions in table.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="enableFileManager"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">File Manager</FormLabel>
+                    <FormDescription>
+                      manage files you upload to docs and tables, and you can
+                      upload files directly to Eidos just like using the
+                      system's file manager.
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -128,7 +152,7 @@ export function ExperimentForm() {
             /> */}
           </div>
         </div>
-        <Button type="submit">Update experiment</Button>
+        <Button type="submit">Update</Button>
       </form>
     </Form>
   )
