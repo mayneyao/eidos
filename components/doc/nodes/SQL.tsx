@@ -1,31 +1,27 @@
 import * as React from "react"
+import { ReactNode } from "react"
 import { DataSpace } from "@/worker/DataSpace"
-import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
-  DecoratorBlockNode,
-  SerializedDecoratorBlockNode,
-} from "@lexical/react/LexicalDecoratorBlockNode"
-import type {
-  EditorConfig,
-  ElementFormatType,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  Spread,
+  $getNodeByKey,
+  DecoratorNode,
+  type LexicalNode,
+  type NodeKey,
 } from "lexical"
 
+import { useModal } from "../hooks/useModal"
+import { SqlQueryDialog } from "../plugins/SQLPlugin/SqlQueryDialog"
+import { getQueryResultText } from "../utils/sql"
+
 type SQLProps = Readonly<{
-  className: Readonly<{
-    base: string
-    focus: string
-  }>
-  format: ElementFormatType | null
-  nodeKey: NodeKey
   sql: string
+  nodeKey: string
 }>
 
-function SQLComponent({ className, format, nodeKey, sql }: SQLProps) {
+function SQLComponent({ sql, nodeKey }: SQLProps) {
   const [res, setRes] = React.useState("")
+  const [modal, showModal] = useModal()
+  const [editor] = useLexicalComposerContext()
 
   React.useEffect(() => {
     if (!sql) {
@@ -33,31 +29,47 @@ function SQLComponent({ className, format, nodeKey, sql }: SQLProps) {
     }
     const sqlite: DataSpace = (window as any).sqlite
     sqlite.exec2(sql).then((res: any) => {
-      setRes(JSON.stringify(res))
+      const text = getQueryResultText(res)
+      setRes(text)
     })
   }, [sql])
 
+  const updateSql = (sql: string) => {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey) as SQLNode
+      console.log(node, nodeKey)
+      if ($isSQLNode(node)) {
+        node.setSQL(sql)
+      }
+    })
+  }
+
+  const handleClick = () => {
+    console.log("?????")
+    showModal("Insert SqlQuery", (onClose) => (
+      <SqlQueryDialog
+        activeEditor={editor}
+        onClose={onClose}
+        sql={sql}
+        handleSqlChange={updateSql}
+      />
+    ))
+  }
+
   return (
-    <BlockWithAlignableContents
-      className={className}
-      format={format}
-      nodeKey={nodeKey}
-    >
-      <span>{res}</span>
-    </BlockWithAlignableContents>
+    <>
+      {modal}
+      <span
+        className="inline-block cursor-pointer rounded-sm px-1 text-purple-500 hover:bg-secondary"
+        onClick={handleClick}
+      >
+        {res}
+      </span>
+    </>
   )
 }
 
-export type SerializedSQLNode = Spread<
-  {
-    sql: string
-    type: "SQL"
-    version: 1
-  },
-  SerializedDecoratorBlockNode
->
-
-export class SQLNode extends DecoratorBlockNode {
+export class SQLNode extends DecoratorNode<ReactNode> {
   sql: string
 
   static getType(): string {
@@ -65,50 +77,56 @@ export class SQLNode extends DecoratorBlockNode {
   }
 
   static clone(node: SQLNode): SQLNode {
-    return new SQLNode(node.sql, node.__format, node.__key)
+    return new SQLNode(node.sql, node.__key)
   }
 
-  static importJSON(serializedNode: SerializedSQLNode): SQLNode {
+  static importJSON(serializedNode: any): SQLNode {
     const node = $createSQLNode(serializedNode.sql)
-    node.setFormat(serializedNode.format)
+    // node.setFormat(serializedNode.format)
     return node
   }
 
-  exportJSON(): SerializedSQLNode {
+  exportJSON(): any {
     return {
-      ...super.exportJSON(),
       type: "SQL",
       version: 1,
       sql: this.sql,
     }
   }
 
-  constructor(sql: string, format?: ElementFormatType, key?: NodeKey) {
-    super(format, key)
+  constructor(sql: string, key?: NodeKey) {
+    super(key)
     this.sql = sql
+  }
+
+  setSQL(sql: string): void {
+    const writable = this.getWritable()
+    writable.sql = sql
   }
 
   updateDOM(): false {
     return false
   }
 
-  decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
-    const embedBlockTheme = config.theme.embedBlock || {}
-    const className = {
-      base: embedBlockTheme.base || "",
-      focus: embedBlockTheme.focus || "",
-    }
-    return (
-      <SQLComponent
-        className={className}
-        format={this.__format}
-        nodeKey={this.getKey()}
-        sql={this.sql}
-      />
-    )
+  createDOM(): HTMLElement {
+    const node = document.createElement("span")
+    // node.style.display = "inline-block"
+    return node
   }
 
-  isTopLevel(): true {
+  decorate(): JSX.Element {
+    console.log(this.sql, this.__key)
+    return <SQLComponent sql={this.sql} nodeKey={this.__key} />
+  }
+  canInsertTextBefore(): boolean {
+    return false
+  }
+
+  canInsertTextAfter(): boolean {
+    return false
+  }
+
+  isInline(): boolean {
     return true
   }
 }

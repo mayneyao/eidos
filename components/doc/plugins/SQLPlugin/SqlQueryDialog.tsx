@@ -9,15 +9,22 @@ import { INSERT_SQL_COMMAND } from "."
 interface SqlQueryDialogProps {
   activeEditor: LexicalEditor
   onClose: () => void
+  sql?: string
+  handleSqlChange?: (sql: string) => void
 }
 
 const Placeholder = "SELECT date();"
 export const SqlQueryDialog = (props: SqlQueryDialogProps) => {
-  const [sql, setSql] = useState("")
+  const [sql, setSql] = useState(props.sql ?? "")
   const { activeEditor, onClose } = props
 
   const handleQuery = () => {
-    activeEditor.dispatchCommand(INSERT_SQL_COMMAND, sql)
+    // when handleSqlChange is not provided, we call handleSqlChange to update the sql in the parent component
+    if (props.handleSqlChange) {
+      props.handleSqlChange(sql)
+    } else {
+      activeEditor.dispatchCommand(INSERT_SQL_COMMAND, sql)
+    }
     onClose()
   }
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

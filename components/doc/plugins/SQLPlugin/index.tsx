@@ -1,7 +1,14 @@
 import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $insertNodeToNearestRoot } from "@lexical/utils"
-import { COMMAND_PRIORITY_EDITOR, LexicalCommand, createCommand } from "lexical"
+import {
+  $getSelection,
+  $insertNodes,
+  COMMAND_PRIORITY_EDITOR,
+  LexicalCommand,
+  RangeSelection,
+  createCommand,
+} from "lexical"
 
 import { $createSQLNode, SQLNode } from "../../nodes/SQL"
 
@@ -21,7 +28,7 @@ export const SQLPlugin = () => {
       INSERT_SQL_COMMAND,
       (payload) => {
         const sqlNode = $createSQLNode(payload)
-        $insertNodeToNearestRoot(sqlNode)
+        $insertNodes([sqlNode])
         return true
       },
       COMMAND_PRIORITY_EDITOR
