@@ -117,7 +117,7 @@ export default function Grid(props: IGridProps) {
     useTableAppStore()
 
   // handle undo redo
-  useKeyPress("ctrl.z", (e) => {
+  useKeyPress(["ctrl.z", "meta.z"], (e) => {
     e.preventDefault()
     if (e.shiftKey) {
       redo()
@@ -149,7 +149,7 @@ export default function Grid(props: IGridProps) {
     tableSchema && setCurrentTableSchema(tableSchema)
   }, [setCurrentTableSchema, tableSchema])
 
-  useKeyPress("ctrl.f", (e) => {
+  useKeyPress(["ctrl.f", "meta.f"], (e) => {
     e.preventDefault()
     setShowSearch(!showSearch)
   })

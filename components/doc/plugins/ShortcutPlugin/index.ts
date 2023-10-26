@@ -8,7 +8,7 @@ export function ShortcutPlugin() {
 
   //   toggle check list
   useKeyPress(
-    "ctrl.Enter",
+    ["ctrl.Enter", "meta.Enter"],
     (e) => {
       e.stopPropagation()
       editor.update(() => {

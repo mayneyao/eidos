@@ -43,7 +43,7 @@ export function EidosAutoSavePlugin(props: AutoSavePluginProps) {
     await updateDoc(docId, content)
   }, [docId, editor, updateDoc])
 
-  useKeyPress("ctrl.s", (e) => {
+  useKeyPress(["ctrl.s", "meta.s"], (e) => {
     e.preventDefault()
     if (props.disableManuallySave) {
       return

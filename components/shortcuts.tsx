@@ -15,20 +15,20 @@ export function ShortCuts() {
   const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
   const navigate = useNavigate()
 
-  useKeyPress("shift.ctrl.l", (e) => {
+  useKeyPress(["shift.ctrl.l", "shift.meta.l"], (e) => {
     e.preventDefault()
     setTheme(theme === "dark" ? "light" : "dark")
   })
 
-  useKeyPress("ctrl.forwardslash", () => {
+  useKeyPress(["ctrl.forwardslash", "meta.forwardslash"], () => {
     setIsAiOpen(!isAiOpen)
   })
 
-  useKeyPress("ctrl.openbracket", () => {
+  useKeyPress(["ctrl.openbracket", "meta.openbracket"], () => {
     navigate(-1)
   })
 
-  useKeyPress("ctrl.closebracket", () => {
+  useKeyPress(["ctrl.closebracket", "meta.closebracket"], () => {
     navigate(1)
   })
 

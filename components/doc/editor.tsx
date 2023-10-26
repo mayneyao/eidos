@@ -95,6 +95,7 @@ export function Editor(props: EditorProps) {
             className="my-4 w-full truncate bg-transparent text-4xl font-bold leading-[2.8rem] text-primary outline-none"
             value={title}
             title={title}
+            autoComplete="off"
             disabled={!canChangeTitle}
             onChange={(e) => {
               setTitle(e.target.value)

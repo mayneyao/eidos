@@ -67,7 +67,7 @@ export const useLayoutInit = () => {
 
   const { initPeer } = usePeer()
 
-  useKeyPress("ctrl.backslash", () => {
+  useKeyPress(["ctrl.backslash", "meta.backslash"], () => {
     setSidebarOpen(!isSidebarOpen)
   })
 

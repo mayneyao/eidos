@@ -44,7 +44,7 @@ export function CommandDialogDemo() {
   const { theme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
   const { setSearchNodes } = useCMDKStore()
-  useKeyPress("ctrl.k", (e) => {
+  useKeyPress(["ctrl.k", "meta.k"], (e) => {
     e.preventDefault()
     setCmdkOpen(!isCmdkOpen)
   })
