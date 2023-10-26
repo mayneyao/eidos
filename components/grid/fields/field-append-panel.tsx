@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { useClickAway } from "ahooks"
 import {
   BaselineIcon,
@@ -7,18 +8,18 @@ import {
   CheckSquareIcon,
   HashIcon,
   ImageIcon,
+  Link2Icon,
   LinkIcon,
   SigmaIcon,
   StarIcon,
   TagIcon,
   TagsIcon,
 } from "lucide-react"
-import * as React from "react"
 
-import { Button } from "@/components/ui/button"
-import { IUIColumn } from "@/hooks/use-table"
 import { FieldType } from "@/lib/fields/const"
 import { cn } from "@/lib/utils"
+import { IUIColumn } from "@/hooks/use-table"
+import { Button } from "@/components/ui/button"
 
 import { useTableAppStore } from "../store"
 
@@ -44,10 +45,21 @@ export function FieldAppendPanel({
     },
     { name: "Rating", value: FieldType.Rating, icon: StarIcon },
 
-    { name: "URL", value: FieldType.URL, icon: LinkIcon },
+    { name: "URL", value: FieldType.URL, icon: Link2Icon },
     { name: "Date", value: FieldType.Date, icon: CalendarDaysIcon },
     { name: "Files", value: FieldType.File, icon: ImageIcon },
-    // { name: "Formula", value: FieldType.Formula, icon: SigmaIcon },
+    {
+      name: "Formula",
+      value: FieldType.Formula,
+      icon: SigmaIcon,
+      disable: true,
+    },
+    {
+      name: "Link",
+      value: FieldType.Link,
+      icon: LinkIcon,
+      disable: true,
+    },
   ]
 
   const handleAddField = (field: (typeof fieldTypes)[0]) => {
@@ -93,6 +105,7 @@ export function FieldAppendPanel({
                   onClick={(e) => {
                     handleAddField(field)
                   }}
+                  disabled={field.disable}
                 >
                   <Icon className="mr-2 h-5 w-5" />
                   {field.name}

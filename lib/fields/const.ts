@@ -10,6 +10,7 @@ export enum FieldType {
   Select = "select",
   URL = "url",
   Formula = "formula",
+  Link = "link",
 }
 
 // copy from glide-data-grid
