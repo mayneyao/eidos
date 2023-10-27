@@ -77,10 +77,7 @@ export const useDataSource = (tableName: string, databaseName: string) => {
             .shouldUpdateColumnProperty
           // when field property changed, update field property
           if (shouldUpdateColumnProperty) {
-            updateFieldProperty(
-              field.column,
-              field.column.property
-            )
+            updateFieldProperty(field.column, field.column.property)
           }
           console.log("updateCell", { rowId, fieldName, rawData })
           updateCell(rowId, fieldName, rawData)

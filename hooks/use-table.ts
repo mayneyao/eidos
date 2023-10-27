@@ -10,6 +10,7 @@ import {
   checkSqlIsModifyTableSchema,
   checkSqlIsOnlyQuery,
 } from "@/lib/sqlite/helper"
+import { getLinkQuery } from "@/lib/sqlite/sql-parser"
 import {
   generateColumnName,
   getTableIdByRawTableName,
@@ -21,6 +22,7 @@ import { useSpaceAppStore } from "@/app/[database]/store"
 import { useCurrentNode } from "./use-current-node"
 import { useSqlWorker } from "./use-sql-worker"
 import { useSqlite, useSqliteStore } from "./use-sqlite"
+import { useUiColumns } from "./use-ui-columns"
 
 // PRAGMA table_info('table_name') will return IColumn[]
 export type IColumn = {
@@ -32,12 +34,12 @@ export type IColumn = {
   pk: number
 }
 
-export type IUIColumn = {
+export type IUIColumn<T = any> = {
   name: string
   type: FieldType
   table_column_name: string
   table_name: string
-  property: any
+  property: T
 }
 
 interface TableState {
@@ -72,6 +74,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     currentTableSchema: tableSchema,
     setCurrentTableSchema: setTableSchema,
   } = useSpaceAppStore()
+  const { uiColumnMap } = useUiColumns(tableName, databaseName)
 
   const updateUiColumns = useCallback(async () => {
     if (!sqlite) return
@@ -146,13 +149,27 @@ export const useTable = (tableName: string, databaseName: string) => {
   const addField = async (fieldName: string, fieldType: FieldType) => {
     if (sqlite) {
       const tableColumnName = generateColumnName()
-      await sqlite.addColumn({
-        name: fieldName,
-        type: fieldType,
-        table_name: tableName,
-        table_column_name: tableColumnName,
-        property: {},
-      })
+      if (fieldType === FieldType.Link) {
+        // default link to self
+        const linkTable = tableName
+        await sqlite.addColumn({
+          name: fieldName,
+          type: fieldType,
+          table_name: tableName,
+          table_column_name: tableColumnName,
+          property: {
+            linkTable: "tb_ceeeb81be62543d289dd7b1c39d6e14f", // FIXME: just for test
+          },
+        })
+      } else {
+        await sqlite.addColumn({
+          name: fieldName,
+          type: fieldType,
+          table_name: tableName,
+          table_column_name: tableColumnName,
+          property: {},
+        })
+      }
       await sqlite.onTableChange(databaseName, tableName)
       await updateUiColumns()
     }
@@ -218,13 +235,46 @@ export const useTable = (tableName: string, databaseName: string) => {
       const [offset, limit] = range
       let data: any[] = []
       if (sqlite && tableName) {
+        const linkQueryList = getLinkQuery(uiColumnMap)
         data = await sqlite.sql2`SELECT * FROM ${Symbol(
           tableName
         )} LIMIT ${limit} OFFSET ${offset}`
+        // if has link field, need to query link table, then replace the link field value
+        if (linkQueryList.length) {
+          const linkDataMap: Record<string, Record<string, string>> = {}
+          for (const linkQuery of linkQueryList) {
+            const linkFieldIdTitleMap: Record<string, string> = {}
+            const { sql, columnName } = linkQuery
+            const linkData = await sqlite.sqlQuery(
+              `${sql} LIMIT ${limit} OFFSET ${offset}`,
+              [],
+              "object"
+            )
+            linkData.forEach((row) => {
+              const linkId = row[columnName]
+              const linkTitle = row[`${columnName}__title`]
+              linkFieldIdTitleMap[linkId] = linkTitle
+            })
+            linkDataMap[columnName] = linkFieldIdTitleMap
+          }
+          const keys = Object.keys(linkDataMap)
+          data.forEach((row) => {
+            keys.forEach((columnName) => {
+              const linkId = row[columnName]
+              const linkFieldIdTitleMap = linkDataMap[columnName]
+              if (linkId) {
+                row[columnName] = {
+                  id: linkId,
+                  title: linkFieldIdTitleMap[linkId],
+                }
+              }
+            })
+          })
+        }
       }
       return data
     },
-    [sqlite, tableName]
+    [sqlite, tableName, uiColumnMap]
   )
 
   const node = useCurrentNode()

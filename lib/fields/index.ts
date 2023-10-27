@@ -2,6 +2,7 @@ import { CheckboxField } from "./checkbox"
 import { DateField } from "./date"
 import { FileField } from "./file"
 import { FormulaField } from "./formula"
+import { LinkField } from "./link"
 import { MultiSelectField } from "./multi-select"
 import { NumberField } from "./number"
 import { RatingField } from "./rating"
@@ -22,6 +23,7 @@ export const allFieldTypes = [
   TitleField,
   URLField,
   FormulaField,
+  LinkField,
 ]
 
 type FieldTypes =
@@ -36,6 +38,7 @@ type FieldTypes =
   | typeof TitleField
   | typeof URLField
   | typeof FormulaField
+  | typeof LinkField
 
 export const allFieldTypesMap = allFieldTypes.reduce((acc, fieldType) => {
   acc[fieldType.type] = fieldType

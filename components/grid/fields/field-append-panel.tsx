@@ -58,7 +58,7 @@ export function FieldAppendPanel({
       name: "Link",
       value: FieldType.Link,
       icon: LinkIcon,
-      disable: true,
+      // disable: true,
     },
   ]
 
