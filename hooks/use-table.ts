@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { IView } from "@/worker/meta_table/view"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
@@ -44,43 +44,45 @@ export type IUIColumn<T = any> = {
 
 interface TableState {
   columns: IColumn[]
-  uiColumns: IUIColumn[]
+  uiColumnsMap: Record<string, IUIColumn[]>
 
   views: IView[]
   setViews: (views: IView[]) => void
 
   setColumns: (columns: IColumn[]) => void
-  setUiColumns: (columns: IUIColumn[]) => void
+  setUiColumns: (tableId: string, uiColumns: IUIColumn[]) => void
 }
 
 // not using persist
 export const useTableStore = create<TableState>()((set) => ({
   columns: [],
-  uiColumns: [],
+  uiColumnsMap: {},
   views: [],
   setViews: (views) => set({ views }),
   setColumns: (columns) => set({ columns }),
-  setUiColumns: (uiColumns) => set({ uiColumns }),
+  setUiColumns: (tableId: string, uiColumns: IUIColumn[]) => {
+    set((state) => {
+      return {
+        uiColumnsMap: {
+          ...state.uiColumnsMap,
+          [tableId]: uiColumns,
+        },
+      }
+    })
+  },
 }))
 
 export const useTable = (tableName: string, databaseName: string) => {
   const { withTransaction } = useSqlite(databaseName)
   const sqlite = useSqlWorker()
   const { setNode } = useSqliteStore()
-  const { setUiColumns, uiColumns, views, setViews } = useTableStore()
+  const { uiColumnsMap, views, setViews } = useTableStore()
   const {
     count,
     setCount,
     currentTableSchema: tableSchema,
-    setCurrentTableSchema: setTableSchema,
   } = useSpaceAppStore()
-  const { uiColumnMap } = useUiColumns(tableName, databaseName)
-
-  const updateUiColumns = useCallback(async () => {
-    if (!sqlite) return
-    const res = await sqlite.listUiColumns(tableName)
-    setUiColumns(res)
-  }, [setUiColumns, sqlite, tableName])
+  const { uiColumnMap, updateUiColumns } = useUiColumns(tableName, databaseName)
 
   const updateViews = useCallback(async () => {
     if (!sqlite) return
@@ -180,6 +182,10 @@ export const useTable = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
+  const uiColumns = useMemo(() => {
+    return uiColumnsMap[tableName] ?? []
+  }, [uiColumnsMap, tableName])
+
   const deleteFieldByColIndex = async (colIndex: number) => {
     const tableColumnName = uiColumns[colIndex].table_column_name
     console.log("deleteFieldByColIndex", tableColumnName, colIndex)
@@ -224,7 +230,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     async (range: RowRange): Promise<any[]> => {
       const [offset, limit] = range
       let data: any[] = []
-      if (sqlite && tableName) {
+      if (sqlite && tableName && uiColumnMap.size) {
         const linkQueryList = getLinkQuery(uiColumnMap)
         data = await sqlite.sql2`SELECT * FROM ${Symbol(
           tableName
@@ -253,10 +259,12 @@ export const useTable = (tableName: string, databaseName: string) => {
               const linkId = row[columnName]
               const linkFieldIdTitleMap = linkDataMap[columnName]
               if (linkId) {
-                row[columnName] = {
-                  id: linkId,
-                  title: linkFieldIdTitleMap[linkId],
-                }
+                row[columnName] = [
+                  {
+                    id: linkId,
+                    title: linkFieldIdTitleMap[linkId],
+                  },
+                ]
               }
             })
           })

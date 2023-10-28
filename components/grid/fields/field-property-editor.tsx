@@ -27,6 +27,7 @@ const BASE_Fields = [
   FieldType.Number,
   FieldType.URL,
   FieldType.File,
+  FieldType.Link,
 ]
 
 export const NotImplementEditor = () => {
