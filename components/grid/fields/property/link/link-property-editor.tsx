@@ -1,41 +1,48 @@
 import { useState } from "react"
 
-import { FormulaProperty } from "@/lib/fields/formula"
+import { useSqliteStore } from "@/hooks/use-sqlite"
 import { IUIColumn } from "@/hooks/use-table"
-import { useCurrentUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 
 interface IFieldPropertyEditorProps {
   uiColumn: IUIColumn
   onPropertyChange: (property: any) => void
+  onSave?: () => void
+  isCreateNew?: boolean
 }
 
 export const LinkPropertyEditor = (props: IFieldPropertyEditorProps) => {
-  const { formula = "upper(title)" } =
-    props.uiColumn.property ?? ({} as FormulaProperty)
-  const { nameRawIdMap, rawIdNameMap } = useCurrentUiColumns()
-  const [input, setInput] = useState()
+  const { allNodes } = useSqliteStore()
+  const allTables = allNodes.filter((node) => node.type === "table")
 
-  const handleUpdate = () => {
+  const [linkTable, setLinkTable] = useState<string>(
+    props.uiColumn.property.linkTable ?? ""
+  )
+  const handleUpdateLinkTable = (tableId: string) => {
+    setLinkTable(tableId)
     props.onPropertyChange({
-      formula: "",
+      linkTable: `tb_${tableId}`,
     })
   }
+
   return (
     <div className="flex flex-col gap-2 p-2">
-      <Button onClick={handleUpdate}>Update</Button>
-      <hr />
-      <p>
-        the formula is based on sqlite core functions, see more at{" "}
-        <a href="https://www.sqlite.org/lang_corefunc.html" target="_blank">
-          sqlite.org
-        </a>
-      </p>
-      <p>
-        the difference is that you can use <code>props("name")</code> to get the
-        value of a field but not a column name except <code>title</code> field
-      </p>
+      <select
+        name=""
+        id=""
+        value={linkTable}
+        onChange={(e) => handleUpdateLinkTable(e.target.value)}
+      >
+        <option value="">Select a table</option>
+        {allTables.map((table) => {
+          return (
+            <option value={table.id} key={table.id}>
+              {table.name}
+            </option>
+          )
+        })}
+      </select>
+      {props.isCreateNew && <Button onClick={props.onSave}>Save</Button>}
     </div>
   )
 }

@@ -17,20 +17,30 @@ import {
 } from "lucide-react"
 
 import { FieldType } from "@/lib/fields/const"
-import { cn } from "@/lib/utils"
+import { cn, generateColumnName } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { IUIColumn } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
 
 import { useTableAppStore } from "../store"
+import {
+  NotImplementEditor,
+  PropertyEditorTypeMap,
+} from "./field-property-editor"
 
 export function FieldAppendPanel({
   addField,
   uiColumns,
 }: {
-  addField: (fieldName: string, fieldType: FieldType) => Promise<void>
+  addField: (
+    fieldName: string,
+    fieldType: FieldType,
+    property?: any
+  ) => Promise<void>
   uiColumns: IUIColumn[]
 }) {
-  const [selectedFieldType, setSelectedFieldType] = React.useState<string>()
+  const [currentField, setCurrentField] = React.useState<IUIColumn>()
+  const { tableName } = useCurrentPathInfo()
   const ref = React.useRef<HTMLDivElement>(null)
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
   const fieldTypes = [
@@ -62,13 +72,46 @@ export function FieldAppendPanel({
     },
   ]
 
-  const handleAddField = (field: (typeof fieldTypes)[0]) => {
+  const handleUpdateField = (draftFieldProperty: any) => {
+    currentField &&
+      setCurrentField({
+        ...currentField,
+        property: {
+          ...currentField?.property,
+          ...draftFieldProperty,
+        },
+      })
+  }
+
+  const Editor =
+    PropertyEditorTypeMap[currentField?.type ?? "select"] ?? NotImplementEditor
+
+  const handleCreateField = (field: (typeof fieldTypes)[0]) => {
     const newFieldName = `${field.name}${uiColumns.length + 1}`
-    addField(newFieldName, field.value).then(() =>
-      setIsAddFieldEditorOpen(false)
-    )
-    // setSelectedFieldType(field.name)
-    // for now just close, not support edit field
+    // link field need to fill more property
+    if (field.value === FieldType.Link) {
+      setCurrentField({
+        name: newFieldName,
+        type: field.value,
+        table_column_name: generateColumnName(),
+        table_name: tableName!,
+        property: {},
+      })
+    } else {
+      addField(newFieldName, field.value).then(() =>
+        setIsAddFieldEditorOpen(false)
+      )
+    }
+  }
+
+  const handleSaveField = () => {
+    if (currentField) {
+      addField(
+        currentField.name,
+        currentField.type,
+        currentField.property
+      ).then(() => setIsAddFieldEditorOpen(false))
+    }
   }
 
   useClickAway(
@@ -86,8 +129,18 @@ export function FieldAppendPanel({
         "absolute right-0 z-50 h-screen w-[400px] bg-white shadow-lg dark:bg-slate-950"
       )}
     >
-      {selectedFieldType ? (
-        <div>{selectedFieldType}</div>
+      {currentField ? (
+        <div>
+          {currentField.type}
+          {
+            <Editor
+              uiColumn={currentField!}
+              onPropertyChange={handleUpdateField}
+              onSave={handleSaveField}
+              isCreateNew
+            />
+          }
+        </div>
       ) : (
         <div>
           <h2 className="relative px-6 text-lg font-semibold tracking-tight">
@@ -103,7 +156,7 @@ export function FieldAppendPanel({
                   className="w-full justify-start font-normal"
                   key={`${field.name}-${field.value}`}
                   onClick={(e) => {
-                    handleAddField(field)
+                    handleCreateField(field)
                   }}
                   disabled={field.disable}
                 >

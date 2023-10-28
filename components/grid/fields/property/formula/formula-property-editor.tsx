@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 interface IFieldPropertyEditorProps {
   uiColumn: IUIColumn
   onPropertyChange: (property: any) => void
+  isCreateNew?: boolean
 }
 
 /**

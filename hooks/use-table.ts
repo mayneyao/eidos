@@ -146,30 +146,20 @@ export const useTable = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
-  const addField = async (fieldName: string, fieldType: FieldType) => {
+  const addField = async (
+    fieldName: string,
+    fieldType: FieldType,
+    property = {}
+  ) => {
     if (sqlite) {
       const tableColumnName = generateColumnName()
-      if (fieldType === FieldType.Link) {
-        // default link to self
-        const linkTable = tableName
-        await sqlite.addColumn({
-          name: fieldName,
-          type: fieldType,
-          table_name: tableName,
-          table_column_name: tableColumnName,
-          property: {
-            linkTable: "tb_ceeeb81be62543d289dd7b1c39d6e14f", // FIXME: just for test
-          },
-        })
-      } else {
-        await sqlite.addColumn({
-          name: fieldName,
-          type: fieldType,
-          table_name: tableName,
-          table_column_name: tableColumnName,
-          property: {},
-        })
-      }
+      await sqlite.addColumn({
+        name: fieldName,
+        type: fieldType,
+        table_name: tableName,
+        table_column_name: tableColumnName,
+        property,
+      })
       await sqlite.onTableChange(databaseName, tableName)
       await updateUiColumns()
     }
