@@ -18,10 +18,10 @@ export const LinkPropertyEditor = (props: IFieldPropertyEditorProps) => {
   const [linkTable, setLinkTable] = useState<string>(
     props.uiColumn.property.linkTable ?? ""
   )
-  const handleUpdateLinkTable = (tableId: string) => {
-    setLinkTable(tableId)
+  const handleUpdateLinkTable = (tableName: string) => {
+    setLinkTable(tableName)
     props.onPropertyChange({
-      linkTable: `tb_${tableId}`,
+      linkTable: tableName,
     })
   }
 
@@ -36,8 +36,8 @@ export const LinkPropertyEditor = (props: IFieldPropertyEditorProps) => {
         <option value="">Select a table</option>
         {allTables.map((table) => {
           return (
-            <option value={table.id} key={table.id}>
-              {table.name}
+            <option value={`tb_${table.id}`} key={table.id}>
+              {table.name || "Untitled"}
             </option>
           )
         })}

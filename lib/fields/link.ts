@@ -17,12 +17,29 @@ export class LinkField extends BaseField<LinkCell, LinkProperty> {
   static type = "link"
 
   getCellContent(rawData: LinkCellData[]): LinkCell {
-    console.log("rawData", rawData)
+    if (typeof rawData === "string") {
+      return {
+        kind: GridCellKind.Custom,
+        data: {
+          kind: "link-cell",
+          value: [
+            {
+              id: rawData,
+              title: "unknown",
+            },
+          ],
+          linkTable: this.column.property.linkTable,
+        },
+        copyData: "unknown",
+        allowOverlay: true,
+      }
+    }
     return {
       kind: GridCellKind.Custom,
       data: {
         kind: "link-cell",
         value: rawData ?? [],
+        linkTable: this.column.property.linkTable,
       },
       copyData: rawData?.map((item) => item.title).join(", "),
       allowOverlay: true,
