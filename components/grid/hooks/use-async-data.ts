@@ -200,17 +200,18 @@ export function useAsyncData<TRowType>(
 
   const refreshCurrentVisible = React.useCallback(() => {
     const vr = visiblePagesRef.current
-    const damageList: { cell: [number, number] }[] = []
-    const height = vr.height
-    for (let row = vr.y; row < vr.y + height; row++) {
-      for (let col = vr.x; col < vr.x + vr.width; col++) {
-        damageList.push({
-          cell: [col, row],
-        })
-      }
-    }
-    gridRef.current?.updateCells(damageList)
-  }, [gridRef])
+    // const damageList: { cell: [number, number] }[] = []
+    // const height = vr.height
+    // for (let row = vr.y; row < vr.y + height; row++) {
+    //   for (let col = vr.x; col < vr.x + vr.width; col++) {
+    //     damageList.push({
+    //       cell: [col, row],
+    //     })
+    //   }
+    // }
+    // gridRef.current?.updateCells(damageList)
+    getCellsForSelection(vr)
+  }, [getCellsForSelection])
 
   const getRowByIndex = (index: number) => {
     return dataRef.current[index]
@@ -232,7 +233,8 @@ export function useAsyncData<TRowType>(
           case DataUpdateSignalType.Update:
             const rowIndex = getRowIndexById(_old._id)
             if (rowIndex !== -1) {
-              dataRef.current[rowIndex] = _new
+              // FIXME: for now we just refresh the visible region, link cell has some problem
+              // dataRef.current[rowIndex] = _new
               refreshCurrentVisible()
             }
             break

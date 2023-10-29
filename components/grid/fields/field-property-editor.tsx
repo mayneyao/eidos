@@ -6,26 +6,31 @@ import { IUIColumn } from "@/hooks/use-table"
 
 import { useTableAppStore } from "../store"
 import { FormulaPropertyEditor } from "./property/formula/formula-property-editor"
+import { LinkPropertyEditor } from "./property/link/link-property-editor"
 import { SelectPropertyEditor } from "./property/select/select-property-editor"
 
-const PropertyEditorTypeMap: {
+export const PropertyEditorTypeMap: {
   [type: string]: React.FC<{
     uiColumn: IUIColumn
     onPropertyChange: (uiColumn: IUIColumn) => void
+    onSave?: () => void
+    isCreateNew?: boolean
   }>
 } = {
   select: SelectPropertyEditor,
   "multi-select": SelectPropertyEditor,
   formula: FormulaPropertyEditor,
+  link: LinkPropertyEditor,
 }
 const BASE_Fields = [
   FieldType.Text,
   FieldType.Number,
   FieldType.URL,
   FieldType.File,
+  // FieldType.Link,
 ]
 
-const NotImplementEditor = () => {
+export const NotImplementEditor = () => {
   return <div>Not implement</div>
 }
 

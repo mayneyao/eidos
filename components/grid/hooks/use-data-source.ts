@@ -2,6 +2,7 @@ import React from "react"
 import { GridCell, GridCellKind } from "@glideapps/glide-data-grid"
 
 import { allFieldTypesMap } from "@/lib/fields"
+import { FieldType } from "@/lib/fields/const"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
@@ -52,8 +53,7 @@ export const useDataSource = (tableName: string, databaseName: string) => {
   )
 
   const onEdited: RowEditedCallback<any> = React.useCallback(
-    (cell, newVal, rowData) => {
-      // console.log("onCellEdited", cell, newVal, rowData)
+    (cell, newCell, rowData) => {
       const [col] = cell
       const field = uiColumns[col]
 
@@ -71,28 +71,36 @@ export const useDataSource = (tableName: string, databaseName: string) => {
         const FieldClass = allFieldTypesMap[uiCol.type]
         if (FieldClass) {
           const field = new FieldClass(uiCol)
-          const res = field.cellData2RawData(newVal as never)
+          const res = field.cellData2RawData(newCell as never)
+          // rawData is what we want to save to database
           const rawData = res.rawData
           const shouldUpdateColumnProperty = (res as any)
             .shouldUpdateColumnProperty
           // when field property changed, update field property
           if (shouldUpdateColumnProperty) {
-            updateFieldProperty(
-              field.column,
-              field.column.property
-            )
+            updateFieldProperty(field.column, field.column.property)
           }
           console.log("updateCell", { rowId, fieldName, rawData })
           updateCell(rowId, fieldName, rawData)
-          const newRowData: any = {
-            ...rowData,
-            [uiCol.table_column_name]: rawData,
+          let newRowData: any
+          if (uiCol.type === FieldType.Link) {
+            // link cell will update with id, but display with title
+            newRowData = {
+              ...rowData,
+              [uiCol.table_column_name]: (newCell.data as any).value,
+            }
+            console.log("newRowData", newRowData)
+          } else {
+            newRowData = {
+              ...rowData,
+              [uiCol.table_column_name]: rawData,
+            }
           }
           return newRowData
         }
       }
       // error
-      updateCell(rowId, fieldName, newVal.data)
+      updateCell(rowId, fieldName, newCell.data)
       return rowData
     },
     [uiColumns, uiColumnMap, updateCell, updateFieldProperty]

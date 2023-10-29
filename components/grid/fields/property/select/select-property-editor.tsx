@@ -17,6 +17,7 @@ import { SelectOption } from "./select-option"
 interface IFieldPropertyEditorProps {
   uiColumn: IUIColumn
   onPropertyChange: (property: any) => void
+  isCreateNew?: boolean
 }
 
 const useFieldChange = (

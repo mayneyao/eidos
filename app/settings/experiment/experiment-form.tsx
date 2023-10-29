@@ -26,6 +26,7 @@ const experimentFormSchema = z.object({
   undoRedo: z.boolean().default(false),
   enableAICompletionInDoc: z.boolean().default(false),
   enableFileManager: z.boolean().default(false),
+  enableTableLinkField: z.boolean().default(false),
 })
 
 export type ExperimentFormValues = z.infer<typeof experimentFormSchema>
@@ -36,6 +37,7 @@ const defaultValues: Partial<ExperimentFormValues> = {
   undoRedo: false,
   enableAICompletionInDoc: true,
   enableFileManager: false,
+  enableTableLinkField: false,
 }
 
 export function ExperimentForm() {
@@ -65,6 +67,9 @@ export function ExperimentForm() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div>
           <h3 className="mb-4 text-lg font-medium">Feature</h3>
+          <h4 className="text-md mb-4 font-light">
+            {"POC💡 -> alpha🔨 -> beta🚀 -> release📦"}
+          </h4>
           <div className="space-y-4">
             <FormField
               control={form.control}
@@ -73,10 +78,32 @@ export function ExperimentForm() {
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">
-                      Table undo/redo(beta🚀)
+                      Table undo/redo(alpha🔨)
                     </FormLabel>
                     <FormDescription>
                       Undo and redo your actions in table.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="enableTableLinkField"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">
+                      Table Link Field(POC💡)
+                    </FormLabel>
+                    <FormDescription>
+                      Create one2one(o2m/m2m later) relationship between tables.
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -94,7 +121,9 @@ export function ExperimentForm() {
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
-                    <FormLabel className="text-base">File Manager</FormLabel>
+                    <FormLabel className="text-base">
+                      File Manager(beta🚀)
+                    </FormLabel>
                     <FormDescription>
                       manage files you upload to docs and tables, and you can
                       upload files directly to Eidos just like using the
