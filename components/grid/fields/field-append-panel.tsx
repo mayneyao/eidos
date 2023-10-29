@@ -21,6 +21,7 @@ import { cn, generateColumnName } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { IUIColumn } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
+import { useConfigStore } from "@/app/settings/store"
 
 import { useTableAppStore } from "../store"
 import {
@@ -40,6 +41,9 @@ export function FieldAppendPanel({
   uiColumns: IUIColumn[]
 }) {
   const [currentField, setCurrentField] = React.useState<IUIColumn>()
+  const {
+    experiment: { enableTableLinkField },
+  } = useConfigStore()
   const { tableName } = useCurrentPathInfo()
   const ref = React.useRef<HTMLDivElement>(null)
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
@@ -68,7 +72,7 @@ export function FieldAppendPanel({
       name: "Link",
       value: FieldType.Link,
       icon: LinkIcon,
-      // disable: true,
+      disable: !enableTableLinkField,
     },
   ]
 
