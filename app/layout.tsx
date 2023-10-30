@@ -8,6 +8,7 @@ import {
   EidosSharedEnvChannelName,
   MainServiceWorkerMsgType,
 } from "@/lib/const"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useActivationCode } from "@/hooks/use-activation-code"
 import { useWorker } from "@/hooks/use-worker"
 import { Button } from "@/components/ui/button"
@@ -89,6 +90,7 @@ const Activation = () => {
 
 export default function RootLayout() {
   const { isAiOpen } = useSpaceAppStore()
+  const { isShareMode } = useAppRuntimeStore()
   const { isInitialized, initWorker } = useWorker()
   const { isActivated } = useActivationCode()
 
@@ -103,7 +105,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      {isActivated ? (
+      {isActivated || isShareMode ? (
         <>
           {/* APP MODEL， a sidebar and main */}
           <div className="flex h-screen w-screen overflow-auto">
