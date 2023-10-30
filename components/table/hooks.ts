@@ -86,7 +86,7 @@ export const useViewData = (view: IView) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const { space } = useCurrentPathInfo()
-  const { nameRawIdMap } = useUiColumns(tableName, space)
+  const { nameRawIdMap, uiColumnMap } = useUiColumns(tableName, space)
 
   useEffect(() => {
     if (sqlite && nameRawIdMap.size && tableName) {
@@ -99,7 +99,7 @@ export const useViewData = (view: IView) => {
         setLoading(false)
       })
     }
-  }, [sqlite, query, tableName, view.id, nameRawIdMap])
+  }, [sqlite, query, tableName, view.id, nameRawIdMap, uiColumnMap])
 
   useEffect(() => {
     // TODO: Use a universal data source manager, which should be a singleton instance, with a mapping to store all data sources, and also an array to store the order.

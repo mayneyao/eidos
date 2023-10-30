@@ -4,6 +4,7 @@ import { getPrompt } from "@/lib/ai/openai"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqliteStore } from "@/hooks/use-sqlite"
 import { useTableStore } from "@/hooks/use-table"
+import { useUiColumns } from "@/hooks/use-ui-columns"
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 export const sysPrompts = {
@@ -60,8 +61,8 @@ a: {
 }
 
 const usePromptContext = () => {
-  const { uiColumns } = useTableStore()
-  const { space: database } = useCurrentPathInfo()
+  const { space: database, tableName } = useCurrentPathInfo()
+  const { uiColumns } = useUiColumns(tableName!, database)
   const [currentDocMarkdown, setCurrentDocMarkdown] = useState("")
   const { currentTableSchema } = useSpaceAppStore()
   const { allNodes: allTables, allUiColumns } = useSqliteStore()

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { IView } from "@/worker/meta_table/view"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
@@ -10,6 +10,7 @@ import {
   checkSqlIsModifyTableSchema,
   checkSqlIsOnlyQuery,
 } from "@/lib/sqlite/helper"
+import { getLinkQuery } from "@/lib/sqlite/sql-parser"
 import {
   generateColumnName,
   getTableIdByRawTableName,
@@ -21,6 +22,7 @@ import { useSpaceAppStore } from "@/app/[database]/store"
 import { useCurrentNode } from "./use-current-node"
 import { useSqlWorker } from "./use-sql-worker"
 import { useSqlite, useSqliteStore } from "./use-sqlite"
+import { useUiColumns } from "./use-ui-columns"
 
 // PRAGMA table_info('table_name') will return IColumn[]
 export type IColumn = {
@@ -32,52 +34,55 @@ export type IColumn = {
   pk: number
 }
 
-export type IUIColumn = {
+export type IUIColumn<T = any> = {
   name: string
   type: FieldType
   table_column_name: string
   table_name: string
-  property: any
+  property: T
 }
 
 interface TableState {
   columns: IColumn[]
-  uiColumns: IUIColumn[]
+  uiColumnsMap: Record<string, IUIColumn[]>
 
   views: IView[]
   setViews: (views: IView[]) => void
 
   setColumns: (columns: IColumn[]) => void
-  setUiColumns: (columns: IUIColumn[]) => void
+  setUiColumns: (tableId: string, uiColumns: IUIColumn[]) => void
 }
 
 // not using persist
 export const useTableStore = create<TableState>()((set) => ({
   columns: [],
-  uiColumns: [],
+  uiColumnsMap: {},
   views: [],
   setViews: (views) => set({ views }),
   setColumns: (columns) => set({ columns }),
-  setUiColumns: (uiColumns) => set({ uiColumns }),
+  setUiColumns: (tableId: string, uiColumns: IUIColumn[]) => {
+    set((state) => {
+      return {
+        uiColumnsMap: {
+          ...state.uiColumnsMap,
+          [tableId]: uiColumns,
+        },
+      }
+    })
+  },
 }))
 
 export const useTable = (tableName: string, databaseName: string) => {
   const { withTransaction } = useSqlite(databaseName)
   const sqlite = useSqlWorker()
   const { setNode } = useSqliteStore()
-  const { setUiColumns, uiColumns, views, setViews } = useTableStore()
+  const { uiColumnsMap, views, setViews } = useTableStore()
   const {
     count,
     setCount,
     currentTableSchema: tableSchema,
-    setCurrentTableSchema: setTableSchema,
   } = useSpaceAppStore()
-
-  const updateUiColumns = useCallback(async () => {
-    if (!sqlite) return
-    const res = await sqlite.listUiColumns(tableName)
-    setUiColumns(res)
-  }, [setUiColumns, sqlite, tableName])
+  const { uiColumnMap, updateUiColumns } = useUiColumns(tableName, databaseName)
 
   const updateViews = useCallback(async () => {
     if (!sqlite) return
@@ -143,7 +148,11 @@ export const useTable = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
-  const addField = async (fieldName: string, fieldType: FieldType) => {
+  const addField = async (
+    fieldName: string,
+    fieldType: FieldType,
+    property = {}
+  ) => {
     if (sqlite) {
       const tableColumnName = generateColumnName()
       await sqlite.addColumn({
@@ -151,7 +160,7 @@ export const useTable = (tableName: string, databaseName: string) => {
         type: fieldType,
         table_name: tableName,
         table_column_name: tableColumnName,
-        property: {},
+        property,
       })
       await sqlite.onTableChange(databaseName, tableName)
       await updateUiColumns()
@@ -172,6 +181,10 @@ export const useTable = (tableName: string, databaseName: string) => {
     })
     await updateUiColumns()
   }
+
+  const uiColumns = useMemo(() => {
+    return uiColumnsMap[tableName] ?? []
+  }, [uiColumnsMap, tableName])
 
   const deleteFieldByColIndex = async (colIndex: number) => {
     const tableColumnName = uiColumns[colIndex].table_column_name
@@ -217,14 +230,49 @@ export const useTable = (tableName: string, databaseName: string) => {
     async (range: RowRange): Promise<any[]> => {
       const [offset, limit] = range
       let data: any[] = []
-      if (sqlite && tableName) {
+      if (sqlite && tableName && uiColumnMap.size) {
+        const linkQueryList = getLinkQuery(uiColumnMap)
         data = await sqlite.sql2`SELECT * FROM ${Symbol(
           tableName
         )} LIMIT ${limit} OFFSET ${offset}`
+        // if has link field, need to query link table, then replace the link field value
+        if (linkQueryList.length) {
+          const linkDataMap: Record<string, Record<string, string>> = {}
+          for (const linkQuery of linkQueryList) {
+            const linkFieldIdTitleMap: Record<string, string> = {}
+            const { sql, columnName } = linkQuery
+            const linkData = await sqlite.sqlQuery(
+              `${sql} LIMIT ${limit} OFFSET ${offset}`,
+              [],
+              "object"
+            )
+            linkData.forEach((row) => {
+              const linkId = row[columnName]
+              const linkTitle = row[`${columnName}__title`]
+              linkFieldIdTitleMap[linkId] = linkTitle
+            })
+            linkDataMap[columnName] = linkFieldIdTitleMap
+          }
+          const keys = Object.keys(linkDataMap)
+          data.forEach((row) => {
+            keys.forEach((columnName) => {
+              const linkId = row[columnName]
+              const linkFieldIdTitleMap = linkDataMap[columnName]
+              if (linkId) {
+                row[columnName] = [
+                  {
+                    id: linkId,
+                    title: linkFieldIdTitleMap[linkId],
+                  },
+                ]
+              }
+            })
+          })
+        }
       }
       return data
     },
-    [sqlite, tableName]
+    [sqlite, tableName, uiColumnMap]
   )
 
   const node = useCurrentNode()
