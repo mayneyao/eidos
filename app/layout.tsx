@@ -8,8 +8,8 @@ import {
   EidosSharedEnvChannelName,
   MainServiceWorkerMsgType,
 } from "@/lib/const"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useActivationCode } from "@/hooks/use-activation-code"
+import { useShareMode } from "@/hooks/use-share-mode"
 import { useWorker } from "@/hooks/use-worker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -90,10 +90,9 @@ const Activation = () => {
 
 export default function RootLayout() {
   const { isAiOpen } = useSpaceAppStore()
-  const { isShareMode } = useAppRuntimeStore()
   const { isInitialized, initWorker } = useWorker()
   const { isActivated } = useActivationCode()
-
+  const { isShareMode } = useShareMode()
   useEffect(() => {
     // load worker when app start
     if (!isInitialized) {
