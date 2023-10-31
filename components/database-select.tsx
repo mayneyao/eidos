@@ -1,15 +1,11 @@
 "use client"
 
-import * as React from "react"
 import { SimpleBackUp } from "@/worker/backup"
 import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
+import * as React from "react"
 import { useNavigate } from "react-router-dom"
 
-import { importSpace } from "@/lib/space"
-import { useAppStore } from "@/lib/store/app-store"
-import { cn } from "@/lib/utils"
-import { useGoto } from "@/hooks/use-goto"
-import { useSpace } from "@/hooks/use-space"
+import { useConfigStore } from "@/app/settings/store"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -34,7 +30,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useConfigStore } from "@/app/settings/store"
+import { useGoto } from "@/hooks/use-goto"
+import { useSpace } from "@/hooks/use-space"
+import { importSpace } from "@/lib/space"
+import { useAppStore } from "@/lib/store/app-store"
+import { cn } from "@/lib/utils"
 
 import { Checkbox } from "./ui/checkbox"
 import { Input } from "./ui/input"
