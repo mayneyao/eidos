@@ -29,6 +29,7 @@ import SharePage from "@/app/share/page"
 // space-manage
 import SpaceManagePage from "@/app/space-manage/page"
 
+import { DocEditor } from "./app/eidtor/doc"
 import { ExtensionContainer } from "./app/extensions/container"
 
 const router = createBrowserRouter([
@@ -142,6 +143,15 @@ const router = createBrowserRouter([
                 element: <ShareNodePage />,
               },
             ],
+          },
+        ],
+      },
+      {
+        path: "editor",
+        children: [
+          {
+            path: "doc",
+            element: <DocEditor />,
           },
         ],
       },

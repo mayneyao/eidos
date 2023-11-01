@@ -470,6 +470,14 @@ const config = defineConfig({
             sizes: "1024x1024",
           },
         ],
+        file_handlers: [
+          {
+            action: "/editor/doc",
+            accept: {
+              "text/markdown": [".md", ".markdown"],
+            },
+          },
+        ],
       },
       registerType: "autoUpdate",
       workbox: {
