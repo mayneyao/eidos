@@ -4,9 +4,9 @@ import { useState } from "react"
 import useInfiniteScroll from "react-infinite-scroll-hook"
 import { Link } from "react-router-dom"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { useAllDays } from "./hooks"
 
@@ -35,7 +35,7 @@ export default function EverydayPage() {
   }
 
   return (
-    <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert lg:prose-xl xl:prose-xl 2xl:prose-2xl xs:p-5">
+    <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert xs:p-5">
       {days.map((day, index) => {
         return (
           <div
@@ -43,7 +43,7 @@ export default function EverydayPage() {
             className="border-b border-slate-300"
             onClick={() => handleClick(day.id)}
           >
-            <Link to={`/${params.database}/everyday/${day.id}`}>{day.id}</Link>
+            <Link className="text-2xl" to={`/${params.database}/everyday/${day.id}`}>{day.id}</Link>
             <Editor
               docId={day.id}
               autoFocus={index === 0}

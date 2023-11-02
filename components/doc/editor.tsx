@@ -83,7 +83,7 @@ export function Editor(props: EditorProps) {
     <>
       <div
         className={cn(
-          "prose mx-auto h-full w-full flex-col p-10 xs:prose-sm lg:prose-xl xl:prose-xl xs:p-5",
+          "prose mx-auto h-full w-full flex-col p-10 xs:p-5",
           props.className
         )}
         id="eidos-editor-container"
@@ -92,7 +92,7 @@ export function Editor(props: EditorProps) {
           <input
             id="doc-title"
             placeholder="Untitled"
-            className="my-4 w-full truncate bg-transparent text-4xl font-bold leading-[2.8rem] text-primary outline-none"
+            className="my-4 w-full truncate bg-transparent text-4xl font-bold text-primary outline-none"
             value={title}
             title={title}
             autoComplete="off"
@@ -112,14 +112,14 @@ export function Editor(props: EditorProps) {
               <RichTextPlugin
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
-                    <ContentEditable className="editor-input prose p-2 outline-none dark:prose-invert xs:prose-sm lg:prose-xl xl:prose-xl" />
+                    <ContentEditable className="editor-input outline-none dark:prose-invert" />
                     {!props.disableSafeBottomPaddingPlugin && (
                       <SafeBottomPaddingPlugin />
                     )}
                   </div>
                 }
                 placeholder={
-                  <div className="pointer-events-none absolute left-3 top-3 text-base text-[#aaa] xl:top-4">
+                  <div className="pointer-events-none absolute left-1 top-0 text-base text-[#aaa]">
                     <span>{props.placeholder ?? "press / for Command"}</span>
                   </div>
                 }
