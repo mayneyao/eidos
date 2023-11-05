@@ -1,7 +1,7 @@
 import path from "path"
 import react from "@vitejs/plugin-react"
 import { visualizer } from "rollup-plugin-visualizer"
-import { defineConfig } from "vite"
+import { PluginOption, defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
 const config = defineConfig({
@@ -496,7 +496,7 @@ const config = defineConfig({
       emitFile: false,
       filename: "dev-pkg-vis.html",
       open: true,
-    }),
+    }) as unknown as PluginOption,
   ],
   resolve: {
     alias: {

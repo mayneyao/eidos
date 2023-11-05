@@ -4,12 +4,16 @@ import { create } from "zustand"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
+export type ISearchNodes = ITreeNode & {
+  result?: string
+  mode: "node" | "fts"
+}
 export const useCMDKStore = create<{
   input: string
   setInput: (input: string) => void
 
-  searchNodes: ITreeNode[]
-  setSearchNodes: (searchNodes: ITreeNode[]) => void
+  searchNodes: ISearchNodes[]
+  setSearchNodes: (searchNodes: ISearchNodes[]) => void
 }>()((set) => ({
   input: "",
   setInput: (input) => set({ input }),

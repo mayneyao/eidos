@@ -40,7 +40,7 @@ import { SyscallAction } from "./syscall"
 export function CommandDialogDemo() {
   const { isCmdkOpen, setCmdkOpen } = useAppRuntimeStore()
   const { input, setInput, mode } = useInput()
-  const { queryNodes } = useQueryNode()
+  const { queryNodes, fullTextSearch } = useQueryNode()
   const { theme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
   const { setSearchNodes } = useCMDKStore()
@@ -52,7 +52,8 @@ export function CommandDialogDemo() {
   const updateSearchNodes = async (qs: string) => {
     if (qs.length > 0) {
       const nodes = await queryNodes(qs)
-      setSearchNodes(nodes ?? [])
+      const ftsNodes = await fullTextSearch(qs)
+      setSearchNodes([...(ftsNodes || []), ...(nodes || [])])
     }
   }
   const { run } = useDebounceFn(updateSearchNodes, { wait: 500 })
@@ -105,15 +106,15 @@ export function CommandDialogDemo() {
           <span>not found "{input}"</span>
         </CommandEmpty>
         <CommandGroup heading="Suggestions">
-          <CommandItem onSelect={goToday}>
+          <CommandItem onSelect={goToday} value="today">
             <Clock3Icon className="mr-2 h-4 w-4" />
             <span>Today</span>
           </CommandItem>
-          <CommandItem onSelect={goEveryday}>
+          <CommandItem onSelect={goEveryday} value="everyday">
             <CalendarDays className="mr-2 h-4 w-4" />
             <span>Everyday</span>
           </CommandItem>
-          <CommandItem onSelect={createNewDoc}>
+          <CommandItem onSelect={createNewDoc} value="new draft doc">
             <FilePlus2Icon className="mr-2 h-4 w-4" />
             <span>New Draft Doc</span>
           </CommandItem>
@@ -127,8 +128,8 @@ export function CommandDialogDemo() {
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />
-        <SpaceCommandItems />
         <NodeCommandItems />
+        <SpaceCommandItems />
         <CommandGroup heading="Settings">
           <CommandItem onSelect={switchTheme}>
             <Palette className="mr-2 h-4 w-4" />
