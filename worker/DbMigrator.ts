@@ -131,8 +131,8 @@ export class DbMigrator {
     this.draftDb.db.close()
     opfsManager
       .deleteEntry(["spaces", this.draftDb.dbName, `db.sqlite3.draft.db`])
-      .then((res) => {
-        console.log("delete draft db", res)
+      .then(() => {
+        console.log("delete draft db")
       })
   }
 }
