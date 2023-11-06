@@ -48,7 +48,7 @@
     "@radix-ui/react-toast": "^1.1.4",
     "@radix-ui/react-toggle": "^1.0.3",
     "@rkusa/wasm-sqlite": "^0.1.1",
-    "@sqlite.org/sqlite-wasm": "3.42.0-build7",
+    "@sqlite.org/sqlite-wasm": "3.43.2-build1",
     "ahooks": "^3.7.8",
     "ai": "^2.2.6",
     "bufferutil": "^4.0.7",

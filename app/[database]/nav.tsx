@@ -98,6 +98,10 @@ export function DropdownMenuDemo() {
             <span>Wiki</span>
           </DropdownMenuItem>
         </Link>
+        <DropdownMenuSeparator />
+        <span className="p-2 text-sm text-gray-500">
+          Last Updated: 2023-11-07
+        </span>
       </DropdownMenuContent>
     </DropdownMenu>
   )

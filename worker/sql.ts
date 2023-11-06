@@ -61,13 +61,19 @@ export class Sqlite {
     this.sqlite3 = await this.getSQLite3()
   }
 
-  db(props: { path: string; flags: string; vfs?: any; name: string }) {
-    const { name, flags, vfs, path } = props
+  db(props: {
+    path: string
+    flags: string
+    vfs?: any
+    name: string
+    draftDb?: DataSpace
+  }) {
+    const { name, flags, vfs, path, draftDb } = props
     if (!this.sqlite3) {
       throw new Error("sqlite3 not initialized")
     }
     // const db = new this.sqlite3.oo1.DB(name, flags, vfs)
     const db = new this.sqlite3.oo1.OpfsDb(path, flags)
-    return new DataSpace(db, this.config.experiment.undoRedo, name)
+    return new DataSpace(db, this.config.experiment.undoRedo, name, draftDb)
   }
 }

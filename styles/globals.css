@@ -120,3 +120,8 @@ body {
 .selected {
   background-color: hsl(var(--secondary));
 }
+
+/* fts-result > b */
+.fts-result b {
+  color: var(--token-function-color);
+}

@@ -6,35 +6,36 @@
  *
  */
 
+import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $wrapNodeInElement, mergeRegister } from "@lexical/utils"
 import {
-    $createParagraphNode,
-    $createRangeSelection,
-    $getSelection,
-    $insertNodes,
-    $isNodeSelection,
-    $isRootOrShadowRoot,
-    $setSelection,
-    COMMAND_PRIORITY_EDITOR,
-    COMMAND_PRIORITY_HIGH,
-    COMMAND_PRIORITY_LOW,
-    DRAGOVER_COMMAND,
-    DRAGSTART_COMMAND,
-    DROP_COMMAND,
-    LexicalCommand,
-    LexicalEditor,
-    createCommand,
+  $createParagraphNode,
+  $createRangeSelection,
+  $getSelection,
+  $insertNodes,
+  $isNodeSelection,
+  $isRootOrShadowRoot,
+  $setSelection,
+  COMMAND_PRIORITY_EDITOR,
+  COMMAND_PRIORITY_HIGH,
+  COMMAND_PRIORITY_LOW,
+  DRAGOVER_COMMAND,
+  DRAGSTART_COMMAND,
+  DROP_COMMAND,
+  LexicalCommand,
+  LexicalEditor,
+  createCommand,
 } from "lexical"
-import { useEffect } from "react"
 
 import {
-    $createImageNode,
-    $isImageNode,
-    ImageNode,
-    ImagePayload,
+  $createImageNode,
+  $isImageNode,
+  ImageNode,
+  ImagePayload,
 } from "../../nodes/ImageNode"
 import { CAN_USE_DOM } from "../../utils/dom"
+
 // import { DialogActions, DialogButtonsList } from "../../ui/Dialog"
 
 export type InsertImagePayload = Readonly<ImagePayload>
@@ -371,7 +372,7 @@ function canDropImage(event: DragEvent): boolean {
 function getDragSelection(event: DragEvent): Range | null | undefined {
   let range
   const target = event.target as null | Element | Document
-  const targetWindow =
+  const targetWindow: any =
     target == null
       ? null
       : target.nodeType === 9

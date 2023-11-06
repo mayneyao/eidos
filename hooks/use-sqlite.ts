@@ -190,7 +190,7 @@ export const useSqlite = (dbName?: string) => {
       name: docName,
       type: "doc",
     })
-    await sqlWorker.addDoc(docId, "")
+    await sqlWorker.addDoc(docId, "", "")
     addNode({
       id: docId,
       name: docName,
@@ -215,13 +215,17 @@ export const useSqlite = (dbName?: string) => {
         parentId: tableId,
       })
       addNode2List(treeNode)
-      await sqlWorker.addDoc(docId, "")
+      await sqlWorker.addDoc(docId, "", "")
     }
   }
 
-  const updateDoc = async (docId: string, content: string) => {
+  const updateDoc = async (
+    docId: string,
+    content: string,
+    markdown: string
+  ) => {
     if (!sqlWorker) return
-    await sqlWorker.updateDoc(docId, content)
+    await sqlWorker.updateDoc(docId, content, markdown)
     console.log("doc updated", docId)
   }
 

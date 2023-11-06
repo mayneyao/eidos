@@ -8,6 +8,7 @@ import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { IUIColumn } from "@/hooks/use-table"
 
+import { DbMigrator } from "./DbMigrator"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
 import { ColumnTable } from "./meta_table/column"
@@ -23,6 +24,7 @@ import { ALL_UDF } from "./udf"
 
 export class DataSpace {
   db: Database
+  draftDb: DataSpace | undefined
   undoRedoManager: SQLiteUndoRedo
   activeUndoManager: boolean
   dbName: string
@@ -37,8 +39,17 @@ export class DataSpace {
   table: Table
   dataChangeTrigger: DataChangeTrigger
   allTables: BaseTable<any>[] = []
-  constructor(db: Database, activeUndoManager: boolean, dbName: string) {
+
+  // for auto migration
+  hasMigrated = false
+  constructor(
+    db: Database,
+    activeUndoManager: boolean,
+    dbName: string,
+    draftDb?: DataSpace
+  ) {
     this.db = db
+    this.draftDb = draftDb
     this.dbName = dbName
     this.initUDF()
     this.dataChangeTrigger = new DataChangeTrigger()
@@ -60,8 +71,14 @@ export class DataSpace {
       this.embedding,
       this.file,
     ]
-
+    // migration
+    if (this.draftDb) {
+      const dbMigrator = new DbMigrator(this, this.draftDb)
+      dbMigrator.migrate()
+    }
     this.initMetaTable()
+
+    // other
     this.undoRedoManager = new SQLiteUndoRedo(this)
     this.activeUndoManager = activeUndoManager
     if (activeUndoManager) {
@@ -226,19 +243,33 @@ export class DataSpace {
   }
 
   // docs
-  public async addDoc(docId: string, content: string, isDayPage = false) {
-    await this.doc.add({ id: docId, content, isDayPage })
+  public async rebuildIndex(refillNullMarkdown: boolean = false) {
+    await this.doc.rebuildIndex(refillNullMarkdown)
+  }
+
+  public async addDoc(
+    docId: string,
+    content: string,
+    markdown: string,
+    isDayPage = false
+  ) {
+    await this.doc.add({ id: docId, content, markdown, isDayPage })
   }
 
   // update doc mount on sqlite for now,maybe change to fs later
-  public async updateDoc(docId: string, content: string, _isDayPage = false) {
+  public async updateDoc(
+    docId: string,
+    content: string,
+    markdown: string,
+    _isDayPage = false
+  ) {
     const res = await this.doc.get(docId)
     // yyyy-mm-dd is day page
     const isDayPage = _isDayPage || /^\d{4}-\d{2}-\d{2}$/g.test(docId)
     if (!res) {
-      await this.doc.add({ id: docId, content, isDayPage })
+      await this.doc.add({ id: docId, content, markdown, isDayPage })
     } else {
-      await this.doc.set(docId, { id: docId, content, isDayPage })
+      await this.doc.set(docId, { id: docId, content, markdown, isDayPage })
     }
   }
 
@@ -281,6 +312,10 @@ export class DataSpace {
     await this.doc.del(docId)
   }
 
+  public async fullTextSearch(query: string) {
+    return this.doc.search(query)
+  }
+
   public async createTable(id: string, name: string, tableSchema: string) {
     this.withTransaction(async () => {
       this.addTreeNode({ id, name, type: "table" })
@@ -307,13 +342,7 @@ export class DataSpace {
     return await this.doc.listAllDayPages()
   }
 
-  // FIXME: there are some problem with headless lexical run in worker
-  // return markdown string, compute in worker
-  // public async asyncGetDocMarkdown(docId: string) {
-  //   return await getDocMarkdown(this.dbName, docId)
-  // }
-  // return object array
-  public async exec2(sql: string, bind: any[] = []) {
+  public syncExec2(sql: string, bind: any[] = []) {
     const res: any[] = []
     this.db.exec({
       sql,
@@ -325,6 +354,15 @@ export class DataSpace {
       },
     })
     return res
+  }
+  // FIXME: there are some problem with headless lexical run in worker
+  // return markdown string, compute in worker
+  // public async asyncGetDocMarkdown(docId: string) {
+  //   return await getDocMarkdown(this.dbName, docId)
+  // }
+  // return object array
+  public async exec2(sql: string, bind: any[] = []) {
+    return this.syncExec2(sql, bind)
   }
 
   // tree

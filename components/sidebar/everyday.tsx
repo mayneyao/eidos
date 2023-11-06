@@ -58,7 +58,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
         try {
           const newFilename = nameWithoutExt.split("_").join("-")
           const state = await convertMarkdown2State(content)
-          await sqlite.addDoc(newFilename, state, true)
+          await sqlite.addDoc(newFilename, state, content, true)
         } catch (error) {
           console.warn(error)
         }

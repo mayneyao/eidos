@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef } from "react"
+import { $convertToMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useDebounceFn, useKeyPress } from "ahooks"
 
 import { useSqlite } from "@/hooks/use-sqlite"
+
+import { allTransformers } from "../const"
 
 interface AutoSavePluginProps {
   docId: string
@@ -40,7 +43,10 @@ export function EidosAutoSavePlugin(props: AutoSavePluginProps) {
     if (!editor.isEditable()) return
     const json = editor.getEditorState().toJSON()
     const content = JSON.stringify(json)
-    await updateDoc(docId, content)
+    editor.update(async () => {
+      const markdown = $convertToMarkdownString(allTransformers)
+      await updateDoc(docId, content, markdown)
+    })
   }, [docId, editor, updateDoc])
 
   useKeyPress(["ctrl.s", "meta.s"], (e) => {
@@ -94,7 +100,8 @@ export function EidosAutoSavePlugin(props: AutoSavePluginProps) {
           if (content === oldContent) {
             return
           }
-          debounceSave(docId, content)
+          const markdown = $convertToMarkdownString(allTransformers)
+          debounceSave(docId, content, markdown)
         })
       }
     )
