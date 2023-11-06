@@ -40,11 +40,21 @@ async function loadDatabase(dbName: string) {
     sqlite.backupServer.setCurrentSpace(_dataspace.dbName)
     return _dataspace
   }
+
+  // we will create a draft db for table schema migration
+  const draftDb = sqlite.db({
+    path: `${filename}.draft.db`,
+    flags: "c",
+    name: dbName,
+  })
+
   const db = sqlite.db({
     path: filename,
     flags: "c",
     name: dbName,
+    draftDb,
   })
+
   sqlite.backupServer.setCurrentSpace(db.dbName)
   return db
 }

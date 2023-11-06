@@ -45,13 +45,22 @@ export const _getDocMarkdown = async (
 ): Promise<string> => {
   if (!sqlite) return ""
   const articleEditorStateJSON = await sqlite.getDoc(docId)
-  editor.setEditorState(editor.parseEditorState(articleEditorStateJSON))
-  return new Promise((resolve) => {
-    editor.update(() => {
-      const markdown = $convertToMarkdownString(allTransformers)
-      resolve(markdown)
+  try {
+    const state = editor.parseEditorState(articleEditorStateJSON)
+    if (state.isEmpty()) {
+      return ""
+    }
+    editor.setEditorState(state)
+    return new Promise((resolve) => {
+      editor.update(() => {
+        const markdown = $convertToMarkdownString(allTransformers)
+        resolve(markdown)
+      })
     })
-  })
+  } catch (error) {
+    console.warn(`parse doc ${docId} error`, error)
+    return ""
+  }
 }
 
 export const _convertMarkdown2State = async (

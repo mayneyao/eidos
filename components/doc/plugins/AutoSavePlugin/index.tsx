@@ -45,7 +45,6 @@ export function EidosAutoSavePlugin(props: AutoSavePluginProps) {
     const content = JSON.stringify(json)
     editor.update(async () => {
       const markdown = $convertToMarkdownString(allTransformers)
-      console.log(markdown)
       await updateDoc(docId, content, markdown)
     })
   }, [docId, editor, updateDoc])
@@ -102,7 +101,6 @@ export function EidosAutoSavePlugin(props: AutoSavePluginProps) {
             return
           }
           const markdown = $convertToMarkdownString(allTransformers)
-          console.log(markdown)
           debounceSave(docId, content, markdown)
         })
       }

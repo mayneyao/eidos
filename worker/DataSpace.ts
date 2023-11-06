@@ -8,6 +8,7 @@ import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { IUIColumn } from "@/hooks/use-table"
 
+import { DbMigrator } from "./DbMigrator"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
 import { ColumnTable } from "./meta_table/column"
@@ -23,6 +24,7 @@ import { ALL_UDF } from "./udf"
 
 export class DataSpace {
   db: Database
+  draftDb: DataSpace | undefined
   undoRedoManager: SQLiteUndoRedo
   activeUndoManager: boolean
   dbName: string
@@ -37,8 +39,17 @@ export class DataSpace {
   table: Table
   dataChangeTrigger: DataChangeTrigger
   allTables: BaseTable<any>[] = []
-  constructor(db: Database, activeUndoManager: boolean, dbName: string) {
+
+  // for auto migration
+  hasMigrated = false
+  constructor(
+    db: Database,
+    activeUndoManager: boolean,
+    dbName: string,
+    draftDb?: DataSpace
+  ) {
     this.db = db
+    this.draftDb = draftDb
     this.dbName = dbName
     this.initUDF()
     this.dataChangeTrigger = new DataChangeTrigger()
@@ -60,8 +71,14 @@ export class DataSpace {
       this.embedding,
       this.file,
     ]
-
+    // migration
+    if (this.draftDb) {
+      const dbMigrator = new DbMigrator(this, this.draftDb)
+      dbMigrator.migrate()
+    }
     this.initMetaTable()
+
+    // other
     this.undoRedoManager = new SQLiteUndoRedo(this)
     this.activeUndoManager = activeUndoManager
     if (activeUndoManager) {
@@ -226,6 +243,10 @@ export class DataSpace {
   }
 
   // docs
+  public async rebuildIndex(refillNullMarkdown: boolean = false) {
+    await this.doc.rebuildIndex(refillNullMarkdown)
+  }
+
   public async addDoc(
     docId: string,
     content: string,
@@ -321,13 +342,7 @@ export class DataSpace {
     return await this.doc.listAllDayPages()
   }
 
-  // FIXME: there are some problem with headless lexical run in worker
-  // return markdown string, compute in worker
-  // public async asyncGetDocMarkdown(docId: string) {
-  //   return await getDocMarkdown(this.dbName, docId)
-  // }
-  // return object array
-  public async exec2(sql: string, bind: any[] = []) {
+  public syncExec2(sql: string, bind: any[] = []) {
     const res: any[] = []
     this.db.exec({
       sql,
@@ -339,6 +354,15 @@ export class DataSpace {
       },
     })
     return res
+  }
+  // FIXME: there are some problem with headless lexical run in worker
+  // return markdown string, compute in worker
+  // public async asyncGetDocMarkdown(docId: string) {
+  //   return await getDocMarkdown(this.dbName, docId)
+  // }
+  // return object array
+  public async exec2(sql: string, bind: any[] = []) {
+    return this.syncExec2(sql, bind)
   }
 
   // tree
