@@ -37,6 +37,9 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
 `
 
   async rebuildIndex(refillNullMarkdown: boolean = false) {
+    await this.dataSpace.exec2(
+      `INSERT INTO fts_docs(fts_docs) VALUES('rebuild');`
+    )
     if (refillNullMarkdown) {
       const res = await this.dataSpace.exec2(
         `SELECT id, markdown FROM ${this.name}`
