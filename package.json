@@ -11,8 +11,7 @@
     "typecheck": "tsc --noEmit",
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
     "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
-    "test": "jest",
-    "dev:api": "tsx ./api/main.ts"
+    "test": "jest"
   },
   "dependencies": {
     "@glideapps/glide-data-grid": "5.3.0",

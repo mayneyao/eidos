@@ -30,7 +30,7 @@ export const useAppStore = create<AppState>()(
       sidebarWidth: 400,
       setSidebarWidth: (width) => set({ sidebarWidth: width }),
 
-      aiModel: "gpt-3.5-turbo-0613",
+      aiModel: "gpt-3.5-turbo-1106",
       setAIModel: (model) => set({ aiModel: model }),
     }),
     {
