@@ -133,7 +133,9 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
       `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',8) as result FROM fts_docs(?);`,
       [query]
     )
-    return res
+    // it seems that the result is in reverse order, user care about the latest result.
+    // TODO: we should use updated_at to sort
+    return res.reverse()
   }
 
   async createOrUpdateWithMarkdown(id: string, mdStr: string) {
