@@ -1,11 +1,10 @@
 import { useState } from "react"
 
-import { getPrompt } from "@/lib/ai/openai"
+import { useSpaceAppStore } from "@/app/[database]/store"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqliteStore } from "@/hooks/use-sqlite"
-import { useTableStore } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import { useSpaceAppStore } from "@/app/[database]/store"
+import { getPrompt } from "@/lib/ai/openai"
 
 export const sysPrompts = {
   base: ``,
