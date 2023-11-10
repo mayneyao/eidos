@@ -8,7 +8,7 @@ import sqlQuery from "./sql-query"
 
 const allFunctions = [
   sqlQuery,
-  createQuickAction,
+  // createQuickAction,
   startRecorder,
   stopRecorder,
   saveFile2OPFS,
