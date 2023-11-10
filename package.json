@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.0.4",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -102,6 +102,7 @@
     "@ianvs/prettier-plugin-sort-imports": "^3.7.2",
     "@jest/globals": "^29.5.0",
     "@tailwindcss/typography": "^0.5.9",
+    "@tauri-apps/cli": "^1.5.6",
     "@types/d3": "^7.4.0",
     "@types/jest": "^29.5.2",
     "@types/lodash": "^4.14.195",

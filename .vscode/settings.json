@@ -4,5 +4,8 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "cSpell.words": [
     "dataspace"
-  ]
+  ],
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  }
 }
