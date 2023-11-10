@@ -4,7 +4,7 @@
   cursor: grab;
   opacity: 0;
   position: absolute;
-  left: -1rem;
+  left: -1.5rem;
   top: 0;
   will-change: transform;
 }

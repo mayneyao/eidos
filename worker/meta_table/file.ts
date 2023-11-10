@@ -1,4 +1,6 @@
+import { opfsManager } from "@/lib/opfs"
 import { FileTableName } from "@/lib/sqlite/const"
+import { getUuid } from "@/lib/utils"
 
 import { BaseTable, BaseTableImpl } from "./base"
 
@@ -23,6 +25,35 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     isVectorized INTEGER DEFAULT 0 NULL
 );  
 `
+
+  async saveFile2OPFS(url: string, _name?: string): Promise<IFile | null> {
+    if (typeof url === "string") {
+      const fileId = getUuid()
+      const blob = await fetch(url).then((res) => res.blob())
+      const name = _name || url.split("/").pop()!
+      const file = new File([blob], name, { type: blob.type })
+      const space = this.dataSpace.dbName
+      const paths = await opfsManager.addFile(
+        ["spaces", space, "files"],
+        file,
+        _name ? _name : fileId
+      )
+      if (!paths) {
+        throw new Error("add file failed")
+      }
+      const path = paths.join("/")
+      const size = file.size
+      const fileObj = this.add({
+        id: fileId,
+        name,
+        path,
+        size,
+        mime: file.type,
+      })
+      return fileObj
+    }
+    return null
+  }
   async add(data: IFile): Promise<IFile> {
     this.dataSpace.exec(
       `INSERT INTO ${this.name} (id,name,path,size,mime) VALUES (? , ? , ? , ? , ?);`,
@@ -75,7 +106,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     }
     return res[0] as IFile
   }
-  
+
   set(id: string, data: Partial<IFile>): Promise<boolean> {
     throw new Error("Method not implemented.")
   }

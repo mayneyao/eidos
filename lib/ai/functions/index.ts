@@ -2,9 +2,18 @@ import { z } from "zod"
 import { zodToJsonSchema } from "zod-to-json-schema"
 
 import createQuickAction from "./quick-action"
+import { startRecorder, stopRecorder } from "./recorder"
+import saveFile2OPFS from "./save-file"
 import sqlQuery from "./sql-query"
 
-const allFunctions = [sqlQuery, createQuickAction]
+const allFunctions = [
+  sqlQuery,
+  // createQuickAction,
+  startRecorder,
+  stopRecorder,
+  saveFile2OPFS,
+]
+
 export const functions = allFunctions.map((f) => {
   // console.log(zodToJsonSchema(f.schema))
   return {

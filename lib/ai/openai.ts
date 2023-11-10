@@ -49,8 +49,11 @@ export const getPrompt = (
   },
   useBlankPrompt = false
 ) => {
-  let base =
-    "You are GPT Helper, 你是一个乐于助人的助手。Follow the user's instructions carefully. Respond using markdown. "
+  let base = `You are Eidos AI, a helpful AI assistant. here is your rules:
+1. Follow the user's instructions carefully. 
+2. Respond using markdown.
+3. Only when user have a clear intention to call functions, you can call functions the system provides.
+`
   if (useBlankPrompt) {
     return base
   }

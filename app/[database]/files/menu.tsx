@@ -1,5 +1,6 @@
 import { MouseEventHandler, useRef, useState } from "react"
 
+import { opfsManager } from "@/lib/opfs"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useFileSystem } from "@/hooks/use-files"
 import { useHnsw } from "@/hooks/use-hnsw"
@@ -132,6 +133,28 @@ export function FileItemContextMenu({ children }: any) {
     }
   }
 
+  const downloadFile = async () => {
+    const path = "spaces" + getFileUrlPath(name)
+    const file = await opfsManager.getFileByPath(path)
+    try {
+      // Show the file save dialog.
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: file.name,
+      })
+      // Write the blob to the file.
+      const writable = await handle.createWritable()
+      await writable.write(file)
+      await writable.close()
+      return
+    } catch (err: any) {
+      // Fail silently if the user has simply canceled the dialog.
+      if (err.name !== "AbortError") {
+        console.error(err.name, err.message)
+        return
+      }
+    }
+  }
+
   const handleCreateEmbedding = async () => {
     if (name.endsWith(".pdf")) {
       const path = "spaces" + getFileUrlPath(name)
@@ -161,6 +184,9 @@ export function FileItemContextMenu({ children }: any) {
         </ContextMenuItem>
         <ContextMenuItem inset onSelect={previewFile}>
           Preview
+        </ContextMenuItem>
+        <ContextMenuItem inset onSelect={downloadFile}>
+          Download
         </ContextMenuItem>
         {isPdf && (
           <ContextMenuItem inset onSelect={handleCreateEmbedding}>
