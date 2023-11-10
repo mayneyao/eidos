@@ -151,6 +151,10 @@ export class DataSpace {
     return await this.file.updateVectorized(id, isVectorized)
   }
 
+  public async saveFile2OPFS(url: string, name?: string) {
+    return await this.file.saveFile2OPFS(url, name)
+  }
+
   // views
   public async listViews(tableId: string) {
     return await this.view.list(tableId)

@@ -1,9 +1,11 @@
 import { useCallback } from "react"
 import { v4 as uuidV4 } from "uuid"
 
-import { useConfigStore } from "@/app/settings/store"
 import { getCodeFromMarkdown } from "@/lib/markdown"
+import { opfsManager } from "@/lib/opfs"
 import { uuidv4 } from "@/lib/utils"
+import { startRecorder, stopRecorder } from "@/lib/web/recorder"
+import { useConfigStore } from "@/app/settings/store"
 
 import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite } from "./use-sqlite"
@@ -122,6 +124,20 @@ export const useAutoRunCode = () => {
         } catch (error: any) {
           return error.message
         }
+      case "startRecorder":
+        const res = await startRecorder()
+        return `recorder id: ${res}`
+      case "stopRecorder":
+        const fileUrl = await stopRecorder(parameters.id)
+        console.log("recorded file url: ", fileUrl)
+        return fileUrl
+      case "saveFile2OPFS":
+        const fileObj = await sqlite?.saveFile2OPFS(parameters.url)
+        console.log("save file to opfs: ", fileObj)
+        if (!fileObj) return "no file"
+        return (
+          window.location.origin + opfsManager.getFileUrlByPath(fileObj.path)
+        )
       default:
         throw new Error(`function ${name} not supported auto run`)
     }

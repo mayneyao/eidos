@@ -10,7 +10,7 @@ export default async function handle(event: FetchEvent) {
   const url = new URL(event.request.url)
   return readFileFromOpfs(url.pathname).then((file) => {
     const headers = new Headers()
-    headers.append("Content-Type", getContentType(url.pathname))
+    headers.append("Content-Type", file.type || getContentType(url.pathname))
     headers.append("Cross-Origin-Embedder-Policy", "require-corp")
     return new Response(file, { headers })
   })
