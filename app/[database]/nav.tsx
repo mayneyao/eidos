@@ -40,6 +40,7 @@ import { ShareDialog } from "@/components/share-dialog"
 
 import { useConfigStore } from "../settings/store"
 import { useSpaceAppStore } from "./store"
+import { EIDOS_VERSION } from "@/lib/log"
 
 export function DropdownMenuDemo() {
   const router = useNavigate()
@@ -100,7 +101,7 @@ export function DropdownMenuDemo() {
         </Link>
         <DropdownMenuSeparator />
         <span className="p-2 text-sm text-gray-500">
-          Last Updated: 2023-11-07
+          Version: {EIDOS_VERSION}
         </span>
       </DropdownMenuContent>
     </DropdownMenu>

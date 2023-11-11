@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.0.4",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
