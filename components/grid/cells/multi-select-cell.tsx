@@ -267,17 +267,16 @@ const renderer: CustomRenderer<MultiSelectCell> = {
   provideEditor: () => (p) => {
     return <Editor {...p} />
   },
-  onPaste: (v, d) => ({
-    ...d,
-    values: d.allowedValues
-      .map((x) => x.id)
-      .filter((x) =>
-        v
-          .split(",")
-          .map((s) => s.trim())
-          .includes(x)
-      ),
-  }),
+  onPaste: (v, d) => {
+    // trim " and '
+    v = v.replace(/^["'](.*)["']$/, "$1")
+    const ids = v.split(",").map((s) => s.trim())
+    const allowedValuesSet = new Set(d.allowedValues.map((v) => v.id))
+    return {
+      ...d,
+      values: ids.filter((id) => allowedValuesSet.has(id)),
+    }
+  },
   onDelete: (d: any) => ({
     ...d,
     data: {
