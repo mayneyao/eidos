@@ -18,7 +18,8 @@ export class Recorder {
       audio: true,
     })
     this.mediaRecorder = new MediaRecorder(stream, {
-      bitsPerSecond: 24000000,
+      mimeType: "video/webm;codecs=vp9,opus",
+      bitsPerSecond: 50000000,
     })
     this.mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) {
@@ -34,7 +35,7 @@ export class Recorder {
   }
 
   stop() {
-    const blob = new Blob(this.chunks, { type: "video/mp4" })
+    const blob = new Blob(this.chunks, { type: "video/webm" })
     const url = URL.createObjectURL(blob)
     this.mediaRecorder.stop()
     this.mediaRecorder.stream.getTracks().forEach((track) => track.stop()) // Add this line
