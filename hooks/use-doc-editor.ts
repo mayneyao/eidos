@@ -34,16 +34,16 @@ export const AllNodes = [
   LinkNode,
   //   SQLNode,
 ]
-const editor = createHeadlessEditor({
-  nodes: AllNodes,
-  onError: () => {},
-})
 
 export const _getDocMarkdown = async (
   sqlite: DataSpace | null,
   docId: string
 ): Promise<string> => {
   if (!sqlite) return ""
+  const editor = createHeadlessEditor({
+    nodes: AllNodes,
+    onError: () => {},
+  })
   const articleEditorStateJSON = await sqlite.getDoc(docId)
   try {
     const state = editor.parseEditorState(articleEditorStateJSON)
@@ -67,12 +67,21 @@ export const _convertMarkdown2State = async (
   markdown: string
 ): Promise<string> => {
   return new Promise((resolve) => {
-    editor.update(() => {
-      $convertFromMarkdownString(markdown, allTransformers)
-      const json = editor.getEditorState().toJSON()
-      const content = JSON.stringify(json)
-      resolve(content)
+    const editor = createHeadlessEditor({
+      nodes: AllNodes,
+      onError: () => {},
     })
+    editor.update(
+      () => {
+        $convertFromMarkdownString(markdown, allTransformers)
+      },
+      {
+        discrete: true,
+      }
+    )
+    const json = editor.getEditorState().toJSON()
+    const content = JSON.stringify(json)
+    resolve(content)
   })
 }
 

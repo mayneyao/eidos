@@ -3,7 +3,7 @@ import { v4 as uuidV4 } from "uuid"
 
 import { getCodeFromMarkdown } from "@/lib/markdown"
 import { opfsManager } from "@/lib/opfs"
-import { uuidv4 } from "@/lib/utils"
+import { getUuid, uuidv4 } from "@/lib/utils"
 import { startRecorder, stopRecorder } from "@/lib/web/recorder"
 import { useConfigStore } from "@/app/settings/store"
 
@@ -11,7 +11,7 @@ import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite } from "./use-sqlite"
 import { useTable } from "./use-table"
 
-export const useAutoRunCode = () => {
+export const useAIFunctions = () => {
   const { space: database, tableName: table } = useCurrentPathInfo()
   const { handleSql, sqlite } = useSqlite(database)
   const { aiConfig } = useConfigStore()
@@ -138,6 +138,13 @@ export const useAutoRunCode = () => {
         return (
           window.location.origin + opfsManager.getFileUrlByPath(fileObj.path)
         )
+      case "createDoc":
+        const { markdown } = parameters
+        const docId = getUuid()
+        const doc = await sqlite?.createOrUpdateDocWithMarkdown(docId, markdown)
+        const url = window.location.origin + `/${database}/${docId}}`
+        console.log(doc, url)
+        return url
       default:
         throw new Error(`function ${name} not supported auto run`)
     }

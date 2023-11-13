@@ -52,7 +52,7 @@ export const getPrompt = (
   let base = `You are Eidos AI, a helpful AI assistant. here is your rules:
 1. Follow the user's instructions carefully. 
 2. Respond using markdown.
-3. Only when user have a clear intention to call functions, you can call functions the system provides.
+3. you can call functions the system provides Only when user have a clear intention to call functions.
 `
   if (useBlankPrompt) {
     return base
@@ -108,38 +108,6 @@ ${context.currentDocMarkdown}
   const systemPrompt = base + contextPrompt + baseSysPrompt
   return systemPrompt
 }
-
-// export const askAI =
-//   (baseSysPrompt: string, openai?: OpenAI) =>
-//   async (
-//     messages: any[],
-//     context: {
-//       tableSchema?: string
-//       uiColumns?: IUIColumn[]
-//       allTables: ITreeNode[]
-//       allUiColumns: IUIColumn[]
-//       databaseName: string
-//       currentDocMarkdown?: string
-//     }
-//   ) => {
-//     if (!openai) return
-//     const systemPrompt = getPrompt(baseSysPrompt, context)
-//     console.log("systemPrompt", systemPrompt)
-//     const completion = await openai.chat.completions.create({
-//       model: "gpt-3.5-turbo-0613",
-//       temperature: 0,
-//       messages: [
-//         ...messages,
-//         {
-//           role: "system",
-//           content: systemPrompt,
-//         },
-//       ],
-//       functions,
-//       function_call: "auto",
-//     })
-//     return completion.choices[0]
-//   }
 
 type IGetFunctionCallHandler = (handleFunctionCall: any) => FunctionCallHandler
 export const getFunctionCallHandler: IGetFunctionCallHandler =

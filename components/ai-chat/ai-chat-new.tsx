@@ -8,7 +8,7 @@ import { Link } from "react-router-dom"
 import { getFunctionCallHandler } from "@/lib/ai/openai"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useAutoRunCode } from "@/hooks/use-auto-run-code"
+import { useAIFunctions } from "@/hooks/use-ai-functions"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useDocEditor } from "@/hooks/use-doc-editor"
 import { useHnsw } from "@/hooks/use-hnsw"
@@ -48,7 +48,7 @@ export default function Chat() {
   const { sqlite } = useSqlite()
   const { getDocMarkdown } = useDocEditor(sqlite)
 
-  const { handleFunctionCall, handleRunCode } = useAutoRunCode()
+  const { handleFunctionCall, handleRunCode } = useAIFunctions()
   const functionCallHandler = getFunctionCallHandler(handleFunctionCall)
   const { systemPrompt, setCurrentDocMarkdown } =
     useSystemPrompt(currentSysPrompt)

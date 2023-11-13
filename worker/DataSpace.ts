@@ -298,7 +298,10 @@ export class DataSpace {
     mdStr: string,
     parentId?: string
   ) {
-    if (parentId) {
+    let isDayPage = /^\d{4}-\d{2}-\d{2}$/.test(docId)
+    if (isDayPage) {
+      return this.doc.createOrUpdateWithMarkdown(docId, mdStr)
+    } else {
       return this.withTransaction(async () => {
         await this.getOrCreateTreeNode({
           id: docId,
@@ -309,7 +312,6 @@ export class DataSpace {
         return await this.doc.createOrUpdateWithMarkdown(docId, mdStr)
       })
     }
-    return this.doc.createOrUpdateWithMarkdown(docId, mdStr)
   }
 
   public async deleteDoc(docId: string) {
@@ -590,8 +592,9 @@ export class DataSpace {
     // TODO: use this.db.transaction replace
     try {
       this.db.exec("BEGIN TRANSACTION;")
-      await fn()
+      const res = await fn()
       this.db.exec("COMMIT;")
+      return res
     } catch (error) {
       this.db.exec("ROLLBACK;")
       throw error
