@@ -5,14 +5,15 @@ import { FieldType } from "@/lib/fields/const"
 import { IUIColumn } from "@/hooks/use-table"
 
 import { useTableAppStore } from "../store"
+import { FilePropertyEditor } from "./property/file/file-property-editor"
 import { FormulaPropertyEditor } from "./property/formula/formula-property-editor"
 import { LinkPropertyEditor } from "./property/link/link-property-editor"
 import { SelectPropertyEditor } from "./property/select/select-property-editor"
 
 export const PropertyEditorTypeMap: {
   [type: string]: React.FC<{
-    uiColumn: IUIColumn
-    onPropertyChange: (uiColumn: IUIColumn) => void
+    uiColumn: IUIColumn<any>
+    onPropertyChange: (property: any) => void
     onSave?: () => void
     isCreateNew?: boolean
   }>
@@ -21,6 +22,7 @@ export const PropertyEditorTypeMap: {
   "multi-select": SelectPropertyEditor,
   formula: FormulaPropertyEditor,
   link: LinkPropertyEditor,
+  file: FilePropertyEditor,
 }
 const BASE_Fields = [
   FieldType.Text,

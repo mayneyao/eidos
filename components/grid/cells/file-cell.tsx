@@ -12,6 +12,7 @@ interface FileCellDataProps {
   readonly data: string[]
   readonly displayData: string[]
   readonly allowAdd?: boolean
+  readonly proxyUrl?: string
 }
 
 export type FileCell = CustomCell<FileCellDataProps>
@@ -22,12 +23,14 @@ export const imageCellRenderer: CustomRenderer<FileCell> = {
   kind: GridCellKind.Custom,
   needsHover: false,
   needsHoverPosition: false,
-  draw: (a) =>
+  draw: (a) => {
+    const data = a.cell.data.displayData
     drawImage(
       a,
-      a.cell.data.displayData ?? a.cell.data.data
+      data
       //   a.cell.rounding,
-    ),
+    )
+  },
   measure: (_ctx, cell) => cell.data.data.length * 50,
   onDelete: (c) => ({
     ...c,
@@ -43,7 +46,7 @@ export const imageCellRenderer: CustomRenderer<FileCell> = {
 
     return (
       <ImageEditor
-        urls={value.data.data}
+        urls={value.data.displayData}
         canWrite={Boolean(value.data.allowAdd)}
         onCancel={onFinishedEditing}
         onChange={(newImage) => {

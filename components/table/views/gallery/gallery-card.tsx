@@ -1,4 +1,6 @@
+import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
+import { FileField } from "@/lib/fields/file"
 import { IUIColumn } from "@/hooks/use-table"
 
 interface ICardProps {
@@ -6,6 +8,13 @@ interface ICardProps {
   rowIndex: number
   style: React.CSSProperties
   data: any
+}
+
+const getCoverUrl = (row: any, coverField?: IUIColumn) => {
+  if (!coverField) return ""
+  const field = new FileField(coverField)
+  const cv = row[coverField.table_column_name]
+  return field.getCellContent(cv).data.displayData[0]
 }
 
 export const GalleryCard = ({
@@ -22,7 +31,8 @@ export const GalleryCard = ({
   if (!item) {
     return <div style={style}></div>
   }
-  const coverUrl = coverField ? item[coverField.table_column_name] : null
+
+  const coverUrl = getCoverUrl(item, coverField)
   const fieldKeys = Object.keys(item).filter((k) => k != "_id" && k != "title")
   return (
     <div style={style} className="p-2">
@@ -31,7 +41,7 @@ export const GalleryCard = ({
           <img
             src={coverUrl}
             alt=""
-            className="h-[200px] w-full object-contain"
+            className="h-[200px] w-full object-cover"
           />
         </div>
         <div className="p-2">

@@ -55,7 +55,7 @@ export function ExtensionPage() {
           </div>
         )
       })}
-      <Button onClick={handleUploadExtension}>upload extension</Button>
+      <Button onClick={handleUploadExtension}>load extension</Button>
     </CommonSettingLayout>
   )
 }
