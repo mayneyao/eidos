@@ -17,7 +17,9 @@ export const SafeBottomPaddingPlugin = () => {
 
   const inertPlaceholder = () => {
     // disable inert placeholder when editor is empty
-    return;
+    if (editor.getEditorState().isEmpty()) {
+      return
+    }
     editor.dispatchCommand(INSERT_NEW_PARAGRAPH_COMMAND, undefined)
   }
   useEffect(() => {
