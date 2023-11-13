@@ -1,13 +1,10 @@
 import React from "react"
-import {
-  DataEditorProps,
-  GridCellKind,
-  ImageCell,
-  Item,
-} from "@glideapps/glide-data-grid"
+import { DataEditorProps, GridCellKind, Item } from "@glideapps/glide-data-grid"
 
 import { FieldType } from "@/lib/fields/const"
 import { useFileSystem } from "@/hooks/use-files"
+
+import { FileCell } from "../cells/file-cell"
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",
@@ -54,12 +51,16 @@ export const useDrop = (props: IProps) => {
         const fileInfo = fileInfos[0]
         const newFileUrl = "/" + fileInfo.path.split("/").slice(1).join("/")
         setCellValue(cell[0], cell[1], {
-          kind: GridCellKind.Image,
-          data: [newFileUrl],
+          kind: GridCellKind.Custom,
+          data: {
+            kind: "file-cell",
+            data: [newFileUrl],
+            displayData: [newFileUrl],
+            allowAdd: true,
+          },
           copyData: newFileUrl,
           allowOverlay: true,
-          allowAdd: true,
-        } as ImageCell)
+        } as FileCell)
       })
 
       // upload multiple files, it's works but have some bugs

@@ -1,11 +1,9 @@
-import type { ImageCell } from "@glideapps/glide-data-grid"
+import type { FileCell } from "@/components/grid/cells/file-cell"
 
 import { BaseField } from "./base"
 import { GridCellKind } from "./const"
 
 type FileProperty = {}
-
-type FileCell = ImageCell
 
 export class FileField extends BaseField<FileCell, FileProperty, string> {
   static type = "file"
@@ -13,16 +11,21 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
   getCellContent(rawData: string): FileCell {
     const data = rawData?.split(",") ?? []
     return {
-      kind: GridCellKind.Image,
-      data: data,
+      kind: GridCellKind.Custom,
+      data: {
+        kind: "file-cell",
+        data,
+        displayData: data,
+        allowAdd: true,
+      },
+      copyData: rawData,
       allowOverlay: true,
-      allowAdd: true,
     }
   }
 
   cellData2RawData(cell: FileCell) {
     return {
-      rawData: cell.data.join(","),
+      rawData: cell.data.data?.join(","),
     }
   }
 }
