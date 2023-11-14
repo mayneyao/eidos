@@ -83,7 +83,7 @@ export function Editor(props: EditorProps) {
     <>
       <div
         className={cn(
-          "prose mx-auto h-full w-full flex-col p-10 xs:p-5",
+          "prose mx-auto h-full w-full flex-col p-10 dark:prose-invert xs:p-5",
           props.className
         )}
         id="eidos-editor-container"
