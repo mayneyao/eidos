@@ -328,15 +328,15 @@ ul .eidos_editor_theme__listItem {
 }
 
 ul
-  .eidos_editor_theme__listItem:not(.eidos_editor_theme__listItemUnchecked):not(
-    .eidos_editor_theme__listItemChecked
-  ):before {
+  li.eidos_editor_theme__listItem:not(
+    .eidos_editor_theme__listItemUnchecked
+  ):not(.eidos_editor_theme__listItemChecked):before {
   content: "";
   width: 6px;
   height: 6px;
   border-radius: 6px;
   background-color: currentColor;
-  top: 6px;
+  top: 12px;
   left: 0;
   cursor: pointer;
   display: block;
@@ -344,6 +344,11 @@ ul
   position: absolute;
   opacity: 0.5;
 }
+
+ul li.eidos_editor_theme__listItem[role="checkbox"]:before {
+  top: 6px;
+}
+
 .eidos_editor_theme__nestedListItem::before {
   display: none !important;
 }
