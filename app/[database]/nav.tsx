@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
+import { EIDOS_VERSION } from "@/lib/log"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useAPIAgent } from "@/hooks/use-api-agent"
@@ -40,7 +41,6 @@ import { ShareDialog } from "@/components/share-dialog"
 
 import { useConfigStore } from "../settings/store"
 import { useSpaceAppStore } from "./store"
-import { EIDOS_VERSION } from "@/lib/log"
 
 export function DropdownMenuDemo() {
   const router = useNavigate()
@@ -166,7 +166,9 @@ export const Nav = () => {
       >
         <Menu className="h-5 w-5" />
       </Button>
-      <BreadCrumb />
+      <div className="hidden md:block">
+        <BreadCrumb />
+      </div>
       <div className="grow" />
       <div className="flex justify-between self-end">
         <AvatarList nameList={nameList} />
