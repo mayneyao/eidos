@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -55,9 +55,11 @@
     "cmdk": "^0.2.0",
     "d3": "^7.8.5",
     "date-fns": "^2.30.0",
+    "dnd-core": "^16.0.1",
     "eventemitter3": "^5.0.1",
     "gpt-tokenizer": "^2.1.1",
     "hnswlib-wasm": "^0.8.2",
+    "immutability-helper": "^3.1.1",
     "jszip": "^3.10.1",
     "lexical": "^0.11.3",
     "localforage": "^1.10.0",
@@ -75,6 +77,8 @@
     "prismjs": "^1.29.0",
     "react": "^18.2.0",
     "react-day-picker": "^8.7.1",
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.44.3",
     "react-infinite-scroll-hook": "^4.1.1",

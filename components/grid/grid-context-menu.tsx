@@ -1,17 +1,17 @@
 import { useCallback } from "react"
 
+import { shortenId } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useGoto } from "@/hooks/use-goto"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { IUIColumn } from "@/hooks/use-table"
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuTrigger
+  ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useGoto } from "@/hooks/use-goto"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { IUIColumn } from "@/hooks/use-table"
-import { shortenId } from "@/lib/utils"
 
 import { useTableAppStore } from "./store"
 
@@ -28,7 +28,6 @@ export function ContextMenuDemo({
 }) {
   const { selection, clearSelection } = useTableAppStore()
   const count = selection.current?.range.height ?? 0
-
   const { space, tableId } = useCurrentPathInfo()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const goto = useGoto()

@@ -1,4 +1,4 @@
-import type { FileCell } from "@/components/grid/cells/file-cell"
+import type { FileCell } from "@/components/grid/cells/file/file-cell"
 
 import { BaseField } from "./base"
 import { GridCellKind } from "./const"
@@ -23,7 +23,7 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
         return d
       })
     }
-    return data
+    return data.filter(Boolean)
   }
 
   getCellContent(rawData: string): FileCell {

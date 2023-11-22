@@ -33,6 +33,10 @@ interface ITableAppState {
 
   currentUiColumn?: IUIColumn
   setCurrentUiColumn: (currentUiColumn?: IUIColumn) => void
+
+  // const [currentPreviewIndex, setCurrentPreviewIndex] = useState(-1)
+  currentPreviewIndex: number
+  setCurrentPreviewIndex: (currentPreviewIndex: number) => void
 }
 
 export const useTableAppStore = create<ITableAppState>()((set) => ({
@@ -66,4 +70,7 @@ export const useTableAppStore = create<ITableAppState>()((set) => ({
 
   currentUiColumn: undefined,
   setCurrentUiColumn: (currentUiColumn) => set({ currentUiColumn }),
+
+  currentPreviewIndex: -1,
+  setCurrentPreviewIndex: (currentPreviewIndex) => set({ currentPreviewIndex }),
 }))

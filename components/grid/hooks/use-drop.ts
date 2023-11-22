@@ -1,10 +1,14 @@
+import {
+  DataEditorProps,
+  GridCell,
+  GridCellKind,
+  Item
+} from "@glideapps/glide-data-grid"
 import React from "react"
-import { DataEditorProps, GridCellKind, Item } from "@glideapps/glide-data-grid"
 
-import { FieldType } from "@/lib/fields/const"
 import { useFileSystem } from "@/hooks/use-files"
 
-import { FileCell } from "../cells/file-cell"
+import { FileCell } from "../cells/file/file-cell"
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",
@@ -15,7 +19,7 @@ const SUPPORTED_IMAGE_TYPES = new Set([
 
 interface IProps {
   setCellValue: (col: number, row: number, value: any) => void
-  getCellContent: (cell: Item) => { kind: string }
+  getCellContent: (cell: Item) => GridCell
 }
 
 export const useDrop = (props: IProps) => {
@@ -34,31 +38,29 @@ export const useDrop = (props: IProps) => {
       if (dataTransfer === null) {
         return
       }
-
       const { files } = dataTransfer
-
-      // This only supports one image, for simplicity.
-      if (files.length !== 1) {
-        return
-      }
-
       const [file] = files
       if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
         return
       }
-
-      addFiles([file]).then((fileInfos) => {
-        const fileInfo = fileInfos[0]
-        const newFileUrl = "/" + fileInfo.path.split("/").slice(1).join("/")
+      addFiles(Array.from(files)).then((fileInfos) => {
+        const newFileUrls = fileInfos.map(
+          (fileInfo) => "/" + fileInfo.path.split("/").slice(1).join("/")
+        )
+        const oldCell = getCellContent(cell) as FileCell
+        const newValues = [
+          ...newFileUrls,
+          ...(oldCell.data?.data || []),
+        ] as string[]
         setCellValue(cell[0], cell[1], {
           kind: GridCellKind.Custom,
           data: {
             kind: "file-cell",
-            data: [newFileUrl],
-            displayData: [newFileUrl],
+            data: newValues,
+            displayData: newValues,
             allowAdd: true,
           },
-          copyData: newFileUrl,
+          copyData: newValues.join(","),
           allowOverlay: true,
         } as FileCell)
       })
@@ -72,7 +74,7 @@ export const useDrop = (props: IProps) => {
 
       setLastDropCell(cell)
     },
-    [addFiles, setCellValue]
+    [addFiles, getCellContent, setCellValue]
   )
 
   const onDragOverCell = React.useCallback(
@@ -80,20 +82,15 @@ export const useDrop = (props: IProps) => {
       if (dataTransfer === null) {
         return
       }
-
       const { items } = dataTransfer
-      // This only supports one image, for simplicity.
-      if (items.length !== 1) {
-        return
-      }
-
       const [item] = items
       if (!SUPPORTED_IMAGE_TYPES.has(item.type)) {
         return
       }
 
       const [col, row] = cell
-      if (getCellContent(cell).kind === FieldType.File) {
+      const oldCell = getCellContent(cell) as FileCell
+      if (oldCell.data?.kind === "file-cell") {
         setHighlights([
           {
             color: "#44BB0022",

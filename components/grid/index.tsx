@@ -175,12 +175,7 @@ export default function Grid(props: IGridProps) {
 
   const { onItemHovered, getRowThemeOverride } = useHover({ theme })
   const { onDragLeave, onDrop, onDragOverCell, highlights } = useDrop({
-    getCellContent: (cell) => {
-      const [col, row] = cell
-      const field = columns[col]
-      const uiCol = uiColumnMap.get(field.title)
-      return { kind: (uiCol?.type as any) ?? GridCellKind.Text }
-    },
+    getCellContent,
     setCellValue: (col, row, value) => onCellEdited?.([col, row], value),
   })
 
