@@ -1,11 +1,16 @@
 "use client"
 
-import { SimpleBackUp } from "@/worker/backup"
-import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
 import * as React from "react"
+import { SimpleBackUp } from "@/worker/backup"
+import { kebabCase } from "lodash"
+import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
-import { useConfigStore } from "@/app/settings/store"
+import { importSpace } from "@/lib/space"
+import { useAppStore } from "@/lib/store/app-store"
+import { cn } from "@/lib/utils"
+import { useGoto } from "@/hooks/use-goto"
+import { useSpace } from "@/hooks/use-space"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -30,11 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useGoto } from "@/hooks/use-goto"
-import { useSpace } from "@/hooks/use-space"
-import { importSpace } from "@/lib/space"
-import { useAppStore } from "@/lib/store/app-store"
-import { cn } from "@/lib/utils"
+import { useConfigStore } from "@/app/settings/store"
 
 import { Checkbox } from "./ui/checkbox"
 import { Input } from "./ui/input"
@@ -55,6 +56,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [databaseName, setDatabaseName] = React.useState("")
+  const slugifyDatabaseName = kebabCase(databaseName)
   const goto = useGoto()
   const router = useNavigate()
   const { createSpace } = useSpace()
@@ -77,6 +79,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   }
 
   const handleCreateDatabase = async () => {
+    const databaseName = slugifyDatabaseName
     if (databaseName) {
       setLoading(true)
       if (hasBackupServer && shouldCreateFromBackup) {
@@ -177,9 +180,20 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
                 id="database-name"
                 placeholder="e.g. personal"
                 value={databaseName}
+                autoComplete="off"
+                type="text"
+                pattern="[\x00-\x7F]+"
                 required
-                onChange={(e) => setDatabaseName(e.target.value)}
+                onChange={(e) => {
+                  // disable non-ascii characters, sqlite-wasm handle non-ascii characters incorrectly
+                  if (e.target.value) {
+                    e.target.validity.valid && setDatabaseName(e.target.value)
+                  } else {
+                    setDatabaseName(e.target.value)
+                  }
+                }}
               />
+              <span>{slugifyDatabaseName}</span>
             </div>
           </div>
           <div className="space-y-4 py-2 pb-4">
