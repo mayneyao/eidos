@@ -1,6 +1,15 @@
 import { useRef, type FC } from "react"
 import type { Identifier, XYCoord } from "dnd-core"
+import { MoreHorizontal } from "lucide-react"
 import { useDrag, useDrop } from "react-dnd"
+
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 enum ItemTypes {
   CARD = "card",
@@ -18,6 +27,7 @@ export interface CardProps {
   index: number
   moveCard: (dragIndex: number, hoverIndex: number) => void
   setCurrentPreviewIndex: (i: number) => void
+  deleteByUrl: (url: string) => void
 }
 
 interface DragItem {
@@ -31,6 +41,7 @@ export const Card: FC<CardProps> = ({
   text,
   index,
   moveCard,
+  deleteByUrl,
   setCurrentPreviewIndex,
 }) => {
   const ref = useRef<HTMLDivElement>(null)
@@ -107,15 +118,40 @@ export const Card: FC<CardProps> = ({
 
   const opacity = isDragging ? 0.5 : 1
   drag(drop(ref))
+
+  const handleClickViewOriginal = () => {
+    window.open(text, "_blank")
+  }
+
   return (
     <div
       ref={ref}
       style={{ ...style, opacity }}
       data-handler-id={handlerId}
-      className="cursor-pointer hover:bg-secondary"
-      onClick={() => setCurrentPreviewIndex(index)}
+      className="space-between flex items-start justify-between hover:bg-secondary"
     >
-      <img src={text} alt="" className="max-h-[196px] object-contain" />
+      <img
+        src={text}
+        alt=""
+        onClick={() => setCurrentPreviewIndex(index)}
+        className="max-h-[196px] max-w-[80%] cursor-pointer object-contain"
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger className="click-outside-ignore h-[32px]">
+          <MoreHorizontal className="m-1 h-4 w-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="click-outside-ignore">
+          <DropdownMenuItem onClick={() => setCurrentPreviewIndex(index)}>
+            Fullscreen
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleClickViewOriginal}>
+            View Original
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => deleteByUrl(text)}>
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

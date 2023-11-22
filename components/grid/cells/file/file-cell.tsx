@@ -85,6 +85,21 @@ export const FileCellEditor: ReturnType<ProvideEditorCallback<FileCell>> = (
   const { addFiles } = useFileSystem()
 
   const currentPreview = cell.data.displayData[currentPreviewIndex]
+  const deleteByUrl = useCallback(
+    (url: string) => {
+      const newData = cell.data.data.filter((v) => v !== url)
+      const newDisplayData = cell.data.displayData.filter((v) => v !== url)
+      onChange({
+        ...cell,
+        data: {
+          ...cell.data,
+          data: newData,
+          displayData: newDisplayData,
+        },
+      })
+    },
+    [cell, onChange]
+  )
 
   const renderCard = useCallback(
     (v: string, i: number) => {
@@ -96,10 +111,11 @@ export const FileCellEditor: ReturnType<ProvideEditorCallback<FileCell>> = (
           moveCard={moveCard}
           index={i}
           setCurrentPreviewIndex={setCurrentPreviewIndex}
+          deleteByUrl={deleteByUrl}
         ></Card>
       )
     },
-    [moveCard, setCurrentPreviewIndex]
+    [deleteByUrl, moveCard, setCurrentPreviewIndex]
   )
 
   const showUploadFilePicker = async () => {
