@@ -194,10 +194,20 @@ export const FileCellRenderer: CustomRenderer<FileCell> = {
   provideEditor: () => (p) => <FileCellEditor {...p} />,
   onPaste: (toPaste, cell) => {
     toPaste = toPaste.trim()
+    // if toPaste startWith  " or ' , remove them
+    if (toPaste.startsWith('"') || toPaste.startsWith("'")) {
+      toPaste = toPaste.slice(1)
+    }
+    if (toPaste.endsWith('"') || toPaste.endsWith("'")) {
+      toPaste = toPaste.slice(0, -1)
+    }
     const fragments = toPaste.split(",")
     const uris = fragments
       .map((f) => {
         try {
+          if (f.startsWith("/")) {
+            return f
+          }
           new URL(f)
           return f
         } catch {
@@ -205,7 +215,6 @@ export const FileCellRenderer: CustomRenderer<FileCell> = {
         }
       })
       .filter((x) => x !== undefined) as string[]
-
     if (
       uris.length === cell.data.length &&
       uris.every((u, i) => u === cell.data[i])
