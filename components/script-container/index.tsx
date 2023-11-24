@@ -1,13 +1,15 @@
 import { useEffect, useRef } from "react"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtMsg } from "@/app/extensions/hooks/use-ext-msg"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import iframeHTML from "./iframe.html?raw"
 
 // ScriptContainer used to run script in iframe
 export const ScriptContainer = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const { scriptContainerRef, setScriptContainerRef } = useAppRuntimeStore()
 
   const { handleMsg } = useExtMsg()
   useEffect(() => {
@@ -22,44 +24,10 @@ export const ScriptContainer = () => {
 
   useEffect(() => {
     if (iframeRef.current) {
-      ;(window as any).test = () =>
-        iframeRef.current?.contentWindow?.postMessage(
-          {
-            type: "ScriptFunctionCall",
-            data: {
-              input: { content: "add todo" },
-              context: {
-                env: {},
-                tables: {
-                  todos: {
-                    id: "tb_4d2d09a52e014de69a85a9600aafdee0",
-                    fieldsMap: {
-                      title: {
-                        name: "title",
-                      },
-                    },
-                  },
-                },
-              },
-              code: `
-/// <reference path="eidos.d.ts" />
-export const name = "Todo";
-export const description = "Add a todo to the table";
-export default async function (input, context) {
-    console.log("Hello Eidos!");
-    const tableId = context.tables.todos.id;
-    const fieldMap = context.tables.todos.fieldsMap;
-    const res = await eidos.currentSpace.addRow(tableId, {
-        [fieldMap.title.name]: input.content,
-    });
-    console.log(res);
-}`,
-            },
-          },
-          "*"
-        )
+      setScriptContainerRef(iframeRef)
     }
-  }, [])
+  }, [setScriptContainerRef])
+
   return (
     <iframe
       ref={iframeRef}

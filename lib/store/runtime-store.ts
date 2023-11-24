@@ -23,6 +23,9 @@ interface AppRuntimeState {
 
   isCompleteLoading: boolean
   setCompleteLoading: (isCompleteLoading: boolean) => void
+
+  scriptContainerRef: React.RefObject<any> | null
+  setScriptContainerRef: (scriptContainerRef: React.RefObject<any>) => void
 }
 
 export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
@@ -46,4 +49,8 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
 
   isCompleteLoading: false,
   setCompleteLoading: (isCompleteLoading) => set({ isCompleteLoading }),
+
+  scriptContainerRef: null,
+  setScriptContainerRef: (scriptContainerRef) =>
+    set({ scriptContainerRef: scriptContainerRef }),
 }))

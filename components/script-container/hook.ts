@@ -1,6 +1,7 @@
-export const useScriptFunction = (
-  iframeRef: React.RefObject<HTMLIFrameElement>
-) => {
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+
+export const useScriptFunction = () => {
+  const { scriptContainerRef } = useAppRuntimeStore()
   const callFunction = (props: {
     input: any
     context: any
@@ -8,7 +9,7 @@ export const useScriptFunction = (
     id: string
   }) => {
     const { input, context, code, id } = props
-    iframeRef.current?.contentWindow?.postMessage(
+    scriptContainerRef?.current?.contentWindow?.postMessage(
       {
         type: "ScriptFunctionCall",
         data: {
