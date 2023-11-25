@@ -22,6 +22,10 @@ export interface IScript {
       type: string
     }[]
   }[]
+  envs?: {
+    name: string
+    type: string
+  }[]
   envMap?: {
     [key: string]: string
   }
@@ -47,6 +51,7 @@ export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
         inputJSONSchema TEXT,
         outputJSONSchema TEXT,
         tables TEXT,
+        envs TEXT,
         envMap TEXT,
         fieldsMap TEXT,
         enabled BOOLEAN DEFAULT 0
@@ -55,7 +60,7 @@ export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
 
   add(data: IScript): Promise<IScript> {
     this.dataSpace.exec2(
-      `INSERT INTO ${this.name} (id, name, description, version, code, inputJSONSchema, outputJSONSchema, tables, envMap, fieldsMap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ${this.name} (id, name, description, version, code, inputJSONSchema, outputJSONSchema, tables, envs, envMap, fieldsMap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.id,
         data.name,
@@ -65,6 +70,7 @@ export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
         data.inputJSONSchema,
         data.outputJSONSchema,
         data.tables,
+        data.envs,
         data.envMap,
         data.fieldsMap,
       ]
@@ -109,6 +115,7 @@ export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
       inputJSONSchema: JSON.parse(res[0].inputJSONSchema),
       outputJSONSchema: JSON.parse(res[0].outputJSONSchema),
       tables: JSON.parse(res[0].tables),
+      envs: JSON.parse(res[0].envs),
       envMap: JSON.parse(res[0].envMap),
       fieldsMap: JSON.parse(res[0].fieldsMap),
       enabled: res[0].enabled,
@@ -138,6 +145,7 @@ export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
         inputJSONSchema: JSON.parse(item.inputJSONSchema),
         outputJSONSchema: JSON.parse(item.outputJSONSchema),
         tables: JSON.parse(item.tables),
+        envs: JSON.parse(item.envs),
         envMap: JSON.parse(item.envMap),
         fieldsMap: JSON.parse(item.fieldsMap),
         enabled: item.enabled,

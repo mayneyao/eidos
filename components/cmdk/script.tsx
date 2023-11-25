@@ -48,7 +48,7 @@ export const ScriptList = () => {
         input: realParams,
         context: {
           tables: currentAction.fieldsMap,
-          env: {},
+          env: currentAction.envMap,
           currentNodeId: currentNode?.id,
         },
         code: currentAction.code,

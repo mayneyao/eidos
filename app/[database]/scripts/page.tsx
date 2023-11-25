@@ -48,7 +48,7 @@ export const ScriptPage = () => {
   return (
     <div className="h-full w-full p-6">
       <div className="flex w-full justify-between p-4">
-        <Button>New Script</Button>
+        <Button disabled>New Script</Button>
         <InstallScript />
       </div>
       <Separator />
@@ -70,7 +70,6 @@ export const ScriptPage = () => {
                   }
                 ></Switch>
               </div>
-
               <p>{script.description}</p>
               <Link to={`/${space}/scripts/${script.id}`}>
                 <Button className="mt-4" variant="outline">

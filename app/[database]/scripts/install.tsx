@@ -59,7 +59,7 @@ export const InstallScript = () => {
           <DropdownMenuItem onClick={handleInstallFromLocal}>
             From Local
           </DropdownMenuItem>
-          <DropdownMenuItem>Script Market</DropdownMenuItem>
+          <DropdownMenuItem disabled>Script Market</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <Dialog open={open} onOpenChange={setOpen}>
