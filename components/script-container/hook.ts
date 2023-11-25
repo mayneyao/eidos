@@ -9,6 +9,7 @@ export const useScriptFunction = () => {
     id: string
   }) => {
     const { input, context, code, id } = props
+    console.log(props)
     scriptContainerRef?.current?.contentWindow?.postMessage(
       {
         type: "ScriptFunctionCall",

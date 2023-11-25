@@ -4,6 +4,7 @@ import { useKeyPress } from "ahooks"
 
 import { ActionExecutor } from "@/lib/action/action"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useScripts } from "@/hooks/use-scripts"
 
@@ -25,6 +26,7 @@ export const ScriptList = () => {
   const { callFunction } = useScriptFunction()
   const [currentAction, setCurrentAction] = useState<IScript>()
   const { space } = useCurrentPathInfo()
+  const currentNode = useCurrentNode()
   const scripts = useScripts(space)
   const onItemSelect = (action: IScript) => () => {
     const paramsString = Object.keys(action.inputJSONSchema?.properties || {})
@@ -47,6 +49,7 @@ export const ScriptList = () => {
         context: {
           tables: currentAction.fieldsMap,
           env: {},
+          currentNodeId: currentNode?.id,
         },
         code: currentAction.code,
         id: currentAction.id,

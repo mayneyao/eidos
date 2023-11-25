@@ -10,7 +10,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 
-import { LoadFromGithubDialog } from "./load-from-github"
+import { InstallScript } from "./install"
 
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
@@ -20,7 +20,7 @@ export const ScriptPage = () => {
     <div className="h-full w-full p-6">
       <div className="flex w-full justify-between p-4">
         <Button>New Script</Button>
-        <LoadFromGithubDialog />
+        <InstallScript />
       </div>
       <Separator />
       <div className="grid w-full grid-cols-3 gap-4 p-4">
@@ -30,7 +30,9 @@ export const ScriptPage = () => {
             className="overflow-hidden rounded-lg border shadow-md transition-shadow duration-200 hover:shadow-lg"
           >
             <div className="p-4">
-              <h2 className="mb-2 text-xl font-semibold">{script.name}</h2>
+              <h2 className="mb-2 text-xl font-semibold">
+                {script.name}({script.version})
+              </h2>
               <p>{script.description}</p>
               <Link to={`/${space}/scripts/${script.id}`}>
                 <Button className="mt-4" variant="outline">

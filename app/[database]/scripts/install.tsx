@@ -9,37 +9,60 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 
-import { useGithubScriptContent, useScript } from "./hooks"
+import { useGithubScriptContent } from "./hooks/use-github-script"
+import { useLocalScript } from "./hooks/use-local-script"
+import { useScript } from "./hooks/use-script"
 
-export const LoadFromGithubDialog = () => {
+export const InstallScript = () => {
   const { fetchContent, script, loading } = useGithubScriptContent()
-  const [installLoading, setInstallLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [link, setLink] = useState("")
-  const { addScript } = useScript()
+  const { installScript, installLoading } = useScript()
   const handleLoad = async (link: string) => {
     await fetchContent(link)
   }
   const revalidator = useRevalidator()
   const handleInstall = async () => {
-    setInstallLoading(true)
-    script && (await addScript(script))
-    setInstallLoading(false)
+    script && (await installScript(script))
     setOpen(false)
     revalidator.revalidate()
   }
+  const { loadFromLocal, reload } = useLocalScript()
+
+  const handleInstallFromLocal = async () => {
+    const script = await loadFromLocal()
+    await installScript(script)
+    revalidator.revalidate()
+  }
+
   return (
     <div className="flex gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline">Install</Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={() => setOpen(true)}>
+            From Github
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleInstallFromLocal}>
+            From Local
+          </DropdownMenuItem>
+          <DropdownMenuItem>Script Market</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline">Load From Github</Button>
-        </DialogTrigger>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Script Repo link</DialogTitle>
@@ -88,7 +111,6 @@ export const LoadFromGithubDialog = () => {
           <DialogFooter className="sm:justify-start"></DialogFooter>
         </DialogContent>
       </Dialog>
-      <Button variant="outline">Script Market</Button>
     </div>
   )
 }

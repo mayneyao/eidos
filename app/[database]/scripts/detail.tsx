@@ -22,7 +22,7 @@ import {
   FormMessage,
 } from "@/components/react-hook-form/form"
 
-import { useScript } from "./hooks"
+import { useScript } from "./hooks/use-script"
 
 const formSchema = z.object({
   id: z.string(),
