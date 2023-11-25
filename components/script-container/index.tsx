@@ -32,7 +32,7 @@ export const ScriptContainer = () => {
     <iframe
       ref={iframeRef}
       srcDoc={iframeContent}
-      sandbox="allow-scripts allow-same-origin"
+      sandbox="allow-scripts allow-same-origin allow-popups"
       width="0"
       height="0"
       frameBorder="0"
