@@ -1,7 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Database, FileBoxIcon, Files, PinIcon } from "lucide-react"
+import {
+  Database,
+  FileBoxIcon,
+  FileCodeIcon,
+  Files,
+  PinIcon,
+} from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -78,6 +84,18 @@ export const SideBar = ({ className }: any) => {
                       </Link>
                     </Button>
                   )}
+                  <Button
+                    variant={"ghost"}
+                    size="sm"
+                    className="w-full justify-start font-normal"
+                    asChild
+                  >
+                    <Link to={`/${space}/scripts`}>
+                      <FileCodeIcon className="pr-2" />
+                      Scripts
+                    </Link>
+                  </Button>
+
                   <CurrentItemTree
                     title="Pins"
                     type="table"

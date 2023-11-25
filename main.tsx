@@ -29,6 +29,8 @@ import SharePage from "@/app/share/page"
 // space-manage
 import SpaceManagePage from "@/app/space-manage/page"
 
+import { ScriptDetailPage } from "./app/[database]/scripts/detail"
+import { ScriptPage } from "./app/[database]/scripts/page"
 import { DocEditor } from "./app/eidtor/doc"
 import { ExtensionContainer } from "./app/extensions/container"
 
@@ -107,6 +109,34 @@ const router = createBrowserRouter([
           {
             path: "opfs",
             element: <FileManager />,
+          },
+          {
+            path: "scripts",
+            children: [
+              {
+                index: true,
+                id: "scripts",
+                loader: async () => {
+                  if (!(window as any)?.sqlite) {
+                    return []
+                  }
+                  return await (window as any)?.sqlite?.listScripts()
+                },
+                element: <ScriptPage />,
+              },
+              {
+                path: ":scriptId",
+                loader: async ({ params }) => {
+                  if (!(window as any)?.sqlite) {
+                    return []
+                  }
+                  return await (window as any)?.sqlite?.getScript(
+                    params.scriptId
+                  )
+                },
+                element: <ScriptDetailPage />,
+              },
+            ],
           },
           {
             path: "everyday",

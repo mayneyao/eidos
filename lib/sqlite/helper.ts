@@ -134,3 +134,12 @@ export const queryData2JSON = (sqlResult: any[][], fields: string[]) => {
     return obj
   })
 }
+
+export const stringify = (obj: any) => {
+  Object.keys(obj).forEach((key) => {
+    if (typeof obj[key] === "object" || Array.isArray(obj[key])) {
+      obj[key] = JSON.stringify(obj[key])
+    }
+  })
+  return obj
+}

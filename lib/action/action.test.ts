@@ -31,8 +31,7 @@ describe("ActionExecutor", () => {
     ],
   }
   test("getParams", async () => {
-    const executor = new ActionExecutor(action)
-    const params = executor.getParams("/test --content=123 --name=1")
+    const params = ActionExecutor.getParams("/test --content=123 --name=1")
     expect(params).toEqual({ content: "123", name: "1" })
   })
   test("execute", async () => {

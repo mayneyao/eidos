@@ -34,8 +34,8 @@ import { useSpaceAppStore } from "@/app/[database]/store"
 import { ActionList } from "./action"
 import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
 import { NodeCommandItems } from "./nodes"
+import { ScriptList } from "./script"
 import { SpaceCommandItems } from "./spaces"
-import { SyscallAction } from "./syscall"
 
 export function CommandDialogDemo() {
   const { isCmdkOpen, setCmdkOpen } = useAppRuntimeStore()
@@ -50,6 +50,9 @@ export function CommandDialogDemo() {
   })
 
   const updateSearchNodes = async (qs: string) => {
+    if (mode !== "search") {
+      return
+    }
     if (qs.length > 0) {
       const nodes = await queryNodes(qs)
       const ftsNodes = await fullTextSearch(qs)
@@ -90,9 +93,9 @@ export function CommandDialogDemo() {
   if (mode === "action") {
     return <ActionList />
   }
-  // if (mode === "syscall") {
-  //   return <SyscallAction />
-  // }
+  if (mode === "syscall") {
+    return <ScriptList />
+  }
 
   return (
     <CommandDialog open={isCmdkOpen} onOpenChange={setCmdkOpen}>

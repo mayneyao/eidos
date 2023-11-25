@@ -19,7 +19,7 @@ export class ActionExecutor {
    * turn "/todo --content=123 --name=456" to {content: 123, name: 456}
    * @param cmd "/todo --content=123 --name=456"
    */
-  getParams(cmd: string) {
+  static getParams(cmd: string) {
     const params: Record<string, any> = {}
     const regx = /--(\w+)=(\S+)/g
     let match = regx.exec(cmd)
@@ -82,7 +82,7 @@ export class ActionExecutor {
   }
 
   async execute(cmd: string) {
-    const realParams: Record<string, any> = this.getParams(cmd)
+    const realParams: Record<string, any> = ActionExecutor.getParams(cmd)
     const results = []
     for (const node of this.action.nodes) {
       const func = this.functionMap[node.name]
