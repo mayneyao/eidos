@@ -106,10 +106,17 @@ export const getAllDays = async (spaceName: string) => {
   return entries
 }
 
-export const getDirHandle = async (_paths: string[]) => {
+export const getDirHandle = async (
+  _paths: string[],
+  rootDirHandle?: FileSystemDirectoryHandle
+) => {
   const paths = [..._paths]
-  const opfsRoot = await navigator.storage.getDirectory()
-  let dirHandle = opfsRoot
+  let dirHandle: FileSystemDirectoryHandle
+  if (rootDirHandle) {
+    dirHandle = rootDirHandle
+  } else {
+    dirHandle = await navigator.storage.getDirectory()
+  }
   for (let path of paths) {
     dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
   }
@@ -117,6 +124,12 @@ export const getDirHandle = async (_paths: string[]) => {
 }
 
 export class OpfsManager {
+  rootDirHandle: FileSystemDirectoryHandle | undefined
+  constructor(rootDirHandle?: FileSystemDirectoryHandle) {
+    if (rootDirHandle) {
+      this.rootDirHandle = rootDirHandle
+    }
+  }
   getFileUrlByPath = (path: string) => {
     const paths = path.split("/").slice(1)
     return "/" + paths.join("/")
@@ -125,7 +138,10 @@ export class OpfsManager {
   getFileByURL = async (url: string) => {
     const path = new URL(url).pathname
     const parentPaths = path.split("/").slice(0, -1).filter(Boolean)
-    const parentDirHandle = await getDirHandle(["spaces", ...parentPaths])
+    const parentDirHandle = await getDirHandle(
+      ["spaces", ...parentPaths],
+      this.rootDirHandle
+    )
     const filename = path.split("/").pop()
     const realFilename = decodeURIComponent(filename!)
     const fileHandle = await parentDirHandle.getFileHandle(realFilename)
@@ -139,7 +155,7 @@ export class OpfsManager {
   }
 
   listDir = async (_paths: string[]) => {
-    const dirHandle = await getDirHandle(_paths)
+    const dirHandle = await getDirHandle(_paths, this.rootDirHandle)
     const entries: FileSystemFileHandle[] = []
     for await (let entry of (dirHandle as any).values()) {
       entries.push(entry)
@@ -153,7 +169,7 @@ export class OpfsManager {
       throw new Error("paths can't be empty")
     }
     const filename = paths.pop()
-    const dirHandle = await getDirHandle(paths)
+    const dirHandle = await getDirHandle(paths, this.rootDirHandle)
     const fileHandle = await dirHandle.getFileHandle(filename!, {
       create: true,
     })
@@ -169,7 +185,7 @@ export class OpfsManager {
       throw new Error("paths can't be empty")
     }
     const filename = paths.pop()
-    const dirHandle = await getDirHandle(paths)
+    const dirHandle = await getDirHandle(paths, this.rootDirHandle)
     const fileHandle = await dirHandle.getFileHandle(filename!, {
       create: true,
     })
@@ -187,7 +203,7 @@ export class OpfsManager {
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
     }
-    const dirHandle = await getDirHandle(paths)
+    const dirHandle = await getDirHandle(paths, this.rootDirHandle)
     const r = await dirHandle.getDirectoryHandle(dirName, { create: true })
     // const opfsRoot = await navigator.storage.getDirectory()
     // const path = await opfsRoot.resolve(r)
@@ -198,7 +214,7 @@ export class OpfsManager {
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
     }
-    const dirHandle = await getDirHandle(paths)
+    const dirHandle = await getDirHandle(paths, this.rootDirHandle)
     // if fileId is provided, use it as file name
     const fileExt = mime.extension(file.type)
     const filename = fileId ? `${fileId}.${fileExt}` : file.name
@@ -220,14 +236,14 @@ export class OpfsManager {
       throw new Error("paths can't be empty")
     }
     if (isDir) {
-      const dirHandle = await getDirHandle(paths)
+      const dirHandle = await getDirHandle(paths, this.rootDirHandle)
       // The remove() method is currently only implemented in Chrome. You can feature-detect support via 'remove' in FileSystemFileHandle.prototype.
       await (dirHandle as any).remove({
         recursive: true,
       })
     } else {
       const filename = paths.pop()
-      const dirHandle = await getDirHandle(paths)
+      const dirHandle = await getDirHandle(paths, this.rootDirHandle)
       await dirHandle.removeEntry(filename!)
     }
   }
@@ -238,7 +254,7 @@ export class OpfsManager {
       throw new Error("paths can't be empty")
     }
     const filename = paths.pop()
-    const dirHandle = await getDirHandle(paths)
+    const dirHandle = await getDirHandle(paths, this.rootDirHandle)
     const fileHandle = (await dirHandle.getFileHandle(filename!, {
       create: true,
     })) as any

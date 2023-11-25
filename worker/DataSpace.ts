@@ -15,6 +15,7 @@ import { ColumnTable } from "./meta_table/column"
 import { DocTable } from "./meta_table/doc"
 import { EmbeddingTable, IEmbedding } from "./meta_table/embedding"
 import { FileTable, IFile } from "./meta_table/file"
+import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
 import { Table } from "./meta_table/table"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
@@ -31,6 +32,7 @@ export class DataSpace {
   //  meta table
   doc: DocTable
   action: ActionTable
+  script: ScriptTable
   tree: TreeTable
   view: ViewTable
   column: ColumnTable
@@ -56,6 +58,7 @@ export class DataSpace {
     this.table = new Table(this)
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
+    this.script = new ScriptTable(this)
     this.tree = new TreeTable(this)
     this.view = new ViewTable(this)
     this.file = new FileTable(this)
@@ -65,6 +68,7 @@ export class DataSpace {
     this.allTables = [
       this.doc,
       this.action,
+      this.script,
       this.tree,
       this.view,
       this.column,
@@ -244,6 +248,34 @@ export class DataSpace {
 
   public async listActions() {
     return this.action.list()
+  }
+
+  // scripts
+  public async addScript(data: IScript) {
+    await this.script.add(data)
+  }
+
+  public async listScripts(status: ScriptStatus = "all") {
+    return this.script.list(status)
+  }
+
+  public async getScript(id: string) {
+    return this.script.get(id)
+  }
+
+  public async deleteScript(id: string) {
+    await this.script.del(id)
+  }
+
+  public async updateScript(data: IScript) {
+    await this.script.set(data.id, data)
+  }
+  public async enableScript(id: string) {
+    await this.script.enable(id)
+  }
+
+  public async disableScript(id: string) {
+    await this.script.disable(id)
   }
 
   // docs

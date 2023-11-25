@@ -9,6 +9,30 @@ export const useCurrentUiColumns = () => {
   return useUiColumns(tableName!, space!)
 }
 
+export const useTablesUiColumns = (
+  tableNames: string[],
+  databaseName: string
+) => {
+  const { sqlite } = useSqlite(databaseName)
+  const { uiColumnsMap, setUiColumns } = useTableStore()
+  const updateUiColumns = useCallback(async () => {
+    if (!sqlite) return
+    await Promise.all(
+      tableNames.map(async (tableName) => {
+        const res = await sqlite.listUiColumns(tableName)
+        setUiColumns(tableName, res)
+      })
+    )
+  }, [setUiColumns, sqlite, tableNames])
+  useEffect(() => {
+    updateUiColumns()
+  }, [updateUiColumns, tableNames])
+
+  return {
+    uiColumnsMap,
+  }
+}
+
 export const useUiColumns = (tableName: string, databaseName: string) => {
   const { sqlite } = useSqlite(databaseName)
   const { uiColumnsMap, setUiColumns } = useTableStore()

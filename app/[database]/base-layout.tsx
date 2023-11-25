@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Loading } from "@/components/loading"
+import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
 import { useLayoutInit } from "./hook"
@@ -61,6 +62,7 @@ export function DatabaseLayoutBase({
         ></iframe>
       )}
 
+      <ScriptContainer />
       <div className="flex h-full w-full">
         <div
           className={cn(

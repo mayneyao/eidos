@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Eidos Script Container</title>
+    <script type="module">
+      const makeSpaceProxy = (space) => {
+        return new Proxy(
+          {},
+          {
+            get: (target, prop) => {
+              const msgChannel = new MessageChannel()
+              return (...params) => {
+                window.parent.postMessage(
+                  {
+                    type: "rpcCall",
+                    data: {
+                      space,
+                      method: prop,
+                      params,
+                    },
+                  },
+                  "*",
+                  [msgChannel.port2]
+                )
+                return new Promise((resolve, reject) => {
+                  msgChannel.port1.onmessage = (event) => {
+                    msgChannel.port1.close()
+                    const { type, data } = event.data
+                    if (type === "rpcCallResp") {
+                      resolve(data)
+                    }
+                  }
+                })
+              }
+            },
+          }
+        )
+      }
+
+      window.eidos = new Proxy(
+        {},
+        {
+          get: (target, prop) => {
+            if (prop === "space") {
+              // eidos.space(spaceId)
+              return (space) => {
+                return makeSpaceProxy(space)
+              }
+            }
+            if (prop === "currentSpace") {
+              return makeSpaceProxy("${{currentSpace}}")
+            }
+          },
+        }
+      )
+
+      let modules = {}
+      async function loadScriptFunction(code) {
+        const blob = new Blob([code], { type: "text/javascript" })
+        const url = URL.createObjectURL(blob)
+        const module = await import(url)
+        return module
+      }
+      window.addEventListener("message", async (event) => {
+        const { type, data } = event.data
+        if (type === "ScriptFunctionCall") {
+          const { input, context, code } = data
+          const module = await loadScriptFunction(code)
+          const res = await module.default(input, context)
+        }
+      })
+    </script>
+  </head>
+  <body>
+    <p id="message">Loading...</p>
+  </body>
+</html>
