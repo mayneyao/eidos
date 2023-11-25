@@ -16,6 +16,8 @@ export const SafeBottomPaddingPlugin = () => {
   const [editor] = useLexicalComposerContext()
 
   const inertPlaceholder = () => {
+    // there is still a bug here, disable now
+    return
     // disable inert placeholder when editor is empty
     if (editor.getEditorState().isEmpty()) {
       return
