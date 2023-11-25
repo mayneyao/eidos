@@ -4,12 +4,15 @@ import { ScriptTableName } from "@/lib/sqlite/const"
 
 import { BaseTable, BaseTableImpl } from "./base"
 
+export type ScriptStatus = "all" | "enabled" | "disabled"
+
 export interface IScript {
   id: string
   name: string
   description: string
   version: string
   code: string
+  enabled?: boolean
   inputJSONSchema?: JsonSchema7ObjectType
   outputJSONSchema?: JsonSchema7ObjectType
   tables?: {
@@ -45,7 +48,8 @@ export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
         outputJSONSchema TEXT,
         tables TEXT,
         envMap TEXT,
-        fieldsMap TEXT
+        fieldsMap TEXT,
+        enabled BOOLEAN DEFAULT 0
     );
 `
 
@@ -107,10 +111,23 @@ export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
       tables: JSON.parse(res[0].tables),
       envMap: JSON.parse(res[0].envMap),
       fieldsMap: JSON.parse(res[0].fieldsMap),
+      enabled: res[0].enabled,
     })
   }
-  async list(): Promise<IScript[]> {
-    const res = await this.dataSpace.exec2(`SELECT * FROM ${this.name}`)
+  async list(status: ScriptStatus = "all"): Promise<IScript[]> {
+    let sql = `SELECT * FROM ${this.name}`
+
+    switch (status) {
+      case "enabled":
+        sql += ` WHERE enabled = 1`
+        break
+      case "disabled":
+        sql += ` WHERE enabled = 0`
+        break
+      default:
+        break
+    }
+    const res = await this.dataSpace.exec2(sql)
     return Promise.resolve(
       res.map((item) => ({
         id: item.id,
@@ -123,7 +140,22 @@ export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
         tables: JSON.parse(item.tables),
         envMap: JSON.parse(item.envMap),
         fieldsMap: JSON.parse(item.fieldsMap),
+        enabled: item.enabled,
       }))
     )
+  }
+
+  async enable(id: string): Promise<boolean> {
+    this.dataSpace.exec2(`UPDATE ${this.name} SET enabled = 1 WHERE id = ?`, [
+      id,
+    ])
+    return Promise.resolve(true)
+  }
+
+  async disable(id: string): Promise<boolean> {
+    this.dataSpace.exec2(`UPDATE ${this.name} SET enabled = 0 WHERE id = ?`, [
+      id,
+    ])
+    return Promise.resolve(true)
   }
 }

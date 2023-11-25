@@ -15,7 +15,7 @@ import { ColumnTable } from "./meta_table/column"
 import { DocTable } from "./meta_table/doc"
 import { EmbeddingTable, IEmbedding } from "./meta_table/embedding"
 import { FileTable, IFile } from "./meta_table/file"
-import { IScript, ScriptTable } from "./meta_table/script"
+import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
 import { Table } from "./meta_table/table"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
@@ -255,8 +255,8 @@ export class DataSpace {
     await this.script.add(data)
   }
 
-  public async listScripts() {
-    return this.script.list()
+  public async listScripts(status: ScriptStatus = "all") {
+    return this.script.list(status)
   }
 
   public async getScript(id: string) {
@@ -269,6 +269,13 @@ export class DataSpace {
 
   public async updateScript(data: IScript) {
     await this.script.set(data.id, data)
+  }
+  public async enableScript(id: string) {
+    await this.script.enable(id)
+  }
+
+  public async disableScript(id: string) {
+    await this.script.disable(id)
   }
 
   // docs

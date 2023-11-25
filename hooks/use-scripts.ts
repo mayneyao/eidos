@@ -9,7 +9,7 @@ export const useScripts = (space: string) => {
 
   useEffect(() => {
     if (!sqlite) return
-    sqlite.listScripts().then((res) => {
+    sqlite.listScripts("enabled").then((res) => {
       setScripts(res)
     })
   }, [space, sqlite])

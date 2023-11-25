@@ -4,17 +4,46 @@
  */
 
 import { IScript } from "@/worker/meta_table/script"
-import { Link, useLoaderData } from "react-router-dom"
+import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 
+import { useScript } from "./hooks/use-script"
 import { InstallScript } from "./install"
 
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
   const { space } = useCurrentPathInfo()
+  const { deleteScript, enableScript, disableScript } = useScript()
+  const revalidator = useRevalidator()
+
+  const handleDelete = async (id: string) => {
+    await deleteScript(id)
+    revalidator.revalidate()
+  }
+
+  const handleToggleEnabled = async (id: string, checked: boolean) => {
+    if (checked) {
+      await enableScript(id)
+    } else {
+      await disableScript(id)
+    }
+    revalidator.revalidate()
+  }
 
   return (
     <div className="h-full w-full p-6">
@@ -23,22 +52,55 @@ export const ScriptPage = () => {
         <InstallScript />
       </div>
       <Separator />
-      <div className="grid w-full grid-cols-3 gap-4 p-4">
+      <div className="grid w-full grid-cols-2 gap-4 p-4">
         {scripts.map((script) => (
           <div
             key={script.id}
             className="overflow-hidden rounded-lg border shadow-md transition-shadow duration-200 hover:shadow-lg"
           >
             <div className="p-4">
-              <h2 className="mb-2 text-xl font-semibold">
-                {script.name}({script.version})
-              </h2>
+              <div className="flex justify-between">
+                <h2 className="mb-2 text-xl font-semibold">
+                  {script.name}({script.version})
+                </h2>
+                <Switch
+                  checked={script.enabled}
+                  onCheckedChange={(checked) =>
+                    handleToggleEnabled(script.id, checked)
+                  }
+                ></Switch>
+              </div>
+
               <p>{script.description}</p>
               <Link to={`/${space}/scripts/${script.id}`}>
                 <Button className="mt-4" variant="outline">
-                  View Details
+                  Details
                 </Button>
               </Link>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" className="ml-4 mt-4">
+                    Remove
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Are you sure you want to delete this script?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. all data related to this
+                      will be deleted.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleDelete(script.id)}>
+                      Continue
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         ))}

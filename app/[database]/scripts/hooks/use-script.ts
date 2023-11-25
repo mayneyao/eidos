@@ -28,11 +28,23 @@ export const useScript = () => {
     script && (await addScript(script))
     setInstallLoading(false)
   }
+  const enableScript = async (id: string) => {
+    if (!sqlite) return
+    await sqlite.enableScript(id)
+    console.log("enableScript", id)
+  }
+  const disableScript = async (id: string) => {
+    if (!sqlite) return
+    await sqlite.disableScript(id)
+    console.log("disableScript", id)
+  }
   return {
     addScript,
     deleteScript,
     updateScript,
     installScript,
     installLoading,
+    enableScript,
+    disableScript,
   }
 }
