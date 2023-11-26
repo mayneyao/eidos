@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { IScript } from "@/worker/meta_table/script"
 import { useKeyPress } from "ahooks"
 
@@ -28,17 +28,31 @@ export const ScriptList = () => {
   const { space } = useCurrentPathInfo()
   const currentNode = useCurrentNode()
   const scripts = useScripts(space)
+  const inputRef = useRef<HTMLInputElement>(null)
   const onItemSelect = (action: IScript) => () => {
     const paramsString = Object.keys(action.inputJSONSchema?.properties || {})
       .map((param) => {
         return `--${param}=`
       })
       .join(" ")
-    setInput(`!${action.name} ${paramsString}`)
+    let input = `!${action.name}`
+    if (paramsString.length > 0) {
+      input += ` ${paramsString}`
+    }
+    setInput(input)
     setTimeout(() => {
       setCurrentAction(action)
     }, 400)
   }
+
+  useEffect(() => {
+    setTimeout(() => {
+      if (inputRef.current) {
+        const length = inputRef.current.value.length
+        inputRef.current.setSelectionRange(length, length)
+      }
+    }, 0)
+  }, [])
 
   useKeyPress("Enter", () => {
     if (currentAction) {
@@ -67,7 +81,9 @@ export const ScriptList = () => {
       <CommandInput
         placeholder="Type a command or search..."
         value={input}
+        ref={inputRef}
         onValueChange={setInput}
+        autoFocus={false}
       />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
