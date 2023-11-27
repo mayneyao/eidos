@@ -10,6 +10,12 @@ export type FileProperty = {
 export class FileField extends BaseField<FileCell, FileProperty, string> {
   static type = "file"
 
+  static getDefaultProperty() {
+    return {
+      proxyUrl: "https://proxy.eidos.space/?url=",
+    }
+  }
+
   /**
    * we need to proxy the image to avoid CORS issue. if the image is a remote url, we will proxy it
    */

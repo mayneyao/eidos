@@ -15,6 +15,10 @@ export abstract class BaseField<T, P, R = string>
 {
   static type: string
 
+  static getDefaultProperty() {
+    return {}
+  }
+
   /**
    * each table column has a corresponding ui column, which stored in the `${ColumnTableName}` table
    * we use the ui column to store the column's display name, type, and other ui related information

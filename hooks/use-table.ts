@@ -3,6 +3,7 @@ import { IView } from "@/worker/meta_table/view"
 import { v4 as uuidv4 } from "uuid"
 import { create } from "zustand"
 
+import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import {
@@ -151,17 +152,19 @@ export const useTable = (tableName: string, databaseName: string) => {
   const addField = async (
     fieldName: string,
     fieldType: FieldType,
-    property = {}
+    property?: any
   ) => {
     if (sqlite) {
       const tableColumnName = generateColumnName()
-      await sqlite.addColumn({
+      const FieldClass = allFieldTypesMap[fieldType]
+      const field = {
         name: fieldName,
         type: fieldType,
         table_name: tableName,
         table_column_name: tableColumnName,
-        property,
-      })
+        property: property || FieldClass.getDefaultProperty(),
+      }
+      await sqlite.addColumn(field)
       await sqlite.onTableChange(databaseName, tableName)
       await updateUiColumns()
     }
