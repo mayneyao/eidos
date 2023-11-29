@@ -13,6 +13,10 @@ export class CheckboxField extends BaseField<
 > {
   static type = "checkbox"
 
+  rawData2JSON(rawData: number) {
+    return rawData
+  }
+
   getCellContent(rawData: number | undefined): CheckboxCell {
     return {
       kind: GridCellKind.Boolean,

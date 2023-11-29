@@ -7,6 +7,7 @@ type UIColumn<P> = Omit<IUIColumn, "property"> & {
 interface IBaseField<T, P, R> {
   column: UIColumn<P>
   getCellContent(rawData: any): T
+  rawData2JSON(rawData: R): any
   cellData2RawData(cell: T): any
 }
 
@@ -35,6 +36,8 @@ export abstract class BaseField<T, P, R = string>
    * @param rawData this is the raw data stored in the database
    */
   abstract getCellContent(rawData: any): T
+
+  abstract rawData2JSON(rawData: R): any
 
   abstract cellData2RawData(cell: T): {
     rawData: any

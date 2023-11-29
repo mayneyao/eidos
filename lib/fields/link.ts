@@ -16,6 +16,10 @@ export type LinkCellData = {
 export class LinkField extends BaseField<LinkCell, LinkProperty> {
   static type = "link"
 
+  rawData2JSON(rawData: string) {
+    return rawData
+  }
+
   getCellContent(rawData: LinkCellData[]): LinkCell {
     if (typeof rawData === "string") {
       return {

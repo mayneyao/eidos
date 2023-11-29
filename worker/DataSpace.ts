@@ -19,9 +19,20 @@ import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
 import { Table } from "./meta_table/table"
 import { ITreeNode, TreeTable } from "./meta_table/tree"
 import { IView, ViewTable } from "./meta_table/view"
+import { TableManager } from "./sdk/table"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 import { DataChangeTrigger } from "./trigger/data_change_trigger"
 import { ALL_UDF } from "./udf"
+
+export type EidosTable =
+  | DocTable
+  | ActionTable
+  | ScriptTable
+  | TreeTable
+  | ViewTable
+  | ColumnTable
+  | EmbeddingTable
+  | FileTable
 
 export class DataSpace {
   db: Database
@@ -38,7 +49,7 @@ export class DataSpace {
   column: ColumnTable
   embedding: EmbeddingTable
   file: FileTable
-  table: Table
+  _table: Table
   dataChangeTrigger: DataChangeTrigger
   allTables: BaseTable<any>[] = []
 
@@ -55,7 +66,7 @@ export class DataSpace {
     this.dbName = dbName
     this.initUDF()
     this.dataChangeTrigger = new DataChangeTrigger()
-    this.table = new Table(this)
+    this._table = new Table(this)
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
     this.script = new ScriptTable(this)
@@ -120,6 +131,11 @@ export class DataSpace {
   // embedding
   public async addEmbedding(embedding: IEmbedding) {
     return await this.embedding.add(embedding)
+  }
+
+  // table
+  public table(id: string) {
+    return new TableManager(id, this)
   }
 
   // files
@@ -365,11 +381,11 @@ export class DataSpace {
 
   // table
   public async isTableExist(id: string) {
-    return await this.table.isExist(id)
+    return await this._table.isExist(id)
   }
 
   public async deleteTable(id: string) {
-    await this.table.del(id)
+    await this._table.del(id)
   }
 
   public async listDays(page: number) {

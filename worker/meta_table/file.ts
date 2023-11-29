@@ -107,6 +107,11 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     return res[0] as IFile
   }
 
+  list(): Promise<IFile[]> {
+    const res = this.dataSpace.exec2(`SELECT * FROM ${this.name};`)
+    return res as Promise<IFile[]>
+  }
+
   set(id: string, data: Partial<IFile>): Promise<boolean> {
     throw new Error("Method not implemented.")
   }
@@ -117,5 +122,19 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     } catch (error) {
       return Promise.resolve(false)
     }
+  }
+  /**
+   * get blob url of file
+   * in script or extension environment we can't access opfs file directly, so we need to use blob url to access it.
+   * @param id file id
+   * @returns
+   */
+  async getBlobURL(id: string): Promise<string | null> {
+    const file = await this.get(id)
+    if (!file) {
+      throw new Error("file not found")
+    }
+    const f = await opfsManager.getFileByPath(file.path)
+    return URL.createObjectURL(f)
   }
 }

@@ -8,6 +8,10 @@ type NumberProperty = {}
 export class NumberField extends BaseField<NumberCell, NumberProperty, number> {
   static type = "number"
 
+  rawData2JSON(rawData: number) {
+    return rawData
+  }
+
   getCellContent(rawData: number | undefined): NumberCell {
     return {
       kind: GridCellKind.Number,

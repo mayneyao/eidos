@@ -10,6 +10,10 @@ export type FileProperty = {
 export class FileField extends BaseField<FileCell, FileProperty, string> {
   static type = "file"
 
+  rawData2JSON(rawData: string) {
+    return rawData
+  }
+
   static getDefaultProperty() {
     return {
       proxyUrl: "https://proxy.eidos.space/?url=",

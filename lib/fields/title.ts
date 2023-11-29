@@ -8,6 +8,10 @@ type TitleProperty = {}
 export class TitleField extends BaseField<TextCell, TitleProperty> {
   static type = "title"
 
+  rawData2JSON(rawData: string) {
+    return rawData
+  }
+
   getCellContent(rawData: string): TextCell {
     return {
       kind: GridCellKind.Text,
