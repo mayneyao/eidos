@@ -32,6 +32,7 @@ import {
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { ActionList } from "./action"
+import { ExtensionCommandItems } from "./extension"
 import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
 import { NodeCommandItems } from "./nodes"
 import { ScriptList } from "./script"
@@ -131,6 +132,7 @@ export function CommandDialogDemo() {
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />
+        <ExtensionCommandItems />
         <NodeCommandItems />
         <SpaceCommandItems />
         <CommandGroup heading="Settings">
