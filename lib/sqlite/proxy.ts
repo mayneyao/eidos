@@ -1,4 +1,4 @@
-import { DataSpace } from "@/worker/DataSpace"
+import { DataSpace, EidosTable } from "@/worker/DataSpace"
 import { DataConnection } from "peerjs"
 
 import { toast } from "@/components/ui/use-toast"
@@ -141,6 +141,82 @@ export const getSqliteProxy = (
     get(target, method) {
       if (method == "_config") {
         return config
+      }
+      // const r = await sqlite.table("91ba4dd2ad4447cf943db88dbb861323").rows.query()
+      if (method == "table") {
+        return function (id: string) {
+          return new Proxy<DataSpace>({} as any, {
+            get(target, method) {
+              if (method == "rows") {
+                return new Proxy<DataSpace>({} as any, {
+                  get(target, method) {
+                    return function (params: any) {
+                      const thisCallId = uuidv4()
+                      const [_params, ...rest] = arguments
+                      sqlite.send({
+                        type: MsgType.CallFunction,
+                        data: {
+                          method: `table(${id}).rows.${method as string}`,
+                          params: [_params, ...rest],
+                          dbName,
+                          tableId: id,
+                        },
+                        id: thisCallId,
+                      })
+                      return sqlite.onCallBack(thisCallId)
+                    }
+                  },
+                })
+              }
+              return function (params: any) {
+                const thisCallId = uuidv4()
+                const [_params, ...rest] = arguments
+                sqlite.send({
+                  type: MsgType.CallFunction,
+                  data: {
+                    method: `table("${id}").${method as string}`,
+                    params: [_params, ...rest],
+                    dbName,
+                    tableId: id,
+                  },
+                  id: thisCallId,
+                })
+                return sqlite.onCallBack(thisCallId)
+              }
+            },
+          })
+        }
+      }
+      if (
+        [
+          "doc",
+          "action",
+          "script",
+          "tree",
+          "view",
+          "column",
+          "embedding",
+          "file",
+        ].includes(method as string)
+      ) {
+        return new Proxy<EidosTable>({} as any, {
+          get(target, subMethod) {
+            return function (params: any) {
+              const thisCallId = uuidv4()
+              const [_params, ...rest] = arguments
+              sqlite.send({
+                type: MsgType.CallFunction,
+                data: {
+                  method: `${method as string}.${subMethod as string}`,
+                  params: [_params, ...rest],
+                  dbName,
+                },
+                id: thisCallId,
+              })
+              return sqlite.onCallBack(thisCallId)
+            }
+          },
+        })
       }
       return function (params: any) {
         const thisCallId = uuidv4()

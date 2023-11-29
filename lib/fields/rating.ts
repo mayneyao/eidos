@@ -8,6 +8,10 @@ type RatingProperty = {}
 export class RatingField extends BaseField<RatingCell, RatingProperty, number> {
   static type = "rating"
 
+  rawData2JSON(rawData: number) {
+    return rawData
+  }
+
   getCellContent(rawData: number): RatingCell {
     return {
       kind: GridCellKind.Custom,

@@ -8,21 +8,19 @@
         return new Proxy(
           {},
           {
-            get: (target, prop) => {
+            get: (target, method) => {
               const msgChannel = new MessageChannel()
-              return (...params) => {
+              const send = (data) => {
                 window.parent.postMessage(
                   {
                     type: "rpcCall",
-                    data: {
-                      space,
-                      method: prop,
-                      params,
-                    },
+                    data,
                   },
                   "*",
                   [msgChannel.port2]
                 )
+              }
+              const onCallBack = () => {
                 return new Promise((resolve, reject) => {
                   msgChannel.port1.onmessage = (event) => {
                     msgChannel.port1.close()
@@ -32,6 +30,84 @@
                     }
                   }
                 })
+              }
+
+              // const r = await currentSpace.table("91ba4dd2ad4447cf943db88dbb861323").rows.query()
+              if (method == "table") {
+                return function (id) {
+                  return new Proxy(
+                    {},
+                    {
+                      get(target, method) {
+                        if (method == "rows") {
+                          return new Proxy(
+                            {},
+                            {
+                              get(target, method) {
+                                return function (params) {
+                                  const [_params, ...rest] = arguments
+                                  send({
+                                    method: `table(${id}).rows.${method}`,
+                                    params: [_params, ...rest],
+                                    space,
+                                  })
+                                  return onCallBack()
+                                }
+                              },
+                            }
+                          )
+                        }
+                        return function (params) {
+                          const [_params, ...rest] = arguments
+                          send({
+                            method: `table("${id}").${method}`,
+                            params: [_params, ...rest],
+                            space,
+                          })
+                          return onCallBack()
+                        }
+                      },
+                    }
+                  )
+                }
+              }
+              if (
+                [
+                  "doc",
+                  "action",
+                  "script",
+                  "tree",
+                  "view",
+                  "column",
+                  "embedding",
+                  "file",
+                ].includes(method)
+              ) {
+                return new Proxy(
+                  {},
+                  {
+                    get(target, subMethod) {
+                      return function (params) {
+                        const [_params, ...rest] = arguments
+                        send({
+                          method: `${method}.${subMethod}`,
+                          params: [_params, ...rest],
+                          space,
+                        })
+                        return onCallBack()
+                      }
+                    },
+                  }
+                )
+              }
+
+              return (...params) => {
+                send({
+                  space,
+                  method: prop,
+                  params,
+                })
+                return onCallBack()
               }
             },
           }

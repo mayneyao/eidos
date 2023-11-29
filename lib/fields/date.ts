@@ -10,6 +10,10 @@ type DateCell = DatePickerCell
 export class DateField extends BaseField<DateCell, DateProperty, string> {
   static type = "date"
 
+  rawData2JSON(rawData: string) {
+    return rawData
+  }
+
   getCellContent(rawData: string | undefined): DateCell {
     return {
       kind: GridCellKind.Custom,

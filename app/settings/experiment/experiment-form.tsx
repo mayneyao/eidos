@@ -108,6 +108,8 @@ export function ExperimentForm() {
                   </div>
                   <FormControl>
                     <Switch
+                      // fow now we disable this feature
+                      disabled
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />

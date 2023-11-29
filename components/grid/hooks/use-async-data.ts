@@ -200,18 +200,17 @@ export function useAsyncData<TRowType>(
 
   const refreshCurrentVisible = React.useCallback(() => {
     const vr = visiblePagesRef.current
-    // const damageList: { cell: [number, number] }[] = []
-    // const height = vr.height
-    // for (let row = vr.y; row < vr.y + height; row++) {
-    //   for (let col = vr.x; col < vr.x + vr.width; col++) {
-    //     damageList.push({
-    //       cell: [col, row],
-    //     })
-    //   }
-    // }
-    // gridRef.current?.updateCells(damageList)
-    getCellsForSelection(vr)
-  }, [getCellsForSelection])
+    const damageList: { cell: [number, number] }[] = []
+    const height = vr.height
+    for (let row = vr.y; row < vr.y + height; row++) {
+      for (let col = vr.x; col < vr.x + vr.width; col++) {
+        damageList.push({
+          cell: [col, row],
+        })
+      }
+    }
+    gridRef.current?.updateCells(damageList)
+  }, [gridRef])
 
   const getRowByIndex = (index: number) => {
     return dataRef.current[index]
@@ -234,7 +233,7 @@ export function useAsyncData<TRowType>(
             const rowIndex = getRowIndexById(_old._id)
             if (rowIndex !== -1) {
               // FIXME: for now we just refresh the visible region, link cell has some problem
-              // dataRef.current[rowIndex] = _new
+              dataRef.current[rowIndex] = _new
               refreshCurrentVisible()
             }
             break
@@ -242,13 +241,15 @@ export function useAsyncData<TRowType>(
             const rowIndex2 = getRowIndexById(_old._id)
             if (rowIndex2 !== -1) {
               dataRef.current.splice(rowIndex2, 1)
+              setCount(dataRef.current.length)
               refreshCurrentVisible()
             }
             break
           case DataUpdateSignalType.Insert:
             const rowIndex3 = getRowIndexById(_new._id)
-            if (rowIndex3 !== -1) {
-              dataRef.current.splice(rowIndex3, 1)
+            if (rowIndex3 === -1) {
+              dataRef.current.push(_new)
+              setCount(dataRef.current.length)
               refreshCurrentVisible()
             }
             break
@@ -260,7 +261,7 @@ export function useAsyncData<TRowType>(
     return () => {
       bc.close()
     }
-  }, [refreshCurrentVisible, tableName])
+  }, [refreshCurrentVisible, setCount, tableName])
 
   return {
     getCellContent,

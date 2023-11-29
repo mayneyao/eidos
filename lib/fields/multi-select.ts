@@ -36,6 +36,16 @@ export class MultiSelectField extends BaseField<
     return newOptions
   }
 
+  rawData2JSON(rawData: string): string[] {
+    const options = this.column.property?.options ?? []
+    const ids = rawData.split(/[\s,]+/)
+    const names = ids.map((id) => {
+      const option = options.find((i) => i.id === id)
+      return option?.name || ""
+    })
+    return names
+  }
+
   /**
    * in database we store the tags as a string, so we need to convert it to an array of strings
    * e.g. "tag1,tag2,tag3" => ["tag1", "tag2", "tag3"]

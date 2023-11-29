@@ -21,8 +21,29 @@ const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
     //
     _dataspace = await loadDatabase(dbName)
   }
-  const _method = method as keyof DataSpace
-  const callMethod = (_dataspace[_method] as Function).bind(_dataspace)
+  let callMethod: Function = () => {}
+  if (method.includes(".")) {
+    let obj: any = _dataspace
+    const properties = method.split(".")
+    // const r = await sqlite.table("91ba4dd2ad4447cf943db88dbb861323").rows.query()
+    for (const property of properties.slice(0, -1)) {
+      // if property like `table("91ba4dd2ad4447cf943db88dbb861323")` it means we need to call table function
+      // and pass the result to next function
+      if (property.includes("(") && property.includes(")")) {
+        const [funcName, funcParams] = property.split("(")
+        const func = obj[funcName].bind(obj)
+        const params = funcParams.slice(0, -1).split(",")
+        obj = await func(...params)
+      } else {
+        obj = obj[property]
+      }
+    }
+    callMethod = (obj[properties[properties.length - 1]] as Function).bind(obj)
+  } else {
+    callMethod = (_dataspace[method as keyof DataSpace] as Function).bind(
+      _dataspace
+    )
+  }
   const res = await callMethod(...params)
 
   port.postMessage({

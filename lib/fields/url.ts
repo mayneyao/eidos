@@ -10,6 +10,10 @@ type URLCell = UriCell
 export class URLField extends BaseField<URLCell, URLProperty> {
   static type = "url"
 
+  rawData2JSON(rawData: string) {
+    return rawData
+  }
+
   getCellContent(rawData: string): URLCell {
     return {
       kind: GridCellKind.Uri,

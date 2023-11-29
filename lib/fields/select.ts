@@ -80,6 +80,12 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
     return this.column.property?.options ?? []
   }
 
+  rawData2JSON(rawData: any): string {
+    const options = this.column.property?.options ?? []
+    const option = options.find((o) => o.id === rawData)
+    return option?.name || ""
+  }
+
   getCellContent(rawData: string): SelectCell {
     const options = this.column.property?.options ?? []
     return {

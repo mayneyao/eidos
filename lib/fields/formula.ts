@@ -10,6 +10,10 @@ export type FormulaProperty = {
 export class FormulaField extends BaseField<TextCell, FormulaProperty> {
   static type = "formula"
 
+  rawData2JSON(rawData: string) {
+    return rawData
+  }
+
   getCellContent(rawData: string): TextCell {
     return {
       kind: GridCellKind.Text,
