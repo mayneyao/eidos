@@ -147,8 +147,8 @@ export const ScriptBinding = () => {
                                   ]?.map((field) => {
                                     return (
                                       <SelectItem
-                                        value={field.name}
-                                        key={field.name}
+                                        value={field.table_column_name}
+                                        key={field.table_column_name}
                                       >
                                         {field.name}
                                       </SelectItem>
@@ -178,7 +178,10 @@ export const ScriptBinding = () => {
           <div>
             {script.envs?.map((env) => {
               return (
-                <div className="mt-1 flex items-center justify-between">
+                <div
+                  className="mt-1 flex items-center justify-between"
+                  key={env.name}
+                >
                   <span>{env.name}</span>
                   <Input
                     className="w-[200px]"

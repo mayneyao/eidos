@@ -40,7 +40,10 @@ export interface IScript {
   }
 }
 
-export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
+export class ScriptTable
+  extends BaseTableImpl<IScript>
+  implements BaseTable<IScript>
+{
   name = ScriptTableName
   createTableSql = `
     CREATE TABLE IF NOT EXISTS ${this.name} (
@@ -78,23 +81,7 @@ export class ScriptTable extends BaseTableImpl implements BaseTable<IScript> {
     )
     return Promise.resolve(data)
   }
-  set(id: string, data: IScript): Promise<boolean> {
-    this.dataSpace.exec2(
-      `UPDATE ${this.name} SET name = ?, description = ?, version = ?, code = ?, inputJSONSchema = ?, outputJSONSchema = ?, envMap = ?, fieldsMap = ? WHERE id = ?`,
-      [
-        data.name,
-        data.description,
-        data.version,
-        data.code,
-        data.inputJSONSchema,
-        data.outputJSONSchema,
-        data.envMap,
-        data.fieldsMap,
-        id,
-      ]
-    )
-    return Promise.resolve(true)
-  }
+
   del(id: string): Promise<boolean> {
     this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])
     return Promise.resolve(true)

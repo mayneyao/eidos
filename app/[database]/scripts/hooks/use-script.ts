@@ -20,7 +20,7 @@ export const useScript = () => {
   }
   const updateScript = async (script: IScript) => {
     if (!sqlite) return
-    await sqlite.updateScript(stringify(script))
+    await sqlite.script.set(script.id, stringify(script))
     console.log("updateScript", script)
   }
   const installScript = async (script: IScript) => {

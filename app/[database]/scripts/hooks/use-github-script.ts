@@ -21,17 +21,18 @@ export const useGithubScriptContent = () => {
       const eidosUrl = getRawUrl(url) + "/eidos.json"
       const response = await fetch(eidosUrl)
       const eidosData = await response.json()
-      const mainUrl = getRawUrl(url) + "/" + eidosData.main
+      const { main, ...restEidosData } = eidosData
+      const mainUrl = getRawUrl(url) + "/" + main
       const mainResponse = await fetch(mainUrl)
       const mainData = await mainResponse.text()
       setContent(mainData)
       setScript({
-        ...eidosData,
+        ...restEidosData,
         code: mainData,
       })
       setLoading(false)
       return {
-        ...eidosData,
+        ...restEidosData,
         code: mainData,
       }
     } catch (error) {
