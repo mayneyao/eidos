@@ -1,6 +1,5 @@
-import * as React from "react"
-import { ReactNode } from "react"
 import { DataSpace } from "@/worker/DataSpace"
+import { ElementTransformer } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
   $getNodeByKey,
@@ -8,6 +7,8 @@ import {
   type LexicalNode,
   type NodeKey,
 } from "lexical"
+import * as React from "react"
+import { ReactNode } from "react"
 
 import { useModal } from "../hooks/useModal"
 import { SqlQueryDialog } from "../plugins/SQLPlugin/SqlQueryDialog"
@@ -139,4 +140,21 @@ export function $isSQLNode(
   node: SQLNode | LexicalNode | null | undefined
 ): node is SQLNode {
   return node instanceof SQLNode
+}
+
+export const SQL_NODE_TRANSFORMER: ElementTransformer = {
+  dependencies: [SQLNode],
+  export: (node) => {
+    if (!$isSQLNode(node)) {
+      return null
+    }
+    return `<query sql="${node.sql}" />`
+  },
+  regExp: /<query sql="([^"]+?)"\s?\/>\s?$/,
+  replace: (textNode, _1, match) => {
+    const [, sql] = match
+    const sqlNode = $createSQLNode(sql)
+    textNode.replace(sqlNode)
+  },
+  type: "element",
 }

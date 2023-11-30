@@ -4,6 +4,7 @@ import type { DataSpace } from "@/worker/DataSpace"
 import "@/lib/prism-config"
 // lexical code highlight depends on prismjs which run in worker prism-config disable messageHandler otherwise it will throw error
 import { CodeHighlightNode, CodeNode } from "@lexical/code"
+import { HashtagNode } from "@lexical/hashtag"
 import { createHeadlessEditor } from "@lexical/headless"
 import { AutoLinkNode, LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
@@ -18,9 +19,21 @@ import {
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
 
-export const allTransformers = [CHECK_LIST, CODE, INLINE_CODE, ...TRANSFORMERS]
+import { DatabaseTableNode } from "@/components/doc/nodes/DatabaseTableNode"
+import { IMAGE, ImageNode } from "@/components/doc/nodes/ImageNode"
+import { MentionNode } from "@/components/doc/nodes/MentionNode"
+import { SQLNode, SQL_NODE_TRANSFORMER } from "@/components/doc/nodes/SQL"
 
-export const AllNodes = [
+const CUSTOM_TRANSFORMERS = [IMAGE, SQL_NODE_TRANSFORMER]
+export const allTransformers = [
+  CHECK_LIST,
+  CODE,
+  INLINE_CODE,
+  ...TRANSFORMERS,
+  ...CUSTOM_TRANSFORMERS,
+]
+
+export const AllEditorNodes = [
   HeadingNode,
   ListNode,
   ListItemNode,
@@ -32,14 +45,18 @@ export const AllNodes = [
   TableRowNode,
   AutoLinkNode,
   LinkNode,
-  //   SQLNode,
+  ImageNode,
+  SQLNode,
+  HashtagNode,
+  MentionNode,
+  DatabaseTableNode,
 ]
 
 export const _getDocMarkdown = async (
   articleEditorStateJSON: string
 ): Promise<string> => {
   const editor = createHeadlessEditor({
-    nodes: AllNodes,
+    nodes: AllEditorNodes,
     onError: () => {},
   })
   try {
@@ -65,7 +82,7 @@ export const _convertMarkdown2State = async (
 ): Promise<string> => {
   return new Promise((resolve) => {
     const editor = createHeadlessEditor({
-      nodes: AllNodes,
+      nodes: AllEditorNodes,
       onError: () => {},
     })
     editor.update(

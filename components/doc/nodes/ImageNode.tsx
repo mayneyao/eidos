@@ -8,6 +8,7 @@
 
 import * as React from "react"
 import { Suspense } from "react"
+import { TextMatchTransformer } from "@lexical/markdown"
 import {
   $applyNodeReplacement,
   DecoratorNode,
@@ -253,4 +254,27 @@ export function $isImageNode(
   node: LexicalNode | null | undefined
 ): node is ImageNode {
   return node instanceof ImageNode
+}
+
+export const IMAGE: TextMatchTransformer = {
+  dependencies: [ImageNode],
+  export: (node) => {
+    if (!$isImageNode(node)) {
+      return null
+    }
+    return `![${node.getAltText()}](${node.getSrc()})`
+  },
+  importRegExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))/,
+  regExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
+  replace: (textNode, match) => {
+    const [, altText, src] = match
+    const imageNode = $createImageNode({
+      altText,
+      src,
+    })
+    console.log(imageNode)
+    textNode.replace(imageNode)
+  },
+  trigger: ")",
+  type: "text-match",
 }
