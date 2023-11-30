@@ -82,7 +82,7 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
   const [inputValue, setInputValue] = React.useState("")
   const handleBackspace: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === "Backspace" && !inputValue?.length) {
-      const _values = Array.from(values)
+      const _values: string[] = Array.from(values)
       _values.pop()
       setNewValues(_values)
     }

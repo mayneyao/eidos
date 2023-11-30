@@ -14,12 +14,18 @@ an all-in-one workspace for everyone
 
 see [Eidos Project](https://github.com/users/mayneyao/projects/5)
 
-## How to Use
+## How to develop
 
 1. Clone the repository `git clone git@github.com:mayneyao/eidos.git`
 2. Run `pnpm install`
 3. Run `pnpm dev`
 4. You can now access the app in your browser at http://localhost:5173
+
+### generate sdk types
+
+```shell
+pnpm tsc -p tsconfig.typings.json
+```
 
 ## Contributions
 

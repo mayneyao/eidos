@@ -17,7 +17,7 @@
  * - files is a folder that contains all static files, such as images, videos, etc.
  * - when user upload a file, it will be saved in this folder. hash will be used as file name. e.g. 1234567890.png
  */
-import mime from "mime-types"
+import { extension } from "mime-types"
 
 export const getAllSpaceNames = async (): Promise<string[]> => {
   const opfsRoot = await navigator.storage.getDirectory()
@@ -216,7 +216,7 @@ export class OpfsManager {
     }
     const dirHandle = await getDirHandle(paths, this.rootDirHandle)
     // if fileId is provided, use it as file name
-    const fileExt = mime.extension(file.type)
+    const fileExt = extension(file.type)
     const filename = fileId ? `${fileId}.${fileExt}` : file.name
     const fileHandle = await dirHandle.getFileHandle(filename, {
       create: true,

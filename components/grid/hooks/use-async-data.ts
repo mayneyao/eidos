@@ -1,4 +1,10 @@
-import React, { useEffect } from "react"
+import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 import {
   CellArray,
   CompactSelection,
@@ -10,8 +16,7 @@ import {
   Item,
   Rectangle,
 } from "@glideapps/glide-data-grid"
-import chunk from "lodash/chunk.js"
-import range from "lodash/range.js"
+import { chunk, range } from "lodash"
 
 import {
   DataUpdateSignalType,
@@ -36,7 +41,7 @@ export function useAsyncData<TRowType>(
   getRowData: RowCallback<TRowType>,
   toCell: RowToCell<TRowType>,
   onEdited: RowEditedCallback<TRowType>,
-  gridRef: React.MutableRefObject<DataEditorRef | null>,
+  gridRef: MutableRefObject<DataEditorRef | null>,
   addRow: () => void,
   delRows: (rowIds: string[]) => Promise<void>,
   setCount: (count: number) => void
@@ -52,20 +57,20 @@ export function useAsyncData<TRowType>(
   getRowByIndex: (index: number) => TRowType | undefined
 } {
   pageSize = Math.max(pageSize, 1)
-  const loadingRef = React.useRef(CompactSelection.empty())
-  const dataRef = React.useRef<TRowType[]>([])
-  const [visiblePages, setVisiblePages] = React.useState<Rectangle>({
+  const loadingRef = useRef(CompactSelection.empty())
+  const dataRef = useRef<TRowType[]>([])
+  const [visiblePages, setVisiblePages] = useState<Rectangle>({
     x: 0,
     y: 0,
     width: 0,
     height: 0,
   })
-  const visiblePagesRef = React.useRef(visiblePages)
+  const visiblePagesRef = useRef(visiblePages)
   visiblePagesRef.current = visiblePages
 
   const onVisibleRegionChanged: NonNullable<
     DataEditorProps["onVisibleRegionChanged"]
-  > = React.useCallback((r) => {
+  > = useCallback((r) => {
     setVisiblePages((cv) => {
       if (
         r.x === cv.x &&
@@ -78,7 +83,7 @@ export function useAsyncData<TRowType>(
     })
   }, [])
 
-  const getCellContent = React.useCallback<DataEditorProps["getCellContent"]>(
+  const getCellContent = useCallback<DataEditorProps["getCellContent"]>(
     (cell) => {
       const [col, row] = cell
       const rowData: TRowType | undefined = dataRef.current[row]
@@ -93,7 +98,7 @@ export function useAsyncData<TRowType>(
     [toCell]
   )
 
-  const loadPage = React.useCallback(
+  const loadPage = useCallback(
     async (page: number) => {
       loadingRef.current = loadingRef.current.add(page)
       const startIndex = page * pageSize
@@ -116,7 +121,7 @@ export function useAsyncData<TRowType>(
     [getRowData, gridRef, pageSize]
   )
 
-  const getCellsForSelection = React.useCallback(
+  const getCellsForSelection = useCallback(
     (r: Rectangle): (() => Promise<CellArray>) => {
       return async () => {
         const firstPage = Math.max(0, Math.floor(r.y / pageSize))
@@ -163,7 +168,7 @@ export function useAsyncData<TRowType>(
     }
   }, [loadPage, pageSize, visiblePages])
 
-  const onCellEdited = React.useCallback(
+  const onCellEdited = useCallback(
     (cell: Item, newVal: EditableGridCell) => {
       const [, row] = cell
       const current = dataRef.current[row]
@@ -177,7 +182,7 @@ export function useAsyncData<TRowType>(
     [onEdited]
   )
 
-  const handleAddRow = React.useCallback(async () => {
+  const handleAddRow = useCallback(async () => {
     setCount(dataRef.current.length + 1)
     try {
       const rowId = await addRow()
@@ -198,7 +203,7 @@ export function useAsyncData<TRowType>(
     await delRows(rowIds)
   }
 
-  const refreshCurrentVisible = React.useCallback(() => {
+  const refreshCurrentVisible = useCallback(() => {
     const vr = visiblePagesRef.current
     const damageList: { cell: [number, number] }[] = []
     const height = vr.height

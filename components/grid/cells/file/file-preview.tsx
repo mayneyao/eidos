@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react"
-import ReactDOM from "react-dom"
+import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 
 export const FilePreview = ({
   url,
@@ -24,7 +24,7 @@ export const FilePreview = ({
     return null
   }
 
-  return ReactDOM.createPortal(
+  return createPortal(
     <div
       className="click-outside-ignore"
       onClick={onClose} // Add this line

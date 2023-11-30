@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outFile": "./typings/index.d.ts",
+    "target": "es6",
+    "module": "commonjs",
+    "skipLibCheck": true,
+    "downlevelIteration": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@sqlite.org/sqlite-wasm": ["./types/sql.d.ts"],
+      "react": ["./node_modules/react/index.d.ts"]
+    }
+  },
+  "include": ["worker/sdk/index.ts"]
+}
