@@ -20,7 +20,6 @@ const callMain = (
       type,
       data,
     },
-    "*",
     [channel.port2]
   )
   return new Promise((resolve) => {
