@@ -36,15 +36,12 @@ export const AllNodes = [
 ]
 
 export const _getDocMarkdown = async (
-  sqlite: DataSpace | null,
-  docId: string
+  articleEditorStateJSON: string
 ): Promise<string> => {
-  if (!sqlite) return ""
   const editor = createHeadlessEditor({
     nodes: AllNodes,
     onError: () => {},
   })
-  const articleEditorStateJSON = await sqlite.getDoc(docId)
   try {
     const state = editor.parseEditorState(articleEditorStateJSON)
     if (state.isEmpty()) {
@@ -58,7 +55,7 @@ export const _getDocMarkdown = async (
       })
     })
   } catch (error) {
-    console.warn(`parse doc ${docId} error`, error)
+    console.warn(`parse doc error`, error)
     return ""
   }
 }
@@ -88,7 +85,8 @@ export const _convertMarkdown2State = async (
 export const useDocEditor = (sqlite: DataSpace | null) => {
   const getDocMarkdown = useCallback(
     async (docId: string): Promise<string> => {
-      return _getDocMarkdown(sqlite, docId)
+      const doc = await sqlite?.doc.get(docId)
+      return _getDocMarkdown(doc?.content)
     },
     [sqlite]
   )

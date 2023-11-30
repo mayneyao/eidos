@@ -12,6 +12,9 @@ export enum MsgType {
   DataUpdateSignal = "DataUpdateSignal",
   WebSocketConnected = "WebSocketConnected",
   WebSocketDisconnected = "WebSocketDisconnected",
+
+  ConvertMarkdown2State = "ConvertMarkdown2State",
+  GetDocMarkdown = "GetDocMarkdown",
 }
 
 export enum MainServiceWorkerMsgType {

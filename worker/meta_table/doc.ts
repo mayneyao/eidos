@@ -1,5 +1,5 @@
+import { MsgType } from "@/lib/const"
 import { DocTableName } from "@/lib/sqlite/const"
-import { _convertMarkdown2State, _getDocMarkdown } from "@/hooks/use-doc-editor"
 
 import { BaseTable, BaseTableImpl } from "./base"
 
@@ -8,6 +8,25 @@ interface IDoc {
   content: string
   markdown: string
   isDayPage?: boolean
+}
+
+const callMain = (
+  type: MsgType.GetDocMarkdown | MsgType.ConvertMarkdown2State,
+  data: any
+) => {
+  const channel = new MessageChannel()
+  postMessage(
+    {
+      type,
+      data,
+    },
+    [channel.port2]
+  )
+  return new Promise((resolve) => {
+    channel.port1.onmessage = (event) => {
+      resolve(event.data)
+    }
+  })
 }
 
 export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
@@ -125,7 +144,9 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   }
 
   async getMarkdown(id: string) {
-    return await _getDocMarkdown(this.dataSpace, id)
+    const doc = await this.get(id)
+    const res = await callMain(MsgType.GetDocMarkdown, doc?.content)
+    return res
   }
 
   async search(query: string): Promise<{ id: string; result: string }[]> {
@@ -142,7 +163,10 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     // if id is year-month-day, then isDayPage = true
     let isDayPage = /^\d{4}-\d{2}-\d{2}$/.test(id)
     const res = await this.get(id)
-    const content = await _convertMarkdown2State(mdStr)
+    const content = (await callMain(
+      MsgType.ConvertMarkdown2State,
+      mdStr
+    )) as string
     try {
       if (!res) {
         await this.add({ id, content, isDayPage, markdown: mdStr })

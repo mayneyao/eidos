@@ -1,21 +1,45 @@
 import { useCallback } from "react"
 
+import { MsgType } from "@/lib/const"
 import { getWorker } from "@/lib/sqlite/worker"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
+import { _convertMarkdown2State, _getDocMarkdown } from "./use-doc-editor"
 import { useSqliteStore } from "./use-sqlite"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
+  const { setWebsocketConnected } = useAppRuntimeStore()
 
   const initWorker = useCallback(() => {
     const worker = getWorker()
-    worker.onmessage = async (e) => {
-      if (e.data === "init") {
+    worker.onmessage = async (event) => {
+      console.log(event)
+      if (event.data === "init") {
         console.log("sqlite is loaded")
         setInitialized(true)
       }
+      const { type, data } = event.data
+      switch (type) {
+        case MsgType.WebSocketConnected:
+          setWebsocketConnected(true)
+          break
+        case MsgType.WebSocketDisconnected:
+          setWebsocketConnected(false)
+          break
+        case MsgType.GetDocMarkdown:
+          const res = await _getDocMarkdown(data)
+          event.ports[0].postMessage(res)
+          break
+        case MsgType.ConvertMarkdown2State:
+          const res2 = await _convertMarkdown2State(data)
+          event.ports[0].postMessage(res2)
+          break
+        default:
+          break
+      }
     }
-  }, [setInitialized])
+  }, [setInitialized, setWebsocketConnected])
 
   return {
     initWorker,
