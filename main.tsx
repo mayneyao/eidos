@@ -31,6 +31,7 @@ import SpaceManagePage from "@/app/space-manage/page"
 
 import { ScriptDetailPage } from "./app/[database]/scripts/detail"
 import { ScriptPage } from "./app/[database]/scripts/page"
+import { ScriptStorePage } from "./app/[database]/scripts/store"
 import { DocEditor } from "./app/eidtor/doc"
 import { ExtensionContainer } from "./app/extensions/container"
 
@@ -123,6 +124,17 @@ const router = createBrowserRouter([
                   return await (window as any)?.sqlite?.listScripts()
                 },
                 element: <ScriptPage />,
+              },
+              {
+                id: "script-store",
+                path: "store",
+                loader: async () => {
+                  if (!(window as any)?.sqlite) {
+                    return []
+                  }
+                  return await (window as any)?.sqlite?.listScripts()
+                },
+                element: <ScriptStorePage />,
               },
               {
                 path: ":scriptId",

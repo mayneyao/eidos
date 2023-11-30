@@ -1,6 +1,7 @@
 import { useState } from "react"
-import { useRevalidator } from "react-router-dom"
+import { Link, useRevalidator } from "react-router-dom"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -39,6 +40,7 @@ export const InstallScript = () => {
     revalidator.revalidate()
   }
   const { loadFromLocal, reload } = useLocalScript()
+  const { space } = useCurrentPathInfo()
 
   const handleInstallFromLocal = async () => {
     const script = await loadFromLocal()
@@ -53,15 +55,18 @@ export const InstallScript = () => {
           <Button variant="outline">Install</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
+          <Link to={`/${space}/scripts/store`}>
+            <DropdownMenuItem>From Store</DropdownMenuItem>
+          </Link>
           <DropdownMenuItem onClick={() => setOpen(true)}>
             From Github
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleInstallFromLocal}>
             From Local
           </DropdownMenuItem>
-          <DropdownMenuItem disabled>Script Market</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

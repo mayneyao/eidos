@@ -1,19 +1,20 @@
 import { useState } from "react"
 import { IScript } from "@/worker/meta_table/script"
 
+export const getRawUrl = (url: string, branch: string = "main") => {
+  const urlParts = url.split("/")
+  urlParts.splice(5, 0, branch)
+  return urlParts
+    .join("/")
+    .replace("github.com", "raw.githubusercontent.com")
+    .replace("/blob", "")
+}
+
 export const useGithubScriptContent = () => {
   const [content, setContent] = useState<string | null>(null)
   const [script, setScript] = useState<IScript>()
   const [loading, setLoading] = useState(false)
 
-  const getRawUrl = (url: string, branch: string = "main") => {
-    const urlParts = url.split("/")
-    urlParts.splice(5, 0, branch)
-    return urlParts
-      .join("/")
-      .replace("github.com", "raw.githubusercontent.com")
-      .replace("/blob", "")
-  }
   const fetchContent = async (url: string) => {
     try {
       setLoading(true)
