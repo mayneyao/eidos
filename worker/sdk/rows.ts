@@ -57,13 +57,16 @@ export class RowsManager {
     },
     options?: {
       noGenerateId?: boolean
+      useFieldId?: boolean
     }
   ) {
     const { _id, ...restData } = data
     const { fieldRawColumnNameFieldMap, fieldNameRawColumnNameMap } = context
     const notExistKeys: string[] = []
     Object.keys(restData).forEach((key) => {
-      const rawColumnName = fieldNameRawColumnNameMap[key]
+      const rawColumnName = options?.useFieldId
+        ? key
+        : fieldNameRawColumnNameMap[key]
       if (!rawColumnName) {
         // delete key
         delete restData[key]
@@ -82,7 +85,10 @@ export class RowsManager {
       : [["_id", uuidv4()]]
 
     Object.entries(restData).forEach(([key, value]) => {
-      kvTuple.push([fieldNameRawColumnNameMap[key], value])
+      const rawColumnName = options?.useFieldId
+        ? key
+        : fieldNameRawColumnNameMap[key]
+      kvTuple.push([rawColumnName, value])
     })
     return {
       notExistKeys,
@@ -131,15 +137,27 @@ export class RowsManager {
     return rows.map((row) => this.rawData2Json(row, fieldRawColumnNameFieldMap))
   }
 
-  async create(data: Record<string, any>) {
+  async create(
+    data: Record<string, any>,
+    options?: {
+      // it means the key is raw_column_name not show name
+      useFieldId?: boolean
+    }
+  ) {
     // query ui columns
     const { fieldRawColumnNameFieldMap, fieldNameRawColumnNameMap } =
       await this.getFieldMap()
 
-    const { rawData, notExistKeys } = this.transformData(data, {
-      fieldNameRawColumnNameMap,
-      fieldRawColumnNameFieldMap,
-    })
+    const { rawData, notExistKeys } = this.transformData(
+      data,
+      {
+        fieldNameRawColumnNameMap,
+        fieldRawColumnNameFieldMap,
+      },
+      {
+        useFieldId: options?.useFieldId,
+      }
+    )
     if (notExistKeys.length > 0) {
       throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
     }
@@ -164,13 +182,25 @@ export class RowsManager {
     }
   }
 
-  async update(id: string, data: Record<string, any>) {
+  async update(
+    id: string,
+    data: Record<string, any>,
+    options?: {
+      useFieldId?: boolean
+    }
+  ) {
     const { fieldRawColumnNameFieldMap, fieldNameRawColumnNameMap } =
       await this.getFieldMap()
-    const { rawData, notExistKeys } = this.transformData(data, {
-      fieldNameRawColumnNameMap,
-      fieldRawColumnNameFieldMap,
-    })
+    const { rawData, notExistKeys } = this.transformData(
+      data,
+      {
+        fieldNameRawColumnNameMap,
+        fieldRawColumnNameFieldMap,
+      },
+      {
+        useFieldId: options?.useFieldId,
+      }
+    )
 
     if (notExistKeys.length > 0) {
       throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
