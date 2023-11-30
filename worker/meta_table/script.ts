@@ -31,6 +31,7 @@ export interface IScript {
   }
   fieldsMap?: {
     [tableName: string]: {
+      id: string
       name: string
       fieldsMap: {
         [fieldName: string]: string

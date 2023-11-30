@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { IScript } from "@/worker/meta_table/script"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 
+import { getRawTableNameById } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqliteStore } from "@/hooks/use-sqlite"
 import { useTablesUiColumns } from "@/hooks/use-ui-columns"
@@ -50,11 +51,12 @@ export const ScriptBinding = () => {
       title: "Script Updated Successfully",
     })
   }
-  const handleTableChange = (tableName: string, value: string) => {
+  const handleTableChange = (tableName: string, tableId: string) => {
     const newFieldsMap = {
       ...fieldsMap,
       [tableName]: {
-        name: value,
+        id: tableId,
+        name: getRawTableNameById(tableId),
         fieldsMap: {
           ...fieldsMap?.[tableName]?.fieldsMap,
         },
@@ -94,7 +96,7 @@ export const ScriptBinding = () => {
                 <div className="flex w-full items-center justify-between">
                   <div className="font-semibold">{table.name} </div>
                   <Select
-                    value={fieldsMap?.[table.name]?.name ?? ""}
+                    value={fieldsMap?.[table.name]?.id ?? ""}
                     onValueChange={(value) =>
                       handleTableChange(table.name, value)
                     }
@@ -105,7 +107,7 @@ export const ScriptBinding = () => {
                     <SelectContent>
                       {allTables.map((table) => {
                         return (
-                          <SelectItem value={`tb_${table.id}`} key={table.id}>
+                          <SelectItem value={table.id} key={table.id}>
                             {table.name || "Untitled"}
                           </SelectItem>
                         )
