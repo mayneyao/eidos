@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 
+import { useNewScript } from "./hooks/use-new-script"
 import { useScript } from "./hooks/use-script"
 import { InstallScript } from "./install"
 
@@ -31,6 +32,7 @@ export const ScriptPage = () => {
   const { deleteScript, enableScript, disableScript } = useScript()
   const revalidator = useRevalidator()
 
+  const { handleCreateNewScript } = useNewScript()
   const handleDelete = async (id: string) => {
     await deleteScript(id)
     revalidator.revalidate()
@@ -48,7 +50,7 @@ export const ScriptPage = () => {
   return (
     <div className="h-full w-full p-6">
       <div className="flex w-full justify-between p-4">
-        <Button disabled>New Script</Button>
+        <Button onClick={handleCreateNewScript}>New Script</Button>
         <InstallScript />
       </div>
       <Separator />

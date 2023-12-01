@@ -75,3 +75,8 @@ export const getToday = () => {
 export const getUuid = () => {
   return shortenId(uuidv4())
 }
+
+// generate a random id with 8 characters
+export const generateId = () => {
+  return Math.random().toString(36).substring(2, 10)
+}

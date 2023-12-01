@@ -67,7 +67,7 @@ describe("buildSQl", () => {
 })
 
 describe("aggregateSql2columns", () => {
-  it("aggregateSql2columns", () => {
+  test("aggregateSql2columns", () => {
     const sql = `SELECT rating, COUNT(*) as count FROM movie_review GROUP BY rating ORDER BY rating ASC`
     const res = aggregateSql2columns(sql, [])
     expect(res.columns.map((item: any) => item.name)).toStrictEqual([
@@ -76,7 +76,7 @@ describe("aggregateSql2columns", () => {
     ])
   })
 
-  it("aggregateSql2columns2", () => {
+  test("aggregateSql2columns2", () => {
     const sql = `SELECT * FROM movie_review WHERE rating > 7;`
     const res = aggregateSql2columns(sql, ["rating", "count"])
     expect(res.columns.map((item: any) => item.name)).toStrictEqual([
