@@ -3,6 +3,7 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "outFile": "./typings/index.d.ts",
+    "removeComments": false,
     "target": "es6",
     "module": "commonjs",
     "skipLibCheck": true,
