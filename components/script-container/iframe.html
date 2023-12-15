@@ -140,10 +140,22 @@
       }
       window.addEventListener("message", async (event) => {
         const { type, data } = event.data
+        const port = event.ports[0]
         if (type === "ScriptFunctionCall") {
           const { input, context, code, command } = data
-          const module = await loadScriptFunction(code)
-          const res = await module[command](input, context)
+          try {
+            const module = await loadScriptFunction(code)
+            const res = await module[command](input, context)
+            port.postMessage({
+              type: "ScriptFunctionCallResponse",
+              data: res,
+            })
+          } catch (error) {
+            port.postMessage({
+              type: "ScriptFunctionCallError",
+              data: error,
+            })
+          }
         }
       })
     </script>
