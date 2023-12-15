@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { IScript } from "@/worker/meta_table/script"
+import { ICommand, IScript } from "@/worker/meta_table/script"
 import { useKeyPress } from "ahooks"
 
 import { ActionExecutor } from "@/lib/action/action"
@@ -17,6 +17,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandShortcut,
 } from "../ui/command"
 import { useInput } from "./hooks"
 
@@ -25,23 +26,27 @@ export const ScriptList = () => {
   const { input, setInput, mode } = useInput()
   const { callFunction } = useScriptFunction()
   const [currentAction, setCurrentAction] = useState<IScript>()
+  const [currentCommand, setCurrentCommand] = useState<ICommand>()
   const { space } = useCurrentPathInfo()
   const currentNode = useCurrentNode()
   const scripts = useScripts(space)
   const inputRef = useRef<HTMLInputElement>(null)
-  const onItemSelect = (action: IScript) => () => {
-    const paramsString = Object.keys(action.inputJSONSchema?.properties || {})
+  const onItemSelect = (action: IScript, subCommand?: ICommand) => () => {
+    const paramsString = Object.keys(
+      subCommand?.inputJSONSchema?.properties || {}
+    )
       .map((param) => {
         return `--${param}=`
       })
       .join(" ")
-    let input = `!${action.name}`
+    let input = subCommand ? `/${subCommand?.name}` : `/${action.name}`
     if (paramsString.length > 0) {
       input += ` ${paramsString}`
     }
     setInput(input)
     setTimeout(() => {
       setCurrentAction(action)
+      subCommand && setCurrentCommand(subCommand)
     }, 400)
   }
 
@@ -60,6 +65,7 @@ export const ScriptList = () => {
       const realParams: Record<string, any> = ActionExecutor.getParams(input)
       callFunction({
         input: realParams,
+        command: currentCommand?.name || "default",
         context: {
           tables: currentAction.fieldsMap,
           env: currentAction.envMap,
@@ -89,22 +95,52 @@ export const ScriptList = () => {
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup>
           {scripts.map((script) => {
-            const value = `!${script.name}`
+            const hasCommands = Boolean(script.commands?.length)
+            const scriptValue = `/${script.name}`
             return (
-              <CommandItem
-                onSelect={onItemSelect(script)}
-                key={script.id}
-                value={value}
-              >
-                {value}
-                <div className="ml-2">
-                  {Object.keys(script.inputJSONSchema?.properties || {}).map(
-                    (name) => {
-                      return <span key={name}>{` ${name}`}</span>
-                    }
-                  )}
-                </div>
-              </CommandItem>
+              <>
+                {hasCommands ? (
+                  <>
+                    {script.commands?.map((subCommand) => {
+                      const value = `/${script.name} ${subCommand.name}`
+                      const showValue = `/${subCommand.name}`
+                      return (
+                        <CommandItem
+                          onSelect={onItemSelect(script, subCommand)}
+                          key={value}
+                          value={value}
+                        >
+                          <div className="flex flex-col">
+                            <div className="flex gap-1 font-semibold">
+                              {showValue}
+                              <div className="ml-2 flex gap-1">
+                                {Object.keys(
+                                  subCommand.inputJSONSchema?.properties || {}
+                                ).map((name) => {
+                                  return <span key={name}>{` ${name}`}</span>
+                                })}
+                              </div>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {subCommand.description}
+                            </span>
+                          </div>
+                          <CommandShortcut>{script.name}</CommandShortcut>
+                        </CommandItem>
+                      )
+                    })}
+                  </>
+                ) : (
+                  <CommandItem
+                    onSelect={onItemSelect(script)}
+                    key={script.id}
+                    value={scriptValue}
+                  >
+                    {scriptValue}
+                    <CommandShortcut>{script.name}</CommandShortcut>
+                  </CommandItem>
+                )}
+              </>
             )
           })}
         </CommandGroup>

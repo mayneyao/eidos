@@ -6,15 +6,21 @@ import { BaseTable, BaseTableImpl } from "./base"
 
 export type ScriptStatus = "all" | "enabled" | "disabled"
 
+export interface ICommand {
+  name: string
+  description: string
+  inputJSONSchema?: JsonSchema7ObjectType
+  outputJSONSchema?: JsonSchema7ObjectType
+}
+
 export interface IScript {
   id: string
   name: string
   description: string
   version: string
   code: string
+  commands: ICommand[]
   enabled?: boolean
-  inputJSONSchema?: JsonSchema7ObjectType
-  outputJSONSchema?: JsonSchema7ObjectType
   tables?: {
     name: string
     fields: {
@@ -54,6 +60,7 @@ export class ScriptTable
         code TEXT,
         inputJSONSchema TEXT,
         outputJSONSchema TEXT,
+        subCommands TEXT,
         tables TEXT,
         envs TEXT,
         envMap TEXT,
@@ -64,15 +71,14 @@ export class ScriptTable
 
   add(data: IScript): Promise<IScript> {
     this.dataSpace.exec2(
-      `INSERT INTO ${this.name} (id, name, description, version, code, inputJSONSchema, outputJSONSchema, tables, envs, envMap, fieldsMap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ${this.name} (id, name, description, version, code, subCommands, tables, envs, envMap, fieldsMap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.id,
         data.name,
         data.description,
         data.version,
         data.code,
-        data.inputJSONSchema,
-        data.outputJSONSchema,
+        data.commands,
         data.tables,
         data.envs,
         data.envMap,
@@ -100,8 +106,7 @@ export class ScriptTable
       description: res[0].description,
       version: res[0].version,
       code: res[0].code,
-      inputJSONSchema: JSON.parse(res[0].inputJSONSchema),
-      outputJSONSchema: JSON.parse(res[0].outputJSONSchema),
+      commands: JSON.parse(res[0].subCommands),
       tables: JSON.parse(res[0].tables),
       envs: JSON.parse(res[0].envs),
       envMap: JSON.parse(res[0].envMap),
@@ -130,8 +135,7 @@ export class ScriptTable
         description: item.description,
         version: item.version,
         code: item.code,
-        inputJSONSchema: JSON.parse(item.inputJSONSchema),
-        outputJSONSchema: JSON.parse(item.outputJSONSchema),
+        commands: JSON.parse(item.subCommands),
         tables: JSON.parse(item.tables),
         envs: JSON.parse(item.envs),
         envMap: JSON.parse(item.envMap),

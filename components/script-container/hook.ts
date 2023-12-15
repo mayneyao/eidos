@@ -6,9 +6,10 @@ export const useScriptFunction = () => {
     input: any
     context: any
     code: string
+    command: string
     id: string
   }) => {
-    const { input, context, code, id } = props
+    const { input, context, code, id, command = "default" } = props
     console.log(props)
     scriptContainerRef?.current?.contentWindow?.postMessage(
       {
@@ -16,6 +17,7 @@ export const useScriptFunction = () => {
         data: {
           input,
           context,
+          command,
           code,
           id,
         },

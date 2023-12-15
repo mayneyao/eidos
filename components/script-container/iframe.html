@@ -141,9 +141,9 @@
       window.addEventListener("message", async (event) => {
         const { type, data } = event.data
         if (type === "ScriptFunctionCall") {
-          const { input, context, code } = data
+          const { input, context, code, command } = data
           const module = await loadScriptFunction(code)
-          const res = await module.default(input, context)
+          const res = await module[command](input, context)
         }
       })
     </script>

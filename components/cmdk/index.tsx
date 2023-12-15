@@ -92,10 +92,10 @@ export function CommandDialogDemo() {
   }
 
   if (mode === "action") {
-    return <ActionList />
+    return <ScriptList />
   }
   if (mode === "syscall") {
-    return <ScriptList />
+    return <ActionList />
   }
 
   return (

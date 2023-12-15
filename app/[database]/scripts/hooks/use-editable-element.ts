@@ -15,7 +15,7 @@ export const useEditableElement = (props?: {
       currentElement.focus()
       // add onChange event listener
       const onChange = (e: any) => {
-        // disable Enter key
+        // handle Enter key
         if (e.keyCode === 13) {
           e.preventDefault()
           //  emit blur event
