@@ -16,6 +16,7 @@ export const useNewScript = () => {
     const newScript: IScript = {
       id: newScriptId,
       name: `New Script - ${newScriptId}`,
+      commands: [],
       description: "Script Description",
       version: "0.0.1",
       code: `export default async function (input, context) {
