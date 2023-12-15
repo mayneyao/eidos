@@ -22,7 +22,7 @@ import { Button } from "../ui/button"
 import { customCells } from "./cells"
 import { FieldEditor } from "./fields"
 import { headerIcons } from "./fields/header-icons"
-import { ContextMenuDemo } from "./grid-context-menu"
+import { GridContextMenu } from "./grid-context-menu"
 import { useColumns } from "./hooks/use-col"
 import { useDataSource } from "./hooks/use-data-source"
 import { useDrop } from "./hooks/use-drop"
@@ -185,7 +185,7 @@ export default function Grid(props: IGridProps) {
       ref={containerRef}
     >
       <div className="relative flex h-full overflow-hidden rounded-md border-t">
-        <ContextMenuDemo
+        <GridContextMenu
           deleteRows={handleDelRows}
           getRowByIndex={getRowByIndex}
           getFieldByIndex={getFieldByIndex}
@@ -234,7 +234,7 @@ export default function Grid(props: IGridProps) {
               onRowAppended={handleAddRow}
             />
           )}
-        </ContextMenuDemo>
+        </GridContextMenu>
         <FieldEditor tableName={tableName} databaseName={databaseName} />
       </div>
       <div id="portal" />

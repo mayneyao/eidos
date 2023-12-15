@@ -1,8 +1,10 @@
 import { useCallback } from "react"
+import { ICommand, IScript } from "@/worker/meta_table/script"
 
 import { shortenId } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
+import { useScripts } from "@/hooks/use-scripts"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { IUIColumn } from "@/hooks/use-table"
 import {
@@ -10,12 +12,16 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 
+import { useScriptFunction } from "../script-container/hook"
 import { useTableAppStore } from "./store"
 
-export function ContextMenuDemo({
+export function GridContextMenu({
   children,
   deleteRows,
   getRowByIndex,
@@ -29,6 +35,8 @@ export function ContextMenuDemo({
   const { selection, clearSelection } = useTableAppStore()
   const count = selection.current?.range.height ?? 0
   const { space, tableId } = useCurrentPathInfo()
+  const scripts = useScripts(space)
+  const { callFunction } = useScriptFunction()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const goto = useGoto()
   const getRow = useCallback(() => {
@@ -38,6 +46,19 @@ export function ContextMenuDemo({
     const rowIndex = selection.current?.range.y
     const row = getRowByIndex(rowIndex)
     return row
+  }, [getRowByIndex, selection])
+
+  const getRows = useCallback(() => {
+    if (!selection.current) {
+      return
+    }
+    const { y, height } = selection.current?.range
+    const rows = []
+    for (let i = y; i < y + height; i++) {
+      const row = getRowByIndex(i)
+      rows.push(row)
+    }
+    return rows
   }, [getRowByIndex, selection])
 
   const getField = useCallback(() => {
@@ -80,6 +101,26 @@ export function ContextMenuDemo({
     window.open(cell, "_blank")
   }
 
+  const handleScriptActionCall = async (action: IScript, command: ICommand) => {
+    const rows = getRows()
+    if (!rows?.length) return
+    for (const row of rows) {
+      await callFunction({
+        input: row,
+        command: command.name,
+        context: {
+          tables: action.fieldsMap,
+          env: action.envMap,
+          currentNodeId: tableId,
+          currentRowId: row._id,
+          callFromTableAction: true,
+        },
+        code: action.code,
+        id: action.id,
+      })
+    }
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger className="h-full w-full">
@@ -113,6 +154,31 @@ export function ContextMenuDemo({
             </ContextMenuItem>
           </>
         )}
+        {scripts.map((script) => {
+          const hasCommands = Boolean(script.commands?.length)
+          if (!hasCommands) {
+            return <ContextMenuItem inset>{script.name}</ContextMenuItem>
+          }
+          return (
+            <ContextMenuSub key={script.id}>
+              <ContextMenuSubTrigger inset>{script.name}</ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48">
+                {script.commands?.map((cmd) => {
+                  return (
+                    <ContextMenuItem
+                      key={cmd.name}
+                      onClick={() => {
+                        handleScriptActionCall(script, cmd)
+                      }}
+                    >
+                      {cmd.name}
+                    </ContextMenuItem>
+                  )
+                })}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          )
+        })}
       </ContextMenuContent>
     </ContextMenu>
   )
