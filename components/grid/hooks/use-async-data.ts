@@ -23,6 +23,9 @@ import {
   EidosDataEventChannelMsgType,
   EidosDataEventChannelName,
 } from "@/lib/const"
+import { uuidv4 } from "@/lib/utils"
+
+import { useTableAppStore } from "../store"
 
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange) => Promise<readonly T[]>
@@ -42,7 +45,7 @@ export function useAsyncData<TRowType>(
   toCell: RowToCell<TRowType>,
   onEdited: RowEditedCallback<TRowType>,
   gridRef: MutableRefObject<DataEditorRef | null>,
-  addRow: () => void,
+  addRow: (uuid?: string) => Promise<string | undefined>,
   delRows: (rowIds: string[]) => Promise<void>,
   setCount: (count: number) => void
 ): Pick<
@@ -56,6 +59,7 @@ export function useAsyncData<TRowType>(
   handleDelRows: (start: number, end: number) => void
   getRowByIndex: (index: number) => TRowType | undefined
 } {
+  const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableAppStore()
   pageSize = Math.max(pageSize, 1)
   const loadingRef = useRef(CompactSelection.empty())
   const dataRef = useRef<TRowType[]>([])
@@ -185,12 +189,16 @@ export function useAsyncData<TRowType>(
   const handleAddRow = useCallback(async () => {
     setCount(dataRef.current.length + 1)
     try {
-      const rowId = await addRow()
-      dataRef.current.push({ _id: rowId } as any)
+      const uuid = uuidv4()
+      addAddedRowId(uuid)
+      const rowId = await addRow(uuid)
+      if (rowId) {
+        dataRef.current.push({ _id: rowId } as any)
+      }
     } catch (error) {
       setCount(dataRef.current.length)
     }
-  }, [addRow, setCount])
+  }, [addAddedRowId, addRow, setCount])
 
   const handleDelRows = async (startIndex: number, endIndex: number) => {
     const rowIds = dataRef.current
@@ -252,6 +260,11 @@ export function useAsyncData<TRowType>(
             break
           case DataUpdateSignalType.Insert:
             const rowIndex3 = getRowIndexById(_new._id)
+            // if the row is added by click add row button, then ignore.
+            if (addedRowIds.has(_new._id)) {
+              clearAddedRowIds()
+              return
+            }
             if (rowIndex3 === -1) {
               dataRef.current.push(_new)
               setCount(dataRef.current.length)
@@ -266,7 +279,13 @@ export function useAsyncData<TRowType>(
     return () => {
       bc.close()
     }
-  }, [refreshCurrentVisible, setCount, tableName])
+  }, [
+    refreshCurrentVisible,
+    setCount,
+    tableName,
+    addedRowIds,
+    clearAddedRowIds,
+  ])
 
   return {
     getCellContent,

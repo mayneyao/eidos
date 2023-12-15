@@ -195,9 +195,9 @@ export const useTable = (tableName: string, databaseName: string) => {
     await deleteField(tableColumnName)
   }
 
-  const addRow = async (params?: any[]) => {
+  const addRow = async (_uuid?: string) => {
     if (sqlite) {
-      const uuid = uuidv4()
+      const uuid = _uuid || uuidv4()
       await sqlite.sql`INSERT INTO ${Symbol(tableName)}(_id) VALUES (${uuid})`
       return uuid
     }

@@ -1,23 +1,23 @@
 import DataEditor, {
   DataEditorProps,
   DataEditorRef,
-  GridCellKind,
-  HeaderClickedEventArgs,
+  HeaderClickedEventArgs
 } from "@glideapps/glide-data-grid"
 
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 // import "@glideapps/glide-data-grid-cells/dist/index.css"
 import "@glideapps/glide-data-grid/dist/index.css"
-import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
+import React, { useEffect, useMemo, useRef } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
+import { cn } from "@/lib/utils"
 import { Button } from "../ui/button"
 import { customCells } from "./cells"
 import { FieldEditor } from "./fields"
@@ -29,7 +29,6 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
-import { cn } from "@/lib/utils"
 
 import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"

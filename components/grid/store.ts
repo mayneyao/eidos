@@ -37,6 +37,12 @@ interface ITableAppState {
   // const [currentPreviewIndex, setCurrentPreviewIndex] = useState(-1)
   currentPreviewIndex: number
   setCurrentPreviewIndex: (currentPreviewIndex: number) => void
+
+  // added row by click on add row button
+  addedRowIds: Set<string>
+  addAddedRowId: (rowId: string) => void
+  removeAddedRowId: (rowId: string) => void
+  clearAddedRowIds: () => void
 }
 
 export const useTableAppStore = create<ITableAppState>()((set) => ({
@@ -73,4 +79,32 @@ export const useTableAppStore = create<ITableAppState>()((set) => ({
 
   currentPreviewIndex: -1,
   setCurrentPreviewIndex: (currentPreviewIndex) => set({ currentPreviewIndex }),
+
+  addedRowIds: new Set(),
+  addAddedRowId: (rowId) => {
+    set((state) => {
+      return {
+        ...state,
+        addedRowIds: new Set(state.addedRowIds).add(rowId),
+      }
+    })
+  },
+  removeAddedRowId: (rowId) => {
+    set((state) => {
+      const addedRowIds = new Set(state.addedRowIds)
+      addedRowIds.delete(rowId)
+      return {
+        ...state,
+        addedRowIds,
+      }
+    })
+  },
+  clearAddedRowIds: () => {
+    set((state) => {
+      return {
+        ...state,
+        addedRowIds: new Set(),
+      }
+    })
+  },
 }))
