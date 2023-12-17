@@ -30,13 +30,15 @@ export class RowsManager {
     }
   }
 
-  rawData2Json(
+  static rawData2Json(
     row: Record<string, any>,
     fieldRawColumnNameFieldMap: Record<string, IUIColumn>
   ) {
     const data: Record<string, any> = {}
     Object.entries(row).forEach(([key, value]) => {
-      if (key === "_id") {
+      if (key === "rowid") {
+        // pass
+      } else if (key === "_id") {
         data[key] = value
       } else {
         const uiColumn = fieldRawColumnNameFieldMap[key]
@@ -134,7 +136,9 @@ export class RowsManager {
     if (options?.raw) {
       return rows
     }
-    return rows.map((row) => this.rawData2Json(row, fieldRawColumnNameFieldMap))
+    return rows.map((row) =>
+      RowsManager.rawData2Json(row, fieldRawColumnNameFieldMap)
+    )
   }
 
   async create(

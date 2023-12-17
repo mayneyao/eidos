@@ -1,13 +1,9 @@
 lockfileVersion: '6.0'
 
-settings:
-  autoInstallPeers: true
-  excludeLinksFromLockfile: false
-
 dependencies:
   '@eidos.space/types':
-    specifier: ^0.0.6
-    version: 0.0.6
+    specifier: ^0.0.7
+    version: 0.0.7
   '@glideapps/glide-data-grid':
     specifier: 5.3.0
     version: 5.3.0(lodash@4.17.21)(marked@5.1.1)(react-dom@18.2.0)(react-responsive-carousel@3.2.23)(react@18.2.0)
@@ -1705,8 +1701,8 @@ packages:
     resolution: {integrity: sha512-OTFTDQcWS+1ZREOdCWuk5hCBgYO4OsD30lXcOCyVOAjXMhgL5rBRDnt/otb6Nz8CzU0L/igdcaQBDLWc4t9gvg==}
     dev: false
 
-  /@eidos.space/types@0.0.6:
-    resolution: {integrity: sha512-TQn0RQeODHflBL+N8yUrtICibxLxISuuw7DDPtPdKizRTs5K8VHcrMwiIiphRZ4Rcm+n1Em9a0qbovho2u8Mow==}
+  /@eidos.space/types@0.0.7:
+    resolution: {integrity: sha512-rgVNuAEAreFpbuNfU4q+K0js48X1IiefGZcw8zoXMNCjXRT7y1Iie+k+J2rp6XS2nK4TllD22djwXv0KM4+DzA==}
     dev: false
 
   /@esbuild-kit/cjs-loader@2.4.2:
@@ -10100,3 +10096,7 @@ packages:
       react: 18.2.0
       use-sync-external-store: 1.2.0(react@18.2.0)
     dev: false
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false

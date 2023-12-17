@@ -11,6 +11,7 @@ export interface ICommand {
   description: string
   inputJSONSchema?: JsonSchema7ObjectType
   outputJSONSchema?: JsonSchema7ObjectType
+  asTableAction?: boolean
 }
 
 export interface IScript {

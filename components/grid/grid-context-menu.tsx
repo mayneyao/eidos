@@ -1,12 +1,7 @@
-import { useCallback } from "react"
 import { ICommand, IScript } from "@/worker/meta_table/script"
+import { RowsManager } from "@/worker/sdk/rows"
+import { useCallback, useMemo } from "react"
 
-import { shortenId } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useGoto } from "@/hooks/use-goto"
-import { useScripts } from "@/hooks/use-scripts"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { IUIColumn } from "@/hooks/use-table"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -17,6 +12,13 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useGoto } from "@/hooks/use-goto"
+import { useScripts } from "@/hooks/use-scripts"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { IUIColumn } from "@/hooks/use-table"
+import { useCurrentUiColumns } from "@/hooks/use-ui-columns"
+import { shortenId } from "@/lib/utils"
 
 import { useScriptFunction } from "../script-container/hook"
 import { useTableAppStore } from "./store"
@@ -38,6 +40,14 @@ export function GridContextMenu({
   const scripts = useScripts(space)
   const { callFunction } = useScriptFunction()
   const { getOrCreateTableSubDoc } = useSqlite(space)
+  const { uiColumns } = useCurrentUiColumns()
+  const fieldRawColumnNameFieldMap = useMemo(() => {
+    return uiColumns.reduce((acc, cur) => {
+      acc[cur.table_column_name] = cur
+      return acc
+    }, {} as Record<string, IUIColumn>)
+  }, [uiColumns])
+
   const goto = useGoto()
   const getRow = useCallback(() => {
     if (!selection.current) {
@@ -105,12 +115,13 @@ export function GridContextMenu({
     const rows = getRows()
     if (!rows?.length) return
     for (const row of rows) {
+      const rowJson = RowsManager.rawData2Json(row, fieldRawColumnNameFieldMap)
       await callFunction({
-        input: row,
+        input: rowJson,
         command: command.name,
         context: {
           tables: action.fieldsMap,
-          env: action.envMap,
+          env: action.envMap || {},
           currentNodeId: tableId,
           currentRowId: row._id,
           callFromTableAction: true,
@@ -155,15 +166,18 @@ export function GridContextMenu({
           </>
         )}
         {scripts.map((script) => {
-          const hasCommands = Boolean(script.commands?.length)
-          if (!hasCommands) {
-            return <ContextMenuItem inset>{script.name}</ContextMenuItem>
+          const actionCommands = script.commands?.filter(
+            (cmd) => cmd.asTableAction
+          )
+          const hasActions = actionCommands && actionCommands.length > 0
+          if (!hasActions) {
+            return null
           }
           return (
             <ContextMenuSub key={script.id}>
               <ContextMenuSubTrigger inset>{script.name}</ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
-                {script.commands?.map((cmd) => {
+                {actionCommands.map((cmd) => {
                   return (
                     <ContextMenuItem
                       key={cmd.name}
