@@ -648,4 +648,11 @@ export class DataSpace {
       throw error
     }
   }
+
+  public notify(msg: { title: string; description: string }) {
+    postMessage({
+      type: MsgType.Notify,
+      data: msg,
+    })
+  }
 }

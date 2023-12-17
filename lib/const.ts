@@ -9,6 +9,7 @@ export enum MsgType {
   // msg worker => window
   Error = "Error",
   QueryResp = "QueryResp",
+  Notify = "Notify",
   DataUpdateSignal = "DataUpdateSignal",
   WebSocketConnected = "WebSocketConnected",
   WebSocketDisconnected = "WebSocketDisconnected",

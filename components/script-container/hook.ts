@@ -10,7 +10,6 @@ export const useScriptFunction = () => {
     id: string
   }) => {
     const { input, context, code, id, command = "default" } = props
-    console.log(props)
     const channel = new MessageChannel()
     scriptContainerRef?.current?.contentWindow?.postMessage(
       {

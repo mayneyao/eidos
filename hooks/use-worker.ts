@@ -3,6 +3,7 @@ import { useCallback } from "react"
 import { MsgType } from "@/lib/const"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useToast } from "@/components/ui/use-toast"
 
 import { _convertMarkdown2State, _getDocMarkdown } from "./use-doc-editor"
 import { useSqliteStore } from "./use-sqlite"
@@ -11,6 +12,7 @@ export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
   const { setWebsocketConnected } = useAppRuntimeStore()
 
+  const { toast } = useToast()
   const initWorker = useCallback(() => {
     const worker = getWorker()
     worker.onmessage = async (event) => {
@@ -27,6 +29,19 @@ export const useWorker = () => {
         case MsgType.WebSocketDisconnected:
           setWebsocketConnected(false)
           break
+        case MsgType.Notify:
+          toast({
+            title: data.title,
+            description: data.description,
+          })
+          break
+        case MsgType.Error:
+          toast({
+            title: "Error",
+            description: data.message,
+            duration: 5000,
+          })
+          break
         case MsgType.GetDocMarkdown:
           const res = await _getDocMarkdown(data)
           event.ports[0].postMessage(res)
@@ -39,7 +54,7 @@ export const useWorker = () => {
           break
       }
     }
-  }, [setInitialized, setWebsocketConnected])
+  }, [setInitialized, setWebsocketConnected, toast])
 
   return {
     initWorker,
