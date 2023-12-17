@@ -1,7 +1,6 @@
 import { useState } from "react"
 import { Link, useRevalidator } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,16 +19,17 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { useGithubScriptContent } from "./hooks/use-github-script"
-import { useLocalScript } from "./hooks/use-local-script"
+import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
 import { useScript } from "./hooks/use-script"
 
 export const InstallScript = () => {
   const { fetchContent, script, loading } = useGithubScriptContent()
   const [open, setOpen] = useState(false)
   const [link, setLink] = useState("")
-  const { installScript, installLoading } = useScript()
+  const { installScript, installLoading, updateScript } = useScript()
   const handleLoad = async (link: string) => {
     await fetchContent(link)
   }
@@ -39,12 +39,14 @@ export const InstallScript = () => {
     setOpen(false)
     revalidator.revalidate()
   }
-  const { loadFromLocal, reload } = useLocalScript()
+  const { loadFromLocal } = useLocalScript()
+  const { setScriptId } = useDirHandleStore()
   const { space } = useCurrentPathInfo()
 
   const handleInstallFromLocal = async () => {
     const script = await loadFromLocal()
     await installScript(script)
+    setScriptId(script.id)
     revalidator.revalidate()
   }
 

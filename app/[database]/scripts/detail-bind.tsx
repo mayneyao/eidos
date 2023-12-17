@@ -1,11 +1,7 @@
-import { useMemo, useState } from "react"
 import { IScript } from "@/worker/meta_table/script"
+import { useMemo, useState } from "react"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 
-import { getRawTableNameById } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqliteStore } from "@/hooks/use-sqlite"
-import { useTablesUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -17,6 +13,10 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqliteStore } from "@/hooks/use-sqlite"
+import { useTablesUiColumns } from "@/hooks/use-ui-columns"
+import { getRawTableNameById } from "@/lib/utils"
 
 import { useScript } from "./hooks/use-script"
 
@@ -192,6 +192,7 @@ export const ScriptBinding = () => {
                         [env.name]: e.target.value,
                       })
                     }}
+                    disabled={env.readonly}
                   />
                 </div>
               )

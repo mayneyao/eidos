@@ -31,6 +31,7 @@ export interface IScript {
   envs?: {
     name: string
     type: string
+    readonly?: boolean
   }[]
   envMap?: {
     [key: string]: string
@@ -58,9 +59,7 @@ export class ScriptTable
         description TEXT,
         version TEXT,
         code TEXT,
-        inputJSONSchema TEXT,
-        outputJSONSchema TEXT,
-        subCommands TEXT,
+        commands TEXT,
         tables TEXT,
         envs TEXT,
         envMap TEXT,
@@ -71,7 +70,7 @@ export class ScriptTable
 
   add(data: IScript): Promise<IScript> {
     this.dataSpace.exec2(
-      `INSERT INTO ${this.name} (id, name, description, version, code, subCommands, tables, envs, envMap, fieldsMap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ${this.name} (id, name, description, version, code, commands, tables, envs, envMap, fieldsMap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.id,
         data.name,
@@ -106,7 +105,7 @@ export class ScriptTable
       description: res[0].description,
       version: res[0].version,
       code: res[0].code,
-      commands: JSON.parse(res[0].subCommands),
+      commands: JSON.parse(res[0].commands),
       tables: JSON.parse(res[0].tables),
       envs: JSON.parse(res[0].envs),
       envMap: JSON.parse(res[0].envMap),
@@ -135,7 +134,7 @@ export class ScriptTable
         description: item.description,
         version: item.version,
         code: item.code,
-        commands: JSON.parse(item.subCommands),
+        commands: JSON.parse(item.commands),
         tables: JSON.parse(item.tables),
         envs: JSON.parse(item.envs),
         envMap: JSON.parse(item.envMap),
@@ -154,6 +153,14 @@ export class ScriptTable
 
   async disable(id: string): Promise<boolean> {
     this.dataSpace.exec2(`UPDATE ${this.name} SET enabled = 0 WHERE id = ?`, [
+      id,
+    ])
+    return Promise.resolve(true)
+  }
+
+  async updateEnvMap(id: string, envMap: { [key: string]: string }) {
+    this.dataSpace.exec2(`UPDATE ${this.name} SET envMap = ? WHERE id = ?`, [
+      JSON.stringify(envMap),
       id,
     ])
     return Promise.resolve(true)

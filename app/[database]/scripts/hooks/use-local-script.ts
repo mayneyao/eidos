@@ -1,10 +1,24 @@
-import React from "react"
 import { IScript } from "@/worker/meta_table/script"
+import { create } from "zustand"
 
 import { OpfsManager } from "@/lib/opfs"
 
+type DirHandleState = {
+  scriptId: string
+  setScriptId: (scriptId: string) => void
+  dirHandle: FileSystemDirectoryHandle | null
+  setDirHandle: (dirHandle: FileSystemDirectoryHandle | null) => void
+}
+
+export const useDirHandleStore = create<DirHandleState>((set) => ({
+  dirHandle: null,
+  scriptId: "",
+  setScriptId: (scriptId) => set({ scriptId }),
+  setDirHandle: (dirHandle) => set({ dirHandle }),
+}))
+
 export const useLocalScript = () => {
-  const dirHandleRef = React.useRef<FileSystemDirectoryHandle>()
+  const { dirHandle: dirHandleRef, setDirHandle } = useDirHandleStore()
   const getScriptFromFileHandle = async (
     dirHandle: FileSystemDirectoryHandle
   ) => {
@@ -14,11 +28,12 @@ export const useLocalScript = () => {
     const eidosData = await eidosFile.text()
     const eidosJson = JSON.parse(eidosData)
     // get main file
+    const { main, features, ...eidosMeta } = eidosJson
     const fsm = new OpfsManager(dirHandle)
-    const mainFile = await fsm.getFileByPath(eidosJson.main)
+    const mainFile = await fsm.getFileByPath(main)
     const mainData = await mainFile.text()
     const script = {
-      ...eidosJson,
+      ...eidosMeta,
       code: mainData,
     }
     return script
@@ -29,13 +44,13 @@ export const useLocalScript = () => {
     ).showDirectoryPicker({
       mode: "read",
     })
-    dirHandleRef.current = dirHandle
+    setDirHandle(dirHandle)
     return getScriptFromFileHandle(dirHandle)
   }
 
   const reload = async () => {
-    if (!dirHandleRef.current) return
-    return getScriptFromFileHandle(dirHandleRef.current)
+    if (!dirHandleRef) return
+    return getScriptFromFileHandle(dirHandleRef)
   }
 
   return {

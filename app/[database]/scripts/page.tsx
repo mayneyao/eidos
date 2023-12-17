@@ -4,6 +4,7 @@
  */
 
 import { IScript } from "@/worker/meta_table/script"
+import { RotateCcwIcon } from "lucide-react"
 import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -21,7 +22,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { useToast } from "@/components/ui/use-toast"
 
+import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
 import { useNewScript } from "./hooks/use-new-script"
 import { useScript } from "./hooks/use-script"
 import { InstallScript } from "./install"
@@ -29,7 +32,8 @@ import { InstallScript } from "./install"
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
   const { space } = useCurrentPathInfo()
-  const { deleteScript, enableScript, disableScript } = useScript()
+  const { deleteScript, enableScript, disableScript, updateScript } =
+    useScript()
   const revalidator = useRevalidator()
 
   const { handleCreateNewScript } = useNewScript()
@@ -37,6 +41,8 @@ export const ScriptPage = () => {
     await deleteScript(id)
     revalidator.revalidate()
   }
+  const { dirHandle, scriptId } = useDirHandleStore()
+  const { reload } = useLocalScript()
 
   const handleToggleEnabled = async (id: string, checked: boolean) => {
     if (checked) {
@@ -47,6 +53,16 @@ export const ScriptPage = () => {
     revalidator.revalidate()
   }
 
+  const { toast } = useToast()
+
+  const handleReload = async () => {
+    const script = await reload()
+    await updateScript(script)
+    revalidator.revalidate()
+    toast({
+      title: "Script Updated Successfully",
+    })
+  }
   return (
     <div className="h-full w-full p-6">
       <div className="flex w-full justify-between p-4">
@@ -73,35 +89,51 @@ export const ScriptPage = () => {
                 ></Switch>
               </div>
               <p>{script.description}</p>
-              <Link to={`/${space}/scripts/${script.id}`}>
-                <Button className="mt-4" variant="outline">
-                  Details
-                </Button>
-              </Link>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" className="ml-4 mt-4">
-                    Remove
+              <div className="flex items-end justify-between">
+                <div className="flex gap-2">
+                  <Link to={`/${space}/scripts/${script.id}`}>
+                    <Button className="mt-4" variant="outline">
+                      Details
+                    </Button>
+                  </Link>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" className="ml-4 mt-4">
+                        Remove
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          Are you sure you want to delete this script?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. all data related to this
+                          will be deleted.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(script.id)}
+                        >
+                          Continue
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+
+                {Boolean(dirHandle) && scriptId === script.id && (
+                  <Button
+                    onClick={handleReload}
+                    variant="ghost"
+                    title="Reload Local Script"
+                  >
+                    <RotateCcwIcon></RotateCcwIcon>
                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Are you sure you want to delete this script?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. all data related to this
-                      will be deleted.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleDelete(script.id)}>
-                      Continue
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                )}
+              </div>
             </div>
           </div>
         ))}
