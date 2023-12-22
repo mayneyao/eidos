@@ -1,43 +1,21 @@
-import { OpenAIStream, StreamingTextResponse, nanoid } from "ai"
+import { OpenAIStream, StreamingTextResponse } from "ai"
 import OpenAI from "openai"
 
 import { functions } from "@/lib/ai/functions"
 
-declare var self: ServiceWorkerGlobalScope
+import { queryEmbedding } from "../lib"
 
-async function queryEmbedding(data: {
-  query: string
-  model: string
-  scope: string
-  k?: number
-  provider: {
-    name: "openai"
-    token: string
-  }
-}): Promise<any[]> {
-  const channel = new MessageChannel()
-  let cls = await self.clients.matchAll()
-  console.log(cls)
-  cls[0].postMessage(
-    {
-      type: "queryEmbedding",
-      data,
-    },
-    [channel.port2]
-  )
-  return new Promise((resolve) => {
-    channel.port1.onmessage = (event) => {
-      resolve(event.data)
-      channel.port1.close()
-    }
-  })
-}
+export async function handleOpenAI(req: any) {
+  const {
+    messages,
+    token,
+    baseUrl,
+    systemPrompt,
+    model: modelAndProvider,
+    currentPreviewFile,
+  } = req
 
-export const pathname = "/api/chat"
-export default async function handle(event: FetchEvent) {
-  const req = await event.request.json()
-  const { messages, token, baseUrl, systemPrompt, model, currentPreviewFile } =
-    req
+  const model = modelAndProvider.split("@")[0]
   const openai = new OpenAI({
     apiKey: token,
     baseURL: baseUrl,

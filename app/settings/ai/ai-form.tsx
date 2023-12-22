@@ -26,6 +26,7 @@ const AIConfigFormSchema = z.object({
   }),
   baseUrl: z.string().url().default("https://api.openai.com/v1"),
   autoRunScope: z.array(z.string()),
+  GOOGLE_API_KEY: z.string().optional(),
 })
 
 export type AIConfigFormValues = z.infer<typeof AIConfigFormSchema>
@@ -139,6 +140,26 @@ export function AIConfigForm() {
               </FormControl>
               <FormDescription>
                 This is the token used to access the OpenAI API.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="GOOGLE_API_KEY"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Google API Key</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Google API Key"
+                  {...field}
+                  type="password"
+                />
+              </FormControl>
+              <FormDescription>
+                This is the token used to access the Google API.
               </FormDescription>
               <FormMessage />
             </FormItem>

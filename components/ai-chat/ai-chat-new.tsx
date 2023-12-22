@@ -11,7 +11,6 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useAIFunctions } from "@/hooks/use-ai-functions"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useDocEditor } from "@/hooks/use-doc-editor"
-import { useHnsw } from "@/hooks/use-hnsw"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,9 +29,10 @@ import { sysPrompts, useSystemPrompt } from "./hooks"
 const promptKeys = Object.keys(sysPrompts)
 
 const models = [
-  "gpt-3.5-turbo-1106",
-  "gpt-4-1106-preview",
-  "gpt-4-vision-preview",
+  "gpt-3.5-turbo-1106@openai",
+  "gpt-4-1106-preview@openai",
+  "gpt-4-vision-preview@openai",
+  "gemini-pro@google",
 ]
 
 export default function Chat() {
@@ -41,8 +41,6 @@ export default function Chat() {
   const [currentSysPrompt, setCurrentSysPrompt] =
     useState<keyof typeof sysPrompts>("base")
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
-
-  const { queryEmbedding } = useHnsw()
   const currentNode = useCurrentNode()
   const { aiConfig } = useConfigStore()
   const { sqlite } = useSqlite()
@@ -64,10 +62,11 @@ export default function Chat() {
     isLoading,
     stop,
   } = useChat({
-    experimental_onFunctionCall: functionCallHandler,
+    experimental_onFunctionCall: functionCallHandler as any,
     body: {
       token: aiConfig.token,
       baseUrl: aiConfig.baseUrl,
+      GOOGLE_API_KEY: aiConfig.GOOGLE_API_KEY,
       systemPrompt,
       model: aiModel,
       currentPreviewFile,
