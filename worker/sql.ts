@@ -18,22 +18,30 @@ export class Sqlite {
         undo: false,
       },
       backupServer: {
-        url: "",
-        token: "",
-        autoSaveGap: 10,
+        endpointUrl: "",
+        accessKeyId: "",
+        secretAccessKey: "",
+        autoSaveGap: 30,
       },
     }
     this.backupServer = new SimpleBackUp(
-      this.config.backupServer.url,
-      this.config.backupServer.token,
+      this.config.backupServer.endpointUrl,
+      this.config.backupServer.accessKeyId,
+      this.config.backupServer.secretAccessKey,
       this.config.backupServer.autoSaveGap
     )
   }
 
   setConfig(config: any) {
     this.config = config
-    const { url, token, autoSaveGap } = this.config.backupServer
-    this.backupServer.setConfig(url, token, autoSaveGap)
+    const { endpointUrl, accessKeyId, secretAccessKey, autoSaveGap } =
+      this.config.backupServer
+    this.backupServer.setConfig(
+      endpointUrl,
+      accessKeyId,
+      secretAccessKey,
+      autoSaveGap
+    )
   }
 
   getSQLite3 = async function (): Promise<Sqlite3Static> {

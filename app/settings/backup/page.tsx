@@ -1,5 +1,3 @@
-"use client"
-
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -20,11 +18,17 @@ import {
 import { useConfigStore } from "../store"
 
 const backupServerFormSchema = z.object({
-  url: z.string({
-    description: "The URL of your backup server.",
+  endpointUrl: z.string({
+    description: "The URL of AWS/R2 Endpoint.",
+    required_error: "AWS/R2 Endpoint URL is required.",
   }),
-  token: z.string({
-    required_error: "Token is required.",
+  accessKeyId: z.string({
+    description: "The AWS/R2 Access Key ID.",
+    required_error: "AWS/R2 Access Key ID is required.",
+  }),
+  secretAccessKey: z.string({
+    description: "The AWS/R2 Secret Access Key.",
+    required_error: "AWS/R2 Secret Access Key is required.",
   }),
   autoSaveGap: z.number({
     description:
@@ -38,7 +42,7 @@ export type BackupServerFormValues = z.infer<typeof backupServerFormSchema>
 const defaultValues: Partial<BackupServerFormValues> = {
   // name: "Your name",
   // dob: new Date("2023-01-23"),
-  autoSaveGap: 10,
+  autoSaveGap: 30,
 }
 
 export function BackupServerForm() {
@@ -69,39 +73,42 @@ export function BackupServerForm() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <FormField
           control={form.control}
-          name="url"
+          name="endpointUrl"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Server URL</FormLabel>
+              <FormLabel>Endpoint</FormLabel>
               <FormControl>
                 <Input placeholder="https://" autoComplete="off" {...field} />
               </FormControl>
-              <FormDescription>
-                This is the backup server endpoint. We use Cloudflare KV to
-                store your data. check out the docs for more info.
-              </FormDescription>
+              <FormDescription>The URL of AWS/R2 Endpoint.</FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
         <FormField
           control={form.control}
-          name="token"
+          name="accessKeyId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Token</FormLabel>
+              <FormLabel>Access Key ID</FormLabel>
               <FormControl>
-                <Input
-                  placeholder="token"
-                  autoComplete="off"
-                  type="password"
-                  {...field}
-                />
+                <Input autoComplete="off" type="text" {...field} />
               </FormControl>
-              <FormDescription>
-                This is the token for accessing the backup server. Please keep
-                it safe.
-              </FormDescription>
+              <FormDescription>The AWS/R2 Access Key ID.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="secretAccessKey"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Secret Access Key</FormLabel>
+              <FormControl>
+                <Input autoComplete="off" type="password" {...field} />
+              </FormControl>
+              <FormDescription>The AWS/R2 Secret Access Key.</FormDescription>
               <FormMessage />
             </FormItem>
           )}

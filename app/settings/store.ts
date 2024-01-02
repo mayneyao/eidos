@@ -43,8 +43,9 @@ export const useConfigStore = create<ConfigState>()(
         username: "",
       },
       backupServer: {
-        url: "",
-        token: "",
+        endpointUrl: "",
+        accessKeyId: "",
+        secretAccessKey: "",
         autoSaveGap: 10,
       },
       apiAgentConfig: {
