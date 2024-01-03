@@ -14,10 +14,10 @@ import { ImageSelector } from "./image-selector"
 export const NodeCover = (props: { node: ITreeNode }) => {
   const { node } = props
   const [open, setOpen] = useState(false)
-
-  const { updateIcon, updateCover } = useNode()
-  const handleSelect = async (url: string) => {
+  const { updateCover } = useNode()
+  const handleSelect = async (url: string, close = false) => {
     await updateCover(node?.id!, url)
+    close && setOpen(false)
   }
   const handleRemove = async () => {
     await updateCover(node?.id!, "")
