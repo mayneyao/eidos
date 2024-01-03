@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { ITreeNode } from "@/worker/meta_table/tree"
 
+import { cn } from "@/lib/utils"
 import { useNode } from "@/hooks/use-nodes"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +23,7 @@ export const NodeCover = (props: { node: ITreeNode }) => {
   const handleRemove = async () => {
     await updateCover(node?.id!, "")
   }
+  const isColor = node.cover?.startsWith("color://")
 
   return (
     <div className="group">
@@ -35,17 +37,28 @@ export const NodeCover = (props: { node: ITreeNode }) => {
           <ImageSelector onSelected={handleSelect} onRemove={handleRemove} />
         </PopoverContent>
       </Popover>
-      <img
-        className="trigger"
-        src={node.cover}
-        style={{
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          objectFit: "cover",
-          height: "30vh",
-          width: "100%",
-        }}
-      />
+      {isColor ? (
+        <div
+          className={cn(node.cover?.replace("color://", ""), "inset-0")}
+          style={{
+            objectFit: "cover",
+            height: "30vh",
+            width: "100%",
+          }}
+        />
+      ) : (
+        <img
+          className="trigger"
+          src={node.cover}
+          style={{
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            objectFit: "cover",
+            height: "30vh",
+            width: "100%",
+          }}
+        />
+      )}
     </div>
   )
 }

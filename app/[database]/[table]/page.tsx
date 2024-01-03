@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Editor } from "@/components/doc/editor"
 import { Table } from "@/components/table"
 
+import { DefaultColors } from "./image-selector"
 import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
 
@@ -23,10 +24,9 @@ export default function TablePage() {
     await updateIcon(node?.id!, emojiNative)
   }
   const handleAddCover = async () => {
-    await updateCover(
-      node?.id!,
-      "http://localhost:5173/333/files/Screenshot%202023-11-19%20155956.png"
-    )
+    const color =
+      DefaultColors[Math.floor(Math.random() * DefaultColors.length)]
+    await updateCover(node?.id!, `color://${color}`)
   }
   return (
     <>
@@ -47,7 +47,7 @@ export default function TablePage() {
           }
           coverComponent={node.cover && <NodeCover node={node} />}
           topComponent={
-            <div className="flex cursor-pointer gap-2 opacity-0 hover:opacity-100">
+            <div className="flex h-[36px] cursor-pointer gap-2 opacity-0 hover:opacity-100">
               {!node.icon && (
                 <Button size="sm" variant="ghost" onClick={handleAddIcon}>
                   Add Icon

@@ -10,18 +10,18 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-const colors = [
-  "aspect-video rounded-lg bg-red-500",
-  "aspect-video rounded-lg bg-yellow-400",
-  "aspect-video rounded-lg bg-blue-500",
-  "aspect-video rounded-lg bg-pink-200",
-  "aspect-video rounded-lg bg-teal-300",
-  "aspect-video rounded-lg bg-pink-500",
-  "aspect-video rounded-lg bg-blue-200",
-  "aspect-video rounded-lg bg-gradient-to-br from-blue-500 to-red-500",
-  "aspect-video rounded-lg bg-gradient-to-br from-purple-500 to-pink-500",
-  "aspect-video rounded-lg bg-gray-700",
-  "aspect-video rounded-lg bg-gradient-to-br from-blue-200 to-red-200",
+export const DefaultColors = [
+  "bg-red-500",
+  "bg-yellow-400",
+  "bg-blue-500",
+  "bg-pink-200",
+  "bg-teal-300",
+  "bg-pink-500",
+  "bg-blue-200",
+  "bg-gradient-to-br from-blue-500 to-red-500",
+  "bg-gradient-to-br from-purple-500 to-pink-500",
+  "bg-gray-700",
+  "bg-gradient-to-br from-blue-200 to-red-200",
 ]
 export function ImageSelector(props: {
   onSelected: (url: string, close?: boolean) => void
@@ -34,6 +34,11 @@ export function ImageSelector(props: {
   const dropRef = useRef(null)
   const [isHovering, setIsHovering] = useState(false)
   const { addFiles } = useFileSystem()
+  // color
+  const handleSelectColor = (color: string) => {
+    const url = `color://${color}`
+    props.onSelected(url)
+  }
 
   // web file
   const handleSelectWebFile = async () => {
@@ -94,10 +99,20 @@ export function ImageSelector(props: {
           <div className="mb-6">
             <h2 className="mb-3 text-lg font-semibold">Color & Gradient</h2>
             <div className="grid grid-cols-4 gap-4">
-              {colors.map((color) => {
+              {DefaultColors.map((color) => {
                 return (
-                  <AspectRatio ratio={16 / 9}>
-                    <div className={color} key={color} />
+                  <AspectRatio
+                    ratio={16 / 9}
+                    key={color}
+                    onClick={() => handleSelectColor(color)}
+                  >
+                    <div
+                      className={cn(
+                        "aspect-video cursor-pointer rounded-lg",
+                        color
+                      )}
+                      key={color}
+                    />
                   </AspectRatio>
                 )
               })}
@@ -113,7 +128,7 @@ export function ImageSelector(props: {
                     onClick={() => props.onSelected(url)}
                     key={image.id}
                     alt="Space image"
-                    className="aspect-video rounded-lg object-cover"
+                    className="aspect-video cursor-pointer rounded-lg object-cover"
                     src={opfsManager.getFileUrlByPath(image.path)}
                   />
                 )
