@@ -1,12 +1,12 @@
 "use client"
 
+import React, { useEffect, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { useDebounceFn } from "ahooks"
-import React, { useEffect, useState } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -46,6 +46,7 @@ interface EditorProps {
   beforeTitle?: React.ReactNode
   afterTitle?: React.ReactNode
   topComponent?: React.ReactNode
+  coverComponent?: React.ReactNode
 }
 
 export function Editor(props: EditorProps) {
@@ -83,7 +84,8 @@ export function Editor(props: EditorProps) {
   }, [props.title])
 
   return (
-    <>
+    <div className="flex w-full flex-col">
+      {props.coverComponent}
       <div
         className={cn(
           "prose mx-auto h-full w-full flex-col p-10 dark:prose-invert xs:p-5",
@@ -95,7 +97,7 @@ export function Editor(props: EditorProps) {
         {props.showTitle && (
           <div className="mb-4 flex w-full items-baseline">
             {props.beforeTitle && (
-              <div className="mr-2">{props.beforeTitle}</div>
+              <div>{props.beforeTitle}</div>
             )}
             <input
               id="doc-title"
@@ -155,6 +157,6 @@ export function Editor(props: EditorProps) {
           {props.disableSelectionPlugin ? <></> : <SelectionPlugin />}
         </LexicalComposer>
       </div>
-    </>
+    </div>
   )
 }

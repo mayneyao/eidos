@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Editor } from "@/components/doc/editor"
 import { Table } from "@/components/table"
 
+import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
 
 export default function TablePage() {
@@ -15,11 +16,17 @@ export default function TablePage() {
   const { updateNodeName } = useSqlite(params.database)
 
   const { getEmoji } = useEmoji()
-  const { updateIcon } = useNode()
+  const { updateIcon, updateCover } = useNode()
 
   const handleAddIcon = async () => {
-    const emojiNative = await getEmoji(node?.name!)
+    const emojiNative = await getEmoji(node?.name)
     await updateIcon(node?.id!, emojiNative)
+  }
+  const handleAddCover = async () => {
+    await updateCover(
+      node?.id!,
+      "http://localhost:5173/333/files/Screenshot%202023-11-19%20155956.png"
+    )
   }
   return (
     <>
@@ -38,6 +45,7 @@ export default function TablePage() {
           beforeTitle={
             node.icon && <NodeIconEditor icon={node.icon} nodeId={node.id} />
           }
+          coverComponent={node.cover && <NodeCover node={node} />}
           topComponent={
             <div className="flex cursor-pointer gap-2 opacity-0 hover:opacity-100">
               {!node.icon && (
@@ -45,9 +53,11 @@ export default function TablePage() {
                   Add Icon
                 </Button>
               )}
-              <Button size="sm" variant="ghost">
-                Add Cover
-              </Button>
+              {!node.cover && (
+                <Button size="sm" variant="ghost" onClick={handleAddCover}>
+                  Add Cover
+                </Button>
+              )}
             </div>
           }
         />

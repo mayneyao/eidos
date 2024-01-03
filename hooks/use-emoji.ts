@@ -4,7 +4,13 @@ import { SearchIndex, init } from "emoji-mart"
 init({ data })
 
 export const useEmoji = () => {
-  async function getEmoji(value: string) {
+  async function getEmoji(value?: string) {
+    if (!value) {
+      // random emoji
+      const allEmojis = Object.keys((data as any).natives)
+      const randomIndex = Math.floor(Math.random() * allEmojis.length)
+      return allEmojis[randomIndex]
+    }
     const emojis = await SearchIndex.search(value)
     const results = emojis.map((emoji: any) => {
       return emoji.skins[0].native

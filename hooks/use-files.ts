@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { IFile } from "@/worker/meta_table/file"
 import { create } from "zustand"
 
@@ -196,4 +196,17 @@ export const useFileSystem = () => {
     prevSelectedEntries,
     setPrevSelectedEntries,
   }
+}
+
+export const useFiles = () => {
+  const { sqlite } = useSqlite()
+  const [files, setFiles] = useState<IFile[]>([])
+  useEffect(() => {
+    const fetchFiles = async () => {
+      const files = await sqlite?.file.list()
+      setFiles(files ?? [])
+    }
+    fetchFiles()
+  }, [sqlite])
+  return { files }
 }

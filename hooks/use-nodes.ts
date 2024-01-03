@@ -13,7 +13,18 @@ export const useNode = () => {
     })
   }
 
+  const updateCover = async (id: string, cover: string) => {
+    await sqlite?.tree.set(id, {
+      cover,
+    })
+    setNode({
+      id,
+      cover,
+    })
+  }
+
   return {
     updateIcon,
+    updateCover,
   }
 }

@@ -4,6 +4,7 @@ import Picker from "@emoji-mart/react"
 import { init } from "emoji-mart"
 
 import { useNode } from "@/hooks/use-nodes"
+import { Button } from "@/components/ui/button"
 import {
   Popover,
   PopoverContent,
@@ -42,6 +43,7 @@ export const NodeIconEditor = (props: {
 }) => {
   const [icon, setIcon] = useState(props.icon)
   const { updateIcon } = useNode()
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     setIcon(props.icon)
@@ -50,6 +52,12 @@ export const NodeIconEditor = (props: {
   const handleIconSelect = (data: Emoji) => {
     setIcon(data.native)
     updateIcon(props.nodeId, data.native)
+    setOpen(false)
+  }
+  const handleRemoveIcon = () => {
+    setIcon("")
+    updateIcon(props.nodeId, "")
+    setOpen(false)
   }
 
   if (props.disabled) {
@@ -67,7 +75,7 @@ export const NodeIconEditor = (props: {
     )
   }
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger>
         {icon ? (
           <div className={props.className}>
@@ -78,7 +86,16 @@ export const NodeIconEditor = (props: {
         )}
       </PopoverTrigger>
       <PopoverContent className="w-auto border-none p-0 outline-none">
-        <Picker data={data} onEmojiSelect={handleIconSelect} />
+        <div className="relative">
+          <Picker data={data} onEmojiSelect={handleIconSelect} />
+          <Button
+            className="absolute bottom-3 right-2 z-50"
+            size="sm"
+            onClick={handleRemoveIcon}
+          >
+            Remove
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   )
