@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { useFileSystem, useFiles } from "@/hooks/use-files"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
@@ -33,6 +34,16 @@ export function ImageSelector(props: {
   const dropRef = useRef(null)
   const [isHovering, setIsHovering] = useState(false)
   const { addFiles } = useFileSystem()
+
+  // web file
+  const handleSelectWebFile = async () => {
+    const url = (document.getElementById("web-image-url") as HTMLInputElement)
+      .value
+    const cover = `https://proxy.eidos.space/?url=${url}`
+    props.onSelected(cover, true)
+  }
+
+  // local file
   useDrop(dropRef, {
     onFiles: async (files, e) => {
       // when drop files into opfs via file manager, we don't use uuid as file name, keep the original name
@@ -72,6 +83,7 @@ export function ImageSelector(props: {
         <TabsList>
           <TabsTrigger value="gallery">Gallery</TabsTrigger>
           <TabsTrigger value="upload">Upload</TabsTrigger>
+          <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
         <Button variant="destructive" onClick={props.onRemove}>
           Remove
@@ -127,6 +139,16 @@ export function ImageSelector(props: {
             </div>
             <Button onClick={handleSelectLocalFile}>Upload</Button>
           </div>
+        </div>
+      </TabsContent>
+      <TabsContent value="url">
+        <div className="mt-4 flex h-[60px] gap-2">
+          <Input
+            className="grow rounded-lg border border-gray-300 px-3 py-2"
+            placeholder="https://example.com/image.png"
+            id="web-image-url"
+          />
+          <Button onClick={handleSelectWebFile}>Confirm</Button>
         </div>
       </TabsContent>
     </Tabs>
