@@ -43,6 +43,8 @@ interface EditorProps {
   disableSafeBottomPaddingPlugin?: boolean
   disableUpdateTitle?: boolean
   className?: string
+  beforeTitle?: React.ReactNode
+  afterTitle?: React.ReactNode
 }
 
 export function Editor(props: EditorProps) {
@@ -89,18 +91,24 @@ export function Editor(props: EditorProps) {
         id="eidos-editor-container"
       >
         {props.showTitle && (
-          <input
-            id="doc-title"
-            placeholder="Untitled"
-            className="my-4 w-full truncate bg-transparent text-4xl font-bold text-primary outline-none"
-            value={title}
-            title={title}
-            autoComplete="off"
-            disabled={!canChangeTitle}
-            onChange={(e) => {
-              setTitle(e.target.value)
-            }}
-          />
+          <div className="my-4 flex w-full items-baseline">
+            {props.beforeTitle && (
+              <div className="mr-2">{props.beforeTitle}</div>
+            )}
+            <input
+              id="doc-title"
+              placeholder="Untitled"
+              className="truncate bg-transparent text-4xl font-bold text-primary outline-none"
+              value={title}
+              title={title}
+              autoComplete="off"
+              disabled={!canChangeTitle}
+              onChange={(e) => {
+                setTitle(e.target.value)
+              }}
+            />
+            {props.afterTitle && <div className="ml-2">{props.afterTitle}</div>}
+          </div>
         )}
         <LexicalComposer initialConfig={initConfig}>
           <div

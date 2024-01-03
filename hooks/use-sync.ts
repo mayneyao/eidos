@@ -5,8 +5,14 @@ import { useConfigStore } from "@/app/settings/store"
 export const useSync = () => {
   const { backupServer } = useConfigStore()
   const push = async (space: string) => {
-    const { token, url, autoSaveGap } = backupServer
-    const backup = new SimpleBackUp(url, token, autoSaveGap)
+    const { endpointUrl, accessKeyId, secretAccessKey, autoSaveGap } =
+      backupServer
+    const backup = new SimpleBackUp(
+      endpointUrl,
+      accessKeyId,
+      secretAccessKey,
+      autoSaveGap
+    )
     backup.setCurrentSpace(space)
     await backup.push()
   }

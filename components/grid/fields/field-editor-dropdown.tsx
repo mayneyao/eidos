@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
-import { Settings2, Trash2 } from "lucide-react"
+import {
+  ArrowDownNarrowWideIcon,
+  ArrowUpNarrowWideIcon,
+  Settings2,
+  Trash2,
+} from "lucide-react"
 import { useLayer } from "react-laag"
 
 import { cn } from "@/lib/utils"
@@ -186,7 +191,20 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 <Settings2 className="mr-2 h-4 w-4" />
                 Edit Property
               </CommonMenuItem>
-
+              {/* <CommonMenuItem
+                className="pl-4"
+                onClick={handleEditFieldPropertiesClick}
+              >
+                <ArrowUpNarrowWideIcon className="mr-2 h-4 w-4" />
+                Sort Ascending
+              </CommonMenuItem>
+              <CommonMenuItem
+                className="pl-4"
+                onClick={handleEditFieldPropertiesClick}
+              >
+                <ArrowDownNarrowWideIcon className="mr-2 h-4 w-4" />
+                Sort Descending
+              </CommonMenuItem> */}
               {currentUiColumn?.type !== "title" && (
                 <DialogTrigger
                   onClick={handleDeleteFieldClick}

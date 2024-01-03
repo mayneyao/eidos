@@ -66,7 +66,8 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
     React.useState(false)
 
   const { backupServer } = useConfigStore()
-  const hasBackupServer = backupServer.token && backupServer.url
+  const hasBackupServer =
+    backupServer.secretAccessKey && backupServer.endpointUrl
 
   const handleGoSpaceManagement = () => {
     router("/space-manage")
@@ -83,9 +84,15 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
     if (databaseName) {
       setLoading(true)
       if (hasBackupServer && shouldCreateFromBackup) {
-        const { token, url, autoSaveGap } = backupServer
-        const backup = new SimpleBackUp(url, token, autoSaveGap)
-        await backup.pull(databaseName, true)
+        const { endpointUrl, accessKeyId, secretAccessKey, autoSaveGap } =
+          backupServer
+        const backup = new SimpleBackUp(
+          endpointUrl,
+          accessKeyId,
+          secretAccessKey,
+          autoSaveGap
+        )
+        // await backup.pull(databaseName, true)
       }
       if (file) {
         await importSpace(databaseName, file)

@@ -29,12 +29,6 @@ export class SimpleBackUp {
     this.accessKeyId = accessKeyId
     this.secretAccessKey = secretAccessKey
     this.autoBackupGap = autoBackupGap
-    console.log({
-      endpointUrl,
-      accessKeyId,
-      secretAccessKey,
-      autoBackupGap,
-    })
 
     this.opfsSync = new OpfsSync({
       bucket: "eidos",
@@ -42,9 +36,9 @@ export class SimpleBackUp {
       accessKeyId: this.accessKeyId,
       secretAccessKey: this.secretAccessKey,
     })
-    this.opfsSync.listCloudObjects().then((res) => {
-      console.log(res)
-    })
+    // this.opfsSync.listCloudObjects().then((res) => {
+    //   console.log(res)
+    // })
     console.log("??? config")
   }
 
@@ -62,6 +56,9 @@ export class SimpleBackUp {
     // this.pull(space)
   }
 
+  public async pull() {}
+
+  public async push() {}
   // public async pull(space: string | null, justCreateNew = false) {
   //   const isConfigOk = this.checkConfig()
   //   if (!isConfigOk) {
@@ -151,12 +148,12 @@ export class SimpleBackUp {
   //   }
   // }
   init() {
-    setInterval(() => {
-      // this.push()
-      this.opfsSync?.listCloudObjects().then((res) => {
-        console.log("list r2")
-        console.log(res)
-      })
-    }, this.autoBackupGap * 1000 * 60)
+    // setInterval(() => {
+    //   // this.push()
+    //   this.opfsSync?.listCloudObjects().then((res) => {
+    //     console.log("list r2")
+    //     console.log(res)
+    //   })
+    // }, this.autoBackupGap * 1000 * 60)
   }
 }

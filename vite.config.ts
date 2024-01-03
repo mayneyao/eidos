@@ -5,9 +5,9 @@ import { PluginOption, defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
 const config = defineConfig({
-  define: {
-    global: {},
-  },
+  // define: {
+  //   global: {},
+  // },
   plugins: [
     react(),
     VitePWA({

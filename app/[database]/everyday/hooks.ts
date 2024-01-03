@@ -7,6 +7,36 @@ type IDay = {
   id: string
 }
 const EachPageSize = 7
+
+export const useDays = () => {
+  const { sqlite } = useSqlite()
+  const [years, setYears] = useState<number[]>([])
+  const [days, setDays] = useState<Date[]>([])
+  useEffect(() => {
+    sqlite?.listAllDays().then((days) => {
+      setDays(days.map((d) => new Date(d.id)))
+    })
+  }, [sqlite])
+  useEffect(() => {
+    if (days.length) {
+      const minDay = days.reduce((prev, cur) => {
+        return new Date(prev).getTime() < new Date(cur).getTime() ? prev : cur
+      })
+      const startYear = minDay.getFullYear()
+      const endYear = new Date().getFullYear()
+      const years: number[] = []
+      for (let i = startYear; i <= endYear; i++) {
+        years.push(i)
+      }
+      setYears(years.reverse())
+    }
+  }, [days])
+  return {
+    days,
+    years,
+  }
+}
+
 export const useAllDays = (spaceName: string) => {
   const [days, setDays] = useState<IDay[]>([])
   const [currentPage, setCurrentPage] = useState(0)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import useInfiniteScroll from "react-infinite-scroll-hook"
 import { Link } from "react-router-dom"
 
@@ -8,7 +8,8 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
 
-import { useAllDays } from "./hooks"
+import { DayHeatMap } from "./heatmap"
+import { useAllDays, useDays } from "./hooks"
 
 export default function EverydayPage() {
   const params = useCurrentPathInfo()
@@ -33,36 +34,67 @@ export default function EverydayPage() {
   const handleClick = (day: string) => {
     setCurrentDay(day)
   }
+  const [year, setYear] = useState<number>(new Date().getFullYear())
+  const { days: _days, years } = useDays()
+  const startDate = useMemo(() => {
+    return new Date(year, 0, 1)
+  }, [year])
 
   return (
-    <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert xs:p-5">
-      {days.map((day, index) => {
-        return (
-          <div
-            key={day.id}
-            className="border-b border-slate-300"
-            onClick={() => handleClick(day.id)}
-          >
-            <Link className="text-2xl" to={`/${params.database}/everyday/${day.id}`}>{day.id}</Link>
-            <Editor
-              docId={day.id}
-              autoFocus={index === 0}
-              isEditable
-              placeholder=""
-              disableSelectionPlugin
-              disableSafeBottomPaddingPlugin
-              disableUpdateTitle
-              disableManuallySave={currentDay !== day.id}
-              className="ml-0"
-            />
-          </div>
-        )
-      })}
-      {(loading || hasNextPage) && (
-        <div ref={sentryRef} className="mx-auto">
-          <Loading />
+    <div className="mx-auto flex">
+      <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert xs:p-5">
+        <DayHeatMap days={_days} startDate={startDate} />
+        <div>
+          {days.map((day, index) => {
+            return (
+              <div
+                key={day.id}
+                className="border-b border-slate-300"
+                onClick={() => handleClick(day.id)}
+              >
+                <Link
+                  className="text-2xl"
+                  to={`/${params.database}/everyday/${day.id}`}
+                >
+                  {day.id}
+                </Link>
+                <Editor
+                  docId={day.id}
+                  autoFocus={index === 0}
+                  isEditable
+                  placeholder=""
+                  disableSelectionPlugin
+                  disableSafeBottomPaddingPlugin
+                  disableUpdateTitle
+                  disableManuallySave={currentDay !== day.id}
+                  className="ml-0"
+                />
+              </div>
+            )
+          })}
+          {(loading || hasNextPage) && (
+            <div ref={sentryRef} className="mx-auto">
+              <Loading />
+            </div>
+          )}
         </div>
-      )}
+      </div>
+      <div className="flex cursor-pointer select-none flex-col gap-2 pt-6">
+        {years.map((_year) => {
+          const isActive = _year === year
+          return (
+            <div
+              key={_year}
+              onClick={() => setYear(_year)}
+              className={`rounded-sm p-2 text-xl ${
+                isActive ? "bg-secondary" : ""
+              }`}
+            >
+              {_year}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
