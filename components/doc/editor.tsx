@@ -1,12 +1,12 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { useDebounceFn } from "ahooks"
+import React, { useEffect, useState } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -45,6 +45,7 @@ interface EditorProps {
   className?: string
   beforeTitle?: React.ReactNode
   afterTitle?: React.ReactNode
+  topComponent?: React.ReactNode
 }
 
 export function Editor(props: EditorProps) {
@@ -90,8 +91,9 @@ export function Editor(props: EditorProps) {
         )}
         id="eidos-editor-container"
       >
+        {props.topComponent}
         {props.showTitle && (
-          <div className="my-4 flex w-full items-baseline">
+          <div className="mb-4 flex w-full items-baseline">
             {props.beforeTitle && (
               <div className="mr-2">{props.beforeTitle}</div>
             )}
