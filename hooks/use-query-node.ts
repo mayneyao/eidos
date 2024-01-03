@@ -1,3 +1,5 @@
+import { useCallback } from "react"
+
 import { ISearchNodes } from "@/components/cmdk/hooks"
 
 import { useNodeMap } from "./use-current-node"
@@ -43,10 +45,13 @@ export const useQueryNode = () => {
     })
     return res as ISearchNodes[]
   }
-  const getNode = async (id: string) => {
-    if (!sqlite) return
-    const node = await sqlite.getTreeNode(id)
-    return node
-  }
+  const getNode = useCallback(
+    async (id: string) => {
+      if (!sqlite) return
+      const node = await sqlite.getTreeNode(id)
+      return node
+    },
+    [sqlite]
+  )
   return { queryNodes, getNode, fullTextSearch }
 }

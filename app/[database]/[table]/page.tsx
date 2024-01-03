@@ -1,10 +1,10 @@
-"use client"
-
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Editor } from "@/components/doc/editor"
 import { Table } from "@/components/table"
+
+import { NodeIconEditor } from "./node-icon"
 
 export default function TablePage() {
   const params = useCurrentPathInfo()
@@ -25,6 +25,9 @@ export default function TablePage() {
           onTitleChange={(title) => {
             updateNodeName(node.id, title)
           }}
+          beforeTitle={
+            node.icon && <NodeIconEditor icon={node.icon} nodeId={node.id} />
+          }
         />
       )}
     </>

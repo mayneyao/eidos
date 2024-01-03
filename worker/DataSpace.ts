@@ -416,6 +416,7 @@ export class DataSpace {
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
+    console.log(sql, bind)
     return this.syncExec2(sql, bind)
   }
 

@@ -19,6 +19,8 @@ import { $getSelection, $insertNodes, RangeSelection, TextNode } from "lexical"
 import * as ReactDOM from "react-dom"
 
 import { useQueryNode } from "@/hooks/use-query-node"
+import { ItemIcon } from "@/components/sidebar/item-tree"
+import { NodeIconEditor } from "@/app/[database]/[table]/node-icon"
 
 import { $createMentionNode } from "../../nodes/MentionNode"
 
@@ -219,21 +221,18 @@ export default function NewMentionsPlugin(): JSX.Element | null {
               result.name,
               result.id,
               (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mr-1 inline-block h-5 w-5 opacity-60"
-                >
-                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                </svg>
+                <NodeIconEditor
+                  icon={result.icon}
+                  nodeId={result.id}
+                  disabled
+                  size="1em"
+                  customTrigger={
+                    <ItemIcon
+                      type={result?.type ?? ""}
+                      className="mr-1 inline-block h-5 w-5"
+                    />
+                  }
+                />
               )
             )
         )

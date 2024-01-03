@@ -7,6 +7,7 @@ import { Link } from "react-router-dom"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/hooks/use-query-node"
 import { ItemIcon } from "@/components/sidebar/item-tree"
+import { NodeIconEditor } from "@/app/[database]/[table]/node-icon"
 
 const MentionComponent = (props: { id: string }) => {
   const [node, setNode] = useState<ITreeNode | null>(null)
@@ -25,7 +26,20 @@ const MentionComponent = (props: { id: string }) => {
       id={id}
       to={`/${space}/${id}`}
     >
-      <ItemIcon type={node?.type ?? ""} className="mr-1 inline-block h-5 w-5" />
+      {node && (
+        <NodeIconEditor
+          icon={node.icon}
+          nodeId={node.id}
+          disabled
+          size="1em"
+          customTrigger={
+            <ItemIcon
+              type={node?.type ?? ""}
+              className="mr-1 inline-block h-5 w-5"
+            />
+          }
+        />
+      )}
       {node?.name ?? "loading"}
     </Link>
   )

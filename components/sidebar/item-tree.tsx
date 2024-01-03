@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { NodeIconEditor } from "@/app/[database]/[table]/node-icon"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
@@ -115,7 +116,15 @@ export const CurrentItemTree = ({
                     asChild
                   >
                     <Link to={link}>
-                      <ItemIcon type={node.type} className="pr-2" />
+                      <NodeIconEditor
+                        icon={node.icon!}
+                        nodeId={node.id}
+                        size="1em"
+                        className="ml-[-2px] pr-[6px]"
+                        customTrigger={
+                          <ItemIcon type={node.type} className="pr-2" />
+                        }
+                      />
                       <span className="truncate" title={node.name}>
                         {node.name.length === 0 ? "Untitled" : node.name}
                       </span>

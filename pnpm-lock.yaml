@@ -11,6 +11,12 @@ dependencies:
   '@eidos.space/types':
     specifier: ^0.0.7
     version: 0.0.7
+  '@emoji-mart/data':
+    specifier: ^1.1.2
+    version: 1.1.2
+  '@emoji-mart/react':
+    specifier: ^1.1.1
+    version: 1.1.1(emoji-mart@5.5.2)(react@18.2.0)
   '@glideapps/glide-data-grid':
     specifier: 5.3.0
     version: 5.3.0(lodash@4.17.21)(marked@5.1.1)(react-dom@18.2.0)(react-responsive-carousel@3.2.23)(react@18.2.0)
@@ -158,6 +164,9 @@ dependencies:
   dnd-core:
     specifier: ^16.0.1
     version: 16.0.1
+  emoji-mart:
+    specifier: ^5.5.2
+    version: 5.5.2
   eventemitter3:
     specifier: ^5.0.1
     version: 5.0.1
@@ -1976,6 +1985,20 @@ packages:
 
   /@eidos.space/types@0.0.7:
     resolution: {integrity: sha512-rgVNuAEAreFpbuNfU4q+K0js48X1IiefGZcw8zoXMNCjXRT7y1Iie+k+J2rp6XS2nK4TllD22djwXv0KM4+DzA==}
+    dev: false
+
+  /@emoji-mart/data@1.1.2:
+    resolution: {integrity: sha512-1HP8BxD2azjqWJvxIaWAMyTySeZY0Osr83ukYjltPVkNXeJvTz7yDrPLBtnrD5uqJ3tg4CcLuuBW09wahqL/fg==}
+    dev: false
+
+  /@emoji-mart/react@1.1.1(emoji-mart@5.5.2)(react@18.2.0):
+    resolution: {integrity: sha512-NMlFNeWgv1//uPsvLxvGQoIerPuVdXwK/EUek8OOkJ6wVOWPUizRBJU0hDqWZCOROVpfBgCemaC3m6jDOXi03g==}
+    peerDependencies:
+      emoji-mart: ^5.2
+      react: ^16.8 || ^17 || ^18
+    dependencies:
+      emoji-mart: 5.5.2
+      react: 18.2.0
     dev: false
 
   /@esbuild-kit/cjs-loader@2.4.2:
@@ -6314,6 +6337,10 @@ packages:
     resolution: {integrity: sha512-DeWwawk6r5yR9jFgnDKYt4sLS0LmHJJi3ZOnb5/JdbYwj3nW+FxQnHIjhBKz8YLC7oRNPVM9NQ47I3CVx34eqQ==}
     engines: {node: '>=12'}
     dev: true
+
+  /emoji-mart@5.5.2:
+    resolution: {integrity: sha512-Sqc/nso4cjxhOwWJsp9xkVm8OF5c+mJLZJFoFfzRuKO+yWiN7K8c96xmtughYb0d/fZ8UC6cLIQ/p4BR6Pv3/A==}
+    dev: false
 
   /emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
