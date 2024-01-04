@@ -130,8 +130,29 @@ export class OpfsManager {
       this.rootDirHandle = rootDirHandle
     }
   }
-  getFileUrlByPath = (path: string) => {
+
+  walk = async (_paths: string[]) => {
+    const dirHandle = await getDirHandle(_paths, this.rootDirHandle)
+    const paths = []
+    const rootDirHandle = await navigator.storage.getDirectory()
+    for await (let entry of (dirHandle as any).values()) {
+      if (entry.kind === "file") {
+        const path = await (this.rootDirHandle || rootDirHandle).resolve(entry)
+        paths.push(path)
+      } else if (entry.kind === "directory") {
+        const subPaths: any = await this.walk([..._paths, entry.name])
+        paths.push(...subPaths)
+      }
+    }
+    return paths
+  }
+
+  getFileUrlByPath = (path: string, replaceSpace?: string) => {
     const paths = path.split("/").slice(1)
+    if (replaceSpace) {
+      paths[0] = replaceSpace
+    }
+    console.log(paths)
     return "/" + paths.join("/")
   }
 

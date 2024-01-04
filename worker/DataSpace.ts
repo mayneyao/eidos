@@ -175,6 +175,14 @@ export class DataSpace {
     return await this.file.saveFile2OPFS(url, name)
   }
 
+  public async listFiles(){
+    return await this.file.list()
+  }
+
+  public async walkFiles() {
+    return await this.file.walk()
+  }
+
   // views
   public async listViews(tableId: string) {
     return await this.view.list(tableId)
