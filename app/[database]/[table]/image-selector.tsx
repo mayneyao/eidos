@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react"
 import { useDrop } from "ahooks"
+import { useParams } from "react-router-dom"
 
 import { opfsManager } from "@/lib/opfs"
 import { cn } from "@/lib/utils"
@@ -28,6 +29,7 @@ export function ImageSelector(props: {
   onRemove: () => void
 }) {
   const { files } = useFiles()
+  const { database } = useParams()
   const images = useMemo(() => {
     return files.filter((file) => file.mime.startsWith("image/"))
   }, [files])
@@ -122,14 +124,14 @@ export function ImageSelector(props: {
             <h2 className="mb-3 text-lg font-semibold">Space Images</h2>
             <div className="grid grid-cols-4 gap-4">
               {images.map((image) => {
-                const url = opfsManager.getFileUrlByPath(image.path)
+                const url = opfsManager.getFileUrlByPath(image.path, database)
                 return (
                   <img
                     onClick={() => props.onSelected(url)}
                     key={image.id}
                     alt="Space image"
                     className="aspect-video cursor-pointer rounded-lg object-cover"
-                    src={opfsManager.getFileUrlByPath(image.path)}
+                    src={url}
                   />
                 )
               })}
