@@ -45,6 +45,7 @@ interface EditorProps {
   className?: string
   beforeTitle?: React.ReactNode
   afterTitle?: React.ReactNode
+  titleStyle?: React.CSSProperties
   topComponent?: React.ReactNode
   coverComponent?: React.ReactNode
 }
@@ -96,15 +97,14 @@ export function Editor(props: EditorProps) {
         {props.topComponent}
         {props.showTitle && (
           <div className="mb-4 flex w-full items-baseline">
-            {props.beforeTitle && (
-              <div>{props.beforeTitle}</div>
-            )}
+            {props.beforeTitle && <div>{props.beforeTitle}</div>}
             <input
               id="doc-title"
               placeholder="Untitled"
               className="truncate bg-transparent text-4xl font-bold text-primary outline-none"
               value={title}
               title={title}
+              style={props.titleStyle}
               autoComplete="off"
               disabled={!canChangeTitle}
               onChange={(e) => {

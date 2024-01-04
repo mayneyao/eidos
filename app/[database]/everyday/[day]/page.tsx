@@ -34,12 +34,13 @@ export default function EverydayPage() {
         title={day}
         showTitle
         docId={day}
-        beforeTitle={
+        titleStyle={{ width: "200px" }}
+        afterTitle={
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger>
               <CalendarIcon className="h-5 w-5 " />
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
+            <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 defaultMonth={new Date(day as string)}
                 modifiers={{

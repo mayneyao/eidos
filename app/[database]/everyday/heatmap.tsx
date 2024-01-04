@@ -12,18 +12,22 @@ export const DayHeatMap = (props: { days: Date[]; startDate: Date }) => {
   const { database } = useParams()
   const router = useNavigate()
   const handleDayClick = (date: string) => {
-    const [year,mouth,day] = date.split('/')
+    const [year, mouth, day] = date.split("/")
     // yyyy-mm-dd
-    const formatDay = `${year}-${mouth.padStart(2,'0')}-${day.padStart(2,'0')}`
+    const formatDay = `${year}-${mouth.padStart(2, "0")}-${day.padStart(
+      2,
+      "0"
+    )}`
     router(`/${database}/everyday/${formatDay}`)
   }
   return (
-    <div className="w-full">
+    <div className="min-w-[720px]">
       <HeatMap
         value={value}
         width="100%"
         weekLabels={["", "Mon", "", "Wed", "", "Fri", ""]}
         startDate={props.startDate || new Date()}
+        endDate={new Date(props.startDate.getFullYear(), 12, 31)}
         legendCellSize={0}
         rectRender={(props, data) => {
           return (

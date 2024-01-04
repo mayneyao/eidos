@@ -1,5 +1,3 @@
-"use client"
-
 import { useMemo, useState } from "react"
 import useInfiniteScroll from "react-infinite-scroll-hook"
 import { Link } from "react-router-dom"
@@ -42,7 +40,7 @@ export default function EverydayPage() {
 
   return (
     <div className="mx-auto flex">
-      <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert xs:p-5">
+      <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert xl:prose-xl xs:p-5">
         <DayHeatMap days={_days} startDate={startDate} />
         <div>
           {days.map((day, index) => {
