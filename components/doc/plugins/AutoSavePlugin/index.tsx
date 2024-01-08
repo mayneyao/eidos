@@ -12,7 +12,7 @@ interface AutoSavePluginProps {
   disableManuallySave?: boolean
 }
 
-const DefaultState = {
+export const DefaultState = {
   root: {
     children: [
       {

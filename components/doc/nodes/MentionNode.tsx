@@ -1,13 +1,13 @@
-import { ReactNode, useEffect, useState } from "react"
-import { ITreeNode } from "@/lib/store/ITreeNode"
 import { DecoratorNode } from "lexical"
 import { NodeKey } from "lexical/LexicalNode"
-import { Link } from "react-router-dom"
+import { ReactNode, useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 
+import { NodeIconEditor } from "@/app/[database]/[table]/node-icon"
+import { ItemIcon } from "@/components/sidebar/item-tree"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/hooks/use-query-node"
-import { ItemIcon } from "@/components/sidebar/item-tree"
-import { NodeIconEditor } from "@/app/[database]/[table]/node-icon"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 
 const MentionComponent = (props: { id: string }) => {
   const [node, setNode] = useState<ITreeNode | null>(null)
@@ -15,16 +15,20 @@ const MentionComponent = (props: { id: string }) => {
   // TODO: pass from props
   const { getNode } = useQueryNode()
   const { id } = props
+  const router = useNavigate()
+  const onClick = () => {
+    router(`/${space}/${id}`)
+  }
   useEffect(() => {
     getNode(id).then((node) => {
       setNode(node ?? null)
     })
   }, [getNode, id])
   return (
-    <Link
-      className="inline-block rounded-sm px-1 hover:bg-secondary"
+    <span
+      className="inline-block cursor-pointer rounded-sm px-1 underline hover:bg-secondary"
       id={id}
-      to={`/${space}/${id}`}
+      onClick={onClick}
     >
       {node && (
         <NodeIconEditor
@@ -41,7 +45,7 @@ const MentionComponent = (props: { id: string }) => {
         />
       )}
       {node?.name ?? "loading"}
-    </Link>
+    </span>
   )
 }
 

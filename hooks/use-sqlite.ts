@@ -9,6 +9,7 @@ import { ITreeNode } from "@/lib/store/ITreeNode"
 import { IView } from "@/lib/store/IView"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { getRawTableNameById, uuidv4 } from "@/lib/utils"
+import { DefaultState } from "@/components/doc/plugins/AutoSavePlugin"
 import { createTemplateTableSql } from "@/components/grid/helper"
 
 import { IDataStore, IField } from "../lib/store/interface"
@@ -240,19 +241,21 @@ export const useSqlite = (dbName?: string) => {
     return tableId
   }
 
-  const createDoc = async (docName: string) => {
+  const createDoc = async (docName: string, parentId?: string) => {
     if (!sqlWorker) return
     const docId = uuidv4().split("-").join("")
     await sqlWorker.addTreeNode({
       id: docId,
       name: docName,
       type: "doc",
+      parentId,
     })
-    await sqlWorker.addDoc(docId, "", "")
+    await sqlWorker.addDoc(docId, JSON.stringify(DefaultState), "")
     addNode({
       id: docId,
       name: docName,
       type: "doc",
+      parentId,
     })
     return docId
   }

@@ -19,7 +19,6 @@ import DragDropPaste from "./DragDropPaste"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ImagesPlugin from "./ImagesPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
-import NewMentionsPlugin from "./MentionsPlugin"
 import { SQLPlugin } from "./SQLPlugin"
 import { ShortcutPlugin } from "./ShortcutPlugin"
 import { allTransformers } from "./const"
@@ -35,7 +34,6 @@ export const AllPlugins = () => {
       <HistoryPlugin />
       <HashtagPlugin />
       <ListPlugin />
-      <NewMentionsPlugin />
       {enableAICompletionInDoc && <AutocompletePlugin />}
       <DatabasePlugin />
       {/* <AutocompletePlugin /> */}

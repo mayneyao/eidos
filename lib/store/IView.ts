@@ -9,5 +9,5 @@ export interface IView {
   type: ViewTypeEnum
   tableId: string // tableId uuid
   query: string
-  fieldIds: string[]
+  fieldIds?: string[]
 }
