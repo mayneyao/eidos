@@ -1,10 +1,10 @@
-import { useRef } from "react"
-import { IView, ViewTypeEnum } from "@/worker/meta_table/view"
+import { startTransition, useRef } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useClickAway } from "ahooks"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
+import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import {
@@ -60,7 +60,9 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
   }
 
   const handleChangeViewType = (type: ViewTypeEnum) => {
-    updateView({ id: view.id, type })
+    startTransition(() => {
+      updateView({ id: view.id, type })
+    })
   }
 
   return (
