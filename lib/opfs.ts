@@ -152,7 +152,6 @@ export class OpfsManager {
     if (replaceSpace) {
       paths[0] = replaceSpace
     }
-    console.log(paths)
     return "/" + paths.join("/")
   }
 

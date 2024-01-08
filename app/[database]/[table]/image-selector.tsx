@@ -102,7 +102,12 @@ export function ImageSelector(props: {
         )}
       </div>
       <TabsContent value="gallery">
-        <ScrollArea className={`${`h-[${props.height || 600}px]`}`}>
+        <ScrollArea
+          className={cn({
+            "h-[600px]": !props.height,
+            [`h-[${props.height}px]`]: props.height,
+          })}
+        >
           {!props.disableColor && (
             <div className="mb-6">
               <h2 className="mb-3 text-lg font-semibold">Color & Gradient</h2>
