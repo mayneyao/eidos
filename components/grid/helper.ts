@@ -2,7 +2,7 @@ import { GridCellKind, GridColumn } from "@glideapps/glide-data-grid"
 import { v4 as uuidv4 } from "uuid"
 
 import { ColumnTableName } from "@/lib/sqlite/const"
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 import { defaultAllColumnsHandle } from "./fields/colums"
 
@@ -19,7 +19,7 @@ export function getColumnsHandleMap(): {
 
 export const columnsHandleMap = getColumnsHandleMap()
 
-export const getColumns = (uiColumns: IUIColumn[]): GridColumn[] => {
+export const getColumns = (uiColumns: IField[]): GridColumn[] => {
   return uiColumns.map((column) => {
     return {
       id: column.name,

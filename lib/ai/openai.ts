@@ -1,8 +1,8 @@
-import { ITreeNode } from "@/worker/meta_table/tree"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { ChatRequest, FunctionCallHandler, nanoid } from "ai"
 import OpenAI from "openai"
 
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 import { functionParamsSchemaMap, functions } from "./functions"
 
@@ -41,9 +41,9 @@ export const getPrompt = (
   baseSysPrompt: string,
   context: {
     tableSchema?: string
-    uiColumns?: IUIColumn[]
+    uiColumns?: IField[]
     allTables: ITreeNode[]
-    allUiColumns: IUIColumn[]
+    allUiColumns: IField[]
     databaseName: string
     currentDocMarkdown?: string
   },

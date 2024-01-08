@@ -7,7 +7,7 @@ import {
   toSql,
 } from "pgsql-ast-parser"
 
-import type { IUIColumn } from "@/hooks/use-table"
+import type { IField } from "@/lib/store/interface"
 
 import { FieldType } from "../fields/const"
 
@@ -25,7 +25,7 @@ export const getColumnsFromQuery = (sql?: string) => {
  * @param uiColumnMap name -> IUIColumn map of the table
  * @returns
  */
-export const getLinkQuery = (uiColumnMap: Map<string, IUIColumn>) => {
+export const getLinkQuery = (uiColumnMap: Map<string, IField>) => {
   const rawColumns = Array.from(uiColumnMap.values())
   const thisTable = rawColumns[0].table_name
   const linkColumns = rawColumns.filter((c) => c.type === FieldType.Link)

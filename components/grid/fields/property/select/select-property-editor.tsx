@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from "react"
 import { Plus } from "lucide-react"
 
 import { SelectField } from "@/lib/fields/select"
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 import { Button } from "@/components/ui/button"
 import {
   CardContent,
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 import { SelectOption } from "./select-option"
 
 interface IFieldPropertyEditorProps {
-  uiColumn: IUIColumn
+  uiColumn: IField
   onPropertyChange: (property: any) => void
   isCreateNew?: boolean
 }

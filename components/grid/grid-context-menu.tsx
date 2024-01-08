@@ -16,7 +16,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
 import { useScripts } from "@/hooks/use-scripts"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 import { useCurrentUiColumns } from "@/hooks/use-ui-columns"
 import { shortenId } from "@/lib/utils"
 
@@ -29,7 +29,7 @@ export function GridContextMenu({
   getRowByIndex,
   getFieldByIndex,
 }: {
-  getFieldByIndex: (index: number) => IUIColumn
+  getFieldByIndex: (index: number) => IField
   deleteRows: (start: number, end: number) => void
   getRowByIndex: (index: number) => any
   children: React.ReactNode
@@ -45,7 +45,7 @@ export function GridContextMenu({
     return uiColumns.reduce((acc, cur) => {
       acc[cur.table_column_name] = cur
       return acc
-    }, {} as Record<string, IUIColumn>)
+    }, {} as Record<string, IField>)
   }, [uiColumns])
 
   const goto = useGoto()

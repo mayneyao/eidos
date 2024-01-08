@@ -1,11 +1,11 @@
 import React, { useEffect } from "react"
 import { GridColumn } from "@glideapps/glide-data-grid"
 
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 import { getColumns } from "../helper"
 
-export const useColumns = (uiColumns: IUIColumn[]) => {
+export const useColumns = (uiColumns: IField[]) => {
   const hasResized = React.useRef(new Set<number>())
   const [columns, setColumns] = React.useState<GridColumn[]>([])
 

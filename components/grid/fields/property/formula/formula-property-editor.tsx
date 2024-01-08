@@ -1,13 +1,13 @@
 import { useState } from "react"
 
 import { FormulaProperty } from "@/lib/fields/formula"
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 import { useCurrentUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 interface IFieldPropertyEditorProps {
-  uiColumn: IUIColumn
+  uiColumn: IField
   onPropertyChange: (property: any) => void
   isCreateNew?: boolean
 }

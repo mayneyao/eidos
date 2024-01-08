@@ -2,6 +2,10 @@ import { IScript } from "@/worker/meta_table/script"
 import { useMemo, useState } from "react"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useAllNodes } from "@/hooks/use-nodes"
+import { getRawTableNameById } from "@/lib/utils"
+// import { useTablesUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -13,16 +17,13 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqliteStore } from "@/hooks/use-sqlite"
-import { useTablesUiColumns } from "@/hooks/use-ui-columns"
-import { getRawTableNameById } from "@/lib/utils"
 
+import { useTablesUiColumns } from "./hooks/use-all-table-fields"
 import { useScript } from "./hooks/use-script"
 
 export const ScriptBinding = () => {
   const script = useLoaderData() as IScript
-  const { allNodes } = useSqliteStore()
+  const allNodes = useAllNodes()
   const allTables = allNodes.filter((node) => node.type === "table")
   const { space } = useCurrentPathInfo()
 

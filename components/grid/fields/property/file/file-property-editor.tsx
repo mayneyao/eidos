@@ -1,12 +1,12 @@
 import { useState } from "react"
 
 import { FileProperty } from "@/lib/fields/file"
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 interface IFieldPropertyEditorProps {
-  uiColumn: IUIColumn<FileProperty>
+  uiColumn: IField<FileProperty>
   onPropertyChange: (property: FileProperty) => void
   onSave?: () => void
   isCreateNew?: boolean

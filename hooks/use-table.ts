@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react"
-import { IView } from "@/worker/meta_table/view"
 import { v4 as uuidv4 } from "uuid"
-import { create } from "zustand"
 
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
@@ -20,64 +18,44 @@ import {
 import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { useSpaceAppStore } from "@/app/[database]/store"
 
+import { IField } from "../lib/store/interface"
 import { useCurrentNode } from "./use-current-node"
 import { useSqlWorker } from "./use-sql-worker"
 import { useSqlite, useSqliteStore } from "./use-sqlite"
 import { useUiColumns } from "./use-ui-columns"
 
-// PRAGMA table_info('table_name') will return IColumn[]
-export type IColumn = {
-  cid: number
-  name: string
-  type: string
-  notnull: number
-  dflt_value: string
-  pk: number
+export const useTableFields = (tableId: string, databaseName: string) => {
+  const {
+    dataStore: { tableMap },
+  } = useSqliteStore()
+  const node = tableMap[tableId]
+  const fieldMap = node?.fieldMap
+  const fields = useMemo(() => {
+    return Object.values(fieldMap ?? {})
+  }, [fieldMap])
+  return {
+    fields,
+    fieldMap,
+  }
 }
 
-export type IUIColumn<T = any> = {
-  name: string
-  type: FieldType
-  table_column_name: string
-  table_name: string
-  property: T
+export const useTableViews = (tableId: string, databaseName: string) => {
+  const {
+    dataStore: { tableMap },
+  } = useSqliteStore()
+  const node = tableMap[tableId]
+  const viewIds = node?.viewIds
+  const viewMap = node?.viewMap
+  return viewIds?.map((id) => viewMap[id]) ?? []
 }
-
-interface TableState {
-  columns: IColumn[]
-  uiColumnsMap: Record<string, IUIColumn[]>
-
-  views: IView[]
-  setViews: (views: IView[]) => void
-
-  setColumns: (columns: IColumn[]) => void
-  setUiColumns: (tableId: string, uiColumns: IUIColumn[]) => void
-}
-
-// not using persist
-export const useTableStore = create<TableState>()((set) => ({
-  columns: [],
-  uiColumnsMap: {},
-  views: [],
-  setViews: (views) => set({ views }),
-  setColumns: (columns) => set({ columns }),
-  setUiColumns: (tableId: string, uiColumns: IUIColumn[]) => {
-    set((state) => {
-      return {
-        uiColumnsMap: {
-          ...state.uiColumnsMap,
-          [tableId]: uiColumns,
-        },
-      }
-    })
-  },
-}))
 
 export const useTable = (tableName: string, databaseName: string) => {
   const { withTransaction } = useSqlite(databaseName)
   const sqlite = useSqlWorker()
   const { setNode } = useSqliteStore()
-  const { uiColumnsMap, views, setViews } = useTableStore()
+  const { setViews } = useSqliteStore()
+  const tableId = getTableIdByRawTableName(tableName)
+  const views = useTableViews(tableId, databaseName)
   const {
     count,
     setCount,
@@ -87,10 +65,10 @@ export const useTable = (tableName: string, databaseName: string) => {
 
   const updateViews = useCallback(async () => {
     if (!sqlite) return
-    const tableId = getTableIdByRawTableName(tableName)
+
     const res = await sqlite.listViews(tableId)
-    setViews(res)
-  }, [setViews, sqlite, tableName])
+    setViews(tableId, res)
+  }, [setViews, sqlite, tableId])
 
   const reload = useCallback(async () => {
     if (!tableName) return
@@ -138,7 +116,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
-  const updateFieldProperty = async (field: IUIColumn, property: any) => {
+  const updateFieldProperty = async (field: IField, property: any) => {
     if (!sqlite) return
     await sqlite.updateColumnProperty({
       tableName,
@@ -185,9 +163,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
-  const uiColumns = useMemo(() => {
-    return uiColumnsMap[tableName] ?? []
-  }, [uiColumnsMap, tableName])
+  const { fields: uiColumns } = useTableFields(tableId, databaseName)
 
   const deleteFieldByColIndex = async (colIndex: number) => {
     const tableColumnName = uiColumns[colIndex].table_column_name

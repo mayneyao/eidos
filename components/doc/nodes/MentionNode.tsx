@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from "react"
-import { ITreeNode } from "@/worker/meta_table/tree"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { DecoratorNode } from "lexical"
 import { NodeKey } from "lexical/LexicalNode"
 import { Link } from "react-router-dom"

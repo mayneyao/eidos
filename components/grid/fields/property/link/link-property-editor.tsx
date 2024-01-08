@@ -1,18 +1,18 @@
 import { useState } from "react"
 
-import { useSqliteStore } from "@/hooks/use-sqlite"
-import { IUIColumn } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
+import { useAllNodes } from "@/hooks/use-nodes"
+import { IField } from "@/lib/store/interface"
 
 interface IFieldPropertyEditorProps {
-  uiColumn: IUIColumn
+  uiColumn: IField
   onPropertyChange: (property: any) => void
   onSave?: () => void
   isCreateNew?: boolean
 }
 
 export const LinkPropertyEditor = (props: IFieldPropertyEditorProps) => {
-  const { allNodes } = useSqliteStore()
+  const allNodes = useAllNodes()
   const allTables = allNodes.filter((node) => node.type === "table")
 
   const [linkTable, setLinkTable] = useState<string>(

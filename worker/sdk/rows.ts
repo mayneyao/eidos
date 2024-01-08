@@ -1,6 +1,6 @@
 import { allFieldTypesMap } from "@/lib/fields"
 import { uuidv4 } from "@/lib/utils"
-import type { IUIColumn } from "@/hooks/use-table"
+import type { IField } from "@/lib/store/interface"
 
 import { DataSpace } from "../DataSpace"
 import { TableManager } from "./table"
@@ -17,7 +17,7 @@ export class RowsManager {
     const fieldRawColumnNameFieldMap = uiColumns.reduce((acc, cur) => {
       acc[cur.table_column_name] = cur
       return acc
-    }, {} as Record<string, IUIColumn>)
+    }, {} as Record<string, IField>)
 
     const fieldNameRawColumnNameMap = uiColumns.reduce((acc, cur) => {
       acc[cur.name] = cur.table_column_name
@@ -32,7 +32,7 @@ export class RowsManager {
 
   static rawData2Json(
     row: Record<string, any>,
-    fieldRawColumnNameFieldMap: Record<string, IUIColumn>
+    fieldRawColumnNameFieldMap: Record<string, IField>
   ) {
     const data: Record<string, any> = {}
     Object.entries(row).forEach(([key, value]) => {
@@ -55,7 +55,7 @@ export class RowsManager {
     data: Record<string, any>,
     context: {
       fieldNameRawColumnNameMap: Record<string, string>
-      fieldRawColumnNameFieldMap: Record<string, IUIColumn>
+      fieldRawColumnNameFieldMap: Record<string, IField>
     },
     options?: {
       noGenerateId?: boolean

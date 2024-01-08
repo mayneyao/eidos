@@ -2,7 +2,7 @@ import React from "react"
 import { useClickAway } from "ahooks"
 
 import { FieldType } from "@/lib/fields/const"
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 import { useTableAppStore } from "../store"
 import { FilePropertyEditor } from "./property/file/file-property-editor"
@@ -12,7 +12,7 @@ import { SelectPropertyEditor } from "./property/select/select-property-editor"
 
 export const PropertyEditorTypeMap: {
   [type: string]: React.FC<{
-    uiColumn: IUIColumn<any>
+    uiColumn: IField<any>
     onPropertyChange: (property: any) => void
     onSave?: () => void
     isCreateNew?: boolean
@@ -37,7 +37,7 @@ export const NotImplementEditor = () => {
 }
 
 interface IFieldPropertyEditorProps {
-  updateFieldProperty: (fieldName: IUIColumn, property: any) => void
+  updateFieldProperty: (fieldName: IField, property: any) => void
   changeFieldType: (rawFieldName: string, type: FieldType) => void
 }
 

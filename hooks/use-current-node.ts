@@ -1,18 +1,13 @@
 import { useMemo } from "react"
-import { ITreeNode } from "@/worker/meta_table/tree"
 import { useParams } from "react-router-dom"
 
 import { useSqliteStore } from "./use-sqlite"
 
 export const useNodeMap = () => {
-  const allNodes = useSqliteStore((state) => state.allNodes)
-  const allNodesMap = useMemo(() => {
-    return allNodes.reduce((acc, cur) => {
-      acc[cur.id] = cur
-      return acc
-    }, {} as Record<string, ITreeNode>)
-  }, [allNodes])
-  return allNodesMap
+  const {
+    dataStore: { nodeMap },
+  } = useSqliteStore()
+  return nodeMap
 }
 
 export const useCurrentNode = () => {

@@ -5,7 +5,7 @@ import {
 } from "@glideapps/glide-data-grid"
 import { create } from "zustand"
 
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 // import { devtools, persist } from 'zustand/middleware'
 
@@ -31,8 +31,8 @@ interface ITableAppState {
   menu?: IMenu
   setMenu: (menu?: IMenu) => void
 
-  currentUiColumn?: IUIColumn
-  setCurrentUiColumn: (currentUiColumn?: IUIColumn) => void
+  currentUiColumn?: IField
+  setCurrentUiColumn: (currentUiColumn?: IField) => void
 
   // const [currentPreviewIndex, setCurrentPreviewIndex] = useState(-1)
   currentPreviewIndex: number

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ITreeNode } from "@/worker/meta_table/tree"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { File, FileSpreadsheet, Plus } from "lucide-react"
 import { Link, useSearchParams } from "react-router-dom"
 

@@ -1,7 +1,7 @@
-import { useMemo } from "react"
 import { LexicalEditor } from "lexical"
+import { useMemo } from "react"
 
-import { useSqliteStore } from "@/hooks/use-sqlite"
+import { useAllNodes } from "@/hooks/use-nodes"
 
 import { INSERT_DATABASE_TABLE_COMMAND } from "."
 
@@ -12,7 +12,7 @@ interface DialogProps {
 
 export const SelectDatabaseTableDialog = (props: DialogProps) => {
   const { activeEditor, onClose } = props
-  const { allNodes } = useSqliteStore()
+  const allNodes = useAllNodes()
   const tableNodes = useMemo(
     () => allNodes.filter((node) => node.type === "table"),
     [allNodes]

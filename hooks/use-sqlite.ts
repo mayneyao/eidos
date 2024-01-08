@@ -2,15 +2,17 @@
 
 import { useCallback } from "react"
 import type { DataSpace } from "@/worker/DataSpace"
-import { ITreeNode } from "@/worker/meta_table/tree"
 import { create } from "zustand"
 
 import { TreeTableName } from "@/lib/sqlite/const"
+import { ITreeNode } from "@/lib/store/ITreeNode"
+import { IView } from "@/lib/store/IView"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { createTemplateTableSql } from "@/components/grid/helper"
 
-import { IUIColumn } from "./use-table"
+import { IDataStore, IField } from "../lib/store/interface"
+import { useAllNodes } from "./use-nodes"
 
 interface SqliteState {
   isInitialized: boolean
@@ -22,14 +24,17 @@ interface SqliteState {
   currentNode: ITreeNode | null
   setCurrentNode: (node: ITreeNode | null) => void
 
-  allNodes: ITreeNode[]
+  dataStore: IDataStore
   setAllNodes: (tables: ITreeNode[]) => void
   setNode: (node: Partial<ITreeNode> & { id: string }) => void
   delNode: (nodeId: string) => void
   addNode: (node: ITreeNode) => void
 
-  allUiColumns: IUIColumn[]
-  setAllUiColumns: (columns: IUIColumn[]) => void
+  allUiColumns: IField[]
+  setAllUiColumns: (columns: IField[]) => void
+
+  setViews: (tableId: string, views: IView[]) => void
+  setFields: (tableId: string, fields: IField[]) => void
 
   selectedTable: string
   setSelectedTable: (table: string) => void
@@ -44,18 +49,73 @@ interface SqliteState {
 }
 
 // not using persist
-export const useSqliteStore = create<SqliteState>()((set) => ({
+export const useSqliteStore = create<SqliteState>()((set, get) => ({
   isInitialized: false,
   setInitialized: (isInitialized) => set({ isInitialized }),
 
+  dataStore: {
+    nodeIds: [],
+    nodeMap: {},
+    tableMap: {},
+  },
+
+  setViews: (tableId: string, views: IView[]) => {
+    set((state) => {
+      const { tableMap } = state.dataStore
+      if (!tableMap[tableId]) {
+        tableMap[tableId] = {
+          rowIds: [],
+          rowMap: {},
+          rowCount: 0,
+          fieldMap: {},
+          viewIds: [],
+          viewMap: {},
+        }
+      }
+      tableMap[tableId].viewIds = views.map((view) => view.id)
+      tableMap[tableId].viewMap = views.reduce((acc, cur) => {
+        acc[cur.id] = cur
+        return acc
+      }, {} as Record<string, IView>)
+      return { dataStore: { ...state.dataStore, tableMap } }
+    })
+  },
+
+  setFields: (tableId: string, fields: IField[]) => {
+    set((state) => {
+      const { tableMap } = state.dataStore
+      if (!tableMap[tableId]) {
+        tableMap[tableId] = {
+          rowIds: [],
+          rowMap: {},
+          rowCount: 0,
+          fieldMap: {},
+          viewIds: [],
+          viewMap: {},
+        }
+      }
+      tableMap[tableId].fieldMap = fields.reduce((acc, cur) => {
+        acc[cur.name] = cur
+        return acc
+      }, {} as Record<string, IField>)
+      return { dataStore: { ...state.dataStore, tableMap } }
+    })
+  },
   currentDatabase: "",
   setCurrentDatabase: (database) => set({ currentDatabase: database }),
 
   currentNode: null,
   setCurrentNode: (node) => set({ currentNode: node }),
 
-  allNodes: [],
-  setAllNodes: (tables) => set({ allNodes: tables }),
+  setAllNodes: (tables) =>
+    set((state) => {
+      const nodeIds = tables.map((table) => table.id)
+      const nodeMap = tables.reduce((acc, cur) => {
+        acc[cur.id] = cur
+        return acc
+      }, {} as Record<string, ITreeNode>)
+      return { dataStore: { ...state.dataStore, nodeIds, nodeMap } }
+    }),
 
   allUiColumns: [],
   setAllUiColumns: (columns) => set({ allUiColumns: columns }),
@@ -75,31 +135,29 @@ export const useSqliteStore = create<SqliteState>()((set) => ({
 
   setNode: (node: Partial<ITreeNode> & { id: string }) => {
     set((state) => {
-      const index = state.allNodes.findIndex((item) => item.id === node.id)
-      if (index !== -1) {
-        state.allNodes[index] = {
-          ...state.allNodes[index],
-          ...node,
-        }
-      }
-      return { allNodes: [...state.allNodes] }
+      const { nodeMap } = state.dataStore
+      nodeMap[node.id] = { ...nodeMap[node.id], ...node }
+      return { dataStore: { ...state.dataStore, nodeMap } }
     })
   },
 
   delNode: (nodeId: string) => {
     set((state) => {
-      const index = state.allNodes.findIndex((item) => item.id === nodeId)
-      if (index !== -1) {
-        state.allNodes.splice(index, 1)
+      const { nodeIds, nodeMap } = state.dataStore
+      const index = nodeIds.findIndex((id) => id === nodeId)
+      if (index > -1) {
+        nodeIds.splice(index, 1)
       }
-      return { allNodes: [...state.allNodes] }
+      delete nodeMap[nodeId]
+      return { dataStore: { ...state.dataStore, nodeIds, nodeMap } }
     })
   },
-
   addNode: (node: ITreeNode) => {
     set((state) => {
-      state.allNodes.push(node)
-      return { allNodes: [...state.allNodes] }
+      const { nodeIds, nodeMap } = state.dataStore
+      nodeIds.push(node.id)
+      nodeMap[node.id] = node
+      return { dataStore: { ...state.dataStore, nodeIds, nodeMap } }
     })
   },
 }))
@@ -108,13 +166,13 @@ export const useSqlite = (dbName?: string) => {
   const {
     isInitialized,
     sqliteProxy: sqlWorker,
-    allNodes,
     setAllNodes,
     setNode,
     addNode,
     delNode,
     setAllUiColumns,
   } = useSqliteStore()
+  const allNodes = useAllNodes()
   const { isShareMode } = useAppRuntimeStore()
 
   const queryAllNodes = useCallback(async () => {

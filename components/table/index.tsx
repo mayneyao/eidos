@@ -1,5 +1,5 @@
 import React from "react"
-import { ViewTypeEnum } from "@/worker/meta_table/view"
+import { ViewTypeEnum } from "@/lib/store/IView"
 
 import Grid from "../grid"
 import { useCurrentView } from "./hooks"
