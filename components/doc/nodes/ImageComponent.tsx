@@ -37,7 +37,15 @@ import {
   type RangeSelection,
 } from "lexical"
 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+
 import "./ImageNode.css"
+import { ImageSelector } from "@/app/[database]/[table]/image-selector"
+
 import { $isImageNode } from "./ImageNode"
 // import { useSettings } from "../context/SettingsContext"
 // import { useSharedHistoryContext } from "../context/SharedHistoryContext"
@@ -56,6 +64,41 @@ function useSuspenseImage(src: string) {
       }
     })
   }
+}
+
+function ImagePlaceholder(props: { nodeKey: string }) {
+  const { nodeKey } = props
+  const [editor] = useLexicalComposerContext()
+
+  const handleSelect = (src: string) => {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if ($isImageNode(node)) {
+        node.setSrc(src)
+      }
+    })
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger>
+        <div className="flex h-[70px] w-[768px] items-center justify-center bg-gray-200">
+          <div className="text-center">
+            <div className="text-sm text-gray-500">Add an image</div>
+          </div>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0">
+        <ImageSelector
+          onSelected={handleSelect}
+          onRemove={() => {}}
+          disableColor
+          hideRemove
+          height={300}
+        />
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function LazyImage({
@@ -312,20 +355,24 @@ export default function ImageComponent({
   return (
     <Suspense fallback={null}>
       <>
-        <div draggable={draggable} className="not-prose">
-          <LazyImage
-            className={
-              isFocused
-                ? `focused ${$isNodeSelection(selection) ? "draggable" : ""}`
-                : null
-            }
-            src={src}
-            altText={altText}
-            imageRef={imageRef}
-            width={width}
-            height={height}
-            maxWidth={maxWidth}
-          />
+        <div draggable={draggable} className="not-prose w-full">
+          {src.length == 0 ? (
+            <ImagePlaceholder nodeKey={nodeKey} />
+          ) : (
+            <LazyImage
+              className={
+                isFocused
+                  ? `focused ${$isNodeSelection(selection) ? "draggable" : ""}`
+                  : null
+              }
+              src={src}
+              altText={altText}
+              imageRef={imageRef}
+              width={width}
+              height={height}
+              maxWidth={maxWidth}
+            />
+          )}
         </div>
         {showCaption && (
           <div className="image-caption-container">

@@ -175,6 +175,11 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
     writable.__height = height
   }
 
+  setSrc(src: string) {
+    const writable = this.getWritable()
+    writable.__src = src
+  }
+
   setShowCaption(showCaption: boolean): void {
     const writable = this.getWritable()
     writable.__showCaption = showCaption

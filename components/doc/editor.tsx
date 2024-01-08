@@ -107,6 +107,10 @@ export function Editor(props: EditorProps) {
               style={props.titleStyle}
               autoComplete="off"
               disabled={!canChangeTitle}
+              onKeyDown={(e) => {
+                // press Enter to active editor
+                
+              }}
               onChange={(e) => {
                 setTitle(e.target.value)
               }}
