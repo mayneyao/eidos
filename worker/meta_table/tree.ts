@@ -2,17 +2,7 @@ import { TreeTableName } from "@/lib/sqlite/const"
 import { getRawTableNameById } from "@/lib/utils"
 
 import { BaseTable, BaseTableImpl } from "./base"
-
-export interface ITreeNode {
-  id: string
-  name: string
-  type: "table" | "doc"
-  parentId?: string
-  // is pin to top
-  isPinned?: boolean
-  icon?: string
-  cover?: string
-}
+import { ITreeNode } from "../../lib/store/ITreeNode"
 
 export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
   name = TreeTableName

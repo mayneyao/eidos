@@ -2,19 +2,7 @@ import { ViewTableName } from "@/lib/sqlite/const"
 import { getUuid } from "@/lib/utils"
 
 import { BaseTable, BaseTableImpl } from "./base"
-
-export enum ViewTypeEnum {
-  Grid = "grid",
-  Gallery = "gallery",
-}
-
-export interface IView {
-  id: string
-  name: string
-  type: ViewTypeEnum
-  tableId: string // tableId uuid
-  query: string
-}
+import { IView, ViewTypeEnum } from "../../lib/store/IView"
 
 export class ViewTable extends BaseTableImpl implements BaseTable<IView> {
   name = ViewTableName

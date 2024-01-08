@@ -1,6 +1,7 @@
+import { IView } from "@/lib/store/IView"
+
 import { DataSpace } from "../DataSpace"
 import { MetaTable } from "./base"
-import { IView } from "./view"
 
 interface ITable {
   id: string
@@ -18,7 +19,7 @@ export class Table implements MetaTable<ITable> {
     const tableNode = await this.dataSpace.getTreeNode(id)
     return Boolean(tableNode)
   }
-  
+
   async get(id: string): Promise<ITable | null> {
     const views = await this.dataSpace.listViews(id)
     const tableNode = await this.dataSpace.getTreeNode(id)

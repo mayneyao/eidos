@@ -1,10 +1,10 @@
 import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 import { BaseTable, BaseTableImpl } from "./base"
 
-export class ColumnTable extends BaseTableImpl implements BaseTable<IUIColumn> {
+export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   name = ColumnTableName
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${ColumnTableName} (
@@ -15,7 +15,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IUIColumn> {
     property TEXT
   );
 `
-  async add(data: IUIColumn): Promise<IUIColumn> {
+  async add(data: IField): Promise<IField> {
     const { name, type, table_name, table_column_name, property } = data
     const typeMap: any = {
       [FieldType.Checkbox]: "BOOLEAN",
@@ -45,10 +45,10 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IUIColumn> {
     return data
   }
 
-  get(id: string): Promise<IUIColumn | null> {
+  get(id: string): Promise<IField | null> {
     throw new Error("Method not implemented.")
   }
-  set(id: string, data: Partial<IUIColumn>): Promise<boolean> {
+  set(id: string, data: Partial<IField>): Promise<boolean> {
     throw new Error("Method not implemented.")
   }
   del(id: string): Promise<boolean> {
@@ -89,7 +89,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IUIColumn> {
     })
   }
 
-  async list(tableName: string): Promise<IUIColumn[]> {
+  async list(tableName: string): Promise<IField[]> {
     const cols = await this.dataSpace.exec2(
       `SELECT * FROM ${ColumnTableName} WHERE table_name=?;`,
       [tableName]
@@ -101,6 +101,6 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IUIColumn> {
           ...col,
           property: JSON.parse(col.property),
         }
-      }) as IUIColumn[]
+      }) as IField[]
   }
 }

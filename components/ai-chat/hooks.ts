@@ -1,10 +1,11 @@
 import { useState } from "react"
 
-import { useSpaceAppStore } from "@/app/[database]/store"
+import { getPrompt } from "@/lib/ai/openai"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useAllNodes } from "@/hooks/use-nodes"
 import { useSqliteStore } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import { getPrompt } from "@/lib/ai/openai"
+import { useSpaceAppStore } from "@/app/[database]/store"
 
 export const sysPrompts = {
   base: ``,
@@ -64,7 +65,8 @@ const usePromptContext = () => {
   const { uiColumns } = useUiColumns(tableName!, database)
   const [currentDocMarkdown, setCurrentDocMarkdown] = useState("")
   const { currentTableSchema } = useSpaceAppStore()
-  const { allNodes: allTables, allUiColumns } = useSqliteStore()
+  const { allUiColumns } = useSqliteStore()
+  const allTables = useAllNodes()
   const context = {
     tableSchema: currentTableSchema,
     allTables,

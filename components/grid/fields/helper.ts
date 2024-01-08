@@ -1,9 +1,9 @@
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 export const checkNewFieldNameIsOk = (
   name: string,
-  currentField: IUIColumn,
-  columns: IUIColumn[]
+  currentField: IField,
+  columns: IField[]
 ) => {
   if (name.length < 1) {
     return false

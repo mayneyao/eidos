@@ -1,5 +1,5 @@
 import { MouseEventHandler, useRef, useState } from "react"
-import { ITreeNode } from "@/worker/meta_table/tree"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useClickAway } from "ahooks"
 import { useNavigate } from "react-router-dom"
 

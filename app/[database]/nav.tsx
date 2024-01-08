@@ -116,7 +116,7 @@ const BreadCrumb = () => {
     <div className="flex items-center">
       {paths.map((p, i) => (
         <div key={p.id} className="flex items-center">
-          <Link to={getLink(`/${space}/${p.id}`)} className="text-sm">
+          <Link to={getLink(`/${space}/${p.path || p.id}`)} className="text-sm">
             {p.name || "Untitled"}
           </Link>
           {i !== paths.length - 1 && (

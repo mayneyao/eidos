@@ -2,7 +2,10 @@
 
 import React, { useEffect, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
-import { LexicalComposer } from "@lexical/react/LexicalComposer"
+import {
+  InitialConfigType,
+  LexicalComposer,
+} from "@lexical/react/LexicalComposer"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
@@ -15,6 +18,7 @@ import { AllPlugins } from "./plugins"
 import { EidosAutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
+import NewMentionsPlugin from "./plugins/MentionsPlugin"
 import { SafeBottomPaddingPlugin } from "./plugins/SafeBottomPaddingPlugin"
 import { SelectionPlugin } from "./plugins/SelectionPlugin"
 import defaultTheme from "./themes/default"
@@ -62,7 +66,7 @@ export function Editor(props: EditorProps) {
       setFloatingAnchorElem(_floatingAnchorElem)
     }
   }
-  const initConfig = {
+  const initConfig: InitialConfigType = {
     ...editorConfig,
     editable: props.isEditable,
   }
@@ -107,6 +111,9 @@ export function Editor(props: EditorProps) {
               style={props.titleStyle}
               autoComplete="off"
               disabled={!canChangeTitle}
+              onKeyDown={(e) => {
+                // press Enter to active editor
+              }}
               onChange={(e) => {
                 setTitle(e.target.value)
               }}
@@ -139,6 +146,7 @@ export function Editor(props: EditorProps) {
               />
 
               <AllPlugins />
+              <NewMentionsPlugin currentDocId={props.docId!} />
               {props.autoFocus && <AutoFocusPlugin />}
               {props.docId && (
                 <EidosAutoSavePlugin

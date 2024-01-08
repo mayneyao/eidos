@@ -1,6 +1,6 @@
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
-type UIColumn<P> = Omit<IUIColumn, "property"> & {
+type UIColumn<P> = Omit<IField, "property"> & {
   property: P
 }
 

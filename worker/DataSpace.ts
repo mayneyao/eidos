@@ -6,7 +6,7 @@ import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 import { DbMigrator } from "./DbMigrator"
 import { ActionTable } from "./meta_table/action"
@@ -17,8 +17,10 @@ import { EmbeddingTable, IEmbedding } from "./meta_table/embedding"
 import { FileTable, IFile } from "./meta_table/file"
 import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
 import { Table } from "./meta_table/table"
-import { ITreeNode, TreeTable } from "./meta_table/tree"
-import { IView, ViewTable } from "./meta_table/view"
+import { TreeTable } from "./meta_table/tree"
+import { ITreeNode } from "../lib/store/ITreeNode"
+import { ViewTable } from "./meta_table/view"
+import { IView } from "../lib/store/IView"
 import { TableManager } from "./sdk/table"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 import { DataChangeTrigger } from "./trigger/data_change_trigger"
@@ -205,7 +207,7 @@ export class DataSpace {
   }
 
   // columns
-  public async addColumn(data: IUIColumn) {
+  public async addColumn(data: IField) {
     return await this.column.add(data)
   }
 
@@ -228,7 +230,7 @@ export class DataSpace {
     const fieldRawColumnNameFieldMap = uiColumns.reduce((acc, cur) => {
       acc[cur.table_column_name] = cur
       return acc
-    }, {} as Record<string, IUIColumn>)
+    }, {} as Record<string, IField>)
 
     const fieldRawColumnMap = uiColumns.reduce((acc, cur) => {
       acc[cur.name] = cur.table_column_name
@@ -424,7 +426,7 @@ export class DataSpace {
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
-    console.log(sql, bind)
+    // console.log(sql, bind)
     return this.syncExec2(sql, bind)
   }
 
@@ -593,7 +595,7 @@ export class DataSpace {
    */
   public async sql(strings: TemplateStringsArray, ...values: any[]) {
     const { sql, bind } = buildSql(strings, ...values)
-    console.log(sql, bind)
+    // console.log(sql, bind)
     const res = this.execSqlWithBind(sql, bind)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {

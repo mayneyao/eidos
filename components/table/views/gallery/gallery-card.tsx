@@ -1,7 +1,7 @@
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { FileField } from "@/lib/fields/file"
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 interface ICardProps {
   columnIndex: number
@@ -10,7 +10,7 @@ interface ICardProps {
   data: any
 }
 
-const getCoverUrl = (row: any, coverField?: IUIColumn) => {
+const getCoverUrl = (row: any, coverField?: IField) => {
   if (!coverField) return ""
   const field = new FileField(coverField)
   const cv = row[coverField.table_column_name]
@@ -25,7 +25,7 @@ export const GalleryCard = ({
 }: ICardProps) => {
   const { items, columnCount, uiColumns, uiColumnMap, rawIdNameMap } = data
   const item = items[rowIndex * columnCount + columnIndex]
-  const coverField = (uiColumns as IUIColumn[]).find(
+  const coverField = (uiColumns as IField[]).find(
     (c) => c.type == FieldType.File
   )
   if (!item) {
@@ -50,7 +50,7 @@ export const GalleryCard = ({
           </div>
           {fieldKeys.map((k) => {
             const fieldName = rawIdNameMap.get(k)
-            const field = uiColumnMap.get(fieldName) as IUIColumn
+            const field = uiColumnMap.get(fieldName) as IField
             const value = item[k]
             if (field?.type == FieldType.URL) {
               return (

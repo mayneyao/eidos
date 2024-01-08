@@ -38,6 +38,7 @@ import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
 import { bgColors, fgColors } from "../const"
 import "./index.css"
 import { AI_COMPLETE_COMMAND } from "../AutocompletePlugin/cmd"
+import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
 
 class ComponentPickerOption extends MenuOption {
@@ -250,6 +251,16 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         keywords: ["horizontal rule", "divider", "hr"],
         onSelect: () =>
           editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
+      }),
+
+      new ComponentPickerOption("Image", {
+        icon: <i className="icon image" />,
+        keywords: ["image", "img"],
+        onSelect: () =>
+          editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
+            src: "",
+            altText: "",
+          }),
       }),
 
       new ComponentPickerOption("Query", {

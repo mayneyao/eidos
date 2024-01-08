@@ -7,7 +7,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ITreeNode } from "@/worker/meta_table/tree"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
   LexicalTypeaheadMenuPlugin,
@@ -18,7 +17,9 @@ import {
 import { $getSelection, $insertNodes, RangeSelection, TextNode } from "lexical"
 import * as ReactDOM from "react-dom"
 
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useQueryNode } from "@/hooks/use-query-node"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { ItemIcon } from "@/components/sidebar/item-tree"
 import { NodeIconEditor } from "@/app/[database]/[table]/node-icon"
 
@@ -105,8 +106,17 @@ function useMentionLookupService(mentionString: string | null) {
 
     mentionString &&
       queryNodes(mentionString).then((newResults) => {
-        mentionsCache.set(mentionString, newResults)
-        setResults(newResults ?? [])
+        const _newResults = [
+          ...(newResults || []),
+          {
+            id: `new-${mentionString}`,
+            name: `New "${mentionString}" sub-doc`,
+            type: "doc",
+            mode: "node",
+          },
+        ] as any
+        mentionsCache.set(mentionString, _newResults)
+        setResults(_newResults ?? [])
       })
   }, [mentionString, queryNodes])
 
@@ -201,62 +211,70 @@ function MentionsTypeaheadMenuItem({
   )
 }
 
-export default function NewMentionsPlugin(): JSX.Element | null {
+export default function NewMentionsPlugin(props: {
+  currentDocId: string
+}): JSX.Element | null {
   const [editor] = useLexicalComposerContext()
 
   const [queryString, setQueryString] = useState<string | null>(null)
 
   const results = useMentionLookupService(queryString)
+  const { currentDocId } = props
+  const { createDoc } = useSqlite()
 
   const checkForSlashTriggerMatch = useBasicTypeaheadTriggerMatch("/", {
     minLength: 0,
   })
 
-  const options = useMemo(
-    () =>
-      results
-        .map(
-          (result) =>
-            new MentionTypeaheadOption(
-              result.name,
-              result.id,
-              (
-                <NodeIconEditor
-                  icon={result.icon}
-                  nodeId={result.id}
-                  disabled
-                  size="1em"
-                  customTrigger={
-                    <ItemIcon
-                      type={result?.type ?? ""}
-                      className="mr-1 inline-block h-5 w-5"
-                    />
-                  }
-                />
-              )
+  const options = useMemo(() => {
+    return results
+      .map(
+        (result) =>
+          new MentionTypeaheadOption(
+            result.name,
+            result.id,
+            (
+              <NodeIconEditor
+                icon={result.icon}
+                nodeId={result.id}
+                disabled
+                size="1em"
+                customTrigger={
+                  <ItemIcon
+                    type={result?.type ?? ""}
+                    className="mr-1 inline-block h-5 w-5"
+                  />
+                }
+              />
             )
-        )
-        .slice(0, SUGGESTION_LIST_LENGTH_LIMIT),
-    [results]
-  )
+          )
+      )
+      .slice(0, SUGGESTION_LIST_LENGTH_LIMIT)
+  }, [results])
 
   const onSelectOption = useCallback(
-    (
+    async (
       selectedOption: MentionTypeaheadOption,
       nodeToReplace: TextNode | null,
       closeMenu: () => void
     ) => {
+      let nodeId = selectedOption.id
+      if (nodeId.startsWith("new-")) {
+        const docTitle = nodeId.slice(4)
+        const docId = await createDoc(docTitle, currentDocId)
+        docId && (nodeId = docId)
+      }
       editor.update(() => {
         const selection = $getSelection()
         const selectedNode = (selection as RangeSelection).anchor.getNode()
-        const mentionNode = $createMentionNode(selectedOption.id)
+        const mentionNode = $createMentionNode(nodeId)
         $insertNodes([mentionNode])
         selectedNode.insertAfter(mentionNode)
         nodeToReplace?.remove()
         closeMenu()
       })
     },
-    [editor]
+    [createDoc, currentDocId, editor]
   )
 
   const checkForMentionMatch = useCallback(

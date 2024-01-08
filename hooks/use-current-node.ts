@@ -1,18 +1,16 @@
-import { useMemo } from "react"
-import { ITreeNode } from "@/worker/meta_table/tree"
+import { useCallback, useMemo } from "react"
 import { useParams } from "react-router-dom"
+
+import { ITreeNode } from "@/lib/store/ITreeNode"
+import { isDayPage } from "@/lib/utils"
 
 import { useSqliteStore } from "./use-sqlite"
 
 export const useNodeMap = () => {
-  const allNodes = useSqliteStore((state) => state.allNodes)
-  const allNodesMap = useMemo(() => {
-    return allNodes.reduce((acc, cur) => {
-      acc[cur.id] = cur
-      return acc
-    }, {} as Record<string, ITreeNode>)
-  }, [allNodes])
-  return allNodesMap
+  const {
+    dataStore: { nodeMap },
+  } = useSqliteStore()
+  return nodeMap
 }
 
 export const useCurrentNode = () => {
@@ -22,23 +20,40 @@ export const useCurrentNode = () => {
   return nodeId ? allNodesMap[nodeId] : null
 }
 
+type INodePath = ITreeNode & { path?: string }
 export const useCurrentNodePath = () => {
   const { table: nodeId } = useParams()
   const allNodesMap = useNodeMap()
+  const getNode = useCallback(
+    (nodeId: string) => {
+      let parent = nodeId && (allNodesMap[nodeId] as INodePath)
+      if (isDayPage(nodeId)) {
+        parent = {
+          id: nodeId,
+          name: nodeId,
+          type: "doc",
+          path: `everyday/${nodeId}`,
+        }
+      }
+      return parent
+    },
+    [allNodesMap]
+  )
   const parentNodePath = useMemo(() => {
-    const node = nodeId && allNodesMap[nodeId]
+    const node = getNode(nodeId!)
     if (!node) return []
     const path = [node]
-    let parent = node.parentId && allNodesMap[node.parentId]
+    let parent = node.parentId && getNode(node.parentId)
     while (parent) {
       path.unshift(parent)
       if (parent.parentId) {
-        parent = allNodesMap[parent.parentId]
+        // if parentId is "yyyy-mm-dd" then it's a date node
+        parent = getNode(parent.parentId)
       } else {
         break
       }
     }
     return path
-  }, [allNodesMap, nodeId])
+  }, [getNode, nodeId])
   return parentNodePath
 }

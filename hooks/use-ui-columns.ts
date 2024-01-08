@@ -1,41 +1,23 @@
 import { useCallback, useEffect, useMemo } from "react"
 
+
+import { IField } from "../lib/store/interface"
 import { useCurrentPathInfo } from "./use-current-pathinfo"
-import { useSqlite } from "./use-sqlite"
-import { IUIColumn, useTableStore } from "./use-table"
+import { useSqlite, useSqliteStore } from "./use-sqlite"
+import { useTableFields } from "./use-table"
 
 export const useCurrentUiColumns = () => {
   const { space, tableName } = useCurrentPathInfo()
   return useUiColumns(tableName!, space!)
 }
 
-export const useTablesUiColumns = (
-  tableNames: string[],
-  databaseName: string
-) => {
-  const { sqlite } = useSqlite(databaseName)
-  const { uiColumnsMap, setUiColumns } = useTableStore()
-  const updateUiColumns = useCallback(async () => {
-    if (!sqlite) return
-    await Promise.all(
-      tableNames.map(async (tableName) => {
-        const res = await sqlite.listUiColumns(tableName)
-        setUiColumns(tableName, res)
-      })
-    )
-  }, [setUiColumns, sqlite, tableNames])
-  useEffect(() => {
-    updateUiColumns()
-  }, [updateUiColumns, tableNames])
-
-  return {
-    uiColumnsMap,
-  }
-}
-
 export const useUiColumns = (tableName: string, databaseName: string) => {
   const { sqlite } = useSqlite(databaseName)
-  const { uiColumnsMap, setUiColumns } = useTableStore()
+  const { setFields: setUiColumns } = useSqliteStore()
+  const { fieldMap: uiColumnsMap, fields: uiColumns } = useTableFields(
+    tableName,
+    databaseName
+  )
   const updateUiColumns = useCallback(async () => {
     if (!sqlite) return
     const res = await sqlite.listUiColumns(tableName!)
@@ -46,12 +28,8 @@ export const useUiColumns = (tableName: string, databaseName: string) => {
     updateUiColumns()
   }, [updateUiColumns, tableName])
 
-  const uiColumns = useMemo(() => {
-    return uiColumnsMap[tableName] ?? []
-  }, [uiColumnsMap, tableName])
-
   const uiColumnMap = useMemo(() => {
-    const map = new Map<string, IUIColumn>()
+    const map = new Map<string, IField>()
     uiColumns.forEach((column) => {
       map.set(column.name, column)
     })

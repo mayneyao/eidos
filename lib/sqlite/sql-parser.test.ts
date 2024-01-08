@@ -1,11 +1,11 @@
-import { IUIColumn } from "@/hooks/use-table"
+import { IField } from "@/lib/store/interface"
 
 import { FieldType } from "../fields/const"
 import { getLinkQuery, transformSql } from "./sql-parser"
 
 describe("buildQuery", () => {
   test("getDefaultQuery -> table with two link fields", () => {
-    const uiColumnMapWithLinkField = new Map<string, IUIColumn>()
+    const uiColumnMapWithLinkField = new Map<string, IField>()
 
     uiColumnMapWithLinkField.set("link", {
       name: "link",
@@ -40,7 +40,7 @@ describe("buildQuery", () => {
   })
 
   test("getDefaultQuery -> table without link fields", () => {
-    const uiColumnMapWithLinkField = new Map<string, IUIColumn>()
+    const uiColumnMapWithLinkField = new Map<string, IField>()
 
     uiColumnMapWithLinkField.set("text", {
       name: "text",

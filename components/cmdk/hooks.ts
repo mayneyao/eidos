@@ -1,4 +1,4 @@
-import { ITreeNode } from "@/worker/meta_table/tree"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useNavigate } from "react-router-dom"
 import { create } from "zustand"
 

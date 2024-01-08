@@ -27,6 +27,9 @@ export const DefaultColors = [
 export function ImageSelector(props: {
   onSelected: (url: string, close?: boolean) => void
   onRemove: () => void
+  disableColor?: boolean
+  hideRemove?: boolean
+  height?: number
 }) {
   const { files } = useFiles()
   const { database } = useParams()
@@ -92,34 +95,38 @@ export function ImageSelector(props: {
           <TabsTrigger value="upload">Upload</TabsTrigger>
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
-        <Button variant="destructive" onClick={props.onRemove}>
-          Remove
-        </Button>
+        {!props.hideRemove && (
+          <Button variant="destructive" onClick={props.onRemove}>
+            Remove
+          </Button>
+        )}
       </div>
       <TabsContent value="gallery">
-        <ScrollArea className="h-[600px] ">
-          <div className="mb-6">
-            <h2 className="mb-3 text-lg font-semibold">Color & Gradient</h2>
-            <div className="grid grid-cols-4 gap-4">
-              {DefaultColors.map((color) => {
-                return (
-                  <AspectRatio
-                    ratio={16 / 9}
-                    key={color}
-                    onClick={() => handleSelectColor(color)}
-                  >
-                    <div
-                      className={cn(
-                        "aspect-video cursor-pointer rounded-lg",
-                        color
-                      )}
+        <ScrollArea className={`${`h-[${props.height || 600}px]`}`}>
+          {!props.disableColor && (
+            <div className="mb-6">
+              <h2 className="mb-3 text-lg font-semibold">Color & Gradient</h2>
+              <div className="grid grid-cols-4 gap-4">
+                {DefaultColors.map((color) => {
+                  return (
+                    <AspectRatio
+                      ratio={16 / 9}
                       key={color}
-                    />
-                  </AspectRatio>
-                )
-              })}
+                      onClick={() => handleSelectColor(color)}
+                    >
+                      <div
+                        className={cn(
+                          "aspect-video cursor-pointer rounded-lg",
+                          color
+                        )}
+                        key={color}
+                      />
+                    </AspectRatio>
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          )}
           <div className="mb-6">
             <h2 className="mb-3 text-lg font-semibold">Space Images</h2>
             <div className="grid grid-cols-4 gap-4">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { IView } from "@/worker/meta_table/view"
+import { IView } from "@/lib/store/IView"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { VariableSizeGrid as Grid } from "react-window"
 
