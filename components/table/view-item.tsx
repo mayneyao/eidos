@@ -1,6 +1,6 @@
 import { useState } from "react"
-import { IView } from "@/lib/store/IView"
 
+import { IView } from "@/lib/store/IView"
 import {
   Dialog,
   DialogContent,
@@ -65,7 +65,7 @@ export const ViewItem = ({
           <DropdownMenuContent align="start">
             <DropdownMenuItem onSelect={handleEdit}>Edit</DropdownMenuItem>
             <DropdownMenuItem disabled={disabledDelete}>
-              <DialogTrigger>Delete</DialogTrigger>
+              <DialogTrigger className="flex w-full cursor-default">Delete</DialogTrigger>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
