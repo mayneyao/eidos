@@ -39,6 +39,7 @@ import { bgColors, fgColors } from "../const"
 import "./index.css"
 import { AI_COMPLETE_COMMAND } from "../AutocompletePlugin/cmd"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
+import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
 
 class ComponentPickerOption extends MenuOption {
@@ -261,6 +262,12 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
             src: "",
             altText: "",
           }),
+      }),
+
+      new ComponentPickerOption("Table Of Content", {
+        icon: <i className="icon image" />,
+        keywords: ["table of content", "toc"],
+        onSelect: () => editor.dispatchCommand(INSERT_TOC_COMMAND, undefined),
       }),
 
       new ComponentPickerOption("Query", {

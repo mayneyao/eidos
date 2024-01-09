@@ -31,18 +31,15 @@ code::before {
   font-size: 24px;
   color: rgb(5, 5, 5);
   font-weight: 400;
-  margin: 0;
 }
 .eidos_editor_theme__h2 {
   font-size: 15px;
   color: rgb(101, 103, 107);
   font-weight: 700;
-  margin: 0;
   text-transform: uppercase;
 }
 .eidos_editor_theme__h3 {
   font-size: 12px;
-  margin: 0;
   text-transform: uppercase;
 }
 .eidos_editor_theme__indent {
@@ -279,49 +276,50 @@ code::before {
 .eidos_editor_theme__ol1 {
   padding: 0;
   padding-left: 0.75rem !important;
-  margin: 0;
+  margin: 0 !important;
   list-style-position: inside;
 }
 .eidos_editor_theme__ol2 {
   padding: 0;
+  padding: 0 1rem !important;
   padding-left: 0.75rem !important;
-  margin: 0 1rem;
   list-style-type: upper-alpha;
   list-style-position: inside;
 }
 .eidos_editor_theme__ol3 {
   padding: 0;
   padding-left: 0.75rem !important;
-  margin: 0 1rem;
+  margin: 0 1rem !important;
   list-style-type: lower-alpha;
   list-style-position: inside;
 }
 .eidos_editor_theme__ol4 {
   padding: 0;
   padding-left: 0.75rem !important;
-  margin: 0 1rem;
+  margin: 0 1rem !important;
   list-style-type: upper-roman;
   list-style-position: inside;
 }
 .eidos_editor_theme__ol5 {
   padding: 0;
   padding-left: 0.75rem !important;
-  margin: 0 1rem;
+  margin: 0 1rem !important;
   list-style-type: lower-roman;
   list-style-position: inside;
 }
 .eidos_editor_theme__ul {
   padding: 0;
-  margin: 0;
+  margin: 0 !important;
   list-style-position: inside;
   padding-left: 0.75rem !important;
 }
 
 ul .eidos_editor_theme__listItem {
   position: relative;
-  margin-left: 8px;
-  margin-right: 8px;
+  padding-left: 8px;
+  padding-right: 8px;
   padding-left: 24px;
+  margin: 0 !important;
   /* padding-right: 24px; */
   list-style-type: none;
   outline: none;

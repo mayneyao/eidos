@@ -21,6 +21,7 @@ import ImagesPlugin from "./ImagesPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { SQLPlugin } from "./SQLPlugin"
 import { ShortcutPlugin } from "./ShortcutPlugin"
+import { TableOfContentsPlugin } from "./TableOfContentsPlugin"
 import { allTransformers } from "./const"
 
 export const AllPlugins = () => {
@@ -29,6 +30,7 @@ export const AllPlugins = () => {
   } = useConfigStore()
   return (
     <>
+      <TableOfContentsPlugin />
       <SQLPlugin />
       <CodeHighlightPlugin />
       <HistoryPlugin />

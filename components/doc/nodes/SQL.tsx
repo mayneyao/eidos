@@ -46,7 +46,6 @@ function SQLComponent({ sql, nodeKey }: SQLProps) {
   }
 
   const handleClick = () => {
-    console.log("?????")
     showModal("Insert SqlQuery", (onClose) => (
       <SqlQueryDialog
         activeEditor={editor}
