@@ -21,7 +21,7 @@ module.exports = {
       typography: {
         DEFAULT: {
           css: {
-            maxWidth: "81ch",
+            maxWidth: "85ch",
             hr: {
               border: "none",
               height: "2em",

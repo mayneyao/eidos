@@ -12,7 +12,6 @@ import { useConfigStore } from "@/app/settings/store"
 
 import AutoLinkPlugin from "./AutoLinkPlugin"
 import AutocompletePlugin from "./AutocompletePlugin"
-// import AutocompletePlugin from "./AutocompletePlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import { DatabasePlugin } from "./DatabasePlugin"
@@ -40,7 +39,6 @@ export const AllPlugins = () => {
       <ListPlugin />
       {enableAICompletionInDoc && <AutocompletePlugin />}
       <DatabasePlugin />
-      {/* <AutocompletePlugin /> */}
       {/* TabIndentationPlugin let you type `Tab` to indent a list item, ListMaxIndentLevelPlugin let you control the max indent level */}
       <TabIndentationPlugin />
       {/* don't be a dick, don't nest lists too deep */}

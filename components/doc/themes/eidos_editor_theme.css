@@ -36,11 +36,11 @@ code::before {
   font-size: 15px;
   color: rgb(101, 103, 107);
   font-weight: 700;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
 }
 .eidos_editor_theme__h3 {
   font-size: 12px;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
 }
 .eidos_editor_theme__indent {
   --lexical-indent-base-value: 40px;
