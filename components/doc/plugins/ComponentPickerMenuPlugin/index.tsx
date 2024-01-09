@@ -27,9 +27,25 @@ import {
   $getSelection,
   $isRangeSelection,
   $isTextNode,
-  FORMAT_ELEMENT_COMMAND,
   TextNode,
 } from "lexical"
+import {
+  BaselineIcon,
+  CaseSensitiveIcon,
+  CodeIcon,
+  Heading1Icon,
+  Heading2Icon,
+  Heading3Icon,
+  ImageIcon,
+  ListChecksIcon,
+  ListIcon,
+  ListOrderedIcon,
+  MinusSquareIcon,
+  QuoteIcon,
+  SheetIcon,
+  SparklesIcon,
+  VariableIcon,
+} from "lucide-react"
 import * as ReactDOM from "react-dom"
 
 import { useModal } from "../../hooks/useModal"
@@ -37,10 +53,30 @@ import { SelectDatabaseTableDialog } from "../DatabasePlugin/SelectDatabaseTable
 import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
 import { bgColors, fgColors } from "../const"
 import "./index.css"
+import { cn } from "@/lib/utils"
+import { TocIcon } from "@/components/icons/toc"
+
 import { AI_COMPLETE_COMMAND } from "../AutocompletePlugin/cmd"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
+
+const IconMap: Record<string, JSX.Element> = {
+  h1: <Heading1Icon className="h-5 w-5" />,
+  h2: <Heading2Icon className="h-5 w-5" />,
+  h3: <Heading3Icon className="h-5 w-5" />,
+  ai: <SparklesIcon className="h-5 w-5" />,
+  lo: <ListOrderedIcon className="h-5 w-5" />,
+  ul: <ListIcon className="h-5 w-5" />,
+  cl: <ListChecksIcon className="h-5 w-5" />,
+  quote: <QuoteIcon className="h-5 w-5" />,
+  code: <CodeIcon className="h-5 w-5" />,
+  image: <ImageIcon className="h-5 w-5" />,
+  database: <SheetIcon className="h-5 w-5" />,
+  text: <CaseSensitiveIcon className="h-5 w-5" />,
+  hr: <MinusSquareIcon className="h-5 w-5" />,
+  sql: <VariableIcon className="h-5 w-5" />,
+}
 
 class ComponentPickerOption extends MenuOption {
   // What shows up in the editor
@@ -93,7 +129,7 @@ function ComponentPickerMenuItem({
     <li
       key={option.key}
       tabIndex={-1}
-      className={className}
+      className={cn(className, "flex gap-2")}
       ref={option.setRefElement}
       role="option"
       aria-selected={isSelected}
@@ -166,12 +202,12 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
   const options = useMemo(() => {
     const baseOptions = [
       new ComponentPickerOption("AI Complete", {
-        icon: <i className="icon horizontal-rule" />,
+        icon: IconMap["ai"],
         keywords: ["ai", "auto"],
         onSelect: () => editor.dispatchCommand(AI_COMPLETE_COMMAND, ""),
       }),
       new ComponentPickerOption("Paragraph", {
-        icon: <i className="icon paragraph" />,
+        icon: IconMap["text"],
         keywords: ["normal", "paragraph", "p", "text"],
         onSelect: () =>
           editor.update(() => {
@@ -184,7 +220,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
       ...Array.from({ length: 3 }, (_, i) => i + 1).map(
         (n) =>
           new ComponentPickerOption(`Heading ${n}`, {
-            icon: <i className={`icon h${n}`} />,
+            icon: IconMap[`h${n}`],
             keywords: ["heading", "header", `h${n}`],
             onSelect: () =>
               editor.update(() => {
@@ -199,25 +235,25 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
           })
       ),
       new ComponentPickerOption("Numbered List", {
-        icon: <i className="icon number" />,
+        icon: IconMap["lo"],
         keywords: ["numbered list", "ordered list", "ol"],
         onSelect: () =>
           editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
       }),
       new ComponentPickerOption("Bulleted List", {
-        icon: <i className="icon bullet" />,
+        icon: IconMap["ul"],
         keywords: ["bulleted list", "unordered list", "ul"],
         onSelect: () =>
           editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
       }),
       new ComponentPickerOption("Check List", {
-        icon: <i className="icon check" />,
+        icon: IconMap["cl"],
         keywords: ["check list", "todo list"],
         onSelect: () =>
           editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined),
       }),
       new ComponentPickerOption("Quote", {
-        icon: <i className="icon quote" />,
+        icon: IconMap["quote"],
         keywords: ["block quote"],
         onSelect: () =>
           editor.update(() => {
@@ -228,7 +264,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
           }),
       }),
       new ComponentPickerOption("Code", {
-        icon: <i className="icon code" />,
+        icon: IconMap["code"],
         keywords: ["javascript", "python", "js", "codeblock"],
         onSelect: () =>
           editor.update(() => {
@@ -248,14 +284,14 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
           }),
       }),
       new ComponentPickerOption("Divider", {
-        icon: <i className="icon horizontal-rule" />,
+        icon: IconMap["hr"],
         keywords: ["horizontal rule", "divider", "hr"],
         onSelect: () =>
           editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
       }),
 
       new ComponentPickerOption("Image", {
-        icon: <i className="icon image" />,
+        icon: IconMap["image"],
         keywords: ["image", "img"],
         onSelect: () =>
           editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
@@ -265,26 +301,22 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
       }),
 
       new ComponentPickerOption("Table Of Content", {
-        icon: <i className="icon image" />,
+        icon: <TocIcon />,
         keywords: ["table of content", "toc"],
         onSelect: () => editor.dispatchCommand(INSERT_TOC_COMMAND, undefined),
       }),
 
       new ComponentPickerOption("Query", {
-        icon: <i className="icon link" />,
+        icon: IconMap["sql"],
         keywords: ["query", "sql"],
         onSelect: () =>
           showModal("Insert SqlQuery", (onClose) => (
             <SqlQueryDialog activeEditor={editor} onClose={onClose} />
           )),
-        // editor.dispatchCommand(
-        //   INSERT_SQL_COMMAND,
-        //   "SELECT count(*)  as allCount FROM tb_a0adf70bdb504e7e8dd72a0db9250145"
-        // ),
       }),
 
       new ComponentPickerOption("DatabaseTable", {
-        icon: <i className="icon link" />,
+        icon: IconMap["database"],
         keywords: ["database", "table"],
         onSelect: () =>
           showModal("Insert Database Table", (onClose) => (
@@ -306,7 +338,12 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
       // ),
       ...bgColors.map(({ name, value }) => {
         return new ComponentPickerOption(`Background ${name}`, {
-          icon: <i className="icon color" />,
+          icon: (
+            <BaselineIcon
+              style={{ backgroundColor: value }}
+              className="h-5 w-5"
+            />
+          ),
           keywords: ["bg", "background", name, `${name}bg`],
           onSelect: () =>
             editor.update(() => {
@@ -326,7 +363,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
       }),
       ...fgColors.map(({ name, value }) => {
         return new ComponentPickerOption(`Color ${name}`, {
-          icon: <i className="icon color" />,
+          icon: <BaselineIcon style={{ color: value }} className="h-5 w-5" />,
           keywords: ["color", name],
           onSelect: () =>
             editor.update(() => {
@@ -373,7 +410,6 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         ]
       : baseOptions
   }, [editor, getDynamicOptions, queryString, showModal])
-  // }, [editor, getDynamicOptions, queryString])
 
   const onSelectOption = useCallback(
     (

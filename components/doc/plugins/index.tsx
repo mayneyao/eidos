@@ -2,6 +2,7 @@ import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin"
 import LexicalClickableLinkPlugin from "@lexical/react/LexicalClickableLinkPlugin"
 import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin"
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
+import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin"
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin"
@@ -30,6 +31,7 @@ export const AllPlugins = () => {
   } = useConfigStore()
   return (
     <>
+      <HorizontalRulePlugin />
       <TableOfContentsPlugin />
       <SQLPlugin />
       <CodeHighlightPlugin />

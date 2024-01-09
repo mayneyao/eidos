@@ -2,6 +2,7 @@ import { CodeHighlightNode, CodeNode } from "@lexical/code"
 import { HashtagNode } from "@lexical/hashtag"
 import { AutoLinkNode, LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
+import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 
 import { DatabaseTableNode } from "./DatabaseTableNode"
@@ -12,6 +13,7 @@ import { SQLNode } from "./SQL"
 import { TableOfContentsNode } from "./TableOfContentsNode"
 
 export const AllNodes = [
+  HorizontalRuleNode,
   HeadingNode,
   ListNode,
   ListItemNode,

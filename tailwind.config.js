@@ -22,6 +22,20 @@ module.exports = {
         DEFAULT: {
           css: {
             maxWidth: "81ch",
+            hr: {
+              border: "none",
+              height: "2em",
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              margin: 0,
+            },
+            "hr::before": {
+              content: '""',
+              flexGrow: "1",
+              height: "1px",
+              background: "var(--tw-prose-hr)",
+            },
           },
         },
       },
