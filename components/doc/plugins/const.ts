@@ -10,6 +10,8 @@ import {
   TRANSFORMERS,
 } from "@lexical/markdown"
 
+import { HR } from "./MarkdownTransformers"
+
 export const allTransformers = [
   CHECK_LIST,
   CODE,
@@ -19,6 +21,7 @@ export const allTransformers = [
   LINK,
   ORDERED_LIST,
   QUOTE,
+  HR,
   ...TRANSFORMERS,
 ]
 
