@@ -21,12 +21,12 @@ import {
   COMMAND_PRIORITY_CRITICAL,
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
-  GridSelection,
   KEY_ESCAPE_COMMAND,
   LexicalEditor,
   NodeSelection,
   RangeSelection,
   SELECTION_CHANGE_COMMAND,
+  type BaseSelection,
 } from "lexical"
 import { Pencil, Trash } from "lucide-react"
 import { createPortal } from "react-dom"
@@ -54,9 +54,7 @@ function FloatingLinkEditor({
   const [linkUrl, setLinkUrl] = useState("")
   const [editedLinkUrl, setEditedLinkUrl] = useState("")
   const [isEditMode, setEditMode] = useState(false)
-  const [lastSelection, setLastSelection] = useState<
-    RangeSelection | GridSelection | NodeSelection | null
-  >(null)
+  const [lastSelection, setLastSelection] = useState<BaseSelection | null>(null)
 
   const updateLinkEditor = useCallback(() => {
     const selection = $getSelection()

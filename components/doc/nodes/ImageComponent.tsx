@@ -6,7 +6,6 @@
  *
  */
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
@@ -30,12 +29,11 @@ import {
   KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
   SELECTION_CHANGE_COMMAND,
-  type GridSelection,
+  type BaseSelection,
   type LexicalEditor,
-  type NodeKey,
-  type NodeSelection,
-  type RangeSelection,
+  type NodeKey
 } from "lexical"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 
 import {
   Popover,
@@ -43,8 +41,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import "./ImageNode.css"
 import { ImageSelector } from "@/app/[database]/[table]/image-selector"
+import "./ImageNode.css"
 
 import { $isImageNode } from "./ImageNode"
 // import { useSettings } from "../context/SettingsContext"
@@ -164,9 +162,7 @@ export default function ImageComponent({
   const [isResizing, setIsResizing] = useState<boolean>(false)
   const { isCollabActive } = useCollaborationContext()
   const [editor] = useLexicalComposerContext()
-  const [selection, setSelection] = useState<
-    RangeSelection | NodeSelection | GridSelection | null
-  >(null)
+  const [selection, setSelection] = useState<BaseSelection | null>(null)
   const activeEditorRef = useRef<LexicalEditor | null>(null)
 
   const onDelete = useCallback(

@@ -79,7 +79,7 @@ export class TableOfContentsNode extends DecoratorNode<ReactNode> {
   }
 
   static clone(node: TableOfContentsNode): TableOfContentsNode {
-    return new TableOfContentsNode(node.__id)
+    return new TableOfContentsNode()
   }
 
   createDOM(): HTMLElement {
