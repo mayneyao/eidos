@@ -1,6 +1,5 @@
+import { routes } from "@/worker/service-worker/routes"
 import { precacheAndRoute } from "workbox-precaching"
-
-import { routes } from "./routes"
 
 declare var self: ServiceWorkerGlobalScope
 
@@ -9,6 +8,10 @@ precacheAndRoute(self.__WB_MANIFEST)
 // This code executes in its own worker or thread
 self.addEventListener("install", (event) => {
   console.log("Service worker installed")
+})
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting()
 })
 
 self.addEventListener("activate", (event) => {

@@ -17,6 +17,7 @@ const config = defineConfig({
       injectManifest: {
         // 5MB
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
       },
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
       manifest: {
@@ -42,7 +43,7 @@ const config = defineConfig({
       },
       registerType: "autoUpdate",
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
+        // globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
         clientsClaim: true,
         skipWaiting: true,
       },
