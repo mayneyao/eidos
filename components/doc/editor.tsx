@@ -105,7 +105,7 @@ export function Editor(props: EditorProps) {
             <input
               id="doc-title"
               placeholder="Untitled"
-              className="truncate bg-transparent text-4xl font-bold text-primary outline-none"
+              className="h-[50px] w-[90%] truncate bg-transparent text-4xl font-bold text-primary outline-none"
               value={title}
               title={title}
               style={props.titleStyle}
