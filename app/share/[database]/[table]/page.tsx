@@ -1,7 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
-
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"

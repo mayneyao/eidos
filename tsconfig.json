@@ -24,7 +24,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "types": ["vite-plugin-pwa/react", "node", "jest"]
   },
   "include": [
     "**/*.wasm",

@@ -421,6 +421,9 @@ devDependencies:
   vite-plugin-pwa:
     specifier: ^0.17.2
     version: 0.17.4(vite@4.4.2)(workbox-build@7.0.0)(workbox-window@7.0.0)
+  workbox-window:
+    specifier: ^7.0.0
+    version: 7.0.0
 
 packages:
 

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Toaster } from "@/components/ui/toaster"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { Loading } from "@/components/loading"
+import { ReloadPrompt } from "@/components/reload-prompt"
 import { ShortCuts } from "@/components/shortcuts"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -125,6 +126,7 @@ export default function RootLayout() {
       )}
       <TailwindIndicator />
       <Toaster />
+      <ReloadPrompt />
     </ThemeProvider>
   )
 }

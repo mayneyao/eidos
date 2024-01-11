@@ -41,7 +41,7 @@ const config = defineConfig({
           },
         ],
       },
-      registerType: "autoUpdate",
+      registerType: "prompt",
       workbox: {
         // globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
         clientsClaim: true,
