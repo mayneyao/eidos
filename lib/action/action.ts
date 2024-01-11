@@ -1,4 +1,4 @@
-import { IAction } from "@/worker/meta_table/action"
+import { IAction } from "@/worker/web-worker/meta_table/action"
 
 export class ActionExecutor {
   functionMap: Record<string, Function> = {

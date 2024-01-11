@@ -2,7 +2,7 @@
  * state store for runtime, for cross component communication
  */
 
-import { IFile } from "@/worker/meta_table/file"
+import { IFile } from "@/worker/web-worker/meta_table/file"
 import { create } from "zustand"
 
 interface AppRuntimeState {

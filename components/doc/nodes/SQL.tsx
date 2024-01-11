@@ -1,4 +1,4 @@
-import { DataSpace } from "@/worker/DataSpace"
+import { DataSpace } from "@/worker/web-worker/DataSpace"
 import { ElementTransformer } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {

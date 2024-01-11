@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
-import { DataSpace } from "@/worker/DataSpace"
-import { IEmbedding } from "@/worker/meta_table/embedding"
+import { DataSpace } from "@/worker/web-worker/DataSpace"
+import { IEmbedding } from "@/worker/web-worker/meta_table/embedding"
 import zip from "lodash/zip"
 
 import { PDFLoader } from "@/lib/ai/doc_loader/pdf"

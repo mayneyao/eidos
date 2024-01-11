@@ -1,4 +1,4 @@
-import { DataSpace, EidosTable } from "@/worker/DataSpace"
+import { DataSpace, EidosTable } from "@/worker/web-worker/DataSpace"
 import { DataConnection } from "peerjs"
 
 import { toast } from "@/components/ui/use-toast"

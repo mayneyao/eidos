@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { IFile } from "@/worker/meta_table/file"
+import { IFile } from "@/worker/web-worker/meta_table/file"
 import { create } from "zustand"
 
 import { opfsManager } from "@/lib/opfs"

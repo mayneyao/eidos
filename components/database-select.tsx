@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { SimpleBackUp } from "@/worker/backup"
+import { SimpleBackUp } from "@/worker/web-worker/backup"
 import { kebabCase } from "lodash"
 import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
 import { useNavigate } from "react-router-dom"

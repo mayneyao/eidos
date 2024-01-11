@@ -2,7 +2,7 @@ import { ViewTableName } from "@/lib/sqlite/const"
 import { getUuid } from "@/lib/utils"
 
 import { BaseTable, BaseTableImpl } from "./base"
-import { IView, ViewTypeEnum } from "../../lib/store/IView"
+import { IView, ViewTypeEnum } from "../../../lib/store/IView"
 
 export class ViewTable extends BaseTableImpl implements BaseTable<IView> {
   name = ViewTableName

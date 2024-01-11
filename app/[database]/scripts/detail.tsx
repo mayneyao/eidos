@@ -1,5 +1,5 @@
 import { lazy, useCallback, useState } from "react"
-import { IScript } from "@/worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta_table/script"
 import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"

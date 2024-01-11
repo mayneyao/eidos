@@ -3,7 +3,7 @@ import OpenAI from "openai"
 
 import { functions } from "@/lib/ai/functions"
 
-import { queryEmbedding } from "../lib"
+import { queryEmbedding } from "../routes/lib"
 
 export async function handleOpenAI(req: any) {
   const {

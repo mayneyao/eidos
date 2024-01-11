@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
-import type { DataSpace } from "@/worker/DataSpace"
+import type { DataSpace } from "@/worker/web-worker/DataSpace"
 import { create } from "zustand"
 
 import { TreeTableName } from "@/lib/sqlite/const"

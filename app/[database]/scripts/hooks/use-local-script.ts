@@ -1,4 +1,4 @@
-import { IScript } from "@/worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta_table/script"
 import { create } from "zustand"
 
 import { OpfsManager } from "@/lib/opfs"

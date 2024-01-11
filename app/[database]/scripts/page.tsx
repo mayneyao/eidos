@@ -3,7 +3,7 @@
  * @see https://v0.dev/t/BAnz6NPEE7T
  */
 
-import { IScript } from "@/worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta_table/script"
 import { RotateCcwIcon } from "lucide-react"
 import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 

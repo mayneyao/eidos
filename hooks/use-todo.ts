@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import { DataSpace } from "@/worker/DataSpace"
+import { DataSpace } from "@/worker/web-worker/DataSpace"
 
 import { TodoListItem } from "@/types/todo"
 import { TodoTableName } from "@/lib/sqlite/const"

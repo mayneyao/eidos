@@ -1,5 +1,5 @@
-import { ICommand, IScript } from "@/worker/meta_table/script"
-import { RowsManager } from "@/worker/sdk/rows"
+import { ICommand, IScript } from "@/worker/web-worker/meta_table/script"
+import { RowsManager } from "@/worker/web-worker/sdk/rows"
 import { useCallback, useMemo } from "react"
 
 import {

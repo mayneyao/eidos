@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import type { DataSpace } from "@/worker/DataSpace"
+import type { DataSpace } from "@/worker/web-worker/DataSpace"
 
 import "@/lib/prism-config"
 // lexical code highlight depends on prismjs which run in worker prism-config disable messageHandler otherwise it will throw error

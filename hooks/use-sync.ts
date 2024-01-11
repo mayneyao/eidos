@@ -1,4 +1,4 @@
-import { SimpleBackUp } from "@/worker/backup"
+import { SimpleBackUp } from "@/worker/web-worker/backup"
 
 import { useConfigStore } from "@/app/settings/store"
 

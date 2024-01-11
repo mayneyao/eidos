@@ -1,4 +1,4 @@
-import aiHandle, { pathname } from "./ai"
+import aiHandle, { pathname } from "../ai"
 import aiCompletionHandle, {
   pathname as aiCompletionHandlePathname,
 } from "./ai_completion"

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { ICommand, IScript } from "@/worker/meta_table/script"
+import { ICommand, IScript } from "@/worker/web-worker/meta_table/script"
 import { useKeyPress } from "ahooks"
 
 import { ActionExecutor } from "@/lib/action/action"

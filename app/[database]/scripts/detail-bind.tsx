@@ -1,4 +1,4 @@
-import { IScript } from "@/worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta_table/script"
 import { useMemo, useState } from "react"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 
