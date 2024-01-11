@@ -34,7 +34,7 @@ export default function EverydayPage() {
         title={day}
         showTitle
         docId={day}
-        titleStyle={{ width: "200px" }}
+        titleStyle={{ maxWidth: "10ch" }}
         afterTitle={
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger>
