@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react"
 
+import { getTableIdByRawTableName } from "@/lib/utils"
+
 import { IField } from "../lib/store/interface"
 import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite, useSqliteStore } from "./use-sqlite"
@@ -17,11 +19,12 @@ export const useUiColumns = (tableName: string, databaseName: string) => {
     tableName,
     databaseName
   )
+  const tableId = getTableIdByRawTableName(tableName)
   const updateUiColumns = useCallback(async () => {
     if (!sqlite) return
     const res = await sqlite.listUiColumns(tableName!)
-    setUiColumns(tableName, res)
-  }, [setUiColumns, sqlite, tableName])
+    setUiColumns(tableId, res)
+  }, [setUiColumns, sqlite, tableId, tableName])
 
   useEffect(() => {
     updateUiColumns()

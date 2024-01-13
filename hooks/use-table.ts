@@ -24,11 +24,18 @@ import { useSqlWorker } from "./use-sql-worker"
 import { useSqlite, useSqliteStore } from "./use-sqlite"
 import { useUiColumns } from "./use-ui-columns"
 
-export const useTableFields = (tableId: string, databaseName: string) => {
+export const useTableFields = (tableIdOrName: string, databaseName: string) => {
   const {
     dataStore: { tableMap },
   } = useSqliteStore()
-  const node = tableMap[tableId]
+  // console.log({ tableId })
+  const nodeId = useMemo(() => {
+    if (tableIdOrName.startsWith("tb_")) {
+      return tableIdOrName.replace("tb_", "")
+    }
+    return tableIdOrName
+  }, [tableIdOrName])
+  const node = tableMap[nodeId]
   const fieldMap = node?.fieldMap
   const fields = useMemo(() => {
     return Object.values(fieldMap ?? {})
@@ -166,6 +173,7 @@ export const useTable = (tableName: string, databaseName: string) => {
   const { fields: uiColumns } = useTableFields(tableId, databaseName)
 
   const deleteFieldByColIndex = async (colIndex: number) => {
+    console.log(colIndex, uiColumns)
     const tableColumnName = uiColumns[colIndex].table_column_name
     console.log("deleteFieldByColIndex", tableColumnName, colIndex)
     await deleteField(tableColumnName)
