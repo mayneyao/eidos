@@ -100,6 +100,7 @@ const renderer: CustomRenderer<RatingCell> = {
                   ...p.value.data,
                   rating: index + 1,
                 },
+                copyData: `${index + 1}`,
               })
             }}
           >

@@ -2,7 +2,7 @@ import React from "react"
 import ReactDOM from "react-dom/client"
 import { RouterProvider, createBrowserRouter } from "react-router-dom"
 
-import NodePage from "@/app/[database]/[table]/page"
+import NodePage from "@/app/[database]/[node]/page"
 import EverydayPage from "@/app/[database]/everyday/[day]/page"
 import EverydayHomePage from "@/app/[database]/everyday/page"
 import { FileManager } from "@/app/[database]/files/page"

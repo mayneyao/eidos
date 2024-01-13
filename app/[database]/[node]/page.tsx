@@ -4,6 +4,7 @@ import { useEmoji } from "@/hooks/use-emoji"
 import { useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
+import { DocProperty } from "@/components/doc-property"
 import { Editor } from "@/components/doc/editor"
 import { Table } from "@/components/table"
 
@@ -46,6 +47,10 @@ export default function TablePage() {
             node.icon && <NodeIconEditor icon={node.icon} nodeId={node.id} />
           }
           coverComponent={node.cover && <NodeCover node={node} />}
+          propertyComponent={
+            node.parentId &&
+            node.id && <DocProperty tableId={node.parentId!} docId={node.id} />
+          }
           topComponent={
             <div className="flex h-[36px] cursor-pointer gap-2 opacity-0 hover:opacity-100">
               {!node.icon && (

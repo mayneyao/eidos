@@ -52,6 +52,7 @@ interface EditorProps {
   titleStyle?: React.CSSProperties
   topComponent?: React.ReactNode
   coverComponent?: React.ReactNode
+  propertyComponent?: React.ReactNode
 }
 
 export function Editor(props: EditorProps) {
@@ -121,6 +122,7 @@ export function Editor(props: EditorProps) {
             {props.afterTitle && <div className="ml-2">{props.afterTitle}</div>}
           </div>
         )}
+        {props.propertyComponent}
         <LexicalComposer initialConfig={initConfig}>
           <div
             className="editor-container w-full"
