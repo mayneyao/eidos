@@ -5,9 +5,11 @@ import { allFieldTypesMap } from "@/lib/fields"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
-import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { IField } from "@/lib/store/interface"
+import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
 
+import { ITreeNode } from "../../lib/store/ITreeNode"
+import { IView } from "../../lib/store/IView"
 import { DbMigrator } from "./DbMigrator"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
@@ -18,9 +20,7 @@ import { FileTable, IFile } from "./meta_table/file"
 import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
 import { Table } from "./meta_table/table"
 import { TreeTable } from "./meta_table/tree"
-import { ITreeNode } from "../../lib/store/ITreeNode"
 import { ViewTable } from "./meta_table/view"
-import { IView } from "../../lib/store/IView"
 import { TableManager } from "./sdk/table"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 import { DataChangeTrigger } from "./trigger/data_change_trigger"
@@ -140,6 +140,23 @@ export class DataSpace {
     return new TableManager(id, this)
   }
 
+  public async getRow(tableId: string, rowId: string) {
+    const tableManager = this.table(tableId)
+    const row = await tableManager.rows.query(
+      {
+        _id: rowId,
+      },
+      {
+        limit: 1,
+        raw: true,
+      }
+    )
+    if (row.length === 0) {
+      return null
+    }
+    return row[0]
+  }
+
   // files
   public async addFile(file: IFile) {
     return await this.file.add(file)
@@ -177,7 +194,7 @@ export class DataSpace {
     return await this.file.saveFile2OPFS(url, name)
   }
 
-  public async listFiles(){
+  public async listFiles() {
     return await this.file.list()
   }
 

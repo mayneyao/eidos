@@ -47,10 +47,7 @@ export default function TablePage() {
             node.icon && <NodeIconEditor icon={node.icon} nodeId={node.id} />
           }
           coverComponent={node.cover && <NodeCover node={node} />}
-          propertyComponent={
-            node.parentId &&
-            node.id && <DocProperty tableId={node.parentId!} docId={node.id} />
-          }
+          // propertyComponent={<DocProperty tableId={node.parentId!} docId={node.id} />}
           topComponent={
             <div className="flex h-[36px] cursor-pointer gap-2 opacity-0 hover:opacity-100">
               {!node.icon && (

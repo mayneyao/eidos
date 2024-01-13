@@ -1,6 +1,6 @@
 import { allFieldTypesMap } from "@/lib/fields"
-import { uuidv4 } from "@/lib/utils"
 import type { IField } from "@/lib/store/interface"
+import { uuidv4 } from "@/lib/utils"
 
 import { DataSpace } from "../DataSpace"
 import { TableManager } from "./table"
@@ -42,6 +42,10 @@ export class RowsManager {
         data[key] = value
       } else {
         const uiColumn = fieldRawColumnNameFieldMap[key]
+        if (!uiColumn) {
+          //
+          return
+        }
         const fieldType = uiColumn.type
         const fieldCls = allFieldTypesMap[fieldType]
         const field = new fieldCls(uiColumn)
@@ -82,9 +86,10 @@ export class RowsManager {
         restData[key] = field.text2RawData(restData[key])
       }
     })
-    const kvTuple: [string, any][] = options?.noGenerateId
-      ? []
-      : [["_id", uuidv4()]]
+
+    const kvTuple: [string, any][] = [
+      ["_id", options?.noGenerateId ? _id : uuidv4()],
+    ]
 
     Object.entries(restData).forEach(([key, value]) => {
       const rawColumnName = options?.useFieldId
