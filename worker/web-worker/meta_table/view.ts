@@ -1,8 +1,8 @@
 import { ViewTableName } from "@/lib/sqlite/const"
 import { getUuid } from "@/lib/utils"
 
-import { BaseTable, BaseTableImpl } from "./base"
 import { IView, ViewTypeEnum } from "../../../lib/store/IView"
+import { BaseTable, BaseTableImpl } from "./base"
 
 export class ViewTable extends BaseTableImpl implements BaseTable<IView> {
   name = ViewTableName
@@ -12,10 +12,12 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   name TEXT NOT NULL,
   type TEXT NOT NULL,
   tableId TEXT NOT NULL,
-  query TEXT NOT NULL
+  query TEXT NOT NULL,
+  properties TEXT
 );
 `
 
+  JSONFields = ["properties"]
   async add(data: IView): Promise<IView> {
     await this.dataSpace.exec2(
       `INSERT INTO ${this.name} (id,name,type,tableId,query) VALUES (? , ? , ? , ? , ?);`,
@@ -26,17 +28,6 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
 
   get(id: string): Promise<IView | null> {
     throw new Error("Method not implemented.")
-  }
-
-  async set(id: string, data: Partial<IView>): Promise<boolean> {
-    const setKv = Object.entries(data)
-      .map(([k, v]) => `${k} = ?`)
-      .join(", ")
-    await this.dataSpace.exec2(
-      `UPDATE ${this.name} SET ${setKv} WHERE id = ?`,
-      [...Object.values(data), id]
-    )
-    return true
   }
 
   async del(id: string): Promise<boolean> {
@@ -64,10 +55,16 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   }
 
   public async list(tableId: string): Promise<IView[]> {
-    return this.dataSpace.exec2(
+    const res = await this.dataSpace.exec2(
       `SELECT * FROM ${this.name} WHERE tableId = ?;`,
       [tableId]
     )
+    return res.map((item) => {
+      if (item.properties) {
+        item.properties = JSON.parse(item.properties)
+      }
+      return item
+    })
   }
 
   public async createDefaultView(tableId: string) {

@@ -29,6 +29,8 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
+import { IGridViewProperties, IView } from "@/lib/store/IView"
+
 import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"
 
@@ -58,6 +60,7 @@ const defaultConfig: Partial<DataEditorProps> = {
 interface IGridProps {
   tableName: string
   databaseName: string
+  view?: IView<IGridViewProperties>
   isEmbed?: boolean
   className?: string
 }
@@ -88,7 +91,7 @@ export default function Grid(props: IGridProps) {
     tableName,
     databaseName
   )
-  const { onColumnResize, columns } = useColumns(uiColumns)
+  const { onColumnResize, columns } = useColumns(uiColumns, props.view!)
 
   const {
     getCellContent,
@@ -209,7 +212,7 @@ export default function Grid(props: IGridProps) {
               onGridSelectionChange={setSelection}
               onColumnResize={onColumnResize}
               getCellContent={getCellContent}
-              maxColumnAutoWidth={500}
+              // maxColumnAutoWidth={500}
               maxColumnWidth={2000}
               fillHandle={true}
               columns={columns ?? []}

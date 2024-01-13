@@ -19,12 +19,15 @@ export function getColumnsHandleMap(): {
 
 export const columnsHandleMap = getColumnsHandleMap()
 
-export const getColumns = (uiColumns: IField[]): GridColumn[] => {
+export const getColumns = (
+  uiColumns: IField[],
+  fieldWidthMap?: Record<string, number>
+): GridColumn[] => {
   return uiColumns.map((column) => {
     return {
       id: column.name,
       title: column.name,
-      with: 200,
+      width: fieldWidthMap?.[column.table_column_name] || 200,
       hasMenu: false,
       icon: column.type,
     }

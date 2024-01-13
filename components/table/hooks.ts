@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react"
-import { IView } from "@/lib/store/IView"
 import { useSearchParams } from "react-router-dom"
 
 import {
@@ -8,6 +7,7 @@ import {
   EidosDataEventChannelName,
 } from "@/lib/const"
 import { transformSql } from "@/lib/sqlite/sql-parser"
+import { IView } from "@/lib/store/IView"
 import { getRawTableNameById } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
@@ -31,9 +31,9 @@ export const useViewOperation = () => {
       await updateViews()
     }
   }
-  const updateView = async (view: Partial<IView> & { id: string }) => {
+  const updateView = async (id: string, view: Partial<IView>) => {
     if (sqlite) {
-      await sqlite.updateView(view.id, view)
+      await sqlite.updateView(id, view)
       await updateViews()
     }
   }

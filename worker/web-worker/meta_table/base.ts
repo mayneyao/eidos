@@ -10,6 +10,7 @@ export interface MetaTable<T> {
 export interface BaseTable<T> extends MetaTable<T> {
   name: string // raw table name
   createTableSql: string
+  JSONFields?: string[]
 }
 
 export class BaseTableImpl<T = any> {
@@ -21,13 +22,16 @@ export class BaseTableImpl<T = any> {
   }
 
   async set(id: string, data: Partial<T>): Promise<boolean> {
-    const setKv = Object.entries(data)
-      .map(([k, v]) => `${k} = ?`)
-      .join(", ")
-    await this.dataSpace.exec2(
-      `UPDATE ${this.name} SET ${setKv} WHERE id = ?`,
-      [...Object.values(data), id]
-    )
+    const kv = Object.entries(data).map(([k, v]) => {
+      if (typeof v === "object") v = JSON.stringify(v)
+      return [k, v]
+    })
+    const setK = kv.map(([k, v]) => `${k} = ?`).join(", ")
+    const setV = kv.map(([, v]) => v)
+    await this.dataSpace.exec2(`UPDATE ${this.name} SET ${setK} WHERE id = ?`, [
+      ...setV,
+      id,
+    ])
     return true
   }
 }

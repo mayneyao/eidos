@@ -52,8 +52,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
     },
   })
   function onSubmit(values: z.infer<typeof formSchema>) {
-    updateView({
-      id: view.id,
+    updateView(view.id, {
       query: values.query,
       name: values.name,
     })
@@ -61,7 +60,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
 
   const handleChangeViewType = (type: ViewTypeEnum) => {
     startTransition(() => {
-      updateView({ id: view.id, type })
+      updateView(view.id, { type })
     })
   }
 
