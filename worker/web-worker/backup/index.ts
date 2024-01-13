@@ -39,7 +39,7 @@ export class SimpleBackUp {
     // this.opfsSync.listCloudObjects().then((res) => {
     //   console.log(res)
     // })
-    console.log("??? config")
+    // console.log("??? config")
   }
 
   private checkConfig() {

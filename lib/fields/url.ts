@@ -19,6 +19,10 @@ export class URLField extends BaseField<URLCell, URLProperty> {
       kind: GridCellKind.Uri,
       data: rawData ?? "",
       allowOverlay: true,
+      hoverEffect: true,
+      onClickUri: (args) => {
+        window.open(rawData, "_blank")
+      },
     }
   }
 

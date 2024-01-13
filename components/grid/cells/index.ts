@@ -1,5 +1,3 @@
-import { useCustomCells } from "@glideapps/glide-data-grid"
-
 // import "@glideapps/glide-data-grid-cells"
 import DatePicker from "./date-picker-cell"
 import { FileCellRenderer } from "./file/file-cell"
@@ -24,9 +22,5 @@ const cells = [
   // LinksCell,
   // ButtonCell,
 ]
-
-export function useExtraCells() {
-  return useCustomCells(cells)
-}
 
 export const customCells = cells

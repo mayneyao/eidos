@@ -3,6 +3,7 @@
   "typescript.enablePromptUseWorkspaceTsdk": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "cSpell.words": [
-    "dataspace"
+    "dataspace",
+    "Opfs"
   ]
 }
