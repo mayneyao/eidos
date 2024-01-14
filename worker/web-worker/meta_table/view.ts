@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       name: "New View",
       type: ViewTypeEnum.Grid,
       tableId,
-      query: "",
+      query: `SELECT * FROM tb_${tableId}`,
     })
   }
 }

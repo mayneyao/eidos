@@ -1,12 +1,9 @@
-import { startTransition, useRef } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useClickAway } from "ahooks"
+import { startTransition, useRef } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
-import { IView, ViewTypeEnum } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
-import { Input } from "@/components/ui/input"
 import {
   Form,
   FormControl,
@@ -16,6 +13,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
+import { Input } from "@/components/ui/input"
+import { IView, ViewTypeEnum } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { useViewOperation } from "./hooks"

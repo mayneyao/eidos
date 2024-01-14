@@ -214,14 +214,20 @@ export const useTable = (tableName: string, databaseName: string) => {
   )
 
   const getRowData = useCallback(
-    async (range: RowRange): Promise<any[]> => {
+    async (range: RowRange, query?: string): Promise<any[]> => {
       const [offset, limit] = range
       let data: any[] = []
       if (sqlite && tableName && uiColumnMap.size) {
         const linkQueryList = getLinkQuery(uiColumnMap)
-        data = await sqlite.sql2`SELECT * FROM ${Symbol(
-          tableName
-        )} LIMIT ${limit} OFFSET ${offset}`
+        if (query) {
+          data = await sqlite.sql4mainThread2(
+            `${query} LIMIT ${limit} OFFSET ${offset}`
+          )
+        } else {
+          data = await sqlite.sql2`SELECT * FROM ${Symbol(
+            tableName
+          )} LIMIT ${limit} OFFSET ${offset}`
+        }
         // if has link field, need to query link table, then replace the link field value
         if (linkQueryList.length) {
           const linkDataMap: Record<string, Record<string, string>> = {}

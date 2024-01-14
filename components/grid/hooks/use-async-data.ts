@@ -28,7 +28,7 @@ import { uuidv4 } from "@/lib/utils"
 import { useTableAppStore } from "../store"
 
 export type RowRange = readonly [number, number]
-type RowCallback<T> = (range: RowRange) => Promise<readonly T[]>
+type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
 type RowToCell<T> = (row: T, col: number) => GridCell
 export type RowEditedCallback<T> = (
   cell: Item,
@@ -47,7 +47,8 @@ export function useAsyncData<TRowType>(
   gridRef: MutableRefObject<DataEditorRef | null>,
   addRow: (uuid?: string) => Promise<string | undefined>,
   delRows: (rowIds: string[]) => Promise<void>,
-  setCount: (count: number) => void
+  setCount: (count: number) => void,
+  qs?: string
 ): Pick<
   DataEditorProps,
   | "getCellContent"
@@ -106,7 +107,7 @@ export function useAsyncData<TRowType>(
     async (page: number) => {
       loadingRef.current = loadingRef.current.add(page)
       const startIndex = page * pageSize
-      const d = await getRowData([startIndex, (page + 1) * pageSize])
+      const d = await getRowData([startIndex, (page + 1) * pageSize], qs)
 
       const vr = visiblePagesRef.current
 
@@ -122,7 +123,7 @@ export function useAsyncData<TRowType>(
       }
       gridRef.current?.updateCells(damageList)
     },
-    [getRowData, gridRef, pageSize]
+    [getRowData, gridRef, pageSize, qs]
   )
 
   const getCellsForSelection = useCallback(
@@ -160,7 +161,7 @@ export function useAsyncData<TRowType>(
     // refresh data when table name changes
     loadingRef.current = CompactSelection.empty()
     dataRef.current = []
-  }, [tableName])
+  }, [tableName, qs])
 
   useEffect(() => {
     const r = visiblePages

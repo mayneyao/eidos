@@ -4,12 +4,12 @@ import { NodeKey } from "lexical/LexicalNode"
 
 import { getRawTableNameById } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import Grid from "@/components/grid"
+import GridView from "@/components/grid"
 
 const DatabaseTableComponent = (props: { id: string }) => {
   const { space } = useCurrentPathInfo()
   const rawTableName = getRawTableNameById(props.id)
-  return <Grid tableName={rawTableName} databaseName={space} isEmbed />
+  return <GridView tableName={rawTableName} databaseName={space} isEmbed />
 }
 
 export class DatabaseTableNode extends DecoratorNode<ReactNode> {

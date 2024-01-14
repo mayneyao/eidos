@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { CommonMenuItem } from "@/components/common-menu-item"
+import { useCurrentView } from "@/components/table/hooks"
+import { useViewQuery } from "@/components/table/view-query-editor/use-view-query"
 
 import { useTableAppStore } from "../store"
 import { checkNewFieldNameIsOk } from "./helper"
@@ -48,7 +50,8 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const ref2 = useRef<HTMLDivElement>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [currentColIndex, setCurrentColIndex] = useState<number>()
-
+  const { currentView } = useCurrentView()
+  const { addSort } = useViewQuery(currentView!)
   const inputRef = useRef<HTMLInputElement>(null)
   const { updateFieldName } = useTable(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
@@ -141,6 +144,19 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     setIsDeleteDialogOpen(false)
     setCurrentColIndex(undefined)
   }
+
+  const addASCSort = () => {
+    if (currentUiColumn) {
+      addSort(currentUiColumn.table_column_name, "ASC")
+    }
+    setMenu(undefined)
+  }
+  const addDESCSort = () => {
+    if (currentUiColumn) {
+      addSort(currentUiColumn.table_column_name, "DESC")
+    }
+    setMenu(undefined)
+  }
   useClickAway(
     () => {
       setMenu(undefined)
@@ -191,20 +207,14 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 <Settings2 className="mr-2 h-4 w-4" />
                 Edit Property
               </CommonMenuItem>
-              {/* <CommonMenuItem
-                className="pl-4"
-                onClick={handleEditFieldPropertiesClick}
-              >
+              <CommonMenuItem className="pl-4" onClick={addASCSort}>
                 <ArrowUpNarrowWideIcon className="mr-2 h-4 w-4" />
                 Sort Ascending
               </CommonMenuItem>
-              <CommonMenuItem
-                className="pl-4"
-                onClick={handleEditFieldPropertiesClick}
-              >
+              <CommonMenuItem className="pl-4" onClick={addDESCSort}>
                 <ArrowDownNarrowWideIcon className="mr-2 h-4 w-4" />
                 Sort Descending
-              </CommonMenuItem> */}
+              </CommonMenuItem>
               {currentUiColumn?.type !== "title" && (
                 <DialogTrigger
                   onClick={handleDeleteFieldClick}

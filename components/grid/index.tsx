@@ -6,7 +6,6 @@ import DataEditor, {
 
 import { useSpaceAppStore } from "@/app/[database]/store"
 
-// import "@glideapps/glide-data-grid-cells/dist/index.css"
 import "@glideapps/glide-data-grid/dist/index.css"
 import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
@@ -65,7 +64,7 @@ interface IGridProps {
   className?: string
 }
 
-export default function Grid(props: IGridProps) {
+export default function GridView(props: IGridProps) {
   const [showSearch, setShowSearch] = React.useState(false)
   const { tableName, databaseName } = props
   const { theme } = useTheme()
@@ -75,7 +74,6 @@ export default function Grid(props: IGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
-
   const {
     count,
     tableSchema,
@@ -111,7 +109,8 @@ export default function Grid(props: IGridProps) {
     glideDataGridRef,
     addRow,
     deleteRows,
-    setCount
+    setCount,
+    props.view?.query
   )
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =

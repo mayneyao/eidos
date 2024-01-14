@@ -12,6 +12,7 @@ import { useTable } from "@/hooks/use-table"
 import { Button } from "../ui/button"
 import { useCurrentView, useViewOperation } from "./hooks"
 import { ViewItem } from "./view-item"
+import { ViewQueryEditor } from "./view-query-editor"
 
 export const ViewToolbar = (props: {
   tableName: string
@@ -67,26 +68,29 @@ export const ViewToolbar = (props: {
 
   const onlyOneView = views.length === 1
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center">
-        {views.map((view) => {
-          const isActive = view.id === currentView?.id
-          return (
-            <ViewItem
-              key={view.id}
-              view={view}
-              isActive={isActive}
-              jump2View={jump2View}
-              deleteView={deleteView(view.id)}
-              disabledDelete={onlyOneView}
-            />
-          )
-        })}
-        <Button onClick={handleAddView} variant="ghost" size="sm">
-          <PlusIcon />
-        </Button>
+    <div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          {views.map((view) => {
+            const isActive = view.id === currentView?.id
+            return (
+              <ViewItem
+                key={view.id}
+                view={view}
+                isActive={isActive}
+                jump2View={jump2View}
+                deleteView={deleteView(view.id)}
+                disabledDelete={onlyOneView}
+              />
+            )
+          })}
+          <Button onClick={handleAddView} variant="ghost" size="sm">
+            <PlusIcon />
+          </Button>
+        </div>
+        <div>{/* <Button size="sm">New</Button> */}</div>
       </div>
-      <div>{/* <Button size="sm">New</Button> */}</div>
+      <ViewQueryEditor view={currentView!} />
     </div>
   )
 }
