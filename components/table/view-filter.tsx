@@ -26,15 +26,15 @@ export const ViewFilter = (props: { view: IView }) => {
   const { updateView } = useViewOperation()
   const hasFilter = Boolean(parsedSql.where)
   // const value = defaultValue
-  const value = hasFilter ? transformSql2FilterItems(props.view.query) : null
+  const value = hasFilter ? props.view.filter : null
 
   // const res = transformFilterItems2SqlExpr(value as any)
   const handleFilterValueChange = (value: FilterValueType) => {
     const sql = transformFilterItems2SqlString(props.view.query, value)
     updateView(props.view.id, {
       query: sql,
+      filter: value,
     })
-    console.log(sql)
   }
   const handleClearFilter = () => {
     const sql = transformFilterItems2SqlString(props.view.query, null)

@@ -1,10 +1,8 @@
-import { Trash2Icon } from "lucide-react"
 
-import { CompareOperator } from "@/lib/fields/const"
-import { IField } from "@/lib/store/interface"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import { Button } from "@/components/ui/button"
+import { CompareOperator } from "@/lib/fields/const"
+import { IField } from "@/lib/store/interface"
 
 import { CellEditor } from "../cell-editor"
 import { FieldCompareSelector } from "../field-compare-selector"
@@ -65,9 +63,6 @@ export const ViewFilterItemEditor = ({
       operands: [value.operands[0], _value],
     })
   }
-  const handleDelete = () => {
-    onDelete && onDelete()
-  }
 
   const fieldRawName = value.operands[0]
   const fieldName = rawIdNameMap.get(fieldRawName)
@@ -94,10 +89,6 @@ export const ViewFilterItemEditor = ({
           onChange={handleValueChange}
         />
       )}
-      <Trash2Icon
-        onClick={handleDelete}
-        className="h-4 w-4 cursor-pointer"
-      ></Trash2Icon>
     </>
   )
 }

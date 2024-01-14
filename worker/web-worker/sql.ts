@@ -82,6 +82,12 @@ export class Sqlite {
     }
     // const db = new this.sqlite3.oo1.DB(name, flags, vfs)
     const db = new this.sqlite3.oo1.OpfsDb(path, flags)
-    return new DataSpace(db, this.config.experiment.undoRedo, name, draftDb)
+    return new DataSpace(
+      db,
+      this.config.experiment.undoRedo,
+      name,
+      this.sqlite3,
+      draftDb
+    )
   }
 }

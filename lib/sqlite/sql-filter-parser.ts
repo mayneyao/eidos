@@ -1,4 +1,5 @@
 import {
+  Expr,
   ExprBinary,
   ExprRef,
   ExprString,
@@ -12,7 +13,7 @@ import { FilterValueType } from "@/components/table/view-filter-editor/interface
 
 import { BinaryOperator, CompareOperator } from "../fields/const"
 
-const isBinaryOperator = (op: string): op is BinaryOperator => {
+export const isLogicOperator = (op: string): op is BinaryOperator => {
   return [BinaryOperator.And, BinaryOperator.Or].includes(op as BinaryOperator)
 }
 
@@ -68,10 +69,10 @@ const transformOP = (expr: ExprBinary) => {
   return opMap[op]
 }
 
-const expr2FilterValue = (expr: ExprBinary): FilterValueType => {
+export const expr2FilterValue = (expr: ExprBinary): FilterValueType => {
   const { op, left, right } = expr
   const _op = transformOP(expr)
-  if (isBinaryOperator(_op)) {
+  if (isLogicOperator(_op)) {
     return {
       operator: _op,
       operands: [
@@ -116,7 +117,7 @@ export const transformSql2FilterItems = (sql: string): FilterValueType => {
   const parsedSql = parseFirst(sql) as SelectFromStatement
   let value = parsedSql.where
   const filterValue = expr2FilterValue(value as ExprBinary)
-  if (isBinaryOperator(filterValue.operator)) {
+  if (isLogicOperator(filterValue.operator)) {
     return filterValue
   } else {
     return {
@@ -131,17 +132,32 @@ export const transformFilterItems2SqlExpr = (
 ): any => {
   const { operator, operands } = filterItems
 
-  if (isBinaryOperator(operator)) {
+  if (isLogicOperator(operator)) {
     if (operands.length === 1) {
       return transformFilterItems2SqlExpr(operands[0] as FilterValueType)
     }
-    const expr: ExprBinary = {
-      type: "binary",
-      op: reverseOpMap[operator] as BinaryOperator,
-      left: transformFilterItems2SqlExpr(operands[0] as FilterValueType),
-      right: transformFilterItems2SqlExpr(operands[1] as FilterValueType),
+    if (operands.length === 2) {
+      const expr: ExprBinary = {
+        type: "binary",
+        op: reverseOpMap[operator] as BinaryOperator,
+        left: transformFilterItems2SqlExpr(operands[0] as FilterValueType),
+        right: transformFilterItems2SqlExpr(operands[1] as FilterValueType),
+      }
+      return expr
     }
-    return expr
+    // and(1,2,3,4) => and(1, and(2, and(3, 4)))
+    if (operands.length > 2) {
+      const expr: ExprBinary = {
+        type: "binary",
+        op: reverseOpMap[operator] as BinaryOperator,
+        left: transformFilterItems2SqlExpr(operands[0] as FilterValueType),
+        right: transformFilterItems2SqlExpr({
+          operator,
+          operands: operands.slice(1) as FilterValueType[],
+        }),
+      }
+      return expr
+    }
   } else {
     const [field, value] = operands
     switch (operator) {

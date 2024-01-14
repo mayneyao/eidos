@@ -1,9 +1,17 @@
+import { CopyPlusIcon, PlusIcon } from "lucide-react"
+
 import { BinaryOperator, CompareOperator } from "@/lib/fields/const"
 import { IField } from "@/lib/store/interface"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
 import "./filter.css"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+
 import { IFilterValue, IGroupFilterValue } from "./interface"
 import { ViewFilterGroupEditor } from "./view-filter-group-editor"
 import { ViewFilterItemEditor } from "./view-filter-item-editor"
@@ -12,7 +20,6 @@ interface IViewFilterEditorProps {
   value: IFilterValue | IGroupFilterValue
   onChange: (value: IFilterValue | IGroupFilterValue) => void
   fields: IField[]
-  onDelete?: () => void
   handleClearFilter?: () => void
   depth?: number
 }
@@ -21,7 +28,6 @@ export const ViewFilterEditor = ({
   value: _value,
   onChange,
   fields,
-  onDelete,
   handleClearFilter,
   depth = 0,
 }: IViewFilterEditorProps) => {
@@ -48,9 +54,72 @@ export const ViewFilterEditor = ({
         }
     onChange(newValue as any)
   }
+
+  const handleAddGroupFilter = () => {
+    const newValue = _value
+      ? {
+          operator: _value.operator,
+          operands: [
+            ...(_value as IGroupFilterValue).operands,
+            {
+              operator: BinaryOperator.And,
+              operands: [
+                {
+                  operator: CompareOperator.IsNotEmpty,
+                  operands: [fields[0].name, null],
+                },
+              ],
+            },
+          ],
+        }
+      : {
+          operator: BinaryOperator.And,
+          operands: [
+            {
+              operator: CompareOperator.IsNotEmpty,
+              operands: [fields[0].name, null],
+            },
+          ],
+        }
+    onChange(newValue as any)
+  }
   const clearFilter = () => {
     handleClearFilter && handleClearFilter()
   }
+  const AddFilterComponent =
+    depth === 2 ? (
+      <div
+        onClick={handleAddFilter}
+        className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
+      >
+        <PlusIcon className="h-4 w-4"></PlusIcon>
+        add filter
+      </div>
+    ) : (
+      <Popover>
+        <PopoverTrigger className="flex w-full items-center gap-2 p-2 hover:bg-secondary">
+          <PlusIcon className="h-4 w-4"></PlusIcon>add filter
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <div
+            onClick={handleAddFilter}
+            className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
+          >
+            <PlusIcon className="h-4 w-4"></PlusIcon>
+            add filter
+          </div>
+          {depth < 2 && (
+            <div
+              onClick={handleAddGroupFilter}
+              className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
+            >
+              <CopyPlusIcon className="h-4 w-4"></CopyPlusIcon>
+              add group filter
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    )
   if (!_value) {
     return (
       <div className="flex max-w-[600px] flex-col gap-2 border border-gray-200 p-2">
@@ -60,9 +129,8 @@ export const ViewFilterEditor = ({
             "group-wrapper-root": depth === 0,
           })}
         ></div>
-        <Button variant="outline" onClick={handleAddFilter}>
-          add filter
-        </Button>
+        {AddFilterComponent}
+        <hr />
         <Button variant="outline" onClick={clearFilter}>
           delete filter
         </Button>
@@ -74,9 +142,9 @@ export const ViewFilterEditor = ({
   ) {
     if (depth === 0) {
       return (
-        <div className="flex min-w-[400px] max-w-[600px] flex-col gap-2 border border-gray-200 p-2">
+        <div className="flex min-w-[400px] max-w-[900px] flex-col gap-2 border border-gray-200 p-2">
           <div
-            className={cn("items-center", {
+            className={cn("items-start", {
               "sub-group-filter": depth > 0,
               "group-wrapper-root": depth === 0,
             })}
@@ -89,10 +157,9 @@ export const ViewFilterEditor = ({
               parentOperator={_value.operator as BinaryOperator}
             />
           </div>
-          <Button variant="outline" onClick={handleAddFilter}>
-            add filter
-          </Button>
-          <Button variant="outline" onClick={clearFilter}>
+          {AddFilterComponent}
+          <hr />
+          <Button variant="ghost" onClick={clearFilter}>
             delete filter
           </Button>
         </div>
@@ -100,18 +167,16 @@ export const ViewFilterEditor = ({
     }
     return (
       <div className="sub-group-filter flex flex-col gap-2 border border-gray-200">
-        <div className="group-wrapper-root">
+        <div className="group-wrapper-root items-start">
           <ViewFilterGroupEditor
             value={_value as IGroupFilterValue}
             fields={fields}
             depth={depth + 1}
-            onChange={() => {}}
+            onChange={onChange}
             parentOperator={_value.operator as BinaryOperator}
           />
         </div>
-        <Button variant="outline" onClick={handleAddFilter}>
-          add filter
-        </Button>
+        {AddFilterComponent}
       </div>
     )
   }
@@ -120,7 +185,6 @@ export const ViewFilterEditor = ({
       value={_value as IFilterValue}
       fields={fields}
       onChange={onChange}
-      onDelete={onDelete}
     ></ViewFilterItemEditor>
   )
 }

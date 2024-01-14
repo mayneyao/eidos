@@ -1,4 +1,4 @@
-import { Database } from "@sqlite.org/sqlite-wasm"
+import { CAPI, Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
 import { allFieldTypesMap } from "@/lib/fields"
@@ -24,7 +24,7 @@ import { ViewTable } from "./meta_table/view"
 import { TableManager } from "./sdk/table"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 import { DataChangeTrigger } from "./trigger/data_change_trigger"
-import { ALL_UDF } from "./udf"
+import { withSqlite3AllUDF } from "./udf"
 
 export type EidosTable =
   | DocTable
@@ -39,6 +39,7 @@ export type EidosTable =
 export class DataSpace {
   db: Database
   draftDb: DataSpace | undefined
+  sqlite3: Sqlite3Static
   undoRedoManager: SQLiteUndoRedo
   activeUndoManager: boolean
   dbName: string
@@ -61,9 +62,11 @@ export class DataSpace {
     db: Database,
     activeUndoManager: boolean,
     dbName: string,
+    sqlite3: Sqlite3Static,
     draftDb?: DataSpace
   ) {
     this.db = db
+    this.sqlite3 = sqlite3
     this.draftDb = draftDb
     this.dbName = dbName
     this.initUDF()
@@ -104,7 +107,8 @@ export class DataSpace {
   }
 
   private initUDF() {
-    ALL_UDF.forEach((udf) => {
+    const allUfs = withSqlite3AllUDF(this.sqlite3)
+    allUfs.forEach((udf) => {
       this.db.createFunction(udf)
     })
   }

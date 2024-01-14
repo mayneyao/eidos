@@ -13,11 +13,12 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   type TEXT NOT NULL,
   tableId TEXT NOT NULL,
   query TEXT NOT NULL,
-  properties TEXT
+  properties TEXT,
+  filter TEXT
 );
 `
 
-  JSONFields = ["properties"]
+  JSONFields = ["properties", "filter"]
   async add(data: IView): Promise<IView> {
     await this.dataSpace.exec2(
       `INSERT INTO ${this.name} (id,name,type,tableId,query) VALUES (? , ? , ? , ? , ?);`,
@@ -62,6 +63,9 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     return res.map((item) => {
       if (item.properties) {
         item.properties = JSON.parse(item.properties)
+      }
+      if (item.filter) {
+        item.filter = JSON.parse(item.filter)
       }
       return item
     })
