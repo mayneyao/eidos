@@ -2,7 +2,7 @@ import type { SelectCell } from "@/components/grid/cells/select-cell"
 
 import { uuidv4 } from "../utils"
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import { CompareOperator, GridCellKind } from "./const"
 
 export type SelectOption = {
   id: string
@@ -74,6 +74,15 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
 
   static getColorValue(colorName: string) {
     return `#${SelectField.colorNameValueMap[colorName]}`
+  }
+
+  get compareOperators() {
+    return [
+      CompareOperator.Equal,
+      CompareOperator.NotEqual,
+      CompareOperator.IsEmpty,
+      CompareOperator.IsNotEmpty,
+    ]
   }
 
   get options() {

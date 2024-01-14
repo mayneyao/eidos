@@ -1,12 +1,20 @@
 import type { TextCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import {
+  CompareOperator,
+  GridCellKind,
+  TEXT_BASED_COMPARE_OPERATORS,
+} from "./const"
 
 type TitleProperty = {}
 
 export class TitleField extends BaseField<TextCell, TitleProperty> {
   static type = "title"
+
+  get compareOperators() {
+    return TEXT_BASED_COMPARE_OPERATORS
+  }
 
   rawData2JSON(rawData: string) {
     return rawData

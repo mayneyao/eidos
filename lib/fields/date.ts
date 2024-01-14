@@ -1,7 +1,7 @@
 import type { DatePickerCell } from "@/components/grid/cells/date-picker-cell"
 
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import { CompareOperator, GridCellKind } from "./const"
 
 type DateProperty = {}
 
@@ -12,6 +12,10 @@ export class DateField extends BaseField<DateCell, DateProperty, string> {
 
   rawData2JSON(rawData: string) {
     return rawData
+  }
+
+  get compareOperators() {
+    return [CompareOperator.IsEmpty, CompareOperator.IsNotEmpty]
   }
 
   getCellContent(rawData: string | undefined): DateCell {

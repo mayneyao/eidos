@@ -1,7 +1,7 @@
 import type { FileCell } from "@/components/grid/cells/file/file-cell"
 
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import { CompareOperator, GridCellKind } from "./const"
 
 export type FileProperty = {
   proxyUrl?: string
@@ -12,6 +12,10 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
 
   rawData2JSON(rawData: string) {
     return rawData
+  }
+
+  get compareOperators() {
+    return [CompareOperator.IsEmpty, CompareOperator.IsNotEmpty]
   }
 
   static getDefaultProperty() {

@@ -1,7 +1,11 @@
 import type { UriCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import {
+  CompareOperator,
+  GridCellKind,
+  TEXT_BASED_COMPARE_OPERATORS,
+} from "./const"
 
 type URLProperty = {}
 
@@ -9,6 +13,10 @@ type URLCell = UriCell
 
 export class URLField extends BaseField<URLCell, URLProperty> {
   static type = "url"
+
+  get compareOperators() {
+    return TEXT_BASED_COMPARE_OPERATORS
+  }
 
   rawData2JSON(rawData: string) {
     return rawData

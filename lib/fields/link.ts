@@ -1,7 +1,11 @@
 import { LinkCell } from "@/components/grid/cells/link-cell"
 
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import {
+  CompareOperator,
+  GridCellKind,
+  TEXT_BASED_COMPARE_OPERATORS,
+} from "./const"
 
 type LinkProperty = {
   linkTable: string
@@ -18,6 +22,10 @@ export class LinkField extends BaseField<LinkCell, LinkProperty> {
 
   rawData2JSON(rawData: string) {
     return rawData
+  }
+
+  get compareOperators() {
+    return TEXT_BASED_COMPARE_OPERATORS
   }
 
   getCellContent(rawData: LinkCellData[]): LinkCell {
