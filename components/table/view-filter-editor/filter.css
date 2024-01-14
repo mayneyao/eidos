@@ -1,0 +1,19 @@
+.group-wrapper-root {
+  display: grid;
+  grid-template-columns:
+    [boolean-start] 60px [boolean-end property-start] minmax(min-content, 120px)
+    [property-end operator-start] 110px [operator-end value-start] auto [value-end menu-start] 32px [menu-end];
+  grid-auto-rows: minmax(32px, auto);
+  gap: 8px;
+  padding: 8px 8px 0px;
+  place-items: start stretch;
+}
+
+.sub-group-filter {
+  grid-column: property-start / value-end;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 4px;
+  box-shadow: rgba(55, 53, 47, 0.1) 0px 0px 0px 1px;
+  margin: 1px;
+  align-self: stretch;
+}

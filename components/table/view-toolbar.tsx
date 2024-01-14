@@ -11,8 +11,9 @@ import { useTable } from "@/hooks/use-table"
 
 import { Button } from "../ui/button"
 import { useCurrentView, useViewOperation } from "./hooks"
+import { ViewFilter } from "./view-filter"
 import { ViewItem } from "./view-item"
-import { ViewQueryEditor } from "./view-query-editor"
+import { ViewSort } from "./view-sort"
 
 export const ViewToolbar = (props: {
   tableName: string
@@ -88,9 +89,16 @@ export const ViewToolbar = (props: {
             <PlusIcon />
           </Button>
         </div>
-        <div>{/* <Button size="sm">New</Button> */}</div>
+        <div className="flex gap-2">
+          <ViewFilter view={currentView!} />
+          <ViewSort view={currentView!} />
+          <Button size="sm">
+            <PlusIcon className="h-4 w-4"></PlusIcon>
+            New
+          </Button>
+        </div>
       </div>
-      <ViewQueryEditor view={currentView!} />
+      {/* <ViewQueryEditor view={currentView!} /> */}
     </div>
   )
 }

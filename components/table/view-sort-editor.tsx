@@ -12,8 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { useCurrentView } from "../hooks"
-import { useViewQuery } from "./use-view-query"
+import { FieldSelector } from "./field-selector"
+import { useCurrentView } from "./hooks"
+import { useViewQuery } from "./hooks/use-view-query"
 
 export type OrderByItem = {
   column: string
@@ -109,26 +110,11 @@ export function ViewSortEditor(props: IViewEditorProps) {
         return (
           <div className="mt-4 flex items-center space-x-2" key={item.column}>
             {/* <MousePointerIcon className="text-gray-400" /> */}
-            <Select
+            <FieldSelector
+              fields={uiColumns}
               value={item.column}
-              onValueChange={(value) => onValueChange(value, index)}
-            >
-              <SelectTrigger id="sort-field-2">
-                <SelectValue placeholder="Tags" />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                {uiColumns.map((column) => {
-                  return (
-                    <SelectItem
-                      value={column.table_column_name}
-                      key={column.table_column_name}
-                    >
-                      {column.name}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
+              onChange={(value) => onValueChange(value, index)}
+            />
             <Select
               value={item.order}
               onValueChange={(value) => onOrderChange(value, index)}

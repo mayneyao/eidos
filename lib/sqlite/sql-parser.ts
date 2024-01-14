@@ -1,5 +1,10 @@
 import {
+  Expr,
+  ExprBinary,
+  ExprRef,
+  LogicOperator,
   SelectFromStatement,
+  SelectStatement,
   Statement,
   astMapper,
   parse,
@@ -8,8 +13,9 @@ import {
 } from "pgsql-ast-parser"
 
 import type { IField } from "@/lib/store/interface"
+import { FilterValueType } from "@/components/table/view-filter-editor/interface"
 
-import { FieldType } from "../fields/const"
+import { BinaryOperator, CompareOperator, FieldType } from "../fields/const"
 
 export const getColumnsFromQuery = (sql?: string) => {
   if (!sql) return []
@@ -88,3 +94,4 @@ export const transformSql = (
   const modified = mapper.statement(parseFirst(sql))
   return toSql.statement(modified!)
 }
+

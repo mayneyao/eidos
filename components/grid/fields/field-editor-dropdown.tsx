@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
 import {
   ArrowDownNarrowWideIcon,
@@ -6,11 +5,11 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { useLayer } from "react-laag"
 
-import { cn } from "@/lib/utils"
-import { useTable } from "@/hooks/use-table"
-import { useUiColumns } from "@/hooks/use-ui-columns"
+import { CommonMenuItem } from "@/components/common-menu-item"
+import { useCurrentView, useViewOperation } from "@/components/table/hooks"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,9 +21,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { CommonMenuItem } from "@/components/common-menu-item"
-import { useCurrentView } from "@/components/table/hooks"
-import { useViewQuery } from "@/components/table/view-query-editor/use-view-query"
+import { useTable } from "@/hooks/use-table"
+import { useUiColumns } from "@/hooks/use-ui-columns"
+import { cn } from "@/lib/utils"
 
 import { useTableAppStore } from "../store"
 import { checkNewFieldNameIsOk } from "./helper"
@@ -51,7 +50,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [currentColIndex, setCurrentColIndex] = useState<number>()
   const { currentView } = useCurrentView()
-  const { addSort } = useViewQuery(currentView!)
+  const { addSort } = useViewOperation()
   const inputRef = useRef<HTMLInputElement>(null)
   const { updateFieldName } = useTable(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
@@ -147,13 +146,13 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
 
   const addASCSort = () => {
     if (currentUiColumn) {
-      addSort(currentUiColumn.table_column_name, "ASC")
+      addSort(currentView!, currentUiColumn.table_column_name, "ASC")
     }
     setMenu(undefined)
   }
   const addDESCSort = () => {
     if (currentUiColumn) {
-      addSort(currentUiColumn.table_column_name, "DESC")
+      addSort(currentView!, currentUiColumn.table_column_name, "DESC")
     }
     setMenu(undefined)
   }

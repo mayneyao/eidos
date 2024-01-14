@@ -30,6 +30,8 @@ import { useTableAppStore } from "./store"
 import "./styles.css"
 import { IGridViewProperties, IView } from "@/lib/store/IView"
 
+import { useCurrentView } from "../table/hooks"
+import { useViewCount } from "../table/hooks/use-view-count"
 import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"
 
@@ -74,6 +76,9 @@ export default function GridView(props: IGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
+
+  const { currentView } = useCurrentView()
+  const { count: viewCount } = useViewCount(currentView)
   const {
     count,
     tableSchema,
@@ -215,7 +220,7 @@ export default function GridView(props: IGridProps) {
               maxColumnWidth={2000}
               fillHandle={true}
               columns={columns ?? []}
-              rows={count}
+              rows={viewCount}
               rightElement={
                 <Button
                   variant="ghost"

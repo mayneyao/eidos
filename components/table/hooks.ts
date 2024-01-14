@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { SelectFromStatement, parseFirst, toSql } from "pgsql-ast-parser"
 import { useSearchParams } from "react-router-dom"
 
 import {
@@ -38,10 +39,40 @@ export const useViewOperation = () => {
     }
   }
 
+  const addSort = (view: IView, column: string, direction: "ASC" | "DESC") => {
+    const parsedSql = parseFirst(view?.query ?? "") as SelectFromStatement
+    if (parsedSql?.orderBy?.some((item) => (item.by as any).name === column)) {
+      const order = parsedSql.orderBy!.find(
+        (item) => (item.by as any).name === column
+      )!
+      if (order.order !== direction) {
+        order.order = direction
+      } else {
+        return
+      }
+    } else {
+      parsedSql.orderBy = [
+        ...(parsedSql.orderBy || []),
+        {
+          by: {
+            type: "ref",
+            name: column,
+          },
+          order: direction,
+        },
+      ]
+    }
+    const newSql = toSql.statement(parsedSql)
+    updateView(view!.id, {
+      query: newSql,
+    })
+  }
+
   return {
     addView,
     delView,
     updateView,
+    addSort,
   }
 }
 
