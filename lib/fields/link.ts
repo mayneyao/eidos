@@ -2,9 +2,7 @@ import { LinkCell } from "@/components/grid/cells/link-cell"
 
 import { BaseField } from "./base"
 import {
-  CompareOperator,
-  GridCellKind,
-  TEXT_BASED_COMPARE_OPERATORS,
+  GridCellKind
 } from "./const"
 
 type LinkProperty = {
@@ -25,7 +23,7 @@ export class LinkField extends BaseField<LinkCell, LinkProperty> {
   }
 
   get compareOperators() {
-    return TEXT_BASED_COMPARE_OPERATORS
+    return []
   }
 
   getCellContent(rawData: LinkCellData[]): LinkCell {
