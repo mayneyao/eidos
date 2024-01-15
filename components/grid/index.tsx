@@ -135,7 +135,7 @@ export default function GridView(props: IGridProps) {
   const freezeColumns = isSm ? 0 : 1
 
   const config = useMemo(() => {
-    const _config = props.isEmbed
+    let _config = props.isEmbed
       ? {
           // height: "100%",
           experimental: {
@@ -143,12 +143,29 @@ export default function GridView(props: IGridProps) {
           },
         }
       : {}
+    const allWidth = columns.reduce((acc, cur: any) => acc + cur.width, 0)
+    // fix scroll bar bug
+    if ((size?.width || 0) < allWidth) {
+      _config = {
+        ..._config,
+        experimental: {
+          paddingBottom: 0,
+        },
+      }
+    } else {
+      _config = {
+        ..._config,
+        experimental: {
+          paddingBottom: 14,
+        },
+      }
+    }
     return {
       ...defaultConfig,
       freezeColumns,
       ..._config,
     }
-  }, [freezeColumns, props.isEmbed])
+  }, [freezeColumns, props.isEmbed, size?.width, columns])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
