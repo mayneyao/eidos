@@ -54,6 +54,13 @@ export const useUiColumns = (tableName: string, databaseName: string) => {
     return map
   }, [uiColumns])
 
+  const fieldRawColumnNameFieldMap = useMemo(() => {
+    return uiColumns.reduce((acc, cur) => {
+      acc[cur.table_column_name] = cur
+      return acc
+    }, {} as Record<string, IField>)
+  }, [uiColumns])
+
   const getFieldByIndex = useCallback(
     (index: number) => {
       return uiColumns[index]
@@ -68,5 +75,6 @@ export const useUiColumns = (tableName: string, databaseName: string) => {
     getFieldByIndex,
     nameRawIdMap,
     rawIdNameMap,
+    fieldRawColumnNameFieldMap,
   }
 }

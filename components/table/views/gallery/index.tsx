@@ -59,6 +59,7 @@ export default function GalleryView({
             getFieldByIndex,
             rawIdNameMap,
             tableId,
+            space
           }}
           className="pb-[128px]"
         >
