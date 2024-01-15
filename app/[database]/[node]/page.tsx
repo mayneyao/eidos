@@ -1,25 +1,28 @@
-import { useCurrentNode } from "@/hooks/use-current-node"
+import { DocProperty } from "@/components/doc-property"
+import { Editor } from "@/components/doc/editor"
+import { Table } from "@/components/table"
+import { Button } from "@/components/ui/button"
+import { useCurrentNode, useNodeMap } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useEmoji } from "@/hooks/use-emoji"
 import { useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { Button } from "@/components/ui/button"
-import { DocProperty } from "@/components/doc-property"
-import { Editor } from "@/components/doc/editor"
-import { Table } from "@/components/table"
 
 import { DefaultColors } from "./image-selector"
 import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
 
-export default function TablePage() {
+export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
   const params = useCurrentPathInfo()
-  const node = useCurrentNode()
   const { updateNodeName } = useSqlite(params.database)
+  const nodeMap = useNodeMap()
 
   const { getEmoji } = useEmoji()
   const { updateIcon, updateCover } = useNode()
-
+  if (!nodeId) {
+    return null
+  }
+  const node = nodeMap[nodeId]
   const handleAddIcon = async () => {
     const emojiNative = await getEmoji(node?.name)
     await updateIcon(node?.id!, emojiNative)
@@ -29,6 +32,7 @@ export default function TablePage() {
       DefaultColors[Math.floor(Math.random() * DefaultColors.length)]
     await updateCover(node?.id!, `color://${color}`)
   }
+
   return (
     <>
       {node?.type === "table" && (
@@ -37,7 +41,7 @@ export default function TablePage() {
       {node?.type === "doc" && (
         <Editor
           isEditable
-          docId={params.docId!}
+          docId={node.id}
           title={node.name}
           showTitle
           onTitleChange={(title) => {
@@ -68,4 +72,8 @@ export default function TablePage() {
       )}
     </>
   )
+}
+export default function TablePage() {
+  const node = useCurrentNode()
+  return <NodeComponent nodeId={node?.id} />
 }

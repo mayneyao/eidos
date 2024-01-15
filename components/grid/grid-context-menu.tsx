@@ -3,6 +3,7 @@ import { useCallback } from "react"
 import { IField } from "@/lib/store/interface"
 import { shortenId } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useGoto } from "@/hooks/use-goto"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
@@ -31,6 +32,7 @@ export function GridContextMenu({
   const count = selection.current?.range.height ?? 0
   const { space, tableId } = useCurrentPathInfo()
   const { getOrCreateTableSubDoc } = useSqlite(space)
+  const { setSubPage, clearSubPage } = useCurrentSubPage()
 
   const goto = useGoto()
   const getRow = useCallback(() => {
@@ -82,7 +84,7 @@ export function GridContextMenu({
       tableId: tableId!,
     })
     if (right) {
-      goto(space, tableId, shortId)
+      setSubPage(shortId)
     } else {
       goto(space, shortId)
     }
@@ -101,11 +103,11 @@ export function GridContextMenu({
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onSelect={() => openRow()}>
+        <ContextMenuItem inset onSelect={() => openRow(true)}>
           Open
         </ContextMenuItem>
-        <ContextMenuItem inset onSelect={() => openRow(true)} disabled>
-          Open Right
+        <ContextMenuItem inset onSelect={() => openRow()}>
+          Open in full page
         </ContextMenuItem>
         <ContextMenuItem
           inset

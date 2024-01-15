@@ -78,22 +78,17 @@ export default function GridView(props: IGridProps) {
   const size = useSize(containerRef)
 
   const { currentView } = useCurrentView()
-  const { count: viewCount } = useViewCount(currentView)
+  const { count: viewCount, setCount } = useViewCount(currentView)
   const {
-    count,
     tableSchema,
     // deleteFieldByColIndex,
     // addField,
     deleteRows,
     getRowData,
     addRow,
-    setCount,
   } = useTable(tableName, databaseName)
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
-  const { uiColumns, uiColumnMap, getFieldByIndex } = useUiColumns(
-    tableName,
-    databaseName
-  )
+  const { uiColumns, getFieldByIndex } = useUiColumns(tableName, databaseName)
   const { onColumnResize, columns } = useColumns(uiColumns, props.view!)
 
   const {

@@ -38,5 +38,6 @@ export const useViewCount = (view?: IView) => {
 
   return {
     count,
+    setCount,
   }
 }

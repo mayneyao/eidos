@@ -33,7 +33,7 @@ export const DateEditor = ({
           !_value && "text-muted-foreground"
         )}
       >
-        {new Date(_value).toLocaleDateString()}
+        {_value ? new Date(_value).toLocaleDateString() : ""}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <Calendar

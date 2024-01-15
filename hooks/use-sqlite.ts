@@ -265,9 +265,10 @@ export const useSqlite = (dbName?: string) => {
     tableId: string
     title: string
   }) => {
-    if (!sqlWorker) return
+    if (!sqlWorker) return null
     const { docId, tableId, title } = data
     const res = await sqlWorker.getTreeNode(docId)
+    let node = res
     if (!res) {
       const treeNode = await sqlWorker.addTreeNode({
         id: docId,
@@ -277,7 +278,10 @@ export const useSqlite = (dbName?: string) => {
       })
       addNode2List(treeNode)
       await sqlWorker.addDoc(docId, "", "")
+      node = treeNode
     }
+    node && addNode(node)
+    return node
   }
 
   const updateDoc = async (

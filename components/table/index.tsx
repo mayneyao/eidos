@@ -1,12 +1,12 @@
-import React from "react"
 
 import { ViewTypeEnum } from "@/lib/store/IView"
 
 import GridView from "../grid"
 import { useCurrentView } from "./hooks"
 import { ViewToolbar } from "./view-toolbar"
+import GalleryView from "./views/gallery"
 
-const GalleryView = React.lazy(() => import("./views/gallery"))
+// const GalleryView = React.lazy(() => import("./views/gallery"))
 
 interface ITableProps {
   space: string

@@ -109,6 +109,7 @@
     "tailwindcss-animate": "^1.0.5",
     "utf-8-validate": "^6.0.3",
     "uuid": "^9.0.0",
+    "vaul": "^0.8.0",
     "workbox-precaching": "^7.0.0",
     "ws": "^8.13.0",
     "yjs": "^13.6.4",

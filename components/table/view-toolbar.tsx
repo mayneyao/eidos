@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { PlusIcon } from "lucide-react"
 import {
   createSearchParams,
@@ -7,7 +7,18 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
+import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { NodeComponent } from "@/app/[database]/[node]/page"
 
 import { Button } from "../ui/button"
 import { useCurrentView, useViewOperation } from "./hooks"
@@ -28,6 +39,37 @@ export const ViewToolbar = (props: {
   const { currentView, setCurrentViewId, defaultViewId } = useCurrentView()
   const [searchParams] = useSearchParams()
   const sharePeerId = searchParams.get("peerId")
+  const { addRow } = useTable(tableName, space)
+  const { getOrCreateTableSubDoc } = useSqlite()
+  const [open, setOpen] = useState(false)
+  const tableId = getTableIdByRawTableName(tableName)
+  const { subPageId, setSubPage, clearSubPage } = useCurrentSubPage()
+
+  const handleAddRow = async () => {
+    const uuid = await addRow()
+    if (uuid) {
+      const shortId = shortenId(uuid)
+      await getOrCreateTableSubDoc({
+        docId: shortId,
+        title: "",
+        tableId: tableId,
+      })
+      setSubPage(shortId)
+    }
+  }
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      clearSubPage()
+    }
+    setOpen(open)
+  }
+
+  useEffect(() => {
+    if (subPageId) {
+      setOpen(true)
+    }
+  }, [subPageId])
 
   const jump2View = useCallback(
     (viewId: string) => {
@@ -92,13 +134,22 @@ export const ViewToolbar = (props: {
         <div className="flex gap-2">
           <ViewFilter view={currentView!} />
           <ViewSort view={currentView!} />
-          <Button size="sm">
+          <Button size="sm" onClick={handleAddRow}>
             <PlusIcon className="h-4 w-4"></PlusIcon>
             New
           </Button>
+          <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+            <DialogTrigger>
+              <div></div>
+            </DialogTrigger>
+            <DialogContent className="h-[95vh] min-w-[756px] p-0">
+              <ScrollArea className="h-full">
+                <NodeComponent nodeId={subPageId} />
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
-      {/* <ViewQueryEditor view={currentView!} /> */}
     </div>
   )
 }
