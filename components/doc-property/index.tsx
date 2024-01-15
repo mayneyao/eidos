@@ -2,7 +2,7 @@ import { useMemo } from "react"
 import { useParams } from "react-router-dom"
 
 import { allFieldTypesMap } from "@/lib/fields"
-import { getRawTableNameById } from "@/lib/utils"
+import { getRawTableNameById, nonNullable } from "@/lib/utils"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { makeHeaderIcons } from "../grid/fields/header-icons"
@@ -27,18 +27,24 @@ export const DocProperty = (props: IDocPropertyProps) => {
     docId: props.docId,
   })
   const fields = useMemo(() => {
-    return Object.entries(properties).map(([key, value]) => {
-      const name = rawIdNameMap.get(key)!
-      const uiColumn = uiColumnMap.get(name)!
-      const iconSvgString = icons[uiColumn.type]({
-        bgColor: "#aaa",
-        fgColor: "currentColor",
+    return Object.entries(properties)
+      .map(([key, value]) => {
+        const name = rawIdNameMap.get(key)!
+        const uiColumn = uiColumnMap.get(name)
+        // error data
+        if (!uiColumn) {
+          return
+        }
+        const iconSvgString = icons[uiColumn.type]({
+          bgColor: "#aaa",
+          fgColor: "currentColor",
+        })
+        const fieldCls = allFieldTypesMap[uiColumn.type]
+        const field = new fieldCls(uiColumn)
+        const cell = field.getCellContent(value as never)
+        return { uiColumn, cell, iconSvgString, name, value }
       })
-      const fieldCls = allFieldTypesMap[uiColumn.type]
-      const field = new fieldCls(uiColumn)
-      const cell = field.getCellContent(value as never)
-      return { uiColumn, cell, iconSvgString, name, value }
-    })
+      .filter(nonNullable)
   }, [properties, rawIdNameMap, uiColumnMap])
 
   const handlePropertyChange = (key: string, value: any) => {

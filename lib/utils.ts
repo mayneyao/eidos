@@ -4,6 +4,10 @@ import { v4 as uuidv4 } from "uuid"
 
 export { v4 as uuidv4 } from "uuid"
 
+export function nonNullable<T>(value: T): value is NonNullable<T> {
+  return value != null
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
