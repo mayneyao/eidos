@@ -1,3 +1,4 @@
+import React from "react"
 import { Trash2Icon } from "lucide-react"
 
 import { BinaryOperator } from "@/lib/fields/const"
@@ -52,7 +53,7 @@ export const ViewFilterGroupEditor = ({
     <>
       {_value?.operands.map((operand, index) => {
         return (
-          <>
+          <React.Fragment key={index}>
             {index === 0 && <div>Where</div>}
             {index === 1 && (
               <OpSelector
@@ -73,9 +74,9 @@ export const ViewFilterGroupEditor = ({
             ></ViewFilterEditor>
             <Trash2Icon
               onClick={() => handleDelete(index)}
-              className="h-4 w-4 cursor-pointer"
+              className="m-1 h-4 w-4 cursor-pointer opacity-70"
             ></Trash2Icon>
-          </>
+          </React.Fragment>
         )
       })}
     </>
@@ -95,10 +96,10 @@ export const OpSelector = ({
         <SelectValue placeholder="Field" />
       </SelectTrigger>
       <SelectContent position="popper">
-        <SelectItem value={BinaryOperator.And} hideCheckIcon className="pl-2">
+        <SelectItem value={BinaryOperator.And} hidecheckicon className="pl-2">
           <span className="flex items-center gap-2 text-sm">AND</span>
         </SelectItem>
-        <SelectItem value={BinaryOperator.Or} hideCheckIcon className="pl-2">
+        <SelectItem value={BinaryOperator.Or} hidecheckicon className="pl-2">
           <span className="flex items-center gap-2 text-sm">OR</span>
         </SelectItem>
       </SelectContent>

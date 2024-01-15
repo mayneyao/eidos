@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react"
-import { CalendarIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -29,15 +27,13 @@ export const DateEditor = ({
 
   return (
     <Popover>
-      <PopoverTrigger>
-        <div
-          className={cn(
-            "w-[280px] justify-start text-left font-normal",
-            !_value && "text-muted-foreground"
-          )}
-        >
-          {new Date(_value).toLocaleDateString()}
-        </div>
+      <PopoverTrigger
+        className={cn(
+          "flex h-full w-[280px] items-center  justify-start font-normal",
+          !_value && "text-muted-foreground"
+        )}
+      >
+        {new Date(_value).toLocaleDateString()}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <Calendar

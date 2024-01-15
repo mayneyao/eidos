@@ -24,7 +24,6 @@ export const useViewCount = (view?: IView) => {
   useEffect(() => {
     if (view?.query.length) {
       const parsedSql = parseFirst(view?.query ?? "") as SelectFromStatement
-      console.log(parsedSql)
       parsedSql.columns = [
         {
           expr: countExpr as Expr,

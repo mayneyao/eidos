@@ -90,14 +90,14 @@ export const ViewFilterEditor = ({
     depth === 2 ? (
       <div
         onClick={handleAddFilter}
-        className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
+        className="flex cursor-pointer items-center gap-2 rounded-sm p-2 hover:bg-secondary"
       >
         <PlusIcon className="h-4 w-4"></PlusIcon>
         add filter
       </div>
     ) : (
       <Popover>
-        <PopoverTrigger className="flex w-full items-center gap-2 p-2 hover:bg-secondary">
+        <PopoverTrigger className="flex w-full items-center gap-2 rounded-sm p-2 hover:bg-secondary">
           <PlusIcon className="h-4 w-4"></PlusIcon>add filter
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
@@ -105,7 +105,7 @@ export const ViewFilterEditor = ({
             onClick={handleAddFilter}
             className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
           >
-            <PlusIcon className="h-4 w-4"></PlusIcon>
+            <PlusIcon className="h-4 w-4 opacity-70"></PlusIcon>
             add filter
           </div>
           {depth < 2 && (
@@ -113,7 +113,7 @@ export const ViewFilterEditor = ({
               onClick={handleAddGroupFilter}
               className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
             >
-              <CopyPlusIcon className="h-4 w-4"></CopyPlusIcon>
+              <CopyPlusIcon className="h-4 w-4 opacity-70"></CopyPlusIcon>
               add group filter
             </div>
           )}
@@ -129,6 +129,7 @@ export const ViewFilterEditor = ({
             "group-wrapper-root": depth === 0,
           })}
         ></div>
+        <span className="select-none text-sm">There is no filter, add one</span>
         {AddFilterComponent}
         <hr />
         <Button variant="outline" onClick={clearFilter}>

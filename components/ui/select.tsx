@@ -80,7 +80,7 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & {
-    hideCheckIcon?: boolean
+    hidecheckicon?: boolean
   }
 >(({ className, children, ...props }, ref) => (
   <SelectPrimitive.Item
@@ -91,7 +91,7 @@ const SelectItem = React.forwardRef<
     )}
     {...props}
   >
-    {!props.hideCheckIcon && (
+    {!props.hidecheckicon && (
       <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
           <Check className="h-4 w-4" />

@@ -37,7 +37,7 @@ export const FieldSelector = ({
             <SelectItem
               value={column.table_column_name}
               key={column.table_column_name}
-              hideCheckIcon
+              hidecheckicon
               className="pl-2"
             >
               <span className="flex items-center gap-2">

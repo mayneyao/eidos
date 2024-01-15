@@ -236,7 +236,6 @@ export const transformFilterItems2SqlExpr = (
           op: "IS NOT NULL",
         }
       default:
-        console.log("filterItems", filterItems)
         return {
           type: "binary",
           op: reverseOpMap[operator] as any,

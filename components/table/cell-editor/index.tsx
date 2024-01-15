@@ -1,13 +1,13 @@
-import { useClickAway, useDebounceFn } from "ahooks"
 import { useRef, useState } from "react"
+import { useClickAway, useDebounceFn } from "ahooks"
 
-import { FileCell } from "@/components/grid/cells/file/file-cell"
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { FileField } from "@/lib/fields/file"
 import { SelectField } from "@/lib/fields/select"
 import { IField } from "@/lib/store/interface"
 import { cn } from "@/lib/utils"
+import { FileCell } from "@/components/grid/cells/file/file-cell"
 
 import { CheckboxEditor } from "./checkbox-editor"
 import { DateEditor } from "./date-editor"
@@ -130,7 +130,7 @@ export const CellEditor = ({
     <div
       ref={editorRef}
       onClick={() => setIsEditing(true)}
-      className={cn(className, {
+      className={cn("h-full w-full", className, {
         "hover:bg-secondary": !_isEditing,
       })}
     >

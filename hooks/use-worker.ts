@@ -16,7 +16,6 @@ export const useWorker = () => {
   const initWorker = useCallback(() => {
     const worker = getWorker()
     worker.onmessage = async (event) => {
-      console.log(event)
       if (event.data === "init") {
         console.log("sqlite is loaded")
         setInitialized(true)
