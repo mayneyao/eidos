@@ -20,7 +20,7 @@ export const TextBaseEditor = ({
   }, [_value, onChange])
 
   if (!isEditing) {
-    return <div className="flex h-full w-full items-center">{_value}</div>
+    return <div className="flex h-full w-full items-center truncate">{_value}</div>
   }
   return (
     <div className="w-full">

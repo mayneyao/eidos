@@ -26,7 +26,11 @@ export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
         isEmbed={Boolean(isEmbed)}
       />
       {currentView?.type === ViewTypeEnum.Grid && (
-        <GridView tableName={tableName!} databaseName={space} view={currentView} />
+        <GridView
+          tableName={tableName!}
+          databaseName={space}
+          view={currentView}
+        />
       )}
       {currentView?.type === ViewTypeEnum.Gallery && (
         <GalleryView space={space} tableName={tableName} view={currentView} />

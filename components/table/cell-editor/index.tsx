@@ -45,6 +45,8 @@ interface ICellEditorProps {
   onChange: (value: any) => void
   className?: string
   editorMode?: boolean
+  disableTextBaseEditor?: boolean
+  disabled?: boolean
 }
 export const CellEditor = ({
   field,
@@ -52,6 +54,8 @@ export const CellEditor = ({
   onChange,
   className,
   editorMode,
+  disableTextBaseEditor,
+  disabled,
 }: ICellEditorProps) => {
   const { run } = useDebounceFn(onChange, { wait: 500 })
   const [isEditing, setIsEditing] = useState(false)
@@ -63,27 +67,19 @@ export const CellEditor = ({
 
   if (!field) return null
 
-  const _isEditing = editorMode ? true : isEditing
+  const _isEditing = disabled ? false : editorMode ? true : isEditing
   const getEditor = () => {
     const Editor = CellEditorMap[field.type]
     switch (field.type) {
       case FieldType.Text:
       case FieldType.Title:
-        return (
-          <TextBaseEditor
-            type="text"
-            value={value}
-            onChange={run}
-            isEditing={_isEditing}
-          />
-        )
       case FieldType.URL:
         return (
           <TextBaseEditor
             type="text"
             value={value}
             onChange={run}
-            isEditing={_isEditing}
+            isEditing={disableTextBaseEditor ? false : _isEditing}
           />
         )
       case FieldType.Number:
@@ -92,7 +88,7 @@ export const CellEditor = ({
             type="number"
             value={value}
             onChange={run}
-            isEditing={_isEditing}
+            isEditing={disableTextBaseEditor ? false : _isEditing}
           />
         )
       case FieldType.Select:

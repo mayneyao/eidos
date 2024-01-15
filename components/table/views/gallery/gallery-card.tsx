@@ -1,7 +1,10 @@
-import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { FileField } from "@/lib/fields/file"
 import { IField } from "@/lib/store/interface"
+import { useRowDataOperation } from "@/components/doc-property/hook"
+
+import { CellEditor } from "../../cell-editor"
+import { FieldIcon } from "../../field-icon"
 
 interface ICardProps {
   columnIndex: number
@@ -23,15 +26,24 @@ export const GalleryCard = ({
   style,
   data,
 }: ICardProps) => {
-  const { items, columnCount, uiColumns, uiColumnMap, rawIdNameMap } = data
+  const { items, columnCount, uiColumns, uiColumnMap, rawIdNameMap, tableId } =
+    data
   const item = items[rowIndex * columnCount + columnIndex]
+  const { setProperty } = useRowDataOperation()
   const coverField = (uiColumns as IField[]).find(
     (c) => c.type == FieldType.File
   )
   if (!item) {
     return <div style={style}></div>
   }
-
+  const handleChange = (column: string, value: any) => {
+    console.log(tableId, item._id, {
+      [column]: value,
+    })
+    setProperty(tableId, item._id, {
+      [column]: value,
+    })
+  }
   const coverUrl = getCoverUrl(item, coverField)
   const fieldKeys = Object.keys(item).filter((k) => k != "_id" && k != "title")
   return (
@@ -48,20 +60,34 @@ export const GalleryCard = ({
           <div className="truncate" title={item?.title}>
             {item?.title}
           </div>
+          <hr className="my-1" />
           {fieldKeys.map((k) => {
             const fieldName = rawIdNameMap.get(k)
-            const field = uiColumnMap.get(fieldName) as IField
-            const value = item[k]
-            if (field?.type == FieldType.URL) {
-              return (
-                <div key={k} className="truncate" title={value}>
-                  <a href={value}>{value}</a>
-                </div>
-              )
+            const uiColumn = uiColumnMap.get(fieldName) as IField
+            if (!uiColumn) {
+              return null
             }
+            const value = item[k]
             return (
-              <div key={k} className="truncate" title={value}>
-                {value}
+              <div
+                key={uiColumn.name}
+                className="flex w-full items-center gap-2"
+              >
+                <div className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 rounded-sm p-1">
+                  <FieldIcon type={uiColumn.type} />
+                  {fieldName}
+                </div>
+                <CellEditor
+                  field={uiColumn}
+                  value={value}
+                  onChange={(_value) => {
+                    if (value != _value) {
+                      handleChange(uiColumn.table_column_name, _value)
+                    }
+                  }}
+                  className="flex h-10 w-full min-w-[100px] cursor-pointer items-center rounded-sm px-1 hover:bg-none"
+                  disableTextBaseEditor
+                />
               </div>
             )
           })}

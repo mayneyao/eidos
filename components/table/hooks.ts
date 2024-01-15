@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from "react"
 import { SelectFromStatement, parseFirst, toSql } from "pgsql-ast-parser"
+import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { useTable } from "@/hooks/use-table"
+import { useUiColumns } from "@/hooks/use-ui-columns"
 import {
   DataUpdateSignalType,
   EidosDataEventChannelMsgType,
@@ -10,10 +14,6 @@ import {
 import { transformSql } from "@/lib/sqlite/sql-parser"
 import { IView } from "@/lib/store/IView"
 import { getRawTableNameById } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { useTable } from "@/hooks/use-table"
-import { useUiColumns } from "@/hooks/use-ui-columns"
 
 export const useViewOperation = () => {
   const { tableId, tableName, space } = useCurrentPathInfo()

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react"
-import { IView } from "@/lib/store/IView"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useWhyDidYouUpdate } from "ahooks"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { VariableSizeGrid as Grid } from "react-window"
 
+import { IView } from "@/lib/store/IView"
+import { getTableIdByRawTableName } from "@/lib/utils"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { useViewData } from "../../hooks"
@@ -29,6 +31,8 @@ export default function GalleryView({
   const { columnCount, cardWidth } = getColumnWidthAndCount(
     size?.scaledWidth ?? 0
   )
+  const tableId = getTableIdByRawTableName(tableName)
+
   const cardHeight = computeCardHeight(view.query, rawIdNameMap.size)
   useEffect(() => {
     if (ref.current) {
@@ -54,6 +58,7 @@ export default function GalleryView({
             uiColumnMap,
             getFieldByIndex,
             rawIdNameMap,
+            tableId,
           }}
           className="pb-[128px]"
         >

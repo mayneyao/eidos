@@ -33,7 +33,7 @@ export class DateField extends BaseField<DateCell, DateProperty, string> {
       data: {
         kind: "date-picker-cell",
         date: rawData ? new Date(rawData) : undefined,
-        displayDate: rawData ? new Date(rawData).toLocaleString() : "",
+        displayDate: rawData ? new Date(rawData).toLocaleDateString() : "",
         format: "date",
       },
       copyData: rawData ?? "",
