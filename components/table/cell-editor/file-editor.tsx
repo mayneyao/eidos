@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
 
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
   FileCell,
   FileCellEditor,
 } from "@/components/grid/cells/file/file-cell"
@@ -48,7 +53,7 @@ IFileEditorProps) => {
   if (!isEditing) {
     return (
       <div
-        className="flex h-full w-full items-center py-1"
+        className="flex h-full w-full items-center gap-2 py-1"
         onClick={() => setIsEditing(true)}
       >
         {_value.data.displayData.map((url) => {
@@ -58,11 +63,18 @@ IFileEditorProps) => {
     )
   }
   return (
-    <div className="relative h-full w-full" ref={editorRef}>
-      <div className="absolute left-0 top-0 z-10">
-        {/* eslint-disable-next-line */}
-        <FileEditor_ value={_value} onChange={setValue} />
-      </div>
+    <div className="h-full w-full" ref={editorRef}>
+      <Popover open={isEditing} onOpenChange={setIsEditing}>
+        <PopoverTrigger>
+          <div />
+        </PopoverTrigger>
+        <PopoverContent
+          className="click-outside-ignore w-auto p-0"
+          align="start"
+        >
+          <FileEditor_ value={_value} onChange={setValue} />
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
