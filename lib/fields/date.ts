@@ -15,7 +15,16 @@ export class DateField extends BaseField<DateCell, DateProperty, string> {
   }
 
   get compareOperators() {
-    return [CompareOperator.IsEmpty, CompareOperator.IsNotEmpty]
+    return [
+      CompareOperator.Equal,
+      CompareOperator.NotEqual,
+      CompareOperator.GreaterThan,
+      CompareOperator.GreaterThanOrEqual,
+      CompareOperator.LessThan,
+      CompareOperator.LessThanOrEqual,
+      CompareOperator.IsEmpty,
+      CompareOperator.IsNotEmpty,
+    ]
   }
 
   getCellContent(rawData: string | undefined): DateCell {

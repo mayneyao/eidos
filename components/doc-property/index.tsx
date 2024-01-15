@@ -6,8 +6,8 @@ import { getRawTableNameById } from "@/lib/utils"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { makeHeaderIcons } from "../grid/fields/header-icons"
+import { CellEditor } from "../table/cell-editor"
 import { useDocProperty } from "./hook"
-import { StandaloneCellRender } from "./standalone-cell-render-back"
 
 interface IDocPropertyProps {
   docId: string
@@ -22,7 +22,7 @@ export const DocProperty = (props: IDocPropertyProps) => {
     getRawTableNameById(props.tableId),
     space!
   )
-  const { properties } = useDocProperty({
+  const { properties, setProperty } = useDocProperty({
     tableId: props.tableId,
     docId: props.docId,
   })
@@ -41,12 +41,17 @@ export const DocProperty = (props: IDocPropertyProps) => {
     })
   }, [properties, rawIdNameMap, uiColumnMap])
 
+  const handlePropertyChange = (key: string, value: any) => {
+    setProperty({
+      [key]: value,
+    })
+  }
   return (
     <div className="flex flex-col">
       {fields.map(({ uiColumn, cell, iconSvgString, name, value }) => {
         return (
           <div key={uiColumn.name} className="flex w-full items-center gap-2">
-            <div className="flex min-w-[150px] cursor-pointer items-center gap-2 rounded-sm p-1 hover:bg-secondary">
+            <div className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 rounded-sm p-1 hover:bg-secondary">
               <span
                 dangerouslySetInnerHTML={{
                   __html: iconSvgString,
@@ -54,13 +59,14 @@ export const DocProperty = (props: IDocPropertyProps) => {
               ></span>
               {name}
             </div>
-            <div className="h-[40px] w-[200px] cursor-pointer rounded-sm p-1">
-              <StandaloneCellRender
-                column={uiColumn}
-                cell={cell as any}
-                value={value}
-              />
-            </div>
+            <CellEditor
+              field={uiColumn}
+              value={value}
+              onChange={(value) =>
+                handlePropertyChange(uiColumn.table_column_name, value)
+              }
+              className="flex h-10 w-full min-w-[200px] cursor-pointer items-center rounded-sm px-1"
+            />
           </div>
         )
       })}

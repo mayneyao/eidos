@@ -144,6 +144,11 @@ export class DataSpace {
     return new TableManager(id, this)
   }
 
+  public async setRow(tableId: string, rowId: string, data: any) {
+    return await this.table(tableId).rows.update(rowId, data, {
+      useFieldId: true,
+    })
+  }
   public async getRow(tableId: string, rowId: string) {
     const tableManager = this.table(tableId)
     const row = await tableManager.rows.query(

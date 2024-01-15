@@ -127,6 +127,10 @@ export const transformSql2FilterItems = (sql: string): FilterValueType => {
   }
 }
 
+const ExprTypeMap: any = {
+  number: "numeric",
+}
+
 export const transformFilterItems2SqlExpr = (
   filterItems: FilterValueType
 ): any => {
@@ -165,6 +169,19 @@ export const transformFilterItems2SqlExpr = (
         return {
           type: "binary",
           op: "LIKE",
+          left: {
+            type: "ref",
+            name: field as string,
+          },
+          right: {
+            type: "string",
+            value: `%${value}%`,
+          },
+        }
+      case CompareOperator.NotContains:
+        return {
+          type: "binary",
+          op: "NOT LIKE",
           left: {
             type: "ref",
             name: field as string,
@@ -219,6 +236,7 @@ export const transformFilterItems2SqlExpr = (
           op: "IS NOT NULL",
         }
       default:
+        console.log("filterItems", filterItems)
         return {
           type: "binary",
           op: reverseOpMap[operator] as any,
@@ -226,10 +244,15 @@ export const transformFilterItems2SqlExpr = (
             type: "ref",
             name: field as string,
           },
-          right: {
-            type: "string",
-            value: value as string,
-          },
+          right:
+            value == null
+              ? {
+                  type: "null",
+                }
+              : {
+                  type: ExprTypeMap[typeof value] || typeof value || "string",
+                  value,
+                },
         }
     }
   }

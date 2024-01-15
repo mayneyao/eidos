@@ -180,6 +180,14 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
    * return tag1id
    */
   text2RawData(text: string) {
+    // if text is isUuid
+    if (
+      text.length === 36 &&
+      text[8] === "-" &&
+      this.options.find((i) => i.id === text)
+    ) {
+      return text
+    }
     const option = this.options.find((i) => i.name === text)
     if (option) {
       return option.id

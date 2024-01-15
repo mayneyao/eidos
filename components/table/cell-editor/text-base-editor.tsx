@@ -1,4 +1,3 @@
-import { useDebounceFn } from "ahooks"
 import { useEffect, useState } from "react"
 
 import { Input } from "@/components/ui/input"
@@ -6,23 +5,25 @@ import { Input } from "@/components/ui/input"
 interface ITextBaseEditorProps {
   value: string
   onChange: (value: string) => void
-  type: "text" | "number" | "url"
+  type?: "text" | "number" | "url"
+  isEditing: boolean
 }
 export const TextBaseEditor = ({
   value,
+  isEditing,
   onChange,
-  type,
+  type = "text",
 }: ITextBaseEditorProps) => {
   const [_value, setValue] = useState(value)
-
-  const { run } = useDebounceFn(onChange, { wait: 500 })
-
   useEffect(() => {
-    run(_value)
-  }, [_value, run])
+    onChange(_value)
+  }, [_value, onChange])
 
+  if (!isEditing) {
+    return <div className="flex h-full w-full items-center">{_value}</div>
+  }
   return (
-    <div>
+    <div className="w-full">
       <Input
         value={_value}
         type={type}

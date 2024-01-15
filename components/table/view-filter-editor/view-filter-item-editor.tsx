@@ -1,8 +1,7 @@
-
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useUiColumns } from "@/hooks/use-ui-columns"
 import { CompareOperator } from "@/lib/fields/const"
 import { IField } from "@/lib/store/interface"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { CellEditor } from "../cell-editor"
 import { FieldCompareSelector } from "../field-compare-selector"
@@ -87,6 +86,7 @@ export const ViewFilterItemEditor = ({
           field={field!}
           value={value.operands[1] as string}
           onChange={handleValueChange}
+          editorMode
         />
       )}
     </>

@@ -134,7 +134,7 @@ export const Card: FC<CardProps> = ({
         src={text}
         alt=""
         onClick={() => setCurrentPreviewIndex(index)}
-        className="max-h-[196px] max-w-[80%] cursor-pointer object-contain"
+        className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
       />
       <DropdownMenu>
         <DropdownMenuTrigger className="click-outside-ignore h-[32px]">

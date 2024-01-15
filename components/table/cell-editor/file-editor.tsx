@@ -1,0 +1,68 @@
+import { useEffect, useRef, useState } from "react"
+import { useClickAway } from "ahooks"
+
+import {
+  FileCell,
+  FileCellEditor,
+} from "@/components/grid/cells/file/file-cell"
+
+const FileEditor_ = FileCellEditor as any
+
+interface IFileEditorProps {
+  value: FileCell
+  onChange: (value: FileCell) => void
+  isEditing: boolean
+}
+
+export const FileEditor = ({
+  value,
+  onChange,
+}: //   isEditing,
+IFileEditorProps) => {
+  const [_value, setValue] = useState<
+    FileCell & {
+      className: string
+    }
+  >({
+    ...value,
+    className: "shadow-md p-2 bg-white w-[450px] max-h-[500px] overflow-auto",
+  })
+  const [isEditing, setIsEditing] = useState<boolean>(false)
+  const editorRef = useRef<HTMLDivElement>(null)
+
+  useClickAway(
+    (e) => {
+      const res = document.querySelectorAll(".click-outside-ignore")
+      if (Array.from(res).some((node) => node.contains(e.target as Node)))
+        return
+      setIsEditing(false)
+    },
+    editorRef,
+    ["mousedown", "touchstart"]
+  )
+
+  useEffect(() => {
+    onChange(_value)
+  }, [_value, onChange])
+
+  if (!isEditing) {
+    return (
+      <div
+        className="flex h-full w-full items-center py-1"
+        onClick={() => setIsEditing(true)}
+      >
+        {_value.data.displayData.map((url) => {
+          return <img src={url} alt="" key={url} className="h-full w-auto" />
+        })}
+      </div>
+    )
+  }
+  return (
+    <div className="relative h-full w-full" ref={editorRef}>
+      <div className="absolute left-0 top-0 z-10">
+        {/* eslint-disable-next-line */}
+        <FileEditor_ value={_value} onChange={setValue} />
+      </div>
+    </div>
+  )
+}

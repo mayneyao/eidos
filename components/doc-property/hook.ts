@@ -15,6 +15,16 @@ export const useDocProperty = (data: { tableId: string; docId: string }) => {
     setDocProperty(res)
   }, [docId, sqlite, tableId])
 
+  const setProperty = useCallback(
+    async (data: Record<string, any>) => {
+      if (!sqlite) return
+      const rowId = extractIdFromShortId(docId)
+      await sqlite.setRow(tableId, rowId, data)
+      await getProperty()
+    },
+    [docId, getProperty, sqlite, tableId]
+  )
+
   useEffect(() => {
     getProperty()
   }, [getProperty])
@@ -22,5 +32,6 @@ export const useDocProperty = (data: { tableId: string; docId: string }) => {
   const { _id, title, ...restData } = docProperty
   return {
     properties: restData,
+    setProperty,
   }
 }
