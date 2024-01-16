@@ -15,10 +15,7 @@ export const useCurrentUiColumns = () => {
 export const useUiColumns = (tableName: string, databaseName: string) => {
   const { sqlite } = useSqlite(databaseName)
   const { setFields: setUiColumns } = useSqliteStore()
-  const { fieldMap: uiColumnsMap, fields: uiColumns } = useTableFields(
-    tableName,
-    databaseName
-  )
+  const { fields: uiColumns } = useTableFields(tableName, databaseName)
   const tableId = getTableIdByRawTableName(tableName)
   const updateUiColumns = useCallback(async () => {
     if (!sqlite) return
@@ -27,8 +24,11 @@ export const useUiColumns = (tableName: string, databaseName: string) => {
   }, [setUiColumns, sqlite, tableId, tableName])
 
   useEffect(() => {
-    updateUiColumns()
-  }, [updateUiColumns, tableName])
+    // updateUiColumns()
+    if (uiColumns.length === 0) {
+      updateUiColumns()
+    }
+  }, [updateUiColumns, tableName, uiColumns.length])
 
   const uiColumnMap = useMemo(() => {
     const map = new Map<string, IField>()

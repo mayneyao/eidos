@@ -18,21 +18,22 @@ const icons = makeHeaderIcons(18)
 
 export const DocProperty = (props: IDocPropertyProps) => {
   const { space } = useParams()
-  const { uiColumnMap, rawIdNameMap } = useUiColumns(
-    getRawTableNameById(props.tableId),
-    space!
-  )
+  const { uiColumns } = useUiColumns(getRawTableNameById(props.tableId), space!)
   const { properties, setProperty } = useDocProperty({
     tableId: props.tableId,
     docId: props.docId,
   })
+  console.log(properties)
   const fields = useMemo(() => {
-    return Object.entries(properties)
-      .map(([key, value]) => {
-        const name = rawIdNameMap.get(key)!
-        const uiColumn = uiColumnMap.get(name)
+    if (!properties) return []
+    return uiColumns
+      .map((uiColumn) => {
+        const name = uiColumn.name
         // error data
         if (!uiColumn) {
+          return
+        }
+        if (uiColumn.table_column_name === "title") {
           return
         }
         const iconSvgString = icons[uiColumn.type]({
@@ -41,11 +42,12 @@ export const DocProperty = (props: IDocPropertyProps) => {
         })
         const fieldCls = allFieldTypesMap[uiColumn.type]
         const field = new fieldCls(uiColumn)
+        const value = properties[uiColumn.table_column_name]
         const cell = field.getCellContent(value as never)
         return { uiColumn, cell, iconSvgString, name, value }
       })
       .filter(nonNullable)
-  }, [properties, rawIdNameMap, uiColumnMap])
+  }, [properties, uiColumns])
 
   const handlePropertyChange = (key: string, value: any) => {
     setProperty({
@@ -68,9 +70,11 @@ export const DocProperty = (props: IDocPropertyProps) => {
             <CellEditor
               field={uiColumn}
               value={value}
-              onChange={(value) =>
-                handlePropertyChange(uiColumn.table_column_name, value)
-              }
+              onChange={(_value) => {
+                if (value !== _value) {
+                  handlePropertyChange(uiColumn.table_column_name, _value)
+                }
+              }}
               className="flex h-10 w-full min-w-[200px] cursor-pointer items-center rounded-sm px-1"
             />
           </div>

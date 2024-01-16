@@ -30,8 +30,9 @@ export const useRowDataOperation = () => {
 export const useDocProperty = (data: { tableId: string; docId: string }) => {
   const { tableId, docId } = data
   const { sqlite } = useSqlite()
-  const [docProperty, setDocProperty] = useState<Record<string, any>>({})
-
+  const [docProperty, setDocProperty] = useState<Record<string, any> | null>(
+    null
+  )
   const { getProperty, setProperty } = useRowDataOperation()
 
   const _getProperty = useCallback(async () => {
@@ -55,6 +56,12 @@ export const useDocProperty = (data: { tableId: string; docId: string }) => {
     _getProperty()
   }, [_getProperty])
 
+  if (!docProperty) {
+    return {
+      properties: null,
+      setProperty: _setProperty,
+    }
+  }
   const { _id, title, ...restData } = docProperty
   return {
     properties: restData,

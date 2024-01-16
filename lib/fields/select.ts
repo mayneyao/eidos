@@ -179,10 +179,10 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
    * @param text tag1
    * return tag1id
    */
-  text2RawData(text: string) {
+  text2RawData(text: string | undefined) {
     // if text is isUuid
     if (
-      text.length === 36 &&
+      text?.length === 36 &&
       text[8] === "-" &&
       this.options.find((i) => i.id === text)
     ) {
@@ -194,8 +194,8 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
     } else {
       // a new option name is entered, create a new option
       return ""
-      const newOption = this.addOption(text)
-      return newOption[0].id
+      // const newOption = this.addOption(text)
+      // return newOption[0].id
     }
   }
 }
