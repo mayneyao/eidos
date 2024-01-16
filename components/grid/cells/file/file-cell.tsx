@@ -115,12 +115,13 @@ export const FileCellEditor: ReturnType<
   )
 
   const renderCard = useCallback(
-    (v: string, i: number) => {
+    (v: string, originalUrl: string, i: number) => {
       return (
         <Card
           key={v}
           id={v}
           text={v}
+          originalUrl={originalUrl}
           moveCard={moveCard}
           index={i}
           setCurrentPreviewIndex={setCurrentPreviewIndex}
@@ -169,7 +170,10 @@ export const FileCellEditor: ReturnType<
   return (
     <div className={cn("rounded-md border-none outline-none", className)}>
       <DndProvider backend={HTML5Backend}>
-        {cell.data.displayData.map((v, i) => renderCard(v, i))}
+        {cell.data.displayData.map((v, i) => {
+          const originalUrl = cell.data.data[i]
+          return renderCard(v, originalUrl, i)
+        })}
       </DndProvider>
       {cell.data.displayData.length > 0 && <Separator className="my-1" />}
       <Popover open={open} onOpenChange={setOpen}>

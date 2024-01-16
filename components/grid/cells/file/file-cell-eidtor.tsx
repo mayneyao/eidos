@@ -24,6 +24,7 @@ const style = {
 export interface CardProps {
   id: any
   text: string
+  originalUrl: string
   index: number
   moveCard: (dragIndex: number, hoverIndex: number) => void
   setCurrentPreviewIndex: (i: number) => void
@@ -41,6 +42,7 @@ export const Card: FC<CardProps> = ({
   text,
   index,
   moveCard,
+  originalUrl,
   deleteByUrl,
   setCurrentPreviewIndex,
 }) => {
@@ -120,7 +122,7 @@ export const Card: FC<CardProps> = ({
   drag(drop(ref))
 
   const handleClickViewOriginal = () => {
-    window.open(text, "_blank")
+    window.open(originalUrl, "_blank")
   }
 
   return (
