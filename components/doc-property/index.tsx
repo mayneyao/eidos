@@ -23,7 +23,6 @@ export const DocProperty = (props: IDocPropertyProps) => {
     tableId: props.tableId,
     docId: props.docId,
   })
-  console.log(properties)
   const fields = useMemo(() => {
     if (!properties) return []
     return uiColumns

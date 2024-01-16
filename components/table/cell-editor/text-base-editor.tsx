@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { Input } from "@/components/ui/input"
+
+import useChangeEffect from "../hooks/use-change-effect"
+import { EmptyValue } from "./common"
 
 interface ITextBaseEditorProps {
   value: string
@@ -15,12 +18,17 @@ export const TextBaseEditor = ({
   type = "text",
 }: ITextBaseEditorProps) => {
   const [_value, setValue] = useState(value ?? "")
-  useEffect(() => {
+
+  useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 
   if (!isEditing) {
-    return <div className="flex h-full w-full items-center truncate">{_value}</div>
+    return (
+      <div className="flex h-full w-full items-center truncate">
+        {_value?.length ? _value : <EmptyValue />}
+      </div>
+    )
   }
   return (
     <div className="w-full">

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import useChangeEffect from "../hooks/use-change-effect"
 
 interface IRatingEditorProps {
   value: number
@@ -10,7 +11,7 @@ export const RatingEditor = ({ value, onChange }: IRatingEditorProps) => {
   const [_value, setValue] = useState<number>(value)
   const [hover, setHover] = useState(0)
 
-  useEffect(() => {
+  useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 

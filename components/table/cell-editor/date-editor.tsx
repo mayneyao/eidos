@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
@@ -7,6 +7,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+
+import useChangeEffect from "../hooks/use-change-effect"
+import { EmptyValue } from "./common"
 
 interface IDateEditorProps {
   value: string
@@ -21,7 +24,7 @@ export const DateEditor = ({
 }: IDateEditorProps) => {
   const [_value, setValue] = useState<string>(value)
 
-  useEffect(() => {
+  useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 
@@ -33,7 +36,7 @@ export const DateEditor = ({
           !_value && "text-muted-foreground"
         )}
       >
-        {_value ? new Date(_value).toLocaleDateString() : ""}
+        {_value ? new Date(_value).toLocaleDateString() : <EmptyValue />}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <Calendar

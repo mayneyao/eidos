@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
 
+import useChangeEffect from "../hooks/use-change-effect"
+
 interface ICheckboxEditorProps {
   value: boolean
   onChange: (value: boolean) => void
@@ -11,7 +13,7 @@ interface ICheckboxEditorProps {
 export const CheckboxEditor = ({ value, onChange }: ICheckboxEditorProps) => {
   const [_value, setValue] = useState<boolean>(value)
 
-  useEffect(() => {
+  useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 

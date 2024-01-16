@@ -11,6 +11,9 @@ import {
   FileCellEditor,
 } from "@/components/grid/cells/file/file-cell"
 
+import useChangeEffect from "../hooks/use-change-effect"
+import { EmptyValue } from "./common"
+
 const FileEditor_ = FileCellEditor as any
 
 interface IFileEditorProps {
@@ -46,7 +49,7 @@ IFileEditorProps) => {
     ["mousedown", "touchstart"]
   )
 
-  useEffect(() => {
+  useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 
@@ -56,9 +59,13 @@ IFileEditorProps) => {
         className="flex h-full w-full items-center gap-2 py-1"
         onClick={() => setIsEditing(true)}
       >
-        {_value.data.displayData.map((url) => {
-          return <img src={url} alt="" key={url} className="h-full w-auto" />
-        })}
+        {_value?.data.displayData.length ? (
+          _value.data.displayData.map((url) => {
+            return <img src={url} alt="" key={url} className="h-full w-auto" />
+          })
+        ) : (
+          <EmptyValue />
+        )}
       </div>
     )
   }

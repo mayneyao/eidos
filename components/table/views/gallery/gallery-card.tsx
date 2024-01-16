@@ -83,17 +83,23 @@ export const GalleryCard = ({
         <div style={style} className="p-2">
           <div className="h-full border">
             <div className="flex h-[200px] w-full items-center">
-              <img
-                src={coverUrl}
-                alt=""
-                className="h-[200px] w-full object-cover"
-              />
+              {coverUrl ? (
+                <img
+                  src={coverUrl}
+                  alt=""
+                  className="h-[200px] w-full object-cover"
+                />
+              ) : (
+                <div className="h-[200px] w-full object-cover" />
+              )}
             </div>
             <div className="p-2">
-              <div className="truncate" title={item?.title}>
-                {item?.title}
+              <div
+                className="h-[36px] truncate font-medium"
+                title={item?.title}
+              >
+                {item?.title || <span className=" opacity-70">Untitled</span>}
               </div>
-              <hr className="my-1" />
               {fieldKeys.map((k) => {
                 const fieldName = rawIdNameMap.get(k)
                 const uiColumn = uiColumnMap.get(fieldName) as IField

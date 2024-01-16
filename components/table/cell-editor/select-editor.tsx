@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { SelectField, SelectOption } from "@/lib/fields/select"
 import { cn } from "@/lib/utils"
@@ -9,6 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
+import useChangeEffect from "../hooks/use-change-effect"
+import { EmptyValue } from "./common"
 
 interface ISelectEditorProps {
   value: string
@@ -25,7 +28,7 @@ export const SelectEditor = ({
 }: ISelectEditorProps) => {
   const [_value, setValue] = useState<string>(value)
 
-  useEffect(() => {
+  useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 
@@ -37,7 +40,11 @@ export const SelectEditor = ({
           "border-none pl-0": !isEditing,
         })}
       >
-        <SelectValue placeholder={_value} className="box-shadow-none" />
+        {_value?.length ? (
+          <SelectValue placeholder={_value} className="box-shadow-none" />
+        ) : (
+          <EmptyValue />
+        )}
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (
