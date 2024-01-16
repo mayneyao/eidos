@@ -23,6 +23,7 @@ export const useViewCount = (view?: IView) => {
 
   useEffect(() => {
     if (view?.query.length) {
+      console.log("view?.query", view?.query)
       const parsedSql = parseFirst(view?.query ?? "") as SelectFromStatement
       parsedSql.columns = [
         {

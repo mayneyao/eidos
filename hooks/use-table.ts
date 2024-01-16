@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useMemo } from "react"
 import { v4 as uuidv4 } from "uuid"
 
+import { useSpaceAppStore } from "@/app/[database]/store"
+import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -15,11 +17,8 @@ import {
   getTableIdByRawTableName,
   shortenId,
 } from "@/lib/utils"
-import { RowRange } from "@/components/grid/hooks/use-async-data"
-import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { IField } from "../lib/store/interface"
-import { useCurrentNode } from "./use-current-node"
 import { useSqlWorker } from "./use-sql-worker"
 import { useSqlite, useSqliteStore } from "./use-sqlite"
 import { useUiColumns } from "./use-ui-columns"
@@ -63,11 +62,7 @@ export const useTable = (tableName: string, databaseName: string) => {
   const { setViews } = useSqliteStore()
   const tableId = getTableIdByRawTableName(tableName)
   const views = useTableViews(tableId, databaseName)
-  const {
-    count,
-    setCount,
-    currentTableSchema: tableSchema,
-  } = useSpaceAppStore()
+  const { currentTableSchema: tableSchema } = useSpaceAppStore()
   const { uiColumnMap, updateUiColumns } = useUiColumns(tableName, databaseName)
 
   const updateViews = useCallback(async () => {
@@ -268,18 +263,7 @@ export const useTable = (tableName: string, databaseName: string) => {
     [sqlite, tableName, uiColumnMap]
   )
 
-  const node = useCurrentNode()
-  useEffect(() => {
-    if (sqlite && tableName && node?.type === "table") {
-      sqlite.sql`SELECT COUNT(*) FROM ${Symbol(tableName)}`.then((res) => {
-        const count = res[0]?.[0]
-        setCount(count)
-      })
-    }
-  }, [sqlite, tableName, setCount, node?.type])
-
   return {
-    count,
     getRowData,
     updateCell,
     addField,
@@ -294,7 +278,6 @@ export const useTable = (tableName: string, databaseName: string) => {
     runQuery,
     reload,
     sqlite,
-    setCount,
     views,
     updateViews,
   }
