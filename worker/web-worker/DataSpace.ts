@@ -1,4 +1,4 @@
-import { CAPI, Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
+import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
 import { allFieldTypesMap } from "@/lib/fields"
@@ -95,6 +95,10 @@ export class DataSpace {
     if (this.draftDb) {
       const dbMigrator = new DbMigrator(this, this.draftDb)
       dbMigrator.migrate()
+      // after migration, enable opfs SyncAccessHandle Pool for better performance
+      this.sqlite3.installOpfsSAHPoolVfs({}).then((poolUtil) => {
+        console.debug("poolUtil", poolUtil)
+      })
     }
     this.initMetaTable()
 
@@ -109,9 +113,10 @@ export class DataSpace {
   private initUDF() {
     const allUfs = withSqlite3AllUDF(this.sqlite3)
     allUfs.forEach((udf) => {
-      this.db.createFunction(udf)
+      this.db.createFunction(udf as any)
     })
   }
+
   private initMetaTable() {
     this.allTables.forEach((table) => {
       this.exec(table.createTableSql)
@@ -279,7 +284,7 @@ export class DataSpace {
         restData[key] = field.text2RawData(restData[key])
       }
     })
-    console.log(restData)
+    console.debug(restData)
     const keys = [
       "_id",
       ...Object.keys(restData)
@@ -452,7 +457,13 @@ export class DataSpace {
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
-    // console.log(sql, bind)
+    console.debug(
+      "[%cSQLQuery:%cCallViaMethod]",
+      "color:indigo",
+      "color:green",
+      sql,
+      bind
+    )
     return this.syncExec2(sql, bind)
   }
 
@@ -577,7 +588,7 @@ export class DataSpace {
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
-    // console.log(sql, bind)
+    // console.debug(sql, bind)
     const res: any[] = []
     try {
       this.db.exec({
@@ -621,7 +632,7 @@ export class DataSpace {
    */
   public async sql(strings: TemplateStringsArray, ...values: any[]) {
     const { sql, bind } = buildSql(strings, ...values)
-    // console.log(sql, bind)
+    // console.debug(sql, bind)
     const res = this.execSqlWithBind(sql, bind)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
@@ -649,6 +660,14 @@ export class DataSpace {
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
+    logger.debug(
+      "[%cSQLQuery:%cCallViaRawSql]",
+      "color:indigo",
+      "color:red",
+      sql,
+      bind,
+      rowMode
+    )
     const res = this.execSqlWithBind(sql, bind, rowMode)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
@@ -670,7 +689,7 @@ export class DataSpace {
         database: this.dbName,
       },
     })
-    console.log("onUpdate")
+    console.debug("onUpdate")
   }
 
   public async withTransaction(fn: Function) {

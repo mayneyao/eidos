@@ -69,7 +69,7 @@ export class Sqlite {
     this.sqlite3 = await this.getSQLite3()
   }
 
-  db(props: {
+  async db(props: {
     path: string
     flags: string
     vfs?: any
