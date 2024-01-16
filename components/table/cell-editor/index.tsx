@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { useClickAway, useDebounceFn } from "ahooks"
 
 import { allFieldTypesMap } from "@/lib/fields"
@@ -61,9 +61,33 @@ export const CellEditor = ({
   const [isEditing, setIsEditing] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
 
-  useClickAway(() => {
-    setIsEditing(false)
-  }, editorRef)
+  useClickAway(
+    (e) => {
+      if (editorRef.current?.contains(e.target as Node)) return
+      setIsEditing(false)
+    },
+    editorRef,
+    ["mousedown", "touchstart"]
+  )
+
+  const fieldInstance = useMemo(() => {
+    if (!field) return null
+    const fieldCls = allFieldTypesMap[field.type]
+    return new fieldCls(field) as FileField
+  }, [field])
+
+  const cell = useMemo(() => {
+    return fieldInstance?.getCellContent(value as never) as FileCell
+  }, [fieldInstance, value])
+
+  const onFileCellChange = useCallback(
+    (cell: FileCell) => {
+      if (!fieldInstance) return
+      const value = fieldInstance.cellData2RawData(cell)
+      run(value.rawData)
+    },
+    [fieldInstance, run]
+  )
 
   if (!field) return null
 
@@ -101,18 +125,10 @@ export const CellEditor = ({
           />
         )
       case FieldType.File:
-        const fieldCls = allFieldTypesMap[field.type]
-        const fieldInstance = new fieldCls(field) as FileField
-        const cell = fieldInstance.getCellContent(value as never) as FileCell
-        const onChange = (cell: FileCell) => {
-          const value = fieldInstance.cellData2RawData(cell)
-          run(value.rawData)
-        }
         return (
           <FileEditor
             value={cell}
-            onChange={onChange}
-            isEditing={_isEditing}
+            onChange={onFileCellChange}
           ></FileEditor>
         )
       default:

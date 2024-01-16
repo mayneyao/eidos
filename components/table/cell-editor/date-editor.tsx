@@ -1,14 +1,14 @@
+import { useUpdateEffect } from "ahooks"
 import { useState } from "react"
 
-import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
-import useChangeEffect from "../hooks/use-change-effect"
 import { EmptyValue } from "./common"
 
 interface IDateEditorProps {
@@ -24,7 +24,7 @@ export const DateEditor = ({
 }: IDateEditorProps) => {
   const [_value, setValue] = useState<string>(value)
 
-  useChangeEffect(() => {
+  useUpdateEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 

@@ -6,8 +6,8 @@ import useChangeEffect from "../hooks/use-change-effect"
 import { EmptyValue } from "./common"
 
 interface ITextBaseEditorProps {
-  value: string
-  onChange: (value: string) => void
+  value: string | null
+  onChange: (value: string | null) => void
   type?: "text" | "number" | "url"
   isEditing: boolean
 }
@@ -20,7 +20,7 @@ export const TextBaseEditor = ({
   const [_value, setValue] = useState(value)
 
   useChangeEffect(() => {
-    onChange(_value)
+    onChange(_value || null)
   }, [_value, onChange])
 
   if (!isEditing) {
@@ -33,7 +33,7 @@ export const TextBaseEditor = ({
   return (
     <div className="w-full">
       <Input
-        value={_value}
+        value={_value || ""}
         type={type}
         onChange={(e) => {
           setValue(e.target.value)
