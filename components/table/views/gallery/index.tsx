@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useWhyDidYouUpdate } from "ahooks"
+import { useEffect, useRef, useState } from "react"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { VariableSizeGrid as Grid } from "react-window"
 
+import { useUiColumns } from "@/hooks/use-ui-columns"
 import { IView } from "@/lib/store/IView"
 import { getTableIdByRawTableName } from "@/lib/utils"
-import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { useViewData } from "../../hooks"
 import { GalleryCard } from "./gallery-card"
@@ -56,10 +55,10 @@ export default function GalleryView({
             columnCount,
             uiColumns,
             uiColumnMap,
-            getFieldByIndex,
             rawIdNameMap,
             tableId,
-            space
+            space,
+            hiddenFieldIcon: true,
           }}
           className="pb-[128px]"
         >

@@ -16,11 +16,11 @@ import { ScriptContextMenu } from "@/components/grid/script-context-menu"
 import { CellEditor } from "../../cell-editor"
 import { FieldIcon } from "../../field-icon"
 
-interface ICardProps {
+interface ICardProps<T> {
   columnIndex: number
   rowIndex: number
   style: React.CSSProperties
-  data: any
+  data: T
 }
 
 const getCoverUrl = (row: any, coverField?: IField) => {
@@ -30,12 +30,24 @@ const getCoverUrl = (row: any, coverField?: IField) => {
   return field.getCellContent(cv).data.displayData[0]
 }
 
+export interface IGalleryCardProps {
+  items: any[]
+  columnCount: number
+  uiColumns: IField[]
+  uiColumnMap: Map<string, IField>
+  rawIdNameMap: Map<string, string>
+  tableId: string
+  space: string
+  hiddenFieldIcon?: boolean
+  hiddenField?: boolean
+}
+
 export const GalleryCard = ({
   columnIndex,
   rowIndex,
   style,
   data,
-}: ICardProps) => {
+}: ICardProps<IGalleryCardProps>) => {
   const {
     items,
     columnCount,
@@ -44,6 +56,8 @@ export const GalleryCard = ({
     rawIdNameMap,
     tableId,
     space,
+    hiddenFieldIcon,
+    hiddenField,
   } = data
   const item = items[rowIndex * columnCount + columnIndex]
   const { setProperty } = useRowDataOperation()
@@ -81,7 +95,7 @@ export const GalleryCard = ({
     <ContextMenu>
       <ContextMenuTrigger>
         <div style={style} className="p-2">
-          <div className="h-full border">
+          <div className="h-full rounded-md border-t shadow-md">
             <div className="flex h-[200px] w-full items-center">
               {coverUrl ? (
                 <img
@@ -101,7 +115,7 @@ export const GalleryCard = ({
                 {item?.title || <span className=" opacity-70">Untitled</span>}
               </div>
               {fieldKeys.map((k) => {
-                const fieldName = rawIdNameMap.get(k)
+                const fieldName = rawIdNameMap.get(k)!
                 const uiColumn = uiColumnMap.get(fieldName) as IField
                 if (!uiColumn) {
                   return null
@@ -112,10 +126,12 @@ export const GalleryCard = ({
                     key={uiColumn.name}
                     className="flex w-full items-center gap-2"
                   >
-                    <div className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 rounded-sm p-1">
-                      <FieldIcon type={uiColumn.type} />
-                      {fieldName}
-                    </div>
+                    {!hiddenField && (
+                      <div className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 rounded-sm p-1">
+                        {!hiddenFieldIcon && <FieldIcon type={uiColumn.type} />}
+                        {fieldName}
+                      </div>
+                    )}
                     <CellEditor
                       field={uiColumn}
                       value={value}
