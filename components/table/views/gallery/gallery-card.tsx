@@ -2,6 +2,7 @@ import { FieldType } from "@/lib/fields/const"
 import { FileField } from "@/lib/fields/file"
 import { IField } from "@/lib/store/interface"
 import { shortenId } from "@/lib/utils"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useGoto } from "@/hooks/use-goto"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
@@ -66,6 +67,7 @@ export const GalleryCard = ({
     (c) => c.type == FieldType.File
   )
   const goto = useGoto()
+  const { setSubPage } = useCurrentSubPage()
 
   if (!item) {
     return <div style={style}></div>
@@ -76,7 +78,7 @@ export const GalleryCard = ({
     })
   }
 
-  const openRow = async () => {
+  const openRow = async (right?: boolean) => {
     if (!item) {
       return
     }
@@ -87,7 +89,11 @@ export const GalleryCard = ({
       tableId: tableId!,
     })
 
-    goto(space, shortId)
+    if (right) {
+      setSubPage(shortId)
+    } else {
+      goto(space, shortId)
+    }
   }
   const coverUrl = getCoverUrl(item, coverField)
   const fieldKeys = Object.keys(item).filter((k) => k != "_id" && k != "title")
@@ -151,8 +157,11 @@ export const GalleryCard = ({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onClick={openRow}>
+        <ContextMenuItem inset onClick={() => openRow(true)}>
           Open
+        </ContextMenuItem>
+        <ContextMenuItem inset onClick={() => openRow()}>
+          Open in full page
         </ContextMenuItem>
         <ContextMenuItem inset disabled>
           Delete

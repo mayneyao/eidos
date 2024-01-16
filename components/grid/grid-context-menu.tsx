@@ -32,7 +32,7 @@ export function GridContextMenu({
   const count = selection.current?.range.height ?? 0
   const { space, tableId } = useCurrentPathInfo()
   const { getOrCreateTableSubDoc } = useSqlite(space)
-  const { setSubPage, clearSubPage } = useCurrentSubPage()
+  const { setSubPage } = useCurrentSubPage()
 
   const goto = useGoto()
   const getRow = useCallback(() => {
