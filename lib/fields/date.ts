@@ -43,7 +43,7 @@ export class DateField extends BaseField<DateCell, DateProperty, string> {
 
   cellData2RawData(cell: DateCell) {
     return {
-      rawData: cell.data.date?.toISOString(),
+      rawData: cell.data.date?.toISOString() || null,
     }
   }
 }

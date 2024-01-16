@@ -126,7 +126,7 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
       // a new option name is entered, create a new option
       const newOption = this.addOption(cell.data.value)
       return {
-        rawData: newOption[0].id,
+        rawData: newOption[0].id || null,
         shouldUpdateColumnProperty: true,
       }
     }

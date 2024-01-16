@@ -112,7 +112,7 @@ export class MultiSelectField extends BaseField<
       }
     }
     return {
-      rawData: newValues.join(","),
+      rawData: newValues.join(",") || null,
       shouldUpdateColumnProperty,
     }
   }

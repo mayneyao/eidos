@@ -31,7 +31,7 @@ export class TitleField extends BaseField<TextCell, TitleProperty> {
 
   cellData2RawData(cell: TextCell) {
     return {
-      rawData: cell.data,
+      rawData: cell.data || null,
     }
   }
 }

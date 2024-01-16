@@ -1,9 +1,7 @@
 import { LinkCell } from "@/components/grid/cells/link-cell"
 
 import { BaseField } from "./base"
-import {
-  GridCellKind
-} from "./const"
+import { GridCellKind } from "./const"
 
 type LinkProperty = {
   linkTable: string
@@ -58,7 +56,7 @@ export class LinkField extends BaseField<LinkCell, LinkProperty> {
 
   cellData2RawData(cell: LinkCell) {
     return {
-      rawData: cell.data.value.map((item) => item.id).join(", "),
+      rawData: cell.data.value.map((item) => item.id).join(", ") || null,
     }
   }
 }

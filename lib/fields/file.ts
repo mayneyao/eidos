@@ -58,7 +58,7 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
 
   cellData2RawData(cell: FileCell) {
     return {
-      rawData: cell.data.data?.join(","),
+      rawData: cell.data.data?.join(",") || null,
     }
   }
 }

@@ -57,6 +57,6 @@ export abstract class BaseField<T, P, R = string>
   }
 
   text2RawData(text: string) {
-    return text
+    return text || null
   }
 }

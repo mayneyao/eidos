@@ -17,7 +17,7 @@ export const TextBaseEditor = ({
   onChange,
   type = "text",
 }: ITextBaseEditorProps) => {
-  const [_value, setValue] = useState(value ?? "")
+  const [_value, setValue] = useState(value)
 
   useChangeEffect(() => {
     onChange(_value)

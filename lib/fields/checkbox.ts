@@ -30,7 +30,7 @@ export class CheckboxField extends BaseField<
 
   cellData2RawData(cell: CheckboxCell) {
     return {
-      rawData: cell.data ? 1 : 0,
+      rawData: cell.data ? 1 : null,
     }
   }
 }

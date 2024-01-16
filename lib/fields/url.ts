@@ -36,7 +36,7 @@ export class URLField extends BaseField<URLCell, URLProperty> {
 
   cellData2RawData(cell: URLCell) {
     return {
-      rawData: cell.data,
+      rawData: cell.data || null,
     }
   }
 }

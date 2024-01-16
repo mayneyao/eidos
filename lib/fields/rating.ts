@@ -34,7 +34,7 @@ export class RatingField extends BaseField<RatingCell, RatingProperty, number> {
 
   cellData2RawData(cell: RatingCell) {
     return {
-      rawData: cell.data.rating,
+      rawData: cell.data.rating ?? null,
     }
   }
 }

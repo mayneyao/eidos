@@ -30,7 +30,7 @@ export class FormulaField extends BaseField<TextCell, FormulaProperty> {
 
   cellData2RawData(cell: TextCell) {
     return {
-      rawData: cell.data,
+      rawData: cell.data || null,
     }
   }
 }
