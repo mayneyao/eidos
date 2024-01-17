@@ -1,12 +1,12 @@
-import { DocProperty } from "@/components/doc-property"
-import { Editor } from "@/components/doc/editor"
-import { Table } from "@/components/table"
-import { Button } from "@/components/ui/button"
 import { useCurrentNode, useNodeMap } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useEmoji } from "@/hooks/use-emoji"
 import { useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { Button } from "@/components/ui/button"
+import { DocProperty } from "@/components/doc-property"
+import { Editor } from "@/components/doc/editor"
+import { Table } from "@/components/table"
 
 import { DefaultColors } from "./image-selector"
 import { NodeCover } from "./node-cover"
@@ -52,7 +52,9 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
           }
           coverComponent={node.cover && <NodeCover node={node} />}
           propertyComponent={
-            <DocProperty tableId={node.parentId!} docId={node.id} />
+            node.parentId && (
+              <DocProperty tableId={node.parentId!} docId={node.id} />
+            )
           }
           topComponent={
             <div className="flex h-[36px] cursor-pointer gap-2 opacity-0 hover:opacity-100">
