@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { useUiColumns } from "@/hooks/use-ui-columns"
+import { useViewSort } from "@/hooks/use-view-sort"
 import {
   DataUpdateSignalType,
   EidosDataEventChannelMsgType,
@@ -7,31 +11,28 @@ import {
 } from "@/lib/const"
 import { transformSql } from "@/lib/sqlite/sql-parser"
 import { IView } from "@/lib/store/IView"
-import { getRawTableNameById, getTableIdByRawTableName } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { useUiColumns } from "@/hooks/use-ui-columns"
+import { getRawTableNameById } from "@/lib/utils"
 
 export const useGalleryViewData = (view: IView) => {
   const { tableId, query } = view
   const tableName = getRawTableNameById(tableId)
   const { sqlite } = useSqlite()
   const { setRows } = useSqliteStore()
-
+  const { getViewSortedRowIds } = useViewSort(query)
   const [data, setData] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const { space } = useCurrentPathInfo()
   const { nameRawIdMap, uiColumnMap } = useUiColumns(tableName, space)
 
-  const checkRowExistInQuery = useCallback(
-    async (rowId: string, callback: (isExist: boolean) => void) => {
-      if (!sqlite || !query) return
-      const tableId = getTableIdByRawTableName(tableName)
-      const isExist = await sqlite.isRowExistInQuery(tableId, rowId, query)
-      callback(isExist)
-    },
-    [sqlite, tableName, query]
-  )
+  // const checkRowExistInQuery = useCallback(
+  //   async (rowId: string, callback: (isExist: boolean) => void) => {
+  //     if (!sqlite || !query) return
+  //     const tableId = getTableIdByRawTableName(tableName)
+  //     const isExist = await sqlite.isRowExistInQuery(tableId, rowId, query)
+  //     callback(isExist)
+  //   },
+  //   [sqlite, tableName, query]
+  // )
 
   useEffect(() => {
     if (sqlite && nameRawIdMap.size && tableName) {
@@ -68,43 +69,13 @@ export const useGalleryViewData = (view: IView) => {
         const { _new, _old } = payload
         switch (payload.type) {
           case DataUpdateSignalType.Insert:
-            checkRowExistInQuery(_new._id, (isExist) => {
-              if (
-                isExist &&
-                data.findIndex((rowId) => rowId == _new._id) === -1
-              ) {
-                setData((data) => [_new._id, ...data])
-              }
-            })
-            break
           case DataUpdateSignalType.Update:
-            checkRowExistInQuery(_new._id, (isExist) => {
-              setData((data) => {
-                const index = data.findIndex((rowId) => rowId == _old._id)
-                if (isExist) {
-                  if (index !== -1) {
-                    data[index] = payload._new._id
-                    console.log("update row", payload._new)
-                    setData([...data])
-                  } else {
-                    return [_new._id, ...data]
-                  }
-                } else {
-                  data.splice(index, 1)
-                }
-                return [...data]
-              })
-            })
-
-            break
           case DataUpdateSignalType.Delete:
-            setData((data) => {
-              const index = data.findIndex((rowId) => rowId == _old.id)
-              if (index !== -1) {
-                data.splice(index, 1)
-              }
-              return [...data]
+            getViewSortedRowIds().then((rowIds) => {
+              setData(rowIds)
             })
+            break
+          default:
             break
         }
       }
@@ -112,7 +83,7 @@ export const useGalleryViewData = (view: IView) => {
     return () => {
       bc.close()
     }
-  }, [checkRowExistInQuery, data, tableName])
+  }, [getViewSortedRowIds, data, tableName])
 
   return {
     data,

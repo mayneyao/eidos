@@ -16,7 +16,6 @@ export const useSqliteTableSubscribe = (tableName: string) => {
     const bc = new BroadcastChannel(EidosDataEventChannelName)
     const handler = (ev: MessageEvent) => {
       const { type, payload } = ev.data
-      console.log("useSqliteTableSubscribe", payload)
       // resend msg to main thread, why broadcast channel not work???
       window.postMessage(ev.data)
       if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
