@@ -4,7 +4,7 @@ import { IField } from "@/lib/store/interface"
 import { shortenId } from "@/lib/utils"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useGoto } from "@/hooks/use-goto"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -32,7 +32,7 @@ const getCoverUrl = (row: any, coverField?: IField) => {
 }
 
 export interface IGalleryCardProps {
-  items: any[]
+  items: string[]
   columnCount: number
   uiColumns: IField[]
   uiColumnMap: Map<string, IField>
@@ -60,9 +60,11 @@ export const GalleryCard = ({
     hiddenFieldIcon,
     hiddenField,
   } = data
-  const item = items[rowIndex * columnCount + columnIndex]
+  const rowId = items[rowIndex * columnCount + columnIndex]
   const { setProperty } = useRowDataOperation()
   const { getOrCreateTableSubDoc } = useSqlite()
+  const { getRowById } = useSqliteStore()
+  const item = getRowById(tableId, rowId)
   const coverField = (uiColumns as IField[]).find(
     (c) => c.type == FieldType.File
   )

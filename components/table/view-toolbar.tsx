@@ -10,7 +10,7 @@ import {
 import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { useTable } from "@/hooks/use-table"
+import { useTableOperation } from "@/hooks/use-table"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { NodeComponent } from "@/app/[database]/[node]/page"
@@ -27,14 +27,14 @@ export const ViewToolbar = (props: {
   isEmbed: boolean
 }) => {
   const { tableName, space, isEmbed } = props
-  const { updateViews, views } = useTable(tableName!, space)
+  const { updateViews, views } = useTableOperation(tableName!, space)
   const navigate = useNavigate()
   const location = useLocation()
   const { addView, delView } = useViewOperation()
   const { currentView, setCurrentViewId, defaultViewId } = useCurrentView()
   const [searchParams] = useSearchParams()
   const sharePeerId = searchParams.get("peerId")
-  const { addRow } = useTable(tableName, space)
+  const { addRow } = useTableOperation(tableName, space)
   const { getOrCreateTableSubDoc } = useSqlite()
   const [open, setOpen] = useState(false)
   const tableId = getTableIdByRawTableName(tableName)

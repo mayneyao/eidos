@@ -55,12 +55,14 @@ export const useTableViews = (tableId: string, databaseName: string) => {
   return viewIds?.map((id) => viewMap[id]) ?? []
 }
 
-export const useTable = (tableName: string, databaseName: string) => {
+export const useTableOperation = (tableName: string, databaseName: string) => {
   const { withTransaction } = useSqlite(databaseName)
   const sqlite = useSqlWorker()
-  const { setNode } = useSqliteStore()
-  const { setViews } = useSqliteStore()
+  const { setViews, setNode, setRows } = useSqliteStore()
   const tableId = getTableIdByRawTableName(tableName)
+  const rowMap = useSqliteStore(
+    (state) => state.dataStore.tableMap?.[tableId]?.rowMap || {}
+  )
   const views = useTableViews(tableId, databaseName)
   const { currentTableSchema: tableSchema } = useSpaceAppStore()
   const { uiColumnMap, updateUiColumns } = useUiColumns(tableName, databaseName)
@@ -209,7 +211,7 @@ export const useTable = (tableName: string, databaseName: string) => {
   )
 
   const getRowData = useCallback(
-    async (range: RowRange, query?: string): Promise<any[]> => {
+    async (range: RowRange, query?: string): Promise<string[]> => {
       const [offset, limit] = range
       let data: any[] = []
       if (sqlite && tableName && uiColumnMap.size) {
@@ -258,13 +260,22 @@ export const useTable = (tableName: string, databaseName: string) => {
           })
         }
       }
-      return data
+      setRows(tableId, data)
+      return data.map((row) => row._id)
+      // return data
     },
-    [sqlite, tableName, uiColumnMap]
+    [setRows, sqlite, tableId, tableName, uiColumnMap]
+  )
+  const getRowDataById = useCallback(
+    (rowId: string) => {
+      return rowMap[rowId]
+    },
+    [rowMap]
   )
 
   return {
     getRowData,
+    getRowDataById,
     updateCell,
     addField,
     updateFieldName,

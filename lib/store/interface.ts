@@ -15,8 +15,6 @@ export interface ITable {
   rowMap: {
     [rowId: string]: Record<string, any>
   }
-  rowIds: string[]
-  rowCount: number
   fieldMap: {
     [fieldId: string]: IField
   }

@@ -4,12 +4,12 @@ import { useSearchParams } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { useTable } from "@/hooks/use-table"
+import { useTableOperation } from "@/hooks/use-table"
 import { IView } from "@/lib/store/IView"
 
 export const useViewOperation = () => {
   const { tableId, tableName, space } = useCurrentPathInfo()
-  const { updateViews } = useTable(tableName!, space)
+  const { updateViews } = useTableOperation(tableName!, space)
   const { sqlite } = useSqlite()
   const addView = async () => {
     if (tableId && sqlite) {
@@ -70,7 +70,7 @@ export const useViewOperation = () => {
 
 export const useCurrentView = () => {
   const { tableName, space } = useCurrentPathInfo()
-  const { views } = useTable(tableName!, space)
+  const { views } = useTableOperation(tableName!, space)
   const defaultViewId = useMemo(() => {
     return views[0]?.id
   }, [views])

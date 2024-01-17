@@ -14,7 +14,7 @@ import { useTheme } from "next-themes"
 
 import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { useTable } from "@/hooks/use-table"
+import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { Button } from "../ui/button"
@@ -85,8 +85,9 @@ export default function GridView(props: IGridProps) {
     // addField,
     deleteRows,
     getRowData,
+    getRowDataById,
     addRow,
-  } = useTable(tableName, databaseName)
+  } = useTableOperation(tableName, databaseName)
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
   const { uiColumns, getFieldByIndex } = useUiColumns(tableName, databaseName)
   const { onColumnResize, columns } = useColumns(uiColumns, props.view!)
@@ -104,6 +105,7 @@ export default function GridView(props: IGridProps) {
     50,
     5,
     getRowData,
+    getRowDataById,
     toCell,
     onEdited,
     glideDataGridRef,

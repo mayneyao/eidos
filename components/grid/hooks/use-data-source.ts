@@ -3,14 +3,17 @@ import { GridCell, GridCellKind } from "@glideapps/glide-data-grid"
 
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
-import { useTable } from "@/hooks/use-table"
+import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { columnsHandleMap } from "../helper"
 import { RowEditedCallback } from "./use-async-data"
 
 export const useDataSource = (tableName: string, databaseName: string) => {
-  const { updateCell, updateFieldProperty } = useTable(tableName, databaseName)
+  const { updateCell, updateFieldProperty } = useTableOperation(
+    tableName,
+    databaseName
+  )
   const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
 
   const toCell = React.useCallback(

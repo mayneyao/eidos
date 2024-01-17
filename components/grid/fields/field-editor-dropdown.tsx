@@ -21,7 +21,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { useTable } from "@/hooks/use-table"
+import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 import { cn } from "@/lib/utils"
 
@@ -52,7 +52,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const { currentView } = useCurrentView()
   const { addSort } = useViewOperation()
   const inputRef = useRef<HTMLInputElement>(null)
-  const { updateFieldName } = useTable(tableName, databaseName)
+  const { updateFieldName } = useTableOperation(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
 
   const [newFieldName, setNewFieldName] = useState<string>(

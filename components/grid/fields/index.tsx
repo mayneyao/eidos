@@ -1,4 +1,4 @@
-import { useTable } from "@/hooks/use-table"
+import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { useTableAppStore } from "../store"
@@ -22,7 +22,7 @@ export const FieldEditor = (props: IFieldEditorProps) => {
     addField,
     updateFieldProperty,
     changeFieldType,
-  } = useTable(tableName, databaseName)
+  } = useTableOperation(tableName, databaseName)
   return (
     <>
       {isAddFieldEditorOpen && (

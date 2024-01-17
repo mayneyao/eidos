@@ -1,11 +1,4 @@
 import {
-  MutableRefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
-import {
   CellArray,
   CompactSelection,
   DataEditorProps,
@@ -17,16 +10,22 @@ import {
   Rectangle,
 } from "@glideapps/glide-data-grid"
 import { chunk, range } from "lodash"
-
 import {
-  DataUpdateSignalType,
-  EidosDataEventChannelMsgType,
-  EidosDataEventChannelName,
-} from "@/lib/const"
-import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
+
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType
+} from "@/lib/const"
+import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
 
 import { useTableAppStore } from "../store"
 
@@ -44,7 +43,8 @@ export function useAsyncData<TRowType>(
   pageSize: number,
   maxConcurrency: number,
   // offset limit
-  getRowData: RowCallback<TRowType>,
+  getRowData: RowCallback<string>,
+  getRowDataById: (id: string) => TRowType,
   toCell: RowToCell<TRowType>,
   onEdited: RowEditedCallback<TRowType>,
   gridRef: MutableRefObject<DataEditorRef | null>,
@@ -70,7 +70,7 @@ export function useAsyncData<TRowType>(
   const { sqlite } = useSqlite()
   pageSize = Math.max(pageSize, 1)
   const loadingRef = useRef(CompactSelection.empty())
-  const dataRef = useRef<TRowType[]>([])
+  const dataRef = useRef<string[]>([])
   const [visiblePages, setVisiblePages] = useState<Rectangle>({
     x: 0,
     y: 0,
@@ -98,8 +98,9 @@ export function useAsyncData<TRowType>(
   const getCellContent = useCallback<DataEditorProps["getCellContent"]>(
     (cell) => {
       const [col, row] = cell
-      const rowData: TRowType | undefined = dataRef.current[row]
-      if (rowData !== undefined) {
+      const rowId: string | undefined = dataRef.current[row]
+      const rowData = getRowDataById(rowId)
+      if (rowId !== undefined) {
         return toCell(rowData, col)
       }
       return {
@@ -107,7 +108,7 @@ export function useAsyncData<TRowType>(
         allowOverlay: false,
       }
     },
-    [toCell]
+    [getRowDataById, toCell]
   )
 
   const loadPage = useCallback(
@@ -200,13 +201,10 @@ export function useAsyncData<TRowType>(
       const [, row] = cell
       const current = dataRef.current[row]
       if (current === undefined) return
-
-      const result = onEdited(cell, newVal, current)
-      if (result !== undefined) {
-        dataRef.current[row] = result
-      }
+      const rowData = getRowDataById(current)
+      onEdited(cell, newVal, rowData)
     },
-    [onEdited]
+    [getRowDataById, onEdited]
   )
 
   const handleAddRow = useCallback(async () => {
@@ -216,7 +214,7 @@ export function useAsyncData<TRowType>(
       addAddedRowId(uuid)
       const rowId = await addRow(uuid)
       if (rowId) {
-        dataRef.current.push({ _id: rowId } as any)
+        dataRef.current.push(rowId)
       }
     } catch (error) {
       setCount(dataRef.current.length)
@@ -224,9 +222,7 @@ export function useAsyncData<TRowType>(
   }, [addAddedRowId, addRow, setCount])
 
   const handleDelRows = async (startIndex: number, endIndex: number) => {
-    const rowIds = dataRef.current
-      .slice(startIndex, endIndex)
-      .map((row: any) => row._id)
+    const rowIds = dataRef.current.slice(startIndex, endIndex)
     // remove from data
     const count = endIndex - startIndex
     dataRef.current.splice(startIndex, count)
@@ -249,17 +245,17 @@ export function useAsyncData<TRowType>(
   }, [gridRef])
 
   const getRowByIndex = (index: number) => {
-    return dataRef.current[index]
+    const rowId = dataRef.current[index]
+    return getRowDataById(rowId)
   }
 
   const getRowIndexById = (id: string) => {
-    const rowIndex = dataRef.current.findIndex((row: any) => row._id === id)
+    const rowIndex = dataRef.current.findIndex((rowId) => rowId === id)
     return rowIndex
   }
 
   useEffect(() => {
-    const bc = new BroadcastChannel(EidosDataEventChannelName)
-    bc.onmessage = (ev) => {
+    const handler = (ev: MessageEvent) => {
       const { type, payload } = ev.data
       if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
         const { table, _new, _old } = payload
@@ -271,7 +267,7 @@ export function useAsyncData<TRowType>(
               if (rowIndex !== -1) {
                 // FIXME: for now we just refresh the visible region, link cell has some problem
                 if (isExist) {
-                  dataRef.current[rowIndex] = _new
+                  dataRef.current[rowIndex] = _new._id
                   refreshCurrentVisible()
                 } else {
                   // remove from data
@@ -281,7 +277,7 @@ export function useAsyncData<TRowType>(
                 }
               } else {
                 if (isExist) {
-                  dataRef.current.push(_new)
+                  dataRef.current.push(_new._id)
                   setCount(dataRef.current.length)
                   refreshCurrentVisible()
                 }
@@ -301,7 +297,7 @@ export function useAsyncData<TRowType>(
             // if the row is added by click add row button
             if (addedRowIds.has(_new._id)) {
               clearAddedRowIds()
-              // return
+              return
               checkRowExistInQuery(_new._id, async (isExist) => {
                 if (!isExist) {
                   // new record is not in query, open as sub-page
@@ -318,32 +314,32 @@ export function useAsyncData<TRowType>(
               // if the row is added by other user
               checkRowExistInQuery(_new._id, async (isExist) => {
                 if (isExist && rowIndex3 === -1) {
-                  dataRef.current.push(_new)
+                  dataRef.current.push(_new._id)
                   setCount(dataRef.current.length)
                   refreshCurrentVisible()
                 }
               })
             }
-
             break
           default:
             break
         }
       }
     }
+    window.addEventListener("message", handler)
     return () => {
-      bc.close()
+      window.removeEventListener("message", handler)
     }
   }, [
+    addedRowIds,
+    checkRowExistInQuery,
+    clearAddedRowIds,
+    getOrCreateTableSubDoc,
     refreshCurrentVisible,
     setCount,
-    tableName,
-    addedRowIds,
-    clearAddedRowIds,
-    checkRowExistInQuery,
     setSubPage,
-    getOrCreateTableSubDoc,
     tableId,
+    tableName,
   ])
 
   return {

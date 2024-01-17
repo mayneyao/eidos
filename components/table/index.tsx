@@ -1,5 +1,5 @@
-
 import { ViewTypeEnum } from "@/lib/store/IView"
+import { useSqliteTableSubscribe } from "@/hooks/use-sqlite-table-subscribe"
 
 import GridView from "../grid"
 import { useCurrentView } from "./hooks"
@@ -17,7 +17,7 @@ interface ITableProps {
 
 export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
   const { currentView } = useCurrentView()
-
+  useSqliteTableSubscribe(tableName)
   return (
     <div className="h-full w-full overflow-hidden p-2">
       <ViewToolbar

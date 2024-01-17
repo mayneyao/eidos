@@ -88,7 +88,7 @@ export const useExtMsg = () => {
           })
           break
         default:
-          console.log("unknown msg type", type)
+          // console.log("unknown msg type", type)
           break
       }
     },
