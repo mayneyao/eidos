@@ -5,15 +5,7 @@ import { useSearchParams } from "react-router-dom"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
-import { useUiColumns } from "@/hooks/use-ui-columns"
-import {
-  DataUpdateSignalType,
-  EidosDataEventChannelMsgType,
-  EidosDataEventChannelName,
-} from "@/lib/const"
-import { transformSql } from "@/lib/sqlite/sql-parser"
 import { IView } from "@/lib/store/IView"
-import { getRawTableNameById } from "@/lib/utils"
 
 export const useViewOperation = () => {
   const { tableId, tableName, space } = useCurrentPathInfo()
@@ -105,75 +97,5 @@ export const useCurrentView = () => {
     currentView,
     setCurrentViewId,
     defaultViewId,
-  }
-}
-
-export const useViewData = (view: IView) => {
-  const { tableId, query } = view
-  const tableName = getRawTableNameById(tableId)
-  const { sqlite } = useSqlite()
-
-  const [data, setData] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
-  const { space } = useCurrentPathInfo()
-  const { nameRawIdMap, uiColumnMap } = useUiColumns(tableName, space)
-
-  useEffect(() => {
-    if (sqlite && nameRawIdMap.size && tableName) {
-      setLoading(true)
-      const defaultQuery = `select * from ${tableName}`
-      const q = query.trim().length ? query : defaultQuery
-      const sql = transformSql(q, tableName, nameRawIdMap)
-      sqlite.sql2`${sql}`.then((data) => {
-        setData(data)
-        setLoading(false)
-      })
-    }
-  }, [sqlite, query, tableName, view.id, nameRawIdMap, uiColumnMap])
-
-  useEffect(() => {
-    // TODO: Use a universal data source manager, which should be a singleton instance, with a mapping to store all data sources, and also an array to store the order.
-    const bc = new BroadcastChannel(EidosDataEventChannelName)
-    bc.onmessage = (e: MessageEvent) => {
-      const { type, payload } = e.data
-      if (
-        type === EidosDataEventChannelMsgType.DataUpdateSignalType &&
-        payload.table === tableName
-      ) {
-        const { _new, _old } = payload
-        switch (payload.type) {
-          case DataUpdateSignalType.Insert:
-            setData((data) => [...data, _new])
-            break
-          case DataUpdateSignalType.Update:
-            setData((data) => {
-              const index = data.findIndex((d) => d._id == _old._id)
-              if (index !== -1) {
-                data[index] = payload._new
-              }
-              return [...data]
-            })
-            break
-          case DataUpdateSignalType.Delete:
-            setData((data) => {
-              const index = data.findIndex((d) => d.id == _old.id)
-              if (index !== -1) {
-                data.splice(index, 1)
-              }
-              return [...data]
-            })
-            break
-        }
-      }
-    }
-    return () => {
-      bc.close()
-    }
-  }, [tableName])
-
-  return {
-    data,
-    loading,
   }
 }

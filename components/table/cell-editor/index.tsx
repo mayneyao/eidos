@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react"
-import { useClickAway, useDebounceFn } from "ahooks"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useClickAway, useDebounceFn, useUpdate } from "ahooks"
 
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
@@ -126,10 +126,7 @@ export const CellEditor = ({
         )
       case FieldType.File:
         return (
-          <FileEditor
-            value={cell}
-            onChange={onFileCellChange}
-          ></FileEditor>
+          <FileEditor value={cell} onChange={onFileCellChange}></FileEditor>
         )
       default:
         return Editor ? (

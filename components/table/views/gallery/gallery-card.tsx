@@ -129,7 +129,7 @@ export const GalleryCard = ({
                 const value = item[k]
                 return (
                   <div
-                    key={uiColumn.name}
+                    key={`${item._id}:${k}`}
                     className="flex w-full items-center gap-2"
                   >
                     {!hiddenField && (
