@@ -11,12 +11,7 @@ import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTable } from "@/hooks/use-table"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { NodeComponent } from "@/app/[database]/[node]/page"
 
@@ -112,7 +107,7 @@ export const ViewToolbar = (props: {
   const onlyOneView = views.length === 1
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="ml-2 flex items-center justify-between border-b pb-1">
         <div className="flex items-center">
           {views.map((view) => {
             const isActive = view.id === currentView?.id
@@ -128,7 +123,7 @@ export const ViewToolbar = (props: {
             )
           })}
           <Button onClick={handleAddView} variant="ghost" size="sm">
-            <PlusIcon />
+            <PlusIcon className="h-4 w-4"></PlusIcon>
           </Button>
         </div>
         <div className="flex gap-2">

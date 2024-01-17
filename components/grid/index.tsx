@@ -198,7 +198,7 @@ export default function GridView(props: IGridProps) {
 
   return (
     <div
-      className={cn("mb-2 h-full w-full p-2 pb-7", props.className)}
+      className={cn("mb-2 h-full w-full p-2 pb-7 pt-0", props.className)}
       ref={containerRef}
     >
       <div className="relative flex h-full overflow-hidden rounded-md border-t">
