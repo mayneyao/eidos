@@ -20,6 +20,10 @@ export class LinkField extends BaseField<LinkCell, LinkProperty> {
     return rawData
   }
 
+  get compareOperators() {
+    return []
+  }
+
   getCellContent(rawData: LinkCellData[]): LinkCell {
     if (typeof rawData === "string") {
       return {
@@ -52,7 +56,7 @@ export class LinkField extends BaseField<LinkCell, LinkProperty> {
 
   cellData2RawData(cell: LinkCell) {
     return {
-      rawData: cell.data.value.map((item) => item.id).join(", "),
+      rawData: cell.data.value.map((item) => item.id).join(", ") || null,
     }
   }
 }

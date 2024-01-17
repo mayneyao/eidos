@@ -1,8 +1,9 @@
 import { ViewTableName } from "@/lib/sqlite/const"
+import { replaceQueryTableName } from "@/lib/sqlite/sql-parser"
 import { getUuid } from "@/lib/utils"
 
-import { BaseTable, BaseTableImpl } from "./base"
 import { IView, ViewTypeEnum } from "../../../lib/store/IView"
+import { BaseTable, BaseTableImpl } from "./base"
 
 export class ViewTable extends BaseTableImpl implements BaseTable<IView> {
   name = ViewTableName
@@ -12,10 +13,13 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   name TEXT NOT NULL,
   type TEXT NOT NULL,
   tableId TEXT NOT NULL,
-  query TEXT NOT NULL
+  query TEXT NOT NULL,
+  properties TEXT,
+  filter TEXT
 );
 `
 
+  JSONFields = ["properties", "filter"]
   async add(data: IView): Promise<IView> {
     await this.dataSpace.exec2(
       `INSERT INTO ${this.name} (id,name,type,tableId,query) VALUES (? , ? , ? , ? , ?);`,
@@ -26,17 +30,6 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
 
   get(id: string): Promise<IView | null> {
     throw new Error("Method not implemented.")
-  }
-
-  async set(id: string, data: Partial<IView>): Promise<boolean> {
-    const setKv = Object.entries(data)
-      .map(([k, v]) => `${k} = ?`)
-      .join(", ")
-    await this.dataSpace.exec2(
-      `UPDATE ${this.name} SET ${setKv} WHERE id = ?`,
-      [...Object.values(data), id]
-    )
-    return true
   }
 
   async del(id: string): Promise<boolean> {
@@ -64,10 +57,19 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   }
 
   public async list(tableId: string): Promise<IView[]> {
-    return this.dataSpace.exec2(
+    const res = await this.dataSpace.exec2(
       `SELECT * FROM ${this.name} WHERE tableId = ?;`,
       [tableId]
     )
+    return res.map((item) => {
+      if (item.properties) {
+        item.properties = JSON.parse(item.properties)
+      }
+      if (item.filter) {
+        item.filter = JSON.parse(item.filter)
+      }
+      return item
+    })
   }
 
   public async createDefaultView(tableId: string) {
@@ -76,7 +78,34 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       name: "New View",
       type: ViewTypeEnum.Grid,
       tableId,
-      query: "",
+      query: `SELECT * FROM tb_${tableId}`,
     })
+  }
+
+  public async isRowExistInQuery(
+    tableId: string,
+    rowId: string,
+    query: string
+  ) {
+    const tmpTableName = `temp_table_${getUuid().slice(0, 8)}`
+    const tableName = `tb_${tableId}`
+    let isExist = false
+    try {
+      await this.dataSpace.exec2(
+        `CREATE TEMPORARY TABLE ${tmpTableName} AS SELECT * FROM ${tableName} WHERE _id = ?`,
+        [rowId]
+      )
+      // Check if the row exists in the temporary table
+      const newQuery = replaceQueryTableName(query, {
+        [tableName]: tmpTableName,
+      })
+      const result = await this.dataSpace.exec2(newQuery)
+      isExist = result.length > 0
+    } catch (error) {
+    } finally {
+      // Drop the temporary table
+      await this.dataSpace.exec2(`DROP TABLE ${tmpTableName}`)
+    }
+    return isExist
   }
 }

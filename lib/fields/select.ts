@@ -2,7 +2,7 @@ import type { SelectCell } from "@/components/grid/cells/select-cell"
 
 import { uuidv4 } from "../utils"
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import { CompareOperator, GridCellKind } from "./const"
 
 export type SelectOption = {
   id: string
@@ -76,6 +76,15 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
     return `#${SelectField.colorNameValueMap[colorName]}`
   }
 
+  get compareOperators() {
+    return [
+      CompareOperator.Equal,
+      CompareOperator.NotEqual,
+      CompareOperator.IsEmpty,
+      CompareOperator.IsNotEmpty,
+    ]
+  }
+
   get options() {
     return this.column.property?.options ?? []
   }
@@ -117,7 +126,7 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
       // a new option name is entered, create a new option
       const newOption = this.addOption(cell.data.value)
       return {
-        rawData: newOption[0].id,
+        rawData: newOption[0].id || null,
         shouldUpdateColumnProperty: true,
       }
     }
@@ -170,15 +179,23 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
    * @param text tag1
    * return tag1id
    */
-  text2RawData(text: string) {
+  text2RawData(text: string | undefined) {
+    // if text is isUuid
+    if (
+      text?.length === 36 &&
+      text[8] === "-" &&
+      this.options.find((i) => i.id === text)
+    ) {
+      return text
+    }
     const option = this.options.find((i) => i.name === text)
     if (option) {
       return option.id
     } else {
       // a new option name is entered, create a new option
       return ""
-      const newOption = this.addOption(text)
-      return newOption[0].id
+      // const newOption = this.addOption(text)
+      // return newOption[0].id
     }
   }
 }

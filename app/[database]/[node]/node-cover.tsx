@@ -26,10 +26,10 @@ export const NodeCover = (props: { node: ITreeNode }) => {
   const isColor = node.cover?.startsWith("color://")
 
   return (
-    <div className="group">
+    <div className="group relative">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <div className="fixed right-[24vw] opacity-0 group-hover:opacity-100">
+          <div className="absolute right-[24%] opacity-0 group-hover:opacity-100">
             <Button>Change cover</Button>
           </div>
         </PopoverTrigger>

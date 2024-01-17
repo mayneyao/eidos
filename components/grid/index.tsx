@@ -1,23 +1,22 @@
 import DataEditor, {
   DataEditorProps,
   DataEditorRef,
-  HeaderClickedEventArgs
+  HeaderClickedEventArgs,
 } from "@glideapps/glide-data-grid"
 
 import { useSpaceAppStore } from "@/app/[database]/store"
 
-// import "@glideapps/glide-data-grid-cells/dist/index.css"
 import "@glideapps/glide-data-grid/dist/index.css"
+import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
-import React, { useEffect, useMemo, useRef } from "react"
-
-import { useSqlite } from "@/hooks/use-sqlite"
-import { useTable } from "@/hooks/use-table"
-import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { cn } from "@/lib/utils"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { useTableOperation } from "@/hooks/use-table"
+import { useUiColumns } from "@/hooks/use-ui-columns"
+
 import { Button } from "../ui/button"
 import { customCells } from "./cells"
 import { FieldEditor } from "./fields"
@@ -29,7 +28,10 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
+import { IGridViewProperties, IView } from "@/lib/store/IView"
 
+import { useCurrentView } from "../table/hooks"
+import { useViewCount } from "../table/hooks/use-view-count"
 import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"
 
@@ -45,25 +47,26 @@ const defaultConfig: Partial<DataEditorProps> = {
   trailingRowOptions: {
     tint: false,
     hint: "New",
-    // there are some display bugs when sticky is true,
-    // sticky: true,
+    sticky: true,
   },
   // auto handle copy and paste
   onPaste: true,
   headerIcons: headerIcons,
   experimental: {
     paddingBottom: 14,
+    kineticScrollPerfHack: true,
   },
 }
 
 interface IGridProps {
   tableName: string
   databaseName: string
+  view?: IView<IGridViewProperties>
   isEmbed?: boolean
   className?: string
 }
 
-export default function Grid(props: IGridProps) {
+export default function GridView(props: IGridProps) {
   const [showSearch, setShowSearch] = React.useState(false)
   const { tableName, databaseName } = props
   const { theme } = useTheme()
@@ -74,22 +77,20 @@ export default function Grid(props: IGridProps) {
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
 
+  const { currentView } = useCurrentView()
+  const { count: viewCount, setCount } = useViewCount(currentView)
   const {
-    count,
     tableSchema,
     // deleteFieldByColIndex,
     // addField,
     deleteRows,
     getRowData,
+    getRowDataById,
     addRow,
-    setCount,
-  } = useTable(tableName, databaseName)
+  } = useTableOperation(tableName, databaseName)
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
-  const { uiColumns, uiColumnMap, getFieldByIndex } = useUiColumns(
-    tableName,
-    databaseName
-  )
-  const { onColumnResize, columns } = useColumns(uiColumns)
+  const { uiColumns, getFieldByIndex } = useUiColumns(tableName, databaseName)
+  const { onColumnResize, columns } = useColumns(uiColumns, props.view!)
 
   const {
     getCellContent,
@@ -104,12 +105,14 @@ export default function Grid(props: IGridProps) {
     50,
     5,
     getRowData,
+    getRowDataById,
     toCell,
     onEdited,
     glideDataGridRef,
     addRow,
     deleteRows,
-    setCount
+    setCount,
+    props.view?.query
   )
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
@@ -129,7 +132,7 @@ export default function Grid(props: IGridProps) {
   const freezeColumns = isSm ? 0 : 1
 
   const config = useMemo(() => {
-    const _config = props.isEmbed
+    let _config = props.isEmbed
       ? {
           // height: "100%",
           experimental: {
@@ -137,12 +140,29 @@ export default function Grid(props: IGridProps) {
           },
         }
       : {}
+    const allWidth = columns.reduce((acc, cur: any) => acc + cur.width, 0)
+    // fix scroll bar bug
+    if ((size?.width || 0) < allWidth) {
+      _config = {
+        ..._config,
+        experimental: {
+          paddingBottom: 0,
+        },
+      }
+    } else {
+      _config = {
+        ..._config,
+        experimental: {
+          paddingBottom: 14,
+        },
+      }
+    }
     return {
       ...defaultConfig,
       freezeColumns,
       ..._config,
     }
-  }, [freezeColumns, props.isEmbed])
+  }, [freezeColumns, props.isEmbed, size?.width, columns])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
@@ -180,7 +200,7 @@ export default function Grid(props: IGridProps) {
 
   return (
     <div
-      className={cn("mb-2 h-full w-full p-2 pb-7", props.className)}
+      className={cn("mb-2 h-full w-full p-2 pb-7 pt-0", props.className)}
       ref={containerRef}
     >
       <div className="relative flex h-full overflow-hidden rounded-md border-t">
@@ -210,11 +230,11 @@ export default function Grid(props: IGridProps) {
               onGridSelectionChange={setSelection}
               onColumnResize={onColumnResize}
               getCellContent={getCellContent}
-              maxColumnAutoWidth={500}
+              // maxColumnAutoWidth={500}
               maxColumnWidth={2000}
               fillHandle={true}
               columns={columns ?? []}
-              rows={count}
+              rows={viewCount}
               rightElement={
                 <Button
                   variant="ghost"

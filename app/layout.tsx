@@ -8,6 +8,7 @@ import {
   EidosSharedEnvChannelName,
   MainServiceWorkerMsgType,
 } from "@/lib/const"
+import { isDevMode } from "@/lib/log"
 import { useActivationCode } from "@/hooks/use-activation-code"
 import { useShareMode } from "@/hooks/use-share-mode"
 import { useWorker } from "@/hooks/use-worker"
@@ -105,7 +106,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      {isActivated || isShareMode ? (
+      {isActivated || isShareMode || isDevMode ? (
         <>
           {/* APP MODEL， a sidebar and main */}
           <div className="flex h-screen w-screen overflow-auto">

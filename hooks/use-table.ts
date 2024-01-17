@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useMemo } from "react"
 import { v4 as uuidv4 } from "uuid"
 
+import { useSpaceAppStore } from "@/app/[database]/store"
+import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -15,20 +17,24 @@ import {
   getTableIdByRawTableName,
   shortenId,
 } from "@/lib/utils"
-import { RowRange } from "@/components/grid/hooks/use-async-data"
-import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { IField } from "../lib/store/interface"
-import { useCurrentNode } from "./use-current-node"
 import { useSqlWorker } from "./use-sql-worker"
 import { useSqlite, useSqliteStore } from "./use-sqlite"
 import { useUiColumns } from "./use-ui-columns"
 
-export const useTableFields = (tableId: string, databaseName: string) => {
+export const useTableFields = (tableIdOrName: string, databaseName: string) => {
   const {
     dataStore: { tableMap },
   } = useSqliteStore()
-  const node = tableMap[tableId]
+  // console.log({ tableId })
+  const nodeId = useMemo(() => {
+    if (tableIdOrName.startsWith("tb_")) {
+      return tableIdOrName.replace("tb_", "")
+    }
+    return tableIdOrName
+  }, [tableIdOrName])
+  const node = tableMap[nodeId]
   const fieldMap = node?.fieldMap
   const fields = useMemo(() => {
     return Object.values(fieldMap ?? {})
@@ -49,18 +55,16 @@ export const useTableViews = (tableId: string, databaseName: string) => {
   return viewIds?.map((id) => viewMap[id]) ?? []
 }
 
-export const useTable = (tableName: string, databaseName: string) => {
+export const useTableOperation = (tableName: string, databaseName: string) => {
   const { withTransaction } = useSqlite(databaseName)
   const sqlite = useSqlWorker()
-  const { setNode } = useSqliteStore()
-  const { setViews } = useSqliteStore()
+  const { setViews, setNode, setRows } = useSqliteStore()
   const tableId = getTableIdByRawTableName(tableName)
+  const rowMap = useSqliteStore(
+    (state) => state.dataStore.tableMap?.[tableId]?.rowMap || {}
+  )
   const views = useTableViews(tableId, databaseName)
-  const {
-    count,
-    setCount,
-    currentTableSchema: tableSchema,
-  } = useSpaceAppStore()
+  const { currentTableSchema: tableSchema } = useSpaceAppStore()
   const { uiColumnMap, updateUiColumns } = useUiColumns(tableName, databaseName)
 
   const updateViews = useCallback(async () => {
@@ -166,6 +170,7 @@ export const useTable = (tableName: string, databaseName: string) => {
   const { fields: uiColumns } = useTableFields(tableId, databaseName)
 
   const deleteFieldByColIndex = async (colIndex: number) => {
+    console.log(colIndex, uiColumns)
     const tableColumnName = uiColumns[colIndex].table_column_name
     console.log("deleteFieldByColIndex", tableColumnName, colIndex)
     await deleteField(tableColumnName)
@@ -206,14 +211,20 @@ export const useTable = (tableName: string, databaseName: string) => {
   )
 
   const getRowData = useCallback(
-    async (range: RowRange): Promise<any[]> => {
+    async (range: RowRange, query?: string): Promise<string[]> => {
       const [offset, limit] = range
       let data: any[] = []
       if (sqlite && tableName && uiColumnMap.size) {
         const linkQueryList = getLinkQuery(uiColumnMap)
-        data = await sqlite.sql2`SELECT * FROM ${Symbol(
-          tableName
-        )} LIMIT ${limit} OFFSET ${offset}`
+        if (query) {
+          data = await sqlite.sql4mainThread2(
+            `${query} LIMIT ${limit} OFFSET ${offset}`
+          )
+        } else {
+          data = await sqlite.sql2`SELECT * FROM ${Symbol(
+            tableName
+          )} LIMIT ${limit} OFFSET ${offset}`
+        }
         // if has link field, need to query link table, then replace the link field value
         if (linkQueryList.length) {
           const linkDataMap: Record<string, Record<string, string>> = {}
@@ -249,24 +260,22 @@ export const useTable = (tableName: string, databaseName: string) => {
           })
         }
       }
-      return data
+      setRows(tableId, data)
+      return data.map((row) => row._id)
+      // return data
     },
-    [sqlite, tableName, uiColumnMap]
+    [setRows, sqlite, tableId, tableName, uiColumnMap]
+  )
+  const getRowDataById = useCallback(
+    (rowId: string) => {
+      return rowMap[rowId]
+    },
+    [rowMap]
   )
 
-  const node = useCurrentNode()
-  useEffect(() => {
-    if (sqlite && tableName && node?.type === "table") {
-      sqlite.sql`SELECT COUNT(*) FROM ${Symbol(tableName)}`.then((res) => {
-        const count = res[0]?.[0]
-        setCount(count)
-      })
-    }
-  }, [sqlite, tableName, setCount, node?.type])
-
   return {
-    count,
     getRowData,
+    getRowDataById,
     updateCell,
     addField,
     updateFieldName,
@@ -280,7 +289,6 @@ export const useTable = (tableName: string, databaseName: string) => {
     runQuery,
     reload,
     sqlite,
-    setCount,
     views,
     updateViews,
   }

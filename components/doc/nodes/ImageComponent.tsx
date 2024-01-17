@@ -41,7 +41,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import { ImageSelector } from "@/app/[database]/[table]/image-selector"
+import { ImageSelector } from "@/app/[database]/[node]/image-selector"
 import "./ImageNode.css"
 
 import { $isImageNode } from "./ImageNode"

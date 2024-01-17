@@ -10,9 +10,16 @@ import update from "immutability-helper"
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
 
+import { cn } from "@/lib/utils"
 import { useFileSystem } from "@/hooks/use-files"
 import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
+import { ImageSelector } from "@/app/[database]/[node]/image-selector"
 
 import { useTableAppStore } from "../../store"
 import { drawImage } from "../helper"
@@ -29,11 +36,17 @@ interface FileCellDataProps {
 
 export type FileCell = CustomCell<FileCellDataProps>
 
-export const FileCellEditor: ReturnType<ProvideEditorCallback<FileCell>> = (
-  props
-) => {
+export const FileCellEditor: ReturnType<
+  ProvideEditorCallback<
+    FileCell & {
+      className?: string
+    }
+  >
+> = (props) => {
   const { value: cell, onFinishedEditing, initialValue, onChange } = props
+  const className = cell.className
 
+  const [open, setOpen] = useState(false)
   const { currentPreviewIndex, setCurrentPreviewIndex } = useTableAppStore()
 
   const moveCard = useCallback(
@@ -102,12 +115,13 @@ export const FileCellEditor: ReturnType<ProvideEditorCallback<FileCell>> = (
   )
 
   const renderCard = useCallback(
-    (v: string, i: number) => {
+    (v: string, originalUrl: string, i: number) => {
       return (
         <Card
           key={v}
           id={v}
           text={v}
+          originalUrl={originalUrl}
           moveCard={moveCard}
           index={i}
           setCurrentPreviewIndex={setCurrentPreviewIndex}
@@ -118,26 +132,7 @@ export const FileCellEditor: ReturnType<ProvideEditorCallback<FileCell>> = (
     [deleteByUrl, moveCard, setCurrentPreviewIndex]
   )
 
-  const showUploadFilePicker = async () => {
-    const pickerOpts = {
-      types: [
-        {
-          description: "Images",
-          accept: {
-            "image/*": [".png", ".gif", ".jpeg", ".jpg"],
-          },
-        },
-      ],
-      excludeAcceptAllOption: true,
-      multiple: true,
-    }
-    const fileHandles = await (window as any).showOpenFilePicker(pickerOpts)
-    const files = await Promise.all(fileHandles.map((fh: any) => fh.getFile()))
-
-    const addedFiles = await addFiles(files)
-    const urls = addedFiles.map(
-      (fileInfo) => "/" + fileInfo.path.split("/").slice(1).join("/")
-    )
+  const addUrls = (urls: string[]) => {
     const newData = [...cell.data.data, ...urls]
     const newDisplayData = [...cell.data.displayData, ...urls]
     onChange({
@@ -149,16 +144,62 @@ export const FileCellEditor: ReturnType<ProvideEditorCallback<FileCell>> = (
       },
     })
   }
+  // const showUploadFilePicker = async () => {
+  //   const pickerOpts = {
+  //     types: [
+  //       {
+  //         description: "Images",
+  //         accept: {
+  //           "image/*": [".png", ".gif", ".jpeg", ".jpg"],
+  //         },
+  //       },
+  //     ],
+  //     excludeAcceptAllOption: true,
+  //     multiple: true,
+  //   }
+  //   const fileHandles = await (window as any).showOpenFilePicker(pickerOpts)
+  //   const files = await Promise.all(fileHandles.map((fh: any) => fh.getFile()))
+
+  //   const addedFiles = await addFiles(files)
+  //   const urls = addedFiles.map(
+  //     (fileInfo) => "/" + fileInfo.path.split("/").slice(1).join("/")
+  //   )
+  //   addUrls(urls)
+  // }
 
   return (
-    <div className="rounded-md border-none outline-none">
+    <div className={cn("rounded-md border-none outline-none", className)}>
       <DndProvider backend={HTML5Backend}>
-        {cell.data.displayData.map((v, i) => renderCard(v, i))}
+        {cell.data.displayData.map((v, i) => {
+          const originalUrl = cell.data.data[i]
+          return renderCard(v, originalUrl, i)
+        })}
       </DndProvider>
       {cell.data.displayData.length > 0 && <Separator className="my-1" />}
-      <Button variant="ghost" className="w-full" onClick={showUploadFilePicker}>
-        add new
-      </Button>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            className="w-full"
+            // onClick={showUploadFilePicker}
+          >
+            add new
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="click-outside-ignore w-auto p-0">
+          <ImageSelector
+            onSelected={(url) => {
+              addUrls([url])
+              setOpen(false)
+            }}
+            onRemove={() => {}}
+            disableColor
+            hideRemove
+            height={300}
+          ></ImageSelector>
+        </PopoverContent>
+      </Popover>
+
       {currentPreviewIndex > -1 && (
         <FilePreview
           url={currentPreview}

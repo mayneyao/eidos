@@ -36,6 +36,9 @@ interface SqliteState {
 
   setViews: (tableId: string, views: IView[]) => void
   setFields: (tableId: string, fields: IField[]) => void
+  setRows: (tableId: string, rows: Record<string, any>[]) => void
+  delRows: (tableId: string, rowIds: string[]) => void
+  getRowById: (tableId: string, rowId: string) => Record<string, any> | null
 
   selectedTable: string
   setSelectedTable: (table: string) => void
@@ -65,9 +68,7 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
       const { tableMap } = state.dataStore
       if (!tableMap[tableId]) {
         tableMap[tableId] = {
-          rowIds: [],
           rowMap: {},
-          rowCount: 0,
           fieldMap: {},
           viewIds: [],
           viewMap: {},
@@ -87,9 +88,7 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
       const { tableMap } = state.dataStore
       if (!tableMap[tableId]) {
         tableMap[tableId] = {
-          rowIds: [],
           rowMap: {},
-          rowCount: 0,
           fieldMap: {},
           viewIds: [],
           viewMap: {},
@@ -101,6 +100,54 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
       }, {} as Record<string, IField>)
       return { dataStore: { ...state.dataStore, tableMap } }
     })
+  },
+
+  setRows: (tableId: string, rows: Record<string, any>[]) => {
+    set((state) => {
+      const { tableMap } = state.dataStore
+      if (!tableMap[tableId]) {
+        tableMap[tableId] = {
+          rowMap: {},
+          fieldMap: {},
+          viewIds: [],
+          viewMap: {},
+        }
+      }
+      const newRowMap = rows.reduce((acc, cur) => {
+        acc[cur._id] = cur
+        return acc
+      }, {} as Record<string, any>)
+      tableMap[tableId].rowMap = {
+        ...tableMap[tableId].rowMap,
+        ...newRowMap,
+      }
+      return { dataStore: { ...state.dataStore, tableMap } }
+    })
+  },
+
+  delRows: (tableId: string, rowIds: string[]) => {
+    set((state) => {
+      const { tableMap } = state.dataStore
+      if (!tableMap[tableId]) {
+        tableMap[tableId] = {
+          rowMap: {},
+          fieldMap: {},
+          viewIds: [],
+          viewMap: {},
+        }
+      }
+      rowIds.forEach((rowId) => {
+        delete tableMap[tableId].rowMap[rowId]
+      })
+      return { dataStore: { ...state.dataStore, tableMap } }
+    })
+  },
+  getRowById(tableId: string, rowId: string) {
+    const { tableMap } = get().dataStore
+    if (!tableMap[tableId]) {
+      return null
+    }
+    return tableMap[tableId].rowMap[rowId]
   },
   currentDatabase: "",
   setCurrentDatabase: (database) => set({ currentDatabase: database }),
@@ -265,9 +312,10 @@ export const useSqlite = (dbName?: string) => {
     tableId: string
     title: string
   }) => {
-    if (!sqlWorker) return
+    if (!sqlWorker) return null
     const { docId, tableId, title } = data
     const res = await sqlWorker.getTreeNode(docId)
+    let node = res
     if (!res) {
       const treeNode = await sqlWorker.addTreeNode({
         id: docId,
@@ -277,7 +325,10 @@ export const useSqlite = (dbName?: string) => {
       })
       addNode2List(treeNode)
       await sqlWorker.addDoc(docId, "", "")
+      node = treeNode
     }
+    node && addNode(node)
+    return node
   }
 
   const updateDoc = async (

@@ -63,13 +63,13 @@ async function loadDatabase(dbName: string) {
   }
 
   // we will create a draft db for table schema migration
-  const draftDb = sqlite.db({
+  const draftDb = await sqlite.db({
     path: `${filename}.draft.db`,
     flags: "c",
     name: dbName,
   })
 
-  const db = sqlite.db({
+  const db = await sqlite.db({
     path: filename,
     flags: "c",
     name: dbName,

@@ -1,6 +1,8 @@
 import { useState } from "react"
+import { LayoutGridIcon, Table2Icon } from "lucide-react"
 
-import { IView } from "@/lib/store/IView"
+import { IView, ViewTypeEnum } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -27,6 +29,11 @@ interface IViewItemProps {
   deleteView: () => void
   disabledDelete?: boolean
 }
+
+const ViewIconMap = {
+  [ViewTypeEnum.Grid]: Table2Icon,
+  [ViewTypeEnum.Gallery]: LayoutGridIcon,
+}
 export const ViewItem = ({
   view,
   isActive,
@@ -38,6 +45,7 @@ export const ViewItem = ({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
+  const Icon = ViewIconMap[view.type]
   const handleOpen = () => {
     if (isActive) {
       setOpen(!open)
@@ -58,14 +66,20 @@ export const ViewItem = ({
               variant={isActive ? "secondary" : "ghost"}
               onClick={() => jump2View(view.id)}
               size="sm"
+              className={cn({ "opacity-70": !isActive })}
             >
-              <span className="select-none">{view.name}</span>
+              <div className="flex items-center gap-1">
+                <Icon className="h-4 w-4" />
+                <span className="select-none">{view.name}</span>
+              </div>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuItem onSelect={handleEdit}>Edit</DropdownMenuItem>
             <DropdownMenuItem disabled={disabledDelete}>
-              <DialogTrigger className="flex w-full cursor-default">Delete</DialogTrigger>
+              <DialogTrigger className="flex w-full cursor-default">
+                Delete
+              </DialogTrigger>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

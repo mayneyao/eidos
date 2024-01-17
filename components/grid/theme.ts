@@ -1,5 +1,19 @@
 import { Theme } from "@glideapps/glide-data-grid"
 
+const commonTheme: Partial<Theme> = {
+  cellHorizontalPadding: 8,
+  cellVerticalPadding: 3,
+
+  headerIconSize: 18,
+
+  headerFontStyle: "500 14px",
+  baseFontStyle: "13px",
+  fontFamily:
+    "Inter, Roboto, -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Ubuntu, noto, arial, sans-serif",
+  editorFontSize: "13px",
+  lineHeight: 1.4, //unitless scaler depends on your font
+}
+
 export const darkTheme: Partial<Theme> = {
   accentColor: "hsl(0,0%,100%)",
   accentLight: "hsl(222.2,47.4%,11.2%)",
@@ -30,10 +44,7 @@ export const darkTheme: Partial<Theme> = {
 
   linkColor: "#4F5DFF",
 
-  headerFontStyle: "bold 14px",
-  baseFontStyle: "13px",
-  fontFamily:
-    "Inter, Roboto, -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Ubuntu, noto, arial, sans-serif",
+  ...commonTheme,
 }
 
 export const lightTheme: Partial<Theme> = {
@@ -67,16 +78,5 @@ export const lightTheme: Partial<Theme> = {
   drilldownBorder: "rgba(0, 0, 0, 0)",
 
   linkColor: "#4F5DFF",
-
-  cellHorizontalPadding: 8,
-  cellVerticalPadding: 3,
-
-  headerIconSize: 18,
-
-  headerFontStyle: "500 14px",
-  baseFontStyle: "13px",
-  fontFamily:
-    "Inter, Roboto, -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Ubuntu, noto, arial, sans-serif",
-  editorFontSize: "13px",
-  lineHeight: 1.4, //unitless scaler depends on your font
+  ...commonTheme,
 }

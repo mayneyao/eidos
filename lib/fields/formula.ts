@@ -10,6 +10,10 @@ export type FormulaProperty = {
 export class FormulaField extends BaseField<TextCell, FormulaProperty> {
   static type = "formula"
 
+  get compareOperators() {
+    return []
+  }
+
   rawData2JSON(rawData: string) {
     return rawData
   }
@@ -26,7 +30,7 @@ export class FormulaField extends BaseField<TextCell, FormulaProperty> {
 
   cellData2RawData(cell: TextCell) {
     return {
-      rawData: cell.data,
+      rawData: cell.data || null,
     }
   }
 }

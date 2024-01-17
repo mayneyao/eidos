@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { NodeIconEditor } from "@/app/[database]/[table]/node-icon"
+import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"

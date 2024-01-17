@@ -1,11 +1,14 @@
 import { IField } from "@/lib/store/interface"
 
+import { CompareOperator } from "./const"
+
 type UIColumn<P> = Omit<IField, "property"> & {
   property: P
 }
 
 interface IBaseField<T, P, R> {
   column: UIColumn<P>
+  compareOperators: string[]
   getCellContent(rawData: any): T
   rawData2JSON(rawData: R): any
   cellData2RawData(cell: T): any
@@ -30,6 +33,7 @@ export abstract class BaseField<T, P, R = string>
     this.column = column
   }
 
+  abstract get compareOperators(): CompareOperator[]
   /**
    * getCellContent will be called when the cell is rendered
    * transform the raw data into the cell content for rendering
@@ -53,6 +57,6 @@ export abstract class BaseField<T, P, R = string>
   }
 
   text2RawData(text: string) {
-    return text
+    return text || null
   }
 }

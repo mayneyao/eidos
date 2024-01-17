@@ -1,13 +1,21 @@
+import { FilterValueType } from "@/components/table/view-filter-editor/interface"
+
 export enum ViewTypeEnum {
   Grid = "grid",
   Gallery = "gallery",
 }
 
-export interface IView {
+export interface IView<T = any> {
   id: string
   name: string
   type: ViewTypeEnum
   tableId: string // tableId uuid
   query: string
   fieldIds?: string[]
+  properties?: T
+  filter?: FilterValueType
+}
+
+export interface IGridViewProperties {
+  fieldWidthMap: Record<string, number>
 }

@@ -3,7 +3,7 @@ import { NodeKey } from "lexical/LexicalNode"
 import { ReactNode, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import { NodeIconEditor } from "@/app/[database]/[table]/node-icon"
+import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 import { ItemIcon } from "@/components/sidebar/item-tree"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/hooks/use-query-node"

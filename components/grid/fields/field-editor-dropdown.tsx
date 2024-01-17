@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
 import {
   ArrowDownNarrowWideIcon,
@@ -6,11 +5,11 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { useLayer } from "react-laag"
 
-import { cn } from "@/lib/utils"
-import { useTable } from "@/hooks/use-table"
-import { useUiColumns } from "@/hooks/use-ui-columns"
+import { CommonMenuItem } from "@/components/common-menu-item"
+import { useCurrentView, useViewOperation } from "@/components/table/hooks"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,7 +21,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { CommonMenuItem } from "@/components/common-menu-item"
+import { useTableOperation } from "@/hooks/use-table"
+import { useUiColumns } from "@/hooks/use-ui-columns"
+import { cn } from "@/lib/utils"
 
 import { useTableAppStore } from "../store"
 import { checkNewFieldNameIsOk } from "./helper"
@@ -48,9 +49,10 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const ref2 = useRef<HTMLDivElement>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [currentColIndex, setCurrentColIndex] = useState<number>()
-
+  const { currentView } = useCurrentView()
+  const { addSort } = useViewOperation()
   const inputRef = useRef<HTMLInputElement>(null)
-  const { updateFieldName } = useTable(tableName, databaseName)
+  const { updateFieldName } = useTableOperation(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
 
   const [newFieldName, setNewFieldName] = useState<string>(
@@ -141,6 +143,19 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     setIsDeleteDialogOpen(false)
     setCurrentColIndex(undefined)
   }
+
+  const addASCSort = () => {
+    if (currentUiColumn) {
+      addSort(currentView!, currentUiColumn.table_column_name, "ASC")
+    }
+    setMenu(undefined)
+  }
+  const addDESCSort = () => {
+    if (currentUiColumn) {
+      addSort(currentView!, currentUiColumn.table_column_name, "DESC")
+    }
+    setMenu(undefined)
+  }
   useClickAway(
     () => {
       setMenu(undefined)
@@ -191,20 +206,14 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 <Settings2 className="mr-2 h-4 w-4" />
                 Edit Property
               </CommonMenuItem>
-              {/* <CommonMenuItem
-                className="pl-4"
-                onClick={handleEditFieldPropertiesClick}
-              >
+              <CommonMenuItem className="pl-4" onClick={addASCSort}>
                 <ArrowUpNarrowWideIcon className="mr-2 h-4 w-4" />
                 Sort Ascending
               </CommonMenuItem>
-              <CommonMenuItem
-                className="pl-4"
-                onClick={handleEditFieldPropertiesClick}
-              >
+              <CommonMenuItem className="pl-4" onClick={addDESCSort}>
                 <ArrowDownNarrowWideIcon className="mr-2 h-4 w-4" />
                 Sort Descending
-              </CommonMenuItem> */}
+              </CommonMenuItem>
               {currentUiColumn?.type !== "title" && (
                 <DialogTrigger
                   onClick={handleDeleteFieldClick}

@@ -1,7 +1,7 @@
 import type { DatePickerCell } from "@/components/grid/cells/date-picker-cell"
 
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import { CompareOperator, GridCellKind } from "./const"
 
 type DateProperty = {}
 
@@ -14,13 +14,26 @@ export class DateField extends BaseField<DateCell, DateProperty, string> {
     return rawData
   }
 
+  get compareOperators() {
+    return [
+      CompareOperator.Equal,
+      CompareOperator.NotEqual,
+      CompareOperator.GreaterThan,
+      CompareOperator.GreaterThanOrEqual,
+      CompareOperator.LessThan,
+      CompareOperator.LessThanOrEqual,
+      CompareOperator.IsEmpty,
+      CompareOperator.IsNotEmpty,
+    ]
+  }
+
   getCellContent(rawData: string | undefined): DateCell {
     return {
       kind: GridCellKind.Custom,
       data: {
         kind: "date-picker-cell",
         date: rawData ? new Date(rawData) : undefined,
-        displayDate: rawData ? new Date(rawData).toLocaleString() : "",
+        displayDate: rawData ? new Date(rawData).toLocaleDateString() : "",
         format: "date",
       },
       copyData: rawData ?? "",
@@ -30,7 +43,7 @@ export class DateField extends BaseField<DateCell, DateProperty, string> {
 
   cellData2RawData(cell: DateCell) {
     return {
-      rawData: cell.data.displayDate,
+      rawData: cell.data.date?.toISOString() || null,
     }
   }
 }

@@ -1,12 +1,19 @@
 import type { TextCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import {
+  GridCellKind,
+  TEXT_BASED_COMPARE_OPERATORS
+} from "./const"
 
 type TextProperty = {}
 
 export class TextField extends BaseField<TextCell, TextProperty> {
   static type = "text"
+
+  get compareOperators() {
+    return TEXT_BASED_COMPARE_OPERATORS
+  }
 
   rawData2JSON(rawData: string) {
     return rawData
@@ -23,7 +30,7 @@ export class TextField extends BaseField<TextCell, TextProperty> {
 
   cellData2RawData(cell: TextCell) {
     return {
-      rawData: cell.data,
+      rawData: cell.data || null,
     }
   }
 }

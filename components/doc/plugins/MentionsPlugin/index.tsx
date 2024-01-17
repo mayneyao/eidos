@@ -21,7 +21,7 @@ import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useQueryNode } from "@/hooks/use-query-node"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { ItemIcon } from "@/components/sidebar/item-tree"
-import { NodeIconEditor } from "@/app/[database]/[table]/node-icon"
+import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
 import { $createMentionNode } from "../../nodes/MentionNode"
 

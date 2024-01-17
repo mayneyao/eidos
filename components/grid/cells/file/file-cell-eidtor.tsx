@@ -24,6 +24,7 @@ const style = {
 export interface CardProps {
   id: any
   text: string
+  originalUrl: string
   index: number
   moveCard: (dragIndex: number, hoverIndex: number) => void
   setCurrentPreviewIndex: (i: number) => void
@@ -41,6 +42,7 @@ export const Card: FC<CardProps> = ({
   text,
   index,
   moveCard,
+  originalUrl,
   deleteByUrl,
   setCurrentPreviewIndex,
 }) => {
@@ -120,7 +122,7 @@ export const Card: FC<CardProps> = ({
   drag(drop(ref))
 
   const handleClickViewOriginal = () => {
-    window.open(text, "_blank")
+    window.open(originalUrl, "_blank")
   }
 
   return (
@@ -134,7 +136,7 @@ export const Card: FC<CardProps> = ({
         src={text}
         alt=""
         onClick={() => setCurrentPreviewIndex(index)}
-        className="max-h-[196px] max-w-[80%] cursor-pointer object-contain"
+        className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
       />
       <DropdownMenu>
         <DropdownMenuTrigger className="click-outside-ignore h-[32px]">

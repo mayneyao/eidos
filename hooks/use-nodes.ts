@@ -11,7 +11,10 @@ export const useAllNodes = () => {
 
 export const useNode = () => {
   const { sqlite } = useSqlite()
-  const { setNode } = useSqliteStore()
+  const {
+    setNode,
+    dataStore: { nodeMap },
+  } = useSqliteStore()
   const updateIcon = async (id: string, icon: string) => {
     await sqlite?.tree.set(id, {
       icon,
@@ -20,6 +23,7 @@ export const useNode = () => {
       id,
       icon,
     })
+    console.log(nodeMap, id, icon)
   }
 
   const updateCover = async (id: string, cover: string) => {

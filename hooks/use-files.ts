@@ -204,7 +204,7 @@ export const useFiles = () => {
   useEffect(() => {
     const fetchFiles = async () => {
       const files = await sqlite?.file.list()
-      setFiles(files ?? [])
+      setFiles(files?.reverse() ?? [])
     }
     fetchFiles()
   }, [sqlite])

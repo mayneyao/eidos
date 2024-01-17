@@ -1,26 +1,20 @@
-import { ICommand, IScript } from "@/worker/web-worker/meta_table/script"
-import { RowsManager } from "@/worker/web-worker/sdk/rows"
-import { useCallback, useMemo } from "react"
+import { useCallback } from "react"
 
+import { IField } from "@/lib/store/interface"
+import { shortenId } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
+import { useGoto } from "@/hooks/use-goto"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useGoto } from "@/hooks/use-goto"
-import { useScripts } from "@/hooks/use-scripts"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { IField } from "@/lib/store/interface"
-import { useCurrentUiColumns } from "@/hooks/use-ui-columns"
-import { shortenId } from "@/lib/utils"
 
-import { useScriptFunction } from "../script-container/hook"
+import { ScriptContextMenu } from "./script-context-menu"
 import { useTableAppStore } from "./store"
 
 export function GridContextMenu({
@@ -37,16 +31,8 @@ export function GridContextMenu({
   const { selection, clearSelection } = useTableAppStore()
   const count = selection.current?.range.height ?? 0
   const { space, tableId } = useCurrentPathInfo()
-  const scripts = useScripts(space)
-  const { callFunction } = useScriptFunction()
   const { getOrCreateTableSubDoc } = useSqlite(space)
-  const { uiColumns } = useCurrentUiColumns()
-  const fieldRawColumnNameFieldMap = useMemo(() => {
-    return uiColumns.reduce((acc, cur) => {
-      acc[cur.table_column_name] = cur
-      return acc
-    }, {} as Record<string, IField>)
-  }, [uiColumns])
+  const { setSubPage } = useCurrentSubPage()
 
   const goto = useGoto()
   const getRow = useCallback(() => {
@@ -98,7 +84,7 @@ export function GridContextMenu({
       tableId: tableId!,
     })
     if (right) {
-      goto(space, tableId, shortId)
+      setSubPage(shortId)
     } else {
       goto(space, shortId)
     }
@@ -111,38 +97,17 @@ export function GridContextMenu({
     window.open(cell, "_blank")
   }
 
-  const handleScriptActionCall = async (action: IScript, command: ICommand) => {
-    const rows = getRows()
-    if (!rows?.length) return
-    for (const row of rows) {
-      const rowJson = RowsManager.rawData2Json(row, fieldRawColumnNameFieldMap)
-      await callFunction({
-        input: rowJson,
-        command: command.name,
-        context: {
-          tables: action.fieldsMap,
-          env: action.envMap || {},
-          currentNodeId: tableId,
-          currentRowId: row._id,
-          callFromTableAction: true,
-        },
-        code: action.code,
-        id: action.id,
-      })
-    }
-  }
-
   return (
     <ContextMenu>
       <ContextMenuTrigger className="h-full w-full">
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onSelect={() => openRow()}>
+        <ContextMenuItem inset onSelect={() => openRow(true)}>
           Open
         </ContextMenuItem>
-        <ContextMenuItem inset onSelect={() => openRow(true)}>
-          Open Right
+        <ContextMenuItem inset onSelect={() => openRow()}>
+          Open in full page
         </ContextMenuItem>
         <ContextMenuItem
           inset
@@ -165,34 +130,7 @@ export function GridContextMenu({
             </ContextMenuItem>
           </>
         )}
-        {scripts.map((script) => {
-          const actionCommands = script.commands?.filter(
-            (cmd) => cmd.asTableAction
-          )
-          const hasActions = actionCommands && actionCommands.length > 0
-          if (!hasActions) {
-            return null
-          }
-          return (
-            <ContextMenuSub key={script.id}>
-              <ContextMenuSubTrigger inset>{script.name}</ContextMenuSubTrigger>
-              <ContextMenuSubContent className="w-48">
-                {actionCommands.map((cmd) => {
-                  return (
-                    <ContextMenuItem
-                      key={cmd.name}
-                      onClick={() => {
-                        handleScriptActionCall(script, cmd)
-                      }}
-                    >
-                      {cmd.name}
-                    </ContextMenuItem>
-                  )
-                })}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-          )
-        })}
+        <ScriptContextMenu getRows={getRows} />
       </ContextMenuContent>
     </ContextMenu>
   )

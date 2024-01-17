@@ -1,13 +1,15 @@
-import { Database } from "@sqlite.org/sqlite-wasm"
+import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
 import { allFieldTypesMap } from "@/lib/fields"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
-import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { IField } from "@/lib/store/interface"
+import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
 
+import { ITreeNode } from "../../lib/store/ITreeNode"
+import { IView } from "../../lib/store/IView"
 import { DbMigrator } from "./DbMigrator"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
@@ -18,13 +20,11 @@ import { FileTable, IFile } from "./meta_table/file"
 import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
 import { Table } from "./meta_table/table"
 import { TreeTable } from "./meta_table/tree"
-import { ITreeNode } from "../../lib/store/ITreeNode"
 import { ViewTable } from "./meta_table/view"
-import { IView } from "../../lib/store/IView"
 import { TableManager } from "./sdk/table"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 import { DataChangeTrigger } from "./trigger/data_change_trigger"
-import { ALL_UDF } from "./udf"
+import { withSqlite3AllUDF } from "./udf"
 
 export type EidosTable =
   | DocTable
@@ -39,6 +39,7 @@ export type EidosTable =
 export class DataSpace {
   db: Database
   draftDb: DataSpace | undefined
+  sqlite3: Sqlite3Static
   undoRedoManager: SQLiteUndoRedo
   activeUndoManager: boolean
   dbName: string
@@ -61,9 +62,11 @@ export class DataSpace {
     db: Database,
     activeUndoManager: boolean,
     dbName: string,
+    sqlite3: Sqlite3Static,
     draftDb?: DataSpace
   ) {
     this.db = db
+    this.sqlite3 = sqlite3
     this.draftDb = draftDb
     this.dbName = dbName
     this.initUDF()
@@ -92,6 +95,10 @@ export class DataSpace {
     if (this.draftDb) {
       const dbMigrator = new DbMigrator(this, this.draftDb)
       dbMigrator.migrate()
+      // after migration, enable opfs SyncAccessHandle Pool for better performance
+      this.sqlite3.installOpfsSAHPoolVfs({}).then((poolUtil) => {
+        console.debug("poolUtil", poolUtil)
+      })
     }
     this.initMetaTable()
 
@@ -104,10 +111,12 @@ export class DataSpace {
   }
 
   private initUDF() {
-    ALL_UDF.forEach((udf) => {
-      this.db.createFunction(udf)
+    const allUfs = withSqlite3AllUDF(this.sqlite3)
+    allUfs.forEach((udf) => {
+      this.db.createFunction(udf as any)
     })
   }
+
   private initMetaTable() {
     this.allTables.forEach((table) => {
       this.exec(table.createTableSql)
@@ -138,6 +147,28 @@ export class DataSpace {
   // table
   public table(id: string) {
     return new TableManager(id, this)
+  }
+
+  public async setRow(tableId: string, rowId: string, data: any) {
+    return await this.table(tableId).rows.update(rowId, data, {
+      useFieldId: true,
+    })
+  }
+  public async getRow(tableId: string, rowId: string) {
+    const tableManager = this.table(tableId)
+    const row = await tableManager.rows.query(
+      {
+        _id: rowId,
+      },
+      {
+        limit: 1,
+        raw: true,
+      }
+    )
+    if (row.length === 0) {
+      return null
+    }
+    return row[0]
   }
 
   // files
@@ -177,7 +208,7 @@ export class DataSpace {
     return await this.file.saveFile2OPFS(url, name)
   }
 
-  public async listFiles(){
+  public async listFiles() {
     return await this.file.list()
   }
 
@@ -204,6 +235,14 @@ export class DataSpace {
 
   public async createDefaultView(tableId: string) {
     return await this.view.createDefaultView(tableId)
+  }
+
+  public async isRowExistInQuery(
+    tableId: string,
+    rowId: string,
+    query: string
+  ) {
+    return await this.view.isRowExistInQuery(tableId, rowId, query)
   }
 
   // columns
@@ -253,7 +292,7 @@ export class DataSpace {
         restData[key] = field.text2RawData(restData[key])
       }
     })
-    console.log(restData)
+    console.debug(restData)
     const keys = [
       "_id",
       ...Object.keys(restData)
@@ -426,7 +465,13 @@ export class DataSpace {
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
-    // console.log(sql, bind)
+    console.debug(
+      "[%cSQLQuery:%cCallViaMethod]",
+      "color:indigo",
+      "color:green",
+      sql,
+      bind
+    )
     return this.syncExec2(sql, bind)
   }
 
@@ -551,7 +596,7 @@ export class DataSpace {
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
-    // console.log(sql, bind)
+    // console.debug(sql, bind)
     const res: any[] = []
     try {
       this.db.exec({
@@ -595,7 +640,7 @@ export class DataSpace {
    */
   public async sql(strings: TemplateStringsArray, ...values: any[]) {
     const { sql, bind } = buildSql(strings, ...values)
-    // console.log(sql, bind)
+    // console.debug(sql, bind)
     const res = this.execSqlWithBind(sql, bind)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
@@ -623,6 +668,14 @@ export class DataSpace {
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
+    logger.debug(
+      "[%cSQLQuery:%cCallViaRawSql]",
+      "color:indigo",
+      "color:red",
+      sql,
+      bind,
+      rowMode
+    )
     const res = this.execSqlWithBind(sql, bind, rowMode)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
@@ -644,7 +697,7 @@ export class DataSpace {
         database: this.dbName,
       },
     })
-    console.log("onUpdate")
+    console.debug("onUpdate")
   }
 
   public async withTransaction(fn: Function) {

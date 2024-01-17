@@ -50,6 +50,6 @@ export const getColumnWidthAndCount = (
 
 export const computeCardHeight = (query: string, allColumnSize: number) => {
   const columns = getColumnsFromQuery(query)
-  const columnCount = columns?.length || allColumnSize
-  return columnCount * 24 + 200 + 32
+  const columnCount = allColumnSize || columns?.length || 1
+  return columnCount * 40 + 200 + 32
 }

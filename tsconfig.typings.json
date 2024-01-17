@@ -16,5 +16,5 @@
       "react": ["./node_modules/react/index.d.ts"]
     }
   },
-  "include": ["worker/sdk/index.ts"]
+  "include": ["worker/web-worker/sdk/index.ts"]
 }

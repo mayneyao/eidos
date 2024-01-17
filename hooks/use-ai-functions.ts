@@ -9,14 +9,14 @@ import { useConfigStore } from "@/app/settings/store"
 
 import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite } from "./use-sqlite"
-import { useTable } from "./use-table"
+import { useTableOperation } from "./use-table"
 
 export const useAIFunctions = () => {
   const { space: database, tableName: table } = useCurrentPathInfo()
   const { handleSql, sqlite } = useSqlite(database)
   const { aiConfig } = useConfigStore()
   // FIXME: now ai-chat is global, maybe not in table page
-  const { runQuery } = useTable(table ?? "", database)
+  const { runQuery } = useTableOperation(table ?? "", database)
 
   const handleRunSql = useCallback(
     async (sql: string) => {

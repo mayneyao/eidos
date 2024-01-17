@@ -18,17 +18,17 @@ import {
 } from "@glideapps/glide-data-grid"
 import { chunk, range } from "lodash"
 
-import {
-  DataUpdateSignalType,
-  EidosDataEventChannelMsgType,
-  EidosDataEventChannelName,
-} from "@/lib/const"
-import { uuidv4 } from "@/lib/utils"
+import { DataUpdateSignalType, EidosDataEventChannelMsgType } from "@/lib/const"
+import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { useViewSort } from "@/hooks/use-view-sort"
 
 import { useTableAppStore } from "../store"
 
 export type RowRange = readonly [number, number]
-type RowCallback<T> = (range: RowRange) => Promise<readonly T[]>
+type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
 type RowToCell<T> = (row: T, col: number) => GridCell
 export type RowEditedCallback<T> = (
   cell: Item,
@@ -41,13 +41,15 @@ export function useAsyncData<TRowType>(
   pageSize: number,
   maxConcurrency: number,
   // offset limit
-  getRowData: RowCallback<TRowType>,
+  getRowData: RowCallback<string>,
+  getRowDataById: (id: string) => TRowType,
   toCell: RowToCell<TRowType>,
   onEdited: RowEditedCallback<TRowType>,
   gridRef: MutableRefObject<DataEditorRef | null>,
   addRow: (uuid?: string) => Promise<string | undefined>,
   delRows: (rowIds: string[]) => Promise<void>,
-  setCount: (count: number) => void
+  setCount: (count: number) => void,
+  qs?: string
 ): Pick<
   DataEditorProps,
   | "getCellContent"
@@ -60,9 +62,14 @@ export function useAsyncData<TRowType>(
   getRowByIndex: (index: number) => TRowType | undefined
 } {
   const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableAppStore()
+  const { setSubPage } = useCurrentSubPage()
+  const { space, tableId } = useCurrentPathInfo()
+  const { getOrCreateTableSubDoc } = useSqlite(space)
+  const { getViewSortedRowIds } = useViewSort(qs || "")
+  const { sqlite } = useSqlite()
   pageSize = Math.max(pageSize, 1)
   const loadingRef = useRef(CompactSelection.empty())
-  const dataRef = useRef<TRowType[]>([])
+  const dataRef = useRef<string[]>([])
   const [visiblePages, setVisiblePages] = useState<Rectangle>({
     x: 0,
     y: 0,
@@ -90,8 +97,9 @@ export function useAsyncData<TRowType>(
   const getCellContent = useCallback<DataEditorProps["getCellContent"]>(
     (cell) => {
       const [col, row] = cell
-      const rowData: TRowType | undefined = dataRef.current[row]
-      if (rowData !== undefined) {
+      const rowId: string | undefined = dataRef.current[row]
+      const rowData = getRowDataById(rowId)
+      if (rowId !== undefined) {
         return toCell(rowData, col)
       }
       return {
@@ -99,14 +107,14 @@ export function useAsyncData<TRowType>(
         allowOverlay: false,
       }
     },
-    [toCell]
+    [getRowDataById, toCell]
   )
 
   const loadPage = useCallback(
     async (page: number) => {
       loadingRef.current = loadingRef.current.add(page)
       const startIndex = page * pageSize
-      const d = await getRowData([startIndex, (page + 1) * pageSize])
+      const d = await getRowData([startIndex, (page + 1) * pageSize], qs)
 
       const vr = visiblePagesRef.current
 
@@ -122,7 +130,7 @@ export function useAsyncData<TRowType>(
       }
       gridRef.current?.updateCells(damageList)
     },
-    [getRowData, gridRef, pageSize]
+    [getRowData, gridRef, pageSize, qs]
   )
 
   const getCellsForSelection = useCallback(
@@ -156,11 +164,26 @@ export function useAsyncData<TRowType>(
     [getCellContent, loadPage, maxConcurrency, pageSize]
   )
 
-  useEffect(() => {
-    // refresh data when table name changes
+  const refreshData = () => {
     loadingRef.current = CompactSelection.empty()
     dataRef.current = []
-  }, [tableName])
+  }
+
+  // check a record whether exist in a view after insert/update
+  const checkRowExistInQuery = useCallback(
+    async (rowId: string, callback: (isExist: boolean) => void) => {
+      if (!sqlite || !qs) return
+      const tableId = getTableIdByRawTableName(tableName)
+      const isExist = await sqlite.isRowExistInQuery(tableId, rowId, qs)
+      callback(isExist)
+    },
+    [sqlite, qs, tableName]
+  )
+
+  useEffect(() => {
+    // refresh data when table name changes
+    refreshData()
+  }, [tableName, qs])
 
   useEffect(() => {
     const r = visiblePages
@@ -177,13 +200,10 @@ export function useAsyncData<TRowType>(
       const [, row] = cell
       const current = dataRef.current[row]
       if (current === undefined) return
-
-      const result = onEdited(cell, newVal, current)
-      if (result !== undefined) {
-        dataRef.current[row] = result
-      }
+      const rowData = getRowDataById(current)
+      onEdited(cell, newVal, rowData)
     },
-    [onEdited]
+    [getRowDataById, onEdited]
   )
 
   const handleAddRow = useCallback(async () => {
@@ -193,7 +213,7 @@ export function useAsyncData<TRowType>(
       addAddedRowId(uuid)
       const rowId = await addRow(uuid)
       if (rowId) {
-        dataRef.current.push({ _id: rowId } as any)
+        dataRef.current.push(rowId)
       }
     } catch (error) {
       setCount(dataRef.current.length)
@@ -201,9 +221,7 @@ export function useAsyncData<TRowType>(
   }, [addAddedRowId, addRow, setCount])
 
   const handleDelRows = async (startIndex: number, endIndex: number) => {
-    const rowIds = dataRef.current
-      .slice(startIndex, endIndex)
-      .map((row: any) => row._id)
+    const rowIds = dataRef.current.slice(startIndex, endIndex)
     // remove from data
     const count = endIndex - startIndex
     dataRef.current.splice(startIndex, count)
@@ -226,29 +244,50 @@ export function useAsyncData<TRowType>(
   }, [gridRef])
 
   const getRowByIndex = (index: number) => {
-    return dataRef.current[index]
+    const rowId = dataRef.current[index]
+    return getRowDataById(rowId)
   }
 
   const getRowIndexById = (id: string) => {
-    const rowIndex = dataRef.current.findIndex((row: any) => row._id === id)
+    const rowIndex = dataRef.current.findIndex((rowId) => rowId === id)
     return rowIndex
   }
 
   useEffect(() => {
-    const bc = new BroadcastChannel(EidosDataEventChannelName)
-    bc.onmessage = (ev) => {
+    const handler = (ev: MessageEvent) => {
       const { type, payload } = ev.data
       if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
         const { table, _new, _old } = payload
         if (tableName !== table) return
         switch (payload.type) {
-          case DataUpdateSignalType.Update:
-            const rowIndex = getRowIndexById(_old._id)
-            if (rowIndex !== -1) {
-              // FIXME: for now we just refresh the visible region, link cell has some problem
-              dataRef.current[rowIndex] = _new
+          case DataUpdateSignalType.Insert:
+            checkRowExistInQuery(_new._id, async (isExist) => {
+              if (!isExist) {
+                // new record is not in query, open as sub-page
+                const docId = shortenId(_new._id)
+                await getOrCreateTableSubDoc({
+                  docId,
+                  title: _new.title,
+                  tableId: tableId!,
+                })
+                setSubPage(docId)
+              }
+            })
+            // more simple way to refresh the data, but cost more
+            getViewSortedRowIds().then((rowIds) => {
+              dataRef.current = rowIds
+              setCount(dataRef.current.length)
               refreshCurrentVisible()
-            }
+            })
+            break
+            break
+          case DataUpdateSignalType.Update:
+            // more simple way to refresh the data, but cost more
+            getViewSortedRowIds().then((rowIds) => {
+              dataRef.current = rowIds
+              setCount(dataRef.current.length)
+              refreshCurrentVisible()
+            })
             break
           case DataUpdateSignalType.Delete:
             const rowIndex2 = getRowIndexById(_old._id)
@@ -258,33 +297,86 @@ export function useAsyncData<TRowType>(
               refreshCurrentVisible()
             }
             break
-          case DataUpdateSignalType.Insert:
-            const rowIndex3 = getRowIndexById(_new._id)
-            // if the row is added by click add row button, then ignore.
-            if (addedRowIds.has(_new._id)) {
-              clearAddedRowIds()
-              return
-            }
-            if (rowIndex3 === -1) {
-              dataRef.current.push(_new)
-              setCount(dataRef.current.length)
-              refreshCurrentVisible()
-            }
-            break
+          // case DataUpdateSignalType.Update:
+          //   const rowIndex = getRowIndexById(_old._id)
+          //   checkRowExistInQuery(_new._id, (isExist) => {
+          //     if (rowIndex !== -1) {
+          //       // FIXME: for now we just refresh the visible region, link cell has some problem
+          //       if (isExist) {
+          //         dataRef.current[rowIndex] = _new._id
+          //         refreshCurrentVisible()
+          //       } else {
+          //         // remove from data
+          //         dataRef.current.splice(rowIndex, 1)
+          //         setCount(dataRef.current.length)
+          //         refreshCurrentVisible()
+          //       }
+          //     } else {
+          //       if (isExist) {
+          //         dataRef.current.push(_new._id)
+          //         setCount(dataRef.current.length)
+          //         refreshCurrentVisible()
+          //       }
+          //     }
+          //   })
+          //   break
+          // case DataUpdateSignalType.Delete:
+          //   const rowIndex2 = getRowIndexById(_old._id)
+          //   if (rowIndex2 !== -1) {
+          //     dataRef.current.splice(rowIndex2, 1)
+          //     setCount(dataRef.current.length)
+          //     refreshCurrentVisible()
+          //   }
+          //   break
+          // case DataUpdateSignalType.Insert:
+          //   const rowIndex3 = getRowIndexById(_new._id)
+          //   // if the row is added by click add row button
+          //   if (addedRowIds.has(_new._id)) {
+          //     clearAddedRowIds()
+          //     return
+          //     checkRowExistInQuery(_new._id, async (isExist) => {
+          //       if (!isExist) {
+          //         // new record is not in query, open as sub-page
+          //         const docId = shortenId(_new._id)
+          //         await getOrCreateTableSubDoc({
+          //           docId,
+          //           title: _new.title,
+          //           tableId: tableId!,
+          //         })
+          //         setSubPage(docId)
+          //       }
+          //     })
+          //   } else {
+          //     // if the row is added by other user
+          //     checkRowExistInQuery(_new._id, async (isExist) => {
+          //       if (isExist && rowIndex3 === -1) {
+          //         dataRef.current.push(_new._id)
+          //         setCount(dataRef.current.length)
+          //         refreshCurrentVisible()
+          //       }
+          //     })
+          //   }
+          //   break
           default:
             break
         }
       }
     }
+    window.addEventListener("message", handler)
     return () => {
-      bc.close()
+      window.removeEventListener("message", handler)
     }
   }, [
+    addedRowIds,
+    checkRowExistInQuery,
+    clearAddedRowIds,
+    getOrCreateTableSubDoc,
+    getViewSortedRowIds,
     refreshCurrentVisible,
     setCount,
+    setSubPage,
+    tableId,
     tableName,
-    addedRowIds,
-    clearAddedRowIds,
   ])
 
   return {

@@ -1,5 +1,10 @@
 import {
+  Expr,
+  ExprBinary,
+  ExprRef,
+  LogicOperator,
   SelectFromStatement,
+  SelectStatement,
   Statement,
   astMapper,
   parse,
@@ -8,14 +13,30 @@ import {
 } from "pgsql-ast-parser"
 
 import type { IField } from "@/lib/store/interface"
+import { FilterValueType } from "@/components/table/view-filter-editor/interface"
 
-import { FieldType } from "../fields/const"
+import { BinaryOperator, CompareOperator, FieldType } from "../fields/const"
 
 export const getColumnsFromQuery = (sql?: string) => {
   if (!sql) return []
   // parse multiple statements
   const ast: Statement[] = parse(sql)
   return (ast?.[0] as SelectFromStatement).columns
+}
+
+export const replaceQueryTableName = (
+  query: string,
+  tableNameMap: Record<string, string>
+) => {
+  const ast: Statement = parseFirst(query)
+  const selectStatement = ast as SelectFromStatement
+  selectStatement.from?.forEach((from) => {
+    if (from.type === "table") {
+      const tableName = from.name.name
+      from.name.name = tableNameMap[tableName] ?? tableName
+    }
+  })
+  return toSql.statement(selectStatement)
 }
 
 /**

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react"
-import { IView } from "@/lib/store/IView"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { VariableSizeGrid as Grid } from "react-window"
 
+import { IView } from "@/lib/store/IView"
+import { getTableIdByRawTableName } from "@/lib/utils"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
-import { useViewData } from "../../hooks"
 import { GalleryCard } from "./gallery-card"
+import { useGalleryViewData } from "./hooks"
 import { computeCardHeight, getColumnWidthAndCount } from "./utils"
 
 interface IGalleryViewProps {
@@ -21,7 +22,7 @@ export default function GalleryView({
   view,
 }: IGalleryViewProps) {
   const [size, setSize] = useState<any>()
-  const { data } = useViewData(view)
+  const { data } = useGalleryViewData(view)
   const ref = useRef<Grid>(null)
   const { uiColumns, uiColumnMap, getFieldByIndex, rawIdNameMap } =
     useUiColumns(tableName, space)
@@ -29,6 +30,8 @@ export default function GalleryView({
   const { columnCount, cardWidth } = getColumnWidthAndCount(
     size?.scaledWidth ?? 0
   )
+  const tableId = getTableIdByRawTableName(tableName)
+
   const cardHeight = computeCardHeight(view.query, rawIdNameMap.size)
   useEffect(() => {
     if (ref.current) {
@@ -52,8 +55,10 @@ export default function GalleryView({
             columnCount,
             uiColumns,
             uiColumnMap,
-            getFieldByIndex,
             rawIdNameMap,
+            tableId,
+            space,
+            hiddenFieldIcon: true,
           }}
           className="pb-[128px]"
         >
