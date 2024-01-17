@@ -77,7 +77,7 @@ export function Editor(props: EditorProps) {
       !props.disableUpdateTitle && props.onTitleChange?.(title)
     },
     {
-      wait: 1000,
+      wait: 500,
     }
   )
 
