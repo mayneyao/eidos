@@ -23,7 +23,10 @@ import {
   EidosDataEventChannelMsgType,
   EidosDataEventChannelName,
 } from "@/lib/const"
-import { uuidv4 } from "@/lib/utils"
+import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
+import { useSqlite } from "@/hooks/use-sqlite"
 
 import { useTableAppStore } from "../store"
 
@@ -61,6 +64,10 @@ export function useAsyncData<TRowType>(
   getRowByIndex: (index: number) => TRowType | undefined
 } {
   const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableAppStore()
+  const { setSubPage } = useCurrentSubPage()
+  const { space, tableId } = useCurrentPathInfo()
+  const { getOrCreateTableSubDoc } = useSqlite(space)
+  const { sqlite } = useSqlite()
   pageSize = Math.max(pageSize, 1)
   const loadingRef = useRef(CompactSelection.empty())
   const dataRef = useRef<TRowType[]>([])
@@ -157,10 +164,25 @@ export function useAsyncData<TRowType>(
     [getCellContent, loadPage, maxConcurrency, pageSize]
   )
 
-  useEffect(() => {
-    // refresh data when table name changes
+  const refreshData = () => {
     loadingRef.current = CompactSelection.empty()
     dataRef.current = []
+  }
+
+  // check a record whether exist in a view after insert/update
+  const checkRowExistInQuery = useCallback(
+    async (rowId: string, callback: (isExist: boolean) => void) => {
+      if (!sqlite || !qs) return
+      const tableId = getTableIdByRawTableName(tableName)
+      const isExist = await sqlite.isRowExistInQuery(tableId, rowId, qs)
+      callback(isExist)
+    },
+    [sqlite, qs, tableName]
+  )
+
+  useEffect(() => {
+    // refresh data when table name changes
+    refreshData()
   }, [tableName, qs])
 
   useEffect(() => {
@@ -245,11 +267,26 @@ export function useAsyncData<TRowType>(
         switch (payload.type) {
           case DataUpdateSignalType.Update:
             const rowIndex = getRowIndexById(_old._id)
-            if (rowIndex !== -1) {
-              // FIXME: for now we just refresh the visible region, link cell has some problem
-              dataRef.current[rowIndex] = _new
-              refreshCurrentVisible()
-            }
+            checkRowExistInQuery(_new._id, (isExist) => {
+              if (rowIndex !== -1) {
+                // FIXME: for now we just refresh the visible region, link cell has some problem
+                if (isExist) {
+                  dataRef.current[rowIndex] = _new
+                  refreshCurrentVisible()
+                } else {
+                  // remove from data
+                  dataRef.current.splice(rowIndex, 1)
+                  setCount(dataRef.current.length)
+                  refreshCurrentVisible()
+                }
+              } else {
+                if (isExist) {
+                  dataRef.current.push(_new)
+                  setCount(dataRef.current.length)
+                  refreshCurrentVisible()
+                }
+              }
+            })
             break
           case DataUpdateSignalType.Delete:
             const rowIndex2 = getRowIndexById(_old._id)
@@ -261,16 +298,33 @@ export function useAsyncData<TRowType>(
             break
           case DataUpdateSignalType.Insert:
             const rowIndex3 = getRowIndexById(_new._id)
-            // if the row is added by click add row button, then ignore.
+            // if the row is added by click add row button
             if (addedRowIds.has(_new._id)) {
               clearAddedRowIds()
-              return
+              // return
+              checkRowExistInQuery(_new._id, async (isExist) => {
+                if (!isExist) {
+                  // new record is not in query, open as sub-page
+                  const docId = shortenId(_new._id)
+                  await getOrCreateTableSubDoc({
+                    docId,
+                    title: _new.title,
+                    tableId: tableId!,
+                  })
+                  setSubPage(docId)
+                }
+              })
+            } else {
+              // if the row is added by other user
+              checkRowExistInQuery(_new._id, async (isExist) => {
+                if (isExist && rowIndex3 === -1) {
+                  dataRef.current.push(_new)
+                  setCount(dataRef.current.length)
+                  refreshCurrentVisible()
+                }
+              })
             }
-            if (rowIndex3 === -1) {
-              dataRef.current.push(_new)
-              setCount(dataRef.current.length)
-              refreshCurrentVisible()
-            }
+
             break
           default:
             break
@@ -286,6 +340,10 @@ export function useAsyncData<TRowType>(
     tableName,
     addedRowIds,
     clearAddedRowIds,
+    checkRowExistInQuery,
+    setSubPage,
+    getOrCreateTableSubDoc,
+    tableId,
   ])
 
   return {

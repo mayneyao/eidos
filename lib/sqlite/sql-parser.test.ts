@@ -1,7 +1,7 @@
 import { IField } from "@/lib/store/interface"
 
 import { FieldType } from "../fields/const"
-import { getLinkQuery, transformSql } from "./sql-parser"
+import { getLinkQuery, replaceQueryTableName, transformSql } from "./sql-parser"
 
 describe("buildQuery", () => {
   test("getDefaultQuery -> table with two link fields", () => {
@@ -63,5 +63,17 @@ describe("buildQuery", () => {
   test("transformSql", () => {
     const res = transformSql(`select * from tb_a`, "raw_tb_a", new Map())
     expect(res).toBe("SELECT *  FROM raw_tb_a")
+  })
+})
+
+describe("replaceQueryTableName", () => {
+  test("should replace table name in the query", () => {
+    const query = "SELECT * FROM tb_a"
+    const tableName = "raw_tb_a"
+    const result = replaceQueryTableName(query, {
+      tb_a: tableName,
+    })
+    const expected = replaceQueryTableName("SELECT * FROM raw_tb_a", {})
+    expect(result).toBe(expected)
   })
 })

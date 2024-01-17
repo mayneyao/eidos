@@ -237,6 +237,14 @@ export class DataSpace {
     return await this.view.createDefaultView(tableId)
   }
 
+  public async isRowExistInQuery(
+    tableId: string,
+    rowId: string,
+    query: string
+  ) {
+    return await this.view.isRowExistInQuery(tableId, rowId, query)
+  }
+
   // columns
   public async addColumn(data: IField) {
     return await this.column.add(data)

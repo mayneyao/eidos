@@ -24,6 +24,21 @@ export const getColumnsFromQuery = (sql?: string) => {
   return (ast?.[0] as SelectFromStatement).columns
 }
 
+export const replaceQueryTableName = (
+  query: string,
+  tableNameMap: Record<string, string>
+) => {
+  const ast: Statement = parseFirst(query)
+  const selectStatement = ast as SelectFromStatement
+  selectStatement.from?.forEach((from) => {
+    if (from.type === "table") {
+      const tableName = from.name.name
+      from.name.name = tableNameMap[tableName] ?? tableName
+    }
+  })
+  return toSql.statement(selectStatement)
+}
+
 /**
  * 1. every user-created-table has a `_id` and a `title` column
  * 2. to render a table, first we query data.
@@ -94,4 +109,3 @@ export const transformSql = (
   const modified = mapper.statement(parseFirst(sql))
   return toSql.statement(modified!)
 }
-

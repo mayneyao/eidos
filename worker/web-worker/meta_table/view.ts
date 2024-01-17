@@ -1,4 +1,5 @@
 import { ViewTableName } from "@/lib/sqlite/const"
+import { replaceQueryTableName } from "@/lib/sqlite/sql-parser"
 import { getUuid } from "@/lib/utils"
 
 import { IView, ViewTypeEnum } from "../../../lib/store/IView"
@@ -79,5 +80,32 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       tableId,
       query: `SELECT * FROM tb_${tableId}`,
     })
+  }
+
+  public async isRowExistInQuery(
+    tableId: string,
+    rowId: string,
+    query: string
+  ) {
+    const tmpTableName = `temp_table_${getUuid().slice(0, 8)}`
+    const tableName = `tb_${tableId}`
+    let isExist = false
+    try {
+      await this.dataSpace.exec2(
+        `CREATE TEMPORARY TABLE ${tmpTableName} AS SELECT * FROM ${tableName} WHERE _id = ?`,
+        [rowId]
+      )
+      // Check if the row exists in the temporary table
+      const newQuery = replaceQueryTableName(query, {
+        [tableName]: tmpTableName,
+      })
+      const result = await this.dataSpace.exec2(newQuery)
+      isExist = result.length > 0
+    } catch (error) {
+    } finally {
+      // Drop the temporary table
+      await this.dataSpace.exec2(`DROP TABLE ${tmpTableName}`)
+    }
+    return isExist
   }
 }
