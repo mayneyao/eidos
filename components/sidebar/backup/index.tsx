@@ -1,9 +1,6 @@
-import { useState } from "react"
 import { ArrowDownUpIcon } from "lucide-react"
+import { useState } from "react"
 
-import { timeAgo } from "@/lib/utils"
-import { useBackup } from "@/hooks/use-backup"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,21 +17,24 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { useToast } from "@/components/ui/use-toast"
+import { useBackup } from "@/hooks/use-backup"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { timeAgo } from "@/lib/utils"
 
 export const BackupStatus = () => {
   const { space } = useCurrentPathInfo()
   const [pullOpen, setPullOpen] = useState(false)
   const [pushOpen, setPushOpen] = useState(false)
   const { toast } = useToast()
-  const { lastSyncStatus, backup, pull } = useBackup()
+  const { lastSyncStatus, push, pull } = useBackup()
   const lastSyncDate = space && lastSyncStatus[space]
   const lastSyncTip = lastSyncDate ? timeAgo(new Date(lastSyncDate)) : ""
-  const handlePush = () => {
+  const handlePush = async () => {
     setPushOpen(false)
-    backup(space)
     toast({
-      title: "Start backup process",
+      title: "Start push process",
     })
+    await push(space)
   }
   const handlePull = async () => {
     setPullOpen(false)
@@ -42,14 +42,13 @@ export const BackupStatus = () => {
       title: "Start pull process",
     })
     await pull(space)
-    window.location.reload()
   }
 
   return (
     <Popover>
       <PopoverTrigger>
         <div className="flex cursor-pointer items-center gap-2 text-gray-500">
-          <span>last sync:</span> <span>{lastSyncTip}</span>
+          <span>last backup:</span> <span>{lastSyncTip || "unknown"}</span>
           <ArrowDownUpIcon className="mt-1 h-4 w-4" />
         </div>
       </PopoverTrigger>

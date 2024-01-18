@@ -116,7 +116,16 @@ export function BackupServerForm() {
                       {...field}
                     />
                   </FormControl>
-                  <FormDescription>The Github Repo.</FormDescription>
+                  <FormDescription>
+                    The Github Repo. go to{" "}
+                    <a
+                      href={`https://github.com/${field.value}`}
+                      className=" underline"
+                      target="_blank"
+                    >
+                      {field.value}
+                    </a>
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

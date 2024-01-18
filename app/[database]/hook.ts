@@ -13,6 +13,7 @@ import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv4 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useIndexedDB } from "@/hooks/use-indexed-db"
 import { usePeer } from "@/hooks/use-peer"
 import { useRegisterPeriodicSync } from "@/hooks/use-register-period-sync"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
@@ -34,7 +35,11 @@ export const useCurrentDomain = () => {
 }
 
 export const useLastOpened = () => {
-  const { lastOpenedDatabase, setLastOpenedDatabase } = useAppStore()
+  const [lastOpenedDatabase, setLastOpenedDatabase] = useIndexedDB(
+    "kv",
+    "lastOpenedDatabase",
+    ""
+  )
   const { isShareMode } = useAppRuntimeStore()
   const { database, tableId: table } = useCurrentPathInfo()
   const { lastOpenedTable, setLastOpenedTable } = useAppStore()
