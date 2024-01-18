@@ -14,6 +14,7 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv4 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { usePeer } from "@/hooks/use-peer"
+import { useRegisterPeriodicSync } from "@/hooks/use-register-period-sync"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useWorker } from "@/hooks/use-worker"
 
@@ -136,4 +137,6 @@ export const useLayoutInit = () => {
       sqlite?.onTableChange(database, tableName)
     }
   }, [database, tableName, sqlite])
+
+  useRegisterPeriodicSync()
 }

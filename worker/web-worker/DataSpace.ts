@@ -110,6 +110,11 @@ export class DataSpace {
     }
   }
 
+  // close db
+  public closeDb() {
+    this.db.close()
+  }
+
   private initUDF() {
     const allUfs = withSqlite3AllUDF(this.sqlite3)
     allUfs.forEach((udf) => {

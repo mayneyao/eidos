@@ -43,10 +43,13 @@ export const useConfigStore = create<ConfigState>()(
         username: "",
       },
       backupServer: {
-        endpointUrl: "",
-        accessKeyId: "",
-        secretAccessKey: "",
-        autoSaveGap: 10,
+        Github__repo: "",
+        Github__token: "",
+        Github__enabled: false,
+        S3__endpointUrl: "",
+        S3__accessKeyId: "",
+        S3__secretAccessKey: "",
+        autoSaveGap: 360,
       },
       apiAgentConfig: {
         url: "ws://localhost:3333",

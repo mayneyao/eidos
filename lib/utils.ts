@@ -96,3 +96,18 @@ export const generateId = () => {
 export const isDayPage = (id: string) => {
   return /^\d{4}-\d{2}-\d{2}$/g.test(id)
 }
+
+export function timeAgo(date: Date) {
+  const now = new Date().getTime()
+  const diffInSeconds = Math.floor((now - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) {
+    return `${diffInSeconds} seconds ago`
+  } else if (diffInSeconds < 3600) {
+    return `${Math.floor(diffInSeconds / 60)} minutes ago`
+  } else if (diffInSeconds < 86400) {
+    return `${Math.floor(diffInSeconds / 3600)} hours ago`
+  } else {
+    return `${Math.floor(diffInSeconds / 86400)} days ago`
+  }
+}

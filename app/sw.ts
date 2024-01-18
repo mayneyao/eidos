@@ -1,3 +1,4 @@
+import { autoBackup } from "@/worker/service-worker/backup"
 import { routes } from "@/worker/service-worker/routes"
 import { precacheAndRoute } from "workbox-precaching"
 
@@ -16,6 +17,12 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("activate", (event) => {
   console.log("Service worker activated")
+})
+
+self.addEventListener("periodicsync", (event: any) => {
+  if (event.tag === "backup") {
+    event.waitUntil(autoBackup())
+  }
 })
 
 self.addEventListener("fetch", async (event) => {
