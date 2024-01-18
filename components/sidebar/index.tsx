@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import {
   Database,
   FileBoxIcon,
@@ -8,20 +7,21 @@ import {
   Files,
   PinIcon,
 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { useConfigStore } from "@/app/settings/store"
+import { DatabaseSelect } from "@/components/database-select"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { DatabaseSelect } from "@/components/database-select"
-import { useConfigStore } from "@/app/settings/store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 
 import { Button } from "../ui/button"
-import { CreateFileDialog } from "./create-file"
+import { BackupStatus } from "./backup"
 import { EverydaySidebarItem } from "./everyday"
 import { CurrentItemTree } from "./item-tree"
 import { TableListLoading } from "./loading"
@@ -136,7 +136,8 @@ export const SideBar = ({ className }: any) => {
               />
             </div>
           )}
-          <CreateFileDialog />
+          <BackupStatus />
+          {/* <CreateFileDialog /> */}
         </div>
       </div>
     </>

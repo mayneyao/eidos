@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { SimpleBackUp } from "@/worker/web-worker/backup"
 import { kebabCase } from "lodash"
 import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
 import { useNavigate } from "react-router-dom"
@@ -35,9 +34,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useConfigStore } from "@/app/settings/store"
 
-import { Checkbox } from "./ui/checkbox"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 
@@ -56,18 +53,17 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [databaseName, setDatabaseName] = React.useState("")
-  const slugifyDatabaseName = kebabCase(databaseName)
+  const slugifyDatabaseName = React.useMemo(() => {
+    if (/^[a-zA-Z0-9_-]+$/.test(databaseName)) {
+      return databaseName
+    }
+    return kebabCase(databaseName)
+  }, [databaseName])
   const goto = useGoto()
   const router = useNavigate()
   const { createSpace } = useSpace()
   const [loading, setLoading] = React.useState(false)
   const { updateSpaceList } = useSpace()
-  const [shouldCreateFromBackup, setShouldCreateFromBackup] =
-    React.useState(false)
-
-  const { backupServer } = useConfigStore()
-  const hasBackupServer =
-    backupServer.secretAccessKey && backupServer.endpointUrl
 
   const handleGoSpaceManagement = () => {
     router("/space-manage")
@@ -83,17 +79,6 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
     const databaseName = slugifyDatabaseName
     if (databaseName) {
       setLoading(true)
-      if (hasBackupServer && shouldCreateFromBackup) {
-        const { endpointUrl, accessKeyId, secretAccessKey, autoSaveGap } =
-          backupServer
-        const backup = new SimpleBackUp(
-          endpointUrl,
-          accessKeyId,
-          secretAccessKey,
-          autoSaveGap
-        )
-        // await backup.pull(databaseName, true)
-      }
       if (file) {
         await importSpace(databaseName, file)
       } else {
@@ -106,7 +91,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
       updateSpaceList()
     }
   }
-
+  const currentDatabase = databases.find((db) => db === lastOpenedDatabase)
   return (
     <Dialog open={showNewTeamDialog} onOpenChange={setShowNewTeamDialog}>
       <Popover open={open} onOpenChange={setOpen}>
@@ -117,9 +102,11 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
             aria-expanded={open}
             className="w-full min-w-[180px] justify-between"
           >
-            {lastOpenedDatabase
-              ? databases.find((db) => db === lastOpenedDatabase)
-              : "Select Database..."}
+            {lastOpenedDatabase ? (
+              <div>{currentDatabase}</div>
+            ) : (
+              "Select Database..."
+            )}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -200,36 +187,21 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
                   }
                 }}
               />
-              <span>{slugifyDatabaseName}</span>
+              <span className="px-3 text-sm">{slugifyDatabaseName}</span>
             </div>
           </div>
           <div className="space-y-4 py-2 pb-4">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="shouldCreateFromBackup"
-                checked={shouldCreateFromBackup}
-                disabled={!hasBackupServer}
-                onCheckedChange={() =>
-                  setShouldCreateFromBackup(!shouldCreateFromBackup)
-                }
+            <div className="space-y-2">
+              <Label htmlFor="importFromFile">Import from file</Label>
+              <Input
+                type="file"
+                id="importFromFile"
+                onChange={handleFileChange}
+                className="w-[200px]"
+                accept=".zip"
               />
-              <Label htmlFor="shouldCreateFromBackup">Create from backup</Label>
             </div>
           </div>
-          {!shouldCreateFromBackup && (
-            <div className="space-y-4 py-2 pb-4">
-              <div className="space-y-2">
-                <Label htmlFor="importFromFile">Import from file</Label>
-                <Input
-                  type="file"
-                  id="importFromFile"
-                  onChange={handleFileChange}
-                  className="w-[200px]"
-                  accept=".zip"
-                />
-              </div>
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setShowNewTeamDialog(false)}>

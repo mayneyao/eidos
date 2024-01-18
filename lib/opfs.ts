@@ -183,7 +183,7 @@ export class OpfsManager {
     return entries
   }
 
-  updateDocFile = async (_paths: string[], content: string) => {
+  updateOrCreateDocFile = async (_paths: string[], content: string) => {
     const paths = [..._paths]
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
@@ -238,6 +238,7 @@ export class OpfsManager {
     // if fileId is provided, use it as file name
     const fileExt = extension(file.type)
     const filename = fileId ? `${fileId}.${fileExt}` : file.name
+    console.log(dirHandle, filename, filename)
     const fileHandle = await dirHandle.getFileHandle(filename, {
       create: true,
     })

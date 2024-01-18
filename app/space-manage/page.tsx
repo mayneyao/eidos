@@ -1,17 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import {
-  Download,
-  MoreHorizontalIcon,
-  Trash2Icon,
-  UploadCloud,
-} from "lucide-react"
+import { Download, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { exportSpace, removeSpace } from "@/lib/space"
 import { useSpace } from "@/hooks/use-space"
-import { useSync } from "@/hooks/use-sync"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -22,12 +16,11 @@ import {
 
 import { CommonSettingLayout } from "../common-setting-layout"
 
-type IActionMode = "remove" | "export" | "upload"
+type IActionMode = "remove" | "export"
 export default function SpaceManagerPage() {
   const { spaceList, updateSpaceList } = useSpace()
   const [mode, setMode] = useState<IActionMode>()
   const [modeLoading, setModeLoading] = useState(false)
-  const { push } = useSync()
 
   const handleAction = async (space: string, mode: IActionMode) => {
     setModeLoading(true)
@@ -35,9 +28,6 @@ export default function SpaceManagerPage() {
     switch (mode) {
       case "remove":
         await removeSpace(space)
-        break
-      case "upload":
-        await push(space)
         break
       case "export":
         await exportSpace(space)
@@ -71,11 +61,6 @@ export default function SpaceManagerPage() {
                   onSelect={() => handleAction(space, "export")}
                 >
                   <Download className="mr-2 h-4 w-4" /> <span>Export</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => handleAction(space, "upload")}
-                >
-                  <UploadCloud className="mr-2 h-4 w-4" /> <span>Upload</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => handleAction(space, "remove")}

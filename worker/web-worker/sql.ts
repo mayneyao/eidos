@@ -3,7 +3,6 @@ import sqlite3InitModule, { Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 import { logger } from "@/lib/log"
 
 import { DataSpace } from "./DataSpace"
-import { SimpleBackUp } from "./backup"
 
 const log = logger.info
 const error = logger.error
@@ -11,7 +10,6 @@ const error = logger.error
 export class Sqlite {
   sqlite3?: Sqlite3Static
   config?: any
-  backupServer: SimpleBackUp
   constructor() {
     this.config = {
       experiment: {
@@ -24,24 +22,10 @@ export class Sqlite {
         autoSaveGap: 30,
       },
     }
-    this.backupServer = new SimpleBackUp(
-      this.config.backupServer.endpointUrl,
-      this.config.backupServer.accessKeyId,
-      this.config.backupServer.secretAccessKey,
-      this.config.backupServer.autoSaveGap
-    )
   }
 
   setConfig(config: any) {
     this.config = config
-    const { endpointUrl, accessKeyId, secretAccessKey, autoSaveGap } =
-      this.config.backupServer
-    this.backupServer.setConfig(
-      endpointUrl,
-      accessKeyId,
-      secretAccessKey,
-      autoSaveGap
-    )
   }
 
   getSQLite3 = async function (): Promise<Sqlite3Static> {
