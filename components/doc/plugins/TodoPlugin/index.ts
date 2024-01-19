@@ -3,7 +3,12 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getNodeByKey } from "lexical"
 
-import { TodoListItem } from "@/types/todo"
+export type TodoListItem = {
+  text: string | undefined
+  checked: boolean | undefined
+  nodeKey: string
+  listNodeKey: string
+}
 
 interface TodoPluginProps {
   onItemUpdate?: (item: TodoListItem) => void

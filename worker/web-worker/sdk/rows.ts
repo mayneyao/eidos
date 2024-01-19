@@ -13,7 +13,9 @@ export class RowsManager {
 
   async getFieldMap() {
     // query ui columns
-    const uiColumns = await this.dataSpace.column.list(this.table.rawTableName)
+    const uiColumns = await this.dataSpace.column.list({
+      table_name: this.table.rawTableName,
+    })
     const fieldRawColumnNameFieldMap = uiColumns.reduce((acc, cur) => {
       acc[cur.table_column_name] = cur
       return acc
