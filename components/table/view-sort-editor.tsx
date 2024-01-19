@@ -106,6 +106,11 @@ export function ViewSortEditor(props: IViewEditorProps) {
 
   return (
     <div className="w-[300px] rounded-lg border p-2 shadow-md">
+      {!orderItems.length && (
+        <span className="select-none text-sm">
+          There is no sort rule, add one
+        </span>
+      )}
       {orderItems.map((item, index) => {
         return (
           <div className="mt-4 flex items-center space-x-2" key={item.column}>
@@ -137,17 +142,18 @@ export function ViewSortEditor(props: IViewEditorProps) {
           </div>
         )
       })}
-
-      <div className="mt-4 flex items-center justify-between">
+      <hr className="my-2" />
+      <div className="flex items-center justify-between">
         <Button
           className="flex items-center space-x-2"
           variant="outline"
           onClick={addSort}
+          size="sm"
         >
           {/* <PlusIcon className="w-4 h-4" /> */}
           <span>Add sort</span>
         </Button>
-        <Button variant="ghost" onClick={handleClearSort}>
+        <Button size="sm" variant="ghost" onClick={handleClearSort}>
           <span>Delete sort</span>
         </Button>
       </div>

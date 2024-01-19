@@ -15,6 +15,7 @@ export interface BaseTable<T> extends MetaTable<T> {
 
 export class BaseTableImpl<T = any> {
   name = ""
+  JSONFields: string[] = []
   constructor(protected dataSpace: DataSpace) {}
 
   initTable(createTableSql: string) {
@@ -33,5 +34,28 @@ export class BaseTableImpl<T = any> {
       id,
     ])
     return true
+  }
+
+  public async list(query?: Record<string, any>): Promise<T[]> {
+    let res: T[] = []
+    if (!query) {
+      res = await this.dataSpace.exec2(`SELECT * FROM ${this.name};`)
+    } else {
+      const kv = Object.entries(query)
+      const setK = kv.map(([k, v]) => `${k} = ?`).join(", ")
+      const setV = kv.map(([, v]) => v)
+      res = await this.dataSpace.exec2(
+        `SELECT * FROM ${this.name} WHERE ${setK};`,
+        setV
+      )
+    }
+    return res.map((item) => {
+      Object.keys(item as any).forEach((key) => {
+        if (this.JSONFields.includes(key)) {
+          ;(item as any)[key] = JSON.parse((item as any)[key] as string)
+        }
+      })
+      return item
+    })
   }
 }

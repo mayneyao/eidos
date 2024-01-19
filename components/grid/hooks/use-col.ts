@@ -17,7 +17,13 @@ export const useColumns = (
   const { updateView } = useViewOperation()
 
   useEffect(() => {
-    setColumns(getColumns(uiColumns, view.properties?.fieldWidthMap))
+    setColumns(
+      getColumns(uiColumns, {
+        fieldWidthMap: view.properties?.fieldWidthMap,
+        orderMap: view.orderMap,
+        hiddenFields: view.hiddenFields,
+      })
+    )
   }, [uiColumns, view])
 
   const updateColumnWidth = async (

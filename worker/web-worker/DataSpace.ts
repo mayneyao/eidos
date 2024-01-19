@@ -223,7 +223,7 @@ export class DataSpace {
 
   // views
   public async listViews(tableId: string) {
-    return await this.view.list(tableId)
+    return await this.view.list({ tableId })
   }
 
   public async addView(view: IView) {
@@ -270,7 +270,7 @@ export class DataSpace {
 
   public async addRow(tableName: string, data: any) {
     // query ui columns
-    const uiColumns = await this.column.list(tableName)
+    const uiColumns = await this.column.list({ table_name: tableName })
     const fieldRawColumnNameFieldMap = uiColumns.reduce((acc, cur) => {
       acc[cur.table_column_name] = cur
       return acc
@@ -326,7 +326,7 @@ export class DataSpace {
   }
 
   public async listScripts(status: ScriptStatus = "all") {
-    return this.script.list(status)
+    return this.script.list({ status })
   }
 
   public async getScript(id: string) {
@@ -481,8 +481,8 @@ export class DataSpace {
   }
 
   // tree
-  public async listTreeNodes(q?: string, withSubNode?: boolean) {
-    return this.tree.list(q, withSubNode)
+  public async listTreeNodes(query?: string, withSubNode?: boolean) {
+    return this.tree.list({ query, withSubNode })
   }
 
   public async pinNode(id: string, isPinned: boolean) {
@@ -531,7 +531,7 @@ export class DataSpace {
   }
 
   public async listUiColumns(tableName: string) {
-    return this.column.list(tableName)
+    return this.column.list({ table_name: tableName })
   }
 
   /**

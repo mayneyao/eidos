@@ -14,6 +14,8 @@ export interface IView<T = any> {
   fieldIds?: string[]
   properties?: T
   filter?: FilterValueType
+  orderMap?: Record<string, number>
+  hiddenFields?: string[]
 }
 
 export interface IGridViewProperties {

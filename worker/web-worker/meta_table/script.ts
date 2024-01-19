@@ -114,7 +114,8 @@ export class ScriptTable
       enabled: res[0].enabled,
     })
   }
-  async list(status: ScriptStatus = "all"): Promise<IScript[]> {
+  async list(q: { status: ScriptStatus }): Promise<IScript[]> {
+    const { status = "all" } = q
     let sql = `SELECT * FROM ${this.name}`
 
     switch (status) {

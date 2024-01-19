@@ -107,14 +107,6 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     return res[0] as IFile
   }
 
-  list(): Promise<IFile[]> {
-    const res = this.dataSpace.exec2(`SELECT * FROM ${this.name};`)
-    return res as Promise<IFile[]>
-  }
-
-  set(id: string, data: Partial<IFile>): Promise<boolean> {
-    throw new Error("Method not implemented.")
-  }
   del(id: string): Promise<boolean> {
     try {
       this.dataSpace.exec(`DELETE FROM ${this.name} WHERE id = ?;`, [id])

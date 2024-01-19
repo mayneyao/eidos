@@ -32,7 +32,7 @@ export class ActionTable extends BaseTableImpl implements BaseTable<IAction> {
     nodes TEXT
   );
 `
-
+  JSONFields: string[] = ["params", "nodes"]
   add(data: IAction): Promise<IAction> {
     this.dataSpace.exec2(`INSERT INTO ${this.name} VALUES (?, ?, ?, ?)`, [
       data.id,
@@ -67,16 +67,5 @@ export class ActionTable extends BaseTableImpl implements BaseTable<IAction> {
       params: JSON.parse(res[0].params),
       nodes: JSON.parse(res[0].nodes),
     })
-  }
-  async list(): Promise<IAction[]> {
-    const res = await this.dataSpace.exec2(`SELECT * FROM ${this.name}`)
-    return Promise.resolve(
-      res.map((item) => ({
-        id: item.id,
-        name: item.name,
-        params: JSON.parse(item.params),
-        nodes: JSON.parse(item.nodes),
-      }))
-    )
   }
 }

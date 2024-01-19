@@ -1,8 +1,8 @@
 import { TreeTableName } from "@/lib/sqlite/const"
 import { getRawTableNameById } from "@/lib/utils"
 
-import { BaseTable, BaseTableImpl } from "./base"
 import { ITreeNode } from "../../../lib/store/ITreeNode"
+import { BaseTable, BaseTableImpl } from "./base"
 
 export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
   name = TreeTableName
@@ -84,7 +84,11 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     })
   }
 
-  async list(query?: string, withSubNode?: boolean): Promise<ITreeNode[]> {
+  async list(qs: {
+    query?: string
+    withSubNode?: boolean
+  }): Promise<ITreeNode[]> {
+    const { query, withSubNode } = qs
     let sql = `SELECT * FROM ${TreeTableName} `
     if (query) {
       sql += ` WHERE name like ?`

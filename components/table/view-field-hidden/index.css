@@ -1,0 +1,8 @@
+.dragging {
+  transition: transform 0.2s ease-out;
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

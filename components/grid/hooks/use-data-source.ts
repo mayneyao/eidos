@@ -5,20 +5,28 @@ import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
+import { useCurrentView } from "@/components/table/hooks"
 
 import { columnsHandleMap } from "../helper"
 import { RowEditedCallback } from "./use-async-data"
+import { useColumns } from "./use-col"
 
 export const useDataSource = (tableName: string, databaseName: string) => {
   const { updateCell, updateFieldProperty } = useTableOperation(
     tableName,
     databaseName
   )
-  const { uiColumns, uiColumnMap } = useUiColumns(tableName, databaseName)
+  const { currentView } = useCurrentView()
+  const { fieldRawColumnNameFieldMap, uiColumns } = useUiColumns(
+    tableName,
+    databaseName
+  )
+  const { columns } = useColumns(uiColumns, currentView!)
 
   const toCell = React.useCallback(
     (rowData: any, col: number) => {
-      const field = uiColumns[col]
+      const column = columns[col]
+      const field = fieldRawColumnNameFieldMap[column.id!]
       if (!field)
         return {
           kind: GridCellKind.Text,
@@ -36,67 +44,64 @@ export const useDataSource = (tableName: string, databaseName: string) => {
       if (!field) {
         return emptyCell
       }
-      const uiCol = uiColumnMap.get(field.name)
-      if (!uiCol) {
-        return emptyCell
-      }
-      let colHandle = columnsHandleMap[uiCol.type]
+
+      let colHandle = columnsHandleMap[field.type]
       if (!colHandle) {
-        const FieldClass = allFieldTypesMap[uiCol.type]
+        const FieldClass = allFieldTypesMap[field.type]
         if (FieldClass) {
-          const field = new FieldClass(uiCol)
-          return field.getCellContent(cv as never)
+          const fieldInstance = new FieldClass(field)
+          return fieldInstance.getCellContent(cv as never)
         } else {
-          throw new Error(`field type ${uiCol.type} not found`)
+          throw new Error(`field type ${field.type} not found`)
         }
       }
       return colHandle.getContent(cv)
     },
-    [uiColumnMap, uiColumns]
+    [columns, fieldRawColumnNameFieldMap]
   )
 
   const onEdited: RowEditedCallback<any> = React.useCallback(
     (cell, newCell, rowData) => {
       const [col] = cell
-      const field = uiColumns[col]
-
+      const column = columns[col]
+      const field = fieldRawColumnNameFieldMap[column.id!]
       if (!field) {
         return rowData
       }
-      const uiCol = uiColumnMap.get(field.name)
-      if (!uiCol) {
-        return rowData
-      }
-      let colHandle = columnsHandleMap[uiCol.type]
+
+      let colHandle = columnsHandleMap[field.type]
       const rowId = rowData._id
       const fieldName = field.table_column_name
       if (!colHandle) {
-        const FieldClass = allFieldTypesMap[uiCol.type]
+        const FieldClass = allFieldTypesMap[field.type]
         if (FieldClass) {
-          const field = new FieldClass(uiCol)
-          const res = field.cellData2RawData(newCell as never)
+          const fieldInstance = new FieldClass(field)
+          const res = fieldInstance.cellData2RawData(newCell as never)
           // rawData is what we want to save to database
           const rawData = res.rawData
           const shouldUpdateColumnProperty = (res as any)
             .shouldUpdateColumnProperty
           // when field property changed, update field property
           if (shouldUpdateColumnProperty) {
-            updateFieldProperty(field.column, field.column.property)
+            updateFieldProperty(
+              fieldInstance.column,
+              fieldInstance.column.property
+            )
           }
           console.log("updateCell", { rowId, fieldName, rawData })
           updateCell(rowId, fieldName, rawData)
           let newRowData: any
-          if (uiCol.type === FieldType.Link) {
+          if (field.type === FieldType.Link) {
             // link cell will update with id, but display with title
             newRowData = {
               ...rowData,
-              [uiCol.table_column_name]: (newCell.data as any).value,
+              [field.table_column_name]: (newCell.data as any).value,
             }
             console.log("newRowData", newRowData)
           } else {
             newRowData = {
               ...rowData,
-              [uiCol.table_column_name]: rawData,
+              [field.table_column_name]: rawData,
             }
           }
           return newRowData
@@ -106,7 +111,7 @@ export const useDataSource = (tableName: string, databaseName: string) => {
       updateCell(rowId, fieldName, newCell.data)
       return rowData
     },
-    [uiColumns, uiColumnMap, updateCell, updateFieldProperty]
+    [columns, fieldRawColumnNameFieldMap, updateCell, updateFieldProperty]
   )
   return {
     toCell,

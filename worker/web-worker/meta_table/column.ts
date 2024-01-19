@@ -15,6 +15,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     property TEXT
   );
 `
+  JSONFields: string[] = ["property"]
   async add(data: IField): Promise<IField> {
     const { name, type, table_name, table_column_name, property } = data
     const typeMap: any = {
@@ -89,18 +90,8 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     })
   }
 
-  async list(tableName: string): Promise<IField[]> {
-    const cols = await this.dataSpace.exec2(
-      `SELECT * FROM ${ColumnTableName} WHERE table_name=?;`,
-      [tableName]
-    )
-    return cols
-      .filter((col) => !col.name.startsWith("_"))
-      .map((col) => {
-        return {
-          ...col,
-          property: JSON.parse(col.property),
-        }
-      }) as IField[]
+  async list(q: { table_name: string }): Promise<IField[]> {
+    const res = await super.list(q)
+    return res.filter((col) => !col.name.startsWith("_"))
   }
 }

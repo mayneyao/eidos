@@ -1,8 +1,8 @@
 import { ViewTableName } from "@/lib/sqlite/const"
 import { replaceQueryTableName } from "@/lib/sqlite/sql-parser"
+import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { getUuid } from "@/lib/utils"
 
-import { IView, ViewTypeEnum } from "../../../lib/store/IView"
 import { BaseTable, BaseTableImpl } from "./base"
 
 export class ViewTable extends BaseTableImpl implements BaseTable<IView> {
@@ -15,11 +15,13 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   tableId TEXT NOT NULL,
   query TEXT NOT NULL,
   properties TEXT,
-  filter TEXT
+  filter TEXT,
+  orderMap TEXT,
+  hiddenFields TEXT
 );
 `
 
-  JSONFields = ["properties", "filter"]
+  JSONFields = ["properties", "filter", "orderMap", "hiddenFields"]
   async add(data: IView): Promise<IView> {
     await this.dataSpace.exec2(
       `INSERT INTO ${this.name} (id,name,type,tableId,query) VALUES (? , ? , ? , ? , ?);`,
@@ -54,22 +56,6 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       `UPDATE ${this.name} SET query = ? WHERE id = ?`,
       [query, id]
     )
-  }
-
-  public async list(tableId: string): Promise<IView[]> {
-    const res = await this.dataSpace.exec2(
-      `SELECT * FROM ${this.name} WHERE tableId = ?;`,
-      [tableId]
-    )
-    return res.map((item) => {
-      if (item.properties) {
-        item.properties = JSON.parse(item.properties)
-      }
-      if (item.filter) {
-        item.filter = JSON.parse(item.filter)
-      }
-      return item
-    })
   }
 
   public async createDefaultView(tableId: string) {

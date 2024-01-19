@@ -6,6 +6,7 @@ import { IView } from "@/lib/store/IView"
 import { getTableIdByRawTableName } from "@/lib/utils"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
+import { useShowColumns } from "../../hooks"
 import { GalleryCard } from "./gallery-card"
 import { useGalleryViewData } from "./hooks"
 import { computeCardHeight, getColumnWidthAndCount } from "./utils"
@@ -26,13 +27,17 @@ export default function GalleryView({
   const ref = useRef<Grid>(null)
   const { uiColumns, uiColumnMap, getFieldByIndex, rawIdNameMap } =
     useUiColumns(tableName, space)
+  const fields = useShowColumns(uiColumns, view)
 
   const { columnCount, cardWidth } = getColumnWidthAndCount(
     size?.scaledWidth ?? 0
   )
   const tableId = getTableIdByRawTableName(tableName)
 
-  const cardHeight = computeCardHeight(view.query, rawIdNameMap.size)
+  const cardHeight = computeCardHeight(
+    view.query,
+    rawIdNameMap.size - (view.hiddenFields?.length || 0)
+  )
   useEffect(() => {
     if (ref.current) {
       ref.current.resetAfterRowIndex(0)
@@ -53,12 +58,13 @@ export default function GalleryView({
           itemData={{
             items: data,
             columnCount,
-            uiColumns,
+            uiColumns: fields,
             uiColumnMap,
             rawIdNameMap,
             tableId,
             space,
             hiddenFieldIcon: true,
+            hiddenFields: view.hiddenFields,
           }}
           className="pb-[128px]"
         >

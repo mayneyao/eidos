@@ -41,6 +41,7 @@ export interface IGalleryCardProps {
   space: string
   hiddenFieldIcon?: boolean
   hiddenField?: boolean
+  hiddenFields?: string[]
 }
 
 export const GalleryCard = ({
@@ -59,6 +60,7 @@ export const GalleryCard = ({
     space,
     hiddenFieldIcon,
     hiddenField,
+    hiddenFields,
   } = data
   const rowId = items[rowIndex * columnCount + columnIndex]
   const { setProperty } = useRowDataOperation()
@@ -98,7 +100,11 @@ export const GalleryCard = ({
     }
   }
   const coverUrl = getCoverUrl(item, coverField)
-  const fieldKeys = Object.keys(item).filter((k) => k != "_id" && k != "title")
+  const fieldKeys = uiColumns
+    .filter(
+      (k) => k.table_column_name != "_id" && k.table_column_name != "title"
+    )
+    .map((k) => k.table_column_name)
   return (
     <ContextMenu>
       <ContextMenuTrigger>
@@ -122,38 +128,42 @@ export const GalleryCard = ({
               >
                 {item?.title || <span className=" opacity-70">Untitled</span>}
               </div>
-              {fieldKeys.map((k) => {
-                const fieldName = rawIdNameMap.get(k)!
-                const uiColumn = uiColumnMap.get(fieldName) as IField
-                if (!uiColumn) {
-                  return null
-                }
-                const value = item[k]
-                return (
-                  <div
-                    key={`${item._id}:${k}`}
-                    className="flex w-full items-center gap-2"
-                  >
-                    {!hiddenField && (
-                      <div className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 rounded-sm p-1">
-                        {!hiddenFieldIcon && <FieldIcon type={uiColumn.type} />}
-                        {fieldName}
-                      </div>
-                    )}
-                    <CellEditor
-                      field={uiColumn}
-                      value={value}
-                      onChange={(_value) => {
-                        if (value != _value) {
-                          handleChange(uiColumn.table_column_name, _value)
-                        }
-                      }}
-                      className="flex h-10 w-full min-w-[100px] cursor-pointer items-center rounded-sm px-1 hover:bg-none"
-                      disableTextBaseEditor
-                    />
-                  </div>
-                )
-              })}
+              {fieldKeys
+                .filter((k) => !hiddenFields?.includes(k))
+                .map((k) => {
+                  const fieldName = rawIdNameMap.get(k)!
+                  const uiColumn = uiColumnMap.get(fieldName) as IField
+                  if (!uiColumn) {
+                    return null
+                  }
+                  const value = item[k]
+                  return (
+                    <div
+                      key={`${item._id}:${k}`}
+                      className="flex w-full items-center gap-2"
+                    >
+                      {!hiddenField && (
+                        <div className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 rounded-sm p-1">
+                          {!hiddenFieldIcon && (
+                            <FieldIcon type={uiColumn.type} />
+                          )}
+                          {fieldName}
+                        </div>
+                      )}
+                      <CellEditor
+                        field={uiColumn}
+                        value={value}
+                        onChange={(_value) => {
+                          if (value != _value) {
+                            handleChange(uiColumn.table_column_name, _value)
+                          }
+                        }}
+                        className="flex h-10 w-full min-w-[100px] cursor-pointer items-center rounded-sm px-1 hover:bg-none"
+                        disableTextBaseEditor
+                      />
+                    </div>
+                  )
+                })}
             </div>
           </div>
         </div>

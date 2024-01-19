@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
 import { PlusIcon } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 import {
   createSearchParams,
   useLocation,
@@ -7,16 +7,17 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
-import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
+import { NodeComponent } from "@/app/[database]/[node]/page"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { NodeComponent } from "@/app/[database]/[node]/page"
+import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { useCurrentView, useViewOperation } from "./hooks"
+import { ViewFieldHidden } from "./view-field-hidden/view-field-hidden"
 import { ViewFilter } from "./view-filter"
 import { ViewItem } from "./view-item"
 import { ViewSort } from "./view-sort"
@@ -129,6 +130,7 @@ export const ViewToolbar = (props: {
         <div className="flex gap-2">
           <ViewFilter view={currentView!} />
           <ViewSort view={currentView!} />
+          <ViewFieldHidden view={currentView!} />
           <Button size="sm" onClick={handleAddRow}>
             <PlusIcon className="h-4 w-4"></PlusIcon>
             New

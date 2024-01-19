@@ -1,11 +1,14 @@
-import { SelectFromStatement, parseFirst, toSql } from "pgsql-ast-parser"
 import { useEffect, useMemo, useState } from "react"
+import { SelectFromStatement, parseFirst, toSql } from "pgsql-ast-parser"
 import { useSearchParams } from "react-router-dom"
 
+import { IView } from "@/lib/store/IView"
+import { IField } from "@/lib/store/interface"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
-import { IView } from "@/lib/store/IView"
+
+import { getShowColumns } from "./helper"
 
 export const useViewOperation = () => {
   const { tableId, tableName, space } = useCurrentPathInfo()
@@ -98,4 +101,13 @@ export const useCurrentView = () => {
     setCurrentViewId,
     defaultViewId,
   }
+}
+
+export const useShowColumns = (uiColumns: IField[], view: IView) => {
+  return useMemo(() => {
+    return getShowColumns(uiColumns, {
+      orderMap: view?.orderMap,
+      hiddenFields: view?.hiddenFields,
+    })
+  }, [uiColumns, view?.hiddenFields, view?.orderMap])
 }

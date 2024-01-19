@@ -21,17 +21,32 @@ export const columnsHandleMap = getColumnsHandleMap()
 
 export const getColumns = (
   uiColumns: IField[],
-  fieldWidthMap?: Record<string, number>
+  options: {
+    fieldWidthMap?: Record<string, number>
+    orderMap?: Record<string, number>
+    hiddenFields?: string[]
+  }
 ): GridColumn[] => {
-  return uiColumns.map((column) => {
-    return {
-      id: column.name,
-      title: column.name,
-      width: fieldWidthMap?.[column.table_column_name] || 200,
-      hasMenu: false,
-      icon: column.type,
-    }
+  const { fieldWidthMap, orderMap } = options
+
+  uiColumns.sort((a, b) => {
+    const aOrder = orderMap?.[a.table_column_name] ?? 0
+    const bOrder = orderMap?.[b.table_column_name] ?? 0
+    return aOrder - bOrder
   })
+  const hiddenFieldsSet = new Set(options.hiddenFields ?? [])
+
+  return uiColumns
+    .filter((column) => !hiddenFieldsSet.has(column.table_column_name))
+    .map((column) => {
+      return {
+        id: column.table_column_name,
+        title: column.name,
+        width: fieldWidthMap?.[column.table_column_name] || 200,
+        hasMenu: false,
+        icon: column.type,
+      }
+    })
 }
 
 export const guessCellKind = (value: any) => {

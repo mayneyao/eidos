@@ -129,7 +129,9 @@ export const ViewFilterEditor = ({
             "group-wrapper-root": depth === 0,
           })}
         ></div>
-        <span className="select-none text-sm">There is no filter, add one</span>
+        <span className="select-none text-sm">
+          There is no filter rule, add one
+        </span>
         {AddFilterComponent}
         <hr />
         <Button variant="outline" onClick={clearFilter}>
