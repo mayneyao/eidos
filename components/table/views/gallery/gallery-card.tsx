@@ -35,6 +35,7 @@ export interface IGalleryCardProps {
   items: string[]
   columnCount: number
   uiColumns: IField[]
+  showFields: IField[]
   uiColumnMap: Map<string, IField>
   rawIdNameMap: Map<string, string>
   tableId: string
@@ -54,6 +55,7 @@ export const GalleryCard = ({
     items,
     columnCount,
     uiColumns,
+    showFields,
     uiColumnMap,
     rawIdNameMap,
     tableId,
@@ -100,7 +102,7 @@ export const GalleryCard = ({
     }
   }
   const coverUrl = getCoverUrl(item, coverField)
-  const fieldKeys = uiColumns
+  const fieldKeys = showFields
     .filter(
       (k) => k.table_column_name != "_id" && k.table_column_name != "title"
     )

@@ -27,7 +27,7 @@ export default function GalleryView({
   const ref = useRef<Grid>(null)
   const { uiColumns, uiColumnMap, getFieldByIndex, rawIdNameMap } =
     useUiColumns(tableName, space)
-  const fields = useShowColumns(uiColumns, view)
+  const showFields = useShowColumns(uiColumns, view)
 
   const { columnCount, cardWidth } = getColumnWidthAndCount(
     size?.scaledWidth ?? 0
@@ -58,7 +58,8 @@ export default function GalleryView({
           itemData={{
             items: data,
             columnCount,
-            uiColumns: fields,
+            uiColumns,
+            showFields,
             uiColumnMap,
             rawIdNameMap,
             tableId,
