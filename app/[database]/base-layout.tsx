@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense, lazy } from "react"
 import { Menu } from "lucide-react"
 
 import { opfsManager } from "@/lib/opfs"
@@ -13,9 +14,12 @@ import { Loading } from "@/components/loading"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
+// import { FileManager } from "./files/page"
 import { useLayoutInit } from "./hook"
 import { Nav } from "./nav"
 import { useSpaceAppStore } from "./store"
+
+const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
 const MobileSideBar = () => {
   const { isMobileSidebarOpen, setMobileSidebarOpen } = useSpaceAppStore()
@@ -41,6 +45,7 @@ export function DatabaseLayoutBase({
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useSpaceAppStore()
+  const { isAiOpen } = useSpaceAppStore()
 
   // event listen should be in useLayoutInit, and just listen once
   useLayoutInit()
@@ -64,15 +69,22 @@ export function DatabaseLayoutBase({
 
       <ScriptContainer />
       <div className="flex h-full w-full">
+        {/* <div
+          className={cn(
+            "h-full w-[350px]  overflow-x-hidden transition-all duration-150 ease-in-out"
+          )}
+        >
+          <FileManager />
+        </div> */}
         <div
           className={cn(
-            "h-full w-[350px] grow overflow-x-hidden transition-all duration-150 ease-in-out",
+            "h-full w-[350px]  overflow-x-hidden transition-all duration-150 ease-in-out",
             isSidebarOpen ? "hidden  md:block" : "w-0"
           )}
         >
           <SideBar />
         </div>
-        <div className={cn("flex h-full w-full grow flex-col lg:border-l")}>
+        <div className={cn("flex h-full w-auto grow flex-col lg:border-l")}>
           <div className="flex justify-between p-2 md:justify-end">
             <MobileSideBar />
             <Nav />
@@ -84,6 +96,11 @@ export function DatabaseLayoutBase({
             {children}
           </main>
         </div>
+        {isAiOpen && (
+          <Suspense fallback={<Loading />}>
+            <AIChat />
+          </Suspense>
+        )}
       </div>
     </div>
   )

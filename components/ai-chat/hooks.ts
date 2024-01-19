@@ -62,11 +62,12 @@ a: {
 
 const usePromptContext = () => {
   const { space: database, tableName } = useCurrentPathInfo()
-  const { uiColumns } = useUiColumns(tableName!, database)
   const [currentDocMarkdown, setCurrentDocMarkdown] = useState("")
   const { currentTableSchema } = useSpaceAppStore()
   const { allUiColumns } = useSqliteStore()
   const allTables = useAllNodes()
+  const { uiColumns } = useUiColumns(tableName || "", database)
+
   const context = {
     tableSchema: currentTableSchema,
     allTables,
