@@ -19,6 +19,7 @@ import {
 import { chunk, range } from "lodash"
 
 import { DataUpdateSignalType, EidosDataEventChannelMsgType } from "@/lib/const"
+import { hasOrderBy } from "@/lib/sqlite/sql-sort-parser"
 import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
@@ -66,6 +67,7 @@ export function useAsyncData<TRowType>(
   const { space, tableId } = useCurrentPathInfo()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const { getViewSortedRowIds } = useViewSort(qs || "")
+  const _hasOrderBy = hasOrderBy(qs)
   const { sqlite } = useSqlite()
   pageSize = Math.max(pageSize, 1)
   const loadingRef = useRef(CompactSelection.empty())
@@ -273,21 +275,26 @@ export function useAsyncData<TRowType>(
                 setSubPage(docId)
               }
             })
+            if (addedRowIds.has(_new._id)) {
+              console.log("return")
+              clearAddedRowIds()
+              return
+            }
             // more simple way to refresh the data, but cost more
             getViewSortedRowIds().then((rowIds) => {
               dataRef.current = rowIds
               setCount(dataRef.current.length)
               refreshCurrentVisible()
             })
-            break
             break
           case DataUpdateSignalType.Update:
             // more simple way to refresh the data, but cost more
-            getViewSortedRowIds().then((rowIds) => {
-              dataRef.current = rowIds
-              setCount(dataRef.current.length)
-              refreshCurrentVisible()
-            })
+            _hasOrderBy &&
+              getViewSortedRowIds().then((rowIds) => {
+                dataRef.current = rowIds
+                setCount(dataRef.current.length)
+                refreshCurrentVisible()
+              })
             break
           case DataUpdateSignalType.Delete:
             const rowIndex2 = getRowIndexById(_old._id)
@@ -367,6 +374,7 @@ export function useAsyncData<TRowType>(
       window.removeEventListener("message", handler)
     }
   }, [
+    _hasOrderBy,
     addedRowIds,
     checkRowExistInQuery,
     clearAddedRowIds,

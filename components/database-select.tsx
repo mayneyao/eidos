@@ -93,7 +93,6 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
       updateSpaceList()
     }
   }
-  console.log("lastOpenedDatabase", lastOpenedDatabase)
   return (
     <Dialog open={showNewTeamDialog} onOpenChange={setShowNewTeamDialog}>
       <Popover open={open} onOpenChange={setOpen}>
