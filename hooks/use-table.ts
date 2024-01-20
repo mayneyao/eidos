@@ -1,8 +1,6 @@
 import { useCallback, useMemo } from "react"
 import { v4 as uuidv4 } from "uuid"
 
-import { useSpaceAppStore } from "@/app/[database]/store"
-import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -17,6 +15,8 @@ import {
   getTableIdByRawTableName,
   shortenId,
 } from "@/lib/utils"
+import { RowRange } from "@/components/grid/hooks/use-async-data"
+import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { IField } from "../lib/store/interface"
 import { useSqlWorker } from "./use-sql-worker"
@@ -152,18 +152,9 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     }
   }
 
-  const deleteField = async (tableColumnName: string) => {
+  const deleteField = async (tableColumnName: string, isFormula: boolean) => {
     if (!sqlite) return
-    await withTransaction(async () => {
-      // update trigger before delete column
-      await sqlite.onTableChange(databaseName, tableName, [tableColumnName])
-      await sqlite.sql`ALTER TABLE ${Symbol(tableName)} DROP COLUMN ${Symbol(
-        tableColumnName
-      )};`
-      await sqlite.sql`DELETE FROM ${Symbol(
-        ColumnTableName
-      )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
-    })
+    await sqlite.deleteField(tableName, tableColumnName, isFormula)
     await updateUiColumns()
   }
 
@@ -171,9 +162,11 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
 
   const deleteFieldByColIndex = async (colIndex: number) => {
     console.log(colIndex, uiColumns)
-    const tableColumnName = uiColumns[colIndex].table_column_name
+    const field = uiColumns[colIndex]
+    const tableColumnName = field.table_column_name
+    const isFormula = field.type === FieldType.Formula
     console.log("deleteFieldByColIndex", tableColumnName, colIndex)
-    await deleteField(tableColumnName)
+    await deleteField(tableColumnName, isFormula)
   }
 
   const addRow = async (_uuid?: string) => {

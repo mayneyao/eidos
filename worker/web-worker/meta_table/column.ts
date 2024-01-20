@@ -55,6 +55,27 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   del(id: string): Promise<boolean> {
     throw new Error("Method not implemented.")
   }
+  async deleteField(
+    tableName: string,
+    tableColumnName: string,
+    isFormula?: boolean
+  ) {
+    await this.dataSpace.withTransaction(async () => {
+      // update trigger before delete column
+      await this.dataSpace.onTableChange(this.dataSpace.dbName, tableName, [
+        tableColumnName,
+      ])
+      await this.dataSpace.sql`DELETE FROM ${Symbol(
+        ColumnTableName
+      )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+      if (!isFormula) {
+        // formula doesn't need to drop column
+        await this.dataSpace.exec2(
+          `ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};`
+        )
+      }
+    })
+  }
 
   /**
    * @param tableName tb_<uuid>
