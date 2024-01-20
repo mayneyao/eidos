@@ -41,7 +41,25 @@ export default function EverydayPage() {
   return (
     <div className="mx-auto flex">
       <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert xl:prose-xl xs:p-5">
-        <DayHeatMap days={_days} startDate={startDate} />
+        <div className="hidden md:block">
+          <div className="flex cursor-pointer select-none gap-2">
+            {years.map((_year) => {
+              const isActive = _year === year
+              return (
+                <div
+                  key={_year}
+                  onClick={() => setYear(_year)}
+                  className={`rounded-sm p-2 text-sm ${
+                    isActive ? "bg-secondary" : ""
+                  }`}
+                >
+                  {_year}
+                </div>
+              )
+            })}
+          </div>
+          <DayHeatMap days={_days} startDate={startDate} />
+        </div>
         <div>
           {days.map((day, index) => {
             return (
@@ -76,22 +94,6 @@ export default function EverydayPage() {
             </div>
           )}
         </div>
-      </div>
-      <div className="flex cursor-pointer select-none flex-col gap-2 pt-6">
-        {years.map((_year) => {
-          const isActive = _year === year
-          return (
-            <div
-              key={_year}
-              onClick={() => setYear(_year)}
-              className={`rounded-sm p-2 text-xl ${
-                isActive ? "bg-secondary" : ""
-              }`}
-            >
-              {_year}
-            </div>
-          )
-        })}
       </div>
     </div>
   )
