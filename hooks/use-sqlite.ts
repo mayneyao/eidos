@@ -19,9 +19,6 @@ interface SqliteState {
   isInitialized: boolean
   setInitialized: (isInitialized: boolean) => void
 
-  currentDatabase: string
-  setCurrentDatabase: (database: string) => void
-
   currentNode: ITreeNode | null
   setCurrentNode: (node: ITreeNode | null) => void
 
@@ -149,8 +146,6 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
     }
     return tableMap[tableId].rowMap[rowId]
   },
-  currentDatabase: "",
-  setCurrentDatabase: (database) => set({ currentDatabase: database }),
 
   currentNode: null,
   setCurrentNode: (node) => set({ currentNode: node }),

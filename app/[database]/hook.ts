@@ -57,19 +57,19 @@ export const useLastOpened = () => {
   return {
     lastOpenedDatabase,
     lastOpenedTable,
+    setLastOpenedDatabase,
   }
 }
 
 export const useLayoutInit = () => {
   const { space: database, tableName } = useCurrentPathInfo()
   const { setSqliteProxy: setSqlWorker } = useSqliteStore()
-  const { setCurrentDatabase, currentDatabase } = useSqliteStore()
   const { experiment, backupServer, apiAgentConfig } = useConfigStore()
   const { sqlite } = useSqlite(database)
   const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
 
   const { isInitialized, initWorker } = useWorker()
-  useLastOpened()
+  const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
 
   const { initPeer } = usePeer()
 
@@ -96,7 +96,7 @@ export const useLayoutInit = () => {
 
   useEffect(() => {
     if (database && sqlite) {
-      if (currentDatabase === database) return
+      if (lastOpenedDatabase === database) return
       const switchDdMsgId = uuidv4()
       const worker = getWorker()
       worker.postMessage({
@@ -109,11 +109,11 @@ export const useLayoutInit = () => {
       worker.onmessage = (e) => {
         const { id: returnId, data } = e.data
         if (returnId === switchDdMsgId) {
-          setCurrentDatabase(data.dbName)
+          setLastOpenedDatabase(data.dbName)
         }
       }
     }
-  }, [database, setCurrentDatabase, currentDatabase, sqlite])
+  }, [database, lastOpenedDatabase, setLastOpenedDatabase, sqlite])
 
   useEffect(() => {
     if (!isInitialized) {
@@ -124,8 +124,8 @@ export const useLayoutInit = () => {
   }, [database, setSqlWorker, isInitialized, initWorker])
 
   useEffect(() => {
-    setCurrentDatabase(database)
-  }, [database, setCurrentDatabase])
+    setLastOpenedDatabase(database)
+  }, [database, setLastOpenedDatabase])
 
   useEffect(() => {
     mainServiceWorkerChannel.postMessage({

@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom"
 import { importSpace } from "@/lib/space"
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
 import { useSpace } from "@/hooks/use-space"
 import { Button } from "@/components/ui/button"
@@ -49,6 +50,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
     e.target.files[0] && setFile(e.target.files[0])
   }
   const { lastOpenedDatabase, setLastOpenedDatabase } = useAppStore()
+  const { space } = useCurrentPathInfo()
 
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
@@ -91,7 +93,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
       updateSpaceList()
     }
   }
-  const currentDatabase = databases.find((db) => db === lastOpenedDatabase)
+  console.log("lastOpenedDatabase", lastOpenedDatabase)
   return (
     <Dialog open={showNewTeamDialog} onOpenChange={setShowNewTeamDialog}>
       <Popover open={open} onOpenChange={setOpen}>
@@ -102,11 +104,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
             aria-expanded={open}
             className="w-full min-w-[180px] justify-between"
           >
-            {lastOpenedDatabase ? (
-              <div>{currentDatabase}</div>
-            ) : (
-              "Select Database..."
-            )}
+            {space ? <div>{space}</div> : "Select Database..."}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
