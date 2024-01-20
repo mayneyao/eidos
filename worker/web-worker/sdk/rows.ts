@@ -16,6 +16,7 @@ export class RowsManager {
     const uiColumns = await this.dataSpace.column.list({
       table_name: this.table.rawTableName,
     })
+
     const fieldRawColumnNameFieldMap = uiColumns.reduce((acc, cur) => {
       acc[cur.table_column_name] = cur
       return acc
@@ -65,6 +66,7 @@ export class RowsManager {
     },
     options?: {
       noGenerateId?: boolean
+      noId?: boolean
       useFieldId?: boolean
     }
   ) {
@@ -89,9 +91,9 @@ export class RowsManager {
       }
     })
 
-    const kvTuple: [string, any][] = [
-      ["_id", options?.noGenerateId ? _id : uuidv4()],
-    ]
+    const kvTuple: [string, any][] = options?.noId
+      ? []
+      : [["_id", options?.noGenerateId ? _id : uuidv4()]]
 
     Object.entries(restData).forEach(([key, value]) => {
       const rawColumnName = options?.useFieldId
@@ -124,6 +126,7 @@ export class RowsManager {
       },
       {
         noGenerateId: true,
+        noId: true,
       }
     )
     if (notExistKeys.length > 0) {

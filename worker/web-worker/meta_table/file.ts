@@ -126,7 +126,11 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     if (!file) {
       throw new Error("file not found")
     }
-    const f = await opfsManager.getFileByPath(file.path)
+    return this.getBlobURLbyPath(file.path)
+  }
+
+  async getBlobURLbyPath(path: string): Promise<string | null> {
+    const f = await opfsManager.getFileByPath(path)
     return URL.createObjectURL(f)
   }
 
