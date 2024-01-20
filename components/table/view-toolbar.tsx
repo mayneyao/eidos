@@ -129,7 +129,7 @@ export const ViewToolbar = (props: {
         </div>
         <div className="flex gap-2">
           <ViewFilter view={currentView!} />
-          <ViewSort view={currentView!} />
+          <ViewSort view={currentView} />
           <ViewFieldHidden view={currentView!} />
           <Button size="sm" onClick={handleAddRow}>
             <PlusIcon className="h-4 w-4"></PlusIcon>
