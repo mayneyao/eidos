@@ -27,7 +27,7 @@ export const useDataSource = (tableName: string, databaseName: string) => {
     (rowData: any, col: number) => {
       const column = columns[col]
       const field = fieldRawColumnNameFieldMap[column.id!]
-      if (!field)
+      if (!field || !rowData)
         return {
           kind: GridCellKind.Text,
           data: null,
@@ -44,7 +44,6 @@ export const useDataSource = (tableName: string, databaseName: string) => {
       if (!field) {
         return emptyCell
       }
-
       let colHandle = columnsHandleMap[field.type]
       if (!colHandle) {
         const FieldClass = allFieldTypesMap[field.type]
