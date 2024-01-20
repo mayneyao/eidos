@@ -1,18 +1,18 @@
+import { useCallback } from "react"
 import {
   OrderByStatement,
   SelectFromStatement,
   parseFirst,
   toSql,
 } from "pgsql-ast-parser"
-import { useCallback } from "react"
 
+import { IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
 
 import { useViewOperation } from "./hooks"
 import { OrderByItem, ViewSortEditor } from "./view-sort-editor"
@@ -25,16 +25,20 @@ export const ViewSort = ({ view }: { view?: IView }) => {
     (orderBy: OrderByItem[]) => {
       if (!view?.id) return
       const parsedSql = parseFirst(view.query) as SelectFromStatement
-      const newOrderBy = orderBy.map((item) => {
-        return {
-          by: {
-            type: "ref",
-            name: item.column as any,
-          },
-          order: item.order as any,
-        } as OrderByStatement
-      })
-      parsedSql.orderBy = newOrderBy
+      if (!orderBy.length) {
+        delete parsedSql.orderBy
+      } else {
+        const newOrderBy = orderBy.map((item) => {
+          return {
+            by: {
+              type: "ref",
+              name: item.column as any,
+            },
+            order: item.order as any,
+          } as OrderByStatement
+        })
+        parsedSql.orderBy = newOrderBy
+      }
       const newSql = toSql.statement(parsedSql)
       updateView(view.id, { query: newSql })
     },
