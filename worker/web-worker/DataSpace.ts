@@ -250,6 +250,10 @@ export class DataSpace {
     return await this.view.isRowExistInQuery(tableId, rowId, query)
   }
 
+  public async getRecomputeRows(tableId: string, rowIds: string[]) {
+    return await this.view.recompute(tableId, rowIds)
+  }
+
   // columns
   public async addColumn(data: IField) {
     return await this.column.add(data)

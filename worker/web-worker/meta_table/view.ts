@@ -1,4 +1,5 @@
 import { ViewTableName } from "@/lib/sqlite/const"
+import { transformQueryWithFormulaFields2Sql } from "@/lib/sqlite/sql-formula-parser"
 import { replaceQueryTableName } from "@/lib/sqlite/sql-parser"
 import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { getUuid } from "@/lib/utils"
@@ -93,5 +94,15 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       await this.dataSpace.exec2(`DROP TABLE ${tmpTableName}`)
     }
     return isExist
+  }
+
+  // after change entity field, the formula field may be changed, so we need to recompute the formula field
+  public async recompute(tableId: string, rowIds: string[]) {
+    const tableName = `tb_${tableId}`
+    const query = `SELECT * FROM ${tableName}`
+    const fields = await this.dataSpace.column.list({ table_name: tableName })
+    const qs = transformQueryWithFormulaFields2Sql(query, fields)
+    const result = await this.dataSpace.exec2(`${qs} where _id in (?)`, rowIds)
+    return result
   }
 }

@@ -66,7 +66,7 @@ export function useAsyncData<TRowType>(
   const { setSubPage } = useCurrentSubPage()
   const { space, tableId } = useCurrentPathInfo()
   const { getOrCreateTableSubDoc } = useSqlite(space)
-  const { getViewSortedRowIds } = useViewSort(qs || "")
+  const { getViewSortedRows } = useViewSort(qs || "")
   const _hasOrderBy = hasOrderBy(qs)
   const { sqlite } = useSqlite()
   pageSize = Math.max(pageSize, 1)
@@ -281,7 +281,8 @@ export function useAsyncData<TRowType>(
               return
             }
             // more simple way to refresh the data, but cost more
-            getViewSortedRowIds().then((rowIds) => {
+            getViewSortedRows().then((rows) => {
+              const rowIds = rows.map((r) => r._id)
               dataRef.current = rowIds
               setCount(dataRef.current.length)
               refreshCurrentVisible()
@@ -290,7 +291,8 @@ export function useAsyncData<TRowType>(
           case DataUpdateSignalType.Update:
             // more simple way to refresh the data, but cost more
             _hasOrderBy &&
-              getViewSortedRowIds().then((rowIds) => {
+              getViewSortedRows().then((rows) => {
+                const rowIds = rows.map((r) => r._id)
                 dataRef.current = rowIds
                 setCount(dataRef.current.length)
                 refreshCurrentVisible()
@@ -379,7 +381,7 @@ export function useAsyncData<TRowType>(
     checkRowExistInQuery,
     clearAddedRowIds,
     getOrCreateTableSubDoc,
-    getViewSortedRowIds,
+    getViewSortedRows,
     refreshCurrentVisible,
     setCount,
     setSubPage,

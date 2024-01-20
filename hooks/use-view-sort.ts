@@ -6,14 +6,12 @@ import { useSqlite } from "./use-sqlite"
 
 export const useViewSort = (query: string) => {
   const { sqlite } = useSqlite()
-  const getViewSortedRowIds = useCallback(async () => {
+  const getViewSortedRows = useCallback(async () => {
     if (!sqlite || !query) return []
-    const res = await sqlite.sql4mainThread(rewriteQuery2getSortedRowIds(query))
-    const rowIds = res.map((item) => item[0])
-    return rowIds
+    return await sqlite.sql4mainThread2(rewriteQuery2getSortedRowIds(query))
   }, [query, sqlite])
 
   return {
-    getViewSortedRowIds,
+    getViewSortedRows,
   }
 }

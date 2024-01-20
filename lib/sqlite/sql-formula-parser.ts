@@ -1,25 +1,26 @@
 import {
   SelectFromStatement,
   SelectedColumn,
-  Statement,
   astMapper,
-  astVisitor,
   parseFirst,
-  toSql,
+  toSql
 } from "pgsql-ast-parser"
 
-import { FormulaProperty } from "../fields/formula"
+import { FieldType } from "../fields/const"
 import { IField } from "../store/interface"
 import { nonNullable } from "../utils"
 
 export const transformQueryWithFormulaFields2Sql = (
   query: string,
-  formulaFields: IField<FormulaProperty>[],
-  fieldNameRawIdMap: Record<string, string>
+  fields: IField[]
 ) => {
+  const formulaFields = fields.filter((f) => f.type === FieldType.Formula)
+  const fieldNameRawIdMap: Record<string, string> = {}
+  fields.forEach((field) => {
+    fieldNameRawIdMap[field.name.toLowerCase()] = field.table_column_name
+  })
   const ast = parseFirst(query)
   const selectStatement = ast as SelectFromStatement
-
   // create a mapper
   const mapper = astMapper((map) => ({
     ref: (t) => {

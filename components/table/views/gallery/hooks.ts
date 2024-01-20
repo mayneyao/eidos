@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { useUiColumns } from "@/hooks/use-ui-columns"
-import { useViewSort } from "@/hooks/use-view-sort"
 import {
   DataUpdateSignalType,
   EidosDataEventChannelMsgType,
@@ -12,13 +8,17 @@ import {
 import { transformSql } from "@/lib/sqlite/sql-parser"
 import { IView } from "@/lib/store/IView"
 import { getRawTableNameById } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { useUiColumns } from "@/hooks/use-ui-columns"
+import { useViewSort } from "@/hooks/use-view-sort"
 
 export const useGalleryViewData = (view: IView) => {
   const { tableId, query } = view
   const tableName = getRawTableNameById(tableId)
   const { sqlite } = useSqlite()
   const { setRows } = useSqliteStore()
-  const { getViewSortedRowIds } = useViewSort(query)
+  const { getViewSortedRows } = useViewSort(query)
   const [data, setData] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const { space } = useCurrentPathInfo()
@@ -71,7 +71,8 @@ export const useGalleryViewData = (view: IView) => {
           case DataUpdateSignalType.Insert:
           case DataUpdateSignalType.Update:
           case DataUpdateSignalType.Delete:
-            getViewSortedRowIds().then((rowIds) => {
+            getViewSortedRows().then((rows) => {
+              const rowIds = rows.map((r) => r._id)
               setData(rowIds)
             })
             break
@@ -83,7 +84,7 @@ export const useGalleryViewData = (view: IView) => {
     return () => {
       bc.close()
     }
-  }, [getViewSortedRowIds, data, tableName])
+  }, [getViewSortedRows, data, tableName])
 
   return {
     data,
