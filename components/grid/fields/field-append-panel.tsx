@@ -17,9 +17,9 @@ import {
 } from "lucide-react"
 
 import { FieldType } from "@/lib/fields/const"
+import { IField } from "@/lib/store/interface"
 import { cn, generateColumnName } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { IField } from "@/lib/store/interface"
 import { Button } from "@/components/ui/button"
 import { useConfigStore } from "@/app/settings/store"
 
@@ -66,7 +66,7 @@ export function FieldAppendPanel({
       name: "Formula",
       value: FieldType.Formula,
       icon: SigmaIcon,
-      disable: true,
+      // disable: true,
     },
     {
       name: "Link",

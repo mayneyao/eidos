@@ -45,7 +45,7 @@ export default function GalleryView({
   }, [cardHeight])
 
   return (
-    <AutoSizer className="m-3 h-full" onResize={setSize}>
+    <AutoSizer onResize={setSize}>
       {({ height, width }) => (
         <Grid
           ref={ref}

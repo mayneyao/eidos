@@ -1,21 +1,15 @@
 import {
-  Expr,
-  ExprBinary,
-  ExprRef,
-  LogicOperator,
   SelectFromStatement,
-  SelectStatement,
   Statement,
   astMapper,
   parse,
   parseFirst,
-  toSql,
+  toSql
 } from "pgsql-ast-parser"
 
 import type { IField } from "@/lib/store/interface"
-import { FilterValueType } from "@/components/table/view-filter-editor/interface"
 
-import { BinaryOperator, CompareOperator, FieldType } from "../fields/const"
+import { FieldType } from "../fields/const"
 
 export const getColumnsFromQuery = (sql?: string) => {
   if (!sql) return []

@@ -7,16 +7,18 @@ import DataEditor, {
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
-import React, { useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
+import React, { useEffect, useMemo, useRef } from "react"
 
-import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
+import { cn } from "@/lib/utils"
 
+import { useTransformSqlQuery } from "@/hooks/use-transform-sql-query"
+import { IGridViewProperties, IView } from "@/lib/store/IView"
 import { Button } from "../ui/button"
 import { customCells } from "./cells"
 import { FieldEditor } from "./fields"
@@ -28,7 +30,6 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
-import { IGridViewProperties, IView } from "@/lib/store/IView"
 
 import { useCurrentView } from "../table/hooks"
 import { useViewCount } from "../table/hooks/use-view-count"
@@ -91,6 +92,7 @@ export default function GridView(props: IGridProps) {
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
   const { uiColumns, getFieldByIndex } = useUiColumns(tableName, databaseName)
   const { onColumnResize, columns } = useColumns(uiColumns, props.view!)
+  const qs = useTransformSqlQuery(props.view?.query ?? "", uiColumns)
 
   const {
     getCellContent,
@@ -112,7 +114,7 @@ export default function GridView(props: IGridProps) {
     addRow,
     deleteRows,
     setCount,
-    props.view?.query
+    qs
   )
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =

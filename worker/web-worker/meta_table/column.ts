@@ -34,9 +34,9 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         [name, type, table_name, table_column_name, JSON.stringify(_property)]
       )
       if (type === FieldType.Formula) {
-        this.dataSpace.exec(
-          `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType} GENERATED ALWAYS AS (upper(title));`
-        )
+        // this.dataSpace.exec(
+        //   `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType} GENERATED ALWAYS AS (upper(title));`
+        // )
       } else {
         this.dataSpace.exec(
           `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType};`
@@ -80,12 +80,12 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         property
       )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
       if (isFormula) {
-        this.dataSpace.exec(
-          `
-          ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};
-          ALTER TABLE ${tableName} ADD COLUMN ${tableColumnName} GENERATED ALWAYS AS (${property.formula});
-          `
-        )
+        // this.dataSpace.exec(
+        //   `
+        //   ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};
+        //   ALTER TABLE ${tableName} ADD COLUMN ${tableColumnName} GENERATED ALWAYS AS (${property.formula});
+        //   `
+        // )
       }
     })
   }

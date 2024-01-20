@@ -29,6 +29,9 @@ export const useViewCount = (view?: IView) => {
           expr: countExpr as Expr,
         },
       ]
+      if ("orderBy" in parsedSql) {
+        delete parsedSql.orderBy
+      }
       const countSql = toSql.statement(parsedSql)
       sqlite?.sql4mainThread(countSql).then((res) => {
         setCount(res[0][0])

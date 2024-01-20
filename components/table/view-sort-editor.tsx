@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
 import { XIcon } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -11,6 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { FieldSelector } from "./field-selector"
 import { useCurrentView } from "./hooks"
@@ -25,6 +25,7 @@ interface IViewEditorProps {
   onSortChange?: (sort: OrderByItem[]) => void
 }
 export function ViewSortEditor(props: IViewEditorProps) {
+  const { onSortChange } = props
   const { currentView } = useCurrentView()
   const { parsedSql } = useViewQuery(currentView!)
 
@@ -47,8 +48,8 @@ export function ViewSortEditor(props: IViewEditorProps) {
 
   useEffect(() => {
     setAddedFields(orderItems.map((item) => item.column))
-    props.onSortChange?.(orderItems)
-  }, [orderItems, props])
+    onSortChange?.(orderItems)
+  }, [onSortChange, orderItems])
 
   const { database, tableName } = useCurrentPathInfo()
   const { rawIdNameMap, uiColumns } = useUiColumns(tableName!, database!)
