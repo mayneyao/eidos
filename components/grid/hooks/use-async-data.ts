@@ -262,6 +262,10 @@ export function useAsyncData<TRowType>(
         const { table, _new, _old } = payload
         if (tableName !== table) return
         switch (payload.type) {
+          case DataUpdateSignalType.AddColumn:
+          case DataUpdateSignalType.UpdateColumn:
+            // refreshCurrentVisible()
+            break
           case DataUpdateSignalType.Insert:
             checkRowExistInQuery(_new._id, async (isExist) => {
               if (!isExist) {
@@ -306,66 +310,6 @@ export function useAsyncData<TRowType>(
               refreshCurrentVisible()
             }
             break
-          // case DataUpdateSignalType.Update:
-          //   const rowIndex = getRowIndexById(_old._id)
-          //   checkRowExistInQuery(_new._id, (isExist) => {
-          //     if (rowIndex !== -1) {
-          //       // FIXME: for now we just refresh the visible region, link cell has some problem
-          //       if (isExist) {
-          //         dataRef.current[rowIndex] = _new._id
-          //         refreshCurrentVisible()
-          //       } else {
-          //         // remove from data
-          //         dataRef.current.splice(rowIndex, 1)
-          //         setCount(dataRef.current.length)
-          //         refreshCurrentVisible()
-          //       }
-          //     } else {
-          //       if (isExist) {
-          //         dataRef.current.push(_new._id)
-          //         setCount(dataRef.current.length)
-          //         refreshCurrentVisible()
-          //       }
-          //     }
-          //   })
-          //   break
-          // case DataUpdateSignalType.Delete:
-          //   const rowIndex2 = getRowIndexById(_old._id)
-          //   if (rowIndex2 !== -1) {
-          //     dataRef.current.splice(rowIndex2, 1)
-          //     setCount(dataRef.current.length)
-          //     refreshCurrentVisible()
-          //   }
-          //   break
-          // case DataUpdateSignalType.Insert:
-          //   const rowIndex3 = getRowIndexById(_new._id)
-          //   // if the row is added by click add row button
-          //   if (addedRowIds.has(_new._id)) {
-          //     clearAddedRowIds()
-          //     return
-          //     checkRowExistInQuery(_new._id, async (isExist) => {
-          //       if (!isExist) {
-          //         // new record is not in query, open as sub-page
-          //         const docId = shortenId(_new._id)
-          //         await getOrCreateTableSubDoc({
-          //           docId,
-          //           title: _new.title,
-          //           tableId: tableId!,
-          //         })
-          //         setSubPage(docId)
-          //       }
-          //     })
-          //   } else {
-          //     // if the row is added by other user
-          //     checkRowExistInQuery(_new._id, async (isExist) => {
-          //       if (isExist && rowIndex3 === -1) {
-          //         dataRef.current.push(_new._id)
-          //         setCount(dataRef.current.length)
-          //         refreshCurrentVisible()
-          //       }
-          //     })
-          //   }
-          //   break
           default:
             break
         }

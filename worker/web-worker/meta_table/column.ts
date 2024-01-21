@@ -1,8 +1,16 @@
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+} from "@/lib/const"
 import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
+import { transformFormula2VirtualGeneratedField } from "@/lib/sqlite/sql-formula-parser"
 import { IField } from "@/lib/store/interface"
 
 import { BaseTable, BaseTableImpl } from "./base"
+
+const bc = new BroadcastChannel(EidosDataEventChannelName)
 
 export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   name = ColumnTableName
@@ -34,14 +42,22 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         [name, type, table_name, table_column_name, JSON.stringify(_property)]
       )
       if (type === FieldType.Formula) {
-        // this.dataSpace.exec(
-        //   `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType} GENERATED ALWAYS AS (upper(title));`
-        // )
+        this.dataSpace.exec(
+          `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (upper(title));`
+        )
       } else {
         this.dataSpace.exec(
           `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType};`
         )
       }
+    })
+    bc.postMessage({
+      type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+      payload: {
+        type: DataUpdateSignalType.AddColumn,
+        table: table_name,
+        column: data,
+      },
     })
     return data
   }
@@ -60,21 +76,26 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     tableColumnName: string,
     isFormula?: boolean
   ) {
-    await this.dataSpace.withTransaction(async () => {
-      // update trigger before delete column
-      await this.dataSpace.onTableChange(this.dataSpace.dbName, tableName, [
-        tableColumnName,
-      ])
-      await this.dataSpace.sql`DELETE FROM ${Symbol(
-        ColumnTableName
-      )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
-      if (!isFormula) {
-        // formula doesn't need to drop column
+    try {
+      await this.dataSpace.withTransaction(async () => {
+        // update trigger before delete column
+        await this.dataSpace.onTableChange(this.dataSpace.dbName, tableName, [
+          tableColumnName,
+        ])
+        await this.dataSpace.sql`DELETE FROM ${Symbol(
+          ColumnTableName
+        )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
         await this.dataSpace.exec2(
           `ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};`
         )
-      }
-    })
+      })
+    } catch (error) {
+      this.dataSpace.notify({
+        title: "Error",
+        description:
+          "Failed to delete column, because it is referenced by other fields",
+      })
+    }
   }
 
   /**
@@ -100,13 +121,27 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
       )} SET property = ${JSON.stringify(
         property
       )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+
       if (isFormula) {
-        // this.dataSpace.exec(
-        //   `
-        //   ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};
-        //   ALTER TABLE ${tableName} ADD COLUMN ${tableColumnName} GENERATED ALWAYS AS (${property.formula});
-        //   `
-        // )
+        const fields = await this.list({ table_name: tableName })
+        const formulaExpr = transformFormula2VirtualGeneratedField(
+          tableColumnName,
+          fields
+        )
+        this.dataSpace.exec(
+          `
+          ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};
+          ALTER TABLE ${tableName} ADD COLUMN ${tableColumnName} GENERATED ALWAYS AS ${formulaExpr};
+          `
+        )
+        bc.postMessage({
+          type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+          payload: {
+            type: DataUpdateSignalType.UpdateColumn,
+            table: tableName,
+            column: data,
+          },
+        })
       }
     })
   }

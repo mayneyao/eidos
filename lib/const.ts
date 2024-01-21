@@ -30,6 +30,9 @@ export enum DataUpdateSignalType {
   Update = "update",
   Insert = "insert",
   Delete = "delete",
+  // just for generated column
+  AddColumn = "addColumn",
+  UpdateColumn = "updateColumn",
 }
 
 export const EidosDataEventChannelName = "eidos-data-event"

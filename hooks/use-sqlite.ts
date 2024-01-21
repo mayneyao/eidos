@@ -36,6 +36,7 @@ interface SqliteState {
   setRows: (tableId: string, rows: Record<string, any>[]) => void
   delRows: (tableId: string, rowIds: string[]) => void
   getRowById: (tableId: string, rowId: string) => Record<string, any> | null
+  getRowIds: (tableId: string) => string[]
 
   selectedTable: string
   setSelectedTable: (table: string) => void
@@ -121,7 +122,13 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
       return { dataStore: { ...state.dataStore, tableMap } }
     })
   },
-
+  getRowIds: (tableId: string) => {
+    const { tableMap } = get().dataStore
+    if (!tableMap[tableId]) {
+      return []
+    }
+    return Object.keys(tableMap[tableId].rowMap)
+  },
   delRows: (tableId: string, rowIds: string[]) => {
     set((state) => {
       const { tableMap } = state.dataStore

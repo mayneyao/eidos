@@ -10,7 +10,7 @@ import { getTableIdByRawTableName } from "@/lib/utils"
 import { useSqlite, useSqliteStore } from "./use-sqlite"
 
 export const useSqliteTableSubscribe = (tableName: string) => {
-  const { setRows, delRows } = useSqliteStore()
+  const { setRows, delRows, getRowIds } = useSqliteStore()
   const { sqlite } = useSqlite()
   const tableId = getTableIdByRawTableName(tableName)
 
@@ -47,6 +47,13 @@ export const useSqliteTableSubscribe = (tableName: string) => {
         const { table, _new, _old } = payload
         if (tableName !== table) return
         switch (payload.type) {
+          case DataUpdateSignalType.AddColumn:
+          case DataUpdateSignalType.UpdateColumn:
+            // if a generated column is updated, we need to recompute all rows in memory
+            recompute(tableId, getRowIds(tableId)).then((rows) => {
+              setRows(tableId, rows)
+            })
+            break
           case DataUpdateSignalType.Update:
             recompute(tableId, [_new._id]).then((rows) => {
               setRows(tableId, rows)
@@ -69,5 +76,5 @@ export const useSqliteTableSubscribe = (tableName: string) => {
     return () => {
       bc.close()
     }
-  }, [delRows, recompute, tableId, setRows, tableName])
+  }, [delRows, recompute, tableId, setRows, tableName, getRowIds])
 }
