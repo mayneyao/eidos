@@ -11,6 +11,26 @@ export class RowsManager {
     this.dataSpace = this.table.dataSpace
   }
 
+  static getReadableRows(rows: Record<string, any>[], fields: IField[]) {
+    const fieldMap = fields.reduce((acc, cur) => {
+      acc[cur.table_column_name] = cur
+      return acc
+    }, {} as Record<string, IField>)
+    return rows.map((row) => {
+      const data: Record<string, any> = {}
+      Object.entries(row).forEach(([key, value]) => {
+        const field = fieldMap[key]
+        if (key.startsWith("cl_") && field) {
+          const readableFieldName = field.name
+          data[readableFieldName] = value
+        } else {
+          data[key] = value
+        }
+      })
+      return data
+    })
+  }
+
   async getFieldMap() {
     // query ui columns
     const uiColumns = await this.dataSpace.column.list({

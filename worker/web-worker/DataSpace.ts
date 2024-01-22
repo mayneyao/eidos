@@ -5,6 +5,7 @@ import { allFieldTypesMap } from "@/lib/fields"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
+import { transformQuery } from "@/lib/sqlite/sql-formula-parser"
 import { IField } from "@/lib/store/interface"
 import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
 
@@ -21,6 +22,7 @@ import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
 import { Table } from "./meta_table/table"
 import { TreeTable } from "./meta_table/tree"
 import { ViewTable } from "./meta_table/view"
+import { RowsManager } from "./sdk/rows"
 import { TableManager } from "./sdk/table"
 import { SQLiteUndoRedo } from "./sql_undo_redo_v2"
 import { DataChangeTrigger } from "./trigger/data_change_trigger"
@@ -489,6 +491,13 @@ export class DataSpace {
       bind
     )
     return this.syncExec2(sql, bind)
+  }
+
+  public async runAIgeneratedSQL(sql: string, tableName: string) {
+    const fields = await this.column.list({ table_name: tableName })
+    const _sql = transformQuery(sql, fields)
+    const res = await this.exec2(_sql)
+    return RowsManager.getReadableRows(res, fields)
   }
 
   // tree

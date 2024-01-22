@@ -1,18 +1,12 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 import { getPrompt } from "@/lib/ai/openai"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useAllNodes } from "@/hooks/use-nodes"
-import { useSqliteStore } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import { useSpaceAppStore } from "@/app/[database]/store"
 
 export const sysPrompts = {
   base: ``,
   eidosBaseHelper: `you must abide by the following rules:
-- user just know name of table and name of column, don't know tableName and tableColumnName
-- tableName and tableColumnName are actually exist in sqlite database. you will use them to query database.
-- tableColumnName will be mapped, such as 'title : cl_a4ef', title is name of column, cl_a4ef is tableColumnName, you will use cl_a4ef to query database. otherwise you will be punished.
 - data from query which can be trusted, you can display it directly, don't need to check it.
 `,
   eidosActionCreator: `now you are a action creator, you can create action.
@@ -63,17 +57,12 @@ a: {
 const usePromptContext = () => {
   const { space: database, tableName } = useCurrentPathInfo()
   const [currentDocMarkdown, setCurrentDocMarkdown] = useState("")
-  const { currentTableSchema } = useSpaceAppStore()
-  const { allUiColumns } = useSqliteStore()
-  const allTables = useAllNodes()
   const { uiColumns } = useUiColumns(tableName || "", database)
 
   const context = {
-    tableSchema: currentTableSchema,
-    allTables,
+    tableName,
     uiColumns,
     databaseName: database,
-    allUiColumns,
     currentDocMarkdown,
   }
   return {
@@ -84,15 +73,16 @@ const usePromptContext = () => {
 
 export const useSystemPrompt = (currentSysPrompt: keyof typeof sysPrompts) => {
   const { context, setCurrentDocMarkdown } = usePromptContext()
-  const baseSysPrompt = sysPrompts[currentSysPrompt]
-  const systemPrompt = getPrompt(
-    baseSysPrompt,
-    context,
-    currentSysPrompt === "base"
-  )
-
-  return {
-    systemPrompt,
-    setCurrentDocMarkdown,
-  }
+  return useMemo(() => {
+    const baseSysPrompt = sysPrompts[currentSysPrompt]
+    const systemPrompt = getPrompt(
+      baseSysPrompt,
+      context,
+      currentSysPrompt === "base"
+    )
+    return {
+      systemPrompt,
+      setCurrentDocMarkdown,
+    }
+  }, [context, currentSysPrompt, setCurrentDocMarkdown])
 }

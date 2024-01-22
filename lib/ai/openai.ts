@@ -1,10 +1,9 @@
-import { ITreeNode } from "@/lib/store/ITreeNode"
 import { ChatRequest, FunctionCallHandler, nanoid } from "ai"
 import OpenAI from "openai"
 
 import { IField } from "@/lib/store/interface"
 
-import { functionParamsSchemaMap, functions } from "./functions"
+import { functionParamsSchemaMap } from "./functions"
 
 // after 0613, openai support function call. we don't need prompt below
 // const baseSysPrompt = `you're a database master, help use query database and generate d3.js chart if user want. must abide by the following rules:
@@ -40,11 +39,9 @@ export const getOpenAI = (token: string) => {
 export const getPrompt = (
   baseSysPrompt: string,
   context: {
-    tableSchema?: string
     uiColumns?: IField[]
-    allTables: ITreeNode[]
-    allUiColumns: IField[]
     databaseName: string
+    tableName?: string
     currentDocMarkdown?: string
   },
   useBlankPrompt = false
@@ -57,14 +54,7 @@ export const getPrompt = (
   if (useBlankPrompt) {
     return base
   }
-  const {
-    currentDocMarkdown,
-    tableSchema,
-    allTables,
-    databaseName,
-    uiColumns,
-    allUiColumns,
-  } = context
+  const { currentDocMarkdown, databaseName, uiColumns, tableName } = context
   if (currentDocMarkdown) {
     return `- don't call functions. 
 - answer with user's input language.
@@ -75,36 +65,14 @@ ${context.currentDocMarkdown}
 `
   }
 
-  let allTableInfo = "here is all tables info:\n"
-
-  allTables.forEach((table) => {
-    if (table.type !== "table") return
-    allTableInfo += `- name: ${table.name}\n -tableName: tb_${table.id}\n -all columns: \n`
-    allUiColumns.forEach((column) => {
-      if (column.table_name === `tb_${table.id}`) {
-        allTableInfo += `   - ${column.name} : ${column.table_column_name}\n`
-      }
-    })
-    allTableInfo += "\n---------\n"
-  })
-
-  const contextPrompt = tableSchema
-    ? `
-\ncontext below:
-----------------
+  const contextPrompt = `context below:
 - database name: ${databaseName}
-- current table schema:\n${tableSchema}
-\n${allTableInfo}
-`
-    : `context below:
-- database name: ${databaseName}
-\n${allTableInfo}
-
+- current table name : ${tableName}
+- columns: ${JSON.stringify(uiColumns?.map((c) => c.name))}
+-----------
 - currentDocMarkdown:
 ${context.currentDocMarkdown}
 `
-  // - all tables: ${JSON.stringify(allTables)}
-  // - all ui columns: ${JSON.stringify(allUiColumns)}
   const systemPrompt = base + contextPrompt + baseSysPrompt
   return systemPrompt
 }

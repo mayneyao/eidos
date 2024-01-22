@@ -10,6 +10,44 @@ import { FieldType } from "../fields/const"
 import { IField } from "../store/interface"
 import { nonNullable } from "../utils"
 
+/**
+ * example:
+ * sql: select * from table1
+ * fields: [{name: "id", type: "number"}, {name: "name", type: "string"}]
+ * return: select id, name from table1
+ *
+ * example2:
+ * sql: select id,name from table1
+ * fields: [{name: "id", type: "number","table_column_name": "cl_xxx1"}, {name: "name", type: "string"},"table_column_name": "cl_xxx2"]
+ * return: select cl_xxx1 as id, cl_xxx2 as name from table1
+ * @param sql
+ * @param fields
+ */
+export const transformQuery = (sql: string, fields: IField[]) => {
+  const ast = parseFirst(sql)
+  const selectStatement = ast
+  const fieldNameRawIdMap: Record<string, string> = {}
+  fields.forEach((field) => {
+    fieldNameRawIdMap[field.name.toLowerCase()] = field.table_column_name
+  })
+  // create a mapper
+  const mapper = astMapper((map) => ({
+    ref: (t) => {
+      const rawName = fieldNameRawIdMap[t.name]
+      if (rawName) {
+        return {
+          ...t,
+          name: rawName,
+        }
+      }
+      return map.super().ref(t)
+    },
+  }))
+
+  const modified = mapper.statement(selectStatement)!
+  return toSql.statement(modified)
+}
+
 export const transformFormula2VirtualGeneratedField = (
   columnName: string,
   fields: IField[]
