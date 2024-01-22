@@ -1,27 +1,23 @@
 import { IField } from "@/lib/store/interface"
 
-import { CompareOperator } from "./const"
+import { CompareOperator, FieldType } from "./const"
 
 type UIColumn<P> = Omit<IField, "property"> & {
   property: P
 }
 
-interface IBaseField<T, P, R> {
+interface IBaseField<T, P, R, C> {
   column: UIColumn<P>
   compareOperators: string[]
-  getCellContent(rawData: any): T
+  getCellContent(rawData: any, context?: C): T
   rawData2JSON(rawData: R): any
   cellData2RawData(cell: T): any
 }
 
-export abstract class BaseField<T, P, R = string>
-  implements IBaseField<T, P, R>
+export abstract class BaseField<T, P, R = string, C = any>
+  implements IBaseField<T, P, R, C>
 {
-  static type: string
-
-  static getDefaultProperty() {
-    return {}
-  }
+  static type: FieldType
 
   /**
    * each table column has a corresponding ui column, which stored in the `${ColumnTableName}` table
@@ -39,7 +35,7 @@ export abstract class BaseField<T, P, R = string>
    * transform the raw data into the cell content for rendering
    * @param rawData this is the raw data stored in the database
    */
-  abstract getCellContent(rawData: any): T
+  abstract getCellContent(rawData: any, context?: C): T
 
   abstract rawData2JSON(rawData: R): any
 
@@ -52,8 +48,8 @@ export abstract class BaseField<T, P, R = string>
    * every field should have a property, when you create a new field, you should implement this method
    * @returns
    */
-  getDefaultFieldProperty(): P {
-    return {} as P
+  static getDefaultFieldProperty() {
+    return {}
   }
 
   text2RawData(text: string) {

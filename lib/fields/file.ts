@@ -1,14 +1,14 @@
 import type { FileCell } from "@/components/grid/cells/file/file-cell"
 
 import { BaseField } from "./base"
-import { CompareOperator, GridCellKind } from "./const"
+import { CompareOperator, FieldType, GridCellKind } from "./const"
 
 export type FileProperty = {
   proxyUrl?: string
 }
 
 export class FileField extends BaseField<FileCell, FileProperty, string> {
-  static type = "file"
+  static type = FieldType.File
 
   rawData2JSON(rawData: string) {
     return rawData
@@ -18,7 +18,7 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
     return [CompareOperator.IsEmpty, CompareOperator.IsNotEmpty]
   }
 
-  static getDefaultProperty() {
+  static getDefaultFieldProperty() {
     return {
       proxyUrl: "https://proxy.eidos.space/?url=",
     }

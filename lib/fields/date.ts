@@ -1,14 +1,14 @@
 import type { DatePickerCell } from "@/components/grid/cells/date-picker-cell"
 
 import { BaseField } from "./base"
-import { CompareOperator, GridCellKind } from "./const"
+import { CompareOperator, FieldType, GridCellKind } from "./const"
 
 type DateProperty = {}
 
 type DateCell = DatePickerCell
 
 export class DateField extends BaseField<DateCell, DateProperty, string> {
-  static type = "date"
+  static type = FieldType.Date
 
   rawData2JSON(rawData: string) {
     return rawData

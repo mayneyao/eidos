@@ -1,7 +1,7 @@
 import type { BooleanCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
-import { CompareOperator, GridCellKind } from "./const"
+import { CompareOperator, FieldType, GridCellKind } from "./const"
 
 type CheckboxProperty = {}
 type CheckboxCell = BooleanCell
@@ -11,7 +11,7 @@ export class CheckboxField extends BaseField<
   CheckboxProperty,
   number
 > {
-  static type = "checkbox"
+  static type = FieldType.Checkbox
 
   get compareOperators() {
     return [CompareOperator.IsEmpty, CompareOperator.IsNotEmpty]

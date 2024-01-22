@@ -11,6 +11,10 @@ export enum FieldType {
   URL = "url",
   Formula = "formula",
   Link = "link",
+  CreatedTime = "created-time",
+  CreatedBy = "created-by",
+  LastEditedTime = "last-edited-time",
+  LastEditedBy = "last-edited-by",
 }
 
 // copy from glide-data-grid

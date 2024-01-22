@@ -3,6 +3,7 @@ import type { TextCell } from "@glideapps/glide-data-grid"
 import { BaseField } from "./base"
 import {
   CompareOperator,
+  FieldType,
   GridCellKind,
   TEXT_BASED_COMPARE_OPERATORS,
 } from "./const"
@@ -10,7 +11,7 @@ import {
 type TitleProperty = {}
 
 export class TitleField extends BaseField<TextCell, TitleProperty> {
-  static type = "title"
+  static type = FieldType.Title
 
   get compareOperators() {
     return TEXT_BASED_COMPARE_OPERATORS
