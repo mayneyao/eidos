@@ -1,3 +1,4 @@
+import { generateMergeTableWithNewColumnsSql } from "@/lib/sqlite/sql-merge-table-with-new-columns"
 import { IView } from "@/lib/store/IView"
 
 import { DataSpace } from "../DataSpace"
@@ -48,5 +49,34 @@ export class Table implements MetaTable<ITable> {
       await this.dataSpace.tree.del(id)
     })
     return true
+  }
+
+  async hasSystemColumn(tableId: string, column: string) {
+    const res = await this.dataSpace.exec2(`PRAGMA table_info(tb_${tableId})`)
+    const columns = res.map((item: any) => item.name)
+    return columns.includes(column)
+  }
+
+  // we add system columns to table, but old tables don't have these columns, so we need to fix them.
+  async fixTable(tableId: string) {
+    const hasSystemColumn = await this.hasSystemColumn(tableId, "_created_time")
+    if (!hasSystemColumn) {
+      const createTableSqlRes = await this.dataSpace.exec2(
+        `SELECT sql FROM sqlite_master WHERE type='table' AND name='tb_${tableId}'`
+      )
+      const createTableSql = createTableSqlRes[0].sql
+      const { sql } = generateMergeTableWithNewColumnsSql(
+        createTableSql,
+        `
+      _created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      _last_edited_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      _created_by TEXT DEFAULT 'unknown',
+      _last_edited_by TEXT DEFAULT 'unknown'
+  `
+      )
+      console.log(sql)
+      const res = await this.dataSpace.exec2(sql)
+      console.log(res)
+    }
   }
 }

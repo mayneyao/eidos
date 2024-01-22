@@ -2,6 +2,7 @@
 // user defined function to scale formula field function
 
 import { Sqlite3Static } from "@sqlite.org/sqlite-wasm"
+import { v4 } from "uuid"
 
 import {
   DataUpdateSignalType,
@@ -30,6 +31,16 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     name: "today",
     xFunc: function (pCx) {
       return new Date().toISOString().slice(0, 10)
+    },
+    opt: {
+      deterministic: false,
+    },
+  }
+
+  const uuidv4 = {
+    name: "uuidv4",
+    xFunc: function (pCx) {
+      return v4()
     },
     opt: {
       deterministic: false,
@@ -105,6 +116,7 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
   const ALL_UDF = [
     twice,
     today,
+    uuidv4,
     // filterAll,
     eidos_data_event_update,
     eidos_data_event_insert,
