@@ -1,16 +1,17 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { ControllerRenderProps, useForm } from "react-hook-form"
 import * as z from "zod"
 
+import { opfsManager } from "@/lib/opfs"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -28,6 +29,8 @@ const profileFormSchema = z.object({
     .max(30, {
       message: "Username must not be longer than 30 characters.",
     }),
+  userId: z.string().optional(),
+  avatar: z.string().optional(),
 })
 
 export type ProfileFormValues = z.infer<typeof profileFormSchema>
@@ -46,33 +49,88 @@ export function ProfileForm() {
     mode: "onChange",
   })
 
+  const handleChangeAvatar = async (
+    field: ControllerRenderProps<
+      {
+        username: string
+        userId?: string | undefined
+        avatar?: string | undefined
+      },
+      "avatar"
+    >
+  ) => {
+    const [fileHandle] = await (window as any).showOpenFilePicker({
+      types: [
+        {
+          description: "Images",
+          accept: {
+            "image/*": [".png", ".gif", ".jpeg", ".jpg"],
+          },
+        },
+      ],
+      excludeAcceptAllOption: true,
+      multiple: false,
+    })
+    const file = await fileHandle.getFile()
+    const res = await opfsManager.addFile(["static"], file)
+    const url = "/" + res?.join("/")
+    field.onChange(url)
+  }
+
   function onSubmit(data: ProfileFormValues) {
     setProfile(data)
     toast({
-      title: "You submitted the following values:",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
+      title: "Profile updated.",
     })
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <div className="flex items-center gap-4">
+          <FormField
+            control={form.control}
+            name="avatar"
+            render={({ field }) => (
+              <FormItem>
+                <Avatar
+                  className="h-[64px] w-[64px]"
+                  onClick={() => handleChangeAvatar(field)}
+                >
+                  <AvatarImage src={field.value} />
+                  <AvatarFallback>
+                    {form.getValues("username")?.[0]?.toUpperCase() ?? "E"}
+                  </AvatarFallback>
+                </Avatar>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="username"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="yahaha" {...field} />
+                </FormControl>
+                {/* <FormDescription>
+                  {`When you visit other's shared pages, others will see this display name.`}
+                </FormDescription> */}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <FormField
           control={form.control}
-          name="username"
+          name="userId"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
+            <FormItem className="hidden">
+              <FormLabel>ID</FormLabel>
               <FormControl>
-                <Input placeholder="yahaha" {...field} />
+                <Input {...field} disabled />
               </FormControl>
-              <FormDescription>
-                {`When you visit other's shared pages, others will see this display name.`}
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

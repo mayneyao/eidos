@@ -9,6 +9,7 @@ const msgType = z.object({
     space: z.string(),
     method: z.string(),
     params: z.array(z.any()),
+    userId: z.string(),
   }),
 })
 

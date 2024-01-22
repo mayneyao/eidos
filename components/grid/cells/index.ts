@@ -7,6 +7,7 @@ import LinkCell from "./link-cell"
 import MultiSelectCell from "./multi-select-cell"
 import RatingCell from "./rating-cell"
 import SelectCell from "./select-cell"
+import UserProfileCell from "./user-profile-cell"
 
 const cells = [
   RatingCell,
@@ -21,6 +22,7 @@ const cells = [
   // RangeCell,
   DatePicker,
   FileCellRenderer,
+  UserProfileCell,
   // LinksCell,
   // ButtonCell,
 ]
@@ -34,4 +36,6 @@ export const cellRenderMap: any = {
   [FieldType.Link]: LinkCell,
   [FieldType.Date]: DatePicker,
   [FieldType.File]: FileCellRenderer,
+  [FieldType.CreatedBy]: UserProfileCell,
+  [FieldType.LastEditedBy]: UserProfileCell,
 }

@@ -3,6 +3,7 @@ import type { IField } from "@/lib/store/interface"
 import { uuidv4 } from "@/lib/utils"
 
 import { DataSpace } from "../DataSpace"
+import { workerStore } from "../store"
 import { TableManager } from "./table"
 
 export class RowsManager {
@@ -85,7 +86,6 @@ export class RowsManager {
       fieldRawColumnNameFieldMap: Record<string, IField>
     },
     options?: {
-      noGenerateId?: boolean
       noId?: boolean
       useFieldId?: boolean
     }
@@ -113,7 +113,7 @@ export class RowsManager {
 
     const kvTuple: [string, any][] = options?.noId
       ? []
-      : [["_id", options?.noGenerateId ? _id : uuidv4()]]
+      : [["_id", _id || uuidv4()]]
 
     Object.entries(restData).forEach(([key, value]) => {
       const rawColumnName = options?.useFieldId
@@ -145,7 +145,6 @@ export class RowsManager {
         fieldRawColumnNameFieldMap,
       },
       {
-        noGenerateId: true,
         noId: true,
       }
     )
@@ -169,6 +168,22 @@ export class RowsManager {
     return rows.map((row) =>
       RowsManager.rawData2Json(row, fieldRawColumnNameFieldMap)
     )
+  }
+
+  getCreateData(data: Record<string, any>) {
+    return {
+      ...data,
+      _created_by: workerStore.currentCallUserId,
+      _last_edited_by: workerStore.currentCallUserId,
+    }
+  }
+
+  getUpdateData(data: Record<string, any>) {
+    const { _id, _created_by, _created_time, ...restData } = data
+    return {
+      ...restData,
+      _last_edited_by: workerStore.currentCallUserId,
+    }
   }
 
   async create(
@@ -195,9 +210,9 @@ export class RowsManager {
     if (notExistKeys.length > 0) {
       throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
     }
-    const { _id, ...restData } = rawData
-    const keys = ["_id", ...Object.keys(restData)].join(",")
-    const values = [_id ?? uuidv4(), ...Object.values(restData)]
+    const createData = this.getCreateData(rawData)
+    const keys = Object.keys(createData).join(",")
+    const values = Object.values(createData)
     const _values = Array(values.length).fill("?").join(",")
     const sql = `INSERT INTO ${this.table.rawTableName} (${keys}) VALUES (${_values})`
     await this.dataSpace.exec2(sql, values)
@@ -240,16 +255,16 @@ export class RowsManager {
       throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
     }
 
-    const { _id, ...restData } = rawData
-    const values = Object.values(restData)
-    const sql = `UPDATE ${this.table.rawTableName} SET ${Object.keys(restData)
+    const updateData = this.getUpdateData(rawData)
+    const values = Object.values(updateData)
+    const sql = `UPDATE ${this.table.rawTableName} SET ${Object.keys(updateData)
       .map((key) => `${key} = ?`)
       .join(",")} WHERE _id = ?`
     const bind = [...values, id]
     await this.dataSpace.exec2(sql, bind)
     return {
-      _id: id,
-      ...restData,
+      id,
+      ...updateData,
     }
   }
 }

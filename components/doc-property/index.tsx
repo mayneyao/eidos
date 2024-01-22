@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom"
 import { allFieldTypesMap } from "@/lib/fields"
 import { getRawTableNameById, nonNullable } from "@/lib/utils"
 import { useUiColumns } from "@/hooks/use-ui-columns"
+import { useUserMap } from "@/hooks/use-user-map"
 
 import { makeHeaderIcons } from "../grid/fields/header-icons"
 import { CellEditor } from "../table/cell-editor"
@@ -23,6 +24,8 @@ export const DocProperty = (props: IDocPropertyProps) => {
     tableId: props.tableId,
     docId: props.docId,
   })
+  const { userMap } = useUserMap()
+
   const fields = useMemo(() => {
     if (!properties) return []
     return uiColumns
@@ -42,11 +45,11 @@ export const DocProperty = (props: IDocPropertyProps) => {
         const fieldCls = allFieldTypesMap[uiColumn.type]
         const field = new fieldCls(uiColumn)
         const value = properties[uiColumn.table_column_name]
-        const cell = field.getCellContent(value as never)
+        const cell = field.getCellContent(value as never, { userMap })
         return { uiColumn, cell, iconSvgString, name, value }
       })
       .filter(nonNullable)
-  }, [properties, uiColumns])
+  }, [properties, uiColumns, userMap])
 
   const handlePropertyChange = (key: string, value: any) => {
     setProperty({

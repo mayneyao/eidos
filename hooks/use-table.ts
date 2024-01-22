@@ -81,9 +81,9 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
   const updateCell = async (rowId: string, fieldName: string, value: any) => {
     if (sqlite) {
       if (fieldName !== "_id") {
-        sqlite.sql`UPDATE ${Symbol(tableName)} SET ${Symbol(
-          fieldName
-        )} = ${value} WHERE _id = ${rowId}`
+        await sqlite.setRow(tableId, rowId, {
+          [fieldName]: value,
+        })
       }
       if (fieldName === "title") {
         const node = await sqlite.getTreeNode(shortenId(rowId))
@@ -144,7 +144,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
         type: fieldType,
         table_name: tableName,
         table_column_name: tableColumnName,
-        property: property || FieldClass.getDefaultProperty(),
+        property: property || FieldClass.getDefaultFieldProperty(),
       }
       await sqlite.addColumn(field)
       await sqlite.onTableChange(databaseName, tableName)
@@ -171,9 +171,8 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
 
   const addRow = async (_uuid?: string) => {
     if (sqlite) {
-      const uuid = _uuid || uuidv4()
-      await sqlite.sql`INSERT INTO ${Symbol(tableName)}(_id) VALUES (${uuid})`
-      return uuid
+      const { _id } = await sqlite.addRow(tableId, { _id: _uuid })
+      return _id
     }
   }
 

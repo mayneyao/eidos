@@ -14,13 +14,25 @@ import { buildSql } from "./helper"
 import { IQuery } from "./interface"
 import { getWorker } from "./worker"
 
-interface ISqlite<T> {
+interface ISqlite<T, D> {
   connector: T
-  send: (data: any) => void
+  send: (data: D) => void
   onCallBack: (thisCallId: string) => Promise<any>
 }
 
-export class LocalSqlite implements ISqlite<Worker> {
+export interface ILocalSendData {
+  type: MsgType.CallFunction
+  data: {
+    method: string
+    params: any[]
+    dbName: string
+    tableId?: string
+    userId?: string
+  }
+  id: string
+}
+
+export class LocalSqlite implements ISqlite<Worker, ILocalSendData> {
   connector: Worker
   channel: MessageChannel
   channelMap: Map<string, MessageChannel>
@@ -37,7 +49,7 @@ export class LocalSqlite implements ISqlite<Worker> {
     this.channelMap.delete(id)
   }
 
-  send(data: any) {
+  send(data: ILocalSendData) {
     /**
      * every msg need to have a unique id,
      * one msg id, one channel
@@ -85,7 +97,7 @@ export class LocalSqlite implements ISqlite<Worker> {
   }
 }
 
-export class RemoteSqlite implements ISqlite<DataConnection> {
+export class RemoteSqlite implements ISqlite<DataConnection, any> {
   connector: DataConnection
   bc: BroadcastChannel
   constructor(connector: DataConnection) {
@@ -124,12 +136,13 @@ export class RemoteSqlite implements ISqlite<DataConnection> {
 
 export const getSqliteProxy = (
   dbName: string,
+  userId: string,
   config?: {
     isShareMode: boolean
     connection: DataConnection
   }
 ) => {
-  let sqlite: ISqlite<any>
+  let sqlite: ISqlite<any, ILocalSendData>
   if (config) {
     const { isShareMode, connection } = config
     sqlite = new RemoteSqlite(connection)
@@ -160,6 +173,7 @@ export const getSqliteProxy = (
                           params: [_params, ...rest],
                           dbName,
                           tableId: id,
+                          userId,
                         },
                         id: thisCallId,
                       })
@@ -178,6 +192,7 @@ export const getSqliteProxy = (
                     params: [_params, ...rest],
                     dbName,
                     tableId: id,
+                    userId,
                   },
                   id: thisCallId,
                 })
@@ -210,6 +225,7 @@ export const getSqliteProxy = (
                   method: `${method as string}.${subMethod as string}`,
                   params: [_params, ...rest],
                   dbName,
+                  userId,
                 },
                 id: thisCallId,
               })
@@ -243,6 +259,7 @@ export const getSqliteProxy = (
               method: callMethod,
               params: [sql, bind],
               dbName,
+              userId,
             },
             id: thisCallId,
           }
@@ -251,9 +268,10 @@ export const getSqliteProxy = (
           sqlite.send({
             type: MsgType.CallFunction,
             data: {
-              method,
+              method: method as string,
               params: [_params, ...rest],
               dbName,
+              userId,
             },
             id: thisCallId,
           })

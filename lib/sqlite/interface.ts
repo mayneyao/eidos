@@ -6,6 +6,7 @@ export type IQuery = {
     method: string
     params: [string, string[]]
     dbName: string
+    userId: string
   }
   id: string
 }
