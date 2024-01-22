@@ -23,7 +23,7 @@ export class FormulaField extends BaseField<TextCell, FormulaProperty> {
       kind: GridCellKind.Text,
       data: rawData?.toString() ?? "",
       displayData: rawData?.toString() ?? "",
-      allowOverlay: true,
+      allowOverlay: false,
       readonly: true,
     }
   }

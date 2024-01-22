@@ -86,20 +86,20 @@ export class RowsManager {
       fieldRawColumnNameFieldMap: Record<string, IField>
     },
     options?: {
-      noId?: boolean
       useFieldId?: boolean
     }
   ) {
-    const { _id, ...restData } = data
     const { fieldRawColumnNameFieldMap, fieldNameRawColumnNameMap } = context
     const notExistKeys: string[] = []
-    Object.keys(restData).forEach((key) => {
+    Object.keys(data).forEach((key) => {
       const rawColumnName = options?.useFieldId
         ? key
         : fieldNameRawColumnNameMap[key]
-      if (!rawColumnName) {
+      if (key === "_id") {
+        // pass
+      } else if (!rawColumnName) {
         // delete key
-        delete restData[key]
+        delete data[key]
         notExistKeys.push(key)
       } else {
         // transform text to raw data
@@ -107,19 +107,20 @@ export class RowsManager {
         const fieldType = uiColumn.type
         const fieldCls = allFieldTypesMap[fieldType]
         const field = new fieldCls(uiColumn)
-        restData[key] = field.text2RawData(restData[key])
+        data[key] = field.text2RawData(data[key])
       }
     })
 
-    const kvTuple: [string, any][] = options?.noId
-      ? []
-      : [["_id", _id || uuidv4()]]
-
-    Object.entries(restData).forEach(([key, value]) => {
-      const rawColumnName = options?.useFieldId
-        ? key
-        : fieldNameRawColumnNameMap[key]
-      kvTuple.push([rawColumnName, value])
+    const kvTuple: [string, any][] = []
+    Object.entries(data).forEach(([key, value]) => {
+      if (key === "_id") {
+        kvTuple.push([key, value])
+      } else {
+        const rawColumnName = options?.useFieldId
+          ? key
+          : fieldNameRawColumnNameMap[key]
+        kvTuple.push([rawColumnName, value])
+      }
     })
     return {
       notExistKeys,
@@ -127,6 +128,26 @@ export class RowsManager {
     }
   }
 
+  /**
+   * get row by id
+   * @param id
+   * @returns
+   */
+  async get(id: string) {
+    const { fieldRawColumnNameFieldMap } = await this.getFieldMap()
+    const sql = `SELECT * FROM ${this.table.rawTableName} WHERE _id = ?`
+    const rows = await this.dataSpace.exec2(sql, [id])
+    if (rows.length === 0) {
+      return null
+    }
+    return RowsManager.rawData2Json(rows[0], fieldRawColumnNameFieldMap)
+  }
+
+  /**
+   * @param filter a filter object, the key is field name, the value is field value
+   * @param options
+   * @returns
+   */
   async query(
     filter: Record<string, any> = {},
     options?: {
@@ -138,16 +159,10 @@ export class RowsManager {
     const { fieldRawColumnNameFieldMap, fieldNameRawColumnNameMap } =
       await this.getFieldMap()
 
-    const { rawData, notExistKeys } = this.transformData(
-      filter,
-      {
-        fieldNameRawColumnNameMap,
-        fieldRawColumnNameFieldMap,
-      },
-      {
-        noId: true,
-      }
-    )
+    const { rawData, notExistKeys } = this.transformData(filter, {
+      fieldNameRawColumnNameMap,
+      fieldRawColumnNameFieldMap,
+    })
     if (notExistKeys.length > 0) {
       throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
     }
@@ -170,11 +185,12 @@ export class RowsManager {
     )
   }
 
-  getCreateData(data: Record<string, any>) {
+  getCreateData(data: Record<string, any>): Record<string, any> {
     return {
-      ...data,
+      _id: uuidv4(),
       _created_by: workerStore.currentCallUserId,
       _last_edited_by: workerStore.currentCallUserId,
+      ...data,
     }
   }
 
@@ -216,7 +232,7 @@ export class RowsManager {
     const _values = Array(values.length).fill("?").join(",")
     const sql = `INSERT INTO ${this.table.rawTableName} (${keys}) VALUES (${_values})`
     await this.dataSpace.exec2(sql, values)
-    return rawData
+    return createData
   }
 
   async delete(id: string) {

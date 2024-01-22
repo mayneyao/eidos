@@ -167,6 +167,28 @@ export class DataSpace {
       useFieldId: true,
     })
   }
+
+  public async setCell(data: {
+    tableId: string
+    rowId: string
+    fieldId: string
+    value: any
+  }) {
+    const tableManager = this.table(data.tableId)
+    const row = await tableManager.rows.get(data.rowId)
+    const oldValue = row?.[data.fieldId]
+
+    if (oldValue !== data.value) {
+      return await this.table(data.tableId).rows.update(
+        data.rowId,
+        {
+          [data.fieldId]: data.value,
+        },
+        { useFieldId: true }
+      )
+    }
+  }
+
   public async getRow(tableId: string, rowId: string) {
     const tableManager = this.table(tableId)
     const row = await tableManager.rows.query(

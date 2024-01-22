@@ -78,14 +78,17 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     if (!tableName) return
   }, [tableName])
 
-  const updateCell = async (rowId: string, fieldName: string, value: any) => {
+  const updateCell = async (rowId: string, fieldId: string, value: any) => {
     if (sqlite) {
-      if (fieldName !== "_id") {
-        await sqlite.setRow(tableId, rowId, {
-          [fieldName]: value,
+      if (fieldId !== "_id") {
+        await sqlite.setCell({
+          tableId,
+          rowId,
+          fieldId,
+          value,
         })
       }
-      if (fieldName === "title") {
+      if (fieldId === "title") {
         const node = await sqlite.getTreeNode(shortenId(rowId))
         if (node) {
           await sqlite.updateTreeNodeName(node.id, value)
