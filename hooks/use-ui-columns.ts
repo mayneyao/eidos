@@ -62,18 +62,10 @@ export const useUiColumns = (tableName: string, databaseName: string) => {
     }, {} as Record<string, IField>)
   }, [uiColumns])
 
-  const getFieldByIndex = useCallback(
-    (index: number) => {
-      return uiColumns[index]
-    },
-    [uiColumns]
-  )
-
   return {
     uiColumns,
     uiColumnMap,
     updateUiColumns,
-    getFieldByIndex,
     nameRawIdMap,
     rawIdNameMap,
     fieldRawColumnNameFieldMap,

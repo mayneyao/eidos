@@ -288,12 +288,8 @@ export class DataSpace {
   public async addColumn(data: IField) {
     return await this.column.add(data)
   }
-  public async deleteField(
-    tableName: string,
-    tableColumnName: string,
-    isFormula?: boolean
-  ) {
-    await this.column.deleteField(tableName, tableColumnName, isFormula)
+  public async deleteField(tableName: string, tableColumnName: string) {
+    await this.column.deleteField(tableName, tableColumnName)
   }
 
   public async listRawColumns(tableName: string) {

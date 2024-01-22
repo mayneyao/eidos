@@ -22,16 +22,12 @@ export const useDataSource = (tableName: string, databaseName: string) => {
   )
   const { currentView } = useCurrentView()
   const { userMap } = useUserMap()
-  const { fieldRawColumnNameFieldMap, uiColumns } = useUiColumns(
-    tableName,
-    databaseName
-  )
-  const { columns } = useColumns(uiColumns, currentView!)
+  const { uiColumns } = useUiColumns(tableName, databaseName)
+  const { showColumns } = useColumns(uiColumns, currentView!)
 
   const toCell = React.useCallback(
     (rowData: any, col: number) => {
-      const column = columns[col]
-      const field = fieldRawColumnNameFieldMap[column.id!]
+      const field = showColumns[col]
       if (!field || !rowData)
         return {
           kind: GridCellKind.Text,
@@ -66,14 +62,13 @@ export const useDataSource = (tableName: string, databaseName: string) => {
       }
       return colHandle.getContent(cv)
     },
-    [columns, fieldRawColumnNameFieldMap, userMap]
+    [showColumns, userMap]
   )
 
   const onEdited: RowEditedCallback<any> = React.useCallback(
     (cell, newCell, rowData) => {
       const [col] = cell
-      const column = columns[col]
-      const field = fieldRawColumnNameFieldMap[column.id!]
+      const field = showColumns[col]
       if (!field) {
         return rowData
       }
@@ -120,7 +115,7 @@ export const useDataSource = (tableName: string, databaseName: string) => {
       updateCell(rowId, fieldName, newCell.data)
       return rowData
     },
-    [columns, fieldRawColumnNameFieldMap, updateCell, updateFieldProperty]
+    [showColumns, updateCell, updateFieldProperty]
   )
   return {
     toCell,

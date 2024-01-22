@@ -74,7 +74,6 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   async deleteField(
     tableName: string,
     tableColumnName: string,
-    isFormula?: boolean
   ) {
     try {
       await this.dataSpace.withTransaction(async () => {

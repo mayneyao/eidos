@@ -6,7 +6,7 @@ import { IGridViewProperties, IView } from "@/lib/store/IView"
 import { IField } from "@/lib/store/interface"
 import { useViewOperation } from "@/components/table/hooks"
 
-import { getColumns } from "../helper"
+import { getShowColumns } from "../helper"
 
 export const useColumns = (
   uiColumns: IField[],
@@ -14,14 +14,25 @@ export const useColumns = (
 ) => {
   const hasResized = React.useRef(new Set<number>())
   const [columns, setColumns] = React.useState<GridColumn[]>([])
+  const [showColumns, setShowColumns] = React.useState<IField[]>([])
   const { updateView } = useViewOperation()
 
   useEffect(() => {
+    const fields = getShowColumns(uiColumns, {
+      orderMap: view.orderMap,
+      hiddenFields: view.hiddenFields,
+    })
+    setShowColumns(fields)
     setColumns(
-      getColumns(uiColumns, {
-        fieldWidthMap: view.properties?.fieldWidthMap,
-        orderMap: view.orderMap,
-        hiddenFields: view.hiddenFields,
+      fields.map((column) => {
+        return {
+          id: column.table_column_name,
+          title: column.name,
+          width:
+            view.properties?.fieldWidthMap?.[column.table_column_name] || 200,
+          hasMenu: false,
+          icon: column.type,
+        }
       })
     )
   }, [uiColumns, view])
@@ -64,11 +75,12 @@ export const useColumns = (
   ) => {
     hasResized.current.add(colIndex)
     _onColumnResize(col, newSizeWithGrow)
-    const field = uiColumns[colIndex]
+    const field = showColumns[colIndex]
     _updateColumnWidth(field.table_column_name, newSizeWithGrow)
   }
   return {
     onColumnResize,
     columns,
+    showColumns,
   }
 }

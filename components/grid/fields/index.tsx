@@ -1,3 +1,4 @@
+import { IView } from "@/lib/store/IView"
 import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
@@ -9,6 +10,7 @@ import { FieldPropertyEditor } from "./field-property-editor"
 interface IFieldEditorProps {
   tableName: string
   databaseName: string
+  view: IView
 }
 
 export const FieldEditor = (props: IFieldEditorProps) => {
@@ -17,24 +19,24 @@ export const FieldEditor = (props: IFieldEditorProps) => {
     useTableAppStore()
   const { uiColumns } = useUiColumns(tableName, databaseName)
 
-  const {
-    deleteFieldByColIndex,
-    addField,
-    updateFieldProperty,
-    changeFieldType,
-  } = useTableOperation(tableName, databaseName)
+  const { deleteField, addField, updateFieldProperty, changeFieldType } =
+    useTableOperation(tableName, databaseName)
   return (
     <>
       {isAddFieldEditorOpen && (
         <FieldAppendPanel addField={addField} uiColumns={uiColumns} />
       )}
       {isFieldPropertiesEditorOpen && (
-        <FieldPropertyEditor updateFieldProperty={updateFieldProperty}  changeFieldType={changeFieldType}/>
+        <FieldPropertyEditor
+          updateFieldProperty={updateFieldProperty}
+          changeFieldType={changeFieldType}
+        />
       )}
       <FieldEditorDropdown
         databaseName={databaseName}
         tableName={tableName}
-        deleteFieldByColIndex={deleteFieldByColIndex}
+        view={props.view}
+        deleteField={deleteField}
       />
     </>
   )

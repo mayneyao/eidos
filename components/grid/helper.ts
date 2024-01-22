@@ -1,4 +1,4 @@
-import { GridCellKind, GridColumn } from "@glideapps/glide-data-grid"
+import { GridCellKind } from "@glideapps/glide-data-grid"
 
 import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -19,34 +19,25 @@ export function getColumnsHandleMap(): {
 
 export const columnsHandleMap = getColumnsHandleMap()
 
-export const getColumns = (
+export const getShowColumns = (
   uiColumns: IField[],
   options: {
     fieldWidthMap?: Record<string, number>
     orderMap?: Record<string, number>
     hiddenFields?: string[]
   }
-): GridColumn[] => {
-  const { fieldWidthMap, orderMap } = options
-
+): IField[] => {
+  const { orderMap } = options
   uiColumns.sort((a, b) => {
-    const aOrder = orderMap?.[a.table_column_name] ?? 0
-    const bOrder = orderMap?.[b.table_column_name] ?? 0
+    const aOrder = orderMap?.[a.table_column_name] ?? 233
+    const bOrder = orderMap?.[b.table_column_name] ?? 233
     return aOrder - bOrder
   })
   const hiddenFieldsSet = new Set(options.hiddenFields ?? [])
 
-  return uiColumns
-    .filter((column) => !hiddenFieldsSet.has(column.table_column_name))
-    .map((column) => {
-      return {
-        id: column.table_column_name,
-        title: column.name,
-        width: fieldWidthMap?.[column.table_column_name] || 200,
-        hasMenu: false,
-        icon: column.type,
-      }
-    })
+  return uiColumns.filter(
+    (column) => !hiddenFieldsSet.has(column.table_column_name)
+  )
 }
 
 export const guessCellKind = (value: any) => {

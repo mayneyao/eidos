@@ -155,21 +155,10 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     }
   }
 
-  const deleteField = async (tableColumnName: string, isFormula: boolean) => {
+  const deleteField = async (tableColumnName: string) => {
     if (!sqlite) return
-    await sqlite.deleteField(tableName, tableColumnName, isFormula)
+    await sqlite.deleteField(tableName, tableColumnName)
     await updateUiColumns()
-  }
-
-  const { fields: uiColumns } = useTableFields(tableId, databaseName)
-
-  const deleteFieldByColIndex = async (colIndex: number) => {
-    console.log(colIndex, uiColumns)
-    const field = uiColumns[colIndex]
-    const tableColumnName = field.table_column_name
-    const isFormula = field.type === FieldType.Formula
-    console.log("deleteFieldByColIndex", tableColumnName, colIndex)
-    await deleteField(tableColumnName, isFormula)
   }
 
   const addRow = async (_uuid?: string) => {
@@ -277,7 +266,6 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     changeFieldType,
     updateFieldProperty,
     deleteField,
-    deleteFieldByColIndex,
     addRow,
     deleteRows,
     tableSchema,
