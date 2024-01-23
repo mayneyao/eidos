@@ -135,7 +135,7 @@ export function ProfileForm() {
             </FormItem>
           )}
         />
-        <Button type="submit">Update profile</Button>
+        <Button type="submit">Update</Button>
       </form>
     </Form>
   )
