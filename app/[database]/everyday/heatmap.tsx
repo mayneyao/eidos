@@ -21,7 +21,7 @@ export const DayHeatMap = (props: { days: Date[]; startDate: Date }) => {
     router(`/${database}/everyday/${formatDay}`)
   }
   return (
-    <div className="min-w-[720px]">
+    <div className="max-w-[730px]">
       <HeatMap
         value={value}
         width="100%"
