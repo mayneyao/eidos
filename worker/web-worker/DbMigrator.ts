@@ -1,4 +1,7 @@
+import { SQLite3Error } from "@sqlite.org/sqlite-wasm"
+
 import { opfsManager } from "@/lib/opfs"
+import { generateMergeTableWithNewColumnsSql } from "@/lib/sqlite/sql-merge-table-with-new-columns"
 
 import { DataSpace } from "./DataSpace"
 
@@ -96,15 +99,39 @@ export class DbMigrator {
     newColumns.length && console.log(`migrateTable ${tableName} start`)
     for (const newColumn of newColumns) {
       const { name, type, notnull, dflt_value } = newColumn
-      let sql = `ALTER TABLE ${tableName} ADD COLUMN ${name} ${type} `
-      if (notnull) {
-        sql += "NOT NULL "
-      }
+      let sql = `ALTER TABLE ${tableName} ADD COLUMN `
+      let columnDefineSql = ` ${name} ${type}`
       if (dflt_value != null) {
-        sql += `DEFAULT ${dflt_value} `
+        columnDefineSql += ` DEFAULT ${dflt_value}`
       }
-      this.db.syncExec2(sql)
-      console.log(`migrateTable ${tableName} add column ${name}`)
+      if (notnull) {
+        columnDefineSql += " NOT NULL "
+      }
+      sql += columnDefineSql
+      try {
+        console.log(sql)
+        this.db.syncExec2(sql)
+        console.log(`migrateTable ${tableName} add column ${name}`)
+      } catch (error) {
+        if (
+          (error as SQLite3Error).message.includes(
+            "Cannot add a column with non-constant default"
+          )
+        ) {
+          console.warn(`migrateTable ${tableName} add column ${name} failed`)
+          const createTableSqlRes = this.db.syncExec2(
+            `SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`
+          )
+          const createTableSql = createTableSqlRes[0].sql
+          // error when add a column with non-constraint default value
+          const newSql = generateMergeTableWithNewColumnsSql(
+            createTableSql,
+            columnDefineSql
+          )
+          console.log("use newSql to migrate", newSql.sql)
+          this.db.syncExec2(newSql.sql)
+        }
+      }
     }
     newColumns.length && console.log(`migrateTable ${tableName} done`)
   }

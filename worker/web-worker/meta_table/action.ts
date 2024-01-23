@@ -29,7 +29,9 @@ export class ActionTable extends BaseTableImpl implements BaseTable<IAction> {
     id TEXT PRIMARY KEY,
     name TEXT,
     params TEXT,
-    nodes TEXT
+    nodes TEXT,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 `
   JSONFields: string[] = ["params", "nodes"]

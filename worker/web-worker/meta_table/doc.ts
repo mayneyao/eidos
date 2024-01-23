@@ -36,7 +36,9 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     id TEXT PRIMARY KEY,
     content TEXT,
     isDayPage BOOLEAN DEFAULT 0,
-    markdown TEXT
+    markdown TEXT,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}',);

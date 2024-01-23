@@ -65,7 +65,9 @@ export class ScriptTable
         envs TEXT,
         envMap TEXT,
         fieldsMap TEXT,
-        enabled BOOLEAN DEFAULT 0
+        enabled BOOLEAN DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 `
 

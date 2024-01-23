@@ -10,6 +10,7 @@ export interface IFile {
   path: string
   size: number
   mime: string
+  createdAt?: string
   isVectorized?: boolean // whether the file is vectorized, when file is vectorized, it will be stored in `eidos__embeddings` table
 }
 
@@ -22,7 +23,9 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     path TEXT UNIQUE,
     size INTEGER,
     mime TEXT,
-    isVectorized INTEGER DEFAULT 0 NULL
+    isVectorized INTEGER DEFAULT 0 NULL,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );  
 `
 

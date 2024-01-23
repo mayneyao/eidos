@@ -1,5 +1,4 @@
 import { ViewTableName } from "@/lib/sqlite/const"
-import { transformQueryWithFormulaFields2Sql } from "@/lib/sqlite/sql-formula-parser"
 import { replaceQueryTableName } from "@/lib/sqlite/sql-parser"
 import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { getUuid } from "@/lib/utils"
@@ -18,7 +17,9 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   properties TEXT,
   filter TEXT,
   orderMap TEXT,
-  hiddenFields TEXT
+  hiddenFields TEXT,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `
 
