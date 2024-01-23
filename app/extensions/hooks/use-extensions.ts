@@ -69,12 +69,15 @@ export const useExtensions = () => {
       parentPath = [...parentPath, extensionInfo.name]
     }
     // walk dirHandle upload to /extensions/<name>/
-    for await (const [key, value] of (dirHandle as any).entries()) {
+    for await (const [key, value] of dirHandle.entries()) {
       if (value.kind === "directory") {
         await opfsManager.addDir(parentPath, key)
-        await uploadExtension(value, [...parentPath, key])
+        await uploadExtension(value as FileSystemDirectoryHandle, [
+          ...parentPath,
+          key,
+        ])
       } else if (value.kind === "file") {
-        const file = await value.getFile()
+        const file = await (value as FileSystemFileHandle).getFile()
         await opfsManager.addFile(parentPath, file)
       }
     }
