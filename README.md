@@ -24,7 +24,7 @@ see [Eidos Project](https://github.com/users/mayneyao/projects/5)
 ### generate sdk types
 
 ```shell
-pnpm tsc -p tsconfig.typings.json
+pnpm gen-types
 ```
 
 ## Contributions

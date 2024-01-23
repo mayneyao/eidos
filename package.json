@@ -11,10 +11,11 @@
     "typecheck": "tsc --noEmit",
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
     "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
+    "gen-types": "tsc -p tsconfig.typings.json || echo . && tsx fix-types.ts",
     "test": "jest"
   },
   "dependencies": {
-    "@eidos.space/types": "^0.0.7",
+    "@eidos.space/types": "workspace:*",
     "@emoji-mart/data": "^1.1.2",
     "@emoji-mart/react": "^1.1.1",
     "@glideapps/glide-data-grid": "^6.0.0",

@@ -1,0 +1,12 @@
+{
+    "name": "@eidos.space/types",
+    "version": "0.0.8",
+    "description": "",
+    "types": "index.d.ts",
+    "keywords": [],
+    "author": "",
+    "license": "MIT",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    }
+}
