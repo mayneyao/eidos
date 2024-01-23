@@ -326,7 +326,9 @@ export class DataSpace {
   }
 
   public async listScripts(status: ScriptStatus = "all") {
-    return this.script.list({ status })
+    const query =
+      status === "all" ? undefined : { enabled: status === "enabled" }
+    return this.script.list(query)
   }
 
   public async getScript(id: string) {

@@ -22,6 +22,35 @@ export class BaseTableImpl<T = any> {
     this.dataSpace.exec(createTableSql)
   }
 
+  async get(id: string): Promise<T | null> {
+    const res = await this.dataSpace.exec2(
+      `SELECT * FROM ${this.name} where id = ?;`,
+      [id]
+    )
+    if (res.length === 0) {
+      return null
+    }
+    // JSONFields transform
+    const item = res[0]
+    Object.entries(item as any).forEach(([key, value]) => {
+      if (this.JSONFields.includes(key) && value) {
+        ;(item as any)[key] = JSON.parse(value as string)
+      }
+    })
+    return item
+  }
+
+  async add(data: T): Promise<T> {
+    const kv = Object.entries(data as object).map(([k, v]) => {
+      if (typeof v === "object") v = JSON.stringify(v)
+      return [k, v]
+    })
+    const setK = kv.map(([k, v]) => `${k} = ?`).join(", ")
+    const setV = kv.map(([, v]) => v)
+    await this.dataSpace.exec2(`INSERT INTO ${this.name} SET ${setK}`, setV)
+    return data
+  }
+
   async set(id: string, data: Partial<T>): Promise<boolean> {
     const kv = Object.entries(data).map(([k, v]) => {
       if (typeof v === "object") v = JSON.stringify(v)
