@@ -4,10 +4,10 @@
  */
 
 import { IScript } from "@/worker/web-worker/meta_table/script"
+import { useMount } from "ahooks"
 import { RotateCcwIcon } from "lucide-react"
 import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
 import { useNewScript } from "./hooks/use-new-script"
@@ -35,6 +36,10 @@ export const ScriptPage = () => {
   const { deleteScript, enableScript, disableScript, updateScript } =
     useScript()
   const revalidator = useRevalidator()
+
+  useMount(() => {
+    revalidator.revalidate()
+  })
 
   const { handleCreateNewScript } = useNewScript()
   const handleDelete = async (id: string) => {
@@ -88,7 +93,7 @@ export const ScriptPage = () => {
                   }
                 ></Switch>
               </div>
-              <p>{script.description}</p>
+              <p className="h-[50px]">{script.description}</p>
               <div className="flex items-end justify-between">
                 <div className="flex gap-2">
                   <Link to={`/${space}/scripts/${script.id}`}>

@@ -55,7 +55,7 @@ export const CodeEditor = ({
     <Editor
       height="60vh"
       defaultLanguage="javascript"
-      defaultValue={value}
+      value={value}
       onChange={(value, e) => onChange(value || "")}
       onMount={(editor, monaco) => {
         editor.onKeyDown((e) => {

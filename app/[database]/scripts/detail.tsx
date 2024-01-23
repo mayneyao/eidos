@@ -1,10 +1,12 @@
-import { lazy, useCallback, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta_table/script"
+import { useMount } from "ahooks"
 import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
@@ -23,6 +25,15 @@ export const ScriptDetailPage = () => {
   const router = useNavigate()
   const revalidator = useRevalidator()
   const [code, setCode] = useState(script.code)
+
+  useEffect(() => {
+    setCode(script.code)
+  }, [script.code])
+
+  useMount(() => {
+    revalidator.revalidate()
+  })
+
   const { ref: nameRef } = useEditableElement({
     onSave(value) {
       updateScript({
@@ -81,35 +92,52 @@ export const ScriptDetailPage = () => {
           <TabsTrigger value="account">Basic</TabsTrigger>
           <TabsTrigger value="password">Settings</TabsTrigger>
         </TabsList>
-        <TabsContent value="account">
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-between">
-              <h2 className="mb-2 text-xl font-semibold">
-                <span ref={nameRef}>{script.name}</span> ({script.version})
-              </h2>
-              <Switch
-                checked={script.enabled}
-                onCheckedChange={(checked) =>
-                  handleToggleEnabled(script.id, checked)
-                }
-              ></Switch>
-            </div>
-            <p ref={descRef}>{script.description}</p>
-            <Separator />
-            <CodeEditor value={code} onChange={setCode} onSave={onSubmit} />
-            <div className="flex justify-between">
-              <Button type="submit" onClick={() => onSubmit(code)}>
-                Update
-              </Button>
-              <Button variant="outline" onClick={handleDeleteScript}>
-                Delete
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
-        <TabsContent value="password">
-          <ScriptBinding />
-        </TabsContent>
+
+        {revalidator.state === "loading" ? (
+          <Skeleton className="mt-8 h-[20px] w-[100px] rounded-full" />
+        ) : (
+          <>
+            <TabsContent value="account">
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between">
+                  <h2 className="mb-2 text-xl font-semibold">
+                    <span ref={nameRef}>{script.name}</span> ({script.version})
+                  </h2>
+                  <Switch
+                    checked={script.enabled}
+                    onCheckedChange={(checked) =>
+                      handleToggleEnabled(script.id, checked)
+                    }
+                  ></Switch>
+                </div>
+                <p ref={descRef}>{script.description}</p>
+                <Separator />
+                <Suspense
+                  fallback={
+                    <Skeleton className="h-[20px] w-[100px] rounded-full" />
+                  }
+                >
+                  <CodeEditor
+                    value={code}
+                    onChange={setCode}
+                    onSave={onSubmit}
+                  />
+                </Suspense>
+                <div className="flex justify-between">
+                  <Button type="submit" onClick={() => onSubmit(code)}>
+                    Update
+                  </Button>
+                  <Button variant="outline" onClick={handleDeleteScript}>
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="password">
+              <ScriptBinding />
+            </TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   )
