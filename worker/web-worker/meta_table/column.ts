@@ -24,6 +24,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   );
 `
   JSONFields: string[] = ["property"]
+
   async add(data: IField): Promise<IField> {
     const { name, type, table_name, table_column_name, property } = data
     const typeMap: any = {
@@ -41,14 +42,27 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         `INSERT INTO ${ColumnTableName} (name,type,table_name,table_column_name,property) VALUES (?,?,?,?,?)`,
         [name, type, table_name, table_column_name, JSON.stringify(_property)]
       )
-      if (type === FieldType.Formula) {
-        this.dataSpace.exec(
-          `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (upper(title));`
-        )
-      } else {
-        this.dataSpace.exec(
-          `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType};`
-        )
+      switch (type) {
+        case FieldType.Formula:
+          this.dataSpace.exec(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (upper(title));`
+          )
+          break
+        case FieldType.CreatedTime:
+          this.dataSpace.exec(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_created_time);`
+          )
+          break
+        case FieldType.LastEditedTime:
+          this.dataSpace.exec(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_last_edited_time);`
+          )
+          break
+        default:
+          this.dataSpace.exec(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType};`
+          )
+          break
       }
     })
     bc.postMessage({
@@ -71,10 +85,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   del(id: string): Promise<boolean> {
     throw new Error("Method not implemented.")
   }
-  async deleteField(
-    tableName: string,
-    tableColumnName: string,
-  ) {
+  async deleteField(tableName: string, tableColumnName: string) {
     try {
       await this.dataSpace.withTransaction(async () => {
         // update trigger before delete column
