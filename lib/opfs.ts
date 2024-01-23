@@ -238,7 +238,6 @@ export class OpfsManager {
     // if fileId is provided, use it as file name
     const fileExt = extension(file.type)
     const filename = fileId ? `${fileId}.${fileExt}` : file.name
-    console.log(dirHandle, filename, filename)
     const fileHandle = await dirHandle.getFileHandle(filename, {
       create: true,
     })

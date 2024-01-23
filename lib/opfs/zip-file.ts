@@ -34,14 +34,24 @@ export async function importZipFileIntoDir(rootPaths: string[], zip: JSZip) {
   for (let path in zip.files) {
     const entry = zip.files[path]
     if (entry.dir) {
-      if (entry.name.endsWith("/")) {
-        entry.name = entry.name.slice(0, -1)
+      const dirName = entry.name
+        .split("/")
+        .filter((i) => i)
+        .slice(-1)[0]
+      try {
+        await opfsManager.addDir(rootPaths, dirName)
+      } catch (error) {
+        console.warn("import zip file into dir", entry, dirName, error)
       }
-      await opfsManager.addDir(rootPaths, entry.name)
     } else {
-      const file = await zipFile2Blob(entry)
       const dirPaths = entry.name.split("/").slice(0, -1)
-      await opfsManager.addFile([...rootPaths, ...dirPaths], file)
+      const p = [...rootPaths, ...dirPaths]
+      try {
+        const file = await zipFile2Blob(entry)
+        await opfsManager.addFile(p, file)
+      } catch (error) {
+        console.warn("import zip file into dir", entry, p, error)
+      }
     }
   }
 }
