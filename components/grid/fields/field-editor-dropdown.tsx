@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
 import {
   ArrowDownNarrowWideIcon,
@@ -5,11 +6,12 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
 import { useLayer } from "react-laag"
 
-import { CommonMenuItem } from "@/components/common-menu-item"
-import { useCurrentView, useViewOperation } from "@/components/table/hooks"
+import { IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
+import { useTableOperation } from "@/hooks/use-table"
+import { useUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -21,21 +23,22 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { useTableOperation } from "@/hooks/use-table"
-import { useUiColumns } from "@/hooks/use-ui-columns"
-import { cn } from "@/lib/utils"
+import { CommonMenuItem } from "@/components/common-menu-item"
+import { useCurrentView, useViewOperation } from "@/components/table/hooks"
 
+import { useColumns } from "../hooks/use-col"
 import { useTableAppStore } from "../store"
 import { checkNewFieldNameIsOk } from "./helper"
 
 interface IFieldEditorDropdownProps {
   tableName: string
   databaseName: string
-  deleteFieldByColIndex: (col: number) => void
+  view: IView
+  deleteField: (fieldId: string) => void
 }
 
 export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
-  const { deleteFieldByColIndex, tableName, databaseName } = props
+  const { deleteField, tableName, databaseName } = props
   const {
     menu,
     setMenu,
@@ -54,11 +57,10 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const { updateFieldName } = useTableOperation(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
-
+  const { showColumns } = useColumns(uiColumns, props.view!)
   const [newFieldName, setNewFieldName] = useState<string>(
     currentUiColumn?.name ?? ""
   )
-
   useEffect(() => {
     const currentField = uiColumns[currentColIndex!]
     setCurrentUiColumn(currentField)
@@ -134,6 +136,11 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const handleDeleteFieldClick = () => {
     setCurrentColIndex(menu?.col)
     setMenu(undefined)
+  }
+
+  const deleteFieldByColIndex = (colIndex: number) => {
+    const fieldId = showColumns[colIndex].table_column_name
+    deleteField(fieldId)
   }
 
   const handleDeleteFieldConfirm = () => {

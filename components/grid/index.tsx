@@ -7,18 +7,18 @@ import DataEditor, {
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
-import React, { useEffect, useMemo, useRef } from "react"
 
+import { IGridViewProperties, IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
-import { useUiColumns } from "@/hooks/use-ui-columns"
-import { cn } from "@/lib/utils"
-
 import { useTransformSqlQuery } from "@/hooks/use-transform-sql-query"
-import { IGridViewProperties, IView } from "@/lib/store/IView"
+import { useUiColumns } from "@/hooks/use-ui-columns"
+
 import { Button } from "../ui/button"
 import { customCells } from "./cells"
 import { FieldEditor } from "./fields"
@@ -30,7 +30,6 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
-
 import { useCurrentView } from "../table/hooks"
 import { useViewCount } from "../table/hooks/use-view-count"
 import { useAsyncData } from "./hooks/use-async-data"
@@ -90,9 +89,19 @@ export default function GridView(props: IGridProps) {
     addRow,
   } = useTableOperation(tableName, databaseName)
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
-  const { uiColumns, getFieldByIndex } = useUiColumns(tableName, databaseName)
-  const { onColumnResize, columns } = useColumns(uiColumns, props.view!)
+  const { uiColumns } = useUiColumns(tableName, databaseName)
+  const { onColumnResize, columns, showColumns, onColumnMoved } = useColumns(
+    uiColumns,
+    props.view!
+  )
   const qs = useTransformSqlQuery(props.view?.query ?? "", uiColumns)
+
+  const getFieldByIndex = useCallback(
+    (index: number) => {
+      return showColumns[index]
+    },
+    [showColumns]
+  )
 
   const {
     getCellContent,
@@ -231,6 +240,7 @@ export default function GridView(props: IGridProps) {
               onHeaderContextMenu={onHeaderClicked}
               onGridSelectionChange={setSelection}
               onColumnResize={onColumnResize}
+              onColumnMoved={onColumnMoved}
               getCellContent={getCellContent}
               // maxColumnAutoWidth={500}
               maxColumnWidth={2000}
@@ -256,7 +266,11 @@ export default function GridView(props: IGridProps) {
             />
           )}
         </GridContextMenu>
-        <FieldEditor tableName={tableName} databaseName={databaseName} />
+        <FieldEditor
+          tableName={tableName}
+          databaseName={databaseName}
+          view={props.view!}
+        />
       </div>
       <div id="portal" />
     </div>

@@ -1,14 +1,14 @@
 import type { TextCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import { FieldType, GridCellKind } from "./const"
 
 export type FormulaProperty = {
   formula: string
 }
 
 export class FormulaField extends BaseField<TextCell, FormulaProperty> {
-  static type = "formula"
+  static type = FieldType.Formula
 
   get compareOperators() {
     return []
@@ -23,7 +23,7 @@ export class FormulaField extends BaseField<TextCell, FormulaProperty> {
       kind: GridCellKind.Text,
       data: rawData?.toString() ?? "",
       displayData: rawData?.toString() ?? "",
-      allowOverlay: true,
+      allowOverlay: false,
       readonly: true,
     }
   }

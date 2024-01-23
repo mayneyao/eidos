@@ -1,15 +1,12 @@
 import type { TextCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
-import {
-  GridCellKind,
-  TEXT_BASED_COMPARE_OPERATORS
-} from "./const"
+import { FieldType, GridCellKind, TEXT_BASED_COMPARE_OPERATORS } from "./const"
 
 type TextProperty = {}
 
 export class TextField extends BaseField<TextCell, TextProperty> {
-  static type = "text"
+  static type = FieldType.Text
 
   get compareOperators() {
     return TEXT_BASED_COMPARE_OPERATORS

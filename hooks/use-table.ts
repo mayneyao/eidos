@@ -78,14 +78,17 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     if (!tableName) return
   }, [tableName])
 
-  const updateCell = async (rowId: string, fieldName: string, value: any) => {
+  const updateCell = async (rowId: string, fieldId: string, value: any) => {
     if (sqlite) {
-      if (fieldName !== "_id") {
-        sqlite.sql`UPDATE ${Symbol(tableName)} SET ${Symbol(
-          fieldName
-        )} = ${value} WHERE _id = ${rowId}`
+      if (fieldId !== "_id") {
+        await sqlite.setCell({
+          tableId,
+          rowId,
+          fieldId,
+          value,
+        })
       }
-      if (fieldName === "title") {
+      if (fieldId === "title") {
         const node = await sqlite.getTreeNode(shortenId(rowId))
         if (node) {
           await sqlite.updateTreeNodeName(node.id, value)
@@ -144,7 +147,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
         type: fieldType,
         table_name: tableName,
         table_column_name: tableColumnName,
-        property: property || FieldClass.getDefaultProperty(),
+        property: property || FieldClass.getDefaultFieldProperty(),
       }
       await sqlite.addColumn(field)
       await sqlite.onTableChange(databaseName, tableName)
@@ -152,28 +155,16 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     }
   }
 
-  const deleteField = async (tableColumnName: string, isFormula: boolean) => {
+  const deleteField = async (tableColumnName: string) => {
     if (!sqlite) return
-    await sqlite.deleteField(tableName, tableColumnName, isFormula)
+    await sqlite.deleteField(tableName, tableColumnName)
     await updateUiColumns()
-  }
-
-  const { fields: uiColumns } = useTableFields(tableId, databaseName)
-
-  const deleteFieldByColIndex = async (colIndex: number) => {
-    console.log(colIndex, uiColumns)
-    const field = uiColumns[colIndex]
-    const tableColumnName = field.table_column_name
-    const isFormula = field.type === FieldType.Formula
-    console.log("deleteFieldByColIndex", tableColumnName, colIndex)
-    await deleteField(tableColumnName, isFormula)
   }
 
   const addRow = async (_uuid?: string) => {
     if (sqlite) {
-      const uuid = _uuid || uuidv4()
-      await sqlite.sql`INSERT INTO ${Symbol(tableName)}(_id) VALUES (${uuid})`
-      return uuid
+      const { _id } = await sqlite.addRow(tableId, { _id: _uuid })
+      return _id
     }
   }
 
@@ -275,7 +266,6 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     changeFieldType,
     updateFieldProperty,
     deleteField,
-    deleteFieldByColIndex,
     addRow,
     deleteRows,
     tableSchema,

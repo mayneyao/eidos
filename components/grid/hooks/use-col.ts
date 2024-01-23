@@ -6,7 +6,7 @@ import { IGridViewProperties, IView } from "@/lib/store/IView"
 import { IField } from "@/lib/store/interface"
 import { useViewOperation } from "@/components/table/hooks"
 
-import { getColumns } from "../helper"
+import { getShowColumns } from "../helper"
 
 export const useColumns = (
   uiColumns: IField[],
@@ -14,17 +14,31 @@ export const useColumns = (
 ) => {
   const hasResized = React.useRef(new Set<number>())
   const [columns, setColumns] = React.useState<GridColumn[]>([])
+  const [showColumns, setShowColumns] = React.useState<IField[]>([])
   const { updateView } = useViewOperation()
 
   useEffect(() => {
+    const fields = getShowColumns(uiColumns, {
+      orderMap: view.orderMap,
+      hiddenFields: view.hiddenFields,
+    })
+    setShowColumns(fields)
+  }, [uiColumns, view.orderMap, view.hiddenFields])
+
+  useEffect(() => {
     setColumns(
-      getColumns(uiColumns, {
-        fieldWidthMap: view.properties?.fieldWidthMap,
-        orderMap: view.orderMap,
-        hiddenFields: view.hiddenFields,
+      showColumns.map((column) => {
+        return {
+          id: column.table_column_name,
+          title: column.name,
+          width:
+            view.properties?.fieldWidthMap?.[column.table_column_name] || 200,
+          hasMenu: false,
+          icon: column.type,
+        }
       })
     )
-  }, [uiColumns, view])
+  }, [showColumns, view.properties?.fieldWidthMap])
 
   const updateColumnWidth = async (
     fieldName: string,
@@ -64,11 +78,33 @@ export const useColumns = (
   ) => {
     hasResized.current.add(colIndex)
     _onColumnResize(col, newSizeWithGrow)
-    const field = uiColumns[colIndex]
+    const field = showColumns[colIndex]
     _updateColumnWidth(field.table_column_name, newSizeWithGrow)
   }
+
+  const onColumnMoved = React.useCallback(
+    async (sourceIndex: number, targetIndex: number) => {
+      const newShowColumns = [...showColumns]
+      const [removedShow] = newShowColumns.splice(sourceIndex, 1)
+      newShowColumns.splice(targetIndex, 0, removedShow)
+      setShowColumns(newShowColumns)
+
+      const orderMap = newShowColumns.reduce((acc, cur, index) => {
+        acc[cur.table_column_name] = index
+        return acc
+      }, {} as Record<string, number>)
+
+      await updateView(view.id, {
+        orderMap,
+      })
+    },
+    [showColumns, updateView, view]
+  )
+
   return {
     onColumnResize,
+    onColumnMoved,
     columns,
+    showColumns,
   }
 }

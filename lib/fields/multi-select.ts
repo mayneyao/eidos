@@ -2,7 +2,7 @@ import { MultiSelectCell } from "@/components/grid/cells/multi-select-cell"
 
 import { uuidv4 } from "../utils"
 import { BaseField } from "./base"
-import { CompareOperator, GridCellKind } from "./const"
+import { CompareOperator, FieldType, GridCellKind } from "./const"
 import { SelectField, SelectProperty } from "./select"
 
 type MultiSelectProperty = SelectProperty
@@ -12,10 +12,7 @@ export class MultiSelectField extends BaseField<
   MultiSelectProperty,
   string
 > {
-  getDefaultFieldProperty(): MultiSelectProperty {
-    throw new Error("Method not implemented.")
-  }
-  static type = "multi-select"
+  static type = FieldType.MultiSelect
 
   get compareOperators() {
     return [

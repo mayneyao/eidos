@@ -1,11 +1,4 @@
 import {
-  MutableRefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
-import {
   CellArray,
   CompactSelection,
   DataEditorProps,
@@ -17,14 +10,21 @@ import {
   Rectangle,
 } from "@glideapps/glide-data-grid"
 import { chunk, range } from "lodash"
+import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 
-import { DataUpdateSignalType, EidosDataEventChannelMsgType } from "@/lib/const"
-import { hasOrderBy } from "@/lib/sqlite/sql-sort-parser"
-import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useViewSort } from "@/hooks/use-view-sort"
+import { DataUpdateSignalType, EidosDataEventChannelMsgType } from "@/lib/const"
+import { hasOrderBy } from "@/lib/sqlite/sql-sort-parser"
+import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
 
 import { useTableAppStore } from "../store"
 
@@ -69,6 +69,7 @@ export function useAsyncData<TRowType>(
   const { getViewSortedRows } = useViewSort(qs || "")
   const _hasOrderBy = hasOrderBy(qs)
   const { sqlite } = useSqlite()
+
   pageSize = Math.max(pageSize, 1)
   const loadingRef = useRef(CompactSelection.empty())
   const dataRef = useRef<string[]>([])
@@ -282,6 +283,7 @@ export function useAsyncData<TRowType>(
             if (addedRowIds.has(_new._id)) {
               console.log("return")
               clearAddedRowIds()
+              refreshCurrentVisible()
               return
             }
             // more simple way to refresh the data, but cost more

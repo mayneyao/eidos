@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+import { uuidv4 } from "@/lib/utils"
 import { AIConfigFormValues } from "@/app/settings/ai/ai-form"
 import { BackupServerFormValues } from "@/app/settings/backup/page"
 import { ExperimentFormValues } from "@/app/settings/experiment/experiment-form"
@@ -41,6 +42,7 @@ export const useConfigStore = create<ConfigState>()(
       },
       profile: {
         username: "",
+        userId: uuidv4(),
       },
       backupServer: {
         Github__repo: "",
@@ -58,7 +60,13 @@ export const useConfigStore = create<ConfigState>()(
       setAPIAgentConfig: (apiAgentConfig) => set({ apiAgentConfig }),
       setAiConfig: (aiConfig) => set({ aiConfig }),
       setExperiment: (experiment) => set({ experiment }),
-      setProfile: (profile) => set({ profile }),
+      setProfile: (profile) =>
+        set((state) => {
+          if (!state.profile.userId) {
+            profile.userId = uuidv4()
+          }
+          return { ...state, profile }
+        }),
       setBackupServer: (backupServer) => set({ backupServer }),
     }),
     {

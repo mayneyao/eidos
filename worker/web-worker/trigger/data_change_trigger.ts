@@ -68,6 +68,7 @@ export class DataChangeTrigger {
     AFTER UPDATE ON ${tableName}
     FOR EACH ROW
     BEGIN
+        UPDATE ${tableName} SET _last_edited_time = CURRENT_TIMESTAMP WHERE _id = NEW._id;
         SELECT eidos_data_event_update('${tableName}', ${new_json_object}, ${old_json_object});
     END;`
 

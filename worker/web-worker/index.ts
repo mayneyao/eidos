@@ -4,6 +4,7 @@ import { getSpaceDatabasePath } from "@/lib/opfs"
 
 import { DataSpace } from "./DataSpace"
 import { Sqlite } from "./sql"
+import { workerStore } from "./store"
 import { initWs } from "./ws"
 
 // current DB
@@ -11,12 +12,24 @@ let _dataspace: DataSpace | null = null
 const sqlite = new Sqlite()
 let ws: WebSocket
 
-const handleFunctionCall = async (data: any, id: string, port: MessagePort) => {
+const handleFunctionCall = async (
+  data: {
+    space: string
+    dbName: string
+    method: string
+    params: any[]
+    userId: string
+  },
+  id: string,
+  port: MessagePort
+) => {
   if (!sqlite.sqlite3) {
     throw new Error("sqlite3 not initialized")
   }
+
   const { method, params = [] } = data
   const dbName = data.dbName || data.space
+  workerStore.currentCallUserId = data.userId
   if (!_dataspace || (dbName && dbName !== _dataspace.dbName)) {
     //
     _dataspace = await loadDatabase(dbName)

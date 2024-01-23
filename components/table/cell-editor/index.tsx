@@ -1,13 +1,13 @@
-import { useClickAway, useDebounceFn } from "ahooks"
 import { useCallback, useMemo, useRef, useState } from "react"
+import { useClickAway, useDebounceFn } from "ahooks"
 
-import { FileCell } from "@/components/grid/cells/file/file-cell"
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { FileField } from "@/lib/fields/file"
 import { SelectProperty } from "@/lib/fields/select"
 import { IField } from "@/lib/store/interface"
 import { cn } from "@/lib/utils"
+import { FileCell } from "@/components/grid/cells/file/file-cell"
 
 import { CheckboxEditor } from "./checkbox-editor"
 import { DateEditor } from "./date-editor"
@@ -37,6 +37,10 @@ export const CellEditorMap: Record<
   [FieldType.Rating]: RatingEditor,
   [FieldType.Formula]: null,
   [FieldType.Link]: null,
+  [FieldType.CreatedTime]: null,
+  [FieldType.CreatedBy]: null,
+  [FieldType.LastEditedTime]: null,
+  [FieldType.LastEditedBy]: null,
 }
 
 interface ICellEditorProps {

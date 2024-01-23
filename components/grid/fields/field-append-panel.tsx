@@ -1,11 +1,10 @@
-"use client"
-
 import * as React from "react"
 import { useClickAway } from "ahooks"
 import {
   BaselineIcon,
   CalendarDaysIcon,
   CheckSquareIcon,
+  Clock3Icon,
   HashIcon,
   ImageIcon,
   Link2Icon,
@@ -14,6 +13,7 @@ import {
   StarIcon,
   TagIcon,
   TagsIcon,
+  UserIcon,
 } from "lucide-react"
 
 import { FieldType } from "@/lib/fields/const"
@@ -66,13 +66,32 @@ export function FieldAppendPanel({
       name: "Formula",
       value: FieldType.Formula,
       icon: SigmaIcon,
-      // disable: true,
     },
     {
       name: "Link",
       value: FieldType.Link,
       icon: LinkIcon,
       disable: !enableTableLinkField,
+    },
+    {
+      name: "Created Time",
+      value: FieldType.CreatedTime,
+      icon: Clock3Icon,
+    },
+    {
+      name: "Last Edited Time",
+      value: FieldType.LastEditedTime,
+      icon: Clock3Icon,
+    },
+    {
+      name: "Created By",
+      value: FieldType.CreatedBy,
+      icon: UserIcon,
+    },
+    {
+      name: "Last Edited By",
+      value: FieldType.LastEditedBy,
+      icon: UserIcon,
     },
   ]
 

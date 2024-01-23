@@ -1,7 +1,7 @@
 import { LinkCell } from "@/components/grid/cells/link-cell"
 
 import { BaseField } from "./base"
-import { GridCellKind } from "./const"
+import { FieldType, GridCellKind } from "./const"
 
 type LinkProperty = {
   linkTable: string
@@ -14,7 +14,7 @@ export type LinkCellData = {
 }
 
 export class LinkField extends BaseField<LinkCell, LinkProperty> {
-  static type = "link"
+  static type = FieldType.Link
 
   rawData2JSON(rawData: string) {
     return rawData

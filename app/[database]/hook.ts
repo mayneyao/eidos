@@ -18,6 +18,7 @@ import { usePeer } from "@/hooks/use-peer"
 import { useRegisterPeriodicSync } from "@/hooks/use-register-period-sync"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useWorker } from "@/hooks/use-worker"
+import { useCurrentUser } from "@/hooks/user-current-user"
 
 import { useConfigStore } from "../settings/store"
 import { useSpaceAppStore } from "./store"
@@ -115,13 +116,14 @@ export const useLayoutInit = () => {
     }
   }, [database, lastOpenedDatabase, setLastOpenedDatabase, sqlite])
 
+  const { id: userId } = useCurrentUser()
   useEffect(() => {
     if (!isInitialized) {
       initWorker()
     }
-    const sqlWorker = getSqliteProxy(database)
+    const sqlWorker = getSqliteProxy(database, userId || "")
     setSqlWorker(sqlWorker)
-  }, [database, setSqlWorker, isInitialized, initWorker])
+  }, [database, setSqlWorker, isInitialized, initWorker, userId])
 
   useEffect(() => {
     setLastOpenedDatabase(database)

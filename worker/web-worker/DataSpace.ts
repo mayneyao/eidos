@@ -7,7 +7,13 @@ import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 import { transformQuery } from "@/lib/sqlite/sql-formula-parser"
 import { IField } from "@/lib/store/interface"
-import { extractIdFromShortId, getRawTableNameById, uuidv4 } from "@/lib/utils"
+import {
+  extractIdFromShortId,
+  getRawTableNameById,
+  getTableIdByRawTableName,
+  shortenId,
+  uuidv4,
+} from "@/lib/utils"
 
 import { ITreeNode } from "../../lib/store/ITreeNode"
 import { IView } from "../../lib/store/IView"
@@ -161,6 +167,28 @@ export class DataSpace {
       useFieldId: true,
     })
   }
+
+  public async setCell(data: {
+    tableId: string
+    rowId: string
+    fieldId: string
+    value: any
+  }) {
+    const tableManager = this.table(data.tableId)
+    const row = await tableManager.rows.get(data.rowId)
+    const oldValue = row?.[data.fieldId]
+
+    if (oldValue !== data.value) {
+      return await this.table(data.tableId).rows.update(
+        data.rowId,
+        {
+          [data.fieldId]: data.value,
+        },
+        { useFieldId: true }
+      )
+    }
+  }
+
   public async getRow(tableId: string, rowId: string) {
     const tableManager = this.table(tableId)
     const row = await tableManager.rows.query(
@@ -260,12 +288,8 @@ export class DataSpace {
   public async addColumn(data: IField) {
     return await this.column.add(data)
   }
-  public async deleteField(
-    tableName: string,
-    tableColumnName: string,
-    isFormula?: boolean
-  ) {
-    await this.column.deleteField(tableName, tableColumnName, isFormula)
+  public async deleteField(tableName: string, tableColumnName: string) {
+    await this.column.deleteField(tableName, tableColumnName)
   }
 
   public async listRawColumns(tableName: string) {
@@ -281,47 +305,10 @@ export class DataSpace {
     return await this.column.updateProperty(data)
   }
 
-  public async addRow(tableName: string, data: any) {
-    // query ui columns
-    const uiColumns = await this.column.list({ table_name: tableName })
-    const fieldRawColumnNameFieldMap = uiColumns.reduce((acc, cur) => {
-      acc[cur.table_column_name] = cur
-      return acc
-    }, {} as Record<string, IField>)
-
-    const fieldRawColumnMap = uiColumns.reduce((acc, cur) => {
-      acc[cur.name] = cur.table_column_name
-      return acc
-    }, {} as any)
-
-    // check key in data
-    const { _id, ...restData } = data
-    Object.keys(restData).forEach((key) => {
-      const rawColumnName = fieldRawColumnMap[key]
-      if (!rawColumnName) {
-        // delete key
-        delete restData[key]
-      } else {
-        // transform text to raw data
-        const uiColumn = fieldRawColumnNameFieldMap[rawColumnName]
-        const fieldType = uiColumn.type
-        const fieldCls = allFieldTypesMap[fieldType]
-        const field = new fieldCls(uiColumn)
-        restData[key] = field.text2RawData(restData[key])
-      }
-    })
-    console.debug(restData)
-    const keys = [
-      "_id",
-      ...Object.keys(restData)
-        .map((key) => fieldRawColumnMap[key])
-        .filter(Boolean),
-    ].join(",")
-    const values = [_id ?? uuidv4(), ...Object.values(restData)]
-    const _values = Array(values.length).fill("?").join(",")
-    const sql = `INSERT INTO ${tableName} (${keys}) VALUES (${_values})`
-    const bind = values
-    return await this.exec2(sql, bind)
+  public async addRow(tableName: string, data: Record<string, any>) {
+    const tableId = getTableIdByRawTableName(tableName)
+    const tm = new TableManager(tableId, this)
+    return await tm.rows.create(data)
   }
 
   // actions
@@ -444,6 +431,15 @@ export class DataSpace {
       // create view for table
       await this.createDefaultView(id)
     })
+  }
+
+  // table
+
+  public async fixTable(tableId: string) {
+    return await this._table.fixTable(tableId)
+  }
+  public async hasSystemColumn(tableId: string, column: string) {
+    return await this._table.hasSystemColumn(tableId, column)
   }
 
   // table

@@ -9,23 +9,25 @@ import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { usePeerConnect } from "@/hooks/use-peer"
 import { useSqliteStore } from "@/hooks/use-sqlite"
+import { useCurrentUser } from "@/hooks/user-current-user"
 import { DatabaseLayoutBase } from "@/app/[database]/base-layout"
 import { useConfigStore } from "@/app/settings/store"
 
 const SwitchProxyWrapper = ({ children, conn }: any) => {
   const { setSqliteProxy } = useSqliteStore()
   const { space } = useCurrentPathInfo()
+  const { id: userId } = useCurrentUser()
   useEffect(() => {
     // TODO: handle connection
     if (conn) {
-      const sqliteProxy = getSqliteProxy(space, {
+      const sqliteProxy = getSqliteProxy(space, userId || "", {
         isShareMode: true,
         connection: conn,
       })
       console.log(`share mode setSqlWorker`)
       setSqliteProxy(sqliteProxy)
     }
-  }, [conn, space, setSqliteProxy])
+  }, [conn, space, setSqliteProxy, userId])
   return <>{children}</>
 }
 

@@ -5,6 +5,9 @@ import aiCompletionHandle, {
 } from "./ai_completion"
 import { extHandle, pathname as extHandlePathname } from "./extensions"
 import fileHandle, { pathname as fileHandlePathname } from "./file"
+import staticFileHandle, {
+  pathname as staticFileHandlePathname,
+} from "./static-file"
 
 export const routes = [
   {
@@ -14,6 +17,10 @@ export const routes = [
   {
     pathname: fileHandlePathname,
     handle: fileHandle,
+  },
+  {
+    pathname: staticFileHandlePathname,
+    handle: staticFileHandle,
   },
   {
     pathname: aiCompletionHandlePathname,
