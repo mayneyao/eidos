@@ -90,7 +90,7 @@ export default function GridView(props: IGridProps) {
   } = useTableOperation(tableName, databaseName)
   const { toCell, onEdited } = useDataSource(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
-  const { onColumnResize, columns, showColumns } = useColumns(
+  const { onColumnResize, columns, showColumns, onColumnMoved } = useColumns(
     uiColumns,
     props.view!
   )
@@ -240,6 +240,7 @@ export default function GridView(props: IGridProps) {
               onHeaderContextMenu={onHeaderClicked}
               onGridSelectionChange={setSelection}
               onColumnResize={onColumnResize}
+              onColumnMoved={onColumnMoved}
               getCellContent={getCellContent}
               // maxColumnAutoWidth={500}
               maxColumnWidth={2000}

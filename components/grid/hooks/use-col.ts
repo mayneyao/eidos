@@ -23,8 +23,11 @@ export const useColumns = (
       hiddenFields: view.hiddenFields,
     })
     setShowColumns(fields)
+  }, [uiColumns, view.orderMap, view.hiddenFields])
+
+  useEffect(() => {
     setColumns(
-      fields.map((column) => {
+      showColumns.map((column) => {
         return {
           id: column.table_column_name,
           title: column.name,
@@ -35,7 +38,7 @@ export const useColumns = (
         }
       })
     )
-  }, [uiColumns, view])
+  }, [showColumns, view.properties?.fieldWidthMap])
 
   const updateColumnWidth = async (
     fieldName: string,
@@ -78,8 +81,29 @@ export const useColumns = (
     const field = showColumns[colIndex]
     _updateColumnWidth(field.table_column_name, newSizeWithGrow)
   }
+
+  const onColumnMoved = React.useCallback(
+    async (sourceIndex: number, targetIndex: number) => {
+      const newShowColumns = [...showColumns]
+      const [removedShow] = newShowColumns.splice(sourceIndex, 1)
+      newShowColumns.splice(targetIndex, 0, removedShow)
+      setShowColumns(newShowColumns)
+
+      const orderMap = newShowColumns.reduce((acc, cur, index) => {
+        acc[cur.table_column_name] = index
+        return acc
+      }, {} as Record<string, number>)
+
+      await updateView(view.id, {
+        orderMap,
+      })
+    },
+    [showColumns, updateView, view]
+  )
+
   return {
     onColumnResize,
+    onColumnMoved,
     columns,
     showColumns,
   }
