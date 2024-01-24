@@ -106,40 +106,6 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     }))
   }
 
-  async add(data: IDoc) {
-    await this.dataSpace.exec2(`INSERT INTO ${this.name} VALUES(?,?,?,?)`, [
-      data.id,
-      data.content,
-      data.is_day_page ? 1 : 0,
-      data.markdown,
-    ])
-    return data
-  }
-
-  async get(id: string) {
-    const res = await this.dataSpace.exec2(
-      `SELECT * FROM ${this.name} WHERE id = ? LIMIT 1`,
-      [id]
-    )
-    if (res.length === 0) {
-      return null
-    }
-    return {
-      id,
-      title: res[0].title,
-      content: res[0].content,
-      markdown: res[0].markdown,
-    }
-  }
-
-  async set(id: string, data: IDoc) {
-    await this.dataSpace.exec2(
-      `UPDATE ${this.name} SET content = ? , markdown = ? WHERE id = ?`,
-      [data.content, data.markdown, id]
-    )
-    return true
-  }
-
   async del(id: string) {
     this.dataSpace.exec(`DELETE FROM ${this.name} WHERE id = ?`, [id])
     return true
@@ -171,9 +137,19 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     )) as string
     try {
       if (!res) {
-        await this.add({ id, content, is_day_page: is_day_page, markdown: mdStr })
+        await this.add({
+          id,
+          content,
+          is_day_page: is_day_page,
+          markdown: mdStr,
+        })
       } else {
-        await this.set(id, { id, content, is_day_page: is_day_page, markdown: mdStr })
+        await this.set(id, {
+          id,
+          content,
+          is_day_page: is_day_page,
+          markdown: mdStr,
+        })
       }
       return {
         id,

@@ -40,28 +40,41 @@ export class BaseTableImpl<T = any> {
     return item
   }
 
-  async add(data: T): Promise<T> {
+  transformData = (data: Partial<T>) => {
     const kv = Object.entries(data as object).map(([k, v]) => {
       if (typeof v === "object") v = JSON.stringify(v)
+      // if (typeof v == "boolean") v = v ? 1 : 0
       return [k, v]
     })
-    const setK = kv.map(([k, v]) => `${k} = ?`).join(", ")
-    const setV = kv.map(([, v]) => v)
-    await this.dataSpace.exec2(`INSERT INTO ${this.name} SET ${setK}`, setV)
+    const updateKPlaceholder = kv.map(([k, v]) => `${k} = ?`).join(", ")
+    const insertKPlaceholder = kv.map(([k]) => k).join(", ")
+    const insertVPlaceholder = kv.map(() => "?").join(", ")
+    const values = kv.map(([, v]) => v)
+    return {
+      kv,
+      updateKPlaceholder,
+      insertKPlaceholder,
+      insertVPlaceholder,
+      values,
+    }
+  }
+
+  async add(data: T): Promise<T> {
+    const { insertKPlaceholder, insertVPlaceholder, values } =
+      this.transformData(data)
+    await this.dataSpace.exec2(
+      `INSERT INTO ${this.name} (${insertKPlaceholder}) VALUES (${insertVPlaceholder});`,
+      values
+    )
     return data
   }
 
   async set(id: string, data: Partial<T>): Promise<boolean> {
-    const kv = Object.entries(data).map(([k, v]) => {
-      if (typeof v === "object") v = JSON.stringify(v)
-      return [k, v]
-    })
-    const setK = kv.map(([k, v]) => `${k} = ?`).join(", ")
-    const setV = kv.map(([, v]) => v)
-    await this.dataSpace.exec2(`UPDATE ${this.name} SET ${setK} WHERE id = ?`, [
-      ...setV,
-      id,
-    ])
+    const { updateKPlaceholder, values } = this.transformData(data)
+    await this.dataSpace.exec2(
+      `UPDATE ${this.name} SET ${updateKPlaceholder} WHERE id = ?`,
+      [...values, id]
+    )
     return true
   }
 

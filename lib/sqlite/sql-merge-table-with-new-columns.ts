@@ -6,7 +6,7 @@ import {
 } from "pgsql-ast-parser"
 
 /**
- * sqlite has some limitations on alter table, for example, we can't add a column with default value.
+ * sqlite has some limitations on alter table, for example, we can't add a column with non-constant default value.
  * when we want to add new columns to a table
  * 1. we need to create a new table with new columns
  * 2. copy data from old table to new table
