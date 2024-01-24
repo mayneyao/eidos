@@ -254,7 +254,7 @@ export class DataSpace {
 
   // views
   public async listViews(tableId: string) {
-    return await this.view.list({ tableId })
+    return await this.view.list({ table_id: tableId })
   }
 
   public async addView(view: IView) {
