@@ -10,6 +10,9 @@ import {
   TRANSFORMERS,
 } from "@lexical/markdown"
 
+import { IMAGE } from "@/components/doc/nodes/ImageNode"
+import { SQL_NODE_TRANSFORMER } from "@/components/doc/nodes/SQL"
+
 import { HR } from "./MarkdownTransformers"
 
 export const allTransformers = [
@@ -22,6 +25,8 @@ export const allTransformers = [
   ORDERED_LIST,
   QUOTE,
   HR,
+  IMAGE,
+  SQL_NODE_TRANSFORMER,
   ...TRANSFORMERS,
 ]
 
