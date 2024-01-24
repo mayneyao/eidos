@@ -11,19 +11,19 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     id TEXT PRIMARY KEY,
     name TEXT,
     type TEXT,
-    parentId TEXT NULL,
-    isPinned BOOLEAN DEFAULT 0,
+    parent_id TEXT NULL,
+    is_pinned BOOLEAN DEFAULT 0,
     icon TEXT NULL,
     cover TEXT NULL,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
   `
 
   add(data: ITreeNode): Promise<ITreeNode> {
     this.dataSpace.exec(
-      `INSERT INTO ${TreeTableName} (id,name,type,parentId) VALUES (? , ? , ? , ?);`,
-      [data.id, data.name, data.type, data.parentId]
+      `INSERT INTO ${TreeTableName} (id,name,type,parent_id) VALUES (? , ? , ? , ?);`,
+      [data.id, data.name, data.type, data.parent_id]
     )
     return Promise.resolve(data)
   }
@@ -51,10 +51,10 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     }
   }
 
-  async pin(id: string, isPinned: boolean): Promise<boolean> {
+  async pin(id: string, is_pinned: boolean): Promise<boolean> {
     await this.dataSpace.exec2(
-      `UPDATE ${TreeTableName} SET isPinned = ? WHERE id = ?;`,
-      [isPinned, id]
+      `UPDATE ${TreeTableName} SET is_pinned = ? WHERE id = ?;`,
+      [is_pinned, id]
     )
     return Promise.resolve(true)
   }
@@ -96,7 +96,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
       sql += ` WHERE name like ?`
     }
     if (query && !withSubNode) {
-      sql += ` AND parentId is null;`
+      sql += ` AND parent_id is null;`
     }
     const bind = query ? [`%${query}%`] : undefined
     const res = await this.dataSpace.exec2(sql, bind)
@@ -106,9 +106,9 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
   async moveIntoTable(id: string, tableId: string): Promise<boolean> {
     try {
       await this.dataSpace.withTransaction(async () => {
-        // update parentId
+        // update parent_id
         await this.dataSpace.exec2(
-          `UPDATE ${TreeTableName} SET parentId = ? WHERE id = ?;`,
+          `UPDATE ${TreeTableName} SET parent_id = ? WHERE id = ?;`,
           [tableId, id]
         )
         // add new row in table

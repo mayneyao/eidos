@@ -12,22 +12,22 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   type TEXT NOT NULL,
-  tableId TEXT NOT NULL,
+  table_id TEXT NOT NULL,
   query TEXT NOT NULL,
   properties TEXT,
   filter TEXT,
-  orderMap TEXT,
-  hiddenFields TEXT,
-  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  order_map TEXT,
+  hidden_fields TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `
 
-  JSONFields = ["properties", "filter", "orderMap", "hiddenFields"]
+  JSONFields = ["properties", "filter", "order_map", "hidden_fields"]
   async add(data: IView): Promise<IView> {
     await this.dataSpace.exec2(
-      `INSERT INTO ${this.name} (id,name,type,tableId,query) VALUES (? , ? , ? , ? , ?);`,
-      [data.id, data.name, data.type, data.tableId, data.query]
+      `INSERT INTO ${this.name} (id,name,type,table_id,query) VALUES (? , ? , ? , ? , ?);`,
+      [data.id, data.name, data.type, data.table_id, data.query]
     )
     return data
   }
@@ -46,9 +46,9 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     }
   }
 
-  async deleteByTableId(tableId: string) {
-    await this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE tableId = ?`, [
-      tableId,
+  async deleteByTableId(table_id: string) {
+    await this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE table_id = ?`, [
+      table_id,
     ])
   }
 
@@ -60,23 +60,23 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     )
   }
 
-  public async createDefaultView(tableId: string) {
+  public async createDefaultView(table_id: string) {
     return await this.add({
       id: getUuid(),
       name: "New View",
       type: ViewTypeEnum.Grid,
-      tableId,
-      query: `SELECT * FROM tb_${tableId}`,
+      table_id: table_id,
+      query: `SELECT * FROM tb_${table_id}`,
     })
   }
 
   public async isRowExistInQuery(
-    tableId: string,
+    table_id: string,
     rowId: string,
     query: string
   ) {
     const tmpTableName = `temp_table_${getUuid().slice(0, 8)}`
-    const tableName = `tb_${tableId}`
+    const tableName = `tb_${table_id}`
     let isExist = false
     try {
       await this.dataSpace.exec2(
@@ -98,8 +98,8 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   }
 
   // after entity field changed, the formula field may be changed, so we need to recompute the formula field
-  public async recompute(tableId: string, rowIds: string[]) {
-    const tableName = `tb_${tableId}`
+  public async recompute(table_id: string, rowIds: string[]) {
+    const tableName = `tb_${table_id}`
     const placeholders = rowIds.map(() => "?").join(",")
     const result = await this.dataSpace.exec2(
       `SELECT * FROM ${tableName} where _id in (${placeholders})`,

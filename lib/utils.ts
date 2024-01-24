@@ -93,7 +93,7 @@ export const generateId = () => {
   return Math.random().toString(36).substring(2, 10)
 }
 
-export const isDayPage = (id: string) => {
+export const isDayPageId = (id: string) => {
   return /^\d{4}-\d{2}-\d{2}$/g.test(id)
 }
 

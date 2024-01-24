@@ -66,7 +66,11 @@ export class DbMigrator {
     )
     // console.log(tableName, columns, draftColumns)
     const newColumns = draftColumns.filter((draftColumn) => {
-      const column = columns.find((column) => column.name === draftColumn.name)
+      const column = columns.find(
+        (column) =>
+          column.name.toLocaleLowerCase() ===
+          draftColumn.name.toLocaleLowerCase()
+      )
       return !column
     })
     const removedColumns = columns.filter((column) => {
@@ -130,6 +134,8 @@ export class DbMigrator {
           )
           console.log("use newSql to migrate", newSql.sql)
           this.db.syncExec2(newSql.sql)
+        } else {
+          console.log(error)
         }
       }
     }

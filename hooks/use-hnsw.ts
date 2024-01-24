@@ -118,7 +118,7 @@ class EmbeddingManager {
     if (!file) {
       throw new Error("file not found")
     }
-    if (file.isVectorized) {
+    if (file.is_vectorized) {
       console.warn("file is already vectorized")
       return
     }
@@ -132,8 +132,8 @@ class EmbeddingManager {
           id: getUuid(),
           embedding: JSON.stringify(embedding),
           model,
-          rawContent: page.content,
-          sourceType: type,
+          raw_content: page.content,
+          source_type: type,
           source: id,
         })
       }

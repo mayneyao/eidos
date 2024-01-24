@@ -14,7 +14,7 @@ import { useUiColumns } from "@/hooks/use-ui-columns"
 import { useViewSort } from "@/hooks/use-view-sort"
 
 export const useGalleryViewData = (view: IView) => {
-  const { tableId, query } = view
+  const { table_id: tableId, query } = view
   const tableName = getRawTableNameById(tableId)
   const { sqlite } = useSqlite()
   const { setRows } = useSqliteStore()

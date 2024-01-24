@@ -53,7 +53,7 @@ export function NodeItem({
     await sqlite.moveDraftIntoTable(nodeId, tableId)
     setNode({
       id: nodeId,
-      parentId: tableId,
+      parent_id: tableId,
     })
   }
 
@@ -107,7 +107,7 @@ export function NodeItem({
         <ContextMenuItem inset onClick={handleRename}>
           Rename
         </ContextMenuItem>
-        {node.isPinned ? (
+        {node.is_pinned ? (
           <ContextMenuItem inset onClick={() => unpin(node.id)}>
             Unpin
           </ContextMenuItem>

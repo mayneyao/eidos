@@ -27,11 +27,11 @@ export const ScriptBinding = () => {
   const allTables = allNodes.filter((node) => node.type === "table")
   const { space } = useCurrentPathInfo()
 
-  const [fieldsMap, setFieldsMap] = useState<IScript["fieldsMap"]>(
-    script.fieldsMap
+  const [fieldsMap, setFieldsMap] = useState<IScript["fields_map"]>(
+    script.fields_map
   )
 
-  const [envMap, setEnvMap] = useState<IScript["envMap"]>(script.envMap)
+  const [envMap, setEnvMap] = useState<IScript["env_map"]>(script.env_map)
 
   const revalidator = useRevalidator()
   const { toast } = useToast()
@@ -44,8 +44,8 @@ export const ScriptBinding = () => {
   const handleSave = async () => {
     await updateScript({
       ...script,
-      fieldsMap,
-      envMap,
+      fields_map: fieldsMap,
+      env_map: envMap,
     })
     revalidator.revalidate()
     toast({

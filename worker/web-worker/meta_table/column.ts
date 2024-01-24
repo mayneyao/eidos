@@ -21,8 +21,8 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     table_name TEXT,
     table_column_name TEXT,
     property TEXT,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 `
   JSONFields: string[] = ["property"]

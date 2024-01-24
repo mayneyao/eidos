@@ -11,6 +11,7 @@ import {
   extractIdFromShortId,
   getRawTableNameById,
   getTableIdByRawTableName,
+  isDayPageId,
   shortenId,
   uuidv4,
 } from "@/lib/utils"
@@ -361,7 +362,7 @@ export class DataSpace {
     markdown: string,
     isDayPage = false
   ) {
-    await this.doc.add({ id: docId, content, markdown, isDayPage })
+    await this.doc.add({ id: docId, content, markdown, is_day_page: isDayPage })
   }
 
   // update doc mount on sqlite for now,maybe change to fs later
@@ -375,9 +376,19 @@ export class DataSpace {
     // yyyy-mm-dd is day page
     const isDayPage = _isDayPage || /^\d{4}-\d{2}-\d{2}$/g.test(docId)
     if (!res) {
-      await this.doc.add({ id: docId, content, markdown, isDayPage })
+      await this.doc.add({
+        id: docId,
+        content,
+        markdown,
+        is_day_page: isDayPage,
+      })
     } else {
-      await this.doc.set(docId, { id: docId, content, markdown, isDayPage })
+      await this.doc.set(docId, {
+        id: docId,
+        content,
+        markdown,
+        is_day_page: isDayPage,
+      })
     }
   }
 
@@ -394,23 +405,22 @@ export class DataSpace {
    * if you want to create or update a day page, you should pass a day page id. page id is like 2021-01-01
    * @param docId
    * @param mdStr
-   * @param parentId
+   * @param parent_id
    * @returns
    */
   public async createOrUpdateDocWithMarkdown(
     docId: string,
     mdStr: string,
-    parentId?: string
+    parent_id?: string
   ) {
-    let isDayPage = /^\d{4}-\d{2}-\d{2}$/.test(docId)
-    if (isDayPage) {
+    if (isDayPageId(docId)) {
       return this.doc.createOrUpdateWithMarkdown(docId, mdStr)
     } else {
       return this.withTransaction(async () => {
         await this.getOrCreateTreeNode({
           id: docId,
           name: docId,
-          parentId,
+          parent_id: parent_id,
           type: "doc",
         })
         return await this.doc.createOrUpdateWithMarkdown(docId, mdStr)
@@ -515,8 +525,8 @@ export class DataSpace {
     return this.withTransaction(async () => {
       await this.tree.updateName(id, name)
       // if this node is subDoc, we need to update row.title
-      if (node?.parentId) {
-        const parent = await this.tree.get(node.parentId)
+      if (node?.parent_id) {
+        const parent = await this.tree.get(node.parent_id)
         if (parent && parent.type === "table") {
           const tableRawName = getRawTableNameById(parent.id)
           await this.exec2(

@@ -32,8 +32,8 @@ export const useQueryNode = () => {
           ...item,
           name: item.id,
           type: "doc",
-          parentId: null,
-          isPinned: false,
+          parent_id: null,
+          is_pinned: false,
           mode: "fts",
         }
       }

@@ -9,13 +9,13 @@ export interface IView<T = any> {
   id: string
   name: string
   type: ViewTypeEnum
-  tableId: string // tableId uuid
+  table_id: string // tableId uuid
   query: string
   fieldIds?: string[]
   properties?: T
   filter?: FilterValueType
-  orderMap?: Record<string, number>
-  hiddenFields?: string[]
+  order_map?: Record<string, number>
+  hidden_fields?: string[]
 }
 
 export interface IGridViewProperties {

@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react"
 import { useParams } from "react-router-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
-import { isDayPage } from "@/lib/utils"
+import { isDayPageId } from "@/lib/utils"
 
 import { useSqliteStore } from "./use-sqlite"
 
@@ -27,7 +27,7 @@ export const useCurrentNodePath = () => {
   const getNode = useCallback(
     (nodeId: string) => {
       let parent = nodeId && (allNodesMap[nodeId] as INodePath)
-      if (isDayPage(nodeId)) {
+      if (isDayPageId(nodeId)) {
         parent = {
           id: nodeId,
           name: nodeId,
@@ -43,12 +43,12 @@ export const useCurrentNodePath = () => {
     const node = getNode(nodeId!)
     if (!node) return []
     const path = [node]
-    let parent = node.parentId && getNode(node.parentId)
+    let parent = node.parent_id && getNode(node.parent_id)
     while (parent) {
       path.unshift(parent)
-      if (parent.parentId) {
+      if (parent.parent_id) {
         // if parentId is "yyyy-mm-dd" then it's a date node
-        parent = getNode(parent.parentId)
+        parent = getNode(parent.parent_id)
       } else {
         break
       }

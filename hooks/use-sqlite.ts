@@ -290,21 +290,21 @@ export const useSqlite = (dbName?: string) => {
     return tableId
   }
 
-  const createDoc = async (docName: string, parentId?: string) => {
+  const createDoc = async (docName: string, parent_id?: string) => {
     if (!sqlWorker) return
     const docId = uuidv4().split("-").join("")
     await sqlWorker.addTreeNode({
       id: docId,
       name: docName,
       type: "doc",
-      parentId,
+      parent_id: parent_id,
     })
     await sqlWorker.addDoc(docId, JSON.stringify(DefaultState), "")
     addNode({
       id: docId,
       name: docName,
       type: "doc",
-      parentId,
+      parent_id: parent_id,
     })
     return docId
   }
@@ -323,7 +323,7 @@ export const useSqlite = (dbName?: string) => {
         id: docId,
         name: title,
         type: "doc",
-        parentId: tableId,
+        parent_id: tableId,
       })
       addNode2List(treeNode)
       await sqlWorker.addDoc(docId, "", "")

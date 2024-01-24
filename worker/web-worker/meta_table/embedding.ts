@@ -6,8 +6,8 @@ export interface IEmbedding {
   id: string
   embedding: string
   model: string
-  rawContent: string
-  sourceType: "doc" | "table" | "file"
+  raw_content: string
+  source_type: "doc" | "table" | "file"
   source: string
 }
 
@@ -21,20 +21,20 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     id TEXT PRIMARY KEY,
     embedding TEXT,
     model TEXT,
-    rawContent TEXT,
-    sourceType TEXT,
+    raw_content TEXT,
+    source_type TEXT,
     source TEXT
 );
 `
   add(data: IEmbedding): Promise<IEmbedding> {
     this.dataSpace.exec(
-      `INSERT INTO ${this.name} (id, embedding, model, rawContent, sourceType, source) VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ${this.name} (id, embedding, model, raw_content, source_type, source) VALUES (?, ?, ?, ?, ?, ?)`,
       [
         data.id,
         data.embedding,
         data.model,
-        data.rawContent,
-        data.sourceType,
+        data.raw_content,
+        data.source_type,
         data.source,
       ]
     )

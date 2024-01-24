@@ -38,7 +38,7 @@ export default function GalleryView({
 
   const cardHeight = computeCardHeight(
     view.query,
-    rawIdNameMap.size - (view.hiddenFields?.length || 0)
+    rawIdNameMap.size - (view.hidden_fields?.length || 0)
   )
   useEffect(() => {
     if (ref.current) {
@@ -67,7 +67,7 @@ export default function GalleryView({
             tableId,
             space,
             hiddenFieldIcon: true,
-            hiddenFields: view.hiddenFields,
+            hiddenFields: view.hidden_fields,
           }}
           className="pb-[128px]"
         >

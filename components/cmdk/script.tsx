@@ -67,8 +67,8 @@ export const ScriptList = () => {
         input: realParams,
         command: currentCommand?.name || "default",
         context: {
-          tables: currentAction.fieldsMap,
-          env: currentAction.envMap || {},
+          tables: currentAction.fields_map,
+          env: currentAction.env_map || {},
           currentNodeId: currentNode?.id,
         },
         code: currentAction.code,

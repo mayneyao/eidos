@@ -40,7 +40,7 @@ export async function handleOpenAI(req: any) {
         token: token,
       },
     })
-    const context = res?.map((em) => em?.rawContent).join("\n")
+    const context = res?.map((em) => em?.raw_content).join("\n")
     newMsgs = [
       ...messages,
       {

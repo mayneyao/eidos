@@ -48,7 +48,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
     defaultValues: {
       name: view.name,
       type: view.type,
-      query: view.query || `SELECT * from tb_${view.tableId};`,
+      query: view.query || `SELECT * from tb_${view.table_id};`,
     },
   })
   function onSubmit(values: z.infer<typeof formSchema>) {

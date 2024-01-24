@@ -7,7 +7,7 @@ interface IDoc {
   id: string
   content: string
   markdown: string
-  isDayPage?: boolean
+  is_day_page?: boolean
 }
 
 const callMain = (
@@ -35,10 +35,10 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   CREATE TABLE IF NOT EXISTS ${this.name} (
     id TEXT PRIMARY KEY,
     content TEXT,
-    isDayPage BOOLEAN DEFAULT 0,
+    is_day_page BOOLEAN DEFAULT 0,
     markdown TEXT,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}',);
@@ -87,7 +87,7 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   }
   async listAllDayPages() {
     const res = await this.dataSpace.exec2(
-      `SELECT * FROM ${this.name} WHERE isDayPage = 1 ORDER BY id DESC`
+      `SELECT * FROM ${this.name} WHERE is_day_page = 1 ORDER BY id DESC`
     )
     return res.map((item) => ({
       id: item.id,
@@ -98,7 +98,7 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   async listDayPage(page: number = 0) {
     const pageSize = 7
     const res = await this.dataSpace.exec2(
-      `SELECT id FROM ${this.name} WHERE isDayPage = 1 ORDER BY id DESC LIMIT ?,?`,
+      `SELECT id FROM ${this.name} WHERE is_day_page = 1 ORDER BY id DESC LIMIT ?,?`,
       [page * pageSize, pageSize]
     )
     return res.map((item) => ({
@@ -110,7 +110,7 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     await this.dataSpace.exec2(`INSERT INTO ${this.name} VALUES(?,?,?,?)`, [
       data.id,
       data.content,
-      data.isDayPage ? 1 : 0,
+      data.is_day_page ? 1 : 0,
       data.markdown,
     ])
     return data
@@ -162,8 +162,8 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   }
 
   async createOrUpdateWithMarkdown(id: string, mdStr: string) {
-    // if id is year-month-day, then isDayPage = true
-    let isDayPage = /^\d{4}-\d{2}-\d{2}$/.test(id)
+    // if id is year-month-day, then is_day_page = true
+    let is_day_page = /^\d{4}-\d{2}-\d{2}$/.test(id)
     const res = await this.get(id)
     const content = (await callMain(
       MsgType.ConvertMarkdown2State,
@@ -171,9 +171,9 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     )) as string
     try {
       if (!res) {
-        await this.add({ id, content, isDayPage, markdown: mdStr })
+        await this.add({ id, content, is_day_page: is_day_page, markdown: mdStr })
       } else {
-        await this.set(id, { id, content, isDayPage, markdown: mdStr })
+        await this.set(id, { id, content, is_day_page: is_day_page, markdown: mdStr })
       }
       return {
         id,

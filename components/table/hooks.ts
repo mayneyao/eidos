@@ -120,8 +120,8 @@ export const useCurrentView = () => {
 export const useShowColumns = (uiColumns: IField[], view: IView) => {
   return useMemo(() => {
     return getShowColumns(uiColumns, {
-      orderMap: view?.orderMap,
-      hiddenFields: view?.hiddenFields,
+      orderMap: view?.order_map,
+      hiddenFields: view?.hidden_fields,
     })
-  }, [uiColumns, view?.hiddenFields, view?.orderMap])
+  }, [uiColumns, view?.hidden_fields, view?.order_map])
 }

@@ -6,7 +6,8 @@ import Selecto from "react-selecto"
 import { useFileSystem } from "@/hooks/use-files"
 import { Separator } from "@/components/ui/separator"
 
-import { FileItemContextMenu, FileManagerContextMenu } from "./menu"
+import { FileManagerContextMenu } from "./folder-menu"
+import { FileItemContextMenu } from "./menu"
 
 export const FileManager = () => {
   const {
@@ -59,14 +60,14 @@ export const FileManager = () => {
             })}
           </div>
           <Separator className="my-4" />
-          <ul className="flex flex-col gap-1 p-2">
+          <ul className="flex max-w-[400px] flex-col gap-1 p-2">
             {entries.map((entry) => {
               const { kind, name } = entry
               const isFile = kind === "file"
               return (
                 <FileItemContextMenu key={name}>
                   <li
-                    className="target flex max-w-[400px] justify-start p-1"
+                    className="target flex justify-start p-1"
                     data-name={name}
                     data-isdir={!isFile}
                   >

@@ -19,11 +19,11 @@ export const useColumns = (
 
   useEffect(() => {
     const fields = getShowColumns(uiColumns, {
-      orderMap: view.orderMap,
-      hiddenFields: view.hiddenFields,
+      orderMap: view.order_map,
+      hiddenFields: view.hidden_fields,
     })
     setShowColumns(fields)
-  }, [uiColumns, view.orderMap, view.hiddenFields])
+  }, [uiColumns, view.order_map, view.hidden_fields])
 
   useEffect(() => {
     setColumns(
@@ -95,7 +95,7 @@ export const useColumns = (
       }, {} as Record<string, number>)
 
       await updateView(view.id, {
-        orderMap,
+        order_map: orderMap,
       })
     },
     [showColumns, updateView, view]

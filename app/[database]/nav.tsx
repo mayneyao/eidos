@@ -208,12 +208,12 @@ export const Nav = () => {
         {currentNode && (
           <div
             title={
-              currentNode?.isPinned
+              currentNode?.is_pinned
                 ? "this node is pinned, click to unpin"
                 : "click to pin this node"
             }
           >
-            {currentNode?.isPinned ? (
+            {currentNode?.is_pinned ? (
               <Button variant="ghost" onClick={() => unpin(currentNode.id)}>
                 <PinOffIcon className="h-5 w-5" />
               </Button>

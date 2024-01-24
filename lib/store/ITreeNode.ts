@@ -2,9 +2,9 @@ export interface ITreeNode {
   id: string
   name: string
   type: "table" | "doc"
-  parentId?: string
+  parent_id?: string
   // is pin to top
-  isPinned?: boolean
+  is_pinned?: boolean
   icon?: string
   cover?: string
 }

@@ -10,8 +10,8 @@ export interface IFile {
   path: string
   size: number
   mime: string
-  createdAt?: string
-  isVectorized?: boolean // whether the file is vectorized, when file is vectorized, it will be stored in `eidos__embeddings` table
+  created_at?: string
+  is_vectorized?: boolean // whether the file is vectorized, when file is vectorized, it will be stored in `eidos__embeddings` table
 }
 
 export class FileTable extends BaseTableImpl implements BaseTable<IFile> {
@@ -23,9 +23,9 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     path TEXT UNIQUE,
     size INTEGER,
     mime TEXT,
-    isVectorized INTEGER DEFAULT 0 NULL,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_vectorized INTEGER DEFAULT 0 NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );  
 `
 
@@ -87,11 +87,11 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     }
   }
 
-  async updateVectorized(id: string, isVectorized: boolean): Promise<boolean> {
+  async updateVectorized(id: string, is_vectorized: boolean): Promise<boolean> {
     try {
       this.dataSpace.exec(
-        `UPDATE ${this.name} SET isVectorized = ? WHERE id = ?;`,
-        [isVectorized ? 1 : 0, id]
+        `UPDATE ${this.name} SET is_vectorized = ? WHERE id = ?;`,
+        [is_vectorized ? 1 : 0, id]
       )
       return Promise.resolve(true)
     } catch (error) {

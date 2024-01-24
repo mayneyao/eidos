@@ -34,10 +34,10 @@ export interface IScript {
     type: string
     readonly?: boolean
   }[]
-  envMap?: {
+  env_map?: {
     [key: string]: string
   }
-  fieldsMap?: {
+  fields_map?: {
     [tableName: string]: {
       id: string
       name: string
@@ -63,15 +63,15 @@ export class ScriptTable
         commands TEXT,
         tables TEXT,
         envs TEXT,
-        envMap TEXT,
-        fieldsMap TEXT,
+        env_map TEXT,
+        fields_map TEXT,
         enabled BOOLEAN DEFAULT 0,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 `
 
-  JSONFields: string[] = ["commands", "tables", "envs", "envMap", "fieldsMap"]
+  JSONFields: string[] = ["commands", "tables", "envs", "env_map", "fields_map"]
 
   del(id: string): Promise<boolean> {
     this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])
@@ -92,9 +92,9 @@ export class ScriptTable
     return Promise.resolve(true)
   }
 
-  async updateEnvMap(id: string, envMap: { [key: string]: string }) {
-    this.dataSpace.exec2(`UPDATE ${this.name} SET envMap = ? WHERE id = ?`, [
-      JSON.stringify(envMap),
+  async updateenv_map(id: string, env_map: { [key: string]: string }) {
+    this.dataSpace.exec2(`UPDATE ${this.name} SET env_map = ? WHERE id = ?`, [
+      JSON.stringify(env_map),
       id,
     ])
     return Promise.resolve(true)

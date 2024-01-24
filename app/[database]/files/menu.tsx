@@ -1,85 +1,18 @@
-import { MouseEventHandler, useRef, useState } from "react"
 
-import { opfsManager } from "@/lib/opfs"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useFileSystem } from "@/hooks/use-files"
-import { useHnsw } from "@/hooks/use-hnsw"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { useConfigStore } from "@/app/settings/store"
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { Input } from "@/components/ui/input"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { useConfigStore } from "@/app/settings/store"
+import { useFileSystem } from "@/hooks/use-files"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { opfsManager } from "@/lib/opfs"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { useSpaceAppStore } from "../store"
-
-export function FileManagerContextMenu({ children }: any) {
-  const { addDir, backDir, isRootDir } = useFileSystem()
-  const [newName, setNewName] = useState("folder")
-  const [renameOpen, setRenameOpen] = useState(false)
-  const renameInputRef = useRef<HTMLInputElement>(null)
-
-  // for now opfs is not supporting rename dir, so just create new dir with given name
-  const handleRename: MouseEventHandler<HTMLDivElement> = (e) => {
-    setRenameOpen(true)
-    setTimeout(() => {
-      renameInputRef.current?.focus()
-    }, 300)
-    e.stopPropagation()
-  }
-
-  const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      addDir(newName)
-      // set to default
-      setNewName("folder")
-      setRenameOpen(false)
-    }
-    if (e.key === "Escape") {
-      setRenameOpen(false)
-    }
-  }
-
-  return (
-    <ContextMenu>
-      <Popover open={renameOpen}>
-        <ContextMenuTrigger className="h-full w-full">
-          <div>
-            {children}
-            <PopoverTrigger>
-              <span />
-            </PopoverTrigger>
-          </div>
-        </ContextMenuTrigger>
-        <PopoverContent className="p-0">
-          <Input
-            ref={renameInputRef}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={handleRenameKeyDown}
-            autoFocus
-          />
-        </PopoverContent>
-      </Popover>
-      <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onSelect={(e: any) => handleRename(e)}>
-          New folder
-        </ContextMenuItem>
-        <ContextMenuItem inset disabled={isRootDir} onSelect={backDir}>
-          Back
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  )
-}
 
 export function FileItemContextMenu({ children }: any) {
   const { selectedEntries, deleteFiles, getFileUrlPath } = useFileSystem()
@@ -159,7 +92,7 @@ export function FileItemContextMenu({ children }: any) {
     if (name.endsWith(".pdf")) {
       const path = "spaces" + getFileUrlPath(name)
       const file = await sqlite?.getFileByPath(path)
-      if (file && !file.isVectorized) {
+      if (file && !file.is_vectorized) {
         await createEmbedding({
           id: file.id,
           type: "file",

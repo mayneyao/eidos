@@ -101,7 +101,7 @@ export const SideBar = ({ className }: any) => {
                     title="Pins"
                     type="table"
                     spaceName={space}
-                    allNodes={allNodes.filter((node) => node.isPinned)}
+                    allNodes={allNodes.filter((node) => node.is_pinned)}
                     isShareMode={isShareMode}
                     Icon={<PinIcon className="pr-2" />}
                     currentNode={currentNode}
@@ -114,7 +114,7 @@ export const SideBar = ({ className }: any) => {
                 type="table"
                 spaceName={space}
                 allNodes={allNodes.filter(
-                  (node) => node.type === "table" && !node.parentId
+                  (node) => node.type === "table" && !node.parent_id
                 )}
                 isShareMode={isShareMode}
                 Icon={<Database className="pr-2" />}
@@ -125,10 +125,10 @@ export const SideBar = ({ className }: any) => {
                 type="doc"
                 spaceName={space}
                 allNodes={allNodes.filter(
-                  (node) => node.type === "doc" && !node.parentId
+                  (node) => node.type === "doc" && !node.parent_id
                 )}
                 allTableNodes={allNodes.filter(
-                  (node) => node.type === "table" && !node.parentId
+                  (node) => node.type === "table" && !node.parent_id
                 )}
                 isShareMode={isShareMode}
                 currentNode={currentNode}

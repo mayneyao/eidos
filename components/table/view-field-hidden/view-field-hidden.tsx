@@ -23,12 +23,12 @@ export interface ContainerState {
 
 export const ViewFieldHidden = (props: { view?: IView }) => {
   const orderMap = useMemo(
-    () => props.view?.orderMap || {},
-    [props.view?.orderMap]
+    () => props.view?.order_map || {},
+    [props.view?.order_map]
   )
   const hiddenFields = useMemo(
-    () => props.view?.hiddenFields || [],
-    [props.view?.hiddenFields]
+    () => props.view?.hidden_fields || [],
+    [props.view?.hidden_fields]
   )
   const { uiColumns } = useCurrentUiColumns()
 
@@ -47,8 +47,8 @@ export const ViewFieldHidden = (props: { view?: IView }) => {
 
   const { updateView } = useViewOperation()
   const updateViewOrderMap = useCallback(
-    (newOrderMap: IView["orderMap"]) => {
-      props.view && updateView(props.view?.id, { orderMap: newOrderMap })
+    (newOrderMap: IView["order_map"]) => {
+      props.view && updateView(props.view?.id, { order_map: newOrderMap })
     },
     [props.view, updateView]
   )
@@ -56,7 +56,7 @@ export const ViewFieldHidden = (props: { view?: IView }) => {
   const updateHiddenFields = useCallback(
     (newHiddenFields: string[]) => {
       props.view &&
-        updateView(props.view?.id, { hiddenFields: newHiddenFields })
+        updateView(props.view?.id, { hidden_fields: newHiddenFields })
     },
     [props.view, updateView]
   )
@@ -95,7 +95,7 @@ export const ViewFieldHidden = (props: { view?: IView }) => {
             [hoverIndex, 0, prevCards[dragIndex] as IField],
           ],
         })
-        const newOrderMap: IView["orderMap"] = {}
+        const newOrderMap: IView["order_map"] = {}
         newCards.forEach((item, index) => {
           newOrderMap[item.table_column_name] = index
         })

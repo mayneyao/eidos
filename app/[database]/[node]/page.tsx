@@ -52,8 +52,8 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
           }
           coverComponent={node.cover && <NodeCover node={node} />}
           propertyComponent={
-            node.parentId && (
-              <DocProperty tableId={node.parentId!} docId={node.id} />
+            node.parent_id && (
+              <DocProperty tableId={node.parent_id!} docId={node.id} />
             )
           }
           topComponent={

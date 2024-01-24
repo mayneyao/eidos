@@ -1,10 +1,10 @@
 # Eidos
 
-an all-in-one workspace for everyone
+a personal digital space for everyone that runs entirely in the browser, Notion-like but local/offline-first
 
 ## Features
 
-- 💻 Runs on web browsers without any installation required.
+- 💻 Runs on web browsers without any installation required. PWA support.
 - 🔒 100% local-first, You own your data.
 - 🚀 lightning-fast without any server.
 - 🤖 Deeply integrated with AI to converse with your data in the most natural way.

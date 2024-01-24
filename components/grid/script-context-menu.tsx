@@ -31,8 +31,8 @@ export const ScriptContextMenu = ({
         input: rowJson,
         command: command.name,
         context: {
-          tables: action.fieldsMap,
-          env: action.envMap || {},
+          tables: action.fields_map,
+          env: action.env_map || {},
           currentNodeId: tableId,
           currentRowId: row._id,
           callFromTableAction: true,

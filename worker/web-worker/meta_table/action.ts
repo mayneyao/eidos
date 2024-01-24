@@ -30,8 +30,8 @@ export class ActionTable extends BaseTableImpl implements BaseTable<IAction> {
     name TEXT,
     params TEXT,
     nodes TEXT,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 `
   JSONFields: string[] = ["params", "nodes"]
@@ -54,20 +54,5 @@ export class ActionTable extends BaseTableImpl implements BaseTable<IAction> {
   del(id: string): Promise<boolean> {
     this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])
     return Promise.resolve(true)
-  }
-  async get(id: string) {
-    const res = await this.dataSpace.exec2(
-      `SELECT * FROM ${this.name} WHERE id = ?`,
-      [id]
-    )
-    if (!res.length) {
-      return Promise.resolve(null)
-    }
-    return Promise.resolve({
-      id: res[0].id,
-      name: res[0].name,
-      params: JSON.parse(res[0].params),
-      nodes: JSON.parse(res[0].nodes),
-    })
   }
 }
