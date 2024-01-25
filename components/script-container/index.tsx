@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react"
 
-import { useExtMsg } from "@/app/extensions/hooks/use-ext-msg"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useExtMsg } from "@/app/extensions/hooks/use-ext-msg"
 
 import iframeHTML from "./iframe.html?raw"
 
@@ -32,10 +32,10 @@ export const ScriptContainer = () => {
     <iframe
       ref={iframeRef}
       srcDoc={iframeContent}
-      sandbox="allow-scripts allow-same-origin allow-popups"
+      sandbox="allow-scripts allow-popups"
+      allow="autoplay"
       width="0"
       height="0"
-      frameBorder="0"
     >
       {" "}
       Your browser does not support iframes.{" "}

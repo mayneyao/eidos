@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       id: getUuid(),
       name: "New View",
       type: ViewTypeEnum.Grid,
-      table_id: table_id,
+      table_id,
       query: `SELECT * FROM tb_${table_id}`,
     })
   }

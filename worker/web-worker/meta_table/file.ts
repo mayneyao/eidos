@@ -137,6 +137,12 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     return URL.createObjectURL(f)
   }
 
+  async getBlobByPath(path: string) {
+    const f = await opfsManager.getFileByPath(path)
+    const blob = new Blob([f], { type: f.type })
+    return blob
+  }
+
   async walk(): Promise<any[]> {
     const allFiles = await opfsManager.walk([
       "spaces",
