@@ -42,9 +42,9 @@ export class MultiSelectField extends BaseField<
     return newOptions
   }
 
-  rawData2JSON(rawData: string): string[] {
+  rawData2JSON(rawData: string | null): string[] {
     const options = this.column.property?.options ?? []
-    const ids = rawData.split(/[\s,]+/)
+    const ids = rawData?.split(/[\s,]+/) || []
     const names = ids.map((id) => {
       const option = options.find((i) => i.id === id)
       return option?.name || ""
@@ -76,18 +76,18 @@ export class MultiSelectField extends BaseField<
    * return tag1id,tag2id
    */
   text2RawData(text: string) {
-    console.log("text2RawData", text)
+    // text can be a uuid or a name
     return text
       .split(/[\s,]+/)
       .map((value) => {
-        const option = this.options.find((i) => i.name === value)
+        const option = this.options.find((i) => i.id === value)
         if (option) {
           return option.id
         } else {
           // a new option name is entered, create a new option
-          return null
-          // const newOption = this.addOption(value)
-          // return newOption[0].id
+          return
+          const newOption = this.addOption(value)
+          return newOption[0].id
         }
       })
       .filter(Boolean)
