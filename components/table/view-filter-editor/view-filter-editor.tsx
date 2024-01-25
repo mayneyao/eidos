@@ -39,7 +39,7 @@ export const ViewFilterEditor = ({
             ...(_value as IGroupFilterValue).operands,
             {
               operator: CompareOperator.IsNotEmpty,
-              operands: [fields[0].name, null],
+              operands: [fields[0].table_column_name, null],
             },
           ],
         }
@@ -48,7 +48,7 @@ export const ViewFilterEditor = ({
           operands: [
             {
               operator: CompareOperator.IsNotEmpty,
-              operands: [fields[0].name, null],
+              operands: [fields[0].table_column_name, null],
             },
           ],
         }
@@ -66,7 +66,7 @@ export const ViewFilterEditor = ({
               operands: [
                 {
                   operator: CompareOperator.IsNotEmpty,
-                  operands: [fields[0].name, null],
+                  operands: [fields[0].table_column_name, null],
                 },
               ],
             },
@@ -77,7 +77,7 @@ export const ViewFilterEditor = ({
           operands: [
             {
               operator: CompareOperator.IsNotEmpty,
-              operands: [fields[0].name, null],
+              operands: [fields[0].table_column_name, null],
             },
           ],
         }

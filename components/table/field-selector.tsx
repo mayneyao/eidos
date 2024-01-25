@@ -46,7 +46,9 @@ export const FieldSelector = ({
                     __html: iconSvgString,
                   }}
                 ></span>
-                {column.name}
+                <span className="max-w-[90px] truncate " title={column.name}>
+                  {column.name}
+                </span>
               </span>
             </SelectItem>
           )

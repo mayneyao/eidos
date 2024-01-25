@@ -1,6 +1,8 @@
-import { XIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { XIcon } from "lucide-react"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -9,8 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { FieldSelector } from "./field-selector"
 import { useCurrentView } from "./hooks"
@@ -106,7 +106,7 @@ export function ViewSortEditor(props: IViewEditorProps) {
   }
 
   return (
-    <div className="w-[300px] rounded-lg border p-2 shadow-md">
+    <div className="w-[400px] rounded-lg border p-2 shadow-md">
       {!orderItems.length && (
         <span className="select-none text-sm">
           There is no sort rule, add one
