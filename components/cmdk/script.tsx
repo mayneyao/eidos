@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { ICommand, IScript } from "@/worker/web-worker/meta_table/script"
 import { useKeyPress } from "ahooks"
 
@@ -98,7 +98,7 @@ export const ScriptList = () => {
             const hasCommands = Boolean(script.commands?.length)
             const scriptValue = `/${script.name}`
             return (
-              <>
+              <React.Fragment key={script.id}>
                 {hasCommands ? (
                   <>
                     {script.commands?.map((subCommand) => {
@@ -140,7 +140,7 @@ export const ScriptList = () => {
                     <CommandShortcut>{script.name}</CommandShortcut>
                   </CommandItem>
                 )}
-              </>
+              </React.Fragment>
             )
           })}
         </CommandGroup>

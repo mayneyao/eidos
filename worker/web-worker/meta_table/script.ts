@@ -92,7 +92,7 @@ export class ScriptTable
     return Promise.resolve(true)
   }
 
-  async updateenv_map(id: string, env_map: { [key: string]: string }) {
+  async updateEnvMap(id: string, env_map: { [key: string]: string }) {
     this.dataSpace.exec2(`UPDATE ${this.name} SET env_map = ? WHERE id = ?`, [
       JSON.stringify(env_map),
       id,
