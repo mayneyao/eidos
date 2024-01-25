@@ -1,5 +1,5 @@
-import { PlusIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
+import { PlusIcon } from "lucide-react"
 import {
   createSearchParams,
   useLocation,
@@ -7,13 +7,13 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
-import { NodeComponent } from "@/app/[database]/[node]/page"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
-import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { NodeComponent } from "@/app/[database]/[node]/page"
 
 import { Button } from "../ui/button"
 import { useCurrentView, useViewOperation } from "./hooks"
