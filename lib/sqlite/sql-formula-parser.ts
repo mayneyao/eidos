@@ -1,4 +1,5 @@
 import {
+  ExprRef,
   SelectFromStatement,
   SelectedColumn,
   astMapper,
@@ -60,6 +61,28 @@ export const transformFormula2VirtualGeneratedField = (
 
   // create a mapper
   const mapper = astMapper((map) => ({
+    expr: (t) => {
+      // turn props("field name with space") to cl_xxx
+      if (t && t.type === "call" && t.function.name === "props") {
+        const param = t.args[0] as ExprRef
+        const rawName = fieldNameRawIdMap[param.name.toLowerCase()]
+        return {
+          type: "call",
+          function: {
+            type: "ref",
+            // props is udf function, just return the param, generated column must be a expression
+            name: "props",
+          },
+          args: [
+            {
+              type: "ref",
+              name: rawName,
+            },
+          ],
+        }
+      }
+      return map.super().expr(t)
+    },
     ref: (t) => {
       const rawName = fieldNameRawIdMap[t.name]
       if (rawName) {

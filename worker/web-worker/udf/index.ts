@@ -23,12 +23,26 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     deterministic: true,
   }
 
+  const props = {
+    name: "props",
+    xFunc: function (pCx, arg) {
+      return arg
+    },
+    deterministic: true,
+  }
+
   const today = {
     name: "today",
     xFunc: function (pCx) {
       return new Date().toISOString().slice(0, 10)
     },
-    deterministic: false,
+    /**
+     * WARN: we trick the sqlite3 to think this function is deterministic,
+     * let this function can be used in generated column
+     * BUT this function is not deterministic, it's maybe dangerous
+     * more info: https://www.sqlite.org/deterministic.html
+     */
+    deterministic: true,
   }
 
   const uuidv4 = {
@@ -107,6 +121,7 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
   }
   const ALL_UDF = [
     twice,
+    props,
     today,
     uuidv4,
     // filterAll,
