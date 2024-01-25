@@ -1,7 +1,5 @@
 // @ts-nocheck
-// user defined function to scale formula field function
-
-import { Sqlite3Static } from "@sqlite.org/sqlite-wasm"
+import { ScalarFunctionOptions, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 import { v4 } from "uuid"
 
 import {
@@ -17,14 +15,12 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
   const wasm = sqlite3.wasm
   const capi = sqlite3.capi
 
-  const twice = {
+  const twice: ScalarFunctionOptions = {
     name: "twice",
     xFunc: function (pCx, arg) {
       return arg + arg
     },
-    opt: {
-      deterministic: true,
-    },
+    deterministic: true,
   }
 
   const today = {
@@ -32,9 +28,7 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     xFunc: function (pCx) {
       return new Date().toISOString().slice(0, 10)
     },
-    opt: {
-      deterministic: false,
-    },
+    deterministic: false,
   }
 
   const uuidv4 = {
@@ -42,9 +36,7 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     xFunc: function (pCx) {
       return v4()
     },
-    opt: {
-      deterministic: false,
-    },
+    deterministic: false,
   }
 
   // const filterAll = {
