@@ -1,6 +1,5 @@
 import type { SelectCell } from "@/components/grid/cells/select-cell"
 
-import { uuidv4 } from "../utils"
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
 
@@ -143,6 +142,7 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
     const option = options.find((o) => o.id === id)
     if (option) {
       option.name = newName
+      option.id = newName
     }
     this.column.property.options = options
   }
@@ -159,7 +159,7 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
   addOption(name: string) {
     const options = this.column.property?.options ?? []
     const newOptions = [
-      { id: uuidv4(), name, color: SelectField.defaultColor },
+      { id: name, name, color: SelectField.defaultColor },
       ...options,
     ]
     this.column.property.options = newOptions

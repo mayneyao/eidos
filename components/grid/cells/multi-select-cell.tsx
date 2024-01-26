@@ -277,13 +277,15 @@ const renderer: CustomRenderer<MultiSelectCell> = {
       values: ids.filter((id) => allowedValuesSet.has(id)),
     }
   },
-  onDelete: (d: any) => ({
-    ...d,
-    data: {
-      ...d.data,
-      values: [],
-    },
-  }),
+  onDelete(cell) {
+    return {
+      ...cell,
+      data: {
+        ...cell.data,
+        values: [],
+      },
+    }
+  },
 }
 
 export default renderer

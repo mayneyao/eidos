@@ -172,6 +172,43 @@ export class DataSpace {
     return tableManager.fields.lookup.updateColumn(tableName, columnName)
   }
 
+  public deleteSelectOption = async (
+    field: IField,
+    option: string
+  ): Promise<void> => {
+    const tableId = getTableIdByRawTableName(field.table_name)
+    const tableManager = this.table(tableId)
+    if (field.type === FieldType.Select) {
+      return await tableManager.fields.select.deleteSelectOption(field, option)
+    } else if (field.type === FieldType.MultiSelect) {
+      return await tableManager.fields.multiSelect.deleteSelectOption(
+        field,
+        option
+      )
+    }
+  }
+  public updateSelectOptionName = async (
+    field: IField,
+    update: {
+      from: string
+      to: string
+    }
+  ) => {
+    const tableId = getTableIdByRawTableName(field.table_name)
+    const tableManager = this.table(tableId)
+    if (field.type === FieldType.Select) {
+      return await tableManager.fields.select.updateSelectOptionName(
+        field,
+        update
+      )
+    } else if (field.type === FieldType.MultiSelect) {
+      return await tableManager.fields.multiSelect.updateSelectOptionName(
+        field,
+        update
+      )
+    }
+  }
+
   public async setRow(tableId: string, rowId: string, data: any) {
     return await this.table(tableId).rows.update(rowId, data, {
       useFieldId: true,
@@ -648,6 +685,7 @@ export class DataSpace {
 
   // just execute, no return
   public exec(sql: string, bind: any[] = []) {
+    console.debug(sql, bind)
     this.db.exec({
       sql,
       bind,

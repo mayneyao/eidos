@@ -3,6 +3,7 @@ import { Plus } from "lucide-react"
 
 import { SelectField } from "@/lib/fields/select"
 import { IField } from "@/lib/store/interface"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   CardContent,
@@ -24,12 +25,21 @@ const useFieldChange = (
   field: SelectField,
   onPropertyChange: (property: any) => void
 ) => {
+  const { sqlite } = useSqlite()
+
   const handleOptionNameChange = useCallback(
     (optionId: string, name: string) => {
+      const oldOptionName = field.options.find((o) => o.id === optionId)?.name
       field.changeOptionName(optionId, name)
       onPropertyChange(field.column.property)
+      if (sqlite) {
+        sqlite.updateSelectOptionName(field.column, {
+          from: oldOptionName!,
+          to: name,
+        })
+      }
     },
-    [field, onPropertyChange]
+    [field, onPropertyChange, sqlite]
   )
 
   const handleOptionColorChange = useCallback(
@@ -44,8 +54,11 @@ const useFieldChange = (
     (optionId: string) => {
       field.deleteOption(optionId)
       onPropertyChange(field.column.property)
+      if (sqlite) {
+        sqlite.deleteSelectOption(field.column, optionId)
+      }
     },
-    [field, onPropertyChange]
+    [field, onPropertyChange, sqlite]
   )
 
   return {
