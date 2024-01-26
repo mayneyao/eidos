@@ -1,6 +1,7 @@
 import { getRawTableNameById } from "@/lib/utils"
 
 import { DataSpace } from "../DataSpace"
+import { FieldsManager } from "./fields"
 import { RowsManager } from "./rows"
 
 export class TableManager {
@@ -12,5 +13,8 @@ export class TableManager {
 
   get rows() {
     return new RowsManager(this)
+  }
+  get fields() {
+    return new FieldsManager(this)
   }
 }

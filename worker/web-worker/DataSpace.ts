@@ -1,7 +1,7 @@
 import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
-import { allFieldTypesMap } from "@/lib/fields"
+import { FieldType } from "@/lib/fields/const"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
@@ -12,8 +12,6 @@ import {
   getRawTableNameById,
   getTableIdByRawTableName,
   isDayPageId,
-  shortenId,
-  uuidv4,
 } from "@/lib/utils"
 
 import { ITreeNode } from "../../lib/store/ITreeNode"
@@ -163,6 +161,17 @@ export class DataSpace {
     return new TableManager(id, this)
   }
 
+  public async getLookupContext(tableName: string, columnName: string) {
+    const tableId = getTableIdByRawTableName(tableName)
+    const tableManager = this.table(tableId)
+    return tableManager.fields.lookup.getLookupContext(tableName, columnName)
+  }
+  public updateLookupColumn(tableName: string, columnName: string) {
+    const tableId = getTableIdByRawTableName(tableName)
+    const tableManager = this.table(tableId)
+    return tableManager.fields.lookup.updateColumn(tableName, columnName)
+  }
+
   public async setRow(tableId: string, rowId: string, data: any) {
     return await this.table(tableId).rows.update(rowId, data, {
       useFieldId: true,
@@ -180,6 +189,30 @@ export class DataSpace {
     const oldValue = row?.[data.fieldId]
 
     if (oldValue !== data.value) {
+      // const tableName = getRawTableNameById(data.tableId)
+      // const field = await this.column.getColumn(tableName, data.fieldId)
+      // if (field?.type === FieldType.Link) {
+      //   // if link field, we need to update link count
+      //   const linkTableId = getTableIdByRawTableName(
+      //     (field.property as LinkProperty).linkTable
+      //   )
+      //   const linkTable = this.table(linkTableId)
+      //   console.log(linkTable)
+      //   const linkRow = await linkTable.rows.query(
+      //     { _id: data.value },
+      //     { raw: true, limit: 1 }
+      //   )
+      //   const title = linkRow?.[0]?.title
+      //   console.log("linkRow", linkRow)
+      //   return await this.table(data.tableId).rows.update(
+      //     data.rowId,
+      //     {
+      //       [data.fieldId]: data.value,
+      //       [`${data.fieldId}__title`]: title,
+      //     },
+      //     { useFieldId: true }
+      //   )
+      // }
       return await this.table(data.tableId).rows.update(
         data.rowId,
         {
@@ -301,7 +334,7 @@ export class DataSpace {
     tableName: string
     tableColumnName: string
     property: any
-    isFormula?: boolean
+    type: FieldType
   }) {
     return await this.column.updateProperty(data)
   }

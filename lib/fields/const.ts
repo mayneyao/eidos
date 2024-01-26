@@ -11,6 +11,8 @@ export enum FieldType {
   URL = "url",
   Formula = "formula",
   Link = "link",
+  Lookup = "lookup",
+  // Rollup = "rollup",
   CreatedTime = "created-time",
   CreatedBy = "created-by",
   LastEditedTime = "last-edited-time",

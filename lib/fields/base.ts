@@ -1,21 +1,54 @@
 import { IField } from "@/lib/store/interface"
 
+import { getFieldInstance } from "."
 import { CompareOperator, FieldType } from "./const"
 
-type UIColumn<P> = Omit<IField, "property"> & {
-  property: P
-}
+// cellData, Property, RawData, row context, field context
+interface IBaseField<CD, P, R, RC, FC> {
+  /**
+   * column from eidos__columns table, guild how to render this field
+   */
+  column: IField<P>
+  context: FC | undefined
 
-interface IBaseField<T, P, R, C> {
-  column: UIColumn<P>
+  get entityFieldInstance(): BaseField<any, any, any, any, any> | null
+
+  /**
+   * define the compare operators for this field, will be used in the filter
+   */
   compareOperators: string[]
-  getCellContent(rawData: any, context?: C): T
+  /**
+   * for render cell, for grid view
+   * @param rawData raw data stored in the database
+   * @param context some field need context to render, like user field need user map. we only store the user id in the database
+   */
+  getCellContent(rawData: any, context?: RC): CD
+
+  /**
+   * we store the raw data in the database, but we need to transform the raw data into json for other usage which make it more readable
+   * eg: API, SDK, Script etc
+   * {
+   *  title: "this is title",
+   *  cl_xxx: "field1 value",
+   *  cl_yyy: "field2 value",
+   * } => {
+   *  title: "this is title",
+   *  field1: "field1 value",
+   *  field2: "field2 value",
+   * }
+   * @param rawData data stored in the database, most of the time, it's a string
+   */
   rawData2JSON(rawData: R): any
-  cellData2RawData(cell: T): any
+
+  /**
+   * transform the cell data into raw data, which can be stored in the database
+   * @param cell cell data, which is the return value of getCellContent
+   */
+  cellData2RawData(cell: CD): any
 }
 
-export abstract class BaseField<T, P, R = string, C = any>
-  implements IBaseField<T, P, R, C>
+export abstract class BaseField<CD, P, R = string, RC = any, FC = any>
+  implements IBaseField<CD, P, R, RC, FC>
 {
   static type: FieldType
 
@@ -24,9 +57,16 @@ export abstract class BaseField<T, P, R = string, C = any>
    * we use the ui column to store the column's display name, type, and other ui related information
    * different field will have different property
    */
-  column: UIColumn<P>
-  constructor(column: UIColumn<P>) {
+  column: IField<P>
+  context: FC | undefined
+  constructor(column: IField<P>, context?: FC) {
     this.column = column
+    this.context = context
+  }
+
+  get entityFieldInstance(): BaseField<any, any, any, any, any> | null {
+    const field = getFieldInstance(this.column)
+    return field
   }
 
   abstract get compareOperators(): CompareOperator[]
@@ -35,11 +75,11 @@ export abstract class BaseField<T, P, R = string, C = any>
    * transform the raw data into the cell content for rendering
    * @param rawData this is the raw data stored in the database
    */
-  abstract getCellContent(rawData: any, context?: C): T
+  abstract getCellContent(rawData: any, context?: RC): CD
 
   abstract rawData2JSON(rawData: R): any
 
-  abstract cellData2RawData(cell: T): {
+  abstract cellData2RawData(cell: CD): {
     rawData: any
     shouldUpdateFieldProperty?: boolean
   }

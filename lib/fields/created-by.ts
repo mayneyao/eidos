@@ -6,7 +6,7 @@ import { CompareOperator, FieldType, GridCellKind } from "./const"
 type CreatedByProperty = {}
 
 export type UserFieldContext = {
-  userMap: {
+  userMap?: {
     [id: string]: {
       name: string
       avatar?: string
@@ -40,7 +40,7 @@ export class CreatedByField extends BaseField<
     context: UserFieldContext
   ): UserProfileCell {
     const { userMap } = context
-    const user = userMap[rawData || ""] || {
+    const user = userMap?.[rawData || ""] || {
       name: "unknown",
     }
     return {

@@ -3,7 +3,7 @@ import { LinkCell } from "@/components/grid/cells/link-cell"
 import { BaseField } from "./base"
 import { FieldType, GridCellKind } from "./const"
 
-type LinkProperty = {
+export type ILinkProperty = {
   linkTable: string
 }
 
@@ -13,7 +13,7 @@ export type LinkCellData = {
   img?: string
 }
 
-export class LinkField extends BaseField<LinkCell, LinkProperty> {
+export class LinkField extends BaseField<LinkCell, ILinkProperty> {
   static type = FieldType.Link
 
   rawData2JSON(rawData: string) {
@@ -24,32 +24,27 @@ export class LinkField extends BaseField<LinkCell, LinkProperty> {
     return []
   }
 
-  getCellContent(rawData: LinkCellData[]): LinkCell {
-    if (typeof rawData === "string") {
-      return {
-        kind: GridCellKind.Custom,
-        data: {
-          kind: "link-cell",
-          value: [
-            {
-              id: rawData,
-              title: "unknown",
-            },
-          ],
-          linkTable: this.column.property.linkTable,
-        },
-        copyData: "unknown",
-        allowOverlay: true,
-      }
-    }
+  getCellContent(
+    rawData: string,
+    context?: { row?: Record<string, string> }
+  ): LinkCell {
+    const titleKey = `${this.column.table_column_name}__title`
+    const showText = context?.row?.[titleKey] || "unknown"
     return {
       kind: GridCellKind.Custom,
       data: {
         kind: "link-cell",
-        value: rawData ?? [],
+        value: rawData
+          ? [
+              {
+                id: rawData,
+                title: showText,
+              },
+            ]
+          : [],
         linkTable: this.column.property.linkTable,
       },
-      copyData: rawData?.map((item) => item.title).join(", "),
+      copyData: showText,
       allowOverlay: true,
     }
   }

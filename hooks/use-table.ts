@@ -23,22 +23,26 @@ import { useSqlWorker } from "./use-sql-worker"
 import { useSqlite, useSqliteStore } from "./use-sqlite"
 import { useUiColumns } from "./use-ui-columns"
 
-export const useTableFields = (tableIdOrName: string, databaseName: string) => {
+export const useTableFields = (
+  tableIdOrName: string | undefined,
+  databaseName: string
+) => {
   const {
     dataStore: { tableMap },
   } = useSqliteStore()
   // console.log({ tableId })
   const nodeId = useMemo(() => {
-    if (tableIdOrName.startsWith("tb_")) {
-      return tableIdOrName.replace("tb_", "")
+    if (tableIdOrName?.startsWith("tb_")) {
+      return tableIdOrName?.replace("tb_", "")
     }
     return tableIdOrName
   }, [tableIdOrName])
-  const node = tableMap[nodeId]
+  const node = tableMap[nodeId || ""]
   const fieldMap = node?.fieldMap
   const fields = useMemo(() => {
     return Object.values(fieldMap ?? {})
   }, [fieldMap])
+
   return {
     fields,
     fieldMap,
@@ -56,7 +60,6 @@ export const useTableViews = (tableId: string, databaseName: string) => {
 }
 
 export const useTableOperation = (tableName: string, databaseName: string) => {
-  const { withTransaction } = useSqlite(databaseName)
   const sqlite = useSqlWorker()
   const { setViews, setNode, setRows } = useSqliteStore()
   const tableId = getTableIdByRawTableName(tableName)
@@ -129,7 +132,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
       tableName,
       tableColumnName: field.table_column_name,
       property,
-      isFormula: field.type === FieldType.Formula,
+      type: field.type,
     })
     await updateUiColumns()
   }
@@ -178,7 +181,6 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     async (querySql: string) => {
       if (sqlite) {
         const res = await sqlite.runAIgeneratedSQL(querySql, tableName)
-        console.log(res)
         if (checkSqlIsModifyTableSchema(querySql)) {
         }
         if (checkSqlIsOnlyQuery(querySql)) {
@@ -233,12 +235,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
               const linkId = row[columnName]
               const linkFieldIdTitleMap = linkDataMap[columnName]
               if (linkId) {
-                row[columnName] = [
-                  {
-                    id: linkId,
-                    title: linkFieldIdTitleMap[linkId],
-                  },
-                ]
+                row[`${columnName}__title`] = linkFieldIdTitleMap[linkId]
               }
             })
           })
@@ -246,7 +243,6 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
       }
       setRows(tableId, data)
       return data.map((row) => row._id)
-      // return data
     },
     [setRows, sqlite, tableId, tableName, uiColumnMap]
   )

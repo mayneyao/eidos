@@ -13,14 +13,20 @@ export const useCurrentUiColumns = () => {
   return useUiColumns(tableName!, space!)
 }
 
-export const useUiColumns = (tableName: string, databaseName: string) => {
+export const useUiColumns = (
+  tableName: string | undefined,
+  _databaseName?: string
+) => {
+  const { space } = useCurrentPathInfo()
+  const databaseName = _databaseName || space
   const { sqlite } = useSqlite(databaseName)
   const { setFields: setUiColumns } = useSqliteStore()
   const { fields: uiColumns } = useTableFields(tableName, databaseName)
-  const tableId = getTableIdByRawTableName(tableName)
+  const tableId = getTableIdByRawTableName(tableName || "")
+
   const updateUiColumns = useCallback(async () => {
-    if (!sqlite) return
-    const res = await sqlite.listUiColumns(tableName!)
+    if (!sqlite || !tableName) return
+    const res = await sqlite.listUiColumns(tableName)
     setUiColumns(tableId, res)
   }, [setUiColumns, sqlite, tableId, tableName])
 

@@ -4,6 +4,7 @@ import {
   EidosDataEventChannelName,
 } from "@/lib/const"
 import { FieldType } from "@/lib/fields/const"
+import { ILinkProperty } from "@/lib/fields/link"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { transformFormula2VirtualGeneratedField } from "@/lib/sqlite/sql-formula-parser"
 import { IField } from "@/lib/store/interface"
@@ -60,6 +61,12 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
             `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_last_edited_time);`
           )
           break
+        case FieldType.Link:
+          this.dataSpace.exec(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType};
+            ALTER TABLE ${table_name} ADD COLUMN ${table_column_name}__title TEXT;`
+          )
+          break
         default:
           this.dataSpace.exec(
             `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType};`
@@ -78,15 +85,25 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     return data
   }
 
-  get(id: string): Promise<IField | null> {
-    throw new Error("Method not implemented.")
+  async getColumn<T = any>(
+    tableName: string,
+    tableColumnName: string
+  ): Promise<IField<T> | null> {
+    const res = await this.dataSpace.exec2(
+      `SELECT * FROM ${ColumnTableName} WHERE table_name=? AND table_column_name=?`,
+      [tableName, tableColumnName]
+    )
+    if (res.length === 0) return null
+    return this.toJson(res[0])
   }
+
   set(id: string, data: Partial<IField>): Promise<boolean> {
     throw new Error("Method not implemented.")
   }
   del(id: string): Promise<boolean> {
     throw new Error("Method not implemented.")
   }
+
   async deleteField(tableName: string, tableColumnName: string) {
     try {
       await this.dataSpace.withTransaction(async () => {
@@ -124,9 +141,9 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     tableName: string
     tableColumnName: string
     property: any
-    isFormula?: boolean
+    type: FieldType
   }) {
-    const { tableName, tableColumnName, property, isFormula } = data
+    const { tableName, tableColumnName, property, type } = data
     await this.dataSpace.withTransaction(async () => {
       await this.dataSpace.sql`UPDATE ${Symbol(
         ColumnTableName
@@ -134,26 +151,43 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         property
       )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
 
-      if (isFormula) {
-        const fields = await this.list({ table_name: tableName })
-        const formulaExpr = transformFormula2VirtualGeneratedField(
-          tableColumnName,
-          fields
-        )
-        this.dataSpace.exec(
-          `
-          ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};
-          ALTER TABLE ${tableName} ADD COLUMN ${tableColumnName} GENERATED ALWAYS AS ${formulaExpr};
-          `
-        )
-        bc.postMessage({
-          type: EidosDataEventChannelMsgType.DataUpdateSignalType,
-          payload: {
-            type: DataUpdateSignalType.UpdateColumn,
-            table: tableName,
-            column: data,
-          },
-        })
+      switch (type) {
+        case FieldType.Link:
+          // get old property
+          // const oldProperty =
+          const field = await this.getColumn<ILinkProperty>(
+            tableName,
+            tableColumnName
+          )
+          const newLinkTable = (property as ILinkProperty).linkTable
+          const oldLinkTable = field?.property.linkTable
+          if (oldLinkTable !== newLinkTable) {
+            console.log("update link title column")
+          }
+          break
+        case FieldType.Formula:
+          const fields = await this.list({ table_name: tableName })
+          const formulaExpr = transformFormula2VirtualGeneratedField(
+            tableColumnName,
+            fields
+          )
+          this.dataSpace.exec(
+            `
+            ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};
+            ALTER TABLE ${tableName} ADD COLUMN ${tableColumnName} GENERATED ALWAYS AS ${formulaExpr};
+            `
+          )
+          bc.postMessage({
+            type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+            payload: {
+              type: DataUpdateSignalType.UpdateColumn,
+              table: tableName,
+              column: data,
+            },
+          })
+          break
+        default:
+          break
       }
     })
   }

@@ -1,4 +1,6 @@
-import { allFieldTypesMap } from "@/lib/fields"
+import { E } from "@/dist/assets/index-APMDTUpB"
+
+import { allFieldTypesMap, getFieldInstance } from "@/lib/fields"
 import type { IField } from "@/lib/store/interface"
 import { uuidv4 } from "@/lib/utils"
 
@@ -70,9 +72,7 @@ export class RowsManager {
           //
           return
         }
-        const fieldType = uiColumn.type
-        const fieldCls = allFieldTypesMap[fieldType]
-        const field = new fieldCls(uiColumn)
+        const field = getFieldInstance(uiColumn)
         data[uiColumn.name] = field.rawData2JSON(value as never)
       }
     })
@@ -95,7 +95,7 @@ export class RowsManager {
       const rawColumnName = options?.useFieldId
         ? key
         : fieldNameRawColumnNameMap[key]
-      if (key === "_id") {
+      if (key === "_id" || (key.startsWith("cl_") && key.length > 7)) {
         // pass
       } else if (!rawColumnName) {
         // delete key
@@ -104,9 +104,7 @@ export class RowsManager {
       } else {
         // transform text to raw data
         const uiColumn = fieldRawColumnNameFieldMap[rawColumnName]
-        const fieldType = uiColumn.type
-        const fieldCls = allFieldTypesMap[fieldType]
-        const field = new fieldCls(uiColumn)
+        const field = getFieldInstance(uiColumn)
         data[key] = field.text2RawData(data[key])
       }
     })
@@ -267,6 +265,7 @@ export class RowsManager {
       }
     )
 
+    console.log(rawData, notExistKeys, data)
     if (notExistKeys.length > 0) {
       throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
     }

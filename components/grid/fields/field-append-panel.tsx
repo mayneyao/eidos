@@ -14,6 +14,7 @@ import {
   TagIcon,
   TagsIcon,
   UserIcon,
+  TextSearchIcon,
 } from "lucide-react"
 
 import { FieldType } from "@/lib/fields/const"
@@ -71,7 +72,12 @@ export function FieldAppendPanel({
       name: "Link",
       value: FieldType.Link,
       icon: LinkIcon,
-      disable: !enableTableLinkField,
+      disable: false,
+    },
+    {
+      name: "Lookup",
+      value: FieldType.Lookup,
+      icon: TextSearchIcon,
     },
     {
       name: "Created Time",

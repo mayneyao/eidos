@@ -22,6 +22,15 @@ export class BaseTableImpl<T = any> {
     this.dataSpace.exec(createTableSql)
   }
 
+  public toJson = (data: T) => {
+    Object.entries(data as any).forEach(([key, value]) => {
+      if (this.JSONFields.includes(key) && value) {
+        ;(data as any)[key] = JSON.parse(value as string)
+      }
+    })
+    return data
+  }
+
   async get(id: string): Promise<T | null> {
     const res = await this.dataSpace.exec2(
       `SELECT * FROM ${this.name} where id = ?;`,
@@ -32,12 +41,7 @@ export class BaseTableImpl<T = any> {
     }
     // JSONFields transform
     const item = res[0]
-    Object.entries(item as any).forEach(([key, value]) => {
-      if (this.JSONFields.includes(key) && value) {
-        ;(item as any)[key] = JSON.parse(value as string)
-      }
-    })
-    return item
+    return this.toJson(item)
   }
 
   transformData = (data: Partial<T>) => {
@@ -92,12 +96,7 @@ export class BaseTableImpl<T = any> {
       )
     }
     return res.map((item) => {
-      Object.keys(item as any).forEach((key) => {
-        if (this.JSONFields.includes(key)) {
-          ;(item as any)[key] = JSON.parse((item as any)[key] as string)
-        }
-      })
-      return item
+      return this.toJson(item)
     })
   }
 }
