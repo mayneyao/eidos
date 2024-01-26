@@ -105,7 +105,6 @@
     "react-selecto": "^1.26.0",
     "react-virtualized-auto-sizer": "^1.0.20",
     "react-window": "^1.8.9",
-    "sharp": "^0.31.3",
     "sort-by": "^1.2.0",
     "tailwind-merge": "^1.13.2",
     "tailwindcss-animate": "^1.0.6",
