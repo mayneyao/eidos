@@ -1,6 +1,4 @@
-import { E } from "@/dist/assets/index-APMDTUpB"
-
-import { allFieldTypesMap, getFieldInstance } from "@/lib/fields"
+import { getFieldInstance } from "@/lib/fields"
 import type { IField } from "@/lib/store/interface"
 import { uuidv4 } from "@/lib/utils"
 

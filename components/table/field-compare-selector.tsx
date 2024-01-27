@@ -1,4 +1,4 @@
-import { allFieldTypesMap } from "@/lib/fields"
+import { getFieldInstance } from "@/lib/fields"
 import { CompareOperator } from "@/lib/fields/const"
 import { IField } from "@/lib/store/interface"
 import {
@@ -23,8 +23,7 @@ export const FieldCompareSelector = ({
   if (!field) {
     return null
   }
-  const fieldCls = allFieldTypesMap[field?.type]
-  const fieldInstance = new fieldCls(field)
+  const fieldInstance = getFieldInstance(field)
   const fieldCompareOperators = fieldInstance.compareOperators
   return (
     <Select value={value} onValueChange={onChange}>
