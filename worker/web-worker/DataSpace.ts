@@ -24,7 +24,6 @@ import { DocTable } from "./meta_table/doc"
 import { EmbeddingTable, IEmbedding } from "./meta_table/embedding"
 import { FileTable, IFile } from "./meta_table/file"
 import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
-import { Table } from "./meta_table/table"
 import { TreeTable } from "./meta_table/tree"
 import { ViewTable } from "./meta_table/view"
 import { RowsManager } from "./sdk/rows"
@@ -59,7 +58,6 @@ export class DataSpace {
   column: ColumnTable
   embedding: EmbeddingTable
   file: FileTable
-  _table: Table
   dataChangeTrigger: DataChangeTrigger
   allTables: BaseTable<any>[] = []
 
@@ -78,7 +76,6 @@ export class DataSpace {
     this.dbName = dbName
     this.initUDF()
     this.dataChangeTrigger = new DataChangeTrigger()
-    this._table = new Table(this)
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
     this.script = new ScriptTable(this)
@@ -518,19 +515,22 @@ export class DataSpace {
   // table
 
   public async fixTable(tableId: string) {
-    return await this._table.fixTable(tableId)
+    const tableManager = this.table(tableId)
+    return await tableManager.fixTable(tableId)
   }
   public async hasSystemColumn(tableId: string, column: string) {
-    return await this._table.hasSystemColumn(tableId, column)
+    const tableManager = this.table(tableId)
+    return await tableManager.hasSystemColumn(tableId, column)
   }
 
   // table
   public async isTableExist(id: string) {
-    return await this._table.isExist(id)
+    const tableManager = this.table(id)
+    return await tableManager.isExist(id)
   }
 
   public async deleteTable(id: string) {
-    await this._table.del(id)
+    await this.table(id).del(id)
   }
 
   public async listDays(page: number) {
