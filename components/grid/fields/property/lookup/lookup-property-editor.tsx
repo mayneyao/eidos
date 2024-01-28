@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 
 import { FieldType } from "@/lib/fields/const"
+import { ILinkProperty } from "@/lib/fields/link"
 import { ILookupProperty } from "@/lib/fields/lookup"
 import { IField } from "@/lib/store/interface"
 import { useSqlite } from "@/hooks/use-sqlite"
@@ -25,14 +26,14 @@ export const LookupPropertyEditor = (props: IFieldPropertyEditorProps) => {
     props.uiColumn.property
   )
 
-  const linkField = useMemo(() => {
+  const linkField = useMemo<IField<ILinkProperty> | undefined>(() => {
     return allLinkFields.find(
       (field) => field.table_column_name === properties.linkFieldId
     )
   }, [allLinkFields, properties.linkFieldId])
 
   const { uiColumns: linkTableFields } = useUiColumns(
-    linkField?.property.linkTable
+    linkField?.property.linkTableName
   )
 
   const handleUpdateProperties = (key: string, value: any) => {

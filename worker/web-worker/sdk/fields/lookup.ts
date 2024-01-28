@@ -45,7 +45,7 @@ export class LookupFieldService {
       return null
     }
     const lookupTargetField = await this.dataSpace.column.getColumn(
-      linkField.property.linkTable,
+      linkField.property.linkTableName,
       lookupTargetFieldId
     )
     if (!lookupTargetField) {
@@ -55,14 +55,14 @@ export class LookupFieldService {
       null
     if (lookupTargetField.type === FieldType.Lookup) {
       context = await this.getLookupContext(
-        linkField.property.linkTable,
+        linkField.property.linkTableName,
         lookupTargetFieldId
       )
     }
     return {
       linkField,
       lookupTargetFieldsMap: {
-        [getTableIdByRawTableName(linkField.property.linkTable)]: {
+        [getTableIdByRawTableName(linkField.property.linkTableName)]: {
           [lookupTargetFieldId]: {
             field: lookupTargetField,
             context,

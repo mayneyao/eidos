@@ -219,34 +219,20 @@ export class DataSpace {
     value: any
   }) {
     const tableManager = this.table(data.tableId)
-    const row = await tableManager.rows.get(data.rowId)
+    const row = await tableManager.rows.get(data.rowId, { raw: true })
     const oldValue = row?.[data.fieldId]
 
     if (oldValue !== data.value) {
-      // const tableName = getRawTableNameById(data.tableId)
-      // const field = await this.column.getColumn(tableName, data.fieldId)
-      // if (field?.type === FieldType.Link) {
-      //   // if link field, we need to update link count
-      //   const linkTableId = getTableIdByRawTableName(
-      //     (field.property as LinkProperty).linkTable
-      //   )
-      //   const linkTable = this.table(linkTableId)
-      //   console.log(linkTable)
-      //   const linkRow = await linkTable.rows.query(
-      //     { _id: data.value },
-      //     { raw: true, limit: 1 }
-      //   )
-      //   const title = linkRow?.[0]?.title
-      //   console.log("linkRow", linkRow)
-      //   return await this.table(data.tableId).rows.update(
-      //     data.rowId,
-      //     {
-      //       [data.fieldId]: data.value,
-      //       [`${data.fieldId}__title`]: title,
-      //     },
-      //     { useFieldId: true }
-      //   )
-      // }
+      const tableName = getRawTableNameById(data.tableId)
+      const field = await this.column.getColumn(tableName, data.fieldId)
+      if (field?.type === FieldType.Link) {
+        await tableManager.fields.link.updateCell(
+          field,
+          data.rowId,
+          data.value,
+          oldValue
+        )
+      }
       return await this.table(data.tableId).rows.update(
         data.rowId,
         {
@@ -541,9 +527,9 @@ export class DataSpace {
     return await this.doc.listAllDayPages()
   }
 
-  public syncExec2(sql: string, bind: any[] = []) {
+  public syncExec2(sql: string, bind: any[] = [], db = this.db) {
     const res: any[] = []
-    this.db.exec({
+    db.exec({
       sql,
       bind,
       returnValue: "resultRows",

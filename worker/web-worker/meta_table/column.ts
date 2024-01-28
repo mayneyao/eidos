@@ -8,7 +8,9 @@ import { ILinkProperty } from "@/lib/fields/link"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { transformFormula2VirtualGeneratedField } from "@/lib/sqlite/sql-formula-parser"
 import { IField } from "@/lib/store/interface"
+import { getTableIdByRawTableName } from "@/lib/utils"
 
+import { TableManager } from "../sdk/table"
 import { BaseTable, BaseTableImpl } from "./base"
 
 const bc = new BroadcastChannel(EidosDataEventChannelName)
@@ -36,40 +38,50 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
       [FieldType.Rating]: "INT",
     }
     const columnType = typeMap[type] ?? "TEXT"
-    await this.dataSpace.withTransaction(async () => {
+    const tableId = getTableIdByRawTableName(table_name)
+    await this.dataSpace.db.transaction(async (db) => {
       let _property = property
       if (type === FieldType.Formula) {
         _property = { formula: "upper(title)" }
       }
-      this.dataSpace.exec(
+      // add ui column
+      this.dataSpace.syncExec2(
         `INSERT INTO ${ColumnTableName} (name,type,table_name,table_column_name,property) VALUES (?,?,?,?,?)`,
-        [name, type, table_name, table_column_name, JSON.stringify(_property)]
+        [name, type, table_name, table_column_name, JSON.stringify(_property)],
+        db
       )
+      // add real column in table
       switch (type) {
         case FieldType.Formula:
-          this.dataSpace.exec(
-            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (upper(title));`
+          this.dataSpace.syncExec2(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (upper(title));`,
+            [],
+            db
           )
           break
         case FieldType.CreatedTime:
-          this.dataSpace.exec(
-            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_created_time);`
+          this.dataSpace.syncExec2(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_created_time);`,
+            [],
+            db
           )
           break
         case FieldType.LastEditedTime:
-          this.dataSpace.exec(
-            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_last_edited_time);`
+          this.dataSpace.syncExec2(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_last_edited_time);`,
+            [],
+            db
           )
           break
         case FieldType.Link:
-          this.dataSpace.exec(
-            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType};
-            ALTER TABLE ${table_name} ADD COLUMN ${table_column_name}__title TEXT;`
-          )
+          const tm = new TableManager(tableId, this.dataSpace)
+          await tm.fields.link.add(data, db)
           break
         default:
-          this.dataSpace.exec(
-            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType};`
+          this.dataSpace.syncExec2(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} ${columnType};`,
+            [],
+            db
           )
           break
       }
@@ -119,6 +131,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         )
       })
     } catch (error) {
+      console.error(error)
       this.dataSpace.notify({
         title: "Error",
         description:
@@ -159,8 +172,8 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
             tableName,
             tableColumnName
           )
-          const newLinkTable = (property as ILinkProperty).linkTable
-          const oldLinkTable = field?.property.linkTable
+          const newLinkTable = (property as ILinkProperty).linkTableName
+          const oldLinkTable = field?.property.linkTableName
           if (oldLinkTable !== newLinkTable) {
             console.log("update link title column")
           }

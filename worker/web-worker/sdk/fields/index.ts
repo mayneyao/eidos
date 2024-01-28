@@ -1,5 +1,6 @@
 import { DataSpace } from "../../DataSpace"
 import { TableManager } from "../table"
+import { LinkFieldService } from "./link"
 import { LookupFieldService } from "./lookup"
 import { MultiSelectFieldService } from "./multi-select"
 import { SelectFieldService } from "./select"
@@ -20,5 +21,9 @@ export class FieldsManager {
 
   get multiSelect() {
     return new MultiSelectFieldService(this.table)
+  }
+
+  get link() {
+    return new LinkFieldService(this.table)
   }
 }

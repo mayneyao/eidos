@@ -129,12 +129,15 @@ export class RowsManager {
    * @param id
    * @returns
    */
-  async get(id: string) {
+  async get(id: string, options?: { raw?: boolean }) {
     const { fieldRawColumnNameFieldMap } = await this.getFieldMap()
     const sql = `SELECT * FROM ${this.table.rawTableName} WHERE _id = ?`
     const rows = await this.dataSpace.exec2(sql, [id])
     if (rows.length === 0) {
       return null
+    }
+    if (options?.raw) {
+      return rows[0]
     }
     return RowsManager.rawData2Json(rows[0], fieldRawColumnNameFieldMap)
   }

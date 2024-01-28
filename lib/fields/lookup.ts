@@ -44,7 +44,7 @@ export class LookupField extends BaseField<
    */
   getTargetFieldInstance(): BaseField<any, any, any, any, any> | null {
     const { lookupTargetFieldId } = this.column.property
-    const linkTable = this.context?.linkField?.property?.linkTable
+    const linkTable = this.context?.linkField?.property?.linkTableName
     const linkTableId = getTableIdByRawTableName(linkTable || "")
     const target =
       this.context?.lookupTargetFieldsMap[linkTableId]?.[lookupTargetFieldId]
