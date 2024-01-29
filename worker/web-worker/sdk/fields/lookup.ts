@@ -95,13 +95,12 @@ export class LookupFieldService {
       table_name: targetTableName,
     } = targetField.column
     let sql = `
-UPDATE ${tableName} 
-SET ${tableColumnName} = (
-  SELECT b.${targetTableColumnName} 
-  FROM ${targetTableName} as b 
-  WHERE ${tableName}.${column.property.linkFieldId} = b._id
-)
-`
+    UPDATE ${tableName}
+    SET ${tableColumnName} = (
+        SELECT GROUP_CONCAT(b.${targetTableColumnName})
+        FROM ${targetTableName} as b
+        WHERE ',' || ${tableName}.${column.property.linkFieldId} || ',' LIKE '%,' || b._id || ',%'
+    )`
     // WHERE EXISTS (
     //     SELECT 1
     //     FROM ${targetTableName} as b
