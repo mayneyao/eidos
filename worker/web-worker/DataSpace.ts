@@ -16,9 +16,7 @@ import {
 
 import { ITreeNode } from "../../lib/store/ITreeNode"
 import { IView } from "../../lib/store/IView"
-import {
-  DataChangeEventHandler
-} from "./DataChangeEventHandler"
+import { DataChangeEventHandler } from "./DataChangeEventHandler"
 import { DbMigrator } from "./DbMigrator"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
@@ -540,6 +538,13 @@ export class DataSpace {
 
   public syncExec2(sql: string, bind: any[] = [], db = this.db) {
     const res: any[] = []
+    console.debug(
+      "[%cSQLQuery:%cCallViaMethod]",
+      "color:indigo",
+      "color:green",
+      sql,
+      bind
+    )
     db.exec({
       sql,
       bind,
@@ -558,13 +563,6 @@ export class DataSpace {
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
-    console.debug(
-      "[%cSQLQuery:%cCallViaMethod]",
-      "color:indigo",
-      "color:green",
-      sql,
-      bind
-    )
     return this.syncExec2(sql, bind)
   }
 

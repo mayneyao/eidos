@@ -48,7 +48,7 @@ export class ComputeService {
         rowIds,
         fields,
       })
-      effectFieldsMap[tableName].forEach((field) => {
+      effectFieldsMap[tableName]?.forEach((field) => {
         tm.fields.lookup.updateColumn(tableName, field, rowIds)
       })
     })

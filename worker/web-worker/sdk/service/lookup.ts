@@ -25,10 +25,6 @@ export class LookupFieldService {
     tableName: string,
     tableColumnName: string
   ): Promise<ILookupContext | null> => {
-    console.log("getLookupContext", {
-      tableName,
-      tableColumnName,
-    })
     const column = await this.dataSpace.column.getColumn(
       tableName,
       tableColumnName
@@ -129,14 +125,22 @@ export class LookupFieldService {
   }
 
   /**
-   *
-   * @param id table_column_name
+   * <linkField>__title field can be treated as a lookup field and the lookupTargetField is the title field
    */
-  updateColumn = async (
-    tableName: string,
-    tableColumnName: string,
-    rowIds?: string[]
-  ) => {
+  getLinkTitleContext = async (tableName: string, tableColumnName: string) => {
+    const linkField = await this.dataSpace.column.getColumn<ILinkProperty>(
+      tableName,
+      tableColumnName.replace("__title", "")
+    )
+    if (!linkField) return
+    return {
+      targetTableColumnName: "title",
+      targetTableName: linkField.property.linkTableName,
+      linkFieldId: linkField.table_column_name,
+    }
+  }
+
+  _getLookupContext = async (tableName: string, tableColumnName: string) => {
     const column = await this.dataSpace.column.getColumn<ILookupProperty>(
       tableName,
       tableColumnName
@@ -150,12 +154,38 @@ export class LookupFieldService {
       table_column_name: targetTableColumnName,
       table_name: targetTableName,
     } = targetField.column
+
+    return {
+      targetTableColumnName,
+      targetTableName,
+      linkFieldId: column.property.linkFieldId,
+    }
+  }
+
+  getFieldContext = (tableName: string, tableColumnName: string) => {
+    if (tableColumnName.endsWith("__title")) {
+      return this.getLinkTitleContext(tableName, tableColumnName)
+    }
+    return this._getLookupContext(tableName, tableColumnName)
+  }
+  /**
+   *
+   * @param id table_column_name
+   */
+  updateColumn = async (
+    tableName: string,
+    tableColumnName: string,
+    rowIds?: string[]
+  ) => {
+    const context = await this.getFieldContext(tableName, tableColumnName)
+    if (!context) return
+    const { targetTableColumnName, targetTableName, linkFieldId } = context
     let sql = `
     UPDATE ${tableName}
     SET ${tableColumnName} = (
         SELECT GROUP_CONCAT(b.${targetTableColumnName})
         FROM ${targetTableName} as b
-        WHERE ',' || ${tableName}.${column.property.linkFieldId} || ',' LIKE '%,' || b._id || ',%'
+        WHERE ',' || ${tableName}.${linkFieldId} || ',' LIKE '%,' || b._id || ',%'
     )`
     // WHERE EXISTS (
     //     SELECT 1
@@ -164,10 +194,8 @@ export class LookupFieldService {
     //   )
     if (rowIds) {
       sql += ` WHERE ${tableName}._id IN (${rowIds.map(() => "?").join(",")})`
-      console.log(sql)
       this.dataSpace.exec(sql, [...rowIds])
     } else {
-      console.log(sql)
       this.dataSpace.exec(sql)
     }
   }

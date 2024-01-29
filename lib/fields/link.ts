@@ -40,7 +40,7 @@ export class LinkField extends BaseField<LinkCell, ILinkProperty> {
         kind: "link-cell",
         value: zip(ids, titles).map(([id, title]) => ({
           id: id || "",
-          title: title || "",
+          title: title || "Untitled",
         })),
         linkTable: this.column.property.linkTableName,
       },

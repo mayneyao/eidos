@@ -242,6 +242,37 @@ export class LinkFieldService {
       db
     )
 
+    /**
+     * because <link>__title column do not exist in eidos__column table, so we need to turn off foreign key check
+     * TODO: REMEMBER we need to clear this reference when user delete the link field
+     */
+    db.exec("PRAGMA foreign_keys = OFF;")
+    // add reference for link__title field
+    await this.dataSpace.reference.add(
+      {
+        self_table_name: table_name,
+        self_table_column_name: `${table_column_name}__title`,
+        ref_table_name: pairedField.table_name,
+        ref_table_column_name: "title",
+        link_table_name: table_name,
+        link_table_column_name: table_column_name,
+      },
+      db
+    )
+    await this.dataSpace.reference.add(
+      {
+        self_table_name: pairedField.table_name,
+        self_table_column_name: `${pairedField.table_column_name}__title`,
+        ref_table_name: table_name,
+        ref_table_column_name: "title",
+        link_table_name: pairedField.table_name,
+        link_table_column_name: pairedField.table_column_name,
+      },
+      db
+    )
+    // open foreign key check
+    db.exec("PRAGMA foreign_keys = ON;")
+
     // add relation table
     const relationTableName = `lk_${table_name}_${pairedField.table_name}`
     const reverseRelationTableName = `lk_${pairedField.table_name}_${table_name}`
