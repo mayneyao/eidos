@@ -9,6 +9,7 @@ export class FieldsManager {
   dataSpace: DataSpace
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
+    this.table = table
   }
 
   get lookup() {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 
 import {
   DataUpdateSignalType,
+  EidosDataEventChannelMsg,
   EidosDataEventChannelMsgType,
   EidosDataEventChannelName,
 } from "@/lib/const"
@@ -60,7 +61,7 @@ export const useGalleryViewData = (view: IView) => {
   useEffect(() => {
     // TODO: Use a universal data source manager, which should be a singleton instance, with a mapping to store all data sources, and also an array to store the order.
     const bc = new BroadcastChannel(EidosDataEventChannelName)
-    bc.onmessage = (e: MessageEvent) => {
+    bc.onmessage = (e: MessageEvent<EidosDataEventChannelMsg>) => {
       const { type, payload } = e.data
       if (
         type === EidosDataEventChannelMsgType.DataUpdateSignalType &&

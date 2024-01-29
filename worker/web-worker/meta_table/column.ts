@@ -5,6 +5,7 @@ import {
 } from "@/lib/const"
 import { FieldType } from "@/lib/fields/const"
 import { ILinkProperty } from "@/lib/fields/link"
+import { ILookupProperty } from "@/lib/fields/lookup"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { transformFormula2VirtualGeneratedField } from "@/lib/sqlite/sql-formula-parser"
 import { IField } from "@/lib/store/interface"
@@ -25,7 +26,8 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     table_column_name TEXT,
     property TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(table_name, table_column_name)
   );
 `
   JSONFields: string[] = ["property"]
@@ -158,6 +160,8 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   }) {
     const { tableName, tableColumnName, property, type } = data
     await this.dataSpace.withTransaction(async () => {
+      const oldField = await this.getColumn(tableName, tableColumnName)
+      if (!oldField) return
       await this.dataSpace.sql`UPDATE ${Symbol(
         ColumnTableName
       )} SET property = ${JSON.stringify(
@@ -165,6 +169,13 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
       )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
 
       switch (type) {
+        case FieldType.Lookup:
+          const tm = new TableManager(
+            getTableIdByRawTableName(tableName),
+            this.dataSpace
+          )
+          await tm.fields.lookup.onPropertyChange(oldField, property)
+          break
         case FieldType.Link:
           // get old property
           // const oldProperty =

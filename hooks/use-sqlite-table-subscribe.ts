@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react"
 
 import {
   DataUpdateSignalType,
+  EidosDataEventChannelMsg,
   EidosDataEventChannelMsgType,
   EidosDataEventChannelName,
 } from "@/lib/const"
@@ -25,21 +26,7 @@ export const useSqliteTableSubscribe = (tableName: string) => {
 
   useEffect(() => {
     const bc = new BroadcastChannel(EidosDataEventChannelName)
-    const handler = (
-      ev: MessageEvent<{
-        type: EidosDataEventChannelMsgType
-        payload: {
-          type: DataUpdateSignalType
-          table: string
-          _new: Record<string, any> & {
-            _id: string
-          }
-          _old: Record<string, any> & {
-            _id: string
-          }
-        }
-      }>
-    ) => {
+    const handler = (ev: MessageEvent<EidosDataEventChannelMsg>) => {
       const { type, payload } = ev.data
       // resend msg to main thread, why broadcast channel not work???
       window.postMessage(ev.data)

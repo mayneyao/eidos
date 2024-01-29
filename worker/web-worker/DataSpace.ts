@@ -16,6 +16,9 @@ import {
 
 import { ITreeNode } from "../../lib/store/ITreeNode"
 import { IView } from "../../lib/store/IView"
+import {
+  DataChangeEventHandler
+} from "./DataChangeEventHandler"
 import { DbMigrator } from "./DbMigrator"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
@@ -23,6 +26,7 @@ import { ColumnTable } from "./meta_table/column"
 import { DocTable } from "./meta_table/doc"
 import { EmbeddingTable, IEmbedding } from "./meta_table/embedding"
 import { FileTable, IFile } from "./meta_table/file"
+import { ReferenceTable } from "./meta_table/reference"
 import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
 import { TreeTable } from "./meta_table/tree"
 import { ViewTable } from "./meta_table/view"
@@ -56,10 +60,14 @@ export class DataSpace {
   tree: TreeTable
   view: ViewTable
   column: ColumnTable
+  reference: ReferenceTable
   embedding: EmbeddingTable
   file: FileTable
   dataChangeTrigger: DataChangeTrigger
   allTables: BaseTable<any>[] = []
+
+  // for trigger
+  eventHandler: DataChangeEventHandler
 
   // for auto migration
   hasMigrated = false
@@ -75,6 +83,7 @@ export class DataSpace {
     this.draftDb = draftDb
     this.dbName = dbName
     this.initUDF()
+    this.eventHandler = new DataChangeEventHandler(this)
     this.dataChangeTrigger = new DataChangeTrigger()
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
@@ -84,6 +93,7 @@ export class DataSpace {
     this.file = new FileTable(this)
     this.column = new ColumnTable(this)
     this.embedding = new EmbeddingTable(this)
+    this.reference = new ReferenceTable(this)
     //
     this.allTables = [
       this.doc,
@@ -94,6 +104,7 @@ export class DataSpace {
       this.column,
       this.embedding,
       this.file,
+      this.reference,
     ]
     // migration
     if (this.draftDb) {

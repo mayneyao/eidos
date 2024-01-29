@@ -31,6 +31,15 @@ export class BaseTableImpl<T = any> {
     return data
   }
 
+  async delBy(data: Partial<T>): Promise<boolean> {
+    const { deleteKPlaceholder, values } = this.transformData(data)
+    await this.dataSpace.exec2(
+      `DELETE FROM ${this.name} WHERE ${deleteKPlaceholder};`,
+      values
+    )
+    return true
+  }
+
   async get(id: string): Promise<T | null> {
     const res = await this.dataSpace.exec2(
       `SELECT * FROM ${this.name} where id = ?;`,
@@ -53,12 +62,14 @@ export class BaseTableImpl<T = any> {
     const updateKPlaceholder = kv.map(([k, v]) => `${k} = ?`).join(", ")
     const insertKPlaceholder = kv.map(([k]) => k).join(", ")
     const insertVPlaceholder = kv.map(() => "?").join(", ")
+    const deleteKPlaceholder = kv.map(([k]) => `${k} = ?`).join(" AND ")
     const values = kv.map(([, v]) => v)
     return {
       kv,
       updateKPlaceholder,
       insertKPlaceholder,
       insertVPlaceholder,
+      deleteKPlaceholder,
       values,
     }
   }

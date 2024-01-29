@@ -42,6 +42,38 @@ export class LinkFieldService {
     }
   }
 
+  getEffectRows = async (
+    table_name: string,
+    rowIds: string[],
+    db = this.dataSpace.db
+  ) => {
+    // get all lk table
+    const allLinkTables = db.selectObjects(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'lk_${table_name}%'`
+    )
+    const allLinkRelationTableNames = allLinkTables.map(
+      (item: any) => item.name
+    )
+    const effectRows: Record<string, string[]> = {}
+    allLinkRelationTableNames.forEach((relationTableName) => {
+      const sql = `SELECT ref FROM ${relationTableName} WHERE self IN (${rowIds
+        .map(() => "?")
+        .join(",")})`
+      const bind = [...rowIds]
+      const res = db.selectObjects(sql, bind)
+      const refTableName = relationTableName.replace(
+        `lk_${table_name}_`,
+        ""
+      ) as string
+      const rows = res.map((item: any) => item.ref)
+      if (!effectRows[refTableName]) {
+        effectRows[refTableName] = []
+      }
+      effectRows[refTableName] = [...effectRows[refTableName], ...rows]
+    })
+    return effectRows
+  }
+
   getTableNodeName = async (tableName: string) => {
     const nodeId = getTableIdByRawTableName(tableName)
     const node = await this.dataSpace.tree.get(nodeId)
@@ -218,13 +250,17 @@ export class LinkFieldService {
           self TEXT,
           ref TEXT,
           link_field_id TEXT,
-          PRIMARY KEY (self,ref,link_field_id)
+          PRIMARY KEY (self,ref,link_field_id),
+          FOREIGN KEY (self) REFERENCES ${table_name}(_id) ON DELETE CASCADE,
+          FOREIGN KEY (ref) REFERENCES ${pairedField.table_name}(_id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS ${reverseRelationTableName} (
           self TEXT,
           ref TEXT,
           link_field_id TEXT,
-          PRIMARY KEY (self,ref,link_field_id)
+          PRIMARY KEY (self,ref,link_field_id),
+          FOREIGN KEY (self) REFERENCES ${pairedField.table_name}(_id) ON DELETE CASCADE,
+          FOREIGN KEY (ref) REFERENCES ${table_name}(_id) ON DELETE CASCADE
         );
         `,
       [],

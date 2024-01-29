@@ -3,8 +3,9 @@ import { IView } from "@/lib/store/IView"
 import { getRawTableNameById } from "@/lib/utils"
 
 import { DataSpace } from "../DataSpace"
-import { FieldsManager } from "./fields"
 import { RowsManager } from "./rows"
+import { FieldsManager } from "./service"
+import { ComputeService } from "./service/compute"
 
 interface ITable {
   id: string
@@ -17,6 +18,10 @@ export class TableManager {
   rawTableName: string
   constructor(public id: string, public dataSpace: DataSpace) {
     this.rawTableName = getRawTableNameById(id)
+  }
+
+  get compute() {
+    return new ComputeService(this.dataSpace)
   }
 
   get rows() {

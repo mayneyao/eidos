@@ -72,6 +72,62 @@ export class LookupFieldService {
     }
   }
 
+  onPropertyChange = async (
+    field: IField<ILookupProperty>,
+    newProperty: ILookupProperty
+  ) => {
+    if (!field) return
+    const { table_name, table_column_name } = field
+    const { linkFieldId, lookupTargetFieldId } = field.property
+    if (
+      linkFieldId === newProperty.linkFieldId &&
+      lookupTargetFieldId === newProperty.lookupTargetFieldId
+    ) {
+      return
+    }
+    const oldLinkField = await this.dataSpace.column.getColumn<ILinkProperty>(
+      table_name,
+      linkFieldId
+    )
+    if (!oldLinkField) return
+
+    let newLinkField = oldLinkField
+    if (linkFieldId !== newProperty.linkFieldId) {
+      const _newLinkField =
+        await this.dataSpace.column.getColumn<ILinkProperty>(
+          table_name,
+          newProperty.linkFieldId
+        )
+      if (!_newLinkField) return
+      newLinkField = _newLinkField
+    }
+
+    // delete old reference
+    // old lookupTargetFieldId changed
+    if (
+      linkFieldId === newProperty.linkFieldId &&
+      lookupTargetFieldId !== newProperty.lookupTargetFieldId
+    ) {
+      await this.dataSpace.reference.delBy({
+        self_table_name: table_name,
+        self_table_column_name: table_column_name,
+        ref_table_name: oldLinkField.property.linkTableName,
+        ref_table_column_name: lookupTargetFieldId,
+        link_table_name: table_name,
+        link_table_column_name: linkFieldId,
+      })
+    }
+    // add new reference
+    await this.dataSpace.reference.add({
+      self_table_name: table_name,
+      self_table_column_name: table_column_name,
+      ref_table_name: newLinkField.property.linkTableName,
+      ref_table_column_name: newProperty.lookupTargetFieldId,
+      link_table_name: newLinkField.table_name,
+      link_table_column_name: newLinkField.table_column_name,
+    })
+  }
+
   /**
    *
    * @param id table_column_name
@@ -107,9 +163,9 @@ export class LookupFieldService {
     //     WHERE ${tableName}.${column.property.linkFieldId} = b._id
     //   )
     if (rowIds) {
-      sql += ` WHERE ${tableName}._id IN (?)`
+      sql += ` WHERE ${tableName}._id IN (${rowIds.map(() => "?").join(",")})`
       console.log(sql)
-      this.dataSpace.exec(sql, [rowIds])
+      this.dataSpace.exec(sql, [...rowIds])
     } else {
       console.log(sql)
       this.dataSpace.exec(sql)
