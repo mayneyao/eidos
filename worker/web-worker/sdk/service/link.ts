@@ -49,27 +49,26 @@ export class LinkFieldService {
   ) => {
     // get all lk table
     const allLinkTables = db.selectObjects(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'lk_${table_name}%'`
+      `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'lk_tb_%${table_name}%'`
     )
     const allLinkRelationTableNames = allLinkTables.map(
       (item: any) => item.name
     )
     const effectRows: Record<string, string[]> = {}
     allLinkRelationTableNames.forEach((relationTableName) => {
-      const sql = `SELECT ref FROM ${relationTableName} WHERE self IN (${rowIds
+      const sql = `SELECT self FROM ${relationTableName} WHERE ref IN (${rowIds
         .map(() => "?")
         .join(",")})`
       const bind = [...rowIds]
       const res = db.selectObjects(sql, bind)
-      const refTableName = relationTableName.replace(
-        `lk_${table_name}_`,
-        ""
-      ) as string
-      const rows = res.map((item: any) => item.ref)
-      if (!effectRows[refTableName]) {
-        effectRows[refTableName] = []
+      const effectTableName = relationTableName
+        .replace(`_${table_name}`, "")
+        .replace("lk_", "")
+      const rows = res.map((item: any) => item.self)
+      if (!effectRows[effectTableName]) {
+        effectRows[effectTableName] = []
       }
-      effectRows[refTableName] = [...effectRows[refTableName], ...rows]
+      effectRows[effectTableName] = [...effectRows[effectTableName], ...rows]
     })
     return effectRows
   }
@@ -193,14 +192,44 @@ export class LinkFieldService {
         })
       })
       const effectRows = [...added, ...removed]
+
+      const thisTableEffectFields =
+        await this.dataSpace.reference.getEffectedFields(
+          field.table_name,
+          field.table_column_name
+        )
+      thisTableEffectFields.forEach(async (field) => {
+        this.table.fields.lookup.updateColumn({
+          tableName: field.table_name,
+          tableColumnName: field.table_column_name,
+          db,
+          rowIds: [rowId],
+        })
+      })
+
       // update paired link field
       const values = await this.getLinkCellValue(pairedField, effectRows, db)
+      const effectFields = await this.dataSpace.reference.getEffectedFields(
+        pairedField.table_name,
+        pairedField.table_column_name
+      )
+      console.log("effectFields", { effectFields, effectRows })
       effectRows.forEach(async (rowId) => {
+        // when link relation update, we also need to update the paired link relation and title
         const value = values[rowId]?.join(",") || null
         const title = await this.getLinkCellTitle(pairedField, value)
         db.exec({
           sql: `UPDATE ${pairedField.table_name} SET ${pairedField.table_column_name} = ?, ${pairedField.table_column_name}__title = ? WHERE _id = ?`,
           bind: [value, title, rowId],
+        })
+      })
+      // also need to update lookup fields depend on this link field
+      effectFields.forEach(async (field) => {
+        this.table.fields.lookup.updateColumn({
+          tableName: field.table_name,
+          tableColumnName: field.table_column_name,
+          db,
+          rowIds: effectRows,
         })
       })
       // update title

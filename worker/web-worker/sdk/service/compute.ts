@@ -6,7 +6,7 @@ import { TableManager } from "../table"
 export class ComputeService {
   constructor(private dataSpace: DataSpace) {}
 
-  getEffectCells = async (signal: {
+  updateEffectCells = async (signal: {
     table: string
     rowId: string
     diff: Record<
@@ -27,6 +27,7 @@ export class ComputeService {
         this.dataSpace.reference.getEffectedFields(table, key)
       )
     )
+
     const effectFieldsMap = effectFields
       .flat()
       .reduce((acc: Record<string, string[]>, cur) => {
@@ -36,20 +37,18 @@ export class ComputeService {
         acc[cur.table_name].push(cur.table_column_name)
         return acc
       }, {})
-
+    // console.log({ effectRowsMap, effectFieldsMap, effectFields })
     Object.entries(effectRowsMap).forEach(([tableName, rowIds]) => {
       const tm = new TableManager(
         getTableIdByRawTableName(tableName),
         this.dataSpace
       )
-      const fields = effectFieldsMap[tableName]
-      console.log({
-        tableName,
-        rowIds,
-        fields,
-      })
       effectFieldsMap[tableName]?.forEach((field) => {
-        tm.fields.lookup.updateColumn(tableName, field, rowIds)
+        tm.fields.lookup.updateColumn({
+          tableName,
+          tableColumnName: field,
+          rowIds,
+        })
       })
     })
   }

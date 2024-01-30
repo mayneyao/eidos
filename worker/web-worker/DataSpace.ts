@@ -175,7 +175,10 @@ export class DataSpace {
   public updateLookupColumn(tableName: string, columnName: string) {
     const tableId = getTableIdByRawTableName(tableName)
     const tableManager = this.table(tableId)
-    return tableManager.fields.lookup.updateColumn(tableName, columnName)
+    return tableManager.fields.lookup.updateColumn({
+      tableName,
+      tableColumnName: columnName,
+    })
   }
 
   public deleteSelectOption = async (

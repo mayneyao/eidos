@@ -1,3 +1,5 @@
+import { Database } from "@sqlite.org/sqlite-wasm"
+
 import { getFieldInstance } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { ILinkProperty } from "@/lib/fields/link"
@@ -172,11 +174,13 @@ export class LookupFieldService {
    *
    * @param id table_column_name
    */
-  updateColumn = async (
-    tableName: string,
-    tableColumnName: string,
+  updateColumn = async (data: {
+    tableName: string
+    tableColumnName: string
+    db?: Database
     rowIds?: string[]
-  ) => {
+  }) => {
+    const { tableName, tableColumnName, db = this.dataSpace.db, rowIds } = data
     const context = await this.getFieldContext(tableName, tableColumnName)
     if (!context) return
     const { targetTableColumnName, targetTableName, linkFieldId } = context
@@ -192,11 +196,11 @@ export class LookupFieldService {
     //     FROM ${targetTableName} as b
     //     WHERE ${tableName}.${column.property.linkFieldId} = b._id
     //   )
-    if (rowIds) {
+    if (rowIds?.length) {
       sql += ` WHERE ${tableName}._id IN (${rowIds.map(() => "?").join(",")})`
-      this.dataSpace.exec(sql, [...rowIds])
+      this.dataSpace.syncExec2(sql, [...rowIds], db)
     } else {
-      this.dataSpace.exec(sql)
+      this.dataSpace.syncExec2(sql, [], db)
     }
   }
 }

@@ -28,10 +28,10 @@ export class DataChangeEventHandler {
               diff,
               diffKeys,
             }
+            console.log("updateSignal", updateSignal)
             const tableId = getTableIdByRawTableName(table)
             const tm = new TableManager(tableId, this.dataSpace)
-            const res = await tm.compute.getEffectCells(updateSignal)
-            console.log(res)
+            await tm.compute.updateEffectCells(updateSignal)
             break
           case DataUpdateSignalType.Delete:
             break
