@@ -1,3 +1,5 @@
+import { Database } from "@sqlite.org/sqlite-wasm"
+
 import { generateMergeTableWithNewColumnsSql } from "@/lib/sqlite/sql-merge-table-with-new-columns"
 import { IView } from "@/lib/store/IView"
 import { getRawTableNameById } from "@/lib/utils"
@@ -16,8 +18,14 @@ interface ITable {
 export class TableManager {
   // table name in sqlite
   rawTableName: string
+  db: Database | null = null
   constructor(public id: string, public dataSpace: DataSpace) {
     this.rawTableName = getRawTableNameById(id)
+    this.db = dataSpace.db
+  }
+
+  startTransaction(db: Database) {
+    this.db = db
   }
 
   get compute() {

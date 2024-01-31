@@ -77,7 +77,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
           break
         case FieldType.Link:
           const tm = new TableManager(tableId, this.dataSpace)
-          await tm.fields.link.add(data, db)
+          await tm.fields.link.addField(data, db)
           break
         default:
           this.dataSpace.syncExec2(

@@ -18,6 +18,7 @@ import { ITreeNode } from "../../lib/store/ITreeNode"
 import { IView } from "../../lib/store/IView"
 import { DataChangeEventHandler } from "./DataChangeEventHandler"
 import { DbMigrator } from "./DbMigrator"
+import { LinkRelationUpdater } from "./LinkRelationUpdater"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
 import { ColumnTable } from "./meta_table/column"
@@ -62,6 +63,7 @@ export class DataSpace {
   embedding: EmbeddingTable
   file: FileTable
   dataChangeTrigger: DataChangeTrigger
+  linkRelationUpdater: LinkRelationUpdater
   allTables: BaseTable<any>[] = []
 
   // for trigger
@@ -83,6 +85,7 @@ export class DataSpace {
     this.initUDF()
     this.eventHandler = new DataChangeEventHandler(this)
     this.dataChangeTrigger = new DataChangeTrigger()
+    this.linkRelationUpdater = new LinkRelationUpdater(this)
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
     this.script = new ScriptTable(this)

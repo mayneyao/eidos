@@ -34,6 +34,26 @@ export class DataChangeEventHandler {
             await tm.compute.updateEffectCells(updateSignal)
             break
           case DataUpdateSignalType.Delete:
+            if (table.startsWith("lk_")) {
+              const tableId = getTableIdByRawTableName(table)
+              const tm = new TableManager(tableId, this.dataSpace)
+              const res = await tm.fields.link.getEffectRowsByRelationDeleted(
+                table,
+                _old as any
+              )
+              Object.entries(res).forEach(([tableName, fieldRowIdsMap]) => {
+                Object.entries(fieldRowIdsMap).forEach(([k, v]) => {
+                  Array.from(v as Set<string>).forEach((rowId) => {
+                    this.dataSpace.linkRelationUpdater.addCell(
+                      tableName,
+                      k,
+                      rowId
+                    )
+                  })
+                })
+              })
+              break
+            }
             break
           default:
             break

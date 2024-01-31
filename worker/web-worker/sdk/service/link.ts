@@ -1,3 +1,5 @@
+import { Database } from "@sqlite.org/sqlite-wasm"
+
 import { FieldType } from "@/lib/fields/const"
 import { ILinkProperty } from "@/lib/fields/link"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -7,10 +9,52 @@ import { getTableIdByRawTableName } from "@/lib/utils"
 import { DataSpace } from "../../DataSpace"
 import { TableManager } from "../table"
 
+interface IRelation {
+  self: string
+  ref: string
+  link_field_id: string
+}
+
 export class LinkFieldService {
   dataSpace: DataSpace
+  db: Database
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
+    this.db = this.table.db || this.dataSpace.db
+  }
+
+  getEffectRowsByRelationDeleted = async (
+    relationTableName: string,
+    relation: IRelation,
+    db = this.dataSpace.db
+  ) => {
+    // relationTableName will be like lk_tb_xxx__tb_yyy
+    const [selfTable, refTable] = relationTableName
+      .replace("lk_", "")
+      .split("__", 2)
+    // self + link_field_id will update
+    const res1 = this.dataSpace.syncExec2(
+      `SELECT * FROM ${relationTableName} WHERE self = ? AND link_field_id = ?`,
+      [relation.self, relation.link_field_id],
+      db
+    )
+
+    return {
+      // group by link_field_id
+      [selfTable]: res1.reduce(
+        (acc: Record<string, Set<string>>, item: IRelation) => {
+          const linkFieldId = item.link_field_id
+          if (!acc[linkFieldId]) {
+            acc[linkFieldId] = new Set()
+          }
+          acc[linkFieldId].add(item.self)
+          return acc
+        },
+        {
+          [relation.link_field_id]: new Set([relation.self]),
+        }
+      ),
+    }
   }
 
   /**
@@ -62,7 +106,7 @@ export class LinkFieldService {
       const bind = [...rowIds]
       const res = db.selectObjects(sql, bind)
       const effectTableName = relationTableName
-        .replace(`_${table_name}`, "")
+        .replace(`__${table_name}`, "")
         .replace("lk_", "")
       const rows = res.map((item: any) => item.self)
       if (!effectRows[effectTableName]) {
@@ -79,7 +123,7 @@ export class LinkFieldService {
     return node?.name
   }
 
-  getParentLinkField = async (data: IField<ILinkProperty>) => {
+  getPairedLinkField = async (data: IField<ILinkProperty>) => {
     const { table_name, table_column_name } = data
     const pairedFieldProperty: ILinkProperty = {
       linkTableName: table_name,
@@ -98,12 +142,12 @@ export class LinkFieldService {
 
   getRelationTableName = (field: IField<ILinkProperty>) => {
     const { table_name, property } = field
-    return `lk_${table_name}_${property.linkTableName}`
+    return `lk_${table_name}__${property.linkTableName}`
   }
 
   getParentRelationTableName = (field: IField<ILinkProperty>) => {
     const { table_name, property } = field
-    return `lk_${property.linkTableName}_${table_name}`
+    return `lk_${property.linkTableName}__${table_name}`
   }
 
   getLinkCellTitle = async (
@@ -123,7 +167,7 @@ export class LinkFieldService {
     return rows.map((item) => item.title).join(",")
   }
 
-  getLinkCellValue = async (
+  private getLinkCellValue = async (
     field: IField<ILinkProperty>,
     rowIds: string[],
     db = this.dataSpace.db
@@ -146,6 +190,41 @@ export class LinkFieldService {
     return groupBySelf
   }
 
+  updateLinkCell = async (
+    tableName: string,
+    tableColumnName: string,
+    rowIds: string[]
+  ) => {
+    const field = await this.dataSpace.column.getColumn(
+      tableName,
+      tableColumnName
+    )
+    if (!field) return
+
+    const values = await this.getLinkCellValue(field, rowIds)
+    // update link cell and title
+    rowIds.forEach(async (rowId) => {
+      const value = values[rowId]?.join(",") || null
+      const title = await this.getLinkCellTitle(field, value)
+      this.dataSpace.db.exec({
+        sql: `UPDATE ${tableName} SET ${tableColumnName} = ?, ${tableColumnName}__title = ? WHERE _id = ?`,
+        bind: [value, title, rowId],
+      })
+    })
+    // update lookup cell
+    const effectFields = await this.dataSpace.reference.getEffectedFields(
+      tableName,
+      tableColumnName
+    )
+    effectFields.forEach(async (field) => {
+      this.table.fields.lookup.updateColumn({
+        tableName: field.table_name,
+        tableColumnName: field.table_column_name,
+        rowIds,
+      })
+    })
+  }
+
   /**
    * when user setCell, we also need to update the paired link field and update relation table
    * @param field
@@ -162,8 +241,9 @@ export class LinkFieldService {
     // get diff between new value and old value
     const { added, removed } = this.getDiff(value, oldValue)
     const relationTableName = this.getRelationTableName(field)
-    const pairedField = await this.getParentLinkField(field)
+    const pairedField = await this.getPairedLinkField(field)
     const reverseRelationTableName = this.getParentRelationTableName(field)
+    const effectRows = [...added, ...removed]
 
     this.dataSpace.db.transaction(async (db) => {
       // update relation table
@@ -191,7 +271,6 @@ export class LinkFieldService {
           bind: [item, rowId, field.property.linkColumnName],
         })
       })
-      const effectRows = [...added, ...removed]
 
       const thisTableEffectFields =
         await this.dataSpace.reference.getEffectedFields(
@@ -241,10 +320,16 @@ export class LinkFieldService {
     })
   }
 
-  add = async (data: IField<ILinkProperty>, db = this.dataSpace.db) => {
+  /**
+   * when user add a link field, we also need to add a paired link field and create relation table and set trigger
+   * @param data
+   * @param db
+   * @returns
+   */
+  addField = async (data: IField<ILinkProperty>, db = this.dataSpace.db) => {
     const { table_name, table_column_name } = data
     // link field always has a paired link field
-    const pairedField = await this.getParentLinkField(data)
+    const pairedField = await this.getPairedLinkField(data)
     console.log("pairedField", pairedField)
     // generate paired link field
 
@@ -302,9 +387,9 @@ export class LinkFieldService {
     // open foreign key check
     db.exec("PRAGMA foreign_keys = ON;")
 
-    // add relation table
-    const relationTableName = `lk_${table_name}_${pairedField.table_name}`
-    const reverseRelationTableName = `lk_${pairedField.table_name}_${table_name}`
+    // add relation table and delete trigger
+    const relationTableName = `lk_${table_name}__${pairedField.table_name}`
+    const reverseRelationTableName = `lk_${pairedField.table_name}__${table_name}`
     this.dataSpace.syncExec2(
       `CREATE TABLE IF NOT EXISTS ${relationTableName} (
           self TEXT,
@@ -314,6 +399,14 @@ export class LinkFieldService {
           FOREIGN KEY (self) REFERENCES ${table_name}(_id) ON DELETE CASCADE,
           FOREIGN KEY (ref) REFERENCES ${pairedField.table_name}(_id) ON DELETE CASCADE
         );
+
+        CREATE TRIGGER IF NOT EXISTS data_delete_trigger_${relationTableName}
+        AFTER DELETE ON ${relationTableName}
+        FOR EACH ROW
+        BEGIN
+            SELECT eidos_data_event_delete('${relationTableName}', json_object('self',OLD.self,'ref',OLD.ref,'link_field_id',OLD.link_field_id));
+        END;
+
         CREATE TABLE IF NOT EXISTS ${reverseRelationTableName} (
           self TEXT,
           ref TEXT,
@@ -322,6 +415,13 @@ export class LinkFieldService {
           FOREIGN KEY (self) REFERENCES ${pairedField.table_name}(_id) ON DELETE CASCADE,
           FOREIGN KEY (ref) REFERENCES ${table_name}(_id) ON DELETE CASCADE
         );
+
+        CREATE TRIGGER IF NOT EXISTS data_delete_trigger_${reverseRelationTableName}
+        AFTER DELETE ON ${reverseRelationTableName}
+        FOR EACH ROW
+        BEGIN
+            SELECT eidos_data_event_delete('${reverseRelationTableName}', json_object('self',OLD.self,'ref',OLD.ref,'link_field_id',OLD.link_field_id));
+        END;
         `,
       [],
       db

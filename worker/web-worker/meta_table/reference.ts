@@ -20,6 +20,9 @@ export interface IReference {
   link_table_column_name: string
 }
 
+/**
+ * just for field reference relation, not for link cell
+ */
 export class ReferenceTable
   extends BaseTableImpl
   implements BaseTable<IReference>
