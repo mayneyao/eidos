@@ -17,6 +17,21 @@ export class DataChangeEventHandler {
       const { type, payload } = e.data
       if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
         const { _new, _old, table } = payload
+        if (table.startsWith("lk_")) {
+          switch (payload.type) {
+            case DataUpdateSignalType.Insert:
+            case DataUpdateSignalType.Delete:
+              this.handleLinkRelationChange({
+                table,
+                _old,
+                _new,
+              })
+              break
+            default:
+              break
+          }
+          return
+        }
         switch (payload.type) {
           case DataUpdateSignalType.Insert:
           case DataUpdateSignalType.Update:
@@ -34,26 +49,6 @@ export class DataChangeEventHandler {
             await tm.compute.updateEffectCells(updateSignal)
             break
           case DataUpdateSignalType.Delete:
-            if (table.startsWith("lk_")) {
-              const tableId = getTableIdByRawTableName(table)
-              const tm = new TableManager(tableId, this.dataSpace)
-              const res = await tm.fields.link.getEffectRowsByRelationDeleted(
-                table,
-                _old as any
-              )
-              Object.entries(res).forEach(([tableName, fieldRowIdsMap]) => {
-                Object.entries(fieldRowIdsMap).forEach(([k, v]) => {
-                  Array.from(v as Set<string>).forEach((rowId) => {
-                    this.dataSpace.linkRelationUpdater.addCell(
-                      tableName,
-                      k,
-                      rowId
-                    )
-                  })
-                })
-              })
-              break
-            }
             break
           default:
             break
@@ -62,6 +57,26 @@ export class DataChangeEventHandler {
     }
   }
 
+  handleLinkRelationChange = async (data: {
+    table: string
+    _old: Record<string, any>
+    _new: Record<string, any>
+  }) => {
+    const { table, _old, _new } = data
+    const tableId = getTableIdByRawTableName(table)
+    const tm = new TableManager(tableId, this.dataSpace)
+    const res = await tm.fields.link.getEffectRowsByRelationDeleted(
+      table,
+      (_old || _new) as any
+    )
+    Object.entries(res).forEach(([tableName, fieldRowIdsMap]) => {
+      Object.entries(fieldRowIdsMap).forEach(([k, v]) => {
+        Array.from(v as Set<string>).forEach((rowId) => {
+          this.dataSpace.linkRelationUpdater.addCell(tableName, k, rowId)
+        })
+      })
+    })
+  }
   static getDiff = (
     oldData: Record<string, any> | undefined,
     newData: Record<string, any>

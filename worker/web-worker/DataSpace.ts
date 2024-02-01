@@ -241,7 +241,7 @@ export class DataSpace {
       const tableName = getRawTableNameById(data.tableId)
       const field = await this.column.getColumn(tableName, data.fieldId)
       if (field?.type === FieldType.Link) {
-        await tableManager.fields.link.updateCell(
+        await tableManager.fields.link.updateLinkRelation(
           field,
           data.rowId,
           data.value,

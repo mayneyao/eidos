@@ -232,7 +232,7 @@ export class LinkFieldService {
    * @param value
    * @param oldValue
    */
-  updateCell = async (
+  updateLinkRelation = async (
     field: IField<ILinkProperty>,
     rowId: string,
     value: string | null,
@@ -241,13 +241,10 @@ export class LinkFieldService {
     // get diff between new value and old value
     const { added, removed } = this.getDiff(value, oldValue)
     const relationTableName = this.getRelationTableName(field)
-    const pairedField = await this.getPairedLinkField(field)
     const reverseRelationTableName = this.getParentRelationTableName(field)
-    const effectRows = [...added, ...removed]
 
     this.dataSpace.db.transaction(async (db) => {
       // update relation table
-      // TODO: use json function to filter added and removed
       db.exec({
         sql: `DELETE FROM ${relationTableName} WHERE self = ? AND ref IN (${removed
           .map(() => "?")
@@ -270,52 +267,6 @@ export class LinkFieldService {
           sql: `INSERT INTO ${reverseRelationTableName} (self,ref,link_field_id) VALUES (?,?,?)`,
           bind: [item, rowId, field.property.linkColumnName],
         })
-      })
-
-      const thisTableEffectFields =
-        await this.dataSpace.reference.getEffectedFields(
-          field.table_name,
-          field.table_column_name
-        )
-      thisTableEffectFields.forEach(async (field) => {
-        this.table.fields.lookup.updateColumn({
-          tableName: field.table_name,
-          tableColumnName: field.table_column_name,
-          db,
-          rowIds: [rowId],
-        })
-      })
-
-      // update paired link field
-      const values = await this.getLinkCellValue(pairedField, effectRows, db)
-      const effectFields = await this.dataSpace.reference.getEffectedFields(
-        pairedField.table_name,
-        pairedField.table_column_name
-      )
-      console.log("effectFields", { effectFields, effectRows })
-      effectRows.forEach(async (rowId) => {
-        // when link relation update, we also need to update the paired link relation and title
-        const value = values[rowId]?.join(",") || null
-        const title = await this.getLinkCellTitle(pairedField, value)
-        db.exec({
-          sql: `UPDATE ${pairedField.table_name} SET ${pairedField.table_column_name} = ?, ${pairedField.table_column_name}__title = ? WHERE _id = ?`,
-          bind: [value, title, rowId],
-        })
-      })
-      // also need to update lookup fields depend on this link field
-      effectFields.forEach(async (field) => {
-        this.table.fields.lookup.updateColumn({
-          tableName: field.table_name,
-          tableColumnName: field.table_column_name,
-          db,
-          rowIds: effectRows,
-        })
-      })
-      // update title
-      const title = await this.getLinkCellTitle(field, value)
-      db.exec({
-        sql: `UPDATE ${field.table_name} SET ${field.table_column_name}__title = ? WHERE _id = ?`,
-        bind: [title, rowId],
       })
     })
   }
@@ -407,6 +358,13 @@ export class LinkFieldService {
             SELECT eidos_data_event_delete('${relationTableName}', json_object('self',OLD.self,'ref',OLD.ref,'link_field_id',OLD.link_field_id));
         END;
 
+        CREATE TRIGGER IF NOT EXISTS data_insert_trigger_${relationTableName}
+        AFTER INSERT ON ${relationTableName}
+        FOR EACH ROW
+        BEGIN
+            SELECT eidos_data_event_insert('${relationTableName}', json_object('self',NEW.self,'ref',NEW.ref,'link_field_id',NEW.link_field_id));
+        END;
+
         CREATE TABLE IF NOT EXISTS ${reverseRelationTableName} (
           self TEXT,
           ref TEXT,
@@ -421,6 +379,13 @@ export class LinkFieldService {
         FOR EACH ROW
         BEGIN
             SELECT eidos_data_event_delete('${reverseRelationTableName}', json_object('self',OLD.self,'ref',OLD.ref,'link_field_id',OLD.link_field_id));
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS data_insert_trigger_${reverseRelationTableName}
+        AFTER INSERT ON ${reverseRelationTableName}
+        FOR EACH ROW
+        BEGIN
+            SELECT eidos_data_event_insert('${reverseRelationTableName}', json_object('self',NEW.self,'ref',NEW.ref,'link_field_id',NEW.link_field_id));
         END;
         `,
       [],
