@@ -9,6 +9,8 @@ export type IField<T = any> = {
   table_column_name: string
   table_name: string
   property: T
+  created_at?: string
+  updated_at?: string
 }
 
 export interface ITable {
