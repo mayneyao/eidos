@@ -46,10 +46,12 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     }
   }
 
-  async deleteByTableId(table_id: string) {
-    await this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE table_id = ?`, [
-      table_id,
-    ])
+  async deleteByTableId(table_id: string, db = this.dataSpace.db) {
+    this.dataSpace.syncExec2(
+      `DELETE FROM ${this.name} WHERE table_id = ?`,
+      [table_id],
+      db
+    )
   }
 
   // methods

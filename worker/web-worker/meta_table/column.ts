@@ -145,10 +145,11 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   /**
    * @param tableName tb_<uuid>
    */
-  async deleteByRawTableName(tableName: string) {
-    await this.dataSpace.exec2(
+  async deleteByRawTableName(tableName: string, db = this.dataSpace.db) {
+    this.dataSpace.syncExec2(
       `DELETE FROM ${ColumnTableName} WHERE table_name=?;`,
-      [tableName]
+      [tableName],
+      db
     )
   }
 

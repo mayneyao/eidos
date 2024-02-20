@@ -59,15 +59,17 @@ export class TableManager {
 
   async del(id: string): Promise<boolean> {
     const rawTableName = `tb_${id}`
-    await this.dataSpace.withTransaction(async () => {
+    await this.dataSpace.db.transaction(async (db) => {
+      // before delete table, we need to delete all related triggers and references
+      this.fields.link.beforeDeleteTable(rawTableName, db)
       // delete table
-      this.dataSpace.exec(`DROP TABLE ${rawTableName}`)
+      db.exec(`DROP TABLE ${rawTableName}`)
       // delete fields
-      await this.dataSpace.column.deleteByRawTableName(rawTableName)
+      await this.dataSpace.column.deleteByRawTableName(rawTableName, db)
       // delete views
-      await this.dataSpace.view.deleteByTableId(id)
+      await this.dataSpace.view.deleteByTableId(id, db)
       // delete tree node
-      await this.dataSpace.tree.del(id)
+      await this.dataSpace.tree.del(id, db)
     })
     return true
   }

@@ -59,10 +59,12 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     return Promise.resolve(true)
   }
 
-  async del(id: string): Promise<boolean> {
-    await this.dataSpace.sql`DELETE FROM ${Symbol(
-      TreeTableName
-    )} WHERE id = ${id}`
+  async del(id: string, db = this.dataSpace.db): Promise<boolean> {
+    this.dataSpace.syncExec2(
+      `DELETE FROM ${TreeTableName} WHERE id = ?`,
+      [id],
+      db
+    )
     return true
   }
 

@@ -393,4 +393,29 @@ export class LinkFieldService {
     )
     return db
   }
+
+  /**
+   * when user delete a table, we need check if there are link fields in the table, if so, we need to delete the paired link field and delete relation table and delete trigger
+   */
+  beforeDeleteTable(tableName: string, db = this.dataSpace.db) {
+    db.selectObjects(
+      `SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE 'lk_${tableName}__%' OR name LIKE 'lk_%__${tableName}')`
+    ).forEach((item) => {
+      const { name: relationTableName } = item
+      // delete trigger
+      db.selectObjects(
+        `SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name = ?`,
+        [relationTableName]
+      ).forEach((item: any) => {
+        db.exec(`DROP TRIGGER ${item.name}`)
+      })
+      // delete relation table
+      db.exec(`DROP TABLE ${relationTableName}`)
+    })
+  }
+
+  /**
+   * when user delete a link field, we also need to delete the paired link field and delete relation table and delete trigger
+   */
+  async beforeDeleteColumn() {}
 }
