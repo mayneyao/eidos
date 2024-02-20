@@ -28,6 +28,7 @@ import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { useUiColumns } from "@/hooks/use-ui-columns"
 import { useViewSort } from "@/hooks/use-view-sort"
 
 import { useTableAppStore } from "../store"
@@ -71,6 +72,7 @@ export function useAsyncData<TRowType>(
   const { space, tableId } = useCurrentPathInfo()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const { getViewSortedRows } = useViewSort(qs || "")
+  const { updateUiColumns } = useUiColumns(tableName)
   const _hasOrderBy = hasOrderBy(qs)
   const { sqlite } = useSqlite()
 
@@ -265,12 +267,21 @@ export function useAsyncData<TRowType>(
       const { type, payload } = ev.data
       if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
         const { table, _new, _old } = payload
+        if (
+          [
+            DataUpdateSignalType.AddColumn,
+            DataUpdateSignalType.UpdateColumn,
+          ].includes(payload.type)
+        ) {
+          switch (payload.type) {
+            case DataUpdateSignalType.AddColumn:
+            case DataUpdateSignalType.UpdateColumn:
+              updateUiColumns(table)
+              break
+          }
+        }
         if (tableName !== table) return
         switch (payload.type) {
-          case DataUpdateSignalType.AddColumn:
-          case DataUpdateSignalType.UpdateColumn:
-            // refreshCurrentVisible()
-            break
           case DataUpdateSignalType.Insert:
             checkRowExistInQuery(_new._id, async (isExist) => {
               if (!isExist) {
@@ -337,6 +348,7 @@ export function useAsyncData<TRowType>(
     setSubPage,
     tableId,
     tableName,
+    updateUiColumns,
   ])
 
   return {

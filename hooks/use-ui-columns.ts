@@ -22,17 +22,19 @@ export const useUiColumns = (
   const { sqlite } = useSqlite(databaseName)
   const { setFields: setUiColumns } = useSqliteStore()
   const { fields: uiColumns } = useTableFields(tableName, databaseName)
-  const tableId = getTableIdByRawTableName(tableName || "")
 
-  const updateUiColumns = useCallback(async () => {
-    if (!sqlite || !tableName) return
-    const res = await sqlite.listUiColumns(tableName)
-    // order by created_at
-    res.sort((a, b) => {
-      return (a.created_at || 0) > (b.created_at || 0) ? 1 : -1
-    })
-    setUiColumns(tableId, res)
-  }, [setUiColumns, sqlite, tableId, tableName])
+  const updateUiColumns = useCallback(
+    async (_tableName = tableName) => {
+      if (!sqlite || !_tableName) return
+      const res = await sqlite.listUiColumns(_tableName)
+      // order by created_at
+      res.sort((a, b) => {
+        return (a.created_at || 0) > (b.created_at || 0) ? 1 : -1
+      })
+      setUiColumns(getTableIdByRawTableName(_tableName || ""), res)
+    },
+    [setUiColumns, sqlite, tableName]
+  )
 
   useEffect(() => {
     // updateUiColumns()

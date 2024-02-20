@@ -397,7 +397,8 @@ export class LinkFieldService {
   /**
    * when user delete a table, we need check if there are link fields in the table, if so, we need to delete the paired link field and delete relation table and delete trigger
    */
-  beforeDeleteTable(tableName: string, db = this.dataSpace.db) {
+  async beforeDeleteTable(tableName: string, db = this.dataSpace.db) {
+    // clear relation
     db.selectObjects(
       `SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE 'lk_${tableName}__%' OR name LIKE 'lk_%__${tableName}')`
     ).forEach((item) => {
@@ -412,10 +413,17 @@ export class LinkFieldService {
       // delete relation table
       db.exec(`DROP TABLE ${relationTableName}`)
     })
+    // clear reference: lookup link title
+    await this.dataSpace.reference.delBy(
+      {
+        self_table_name: tableName,
+      },
+      db
+    )
   }
 
   /**
-   * when user delete a link field, we also need to delete the paired link field and delete relation table and delete trigger
+   * when user delete a link field, we also need to delete the paired link field and delete relation data
    */
   async beforeDeleteColumn() {}
 }

@@ -5,7 +5,6 @@ import {
 } from "@/lib/const"
 import { FieldType } from "@/lib/fields/const"
 import { ILinkProperty } from "@/lib/fields/link"
-import { ILookupProperty } from "@/lib/fields/lookup"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { transformFormula2VirtualGeneratedField } from "@/lib/sqlite/sql-formula-parser"
 import { IField } from "@/lib/store/interface"
@@ -29,6 +28,13 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(table_name, table_column_name)
   );
+
+  CREATE TRIGGER IF NOT EXISTS column_insert_trigger_${ColumnTableName}
+  AFTER INSERT ON ${ColumnTableName}
+  FOR EACH ROW
+  BEGIN
+      SELECT eidos_column_event_insert(new.table_name, json_object('name', new.name, 'type', new.type, 'table_name', new.table_name, 'table_column_name', new.table_column_name, 'property', new.property));
+  END;
 `
   JSONFields: string[] = ["property"]
 
@@ -88,14 +94,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
           break
       }
     })
-    bc.postMessage({
-      type: EidosDataEventChannelMsgType.DataUpdateSignalType,
-      payload: {
-        type: DataUpdateSignalType.AddColumn,
-        table: table_name,
-        column: data,
-      },
-    })
+
     return data
   }
 

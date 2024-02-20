@@ -31,11 +31,12 @@ export class BaseTableImpl<T = any> {
     return data
   }
 
-  async delBy(data: Partial<T>): Promise<boolean> {
+  async delBy(data: Partial<T>, db = this.dataSpace.db): Promise<boolean> {
     const { deleteKPlaceholder, values } = this.transformData(data)
-    await this.dataSpace.exec2(
+    this.dataSpace.syncExec2(
       `DELETE FROM ${this.name} WHERE ${deleteKPlaceholder};`,
-      values
+      values,
+      db
     )
     return true
   }

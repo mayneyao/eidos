@@ -119,6 +119,21 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
       })
     },
   }
+
+  const eidos_column_event_insert = {
+    name: "eidos_column_event_insert",
+    xFunc: function (pCx, table, _new) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.AddColumn,
+          table,
+          _new: JSON.parse(_new),
+        },
+      })
+    },
+  }
+
   const ALL_UDF = [
     twice,
     props,
@@ -128,6 +143,9 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     eidos_data_event_update,
     eidos_data_event_insert,
     eidos_data_event_delete,
+
+    // column
+    eidos_column_event_insert,
   ]
   return ALL_UDF
 }
