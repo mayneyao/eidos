@@ -1,12 +1,14 @@
 import { useState } from "react"
 
-import { Button } from "@/components/ui/button"
-import { useAllNodes } from "@/hooks/use-nodes"
+import { ILinkProperty } from "@/lib/fields/link"
 import { IField } from "@/lib/store/interface"
+import { generateColumnName } from "@/lib/utils"
+import { useAllNodes } from "@/hooks/use-nodes"
+import { Button } from "@/components/ui/button"
 
 interface IFieldPropertyEditorProps {
-  uiColumn: IField
-  onPropertyChange: (property: any) => void
+  uiColumn: IField<ILinkProperty>
+  onPropertyChange: (property: ILinkProperty) => void
   onSave?: () => void
   isCreateNew?: boolean
 }
@@ -16,12 +18,14 @@ export const LinkPropertyEditor = (props: IFieldPropertyEditorProps) => {
   const allTables = allNodes.filter((node) => node.type === "table")
 
   const [linkTable, setLinkTable] = useState<string>(
-    props.uiColumn.property.linkTable ?? ""
+    props.uiColumn.property.linkTableName ?? ""
   )
   const handleUpdateLinkTable = (tableName: string) => {
     setLinkTable(tableName)
     props.onPropertyChange({
-      linkTable: tableName,
+      linkTableName: tableName,
+      linkColumnName:
+        props.uiColumn.property.linkColumnName || generateColumnName(),
     })
   }
 

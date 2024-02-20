@@ -22,6 +22,24 @@ export class BaseTableImpl<T = any> {
     this.dataSpace.exec(createTableSql)
   }
 
+  public toJson = (data: T) => {
+    Object.entries(data as any).forEach(([key, value]) => {
+      if (this.JSONFields.includes(key) && value) {
+        ;(data as any)[key] = JSON.parse(value as string)
+      }
+    })
+    return data
+  }
+
+  async delBy(data: Partial<T>): Promise<boolean> {
+    const { deleteKPlaceholder, values } = this.transformData(data)
+    await this.dataSpace.exec2(
+      `DELETE FROM ${this.name} WHERE ${deleteKPlaceholder};`,
+      values
+    )
+    return true
+  }
+
   async get(id: string): Promise<T | null> {
     const res = await this.dataSpace.exec2(
       `SELECT * FROM ${this.name} where id = ?;`,
@@ -32,12 +50,7 @@ export class BaseTableImpl<T = any> {
     }
     // JSONFields transform
     const item = res[0]
-    Object.entries(item as any).forEach(([key, value]) => {
-      if (this.JSONFields.includes(key) && value) {
-        ;(item as any)[key] = JSON.parse(value as string)
-      }
-    })
-    return item
+    return this.toJson(item)
   }
 
   transformData = (data: Partial<T>) => {
@@ -49,22 +62,26 @@ export class BaseTableImpl<T = any> {
     const updateKPlaceholder = kv.map(([k, v]) => `${k} = ?`).join(", ")
     const insertKPlaceholder = kv.map(([k]) => k).join(", ")
     const insertVPlaceholder = kv.map(() => "?").join(", ")
+    const deleteKPlaceholder = kv.map(([k]) => `${k} = ?`).join(" AND ")
     const values = kv.map(([, v]) => v)
     return {
       kv,
       updateKPlaceholder,
       insertKPlaceholder,
       insertVPlaceholder,
+      deleteKPlaceholder,
       values,
     }
   }
 
-  async add(data: T): Promise<T> {
+  async add(data: T, db = this.dataSpace.db): Promise<T> {
+    console.log(data)
     const { insertKPlaceholder, insertVPlaceholder, values } =
       this.transformData(data)
-    await this.dataSpace.exec2(
+    this.dataSpace.syncExec2(
       `INSERT INTO ${this.name} (${insertKPlaceholder}) VALUES (${insertVPlaceholder});`,
-      values
+      values,
+      db
     )
     return data
   }
@@ -92,12 +109,7 @@ export class BaseTableImpl<T = any> {
       )
     }
     return res.map((item) => {
-      Object.keys(item as any).forEach((key) => {
-        if (this.JSONFields.includes(key)) {
-          ;(item as any)[key] = JSON.parse((item as any)[key] as string)
-        }
-      })
-      return item
+      return this.toJson(item)
     })
   }
 }

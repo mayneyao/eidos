@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from "react"
 import { v4 as uuidv4 } from "uuid"
 
+import { useSpaceAppStore } from "@/app/[database]/store"
+import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -9,36 +11,37 @@ import {
   checkSqlIsModifyTableSchema,
   checkSqlIsOnlyQuery,
 } from "@/lib/sqlite/helper"
-import { getLinkQuery } from "@/lib/sqlite/sql-parser"
 import {
   generateColumnName,
   getTableIdByRawTableName,
   shortenId,
 } from "@/lib/utils"
-import { RowRange } from "@/components/grid/hooks/use-async-data"
-import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { IField } from "../lib/store/interface"
 import { useSqlWorker } from "./use-sql-worker"
-import { useSqlite, useSqliteStore } from "./use-sqlite"
+import { useSqliteStore } from "./use-sqlite"
 import { useUiColumns } from "./use-ui-columns"
 
-export const useTableFields = (tableIdOrName: string, databaseName: string) => {
+export const useTableFields = (
+  tableIdOrName: string | undefined,
+  databaseName: string
+) => {
   const {
     dataStore: { tableMap },
   } = useSqliteStore()
   // console.log({ tableId })
   const nodeId = useMemo(() => {
-    if (tableIdOrName.startsWith("tb_")) {
-      return tableIdOrName.replace("tb_", "")
+    if (tableIdOrName?.startsWith("tb_")) {
+      return tableIdOrName?.replace("tb_", "")
     }
     return tableIdOrName
   }, [tableIdOrName])
-  const node = tableMap[nodeId]
+  const node = tableMap[nodeId || ""]
   const fieldMap = node?.fieldMap
   const fields = useMemo(() => {
     return Object.values(fieldMap ?? {})
   }, [fieldMap])
+
   return {
     fields,
     fieldMap,
@@ -56,7 +59,6 @@ export const useTableViews = (tableId: string, databaseName: string) => {
 }
 
 export const useTableOperation = (tableName: string, databaseName: string) => {
-  const { withTransaction } = useSqlite(databaseName)
   const sqlite = useSqlWorker()
   const { setViews, setNode, setRows } = useSqliteStore()
   const tableId = getTableIdByRawTableName(tableName)
@@ -129,7 +131,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
       tableName,
       tableColumnName: field.table_column_name,
       property,
-      isFormula: field.type === FieldType.Formula,
+      type: field.type,
     })
     await updateUiColumns()
   }
@@ -178,7 +180,6 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     async (querySql: string) => {
       if (sqlite) {
         const res = await sqlite.runAIgeneratedSQL(querySql, tableName)
-        console.log(res)
         if (checkSqlIsModifyTableSchema(querySql)) {
         }
         if (checkSqlIsOnlyQuery(querySql)) {
@@ -199,7 +200,6 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
       const [offset, limit] = range
       let data: any[] = []
       if (sqlite && tableName && uiColumnMap.size) {
-        const linkQueryList = getLinkQuery(uiColumnMap)
         if (query) {
           data = await sqlite.sql4mainThread2(
             `${query} LIMIT ${limit} OFFSET ${offset}`
@@ -209,44 +209,9 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
             tableName
           )} LIMIT ${limit} OFFSET ${offset}`
         }
-        // if has link field, need to query link table, then replace the link field value
-        if (linkQueryList.length) {
-          const linkDataMap: Record<string, Record<string, string>> = {}
-          for (const linkQuery of linkQueryList) {
-            const linkFieldIdTitleMap: Record<string, string> = {}
-            const { sql, columnName } = linkQuery
-            const linkData = await sqlite.sqlQuery(
-              `${sql} LIMIT ${limit} OFFSET ${offset}`,
-              [],
-              "object"
-            )
-            linkData.forEach((row) => {
-              const linkId = row[columnName]
-              const linkTitle = row[`${columnName}__title`]
-              linkFieldIdTitleMap[linkId] = linkTitle
-            })
-            linkDataMap[columnName] = linkFieldIdTitleMap
-          }
-          const keys = Object.keys(linkDataMap)
-          data.forEach((row) => {
-            keys.forEach((columnName) => {
-              const linkId = row[columnName]
-              const linkFieldIdTitleMap = linkDataMap[columnName]
-              if (linkId) {
-                row[columnName] = [
-                  {
-                    id: linkId,
-                    title: linkFieldIdTitleMap[linkId],
-                  },
-                ]
-              }
-            })
-          })
-        }
       }
       setRows(tableId, data)
       return data.map((row) => row._id)
-      // return data
     },
     [setRows, sqlite, tableId, tableName, uiColumnMap]
   )

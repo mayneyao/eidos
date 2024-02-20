@@ -28,3 +28,6 @@ export const ViewTableName = `eidos__views`
 
 // store embedding
 export const EmbeddingTableName = `eidos__embeddings`
+
+// store field reference relation
+export const ReferenceTableName = `eidos__references`

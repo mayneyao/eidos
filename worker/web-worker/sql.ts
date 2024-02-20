@@ -66,6 +66,8 @@ export class Sqlite {
     }
     // const db = new this.sqlite3.oo1.DB(name, flags, vfs)
     const db = new this.sqlite3.oo1.OpfsDb(path, flags)
+    // enable foreign key
+    db.exec(`PRAGMA foreign_keys = ON;`)
     return new DataSpace(
       db,
       this.config.experiment.undoRedo,

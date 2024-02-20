@@ -1,7 +1,7 @@
 import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
-import { allFieldTypesMap } from "@/lib/fields"
+import { FieldType } from "@/lib/fields/const"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
@@ -12,21 +12,21 @@ import {
   getRawTableNameById,
   getTableIdByRawTableName,
   isDayPageId,
-  shortenId,
-  uuidv4,
 } from "@/lib/utils"
 
 import { ITreeNode } from "../../lib/store/ITreeNode"
 import { IView } from "../../lib/store/IView"
+import { DataChangeEventHandler } from "./DataChangeEventHandler"
 import { DbMigrator } from "./DbMigrator"
+import { LinkRelationUpdater } from "./LinkRelationUpdater"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
 import { ColumnTable } from "./meta_table/column"
 import { DocTable } from "./meta_table/doc"
 import { EmbeddingTable, IEmbedding } from "./meta_table/embedding"
 import { FileTable, IFile } from "./meta_table/file"
+import { ReferenceTable } from "./meta_table/reference"
 import { IScript, ScriptStatus, ScriptTable } from "./meta_table/script"
-import { Table } from "./meta_table/table"
 import { TreeTable } from "./meta_table/tree"
 import { ViewTable } from "./meta_table/view"
 import { RowsManager } from "./sdk/rows"
@@ -59,11 +59,15 @@ export class DataSpace {
   tree: TreeTable
   view: ViewTable
   column: ColumnTable
+  reference: ReferenceTable
   embedding: EmbeddingTable
   file: FileTable
-  _table: Table
   dataChangeTrigger: DataChangeTrigger
+  linkRelationUpdater: LinkRelationUpdater
   allTables: BaseTable<any>[] = []
+
+  // for trigger
+  eventHandler: DataChangeEventHandler
 
   // for auto migration
   hasMigrated = false
@@ -79,8 +83,9 @@ export class DataSpace {
     this.draftDb = draftDb
     this.dbName = dbName
     this.initUDF()
+    this.eventHandler = new DataChangeEventHandler(this)
     this.dataChangeTrigger = new DataChangeTrigger()
-    this._table = new Table(this)
+    this.linkRelationUpdater = new LinkRelationUpdater(this)
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
     this.script = new ScriptTable(this)
@@ -89,6 +94,7 @@ export class DataSpace {
     this.file = new FileTable(this)
     this.column = new ColumnTable(this)
     this.embedding = new EmbeddingTable(this)
+    this.reference = new ReferenceTable(this)
     //
     this.allTables = [
       this.doc,
@@ -99,6 +105,7 @@ export class DataSpace {
       this.column,
       this.embedding,
       this.file,
+      this.reference,
     ]
     // migration
     if (this.draftDb) {
@@ -163,6 +170,57 @@ export class DataSpace {
     return new TableManager(id, this)
   }
 
+  public async getLookupContext(tableName: string, columnName: string) {
+    const tableId = getTableIdByRawTableName(tableName)
+    const tableManager = this.table(tableId)
+    return tableManager.fields.lookup.getLookupContext(tableName, columnName)
+  }
+  public updateLookupColumn(tableName: string, columnName: string) {
+    const tableId = getTableIdByRawTableName(tableName)
+    const tableManager = this.table(tableId)
+    return tableManager.fields.lookup.updateColumn({
+      tableName,
+      tableColumnName: columnName,
+    })
+  }
+
+  public deleteSelectOption = async (
+    field: IField,
+    option: string
+  ): Promise<void> => {
+    const tableId = getTableIdByRawTableName(field.table_name)
+    const tableManager = this.table(tableId)
+    if (field.type === FieldType.Select) {
+      return await tableManager.fields.select.deleteSelectOption(field, option)
+    } else if (field.type === FieldType.MultiSelect) {
+      return await tableManager.fields.multiSelect.deleteSelectOption(
+        field,
+        option
+      )
+    }
+  }
+  public updateSelectOptionName = async (
+    field: IField,
+    update: {
+      from: string
+      to: string
+    }
+  ) => {
+    const tableId = getTableIdByRawTableName(field.table_name)
+    const tableManager = this.table(tableId)
+    if (field.type === FieldType.Select) {
+      return await tableManager.fields.select.updateSelectOptionName(
+        field,
+        update
+      )
+    } else if (field.type === FieldType.MultiSelect) {
+      return await tableManager.fields.multiSelect.updateSelectOptionName(
+        field,
+        update
+      )
+    }
+  }
+
   public async setRow(tableId: string, rowId: string, data: any) {
     return await this.table(tableId).rows.update(rowId, data, {
       useFieldId: true,
@@ -176,10 +234,20 @@ export class DataSpace {
     value: any
   }) {
     const tableManager = this.table(data.tableId)
-    const row = await tableManager.rows.get(data.rowId)
+    const row = await tableManager.rows.get(data.rowId, { raw: true })
     const oldValue = row?.[data.fieldId]
 
     if (oldValue !== data.value) {
+      const tableName = getRawTableNameById(data.tableId)
+      const field = await this.column.getColumn(tableName, data.fieldId)
+      if (field?.type === FieldType.Link) {
+        await tableManager.fields.link.updateLinkRelation(
+          field,
+          data.rowId,
+          data.value,
+          oldValue
+        )
+      }
       return await this.table(data.tableId).rows.update(
         data.rowId,
         {
@@ -301,7 +369,7 @@ export class DataSpace {
     tableName: string
     tableColumnName: string
     property: any
-    isFormula?: boolean
+    type: FieldType
   }) {
     return await this.column.updateProperty(data)
   }
@@ -448,19 +516,22 @@ export class DataSpace {
   // table
 
   public async fixTable(tableId: string) {
-    return await this._table.fixTable(tableId)
+    const tableManager = this.table(tableId)
+    return await tableManager.fixTable(tableId)
   }
   public async hasSystemColumn(tableId: string, column: string) {
-    return await this._table.hasSystemColumn(tableId, column)
+    const tableManager = this.table(tableId)
+    return await tableManager.hasSystemColumn(tableId, column)
   }
 
   // table
   public async isTableExist(id: string) {
-    return await this._table.isExist(id)
+    const tableManager = this.table(id)
+    return await tableManager.isExist(id)
   }
 
   public async deleteTable(id: string) {
-    await this._table.del(id)
+    await this.table(id).del(id)
   }
 
   public async listDays(page: number) {
@@ -471,9 +542,16 @@ export class DataSpace {
     return await this.doc.listAllDayPages()
   }
 
-  public syncExec2(sql: string, bind: any[] = []) {
+  public syncExec2(sql: string, bind: any[] = [], db = this.db) {
     const res: any[] = []
-    this.db.exec({
+    console.debug(
+      "[%cSQLQuery:%cCallViaMethod]",
+      "color:indigo",
+      "color:green",
+      sql,
+      bind
+    )
+    db.exec({
       sql,
       bind,
       returnValue: "resultRows",
@@ -491,13 +569,6 @@ export class DataSpace {
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
-    console.debug(
-      "[%cSQLQuery:%cCallViaMethod]",
-      "color:indigo",
-      "color:green",
-      sql,
-      bind
-    )
     return this.syncExec2(sql, bind)
   }
 
@@ -615,6 +686,7 @@ export class DataSpace {
 
   // just execute, no return
   public exec(sql: string, bind: any[] = []) {
+    console.debug(sql, bind)
     this.db.exec({
       sql,
       bind,

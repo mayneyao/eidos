@@ -87,6 +87,15 @@ export const linkCellRenderer: CustomRenderer<LinkCell> = {
     return <LinkCellEditor {...p} />
   },
   onPaste: () => undefined,
+  onDelete(cell) {
+    return {
+      ...cell,
+      data: {
+        ...cell.data,
+        value: [],
+      },
+    }
+  },
 }
 
 export default linkCellRenderer

@@ -35,7 +35,7 @@ export class MultiSelectField extends BaseField<
   addOption(name: string) {
     const options = this.column.property?.options ?? []
     const newOptions = [
-      { id: uuidv4(), name, color: SelectField.defaultColor },
+      { id: name, name, color: SelectField.defaultColor },
       ...options,
     ]
     this.column.property.options = newOptions
@@ -78,7 +78,7 @@ export class MultiSelectField extends BaseField<
   text2RawData(text: string) {
     // text can be a uuid or a name
     return text
-      .split(/[\s,]+/)
+      ?.split(/[\s,]+/)
       .map((value) => {
         const option = this.options.find((i) => i.id === value)
         if (option) {

@@ -8,6 +8,7 @@ import { useTableAppStore } from "../store"
 import { FilePropertyEditor } from "./property/file/file-property-editor"
 import { FormulaPropertyEditor } from "./property/formula/formula-property-editor"
 import { LinkPropertyEditor } from "./property/link/link-property-editor"
+import { LookupPropertyEditor } from "./property/lookup/lookup-property-editor"
 import { SelectPropertyEditor } from "./property/select/select-property-editor"
 
 export const PropertyEditorTypeMap: {
@@ -22,6 +23,7 @@ export const PropertyEditorTypeMap: {
   "multi-select": SelectPropertyEditor,
   formula: FormulaPropertyEditor,
   link: LinkPropertyEditor,
+  lookup: LookupPropertyEditor,
   file: FilePropertyEditor,
 }
 const BASE_Fields = [

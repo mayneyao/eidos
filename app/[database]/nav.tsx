@@ -224,7 +224,9 @@ export const Nav = () => {
             )}
           </div>
         )}
-        {!isShareMode && <ShareDialog />}
+        {
+        !isShareMode && <ShareDialog />
+        }
         <Button variant="ghost" onClick={toggleAi}>
           <Bot className="h-5 w-5" />
         </Button>

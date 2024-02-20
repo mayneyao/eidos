@@ -45,7 +45,7 @@ export function ShareDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost">
+        <Button variant="ghost" disabled>
           <Share2 className="h-5 w-5" />
         </Button>
       </DialogTrigger>

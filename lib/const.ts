@@ -26,6 +26,21 @@ export enum MainServiceWorkerMsgType {
 export enum EidosDataEventChannelMsgType {
   DataUpdateSignalType = "DataUpdateSignalType",
 }
+
+export type EidosDataEventChannelMsg = {
+  type: EidosDataEventChannelMsgType
+  payload: {
+    type: DataUpdateSignalType
+    table: string
+    _new: Record<string, any> & {
+      _id: string
+    }
+    _old: Record<string, any> & {
+      _id: string
+    }
+  }
+}
+
 export enum DataUpdateSignalType {
   Update = "update",
   Insert = "insert",

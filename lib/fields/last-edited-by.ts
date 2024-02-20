@@ -32,7 +32,7 @@ export class LastEditedByField extends BaseField<
     context: UserFieldContext
   ): UserProfileCell {
     const { userMap } = context
-    const user = userMap[rawData || ""] || {
+    const user = userMap?.[rawData || ""] || {
       name: "unknown",
     }
     return {

@@ -1,4 +1,11 @@
 import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
+import {
   CellArray,
   CompactSelection,
   DataEditorProps,
@@ -10,21 +17,18 @@ import {
   Rectangle,
 } from "@glideapps/glide-data-grid"
 import { chunk, range } from "lodash"
-import {
-  MutableRefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
 
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsg,
+  EidosDataEventChannelMsgType,
+} from "@/lib/const"
+import { hasOrderBy } from "@/lib/sqlite/sql-sort-parser"
+import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useViewSort } from "@/hooks/use-view-sort"
-import { DataUpdateSignalType, EidosDataEventChannelMsgType } from "@/lib/const"
-import { hasOrderBy } from "@/lib/sqlite/sql-sort-parser"
-import { getTableIdByRawTableName, shortenId, uuidv4 } from "@/lib/utils"
 
 import { useTableAppStore } from "../store"
 
@@ -257,7 +261,7 @@ export function useAsyncData<TRowType>(
   }
 
   useEffect(() => {
-    const handler = (ev: MessageEvent) => {
+    const handler = (ev: MessageEvent<EidosDataEventChannelMsg>) => {
       const { type, payload } = ev.data
       if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
         const { table, _new, _old } = payload
