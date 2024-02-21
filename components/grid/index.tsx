@@ -151,7 +151,7 @@ export default function GridView(props: IGridProps) {
           },
         }
       : {}
-    const allWidth = columns.reduce((acc, cur: any) => acc + cur.width, 0)
+    const allWidth = columns.reduce((acc, cur: any) => acc + cur.width, 0) + 100
     // fix scroll bar bug
     if ((size?.width || 0) < allWidth) {
       _config = {
