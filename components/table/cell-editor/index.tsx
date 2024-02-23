@@ -1,13 +1,13 @@
-import { useClickAway, useDebounceFn } from "ahooks"
 import { useCallback, useMemo, useRef, useState } from "react"
+import { useClickAway, useDebounceFn } from "ahooks"
 
-import { FileCell } from "@/components/grid/cells/file/file-cell"
 import { getFieldInstance } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { FileField } from "@/lib/fields/file"
 import { SelectProperty } from "@/lib/fields/select"
 import { IField } from "@/lib/store/interface"
 import { cn } from "@/lib/utils"
+import { FileCell } from "@/components/grid/cells/file/file-cell"
 
 import { CheckboxEditor } from "./checkbox-editor"
 import { DateEditor } from "./date-editor"
@@ -15,6 +15,7 @@ import { FileEditor } from "./file-editor"
 import { RatingEditor } from "./rating-editor"
 import { SelectEditor } from "./select-editor"
 import { TextBaseEditor } from "./text-base-editor"
+import { UserProfileEditor } from "./user-profile-editor"
 
 export const CellEditorMap: Record<
   FieldType,
@@ -35,13 +36,14 @@ export const CellEditorMap: Record<
   [FieldType.MultiSelect]: null,
   [FieldType.File]: FileEditor,
   [FieldType.Rating]: RatingEditor,
-  [FieldType.Formula]: TextBaseEditor,
   [FieldType.Link]: null,
   [FieldType.Lookup]: null,
-  [FieldType.CreatedTime]: null,
-  [FieldType.CreatedBy]: null,
-  [FieldType.LastEditedTime]: null,
-  [FieldType.LastEditedBy]: null,
+  // readonly
+  [FieldType.Formula]: TextBaseEditor,
+  [FieldType.CreatedTime]: TextBaseEditor,
+  [FieldType.CreatedBy]: UserProfileEditor,
+  [FieldType.LastEditedTime]: TextBaseEditor,
+  [FieldType.LastEditedBy]: UserProfileEditor,
 }
 
 interface ICellEditorProps {
@@ -130,6 +132,16 @@ export const CellEditor = ({
       case FieldType.File:
         return (
           <FileEditor value={cell} onChange={onFileCellChange}></FileEditor>
+        )
+      case FieldType.CreatedTime:
+      case FieldType.LastEditedTime:
+        return (
+          <TextBaseEditor
+            type="text"
+            value={new Date(value).toLocaleString()}
+            onChange={run}
+            isEditing={false}
+          />
         )
       case FieldType.Formula:
         return (

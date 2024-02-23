@@ -1,10 +1,8 @@
 import { useMemo } from "react"
 import { useParams } from "react-router-dom"
 
-import { getFieldInstance } from "@/lib/fields"
-import { getRawTableNameById, nonNullable } from "@/lib/utils"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import { useUserMap } from "@/hooks/use-user-map"
+import { getRawTableNameById, nonNullable } from "@/lib/utils"
 
 import { makeHeaderIcons } from "../grid/fields/header-icons"
 import { CellEditor } from "../table/cell-editor"
@@ -24,12 +22,11 @@ export const DocProperty = (props: IDocPropertyProps) => {
     tableId: props.tableId,
     docId: props.docId,
   })
-  const { userMap } = useUserMap()
 
   const fields = useMemo(() => {
     if (!properties) return []
     return uiColumns
-      .map((uiColumn) => {
+      .map((uiColumn: any) => {
         const name = uiColumn.name
         // error data
         if (!uiColumn) {
@@ -42,13 +39,11 @@ export const DocProperty = (props: IDocPropertyProps) => {
           bgColor: "#aaa",
           fgColor: "currentColor",
         })
-        const field = getFieldInstance(uiColumn)
         const value = properties[uiColumn.table_column_name]
-        const cell = field.getCellContent(value as never, { userMap })
-        return { uiColumn, cell, iconSvgString, name, value }
+        return { uiColumn, iconSvgString, name, value }
       })
       .filter(nonNullable)
-  }, [properties, uiColumns, userMap])
+  }, [properties, uiColumns])
 
   const handlePropertyChange = (key: string, value: any) => {
     setProperty({
@@ -57,12 +52,12 @@ export const DocProperty = (props: IDocPropertyProps) => {
   }
   return (
     <div className="flex flex-col">
-      {fields.map(({ uiColumn, cell, iconSvgString, name, value }) => {
+      {fields.map(({ uiColumn, iconSvgString, name, value }) => {
         return (
           <div key={uiColumn.name} className="flex w-full items-center gap-2">
             <div
               title={name}
-              className="flex h-10 min-w-[170px] cursor-pointer select-none items-center gap-2 truncate rounded-sm p-1 hover:bg-secondary"
+              className="flex h-10 w-[200px] cursor-pointer select-none items-center gap-2 truncate rounded-sm p-1 hover:bg-secondary"
             >
               <span
                 dangerouslySetInnerHTML={{
