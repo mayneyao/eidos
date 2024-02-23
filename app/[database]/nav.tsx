@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   BlocksIcon,
   BookOpenIcon,
@@ -11,6 +12,7 @@ import {
   PinOffIcon,
   Settings,
   SparklesIcon,
+  Trash2Icon,
   Unplug,
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
@@ -24,7 +26,17 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useLink } from "@/hooks/use-goto"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { usePeer } from "@/hooks/use-peer"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,67 +56,113 @@ import { useSpaceAppStore } from "./store"
 
 export function DropdownMenuDemo() {
   const router = useNavigate()
+
+  const { deleteNode } = useSqlite()
   const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
+
+  const [isDeleteNodeConfirmOpen, setDeleteNodeConfirmOpen] = useState(false)
+  const { space } = useCurrentPathInfo()
   const toggleCMDK = () => {
     setCmdkOpen(!isCmdkOpen)
   }
   const goSettings = () => {
     router("/settings")
   }
+  const node = useCurrentNode()
+  const deleteCurrentNode = () => {
+    if (node) {
+      deleteNode(node)
+      setDeleteNodeConfirmOpen(false)
+      router(`/${space}`)
+    }
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost">
-          <MoreHorizontal className="h-5 w-5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>All data hosted on Local 🖥</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem onSelect={toggleCMDK}>
-            <Keyboard className="mr-2 h-4 w-4" />
-            <span>Command Palette</span>
-            <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <Link to="/extensions">
-            <DropdownMenuItem>
-              <BlocksIcon className="mr-2 h-4 w-4" />
-              <span>Extensions</span>
+    <Dialog
+      open={isDeleteNodeConfirmOpen}
+      onOpenChange={setDeleteNodeConfirmOpen}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost">
+            <MoreHorizontal className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-56">
+          <DropdownMenuLabel>All data hosted on Local 🖥</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem onSelect={toggleCMDK}>
+              <Keyboard className="mr-2 h-4 w-4" />
+              <span>Command Palette</span>
+              <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <Link to="/extensions">
+              <DropdownMenuItem>
+                <BlocksIcon className="mr-2 h-4 w-4" />
+                <span>Extensions</span>
+                {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
+              </DropdownMenuItem>
+            </Link>
+            <DropdownMenuItem onSelect={goSettings}>
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
               {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
             </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <Link to="https://github.com/mayneyao/eidos" target="_blank">
+            <DropdownMenuItem>
+              <Github className="mr-2 h-4 w-4" />
+              <span>GitHub</span>
+            </DropdownMenuItem>
           </Link>
-          <DropdownMenuItem onSelect={goSettings}>
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Settings</span>
-            {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <Link to="https://github.com/mayneyao/eidos" target="_blank">
-          <DropdownMenuItem>
-            <Github className="mr-2 h-4 w-4" />
-            <span>GitHub</span>
-          </DropdownMenuItem>
-        </Link>
-        <Link to="https://discord.gg/KAeDX8VEpK" target="_blank">
-          <DropdownMenuItem>
-            <DiscordIcon className="mr-2 h-4 w-4" />
-            <span>Discord</span>
-          </DropdownMenuItem>
-        </Link>
-        <Link to="https://wiki.eidos.space" target="_blank">
-          <DropdownMenuItem>
-            <BookOpenIcon className="mr-2 h-4 w-4" />
-            <span>Wiki</span>
-          </DropdownMenuItem>
-        </Link>
-        <DropdownMenuSeparator />
-        <span className="p-2 text-sm text-gray-500">
-          Version: {EIDOS_VERSION}
-        </span>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <Link to="https://discord.gg/KAeDX8VEpK" target="_blank">
+            <DropdownMenuItem>
+              <DiscordIcon className="mr-2 h-4 w-4" />
+              <span>Discord</span>
+            </DropdownMenuItem>
+          </Link>
+          <Link to="https://wiki.eidos.space" target="_blank">
+            <DropdownMenuItem>
+              <BookOpenIcon className="mr-2 h-4 w-4" />
+              <span>Wiki</span>
+            </DropdownMenuItem>
+          </Link>
+
+          {node && (
+            <>
+              <DropdownMenuSeparator />
+              {/* node related operate */}
+              <DialogTrigger className="w-full">
+                <DropdownMenuItem>
+                  <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
+                  <span>Delete</span>
+                </DropdownMenuItem>
+              </DialogTrigger>
+            </>
+          )}
+
+          <DropdownMenuSeparator />
+          <span className="p-2 text-sm text-gray-500">
+            Version: {EIDOS_VERSION}
+          </span>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Are you absolutely sure?</DialogTitle>
+          <DialogDescription>
+            This action cannot be undone. This will permanently delete this node
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="destructive" onClick={deleteCurrentNode}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogHeader>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -224,9 +282,7 @@ export const Nav = () => {
             )}
           </div>
         )}
-        {
-        !isShareMode && <ShareDialog />
-        }
+        {!isShareMode && <ShareDialog />}
         <Button variant="ghost" onClick={toggleAi}>
           <Bot className="h-5 w-5" />
         </Button>
