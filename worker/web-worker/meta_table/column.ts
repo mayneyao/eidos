@@ -60,6 +60,34 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
       )
       // add real column in table
       switch (type) {
+        case FieldType.CreatedBy:
+          this.dataSpace.syncExec2(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_created_by);`,
+            [],
+            db
+          )
+          break
+        case FieldType.LastEditedBy:
+          this.dataSpace.syncExec2(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_last_edited_by);`,
+            [],
+            db
+          )
+          break
+        case FieldType.LastEditedTime:
+          this.dataSpace.syncExec2(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_last_edited_time);`,
+            [],
+            db
+          )
+          break
+        case FieldType.CreatedTime:
+          this.dataSpace.syncExec2(
+            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_created_time);`,
+            [],
+            db
+          )
+          break
         case FieldType.Formula:
           this.dataSpace.syncExec2(
             `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (upper(title));`,

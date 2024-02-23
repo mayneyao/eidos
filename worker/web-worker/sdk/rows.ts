@@ -265,8 +265,6 @@ export class RowsManager {
         useFieldId: options?.useFieldId,
       }
     )
-
-    console.log(rawData, notExistKeys, data)
     if (notExistKeys.length > 0) {
       throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
     }
