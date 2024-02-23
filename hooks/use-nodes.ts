@@ -1,8 +1,11 @@
 import { useSqlite, useSqliteStore } from "./use-sqlite"
 
-export const useAllNodes = () => {
+export const useAllNodes = (isDeleted?: boolean) => {
   const { nodeIds, nodeMap } = useSqliteStore((state) => state.dataStore)
-  return nodeIds.map((id) => nodeMap[id])
+  if (isDeleted) {
+    return nodeIds.map((id) => nodeMap[id]).filter((node) => node.is_deleted)
+  }
+  return nodeIds.map((id) => nodeMap[id]).filter((node) => !node.is_deleted)
   // why not work?
   // return useMemo(() => {
   //   return nodeIds.map((id) => nodeMap[id])

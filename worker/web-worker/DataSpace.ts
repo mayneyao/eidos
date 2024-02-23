@@ -528,6 +528,17 @@ export class DataSpace {
     return await tableManager.hasSystemColumn(tableId, column)
   }
 
+  public async restoreNode(id: string) {
+    await this.tree.set(id, {
+      is_deleted: false,
+    })
+  }
+  
+  public async deleteNode(id: string) {
+    await this.tree.set(id, {
+      is_deleted: true,
+    })
+  }
   // table
   public async isTableExist(id: string) {
     const tableManager = this.table(id)

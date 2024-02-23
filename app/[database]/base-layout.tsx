@@ -91,7 +91,7 @@ export function DatabaseLayoutBase({
           </div>
           <main
             id="main-content"
-            className="z-[1] flex w-full grow overflow-auto"
+            className="z-[1] flex w-full grow flex-col overflow-auto"
           >
             {children}
           </main>

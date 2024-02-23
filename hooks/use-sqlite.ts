@@ -435,8 +435,24 @@ export const useSqlite = (dbName?: string) => {
     delNode(docId)
   }
 
+  const restoreNode = async (node: ITreeNode) => {
+    if (!sqlWorker) return
+    sqlWorker.restoreNode(node.id)
+    setNode({
+      id: node.id,
+      is_deleted: false,
+    })
+  }
   const deleteNode = async (node: ITreeNode) => {
     if (!sqlWorker) return
+    sqlWorker.deleteNode(node.id)
+    setNode({
+      id: node.id,
+      is_deleted: true,
+    })
+  }
+
+  const permanentlyDeleteNode = async (node: ITreeNode) => {
     switch (node.type) {
       case "table":
         await deleteTable(node.id)
@@ -526,6 +542,8 @@ export const useSqlite = (dbName?: string) => {
     renameNode,
     getDoc,
     deleteNode,
+    restoreNode,
+    permanentlyDeleteNode,
     getOrCreateTableSubDoc,
     updateNodeName,
   }

@@ -5,6 +5,7 @@ export interface ITreeNode {
   parent_id?: string
   // is pin to top
   is_pinned?: boolean
+  is_deleted?: boolean
   icon?: string
   cover?: string
   created_at?: string

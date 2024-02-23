@@ -27,16 +27,18 @@ import { useLink } from "@/hooks/use-goto"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { usePeer } from "@/hooks/use-peer"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,92 +81,72 @@ export function DropdownMenuDemo() {
   }
 
   return (
-    <Dialog
-      open={isDeleteNodeConfirmOpen}
-      onOpenChange={setDeleteNodeConfirmOpen}
-    >
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost">
-            <MoreHorizontal className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56">
-          <DropdownMenuLabel>All data hosted on Local 🖥</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem onSelect={toggleCMDK}>
-              <Keyboard className="mr-2 h-4 w-4" />
-              <span>Command Palette</span>
-              <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <Link to="/extensions">
-              <DropdownMenuItem>
-                <BlocksIcon className="mr-2 h-4 w-4" />
-                <span>Extensions</span>
-                {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
-              </DropdownMenuItem>
-            </Link>
-            <DropdownMenuItem onSelect={goSettings}>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost">
+          <MoreHorizontal className="h-5 w-5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-56">
+        <DropdownMenuLabel>All data hosted on Local 🖥</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem onSelect={toggleCMDK}>
+            <Keyboard className="mr-2 h-4 w-4" />
+            <span>Command Palette</span>
+            <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <Link to="/extensions">
+            <DropdownMenuItem>
+              <BlocksIcon className="mr-2 h-4 w-4" />
+              <span>Extensions</span>
               {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
             </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <Link to="https://github.com/mayneyao/eidos" target="_blank">
-            <DropdownMenuItem>
-              <Github className="mr-2 h-4 w-4" />
-              <span>GitHub</span>
-            </DropdownMenuItem>
           </Link>
-          <Link to="https://discord.gg/KAeDX8VEpK" target="_blank">
-            <DropdownMenuItem>
-              <DiscordIcon className="mr-2 h-4 w-4" />
-              <span>Discord</span>
-            </DropdownMenuItem>
-          </Link>
-          <Link to="https://wiki.eidos.space" target="_blank">
-            <DropdownMenuItem>
-              <BookOpenIcon className="mr-2 h-4 w-4" />
-              <span>Wiki</span>
-            </DropdownMenuItem>
-          </Link>
+          <DropdownMenuItem onSelect={goSettings}>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Settings</span>
+            {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <Link to="https://github.com/mayneyao/eidos" target="_blank">
+          <DropdownMenuItem>
+            <Github className="mr-2 h-4 w-4" />
+            <span>GitHub</span>
+          </DropdownMenuItem>
+        </Link>
+        <Link to="https://discord.gg/KAeDX8VEpK" target="_blank">
+          <DropdownMenuItem>
+            <DiscordIcon className="mr-2 h-4 w-4" />
+            <span>Discord</span>
+          </DropdownMenuItem>
+        </Link>
+        <Link to="https://wiki.eidos.space" target="_blank">
+          <DropdownMenuItem>
+            <BookOpenIcon className="mr-2 h-4 w-4" />
+            <span>Wiki</span>
+          </DropdownMenuItem>
+        </Link>
 
-          {node && (
-            <>
-              <DropdownMenuSeparator />
-              {/* node related operate */}
-              <DialogTrigger className="w-full">
-                <DropdownMenuItem>
-                  <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
-                  <span>Delete</span>
-                </DropdownMenuItem>
-              </DialogTrigger>
-              <NodeUpdateTime />
-            </>
-          )}
+        {node && (
+          <>
+            <DropdownMenuSeparator />
+            {/* node related operate */}
+            <DropdownMenuItem onClick={deleteCurrentNode}>
+              <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
+              <span>Delete</span>
+            </DropdownMenuItem>
+            <NodeUpdateTime />
+          </>
+        )}
 
-          <DropdownMenuSeparator />
-          <span className="p-2 text-sm text-gray-500">
-            Version: {EIDOS_VERSION}
-          </span>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Are you absolutely sure?</DialogTitle>
-          <DialogDescription>
-            This action cannot be undone. This will permanently delete this node
-          </DialogDescription>
-          <DialogFooter>
-            <Button variant="destructive" onClick={deleteCurrentNode}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogHeader>
-      </DialogContent>
-    </Dialog>
+        <DropdownMenuSeparator />
+        <span className="p-2 text-sm text-gray-500">
+          Version: {EIDOS_VERSION}
+        </span>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

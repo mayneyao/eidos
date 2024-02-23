@@ -15,6 +15,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     is_pinned BOOLEAN DEFAULT 0,
     icon TEXT NULL,
     cover TEXT NULL,
+    is_deleted BOOLEAN DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );

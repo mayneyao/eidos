@@ -2,6 +2,8 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
+import { useCurrentPathInfo } from "./use-current-pathinfo"
+
 export const useLink = () => {
   const [searchParams] = useSearchParams()
   const { isShareMode } = useAppRuntimeStore()
@@ -14,6 +16,14 @@ export const useLink = () => {
     return pathname
   }
   return { getLink }
+}
+
+export const useGotoCurrentSpaceHome = () => {
+  const router = useNavigate()
+  const { space } = useCurrentPathInfo()
+  return () => {
+    router(`/${space}`)
+  }
 }
 export const useGoto = () => {
   const router = useNavigate()

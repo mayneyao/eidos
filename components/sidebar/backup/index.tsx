@@ -1,6 +1,9 @@
-import { ArrowDownUpIcon } from "lucide-react"
 import { useState } from "react"
+import { ArrowDownUpIcon } from "lucide-react"
 
+import { timeAgo } from "@/lib/utils"
+import { useBackup } from "@/hooks/use-backup"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -17,9 +20,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { useToast } from "@/components/ui/use-toast"
-import { useBackup } from "@/hooks/use-backup"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { timeAgo } from "@/lib/utils"
 
 export const BackupStatus = () => {
   const { space } = useCurrentPathInfo()
@@ -47,7 +47,7 @@ export const BackupStatus = () => {
   return (
     <Popover>
       <PopoverTrigger>
-        <div className="flex cursor-pointer items-center gap-2 text-gray-500">
+        <div className="flex cursor-pointer items-center gap-2 p-2 text-gray-500">
           <span>last backup:</span> <span>{lastSyncTip || "unknown"}</span>
           <ArrowDownUpIcon className="mt-1 h-4 w-4" />
         </div>

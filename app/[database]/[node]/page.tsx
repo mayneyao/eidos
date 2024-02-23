@@ -11,10 +11,12 @@ import { Table } from "@/components/table"
 import { DefaultColors } from "./image-selector"
 import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
+import { NodeRestore } from "./node-restore"
 
 export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
   const params = useCurrentPathInfo()
   const { updateNodeName } = useSqlite(params.database)
+
   const nodeMap = useNodeMap()
 
   const { getEmoji } = useEmoji()
@@ -35,6 +37,7 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
 
   return (
     <>
+      <NodeRestore node={node} />
       {node?.type === "table" && (
         <Table tableName={params.tableName!} space={params.database!} />
       )}
