@@ -29,9 +29,9 @@ export class LastEditedByField extends BaseField<
 
   getCellContent(
     rawData: string | undefined,
-    context: UserFieldContext
+    context?: UserFieldContext
   ): UserProfileCell {
-    const { userMap } = context
+    const { userMap } = context || {}
     const user = userMap?.[rawData || ""] || {
       name: "unknown",
     }

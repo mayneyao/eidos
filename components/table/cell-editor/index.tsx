@@ -35,7 +35,7 @@ export const CellEditorMap: Record<
   [FieldType.MultiSelect]: null,
   [FieldType.File]: FileEditor,
   [FieldType.Rating]: RatingEditor,
-  [FieldType.Formula]: null,
+  [FieldType.Formula]: TextBaseEditor,
   [FieldType.Link]: null,
   [FieldType.Lookup]: null,
   [FieldType.CreatedTime]: null,
@@ -130,6 +130,15 @@ export const CellEditor = ({
       case FieldType.File:
         return (
           <FileEditor value={cell} onChange={onFileCellChange}></FileEditor>
+        )
+      case FieldType.Formula:
+        return (
+          <TextBaseEditor
+            type="text"
+            value={value}
+            onChange={run}
+            isEditing={false}
+          />
         )
       default:
         return Editor ? (

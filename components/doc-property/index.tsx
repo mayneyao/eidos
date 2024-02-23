@@ -1,10 +1,10 @@
 import { useMemo } from "react"
 import { useParams } from "react-router-dom"
 
-import { useUiColumns } from "@/hooks/use-ui-columns"
-import { useUserMap } from "@/hooks/use-user-map"
 import { getFieldInstance } from "@/lib/fields"
 import { getRawTableNameById, nonNullable } from "@/lib/utils"
+import { useUiColumns } from "@/hooks/use-ui-columns"
+import { useUserMap } from "@/hooks/use-user-map"
 
 import { makeHeaderIcons } from "../grid/fields/header-icons"
 import { CellEditor } from "../table/cell-editor"
@@ -60,7 +60,10 @@ export const DocProperty = (props: IDocPropertyProps) => {
       {fields.map(({ uiColumn, cell, iconSvgString, name, value }) => {
         return (
           <div key={uiColumn.name} className="flex w-full items-center gap-2">
-            <div className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 rounded-sm p-1 hover:bg-secondary">
+            <div
+              title={name}
+              className="flex h-10 min-w-[170px] cursor-pointer select-none items-center gap-2 truncate rounded-sm p-1 hover:bg-secondary"
+            >
               <span
                 dangerouslySetInnerHTML={{
                   __html: iconSvgString,

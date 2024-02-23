@@ -145,7 +145,10 @@ export const GalleryCard = ({
                       className="flex w-full items-center gap-2"
                     >
                       {!hiddenField && (
-                        <div className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 rounded-sm p-1">
+                        <div
+                          className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 truncate rounded-sm p-1"
+                          title={fieldName}
+                        >
                           {!hiddenFieldIcon && (
                             <FieldIcon type={uiColumn.type} />
                           )}
