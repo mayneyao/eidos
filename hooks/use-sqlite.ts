@@ -187,7 +187,8 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
     set((state) => {
       const { nodeMap } = state.dataStore
       nodeMap[node.id] = { ...nodeMap[node.id], ...node }
-      return { dataStore: { ...state.dataStore, nodeMap } }
+      const nodeIds = Object.keys(nodeMap)
+      return { dataStore: { ...state.dataStore, nodeMap, nodeIds } }
     })
   },
 
