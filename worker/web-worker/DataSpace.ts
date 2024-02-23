@@ -433,6 +433,10 @@ export class DataSpace {
     await this.doc.add({ id: docId, content, markdown, is_day_page: isDayPage })
   }
 
+  public async getDocBaseInfo(id: string) {
+    return this.doc.getBaseInfo(id)
+  }
+
   // update doc mount on sqlite for now,maybe change to fs later
   public async updateDoc(
     docId: string,

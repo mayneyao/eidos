@@ -52,6 +52,7 @@ import { DiscordIcon } from "@/components/icons/discord"
 import { ShareDialog } from "@/components/share-dialog"
 
 import { useConfigStore } from "../settings/store"
+import { NodeUpdateTime } from "./[node]/node-update-time"
 import { useSpaceAppStore } from "./store"
 
 export function DropdownMenuDemo() {
@@ -140,6 +141,7 @@ export function DropdownMenuDemo() {
                   <span>Delete</span>
                 </DropdownMenuItem>
               </DialogTrigger>
+              <NodeUpdateTime />
             </>
           )}
 
@@ -228,7 +230,7 @@ export const Nav = () => {
         <BreadCrumb />
       </div>
       <div className="grow" />
-      <div className="flex justify-between self-end">
+      <div className="flex items-center justify-between self-end">
         <AvatarList nameList={nameList} />
         {enableAICompletionInDoc && (
           <div

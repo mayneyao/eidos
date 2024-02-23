@@ -7,4 +7,6 @@ export interface ITreeNode {
   is_pinned?: boolean
   icon?: string
   cover?: string
+  created_at?: string
+  updated_at?: string
 }

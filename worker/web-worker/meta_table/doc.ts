@@ -8,6 +8,8 @@ interface IDoc {
   content: string
   markdown: string
   is_day_page?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 const callMain = (
@@ -40,6 +42,14 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
+
+
+  CREATE TRIGGER IF NOT EXISTS update_time_trigger__${this.name}
+  AFTER UPDATE ON ${this.name}
+  FOR EACH ROW
+  BEGIN
+    UPDATE ${this.name} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+  END;
 
   CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}',);
     
@@ -115,6 +125,14 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     const doc = await this.get(id)
     const res = await callMain(MsgType.GetDocMarkdown, doc?.content)
     return res
+  }
+
+  async getBaseInfo(id: string): Promise<Partial<IDoc>> {
+    const res = await this.dataSpace.exec2(
+      `SELECT id, created_at, updated_at FROM ${this.name} WHERE id = ?`,
+      [id]
+    )
+    return res[0]
   }
 
   async search(query: string): Promise<{ id: string; result: string }[]> {
