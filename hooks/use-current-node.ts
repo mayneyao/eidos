@@ -16,26 +16,30 @@ export const useNodeMap = () => {
 export const useCurrentNode = () => {
   const { table: nodeId } = useParams()
   const allNodesMap = useNodeMap()
-
   return nodeId ? allNodesMap[nodeId] : null
 }
 
 type INodePath = ITreeNode & { path?: string }
-export const useCurrentNodePath = () => {
-  const { table: nodeId } = useParams()
+export const useCurrentNodePath = ({
+  nodeId,
+  parentId,
+}: {
+  nodeId: string
+  parentId?: string
+}) => {
   const allNodesMap = useNodeMap()
   const getNode = useCallback(
     (nodeId: string) => {
-      let parent = nodeId && (allNodesMap[nodeId] as INodePath)
+      let node = nodeId && (allNodesMap[nodeId] as INodePath)
       if (isDayPageId(nodeId)) {
-        parent = {
+        node = {
           id: nodeId,
           name: nodeId,
           type: "doc",
           path: `everyday/${nodeId}`,
         }
       }
-      return parent
+      return node
     },
     [allNodesMap]
   )
@@ -43,7 +47,7 @@ export const useCurrentNodePath = () => {
     const node = getNode(nodeId!)
     if (!node) return []
     const path = [node]
-    let parent = node.parent_id && getNode(node.parent_id)
+    let parent = parentId && getNode(parentId)
     while (parent) {
       path.unshift(parent)
       if (parent.parent_id) {
@@ -54,6 +58,6 @@ export const useCurrentNodePath = () => {
       }
     }
     return path
-  }, [getNode, nodeId])
+  }, [getNode, nodeId, parentId])
   return parentNodePath
 }

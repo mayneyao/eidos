@@ -533,7 +533,7 @@ export class DataSpace {
       is_deleted: false,
     })
   }
-  
+
   public async deleteNode(id: string) {
     await this.tree.set(id, {
       is_deleted: true,
@@ -640,8 +640,12 @@ export class DataSpace {
     return this.tree.get(id)
   }
 
-  public async moveDraftIntoTable(id: string, tableId: string) {
-    return this.tree.moveIntoTable(id, tableId)
+  public async moveDraftIntoTable(
+    id: string,
+    tableId: string,
+    parentId?: string
+  ) {
+    return this.tree.moveIntoTable(id, tableId, parentId)
   }
 
   public async listUiColumns(tableName: string) {

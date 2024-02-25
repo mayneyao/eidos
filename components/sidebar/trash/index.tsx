@@ -32,7 +32,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 export const Trash = () => {
   const [open, setOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const allDeletedNodes = useAllNodes(true)
+  const allDeletedNodes = useAllNodes({ isDeleted: true })
   const { restoreNode, permanentlyDeleteNode } = useSqlite()
   const { space } = useCurrentPathInfo()
   const [toDeleteNode, setToDeleteNode] = useState<ITreeNode | null>(null)

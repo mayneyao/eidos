@@ -1,5 +1,5 @@
 import { TreeTableName } from "@/lib/sqlite/const"
-import { getRawTableNameById } from "@/lib/utils"
+import { extractIdFromShortId, getRawTableNameById } from "@/lib/utils"
 
 import { ITreeNode } from "../../../lib/store/ITreeNode"
 import { BaseTable, BaseTableImpl } from "./base"
@@ -106,21 +106,33 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     return res.map((row) => row)
   }
 
-  async moveIntoTable(id: string, tableId: string): Promise<boolean> {
+  async moveIntoTable(
+    id: string,
+    tableId: string,
+    parentId?: string
+  ): Promise<boolean> {
     try {
-      await this.dataSpace.withTransaction(async () => {
+      await this.dataSpace.db.transaction(async (db) => {
         // update parent_id
-        await this.dataSpace.exec2(
+        this.dataSpace.syncExec2(
           `UPDATE ${TreeTableName} SET parent_id = ? WHERE id = ?;`,
-          [tableId, id]
+          [tableId, id],
+          db
         )
-        // add new row in table
-        // row. _id = nodeId
         const tableName = getRawTableNameById(tableId)
         const title = (await this.get(id))?.name
-        await this.dataSpace.exec2(
+        if (parentId) {
+          const parentTableName = getRawTableNameById(parentId)
+          this.dataSpace.syncExec2(
+            `DELETE FROM ${parentTableName} WHERE _id = ?;`,
+            [extractIdFromShortId(id)],
+            db
+          )
+        }
+        this.dataSpace.syncExec2(
           `INSERT INTO ${tableName} (_id,title) VALUES (?,?);`,
-          [id, title]
+          [extractIdFromShortId(id), title],
+          db
         )
       })
       return Promise.resolve(true)

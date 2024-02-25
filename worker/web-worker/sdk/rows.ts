@@ -176,6 +176,7 @@ export class RowsManager {
     }`
     const bind = Object.values(rawData)
     const rows = await this.dataSpace.exec2(sql, bind)
+    console.log(rows, sql, bind)
     if (options?.raw) {
       return rows
     }

@@ -14,9 +14,9 @@ import { Loading } from "@/components/loading"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
+import { Nav } from "../../components/nav"
 // import { FileManager } from "./files/page"
 import { useLayoutInit } from "./hook"
-import { Nav } from "./nav"
 import { useSpaceAppStore } from "./store"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
