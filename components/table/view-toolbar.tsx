@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useContext, useEffect, useState } from "react"
 import { PlusIcon } from "lucide-react"
 import {
   createSearchParams,
@@ -16,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { NodeComponent } from "@/app/[database]/[node]/page"
 
 import { Button } from "../ui/button"
-import { useCurrentView, useViewOperation } from "./hooks"
+import { TableContext, useCurrentView, useViewOperation } from "./hooks"
 import { ViewFieldHidden } from "./view-field-hidden/view-field-hidden"
 import { ViewFilter } from "./view-filter"
 import { ViewItem } from "./view-item"
@@ -27,12 +27,18 @@ export const ViewToolbar = (props: {
   space: string
   isEmbed: boolean
 }) => {
-  const { tableName, space, isEmbed } = props
+  const { space, tableName, viewId } = useContext(TableContext)
+  const { isEmbed } = props
   const { updateViews, views } = useTableOperation(tableName!, space)
   const navigate = useNavigate()
   const location = useLocation()
   const { addView, delView } = useViewOperation()
-  const { currentView, setCurrentViewId, defaultViewId } = useCurrentView()
+
+  const { currentView, setCurrentViewId, defaultViewId } = useCurrentView({
+    space,
+    tableName,
+    viewId,
+  })
   const [searchParams] = useSearchParams()
   const sharePeerId = searchParams.get("peerId")
   const { addRow } = useTableOperation(tableName, space)
@@ -128,9 +134,9 @@ export const ViewToolbar = (props: {
           </Button>
         </div>
         <div className="flex gap-2">
-          <ViewFilter view={currentView!} />
+          <ViewFilter view={currentView} />
           <ViewSort view={currentView} />
-          <ViewFieldHidden view={currentView!} />
+          <ViewFieldHidden view={currentView} />
           <Button size="sm" onClick={handleAddRow}>
             <PlusIcon className="h-4 w-4"></PlusIcon>
             New

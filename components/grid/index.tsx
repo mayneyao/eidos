@@ -77,7 +77,11 @@ export default function GridView(props: IGridProps) {
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
 
-  const { currentView } = useCurrentView()
+  const { currentView } = useCurrentView({
+    space: databaseName,
+    tableName,
+    viewId: props.view?.id,
+  })
   const { count: viewCount, setCount } = useViewCount(currentView)
   const {
     tableSchema,
@@ -92,7 +96,7 @@ export default function GridView(props: IGridProps) {
   const { uiColumns } = useUiColumns(tableName, databaseName)
   const { onColumnResize, columns, showColumns, onColumnMoved } = useColumns(
     uiColumns,
-    props.view!
+    currentView
   )
   const qs = useTransformSqlQuery(props.view?.query ?? "", uiColumns)
 

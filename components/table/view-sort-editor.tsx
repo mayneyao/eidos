@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { XIcon } from "lucide-react"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,7 +12,7 @@ import {
 } from "@/components/ui/select"
 
 import { FieldSelector } from "./field-selector"
-import { useCurrentView } from "./hooks"
+import { TableContext, useCurrentView } from "./hooks"
 import { useViewQuery } from "./hooks/use-view-query"
 
 export type OrderByItem = {
@@ -26,8 +25,9 @@ interface IViewEditorProps {
 }
 export function ViewSortEditor(props: IViewEditorProps) {
   const { onSortChange } = props
-  const { currentView } = useCurrentView()
-  const { parsedSql } = useViewQuery(currentView!)
+  const { tableName, space, viewId } = useContext(TableContext)
+  const { currentView } = useCurrentView({ tableName, space, viewId })
+  const { parsedSql } = useViewQuery(currentView)
 
   const oldOrderBy: OrderByItem[] = useMemo(() => {
     return (parsedSql.orderBy || []).map((item) => {
@@ -51,8 +51,7 @@ export function ViewSortEditor(props: IViewEditorProps) {
     onSortChange?.(orderItems)
   }, [onSortChange, orderItems])
 
-  const { database, tableName } = useCurrentPathInfo()
-  const { rawIdNameMap, uiColumns } = useUiColumns(tableName!, database!)
+  const { rawIdNameMap, uiColumns } = useUiColumns(tableName!, space!)
   const restFields = useMemo(() => {
     return uiColumns.filter((item) => {
       return addedFields.indexOf(item.table_column_name) === -1

@@ -10,7 +10,7 @@ import { getShowColumns } from "../helper"
 
 export const useColumns = (
   uiColumns: IField[],
-  view: IView<IGridViewProperties>
+  view?: IView<IGridViewProperties>
 ) => {
   const hasResized = React.useRef(new Set<number>())
   const [columns, setColumns] = React.useState<GridColumn[]>([])
@@ -19,11 +19,11 @@ export const useColumns = (
 
   useEffect(() => {
     const fields = getShowColumns(uiColumns, {
-      orderMap: view.order_map,
-      hiddenFields: view.hidden_fields,
+      orderMap: view?.order_map,
+      hiddenFields: view?.hidden_fields,
     })
     setShowColumns(fields)
-  }, [uiColumns, view.order_map, view.hidden_fields])
+  }, [uiColumns, view?.order_map, view?.hidden_fields])
 
   useEffect(() => {
     setColumns(
@@ -32,23 +32,24 @@ export const useColumns = (
           id: column.table_column_name,
           title: column.name,
           width:
-            view.properties?.fieldWidthMap?.[column.table_column_name] || 200,
+            view?.properties?.fieldWidthMap?.[column.table_column_name] || 200,
           hasMenu: false,
           icon: column.type,
         }
       })
     )
-  }, [showColumns, view.properties?.fieldWidthMap])
+  }, [showColumns, view?.properties?.fieldWidthMap])
 
   const updateColumnWidth = async (
     fieldName: string,
     newSizeWithGrow: number
   ) => {
-    await updateView(view.id, {
+    if (!view) return
+    await updateView(view?.id, {
       properties: {
-        ...view.properties,
+        ...view?.properties,
         fieldWidthMap: {
-          ...view.properties?.fieldWidthMap,
+          ...view?.properties?.fieldWidthMap,
           [fieldName]: newSizeWithGrow,
         },
       },
@@ -94,6 +95,7 @@ export const useColumns = (
         return acc
       }, {} as Record<string, number>)
 
+      if (!view) return
       await updateView(view.id, {
         order_map: orderMap,
       })

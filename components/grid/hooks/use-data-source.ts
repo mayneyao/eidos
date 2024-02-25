@@ -19,11 +19,14 @@ export const useDataSource = (tableName: string, databaseName: string) => {
     tableName,
     databaseName
   )
-  const { currentView } = useCurrentView()
+  const { currentView } = useCurrentView({
+    space: databaseName,
+    tableName: tableName,
+  })
   const { userMap } = useUserMap()
   const { uiColumns } = useUiColumns(tableName, databaseName)
   const { contextMap } = useLookupContext(tableName, databaseName)
-  const { showColumns } = useColumns(uiColumns, currentView!)
+  const { showColumns } = useColumns(uiColumns, currentView)
 
   const getFieldContext = useCallback(
     (field: IField) => {

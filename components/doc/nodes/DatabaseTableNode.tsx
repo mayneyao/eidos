@@ -4,12 +4,12 @@ import { NodeKey } from "lexical/LexicalNode"
 
 import { getRawTableNameById } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import GridView from "@/components/grid"
+import { Table } from "@/components/table"
 
 const DatabaseTableComponent = (props: { id: string }) => {
   const { space } = useCurrentPathInfo()
   const rawTableName = getRawTableNameById(props.id)
-  return <GridView tableName={rawTableName} databaseName={space} isEmbed />
+  return <Table tableName={rawTableName} space={space} isEmbed />
 }
 
 export class DatabaseTableNode extends DecoratorNode<ReactNode> {
@@ -30,7 +30,7 @@ export class DatabaseTableNode extends DecoratorNode<ReactNode> {
 
   createDOM(): HTMLElement {
     const node = document.createElement("div")
-    node.style.height = "300px"
+    // node.style.height = "300px"
     node.style.position = "relative"
     return node
   }

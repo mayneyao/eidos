@@ -52,12 +52,16 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const ref2 = useRef<HTMLDivElement>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [currentColIndex, setCurrentColIndex] = useState<number>()
-  const { currentView } = useCurrentView()
+  const { currentView } = useCurrentView({
+    space: databaseName,
+    tableName: tableName,
+    viewId: props.view?.id,
+  })
   const { addSort } = useViewOperation()
   const inputRef = useRef<HTMLInputElement>(null)
   const { updateFieldName } = useTableOperation(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
-  const { showColumns } = useColumns(uiColumns, props.view!)
+  const { showColumns } = useColumns(uiColumns, props.view)
   const [newFieldName, setNewFieldName] = useState<string>(
     currentUiColumn?.name ?? ""
   )

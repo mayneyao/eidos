@@ -1,17 +1,35 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
 import { SelectFromStatement, parseFirst, toSql } from "pgsql-ast-parser"
-import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { useTableOperation } from "@/hooks/use-table"
 import { IView } from "@/lib/store/IView"
 import { IField } from "@/lib/store/interface"
+import { getTableIdByRawTableName } from "@/lib/utils"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { useTableOperation } from "@/hooks/use-table"
 
 import { getShowColumns } from "./helper"
 
+export const TableContext = createContext<{
+  tableName: string
+  space: string
+  viewId?: string
+}>({
+  tableName: "",
+  space: "",
+  viewId: undefined,
+})
+
 export const useViewOperation = () => {
-  const { tableId, tableName, space } = useCurrentPathInfo()
+  const { tableName, space } = useContext(TableContext)
+  const tableId = getTableIdByRawTableName(tableName)
   const { updateViews } = useTableOperation(tableName!, space)
   const { sqlite } = useSqlite()
 
@@ -70,7 +88,7 @@ export const useViewOperation = () => {
         ]
       }
       const newSql = toSql.statement(parsedSql)
-      updateView(view!.id, {
+      updateView(view.id, {
         query: newSql,
       })
     },
@@ -85,15 +103,22 @@ export const useViewOperation = () => {
   }
 }
 
-export const useCurrentView = () => {
-  const { tableName, space } = useCurrentPathInfo()
+export const useCurrentView = ({
+  space,
+  tableName,
+  viewId,
+}: {
+  space: string
+  tableName: string
+  viewId?: string
+}) => {
   const { views } = useTableOperation(tableName!, space)
   const defaultViewId = useMemo(() => {
     return views[0]?.id
   }, [views])
 
   const [currentViewId, setCurrentViewId] = useState<string | undefined>(
-    defaultViewId
+    viewId || defaultViewId
   )
   let [searchParams, setSearchParams] = useSearchParams()
   const v = searchParams.get("v")
@@ -111,7 +136,7 @@ export const useCurrentView = () => {
   }, [views, currentViewId])
 
   return {
-    currentView,
+    currentView: currentView!,
     setCurrentViewId,
     defaultViewId,
   }
