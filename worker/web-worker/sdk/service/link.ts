@@ -120,7 +120,7 @@ export class LinkFieldService {
   getTableNodeName = async (tableName: string) => {
     const nodeId = getTableIdByRawTableName(tableName)
     const node = await this.dataSpace.tree.get(nodeId)
-    return node?.name
+    return node?.name || "Untitled"
   }
 
   getPairedLinkField = async (data: IField<ILinkProperty>) => {
@@ -130,7 +130,7 @@ export class LinkFieldService {
       linkColumnName: table_column_name,
     }
     const tableName = await this.getTableNodeName(table_name)
-    const randomId = Math.random().toString(36).substr(2, 5)
+    const randomId = Math.random().toString(36).slice(2, 8)
     return {
       name: `${tableName}_${randomId}`,
       type: FieldType.Link,
@@ -281,7 +281,7 @@ export class LinkFieldService {
     const { table_name, table_column_name } = data
     // link field always has a paired link field
     const pairedField = await this.getPairedLinkField(data)
-    console.log("pairedField", pairedField)
+    console.log("pairedField", pairedField, data)
     // generate paired link field
 
     this.dataSpace.syncExec2(
