@@ -21,6 +21,7 @@ export interface IScript {
   version: string
   code: string
   commands: ICommand[]
+  as_udf?: boolean
   enabled?: boolean
   tables?: {
     name: string
@@ -66,6 +67,7 @@ export class ScriptTable
         env_map TEXT,
         fields_map TEXT,
         enabled BOOLEAN DEFAULT 0,
+        as_udf BOOLEAN DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

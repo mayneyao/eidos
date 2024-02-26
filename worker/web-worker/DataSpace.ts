@@ -117,6 +117,7 @@ export class DataSpace {
       })
     }
     this.initMetaTable()
+    this.initUDF2()
 
     // other
     this.undoRedoManager = new SQLiteUndoRedo(this)
@@ -133,9 +134,35 @@ export class DataSpace {
 
   private initUDF() {
     const allUfs = withSqlite3AllUDF(this.sqlite3)
+    // system functions
     allUfs.forEach((udf) => {
       this.db.createFunction(udf as any)
     })
+  }
+
+  private initUDF2() {
+    const globalKv = new Map()
+    // udf
+    this.db
+      .selectObjects(
+        `SELECT DISTINCT name, code FROM eidos__scripts WHERE as_udf = 1 AND enabled = 1`
+      )
+      .forEach((script) => {
+        const { code, name } = script
+        globalKv.set(name, new Map())
+        try {
+          const func = new Function("kv", ("return " + code) as string)
+          const udf = {
+            name: name as string,
+            xFunc: func(globalKv.get(name)),
+            deterministic: true,
+          }
+          console.log(udf)
+          this.db.createFunction(udf)
+        } catch (error) {
+          console.error(error)
+        }
+      })
   }
 
   private initMetaTable() {

@@ -5,9 +5,10 @@
 
 import { IScript } from "@/worker/web-worker/meta_table/script"
 import { useMount } from "ahooks"
-import { RotateCcwIcon } from "lucide-react"
+import { ChevronDownIcon, RotateCcwIcon } from "lucide-react"
 import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,10 +21,17 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
 import { useNewScript } from "./hooks/use-new-script"
@@ -71,7 +79,29 @@ export const ScriptPage = () => {
   return (
     <div className="h-full w-full p-6">
       <div className="flex w-full justify-between p-4">
-        <Button onClick={handleCreateNewScript}>New Script</Button>
+        <div className="flex">
+          <Button
+            className=" rounded-r-none"
+            size="sm"
+            onClick={() => handleCreateNewScript()}
+          >
+            New
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger className=" h-9 rounded-r-md bg-primary p-1 text-primary-foreground hover:opacity-70">
+              <ChevronDownIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuLabel>
+                New Script With Different Template
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleCreateNewScript("udf")}>
+                UDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <InstallScript />
       </div>
       <Separator />

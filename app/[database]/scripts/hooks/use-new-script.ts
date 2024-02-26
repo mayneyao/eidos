@@ -11,7 +11,9 @@ export const useNewScript = () => {
   const router = useNavigate()
   const { space } = useCurrentPathInfo()
 
-  const handleCreateNewScript = async () => {
+  const handleCreateNewScript = async (
+    template: "default" | "udf" = "default"
+  ) => {
     const newScriptId = generateId()
     const newScript: IScript = {
       id: newScriptId,
@@ -23,7 +25,26 @@ export const useNewScript = () => {
     console.log('hello eidos!')
 }`,
     }
-    await addScript(newScript)
+
+    const newUDFScript: IScript = {
+      id: newScriptId,
+      name: `myFunc`,
+      commands: [],
+      description: "twice the input",
+      version: "0.0.1",
+      code: `function myFunc(pCx, arg) {
+        return arg + arg
+}`,
+      as_udf: true,
+    }
+
+    const templateMap = {
+      default: newScript,
+      udf: newUDFScript,
+    }
+
+    const script = templateMap[template]
+    await addScript(script)
     router(`/${space}/scripts/${newScriptId}`)
   }
 

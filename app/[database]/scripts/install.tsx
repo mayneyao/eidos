@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Link, useRevalidator } from "react-router-dom"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -19,7 +20,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { useGithubScriptContent } from "./hooks/use-github-script"
 import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
@@ -54,7 +54,9 @@ export const InstallScript = () => {
     <div className="flex gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline">Install</Button>
+          <Button variant="outline" size="sm">
+            Install
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <Link to={`/${space}/scripts/store`}>
