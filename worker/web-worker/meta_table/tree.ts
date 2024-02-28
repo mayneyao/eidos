@@ -16,17 +16,29 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     icon TEXT NULL,
     cover TEXT NULL,
     is_deleted BOOLEAN DEFAULT 0,
+    position REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
   `
 
-  add(data: ITreeNode): Promise<ITreeNode> {
-    this.dataSpace.exec(
-      `INSERT INTO ${TreeTableName} (id,name,type,parent_id) VALUES (? , ? , ? , ?);`,
-      [data.id, data.name, data.type, data.parent_id]
+  getNextRowId = async () => {
+    const res = await this.dataSpace.exec2(
+      `SELECT max(rowid) as maxId from ${TreeTableName};`
     )
-    return Promise.resolve(data)
+    return res[0].maxId + 1
+  }
+
+  async add(data: ITreeNode): Promise<ITreeNode> {
+    const nextPosition = await this.getNextRowId()
+    this.dataSpace.exec(
+      `INSERT INTO ${TreeTableName} (id,name,type,parent_id,position) VALUES (? , ? , ? , ?,?);`,
+      [data.id, data.name, data.type, data.parent_id, nextPosition]
+    )
+    return Promise.resolve({
+      ...data,
+      position: nextPosition,
+    })
   }
 
   async get(id: string): Promise<ITreeNode | null> {
@@ -99,8 +111,10 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
       sql += ` WHERE name like ?`
     }
     if (query && !withSubNode) {
-      sql += ` AND parent_id is null;`
+      sql += ` AND parent_id is null`
     }
+
+    sql += ` ORDER BY position DESC;`
     const bind = query ? [`%${query}%`] : undefined
     const res = await this.dataSpace.exec2(sql, bind)
     return res.map((row) => row)

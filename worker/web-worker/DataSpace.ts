@@ -626,6 +626,12 @@ export class DataSpace {
     return this.tree.list({ query, withSubNode })
   }
 
+  public async updateTreeNodePosition(id: string, position: number) {
+    return this.tree.set(id, {
+      position,
+    })
+  }
+
   public async pinNode(id: string, isPinned: boolean) {
     return this.tree.pin(id, isPinned)
   }

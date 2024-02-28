@@ -1,41 +1,32 @@
 import { useState } from "react"
-import { ITreeNode } from "@/lib/store/ITreeNode"
 import { File, FileSpreadsheet, Plus } from "lucide-react"
-import { Link, useSearchParams } from "react-router-dom"
+import { DndProvider } from "react-dnd"
+import { HTML5Backend } from "react-dnd-html5-backend"
 
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
-import { NodeItem } from "./node-menu"
+import { NodeTreeContainer } from "./tree/node-tree"
 
 export const CurrentItemTree = ({
   allNodes,
-  allTableNodes = [],
-  spaceName,
-  isShareMode,
-  currentNode,
   Icon,
   title,
   type,
   disableAdd,
 }: {
   allNodes: ITreeNode[]
-  allTableNodes?: ITreeNode[]
-  spaceName: string
-  isShareMode: boolean
-  currentNode: ITreeNode | null
   title: string
   type: "table" | "doc" | "all"
   Icon: React.ReactNode
   disableAdd?: boolean
 }) => {
   const [showNodes, setShowNodes] = useState(false)
-  const [searchParams] = useSearchParams()
 
   const { space } = useCurrentPathInfo()
 
@@ -96,43 +87,9 @@ export const CurrentItemTree = ({
       {showNodes && (
         <ScrollArea className="grow px-2">
           <div className="space-y-1 p-2">
-            {allNodes?.map((node, i) => {
-              const link = isShareMode
-                ? `/share/${spaceName}/${node.id}?` + searchParams.toString()
-                : `/${spaceName}/${node.id}`
-              return (
-                <NodeItem
-                  node={node}
-                  databaseName={spaceName}
-                  key={node.id}
-                  tableNodes={allTableNodes}
-                >
-                  <Button
-                    variant={
-                      node.id === currentNode?.id ? "secondary" : "ghost"
-                    }
-                    size="sm"
-                    className="w-full justify-start font-normal"
-                    asChild
-                  >
-                    <Link to={link}>
-                      <NodeIconEditor
-                        icon={node.icon!}
-                        nodeId={node.id}
-                        size="1em"
-                        className="ml-[-2px] pr-[6px]"
-                        customTrigger={
-                          <ItemIcon type={node.type} className="pr-2" />
-                        }
-                      />
-                      <span className="truncate" title={node.name}>
-                        {node.name.length === 0 ? "Untitled" : node.name}
-                      </span>
-                    </Link>
-                  </Button>
-                </NodeItem>
-              )
-            })}
+            <DndProvider backend={HTML5Backend} context={window}>
+              <NodeTreeContainer nodes={allNodes} />
+            </DndProvider>
           </div>
         </ScrollArea>
       )}

@@ -2,6 +2,7 @@
 
 import { useCallback } from "react"
 import type { DataSpace } from "@/worker/web-worker/DataSpace"
+import { orderBy } from "lodash"
 import { create } from "zustand"
 
 import { TreeTableName } from "@/lib/sqlite/const"
@@ -157,10 +158,10 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
   currentNode: null,
   setCurrentNode: (node) => set({ currentNode: node }),
 
-  setAllNodes: (tables) =>
+  setAllNodes: (nodes) =>
     set((state) => {
-      const nodeIds = tables.map((table) => table.id)
-      const nodeMap = tables.reduce((acc, cur) => {
+      const nodeIds = nodes.map((table) => table.id)
+      const nodeMap = nodes.reduce((acc, cur) => {
         acc[cur.id] = cur
         return acc
       }, {} as Record<string, ITreeNode>)
@@ -187,7 +188,11 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
     set((state) => {
       const { nodeMap } = state.dataStore
       nodeMap[node.id] = { ...nodeMap[node.id], ...node }
-      const nodeIds = Object.keys(nodeMap)
+      const nodeIds = orderBy(
+        Object.keys(nodeMap),
+        (id) => nodeMap[id].position,
+        "desc"
+      )
       return { dataStore: { ...state.dataStore, nodeMap, nodeIds } }
     })
   },
@@ -200,7 +205,12 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
         nodeIds.splice(index, 1)
       }
       delete nodeMap[nodeId]
-      return { dataStore: { ...state.dataStore, nodeIds, nodeMap } }
+      const _nodeIds = orderBy(
+        Object.keys(nodeMap),
+        (id) => nodeMap[id].position,
+        "desc"
+      )
+      return { dataStore: { ...state.dataStore, nodeIds: _nodeIds, nodeMap } }
     })
   },
   addNode: (node: ITreeNode) => {
@@ -208,7 +218,12 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
       const { nodeIds, nodeMap } = state.dataStore
       nodeIds.push(node.id)
       nodeMap[node.id] = node
-      return { dataStore: { ...state.dataStore, nodeIds, nodeMap } }
+      const _nodeIds = orderBy(
+        Object.keys(nodeMap),
+        (id) => nodeMap[id].position,
+        "desc"
+      )
+      return { dataStore: { ...state.dataStore, nodeIds: _nodeIds, nodeMap } }
     })
   },
 }))
@@ -283,30 +298,22 @@ export const useSqlite = (dbName?: string) => {
       tableId,
       sql,
     })
-    addNode({
-      id: tableId,
-      name: tableName,
-      type: "table",
-    })
+    const node = await sqlWorker.getTreeNode(tableId)
+    node && addNode(node)
     return tableId
   }
 
   const createDoc = async (docName: string, parent_id?: string) => {
     if (!sqlWorker) return
     const docId = uuidv4().split("-").join("")
-    await sqlWorker.addTreeNode({
+    const node = await sqlWorker.addTreeNode({
       id: docId,
       name: docName,
       type: "doc",
       parent_id: parent_id,
     })
     await sqlWorker.addDoc(docId, JSON.stringify(DefaultState), "")
-    addNode({
-      id: docId,
-      name: docName,
-      type: "doc",
-      parent_id: parent_id,
-    })
+    addNode(node)
     return docId
   }
 

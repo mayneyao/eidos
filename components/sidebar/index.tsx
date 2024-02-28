@@ -33,10 +33,9 @@ export const SideBar = ({ className }: any) => {
   const currentNode = useCurrentNode()
   const [loading, setLoading] = useState(true)
   const { updateNodeList } = useSqlite(space)
-  const _allNodes = useAllNodes()
+  const allNodes = useAllNodes()
   const { spaceList } = useSpace()
   const { isShareMode } = useAppRuntimeStore()
-  const allNodes = [..._allNodes].reverse()
 
   useEffect(() => {
     updateNodeList().then(() => {
@@ -102,11 +101,8 @@ export const SideBar = ({ className }: any) => {
                   <CurrentItemTree
                     title="Pins"
                     type="table"
-                    spaceName={space}
                     allNodes={allNodes.filter((node) => node.is_pinned)}
-                    isShareMode={isShareMode}
                     Icon={<PinIcon className="pr-2" />}
-                    currentNode={currentNode}
                     disableAdd
                   />
                 </>
@@ -114,26 +110,17 @@ export const SideBar = ({ className }: any) => {
               <CurrentItemTree
                 title="Tables"
                 type="table"
-                spaceName={space}
                 allNodes={allNodes.filter(
                   (node) => node.type === "table" && !node.parent_id
                 )}
-                isShareMode={isShareMode}
                 Icon={<Database className="pr-2" />}
-                currentNode={currentNode}
               />
               <CurrentItemTree
                 title="Drafts"
                 type="doc"
-                spaceName={space}
                 allNodes={allNodes.filter(
                   (node) => node.type === "doc" && !node.parent_id
                 )}
-                allTableNodes={allNodes.filter(
-                  (node) => node.type === "table" && !node.parent_id
-                )}
-                isShareMode={isShareMode}
-                currentNode={currentNode}
                 Icon={<Files className="pr-2" />}
               />
             </div>

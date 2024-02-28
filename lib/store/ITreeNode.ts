@@ -2,6 +2,7 @@ export interface ITreeNode {
   id: string
   name: string
   type: "table" | "doc"
+  position?: number
   parent_id?: string
   // is pin to top
   is_pinned?: boolean
