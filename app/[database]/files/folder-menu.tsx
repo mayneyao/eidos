@@ -1,9 +1,11 @@
 import { MouseEventHandler, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
-import { FolderPlusIcon } from "lucide-react"
+import { FolderPlusIcon, MoveLeftIcon, UploadIcon } from "lucide-react"
 import ReactDOM from "react-dom"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useFileSystem } from "@/hooks/use-files"
+import { useOPFS } from "@/hooks/use-opfs"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -13,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 
 export function FileManagerContextMenu({ children }: any) {
-  const { addDir, backDir, isRootDir } = useFileSystem()
+  const { addDir, backDir, isRootDir, refresh } = useFileSystem()
   const [newName, setNewName] = useState("folder")
   const [renameOpen, setRenameOpen] = useState(false)
   const [pos, setPos] = useState({ x: 0, y: 0 })
@@ -34,8 +36,16 @@ export function FileManagerContextMenu({ children }: any) {
     setPos({ x: position.x, y: position.y })
     e.stopPropagation()
   }
+  const { space } = useCurrentPathInfo()
 
-  const handleLoadLocalFolder: MouseEventHandler<HTMLDivElement> = (e) => {}
+  const { uploadDir } = useOPFS(space)
+  const handleLoadLocalFolder: MouseEventHandler<HTMLDivElement> = async (
+    e
+  ) => {
+    const dirHandle = await (window as any).showDirectoryPicker()
+    await uploadDir(dirHandle)
+    await refresh()
+  }
   const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       addDir(newName)
@@ -56,19 +66,26 @@ export function FileManagerContextMenu({ children }: any) {
         </ContextMenuTrigger>
 
         <ContextMenuContent className="w-64">
-          <ContextMenuItem onSelect={(e: any) => handleRename(e)}>
-            <div className="flex gap-2">
-              <FolderPlusIcon className="h-5 w-5"></FolderPlusIcon>
-              New folder
-            </div>
+          <ContextMenuItem
+            onSelect={(e: any) => handleRename(e)}
+            className="flex gap-2"
+          >
+            <FolderPlusIcon className="h-4 w-4"></FolderPlusIcon>
+            New folder
           </ContextMenuItem>
           <ContextMenuItem
-            inset
             onSelect={(e: any) => handleLoadLocalFolder(e)}
+            className="flex gap-2"
           >
+            <UploadIcon className="h-4 w-4" />
             Load local folder
           </ContextMenuItem>
-          <ContextMenuItem inset disabled={isRootDir} onSelect={backDir}>
+          <ContextMenuItem
+            disabled={isRootDir}
+            onSelect={backDir}
+            className="flex gap-2"
+          >
+            <MoveLeftIcon className="h-4 w-4" />
             Back
           </ContextMenuItem>
         </ContextMenuContent>
