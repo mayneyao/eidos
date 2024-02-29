@@ -111,6 +111,7 @@ export const Trash = () => {
             {allNodes.map((node) => {
               return (
                 <div
+                  key={node.id}
                   className="flex cursor-pointer items-center justify-between px-2 hover:bg-secondary"
                   onClick={() => handleClickNode(node)}
                 >

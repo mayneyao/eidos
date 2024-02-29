@@ -77,13 +77,6 @@ export const useAIFunctions = () => {
     const { width = 300, msgIndex = -1 } = props.context || {}
     const { code, lang, isAuto = false } = props
     switch (lang) {
-      case "sql":
-        const scope = "SQL." + code?.trim().toUpperCase().slice(0, 6)
-        const shouldRun = isAuto ? autoRunScope.includes(scope) : true
-        if (shouldRun) {
-          await handleRunSql(code)
-        }
-        break
       case "js":
         if (!isAuto || autoRunScope.includes("D3.CHART")) {
           handleRunD3(code, {
@@ -92,8 +85,15 @@ export const useAIFunctions = () => {
           })
         }
         break
+      case "sql":
       default:
-        throw new Error(`lang ${lang} not supported auto run`)
+        const scope = "SQL." + code?.trim().toUpperCase().slice(0, 6)
+        const shouldRun = isAuto ? autoRunScope.includes(scope) : true
+        if (shouldRun) {
+          return await handleRunSql(code)
+        }
+        break
+        // throw new Error(`lang ${lang} not supported auto run`)
     }
   }
 

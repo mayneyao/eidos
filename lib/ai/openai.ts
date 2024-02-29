@@ -65,8 +65,8 @@ ${context.currentDocMarkdown}
 `
   }
 
+  // - database name: ${databaseName}
   const contextPrompt = `context below:
-- database name: ${databaseName}
 - current table name : ${tableName}
 - columns: ${JSON.stringify(uiColumns?.map((c) => c.name))}
 -----------
