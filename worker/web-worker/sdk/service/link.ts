@@ -76,8 +76,8 @@ export class LinkFieldService {
     added: string[]
     removed: string[]
   } => {
-    const newList = newValue?.split(",")
-    const oldList = oldValue?.split(",")
+    const newList = newValue?.split(/,/) || []
+    const oldList = oldValue?.split(/,/) || []
     const added = newList?.filter((item) => !oldList?.includes(item)) || []
     const removed = oldList?.filter((item) => !newList?.includes(item)) || []
     return {
@@ -245,12 +245,13 @@ export class LinkFieldService {
 
     this.dataSpace.db.transaction(async (db) => {
       // update relation table
-      db.exec({
-        sql: `DELETE FROM ${relationTableName} WHERE self = ? AND ref IN (${removed
-          .map(() => "?")
-          .join(",")})`,
-        bind: [rowId, ...removed],
-      })
+      removed.length &&
+        db.exec({
+          sql: `DELETE FROM ${relationTableName} WHERE self = ? AND ref IN (${removed
+            .map(() => "?")
+            .join(",")})`,
+          bind: [rowId, ...removed],
+        })
       removed.forEach((item) => {
         db.exec({
           sql: `DELETE FROM ${reverseRelationTableName} WHERE self = ? AND ref = ? AND link_field_id = ?`,

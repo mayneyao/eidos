@@ -1,6 +1,6 @@
 import { zip } from "lodash"
 
-import { LinkCell } from "@/components/grid/cells/link-cell"
+import { LinkCell } from "@/components/grid/cells/link/link-cell"
 
 import { BaseField } from "./base"
 import { FieldType, GridCellKind } from "./const"
@@ -51,7 +51,7 @@ export class LinkField extends BaseField<LinkCell, ILinkProperty> {
 
   cellData2RawData(cell: LinkCell) {
     return {
-      rawData: cell.data.value.map((item) => item.id).join(", ") || null,
+      rawData: cell.data.value.map((item) => item.id).join(",") || null,
     }
   }
 }

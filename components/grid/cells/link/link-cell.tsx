@@ -4,15 +4,12 @@ import {
   GridCellKind,
   ProvideEditorCallback,
 } from "@glideapps/glide-data-grid"
-import { CheckIcon } from "lucide-react"
 
 import { LinkCellData } from "@/lib/fields/link"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { Separator } from "@/components/ui/separator"
-import { Loading } from "@/components/loading"
 
-import { useRealtimeTableData } from "../hooks/use-realtime-table-data"
-import { drawDrilldownCell } from "./helper"
+import { drawDrilldownCell } from "../helper"
+import { LinkCellEditor as _LinkCellEditor } from "./link-cell-editor"
 
 interface LinkCellProps {
   readonly kind: "link-cell"
@@ -25,25 +22,36 @@ const LinkCellEditor: ReturnType<ProvideEditorCallback<LinkCell>> = (props) => {
   const { value: cell, onFinishedEditing, initialValue } = props
   const { value: oldValue, linkTable } = cell.data
   const { space } = useCurrentPathInfo()
-  const { data, loading } = useRealtimeTableData(space, linkTable)
-  const handleClick = (data: any) => {
+  const handleClick = (data: LinkCellData[]) => {
     onFinishedEditing({
       ...cell,
       data: {
         ...cell.data,
-        value: [
-          {
-            id: data._id,
-            title: data.title,
-          },
-        ],
+        value: data,
       },
     })
   }
   return (
-    <div className="rounded-md border-none p-2 outline-none">
-      {loading && <Loading />}
-      {data.map((v, i) => {
+    <>
+      <_LinkCellEditor
+        tableName={linkTable}
+        databaseName={space}
+        value={oldValue}
+        onChange={handleClick}
+      ></_LinkCellEditor>
+      {/* {createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md">
+          <div className="/75 click-outside-ignore h-[300px] w-[500px] bg-white border ">
+          <LinkGridEditor
+              tableName={linkTable}
+              databaseName={space}
+            ></LinkGridEditor>
+          </div>
+        </div>,
+        document.body
+      )} */}
+      {/* {loading && <Loading />} */}
+      {/* {data.map((v, i) => {
         const selected = oldValue.find((old) => old.id === v._id)
         return (
           <div key={v._id}>
@@ -59,8 +67,8 @@ const LinkCellEditor: ReturnType<ProvideEditorCallback<LinkCell>> = (props) => {
             <Separator className="my-2" />
           </div>
         )
-      })}
-    </div>
+      })} */}
+    </>
   )
 }
 

@@ -3,7 +3,7 @@ import { FieldType } from "@/lib/fields/const"
 
 import DatePicker from "./date-picker-cell"
 import { FileCellRenderer } from "./file/file-cell"
-import LinkCell from "./link-cell"
+import LinkCell from "./link/link-cell"
 import MultiSelectCell from "./multi-select-cell"
 import RatingCell from "./rating-cell"
 import SelectCell from "./select-cell"
