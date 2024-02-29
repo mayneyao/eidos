@@ -66,9 +66,9 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     currentUiColumn?.name ?? ""
   )
   useEffect(() => {
-    const currentField = uiColumns[currentColIndex!]
+    const currentField = showColumns[currentColIndex!]
     setCurrentUiColumn(currentField)
-  }, [currentColIndex, setCurrentUiColumn, uiColumns])
+  }, [currentColIndex, setCurrentUiColumn, showColumns])
 
   const [error, setError] = useState<string>()
 
