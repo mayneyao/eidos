@@ -1,5 +1,6 @@
 import { handleGoogleAI } from "./google"
 import { handleOpenAI } from "./openai"
+import { handleWebLLM } from "./webllm"
 
 export const pathname = "/api/chat"
 export default async function handle(event: FetchEvent) {
@@ -10,7 +11,9 @@ export default async function handle(event: FetchEvent) {
     case "google":
       return handleGoogleAI(req)
     case "openai":
-    default:
       return handleOpenAI(req)
+    default:
+      // local model
+      return handleWebLLM(req)
   }
 }

@@ -1,7 +1,6 @@
 // for now it's under database page, maybe move to global later
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useWhyDidYouUpdate } from "ahooks"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -25,16 +24,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { useConfigStore } from "@/app/settings/store"
 
 import { AIChatMessage } from "./ai-chat-message"
+import { AIModelSelect } from "./ai-chat-model-select"
 import { sysPrompts, useSystemPrompt } from "./hooks"
+import { useLoadingStore } from "./webllm/hooks"
 
 const promptKeys = Object.keys(sysPrompts)
-
-const models = [
-  "gpt-3.5-turbo-1106@openai",
-  "gpt-4-1106-preview@openai",
-  "gpt-4-vision-preview@openai",
-  "gemini-pro@google",
-]
 
 export default function Chat() {
   const divRef = useRef<HTMLDivElement>()
@@ -45,12 +39,18 @@ export default function Chat() {
   const currentNode = useCurrentNode()
   const { aiConfig } = useConfigStore()
   const { sqlite } = useSqlite()
+  const { progress, setProgress } = useLoadingStore()
   const { getDocMarkdown } = useDocEditor(sqlite)
-
   const { handleFunctionCall, handleRunCode } = useAIFunctions()
   const functionCallHandler = getFunctionCallHandler(handleFunctionCall)
   const { systemPrompt, setCurrentDocMarkdown } =
     useSystemPrompt(currentSysPrompt)
+
+  useEffect(() => {
+    if (progress?.progress === 1) {
+      setProgress(undefined)
+    }
+  }, [progress, setProgress])
 
   const { aiModel, setAIModel } = useAppStore()
   const {
@@ -60,6 +60,7 @@ export default function Chat() {
     input,
     handleInputChange,
     handleSubmit,
+    append,
     isLoading,
     stop,
   } = useChat({
@@ -73,6 +74,7 @@ export default function Chat() {
       currentPreviewFile,
     },
   })
+
   useEffect(() => {
     if (currentNode?.type === "doc") {
       console.log("fetching doc markdown")
@@ -91,6 +93,15 @@ export default function Chat() {
       if (isLoading) return
       handleSubmit(e as any)
     }
+  }
+  const handleManualRun = async (data: any) => {
+    const res = await handleRunCode(data)
+    append({
+      id: crypto.randomUUID(),
+      role: "user",
+      content: JSON.stringify(res),
+      hidden: true,
+    } as any)
   }
 
   const cleanMessages = useCallback(() => {
@@ -121,20 +132,7 @@ export default function Chat() {
               })}
             </SelectContent>
           </Select>
-          <Select onValueChange={setAIModel as any} value={aiModel}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Model" />
-            </SelectTrigger>
-            <SelectContent>
-              {models.map((key) => {
-                return (
-                  <SelectItem key={key} value={key}>
-                    {key}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
+          <AIModelSelect onValueChange={setAIModel as any} value={aiModel} />
         </div>
         {!aiConfig.token && (
           <p className="p-2">
@@ -149,18 +147,22 @@ export default function Chat() {
         )}
         {messages.map((message, i) => {
           const m = message
-          if ((m.role === "user" || m.role == "assistant") && m.content) {
+          if (
+            (m.role === "user" || m.role == "assistant") &&
+            m.content &&
+            !(m as any).hidden
+          ) {
             return (
               <AIChatMessage
                 key={i}
                 msgIndex={i}
                 message={message}
-                handleRunCode={handleRunCode}
+                handleRunCode={handleManualRun}
               />
             )
           }
         })}
-
+        <div>{progress?.text}</div>
         <div className="flex w-full justify-center">
           {isLoading && (
             <div>
@@ -183,6 +185,7 @@ export default function Chat() {
         <Textarea
           ref={textInputRef as any}
           autoFocus
+          disabled={progress && (progress?.progress || 0) < 1}
           placeholder="Type your message here."
           className=" bg-gray-100 dark:bg-gray-800"
           value={input}

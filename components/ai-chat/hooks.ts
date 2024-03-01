@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { getPrompt } from "@/lib/ai/openai"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
