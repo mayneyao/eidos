@@ -1,11 +1,18 @@
 import { OpenAIStream, StreamingTextResponse } from "ai"
 import OpenAI from "openai"
+import { boolean } from "zod"
 
 import { functions } from "@/lib/ai/functions"
 
 import { queryEmbedding } from "../routes/lib"
 
-export async function handleOpenAI(req: any) {
+export async function handleOpenAI(
+  req: any,
+  options?: {
+    useFunctions: boolean
+  }
+) {
+  const { useFunctions = true } = options || {}
   const {
     messages,
     token,
@@ -51,12 +58,18 @@ export async function handleOpenAI(req: any) {
     ]
     console.log("sw", newMsgs)
   }
-  const response = await openai.chat.completions.create({
+  let request: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
     model: model ?? "gpt-3.5-turbo-0613",
     stream: true,
     messages: newMsgs,
-    functions,
-  })
+  }
+  if (useFunctions) {
+    request = {
+      ...request,
+      functions,
+    }
+  }
+  const response = await openai.chat.completions.create(request)
   const stream = OpenAIStream(response)
   return new StreamingTextResponse(stream)
 }

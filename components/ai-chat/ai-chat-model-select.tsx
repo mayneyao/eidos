@@ -1,9 +1,8 @@
 "use client"
 
-import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
+import * as React from "react"
 
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -17,8 +16,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
-import { Loading } from "../loading"
 import { ScrollArea } from "../ui/scroll-area"
 import { useInitWebLLMWorker } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
@@ -27,6 +26,8 @@ const models = [
   "gpt-3.5-turbo-1106@openai",
   "gpt-4-1106-preview@openai",
   "gpt-4-vision-preview@openai",
+  "mixtral-8x7b-32768@groq",
+  "llama2-70b-4096@groq",
   "gemini-pro@google",
 ]
 
