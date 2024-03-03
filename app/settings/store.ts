@@ -28,9 +28,17 @@ export const useConfigStore = create<ConfigState>()(
   persist(
     (set) => ({
       aiConfig: {
-        token: "",
-        GOOGLE_API_KEY: "",
         baseUrl: "https://api.openai.com/v1",
+        token: "",
+        OPENAI_MODELS:
+          "gpt-3.5-turbo-1106, gpt-4-1106-preview, gpt-4-vision-preview",
+        // google
+        GOOGLE_API_KEY: "",
+        GOOGLE_MODELS: "gemini-pro",
+        // groq
+        GROQ_BASE_URL: "https://api.groq.com/openai/v1",
+        GROQ_API_KEY: "",
+        GROQ_MODELS: "llama2-70b-4096, mixtral-8x7b-32768",
         autoRunScope: [],
       },
       experiment: {

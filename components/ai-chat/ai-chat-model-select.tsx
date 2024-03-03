@@ -3,6 +3,7 @@
 import { Check, ChevronsUpDown } from "lucide-react"
 import * as React from "react"
 
+import { useConfigStore } from "@/app/settings/store"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -22,18 +23,28 @@ import { ScrollArea } from "../ui/scroll-area"
 import { useInitWebLLMWorker } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
 
-const models = [
-  "gpt-3.5-turbo-1106@openai",
-  "gpt-4-1106-preview@openai",
-  "gpt-4-vision-preview@openai",
-  "mixtral-8x7b-32768@groq",
-  "llama2-70b-4096@groq",
-  "gemini-pro@google",
-]
-
 const localModels = WEB_LLM_MODELS.map((item) => `${item.local_id}`)
 
-const allModels = [...models, ...localModels]
+const useModels = () => {
+  const { aiConfig } = useConfigStore()
+  const [models, setModels] = React.useState<string[]>([])
+  React.useEffect(() => {
+    const openaiModels = aiConfig.OPENAI_MODELS.split(",").map(
+      (item: string) => item.trim() + "@openai"
+    )
+    const groqModels = aiConfig.GROQ_MODELS.split(",").map(
+      (item: string) => item.trim() + "@groq"
+    )
+    const googleModels = aiConfig.GOOGLE_MODELS.split(",").map(
+      (item: string) => item.trim() + "@google"
+    )
+    setModels([...openaiModels, ...groqModels, ...googleModels])
+  }, [aiConfig])
+
+  return {
+    models,
+  }
+}
 
 export function AIModelSelect({
   value,
@@ -43,6 +54,10 @@ export function AIModelSelect({
   value: string
 }) {
   const [open, setOpen] = React.useState(false)
+  const { models } = useModels()
+
+  const allModels = [...models, ...localModels]
+
   const { reload } = useInitWebLLMWorker()
   React.useEffect(() => {
     const isLocal = localModels.includes(value)

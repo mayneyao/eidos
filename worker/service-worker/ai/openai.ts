@@ -1,6 +1,5 @@
 import { OpenAIStream, StreamingTextResponse } from "ai"
 import OpenAI from "openai"
-import { boolean } from "zod"
 
 import { functions } from "@/lib/ai/functions"
 
