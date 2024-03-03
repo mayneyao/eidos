@@ -1,8 +1,8 @@
 import { MouseEventHandler, useRef, useState } from "react"
-import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useClickAway } from "ahooks"
 import { useNavigate } from "react-router-dom"
 
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
@@ -20,7 +20,16 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "../ui/command"
 import { Input } from "../ui/input"
+import { ScrollArea } from "../ui/scroll-area"
 
 interface INodeItemProps {
   databaseName: string
@@ -146,17 +155,32 @@ export function NodeItem({
             <ContextMenuSub>
               <ContextMenuSubTrigger inset>Move Into</ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
-                {tableNodes.map((tableNode) => (
-                  <ContextMenuItem
-                    key={tableNode.id}
-                    inset
-                    onClick={() => {
-                      moveDraftIntoTable(node.id, tableNode.id)
-                    }}
-                  >
-                    {tableNode.name || "Untitled"}
-                  </ContextMenuItem>
-                ))}
+                <Command>
+                  <CommandInput
+                    placeholder="Filter label..."
+                    autoFocus={true}
+                  />
+                  <ScrollArea className="">
+                    <CommandList className="max-h-[300px]">
+                      <CommandEmpty>No table found.</CommandEmpty>
+                      <CommandGroup>
+                        {tableNodes.map((tableNode) => (
+                          <CommandItem
+                            key={tableNode.id}
+                            onClick={() => {}}
+                            title={tableNode.name || "Untitled"}
+                            className=" truncate"
+                            onSelect={(value) => {
+                              moveDraftIntoTable(node.id, tableNode.id)
+                            }}
+                          >
+                            {tableNode.name || "Untitled"}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </ScrollArea>
+                </Command>
               </ContextMenuSubContent>
             </ContextMenuSub>
           </>

@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   BlocksIcon,
   BookOpenIcon,
@@ -18,6 +19,14 @@ import { useAllNodes, useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
@@ -33,13 +42,17 @@ import {
 import { DiscordIcon } from "@/components/icons/discord"
 import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
 
+import { ScrollArea } from "../ui/scroll-area"
+
 export function NavDropdownMenu() {
   const router = useNavigate()
+  const [open, setOpen] = useState(false)
 
   const { deleteNode } = useSqlite()
   const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
   const allTables = useAllNodes({
     type: "table",
+    isDeleted: false,
   })
   const node = useCurrentNode()
 
@@ -61,7 +74,7 @@ export function NavDropdownMenu() {
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost">
           <MoreHorizontal className="h-5 w-5" />
@@ -123,25 +136,44 @@ export function NavDropdownMenu() {
                   <MoveRightIcon className="mr-2 h-4 w-4" />
                   Move Into
                 </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="max-h-[300px] w-48 overflow-y-scroll">
-                  {allTables.map((tableNode) => (
-                    <DropdownMenuItem
-                      key={tableNode.id}
-                      inset
-                      onClick={() => {
-                        moveIntoTable(node.id, tableNode.id, node.parent_id)
-                      }}
-                    >
-                      {tableNode.name || "Untitled"}
-                    </DropdownMenuItem>
-                  ))}
+                <DropdownMenuSubContent className="w-48">
+                  <Command>
+                    <CommandInput
+                      placeholder="Filter label..."
+                      autoFocus={true}
+                    />
+                    <ScrollArea className="">
+                      <CommandList className="max-h-[300px]">
+                        <CommandEmpty>No table found.</CommandEmpty>
+                        <CommandGroup>
+                          {allTables.map((tableNode) => (
+                            <CommandItem
+                              key={tableNode.id}
+                              onClick={() => {}}
+                              title={tableNode.name || "Untitled"}
+                              className=" truncate"
+                              onSelect={(value) => {
+                                moveIntoTable(
+                                  node.id,
+                                  tableNode.id,
+                                  node.parent_id
+                                )
+                                setOpen(false)
+                              }}
+                            >
+                              {tableNode.name || "Untitled"}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </ScrollArea>
+                  </Command>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
             <NodeUpdateTime />
           </>
         )}
-
         <DropdownMenuSeparator />
         <span className="p-2 text-sm text-gray-500">
           Version: {EIDOS_VERSION}
