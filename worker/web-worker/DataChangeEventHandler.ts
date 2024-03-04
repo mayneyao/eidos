@@ -43,6 +43,9 @@ export class DataChangeEventHandler {
               diff,
               diffKeys,
             }
+            if (diffKeys.length === 0) {
+              return
+            }
             console.log("updateSignal", updateSignal)
             const tableId = getTableIdByRawTableName(table)
             const tm = new TableManager(tableId, this.dataSpace)

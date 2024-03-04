@@ -10,7 +10,7 @@ export class LinkRelationUpdater {
     // every 1s, check if there is any cell need to be updated
     setInterval(() => {
       this.updateCells()
-    }, 1000)
+    }, 100)
   }
 
   updateCells = async () => {

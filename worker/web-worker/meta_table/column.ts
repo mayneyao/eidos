@@ -147,16 +147,20 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
 
   async deleteField(tableName: string, tableColumnName: string) {
     try {
-      await this.dataSpace.withTransaction(async () => {
+      await this.dataSpace.db.transaction(async (db) => {
         // update trigger before delete column
         await this.dataSpace.onTableChange(this.dataSpace.dbName, tableName, [
           tableColumnName,
         ])
-        await this.dataSpace.sql`DELETE FROM ${Symbol(
-          ColumnTableName
-        )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
-        await this.dataSpace.exec2(
-          `ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};`
+        this.dataSpace.syncExec2(
+          `DELETE FROM ${ColumnTableName} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`,
+          [],
+          db
+        )
+        this.dataSpace.syncExec2(
+          `ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};`,
+          [],
+          db
         )
       })
     } catch (error) {
