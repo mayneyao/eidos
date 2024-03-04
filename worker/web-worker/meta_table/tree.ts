@@ -1,7 +1,7 @@
 import { TreeTableName } from "@/lib/sqlite/const"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { extractIdFromShortId, getRawTableNameById } from "@/lib/utils"
 
-import { ITreeNode } from "../../../lib/store/ITreeNode"
 import { BaseTable, BaseTableImpl } from "./base"
 
 export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
@@ -13,6 +13,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     type TEXT,
     parent_id TEXT NULL,
     is_pinned BOOLEAN DEFAULT 0,
+    is_full_width BOOLEAN DEFAULT 0,
     icon TEXT NULL,
     cover TEXT NULL,
     is_deleted BOOLEAN DEFAULT 0,

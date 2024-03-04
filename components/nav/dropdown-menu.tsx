@@ -43,12 +43,13 @@ import { DiscordIcon } from "@/components/icons/discord"
 import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
 
 import { ScrollArea } from "../ui/scroll-area"
+import { Switch } from "../ui/switch"
 
 export function NavDropdownMenu() {
   const router = useNavigate()
   const [open, setOpen] = useState(false)
 
-  const { deleteNode } = useSqlite()
+  const { deleteNode, toggleNodeFullWidth } = useSqlite()
   const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
   const allTables = useAllNodes({
     type: "table",
@@ -125,51 +126,66 @@ export function NavDropdownMenu() {
         {node && (
           <>
             <DropdownMenuSeparator />
+            {node.type === "doc" && (
+              <DropdownMenuItem
+                className="flex justify-between"
+                onClick={(e) => {
+                  e.preventDefault()
+                  toggleNodeFullWidth(node)
+                }}
+              >
+                Full Width
+                <Switch checked={node.is_full_width} />
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
             {/* node related operate */}
             <DropdownMenuItem onClick={deleteCurrentNode}>
               <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
               <span>Delete</span>
             </DropdownMenuItem>
             {node.type === "doc" && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <MoveRightIcon className="mr-2 h-4 w-4" />
-                  Move Into
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-48">
-                  <Command>
-                    <CommandInput
-                      placeholder="Filter label..."
-                      autoFocus={true}
-                    />
-                    <ScrollArea className="">
-                      <CommandList className="max-h-[300px]">
-                        <CommandEmpty>No table found.</CommandEmpty>
-                        <CommandGroup>
-                          {allTables.map((tableNode) => (
-                            <CommandItem
-                              key={tableNode.id}
-                              onClick={() => {}}
-                              title={tableNode.name || "Untitled"}
-                              className=" truncate"
-                              onSelect={(value) => {
-                                moveIntoTable(
-                                  node.id,
-                                  tableNode.id,
-                                  node.parent_id
-                                )
-                                setOpen(false)
-                              }}
-                            >
-                              {tableNode.name || "Untitled"}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </ScrollArea>
-                  </Command>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+              <>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <MoveRightIcon className="mr-2 h-4 w-4" />
+                    Move Into
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-48">
+                    <Command>
+                      <CommandInput
+                        placeholder="Filter label..."
+                        autoFocus={true}
+                      />
+                      <ScrollArea className="">
+                        <CommandList className="max-h-[300px]">
+                          <CommandEmpty>No table found.</CommandEmpty>
+                          <CommandGroup>
+                            {allTables.map((tableNode) => (
+                              <CommandItem
+                                key={tableNode.id}
+                                onClick={() => {}}
+                                title={tableNode.name || "Untitled"}
+                                className=" truncate"
+                                onSelect={(value) => {
+                                  moveIntoTable(
+                                    node.id,
+                                    tableNode.id,
+                                    node.parent_id
+                                  )
+                                  setOpen(false)
+                                }}
+                              >
+                                {tableNode.name || "Untitled"}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </ScrollArea>
+                    </Command>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </>
             )}
             <NodeUpdateTime />
           </>

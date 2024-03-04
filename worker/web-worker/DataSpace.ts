@@ -636,6 +636,12 @@ export class DataSpace {
     return this.tree.pin(id, isPinned)
   }
 
+  public async toggleNodeFullWidth(id: string, isFullWidth: boolean) {
+    return this.tree.set(id, {
+      is_full_width: isFullWidth,
+    })
+  }
+
   public async updateTreeNodeName(id: string, name: string) {
     const node = await this.tree.get(id)
     if (node?.name === name) {
