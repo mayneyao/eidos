@@ -21,11 +21,13 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useConfigStore } from "@/app/settings/store"
 
-import { ScrollArea } from "../ui/scroll-area"
+import "./index.css"
 import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
 import { sysPrompts, useSystemPrompt } from "./hooks"
+import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useLoadingStore } from "./webllm/hooks"
+import { useSpeak } from "./webspeech/hooks"
 import { Whisper } from "./whisper"
 
 const promptKeys = Object.keys(sysPrompts)
@@ -55,6 +57,7 @@ export default function Chat() {
   }, [progress, setProgress])
 
   const { aiModel, setAIModel } = useAppStore()
+  const { speak } = useSpeak()
 
   const {
     messages,
@@ -68,6 +71,9 @@ export default function Chat() {
     stop,
   } = useChat({
     experimental_onFunctionCall: functionCallHandler as any,
+    onFinish(message) {
+      speak(message.content, message.id)
+    },
     body: {
       token: aiConfig.token,
       baseUrl: aiConfig.baseUrl,
@@ -130,7 +136,7 @@ export default function Chat() {
       ref={divRef}
     >
       <div className="flex grow flex-col gap-2 pb-[100px]">
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Select
             onValueChange={setCurrentSysPrompt as any}
             value={currentSysPrompt}
@@ -149,6 +155,7 @@ export default function Chat() {
             </SelectContent>
           </Select>
           <AIModelSelect onValueChange={setAIModel as any} value={aiModel} />
+          <AIChatSettings />
         </div>
         {!aiConfig.token && (
           <p className="p-2">

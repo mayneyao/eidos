@@ -20,6 +20,7 @@ export const AIChatMessage = ({
         <>
           <Bot className="h-4 w-4 shrink-0" />
           <AIMessage
+            msgId={message.id}
             message={message.content}
             onRun={handleRunCode}
             msgIndex={msgIndex}

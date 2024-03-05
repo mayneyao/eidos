@@ -1,21 +1,26 @@
-import { Play } from "lucide-react"
+import { PauseIcon, Play } from "lucide-react"
 import Prism from "prismjs"
 
 import { Button } from "@/components/ui/button"
 
 import "prismjs/components/prism-sql"
 import "prismjs/themes/prism-tomorrow.css"
+import { useEffect, useRef } from "react"
 import {
   DEFAULT_MARKDOWN_RENDERERS,
   Markdown,
   MarkdownRenderers,
 } from "react-marked-renderer"
 
+import { useSpeak, useSpeakStore } from "./webspeech/hooks"
+
 export const AIMessage = ({
+  msgId: _msgId,
   message,
   onRun,
   msgIndex,
 }: {
+  msgId: string
   msgIndex: number
   message?: string
   onRun: (props: {
@@ -28,6 +33,38 @@ export const AIMessage = ({
     }
   }) => void
 }) => {
+  const ref = useRef<HTMLDivElement>(null)
+  const { msgId, charIndex, charLength } = useSpeakStore()
+  const { cancel } = useSpeak()
+  useEffect(() => {
+    if (msgId === _msgId) {
+      const el = ref.current
+      if (el) {
+        let textNode = el.querySelector("p")?.firstChild
+        const range = document.createRange()
+        const sel = window.getSelection()
+        if (textNode) {
+          try {
+            range.setStart(textNode, charIndex)
+            range.setEnd(textNode, charIndex + charLength)
+          } catch (error) {}
+
+          sel?.removeAllRanges()
+          sel?.addRange(range)
+        }
+      }
+    } else {
+      const el = ref.current
+      if (el) {
+        let textNode = el.querySelector("p")?.firstChild
+        const sel = window.getSelection()
+        if (textNode) {
+          sel?.removeAllRanges()
+        }
+      }
+    }
+  }, [msgId, _msgId, msgIndex, charIndex, charLength])
+
   const renderers: MarkdownRenderers = {
     ...DEFAULT_MARKDOWN_RENDERERS,
     codespan: function CodeSpan({ children }) {
@@ -68,9 +105,14 @@ export const AIMessage = ({
     },
   }
   return (
-    <div className="prose grow dark:prose-invert">
+    <div className="ai-chat-msg prose relative grow dark:prose-invert" ref={ref}>
       {message && <Markdown markdown={message} renderers={renderers} />}
       <div id={`chart-${msgIndex}`} />
+      {_msgId === msgId && (
+        <div className=" absolute bottom-0 right-0" onClick={cancel}>
+          <PauseIcon />
+        </div>
+      )}
     </div>
   )
 }

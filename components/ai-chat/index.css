@@ -1,0 +1,4 @@
+.ai-chat-msg > p::selection {
+  background-color: cyan;
+  border-radius: 0.25rem;
+}
