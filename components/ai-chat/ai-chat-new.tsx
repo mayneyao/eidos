@@ -27,6 +27,7 @@ import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
 import { sysPrompts, useSystemPrompt } from "./hooks"
 import { useLoadingStore } from "./webllm/hooks"
+import { Whisper } from "./whisper"
 
 const promptKeys = Object.keys(sysPrompts)
 
@@ -53,6 +54,7 @@ export default function Chat() {
   }, [progress, setProgress])
 
   const { aiModel, setAIModel } = useAppStore()
+
   const {
     messages,
     setMessages,
@@ -101,6 +103,14 @@ export default function Chat() {
       role: "user",
       content: JSON.stringify(res),
       hidden: true,
+    } as any)
+  }
+
+  const setSpeechText = (text: string) => {
+    append({
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
     } as any)
   }
 
@@ -172,13 +182,14 @@ export default function Chat() {
         </div>
       </div>
       <div className="sticky bottom-0">
-        <div className="flex  w-full justify-end">
+        <div className="flex  w-full items-center justify-end">
           {isLoading && (
             <Button onClick={stop} variant="ghost" size="sm">
               <PauseIcon className="h-5 w-5" />
             </Button>
           )}
-          <Button variant="ghost" onClick={cleanMessages}>
+          <Whisper setText={setSpeechText} />
+          <Button variant="ghost" onClick={cleanMessages} size="sm">
             <Paintbrush className="h-5 w-5" />
           </Button>
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { getPrompt } from "@/lib/ai/openai"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -8,6 +8,8 @@ export const sysPrompts = {
   base: ``,
   eidosBaseHelper: `you must abide by the following rules:
 - data from query which can be trusted, you can display it directly, don't need to check it.
+- if user want to query some data, you need to generate SQL. then user will tell you the query result.
+- 回答必须简单,不要有多余的语气词,比如"好的", "知道了", "请稍等"等等
 `,
   eidosActionCreator: `now you are a action creator, you can create action.
 - user just know name of table and name of column, don't know tableName and tableColumnName

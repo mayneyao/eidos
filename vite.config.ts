@@ -10,6 +10,20 @@ const config = defineConfig({
   // },
   plugins: [
     react(),
+    // {
+    //   name: "configure-response-headers",
+    //   configureServer: (server) => {
+    //     server.middlewares.use((_req, res, next) => {
+    //       if (_req.url.endsWith(".wasm")) {
+    //         console.log("setting wasm headers")
+    //         res.setHeader("Content-Type", "application/wasm")
+    //       }
+    //       res.setHeader("Cross-Origin-Embedder-Policy", "require-corp")
+    //       res.setHeader("Cross-Origin-Opener-Policy", "same-origin")
+    //       next()
+    //     })
+    //   },
+    // },
     VitePWA({
       srcDir: "app",
       filename: "sw.ts",
@@ -72,20 +86,8 @@ const config = defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@sqlite.org/sqlite-wasm"],
+    exclude: ["@sqlite.org/sqlite-wasm", "whisper-webgpu"],
   },
-  //     inlineDynamicImports :true
-  // build: {
-  //   rollupOptions: {
-  //     output: {
-  //       manualChunks: {
-  //         pdfjs: ["pdfjs-dist/build/pdf.js"],
-  //         pdfjsWorker: ["pdfjs-dist/build/pdf.worker.js"],
-  //       },
-  //       inlineDynamicImports: true,
-  //     },
-  //   },
-  // },
 })
 
 export default config
