@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AvailableModels,
   DecodingOptionsBuilder,
@@ -33,6 +33,7 @@ export const useWebGPUWhisper = ({
   setLoading: (loading: boolean) => void
 }) => {
   const sessionRef = useRef<InferenceSession>()
+  const [hasWebGPU, setHasWebGPU] = useState(false)
   const ref = useRef(false)
   useEffect(() => {
     async function init() {
@@ -42,6 +43,11 @@ export const useWebGPUWhisper = ({
       }
     }
     init()
+    if ((navigator as any).gpu) {
+      setHasWebGPU(true)
+    } else {
+      setHasWebGPU(false)
+    }
   }, [ref])
 
   const runWhisper = async (audioData: Uint8Array) => {
@@ -89,5 +95,6 @@ export const useWebGPUWhisper = ({
 
   return {
     runWhisper,
+    hasWebGPU,
   }
 }

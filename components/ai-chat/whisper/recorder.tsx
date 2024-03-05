@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { useKeyPress } from "ahooks"
 import { MicRecorder } from "whisper-turbo"
 
 import { Button } from "@/components/ui/button"
@@ -6,9 +7,7 @@ import { Button } from "@/components/ui/button"
 const SAMPLE_RATE = 16000
 
 interface MicButtonProps {
-  setBlobUrl: (blobUrl: string) => void
   setAudioData: (audioData: Uint8Array) => void
-  setAudioMetadata: (audioMetadata: AudioMetadata) => void
 }
 
 export interface AudioMetadata {
@@ -18,14 +17,13 @@ export interface AudioMetadata {
 
 export const MicButton = (props: MicButtonProps) => {
   const [mic, setMic] = useState<MicRecorder | null>(null)
-  const [isRecording, setIsRecording] = useState(false)
-
-  const handleRecord = async () => {
-    setMic(await MicRecorder.start())
-  }
+  const recordingRef = useRef(false)
 
   const handleStop = async () => {
+    recordingRef.current = false
+    console.log("stopping mic...")
     if (!mic) {
+      console.log("mic is null")
       return
     }
     let recording = await mic.stop()
@@ -33,28 +31,74 @@ export const MicButton = (props: MicButtonProps) => {
     let resampled = await ctx.decodeAudioData(recording.buffer)
     let ch0 = resampled.getChannelData(0)
     props.setAudioData(new Uint8Array(ch0.buffer))
-
-    let blob = recording.blob
-    props.setAudioMetadata({
-      file: new File([blob], "recording.wav"),
-      fromMic: true,
-    })
-    props.setBlobUrl(URL.createObjectURL(blob))
     setMic(null)
   }
+  const handleRecord = async () => {
+    recordingRef.current = true
+    const { recorder, stream } = await MicRecorder.start()
+    const audioContext = new AudioContext()
+    const source = audioContext.createMediaStreamSource(stream)
+    const analyser = audioContext.createAnalyser()
+    source.connect(analyser)
+    const data = new Uint8Array(analyser.frequencyBinCount)
+    setMic(recorder)
+    // let timerId: NodeJS.Timeout | null = null
 
+    // function checkAverage(average: number) {
+    //   if (average < 0.5) {
+    //     if (timerId === null) {
+    //       timerId = setTimeout(() => {
+    //         timerId = null
+    //         handleStop()
+    //       }, 2000)
+    //     }
+    //   } else {
+    //     if (timerId !== null) {
+    //       clearTimeout(timerId)
+    //       timerId = null
+    //     }
+    //   }
+    // }
+
+    function draw() {
+      analyser.getByteFrequencyData(data)
+      let sum = 0
+      for (let i = 0; i < data.length; i++) {
+        sum += data[i]
+      }
+      const average = sum / data.length
+      // checkAverage(average)
+      const circle = document.getElementById("circle")
+      if (circle) {
+        circle.style.width = `${average * 3}px`
+        // circle.style.height = `${average}px`
+        if (recordingRef.current) {
+          requestAnimationFrame(draw)
+        } else {
+          circle.style.width = `${0}px`
+          // circle.style.height = `${0}px`
+        }
+      }
+    }
+    draw()
+  }
+
+  useKeyPress("s", (e) => {
+    if (e.shiftKey) {
+      handleClick()
+    }
+  })
   const handleClick = async () => {
-    if (isRecording) {
+    if (recordingRef.current) {
       await handleStop()
     } else {
       await handleRecord()
     }
-    setIsRecording(!isRecording)
   }
 
   return (
     <Button onClick={handleClick} variant="ghost" size="sm">
-      {isRecording ? (
+      {recordingRef.current ? (
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"

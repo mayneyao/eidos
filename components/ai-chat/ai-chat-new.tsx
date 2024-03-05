@@ -1,5 +1,3 @@
-// for now it's under database page, maybe move to global later
-
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon } from "lucide-react"
@@ -23,6 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useConfigStore } from "@/app/settings/store"
 
+import { ScrollArea } from "../ui/scroll-area"
 import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
 import { sysPrompts, useSystemPrompt } from "./hooks"
@@ -32,7 +31,9 @@ import { Whisper } from "./whisper"
 const promptKeys = Object.keys(sysPrompts)
 
 export default function Chat() {
-  const divRef = useRef<HTMLDivElement>()
+  const loadingRef = useRef<HTMLDivElement>(null)
+
+  const divRef = useRef<HTMLDivElement>(null)
   const textInputRef = useRef<HTMLTextAreaElement>()
   const [currentSysPrompt, setCurrentSysPrompt] =
     useState<keyof typeof sysPrompts>("base")
@@ -78,6 +79,11 @@ export default function Chat() {
   })
 
   useEffect(() => {
+    if (isLoading && loadingRef.current) {
+      loadingRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [isLoading])
+  useEffect(() => {
     if (currentNode?.type === "doc") {
       console.log("fetching doc markdown")
       getDocMarkdown(currentNode.id).then((res) => {
@@ -120,8 +126,8 @@ export default function Chat() {
 
   return (
     <div
-      className="flex h-full w-[24%] min-w-[400px] max-w-[700px] flex-col overflow-auto border-l border-l-slate-400 p-2"
-      ref={divRef as any}
+      className="relative flex h-screen w-[24%] min-w-[400px] max-w-[700px] flex-col overflow-auto border-l border-l-slate-400 p-2"
+      ref={divRef}
     >
       <div className="flex grow flex-col gap-2 pb-[100px]">
         <div className="flex gap-2">
@@ -175,7 +181,7 @@ export default function Chat() {
         <div>{progress?.text}</div>
         <div className="flex w-full justify-center">
           {isLoading && (
-            <div>
+            <div ref={loadingRef}>
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
           )}
@@ -193,6 +199,10 @@ export default function Chat() {
             <Paintbrush className="h-5 w-5" />
           </Button>
         </div>
+        <div
+          id="circle"
+          className=" absolute right-0 ml-0 h-1 rounded-sm bg-green-300 opacity-50"
+        ></div>
         <Textarea
           ref={textInputRef as any}
           autoFocus

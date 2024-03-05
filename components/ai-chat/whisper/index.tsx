@@ -11,17 +11,15 @@ interface IWhisperProps {
 
 export const Whisper = ({ setText }: IWhisperProps) => {
   const [loading, setLoading] = useState(false)
-  const { runWhisper } = useWebGPUWhisper({ setText, setLoading })
+  const { runWhisper, hasWebGPU } = useWebGPUWhisper({ setText, setLoading })
   // const { runWhisper } = useCloudflareWhisper()
-
+  if (!hasWebGPU) {
+    return null
+  }
   return (
     <>
       {loading && <Loading />}
-      <MicButton
-        setBlobUrl={console.log}
-        setAudioData={runWhisper}
-        setAudioMetadata={console.log}
-      />
+      <MicButton setAudioData={runWhisper} />
     </>
   )
 }
