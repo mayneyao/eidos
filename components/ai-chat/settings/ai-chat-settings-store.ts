@@ -2,6 +2,10 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
 type AIChatSettingsStore = {
+  autoSpeak: boolean
+  setAutoSpeak: (autoSpeak: boolean) => void
+  sourceLanguage: string
+  setSourceLanguage: (sourceLanguage: string) => void
   voiceURI: string
   setVoiceURI: (voiceURI: string) => void
   pitch: number
@@ -13,6 +17,10 @@ type AIChatSettingsStore = {
 export const useAIChatSettingsStore = create<AIChatSettingsStore>()(
   persist(
     (set) => ({
+      autoSpeak: false,
+      setAutoSpeak: (autoSpeak) => set({ autoSpeak }),
+      sourceLanguage: "en",
+      setSourceLanguage: (sourceLanguage) => set({ sourceLanguage }),
       voiceURI: "Microsoft Xiaoyi Online (Natural) - Chinese (Mainland)",
       setVoiceURI: (voiceURI) => set({ voiceURI }),
       pitch: 1,

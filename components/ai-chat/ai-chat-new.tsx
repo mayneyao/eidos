@@ -26,6 +26,7 @@ import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
 import { sysPrompts, useSystemPrompt } from "./hooks"
 import { AIChatSettings } from "./settings/ai-chat-settings"
+import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore } from "./webllm/hooks"
 import { useSpeak } from "./webspeech/hooks"
 import { Whisper } from "./whisper"
@@ -35,6 +36,7 @@ const promptKeys = Object.keys(sysPrompts)
 export default function Chat() {
   const loadingRef = useRef<HTMLDivElement>(null)
 
+  const { autoSpeak } = useAIChatSettingsStore()
   const divRef = useRef<HTMLDivElement>(null)
   const textInputRef = useRef<HTMLTextAreaElement>()
   const [currentSysPrompt, setCurrentSysPrompt] =
@@ -72,7 +74,7 @@ export default function Chat() {
   } = useChat({
     experimental_onFunctionCall: functionCallHandler as any,
     onFinish(message) {
-      speak(message.content, message.id)
+      autoSpeak && speak(message.content, message.id)
     },
     body: {
       token: aiConfig.token,

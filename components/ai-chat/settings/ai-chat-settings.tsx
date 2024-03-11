@@ -11,12 +11,15 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
+import { Switch } from "@/components/ui/switch"
 
 import { useAIChatSettingsStore } from "./ai-chat-settings-store"
+import { SourceLangSelector } from "./lang-selector"
 import { VoiceSelector } from "./voice-selector"
 
 export function AIChatSettings() {
-  const { pitch, setPitch, rate, setRate } = useAIChatSettingsStore()
+  const { pitch, setPitch, rate, setRate, autoSpeak, setAutoSpeak } =
+    useAIChatSettingsStore()
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -37,6 +40,12 @@ export function AIChatSettings() {
               Voice
             </Label>
             <VoiceSelector />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="voice" className="text-right">
+              Auto speak
+            </Label>
+            <Switch checked={autoSpeak} onCheckedChange={setAutoSpeak} />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="pitch" className="text-right">
@@ -75,6 +84,13 @@ export function AIChatSettings() {
               />
               {rate}
             </div>
+          </div>
+          <hr />
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="voice" className="text-right">
+              Source language
+            </Label>
+            <SourceLangSelector />
           </div>
         </div>
         <DialogFooter></DialogFooter>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   AvailableModels,
   DecodingOptionsBuilder,
@@ -8,6 +8,8 @@ import {
   Task,
   initialize,
 } from "whisper-turbo"
+
+import { useAIChatSettingsStore } from "../settings/ai-chat-settings-store"
 
 // export const useCloudflareWhisper = () => {
 //   const runWhisper = async (audioData: Uint8Array) => {
@@ -34,12 +36,17 @@ export const useWebGPUWhisper = ({
 }) => {
   const sessionRef = useRef<InferenceSession>()
   const [hasWebGPU, setHasWebGPU] = useState(false)
-  const ref = useRef(false)
+  const { sourceLanguage } = useAIChatSettingsStore()
+  const [hasInitialized, setHasInitialized] = useState(false)
+
+  const canUse = useMemo(() => {
+    return hasWebGPU && hasInitialized
+  }, [hasInitialized, hasWebGPU])
   useEffect(() => {
     async function init() {
-      if (!ref.current) {
+      if (!hasInitialized) {
         await initialize()
-        ref.current = true
+        setHasInitialized(true)
       }
     }
     init()
@@ -48,7 +55,7 @@ export const useWebGPUWhisper = ({
     } else {
       setHasWebGPU(false)
     }
-  }, [ref])
+  }, [hasInitialized, hasWebGPU, setHasWebGPU])
 
   const runWhisper = async (audioData: Uint8Array) => {
     if (!sessionRef.current) {
@@ -67,7 +74,7 @@ export const useWebGPUWhisper = ({
     }
 
     let options = new DecodingOptionsBuilder()
-      .setLanguage("zh")
+      .setLanguage(sourceLanguage)
       .setSuppressBlank(true)
       .setMaxInitialTimestamp(1)
       .setTemperature(0)
@@ -96,5 +103,6 @@ export const useWebGPUWhisper = ({
   return {
     runWhisper,
     hasWebGPU,
+    canUse,
   }
 }
