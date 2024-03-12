@@ -1,8 +1,12 @@
+import fs from "fs"
 import path from "path"
 import react from "@vitejs/plugin-react"
 import { visualizer } from "rollup-plugin-visualizer"
 import { PluginOption, defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
+
+const iconPath = path.resolve(__dirname, "icons.json")
+const iconJson = JSON.parse(fs.readFileSync(iconPath, "utf-8"))
 
 const config = defineConfig({
   // define: {
@@ -10,20 +14,6 @@ const config = defineConfig({
   // },
   plugins: [
     react(),
-    // {
-    //   name: "configure-response-headers",
-    //   configureServer: (server) => {
-    //     server.middlewares.use((_req, res, next) => {
-    //       if (_req.url.endsWith(".wasm")) {
-    //         console.log("setting wasm headers")
-    //         res.setHeader("Content-Type", "application/wasm")
-    //       }
-    //       res.setHeader("Cross-Origin-Embedder-Policy", "require-corp")
-    //       res.setHeader("Cross-Origin-Opener-Policy", "same-origin")
-    //       next()
-    //     })
-    //   },
-    // },
     VitePWA({
       srcDir: "app",
       filename: "sw.ts",
@@ -39,13 +29,7 @@ const config = defineConfig({
         short_name: "Eidos",
         description: "an all-in-one workspace for everyone",
         theme_color: "#ffffff",
-        icons: [
-          {
-            src: "512.png",
-            sizes: "71x71 142x142 192x192 256x256 512x512",
-            type: "image/png",
-          },
-        ],
+        icons: iconJson.icons,
         file_handlers: [
           {
             action: "/editor/doc",
