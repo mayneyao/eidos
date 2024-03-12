@@ -36,6 +36,5 @@
     "prettier.config.cjs",
     "jest.config.cjs"
   ],
-  "exclude": ["packages/*/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
