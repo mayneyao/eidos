@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useChat } from "ai/react"
-import { Loader2, Paintbrush, PauseIcon } from "lucide-react"
+import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { getFunctionCallHandler } from "@/lib/ai/openai"
@@ -204,6 +204,14 @@ export default function Chat() {
             </Button>
           )}
           <Whisper setText={setSpeechText} />
+          <Button
+            variant="ghost"
+            onClick={() => reload()}
+            size="sm"
+            disabled={isLoading}
+          >
+            <RefreshCcwIcon className="h-5 w-5" />
+          </Button>
           <Button variant="ghost" onClick={cleanMessages} size="sm">
             <Paintbrush className="h-5 w-5" />
           </Button>

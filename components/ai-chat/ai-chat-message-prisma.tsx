@@ -1,4 +1,4 @@
-import { PauseIcon, Play } from "lucide-react"
+import { ArrowBigLeftIcon, PauseIcon, Play } from "lucide-react"
 import Prism from "prismjs"
 
 import { Button } from "@/components/ui/button"
@@ -104,8 +104,18 @@ export const AIMessage = ({
       )
     },
   }
+
+  const insertIntoDoc = () => {
+    const event = new CustomEvent("AIComplete", {
+      detail: message,
+    })
+    document.dispatchEvent(event)
+  }
   return (
-    <div className="ai-chat-msg prose relative grow dark:prose-invert" ref={ref}>
+    <div
+      className="ai-chat-msg group prose relative grow dark:prose-invert"
+      ref={ref}
+    >
       {message && <Markdown markdown={message} renderers={renderers} />}
       <div id={`chart-${msgIndex}`} />
       {_msgId === msgId && (
@@ -113,6 +123,13 @@ export const AIMessage = ({
           <PauseIcon />
         </div>
       )}
+      <div
+        className=" absolute bottom-0 left-0 hidden cursor-pointer group-hover:block"
+        onClick={insertIntoDoc}
+        title="Insert into document"
+      >
+        <ArrowBigLeftIcon />
+      </div>
     </div>
   )
 }

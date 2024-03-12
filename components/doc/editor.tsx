@@ -12,6 +12,7 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { useDebounceFn } from "ahooks"
 
 import { cn } from "@/lib/utils"
+import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 
 import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
@@ -147,6 +148,7 @@ export function Editor(props: EditorProps) {
                 ErrorBoundary={LexicalErrorBoundary}
               />
 
+              <AIEditorPlugin />
               <AllPlugins />
               <NewMentionsPlugin currentDocId={props.docId!} />
               {props.autoFocus && <AutoFocusPlugin />}
