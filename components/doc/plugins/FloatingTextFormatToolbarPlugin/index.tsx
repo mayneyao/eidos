@@ -6,22 +6,23 @@
  *
  */
 
+import { useCallback, useEffect, useState } from "react"
 import { $isCodeHighlightNode } from "@lexical/code"
 import { $isLinkNode } from "@lexical/link"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { mergeRegister } from "@lexical/utils"
 import {
   $getSelection,
+  $isParagraphNode,
   $isRangeSelection,
   $isTextNode,
-  LexicalEditor
+  LexicalEditor,
 } from "lexical"
-import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
+
 import "./index.css"
-
+import { useEditorStore } from "../../hooks/useEditorContext"
 // import { INSERT_INLINE_COMMAND } from "../CommentPlugin"
-
 
 import { getSelectedNode } from "../../utils/getSelectedNode"
 import { TextFormatFloatingToolbar } from "./toolbar"
@@ -39,6 +40,11 @@ function useFloatingTextFormatToolbar(
   const [isSubscript, setIsSubscript] = useState(false)
   const [isSuperscript, setIsSuperscript] = useState(false)
   const [isCode, setIsCode] = useState(false)
+  const { setIsToolbarVisible } = useEditorStore()
+
+  useEffect(() => {
+    setIsToolbarVisible(isText)
+  }, [isText, setIsToolbarVisible])
 
   const updatePopup = useCallback(() => {
     editor.getEditorState().read(() => {
@@ -87,7 +93,7 @@ function useFloatingTextFormatToolbar(
         !$isCodeHighlightNode(selection.anchor.getNode()) &&
         selection.getTextContent() !== ""
       ) {
-        setIsText($isTextNode(node))
+        setIsText($isTextNode(node) || $isParagraphNode(node))
       } else {
         setIsText(false)
       }
@@ -120,7 +126,7 @@ function useFloatingTextFormatToolbar(
     )
   }, [editor, updatePopup])
 
-  if (!isText || isLink) {
+  if (!isText) {
     return null
   }
 

@@ -14,6 +14,7 @@ import { useDebounceFn } from "ahooks"
 import { cn } from "@/lib/utils"
 import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 
+import { useEditorStore } from "./hooks/useEditorContext"
 import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
 import { EidosAutoSavePlugin } from "./plugins/AutoSavePlugin"
@@ -61,6 +62,7 @@ export function Editor(props: EditorProps) {
   const ref = React.useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState(props.title ?? "")
 
+  const { isToolbarVisible } = useEditorStore()
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null)
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
@@ -158,15 +160,22 @@ export function Editor(props: EditorProps) {
                   disableManuallySave={props.disableManuallySave}
                 />
               )}
-              <FloatingTextFormatToolbarPlugin />
+
               {floatingAnchorElem && (
                 <>
-                  <DraggableBlockPlugin anchorElem={floatingAnchorElem!} />
+                  <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
+                  <FloatingTextFormatToolbarPlugin
+                    anchorElem={floatingAnchorElem}
+                  />
                 </>
               )}
             </div>
           </div>
-          {props.disableSelectionPlugin ? <></> : <SelectionPlugin />}
+          {props.disableSelectionPlugin || isToolbarVisible ? (
+            <></>
+          ) : (
+            <SelectionPlugin />
+          )}
         </LexicalComposer>
       </div>
     </div>
