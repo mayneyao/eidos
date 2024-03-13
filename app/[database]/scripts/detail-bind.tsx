@@ -1,10 +1,7 @@
-import { useMemo, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta_table/script"
+import { useMemo, useState } from "react"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 
-import { getRawTableNameById } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useAllNodes } from "@/hooks/use-nodes"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -13,9 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -25,6 +20,9 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useAllNodes } from "@/hooks/use-nodes"
+import { getRawTableNameById } from "@/lib/utils"
 
 import { useTablesUiColumns } from "./hooks/use-all-table-fields"
 import { useScript } from "./hooks/use-script"
@@ -41,10 +39,6 @@ export const ScriptBinding = () => {
 
   const [envMap, setEnvMap] = useState<IScript["env_map"]>(script.env_map)
 
-  const [asUdf, setAsUdf] = useState(Boolean(script.as_udf))
-
-  const canBeUDF =
-    !Boolean(script.tables?.length) && !Boolean(script.envs?.length)
   const revalidator = useRevalidator()
   const { toast } = useToast()
 
@@ -58,7 +52,6 @@ export const ScriptBinding = () => {
       ...script,
       fields_map: fieldsMap,
       env_map: envMap,
-      as_udf: asUdf,
     })
     revalidator.revalidate()
     toast({
@@ -223,26 +216,7 @@ export const ScriptBinding = () => {
           </Card>
         </>
       )}
-      {canBeUDF && (
-        <Card>
-          <CardHeader>
-            <CardTitle>UDF</CardTitle>
-            <CardDescription>
-              mark this script as UDF to use it as a function in formula field
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="airplane-mode"
-                checked={asUdf}
-                onCheckedChange={setAsUdf as any}
-              />
-              <Label htmlFor="airplane-mode">As UDF</Label>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
       <div className="mt-4">
         <Button onClick={handleSave}>Update</Button>
       </div>

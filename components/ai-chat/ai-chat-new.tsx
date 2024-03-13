@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -24,7 +24,7 @@ import { useConfigStore } from "@/app/settings/store"
 import "./index.css"
 import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
-import { sysPrompts, useSystemPrompt } from "./hooks"
+import { sysPrompts, useSystemPrompt, useUserPrompts } from "./hooks"
 import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore } from "./webllm/hooks"
@@ -35,6 +35,8 @@ const promptKeys = Object.keys(sysPrompts)
 
 export default function Chat() {
   const loadingRef = useRef<HTMLDivElement>(null)
+
+  const { prompts } = useUserPrompts()
 
   const { autoSpeak } = useAIChatSettingsStore()
   const divRef = useRef<HTMLDivElement>(null)
@@ -151,6 +153,14 @@ export default function Chat() {
                 return (
                   <SelectItem key={key} value={key}>
                     {key}
+                  </SelectItem>
+                )
+              })}
+              <hr />
+              {prompts.map((prompt) => {
+                return (
+                  <SelectItem key={prompt.id} value={prompt.id}>
+                    {prompt.name}
                   </SelectItem>
                 )
               })}

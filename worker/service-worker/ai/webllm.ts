@@ -14,12 +14,15 @@ export async function handleWebLLM(req: any) {
       data: {
         stream: true,
         messages: [
-          {
-            role: "system" as const,
-            content: systemPrompt,
-          },
+          systemPrompt?.length
+            ? {
+                role: "system" as const,
+                content: systemPrompt,
+              }
+            : undefined,
           ...messages,
-        ],
+        ].filter(Boolean),
+        temperature: 0,
       },
     },
     [channel.port2]

@@ -145,7 +145,7 @@ export class DataSpace {
     // udf
     this.db
       .selectObjects(
-        `SELECT DISTINCT name, code FROM eidos__scripts WHERE as_udf = 1 AND enabled = 1`
+        `SELECT DISTINCT name, code FROM eidos__scripts WHERE type = 'udf' AND enabled = 1`
       )
       .forEach((script) => {
         const { code, name } = script

@@ -12,13 +12,14 @@ export const useNewScript = () => {
   const { space } = useCurrentPathInfo()
 
   const handleCreateNewScript = async (
-    template: "default" | "udf" = "default"
+    template: IScript["type"] = "script"
   ) => {
     const newScriptId = generateId()
     const newScript: IScript = {
       id: newScriptId,
       name: `New Script - ${newScriptId}`,
       commands: [],
+      type: "script",
       description: "Script Description",
       version: "0.0.1",
       code: `export default async function (input, context) {
@@ -30,17 +31,28 @@ export const useNewScript = () => {
       id: newScriptId,
       name: `myFunc`,
       commands: [],
+      type: "udf",
       description: "twice the input",
       version: "0.0.1",
       code: `function myFunc(pCx, arg) {
-        return arg + arg
+    return arg + arg
 }`,
-      as_udf: true,
+    }
+
+    const promptScript: IScript = {
+      id: newScriptId,
+      name: `New Prompt - ${newScriptId}`,
+      commands: [],
+      type: "prompt",
+      description: "Prompt Description",
+      version: "0.0.1",
+      code: `you are a helpful robot!`,
     }
 
     const templateMap = {
-      default: newScript,
+      script: newScript,
       udf: newUDFScript,
+      prompt: promptScript,
     }
 
     const script = templateMap[template]

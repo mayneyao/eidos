@@ -1,11 +1,12 @@
-/**
- * v0 by Vercel.
- * @see https://v0.dev/t/BAnz6NPEE7T
- */
-
 import { IScript } from "@/worker/web-worker/meta_table/script"
 import { useMount } from "ahooks"
-import { ChevronDownIcon, RotateCcwIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  FunctionSquareIcon,
+  RotateCcwIcon,
+  SparkleIcon,
+  SquareCodeIcon,
+} from "lucide-react"
 import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -38,6 +39,11 @@ import { useNewScript } from "./hooks/use-new-script"
 import { useScript } from "./hooks/use-script"
 import { InstallScript } from "./install"
 
+const IconMap = {
+  script: SquareCodeIcon,
+  udf: FunctionSquareIcon,
+  prompt: SparkleIcon,
+}
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
   const { space } = useCurrentPathInfo()
@@ -93,11 +99,14 @@ export const ScriptPage = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuLabel>
-                New Script With Different Template
+                New Extension With Different Template
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handleCreateNewScript("udf")}>
                 UDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleCreateNewScript("prompt")}>
+                Prompt
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -105,73 +114,77 @@ export const ScriptPage = () => {
         <InstallScript />
       </div>
       <Separator />
-      <div className="grid w-full grid-cols-1 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
-        {scripts.map((script) => (
-          <div
-            key={script.id}
-            className="overflow-hidden rounded-lg border shadow-md transition-shadow duration-200 hover:shadow-lg"
-          >
-            <div className="p-4">
-              <div className="flex justify-between">
-                <h2 className="mb-2 text-xl font-semibold">
-                  {script.name}({script.version})
-                </h2>
-                <Switch
-                  checked={script.enabled}
-                  onCheckedChange={(checked) =>
-                    handleToggleEnabled(script.id, checked)
-                  }
-                ></Switch>
-              </div>
-              <p className="h-[50px]">{script.description}</p>
-              <div className="flex items-end justify-between">
-                <div className="flex gap-2">
-                  <Link to={`/${space}/scripts/${script.id}`}>
-                    <Button className="mt-4" variant="outline">
-                      Details
-                    </Button>
-                  </Link>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" className="ml-4 mt-4">
-                        Remove
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          Are you sure you want to delete this script?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. all data related to this
-                          will be deleted.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(script.id)}
-                        >
-                          Continue
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+      <div className="grid w-full grid-cols-1 gap-4 p-4 md:grid-cols-2 2xl:grid-cols-3">
+        {scripts.map((script) => {
+          const Icon = IconMap[script.type]
+          return (
+            <div
+              key={script.id}
+              className="overflow-hidden rounded-lg border shadow-md transition-shadow duration-200 hover:shadow-lg"
+            >
+              <div className="p-4">
+                <div className="flex justify-between">
+                  <h2 className="mb-2 flex items-center gap-1 text-xl font-semibold">
+                    <Icon />
+                    {script.name}({script.version})
+                  </h2>
+                  <Switch
+                    checked={script.enabled}
+                    onCheckedChange={(checked) =>
+                      handleToggleEnabled(script.id, checked)
+                    }
+                  ></Switch>
                 </div>
+                <p className="h-[50px]">{script.description}</p>
+                <div className="flex items-end justify-between">
+                  <div className="flex gap-2">
+                    <Link to={`/${space}/scripts/${script.id}`}>
+                      <Button className="mt-4" variant="outline">
+                        Details
+                      </Button>
+                    </Link>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" className="ml-4 mt-4">
+                          Remove
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            Are you sure you want to delete this script?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. all data related to
+                            this will be deleted.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(script.id)}
+                          >
+                            Continue
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
 
-                {Boolean(dirHandle) && scriptId === script.id && (
-                  <Button
-                    onClick={handleReload}
-                    variant="ghost"
-                    title="Reload Local Script"
-                  >
-                    <RotateCcwIcon></RotateCcwIcon>
-                  </Button>
-                )}
+                  {Boolean(dirHandle) && scriptId === script.id && (
+                    <Button
+                      onClick={handleReload}
+                      variant="ghost"
+                      title="Reload Local Script"
+                    >
+                      <RotateCcwIcon></RotateCcwIcon>
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

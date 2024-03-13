@@ -102,7 +102,7 @@ export class BaseTableImpl<T = any> {
       res = await this.dataSpace.exec2(`SELECT * FROM ${this.name};`)
     } else {
       const kv = Object.entries(query)
-      const setK = kv.map(([k, v]) => `${k} = ?`).join(", ")
+      const setK = kv.map(([k, v]) => `${k} = ?`).join(" AND ")
       const setV = kv.map(([, v]) => v)
       res = await this.dataSpace.exec2(
         `SELECT * FROM ${this.name} WHERE ${setK};`,

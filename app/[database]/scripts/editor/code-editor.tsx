@@ -22,8 +22,10 @@ export const CodeEditor = ({
   value,
   onChange,
   onSave,
+  language = "javascript",
 }: {
   value: string
+  language: string
   onChange: (value: string) => void
   onSave?: (value: string) => void
 }) => {
@@ -34,7 +36,7 @@ export const CodeEditor = ({
   }
 
   useEffect(() => {
-    if (monaco) {
+    if (monaco && language !== "markdown") {
       // validation settings
       monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
         noSemanticValidation: true,
@@ -50,12 +52,18 @@ export const CodeEditor = ({
         "ts:filename/eidos.d.ts"
       )
     }
-  }, [monaco])
+  }, [language, monaco])
   return (
     <Editor
       height="60vh"
-      defaultLanguage="javascript"
       value={value}
+      options={{
+        minimap: { enabled: false },
+        wordWrap: "on",
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+      }}
+      language={language}
       onChange={(value, e) => onChange(value || "")}
       onMount={(editor, monaco) => {
         editor.onKeyDown((e) => {

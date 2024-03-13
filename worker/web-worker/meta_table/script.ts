@@ -17,11 +17,11 @@ export interface ICommand {
 export interface IScript {
   id: string
   name: string
+  type: "script" | "udf" | "prompt"
   description: string
   version: string
   code: string
   commands: ICommand[]
-  as_udf?: boolean
   enabled?: boolean
   tables?: {
     name: string
@@ -59,6 +59,7 @@ export class ScriptTable
         id TEXT PRIMARY KEY,
         name TEXT,
         description TEXT,
+        type TEXT DEFAULT 'script',
         version TEXT,
         code TEXT,
         commands TEXT,
@@ -67,7 +68,6 @@ export class ScriptTable
         env_map TEXT,
         fields_map TEXT,
         enabled BOOLEAN DEFAULT 0,
-        as_udf BOOLEAN DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

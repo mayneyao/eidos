@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { IScript } from "worker/web-worker/meta_table/script"
 
 import { getPrompt } from "@/lib/ai/openai"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 export const sysPrompts = {
@@ -73,18 +75,47 @@ const usePromptContext = () => {
   }
 }
 
-export const useSystemPrompt = (currentSysPrompt: keyof typeof sysPrompts) => {
+export const useUserPrompts = () => {
+  const { sqlite } = useSqlite()
+  const [prompts, setPrompts] = useState<IScript[]>([])
+  useEffect(() => {
+    sqlite?.script
+      .list({
+        type: "prompt",
+        enabled: 1,
+      })
+      .then((res) => {
+        setPrompts(res)
+      })
+  }, [sqlite])
+
+  return {
+    prompts,
+  }
+}
+
+export const useSystemPrompt = (currentSysPrompt: string) => {
   const { context, setCurrentDocMarkdown } = usePromptContext()
+  const { prompts } = useUserPrompts()
   return useMemo(() => {
-    const baseSysPrompt = sysPrompts[currentSysPrompt]
-    const systemPrompt = getPrompt(
-      baseSysPrompt,
-      context,
-      currentSysPrompt === "base"
-    )
-    return {
-      systemPrompt,
-      setCurrentDocMarkdown,
+    if (sysPrompts.hasOwnProperty(currentSysPrompt)) {
+      const baseSysPrompt =
+        sysPrompts[currentSysPrompt as keyof typeof sysPrompts]
+      const systemPrompt = getPrompt(
+        baseSysPrompt,
+        context,
+        currentSysPrompt === "base"
+      )
+      return {
+        systemPrompt,
+        setCurrentDocMarkdown,
+      }
+    } else {
+      const currentPrompt = prompts.find((p) => p.id === currentSysPrompt)
+      return {
+        systemPrompt: currentPrompt?.code,
+        setCurrentDocMarkdown,
+      }
     }
-  }, [context, currentSysPrompt, setCurrentDocMarkdown])
+  }, [context, currentSysPrompt, prompts, setCurrentDocMarkdown])
 }

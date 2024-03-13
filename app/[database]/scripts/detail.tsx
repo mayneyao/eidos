@@ -121,6 +121,9 @@ export const ScriptDetailPage = () => {
                     value={code}
                     onChange={setCode}
                     onSave={onSubmit}
+                    language={
+                      script.type === "prompt" ? "markdown" : "javascript"
+                    }
                   />
                 </Suspense>
                 <div className="flex justify-between">
