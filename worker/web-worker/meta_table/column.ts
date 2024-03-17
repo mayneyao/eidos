@@ -153,8 +153,8 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
           tableColumnName,
         ])
         this.dataSpace.syncExec2(
-          `DELETE FROM ${ColumnTableName} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`,
-          [],
+          `DELETE FROM ${ColumnTableName} WHERE table_column_name = ? AND table_name = ?;`,
+          [tableColumnName, tableName],
           db
         )
         this.dataSpace.syncExec2(
