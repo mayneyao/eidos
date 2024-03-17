@@ -57,7 +57,7 @@ export const useNewScript = () => {
 
     const script = templateMap[template]
     await addScript(script)
-    router(`/${space}/scripts/${newScriptId}`)
+    router(`/${space}/extensions/${newScriptId}`)
   }
 
   return {

@@ -73,7 +73,7 @@ export const ScriptDetailPage = () => {
   const { space } = useCurrentPathInfo()
   const handleDeleteScript = async () => {
     deleteScript(script.id)
-    router(`/${space}/scripts`)
+    router(`/${space}/extensions`)
   }
 
   const handleToggleEnabled = async (id: string, checked: boolean) => {

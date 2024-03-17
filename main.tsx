@@ -117,11 +117,11 @@ const router = createBrowserRouter([
             element: <FileManager />,
           },
           {
-            path: "scripts",
+            path: "extensions",
             children: [
               {
                 index: true,
-                id: "scripts",
+                id: "extensions",
                 loader: async () => {
                   if (!(window as any)?.sqlite) {
                     return []

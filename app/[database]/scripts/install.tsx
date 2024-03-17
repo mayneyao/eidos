@@ -59,7 +59,7 @@ export const InstallScript = () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <Link to={`/${space}/scripts/store`}>
+          <Link to={`/${space}/extensions/store`}>
             <DropdownMenuItem>From Store</DropdownMenuItem>
           </Link>
           <DropdownMenuItem onClick={() => setOpen(true)}>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import {
+  BlocksIcon,
   Database,
   FileBoxIcon,
   FileCodeIcon,
@@ -92,9 +93,9 @@ export const SideBar = ({ className }: any) => {
                     className="w-full justify-start font-normal"
                     asChild
                   >
-                    <Link to={`/${space}/scripts`}>
-                      <FileCodeIcon className="pr-2" />
-                      Scripts
+                    <Link to={`/${space}/extensions`}>
+                      <BlocksIcon className="pr-2" />
+                      Extensions
                     </Link>
                   </Button>
 

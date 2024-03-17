@@ -138,7 +138,7 @@ export const ScriptPage = () => {
                 <p className="h-[50px]">{script.description}</p>
                 <div className="flex items-end justify-between">
                   <div className="flex gap-2">
-                    <Link to={`/${space}/scripts/${script.id}`}>
+                    <Link to={`/${space}/extensions/${script.id}`}>
                       <Button className="mt-4" variant="outline">
                         Details
                       </Button>

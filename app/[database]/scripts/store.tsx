@@ -44,7 +44,7 @@ export const ScriptStorePage = () => {
   return (
     <div className="h-full w-full p-6">
       <div className="flex w-full justify-between py-4">
-        <Link to={`/${space}/scripts`}>
+        <Link to={`/${space}/extensions`}>
           <HomeIcon></HomeIcon>
         </Link>
       </div>
