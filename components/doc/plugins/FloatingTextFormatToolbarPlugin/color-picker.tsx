@@ -4,6 +4,7 @@ import { $getSelection, $isRangeSelection, LexicalEditor } from "lexical"
 import { useTheme } from "next-themes"
 
 import { cn } from "@/lib/utils"
+
 import { bgColors, fgColors } from "../const"
 
 // https://coolors.co/ffadad-ffd6a5-fdffb6-caffbf-9bf6ff-a0c4ff-bdb2ff-ffc6ff-fffffc
@@ -73,6 +74,7 @@ export const ColorPicker = ({
             <div
               onMouseDownCapture={handleFontColorSelect}
               data-color={color}
+              key={`font-color-${color}`}
               style={
                 index === 0
                   ? {
@@ -96,6 +98,7 @@ export const ColorPicker = ({
             <div
               onMouseDownCapture={handleBgColorSelect}
               style={{ backgroundColor: color }}
+              key={`bg-color-${color}`}
               className={cn(
                 "h-[32px] w-[32px] rounded-[32px]",
                 index === 0 && "border border-black dark:border-white"

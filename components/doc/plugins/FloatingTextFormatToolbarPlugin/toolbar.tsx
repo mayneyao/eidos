@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { TOGGLE_LINK_COMMAND } from "@lexical/link"
 import { mergeRegister } from "@lexical/utils"
+import { useKeyPress } from "ahooks"
 import {
   $getSelection,
   COMMAND_PRIORITY_LOW,
@@ -15,21 +16,26 @@ import {
   Code,
   Italic,
   Link,
+  SparkleIcon,
   Strikethrough,
   Subscript,
   Superscript,
   Underline,
 } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Toggle } from "@/components/ui/toggle"
+import { useLoadingStore } from "@/components/ai-chat/webllm/hooks"
 
+import { useEditorStore } from "../../hooks/useEditorContext"
 import { getDOMRangeRect } from "../../utils/getDOMRangeRect"
 import { setFloatingElemPosition } from "../../utils/setFloatingElemPosition"
+import { INSERT_AI_COMMAND } from "../AIToolsPlugin"
 import { ColorPicker } from "./color-picker"
 
 export function TextFormatFloatingToolbar({
@@ -57,6 +63,8 @@ export function TextFormatFloatingToolbar({
 }): JSX.Element {
   const popupCharStylesEditorRef = useRef<HTMLDivElement | null>(null)
 
+  const [content, setContent] = useState("")
+
   const insertLink = useCallback(() => {
     if (!isLink) {
       editor.dispatchCommand(TOGGLE_LINK_COMMAND, "https://")
@@ -64,10 +72,6 @@ export function TextFormatFloatingToolbar({
       editor.dispatchCommand(TOGGLE_LINK_COMMAND, null)
     }
   }, [editor, isLink])
-
-  //   const insertComment = () => {
-  //     editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined)
-  //   }
 
   function mouseMoveListener(e: MouseEvent) {
     if (
@@ -109,6 +113,8 @@ export function TextFormatFloatingToolbar({
   const updateTextFormatFloatingToolbar = useCallback(() => {
     const selection = $getSelection()
 
+    const text = selection?.getTextContent()
+    text && setContent(text)
     const popupCharStylesEditorElem = popupCharStylesEditorRef.current
     const nativeSelection = window.getSelection()
 
@@ -126,9 +132,14 @@ export function TextFormatFloatingToolbar({
     ) {
       const rangeRect = getDOMRangeRect(nativeSelection, rootElement)
 
-      setFloatingElemPosition(rangeRect, popupCharStylesEditorElem, anchorElem)
+      setFloatingElemPosition(
+        rangeRect,
+        popupCharStylesEditorElem,
+        anchorElem,
+        isLink
+      )
     }
-  }, [editor, anchorElem])
+  }, [editor, anchorElem, isLink])
 
   useEffect(() => {
     const scrollerElem = anchorElem.parentElement
@@ -174,15 +185,63 @@ export function TextFormatFloatingToolbar({
     )
   }, [editor, updateTextFormatFloatingToolbar])
 
+  useEffect(() => {
+    editor.getEditorState().read(() => {
+      updateTextFormatFloatingToolbar()
+    })
+    return mergeRegister(
+      editor.registerUpdateListener(({ editorState }) => {
+        editorState.read(() => {
+          updateTextFormatFloatingToolbar()
+        })
+      }),
+
+      editor.registerCommand(
+        SELECTION_CHANGE_COMMAND,
+        () => {
+          updateTextFormatFloatingToolbar()
+          return false
+        },
+        COMMAND_PRIORITY_LOW
+      )
+    )
+  }, [editor, updateTextFormatFloatingToolbar])
+
+  useKeyPress("alt.i", (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (disableAI) {
+      return
+    }
+    editor.dispatchCommand(INSERT_AI_COMMAND, content)
+  })
+
+  const { progress } = useLoadingStore()
+  const disableAI = progress?.progress !== 1
   return (
     <div
       ref={popupCharStylesEditorRef}
       className="floating-text-format-popup bg-slate-50 dark:bg-slate-700"
     >
+      <div
+        className={cn("mx-2 flex cursor-pointer items-center", {
+          "pointer-events-none": disableAI,
+          "opacity-50": disableAI,
+        })}
+        onMouseDownCapture={(e) => {
+          if (disableAI) {
+            return
+          }
+          editor.dispatchCommand(INSERT_AI_COMMAND, content)
+        }}
+      >
+        <SparkleIcon className="h-4 w-4" /> AI
+      </div>
       {editor.isEditable() && (
         <>
           <Toggle
             size="sm"
+            type="button"
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")
             }}
@@ -193,6 +252,7 @@ export function TextFormatFloatingToolbar({
           </Toggle>
           <Toggle
             size="sm"
+            type="button"
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")
             }}
@@ -203,7 +263,8 @@ export function TextFormatFloatingToolbar({
           </Toggle>
           <Toggle
             size="sm"
-            onClick={() => {
+            type="button"
+            onClick={(e) => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline")
             }}
             pressed={isUnderline}
@@ -213,6 +274,7 @@ export function TextFormatFloatingToolbar({
           </Toggle>
           <Toggle
             size="sm"
+            type="button"
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "strikethrough")
             }}
@@ -223,6 +285,7 @@ export function TextFormatFloatingToolbar({
           </Toggle>
           <Toggle
             size="sm"
+            type="button"
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript")
             }}
@@ -234,6 +297,7 @@ export function TextFormatFloatingToolbar({
           </Toggle>
           <Toggle
             size="sm"
+            type="button"
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "superscript")
             }}
@@ -245,6 +309,7 @@ export function TextFormatFloatingToolbar({
           </Toggle>
           <Toggle
             size="sm"
+            type="button"
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code")
             }}
@@ -255,6 +320,7 @@ export function TextFormatFloatingToolbar({
           </Toggle>
           <Toggle
             size="sm"
+            type="button"
             onClick={insertLink}
             pressed={isLink}
             aria-label="Insert link"
