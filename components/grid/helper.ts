@@ -1,6 +1,5 @@
 import { GridCellKind } from "@glideapps/glide-data-grid"
 
-import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { IField } from "@/lib/store/interface"
 

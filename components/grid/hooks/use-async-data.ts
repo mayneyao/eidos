@@ -53,7 +53,11 @@ export function useAsyncData<TRowType>(
   onEdited: RowEditedCallback<TRowType>,
   gridRef: MutableRefObject<DataEditorRef | null>,
   addRow: (uuid?: string) => Promise<string | undefined>,
-  delRows: (rowIds: string[]) => Promise<void>,
+  deleteRowsByRange: (
+    range: { startIndex: number; endIndex: number }[],
+    tableName: string,
+    query: string
+  ) => Promise<void>,
   setCount: (count: number) => void,
   qs?: string
 ): Pick<
@@ -64,7 +68,7 @@ export function useAsyncData<TRowType>(
   | "getCellsForSelection"
 > & {
   handleAddRow: () => void
-  handleDelRows: (start: number, end: number) => void
+  handleDelRows: (range: { startIndex: number; endIndex: number }[]) => void
   getRowByIndex: (index: number) => TRowType | undefined
 } {
   const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableAppStore()
@@ -229,13 +233,18 @@ export function useAsyncData<TRowType>(
     }
   }, [addAddedRowId, addRow, setCount])
 
-  const handleDelRows = async (startIndex: number, endIndex: number) => {
-    const rowIds = dataRef.current.slice(startIndex, endIndex)
-    // remove from data
-    const count = endIndex - startIndex
-    dataRef.current.splice(startIndex, count)
+  const handleDelRows = async (
+    ranges: { startIndex: number; endIndex: number }[]
+  ) => {
+    for (const { startIndex, endIndex } of ranges.reverse()) {
+      dataRef.current.splice(startIndex, endIndex - startIndex)
+      console.log(startIndex, endIndex - startIndex)
+    }
     setCount(dataRef.current.length)
-    await delRows(rowIds)
+    if (!qs) {
+      throw new Error("query is empty")
+    }
+    await deleteRowsByRange(ranges, tableName, qs)
   }
 
   const refreshCurrentVisible = useCallback(() => {

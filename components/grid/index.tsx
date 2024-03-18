@@ -87,7 +87,7 @@ export default function GridView(props: IGridProps) {
     tableSchema,
     // deleteFieldByColIndex,
     // addField,
-    deleteRows,
+    deleteRowsByRange,
     getRowData,
     getRowDataById,
     addRow,
@@ -125,7 +125,7 @@ export default function GridView(props: IGridProps) {
     onEdited,
     glideDataGridRef,
     addRow,
-    deleteRows,
+    deleteRowsByRange,
     setCount,
     qs
   )
@@ -220,7 +220,7 @@ export default function GridView(props: IGridProps) {
     >
       <div className="relative flex h-full overflow-hidden rounded-md border-t">
         <GridContextMenu
-          deleteRows={handleDelRows}
+          handleDelRows={handleDelRows}
           getRowByIndex={getRowByIndex}
           getFieldByIndex={getFieldByIndex}
         >

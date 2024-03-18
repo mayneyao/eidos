@@ -302,6 +302,24 @@ export class DataSpace {
     return row[0]
   }
 
+  public async deleteRowsByRange(
+    range: { startIndex: number; endIndex: number }[],
+    tableName: string,
+    query: string
+  ) {
+    // query is a sql string like "select * from tb_xxxxx Order by _id"
+    // range is a array of {startIndex: number, endIndex: number}
+    // we need to delete rows from startIndex to endIndex
+    const sql = `DELETE FROM ${tableName} WHERE _id in (SELECT _id FROM (${query}) LIMIT ? OFFSET ?)`
+    await this.db.transaction(async (db) => {
+      // reverse range, delete from end to start to avoid index change
+      for (const item of range.reverse()) {
+        const bind = [item.endIndex - item.startIndex, item.startIndex]
+        this.syncExec2(sql, bind, db)
+      }
+    })
+  }
+
   // files
   public async addFile(file: IFile) {
     return await this.file.add(file)

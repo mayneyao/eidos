@@ -1,8 +1,6 @@
 import { useCallback, useMemo } from "react"
 import { v4 as uuidv4 } from "uuid"
 
-import { useSpaceAppStore } from "@/app/[database]/store"
-import { RowRange } from "@/components/grid/hooks/use-async-data"
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -16,6 +14,8 @@ import {
   getTableIdByRawTableName,
   shortenId,
 } from "@/lib/utils"
+import { RowRange } from "@/components/grid/hooks/use-async-data"
+import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { IField } from "../lib/store/interface"
 import { useSqlWorker } from "./use-sql-worker"
@@ -170,9 +170,13 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     }
   }
 
-  const deleteRows = async (rowIds: string[]) => {
+  const deleteRowsByRange = async (
+    range: { startIndex: number; endIndex: number }[],
+    tableName: string,
+    query: string
+  ) => {
     if (sqlite) {
-      await sqlite.sql`DELETE FROM ${Symbol(tableName)} WHERE _id IN ${rowIds}`
+      await sqlite.deleteRowsByRange(range, tableName, query)
     }
   }
 
@@ -232,7 +236,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     updateFieldProperty,
     deleteField,
     addRow,
-    deleteRows,
+    deleteRowsByRange,
     tableSchema,
     runQuery,
     reload,
