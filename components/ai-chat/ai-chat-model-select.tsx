@@ -20,7 +20,6 @@ import {
 import { cn } from "@/lib/utils"
 
 import { ScrollArea } from "../ui/scroll-area"
-import { useInitWebLLMWorker } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
 
 const localModels = WEB_LLM_MODELS.map((item) => `${item.local_id}`)
@@ -57,15 +56,6 @@ export function AIModelSelect({
   const { models } = useModels()
 
   const allModels = [...models, ...localModels]
-
-  const { reload } = useInitWebLLMWorker()
-  React.useEffect(() => {
-    const isLocal = localModels.includes(value)
-    const localLLM = WEB_LLM_MODELS.find((item) => item.local_id === value)
-    if (isLocal && localLLM) {
-      reload(localLLM.local_id)
-    }
-  }, [reload, value])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

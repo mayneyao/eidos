@@ -24,10 +24,10 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { getRawTableNameById } from "@/lib/utils"
 
-import { useTablesUiColumns } from "./hooks/use-all-table-fields"
-import { useScript } from "./hooks/use-script"
+import { useTablesUiColumns } from "../hooks/use-all-table-fields"
+import { useScript } from "../hooks/use-script"
 
-export const ScriptBinding = () => {
+export const ScriptConfig = () => {
   const script = useLoaderData() as IScript
   const allNodes = useAllNodes()
   const allTables = allNodes.filter((node) => node.type === "table")

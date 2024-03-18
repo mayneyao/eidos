@@ -21,8 +21,11 @@ export interface IScript {
   description: string
   version: string
   code: string
-  commands: ICommand[]
   enabled?: boolean
+  // for prompt
+  model?: string
+  // for script
+  commands: ICommand[]
   tables?: {
     name: string
     fields: {
@@ -62,6 +65,7 @@ export class ScriptTable
         type TEXT DEFAULT 'script',
         version TEXT,
         code TEXT,
+        model TEXT,
         commands TEXT,
         tables TEXT,
         envs TEXT,

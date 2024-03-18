@@ -1,17 +1,13 @@
+import { useCallback, useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
-    $getSelection,
-    COMMAND_PRIORITY_EDITOR,
-    KEY_ESCAPE_COMMAND,
-    LexicalCommand,
-    createCommand,
+  $getSelection,
+  COMMAND_PRIORITY_EDITOR,
+  KEY_ESCAPE_COMMAND,
+  LexicalCommand,
+  createCommand,
 } from "lexical"
-import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-
-import {
-    useInitWebLLMWorker
-} from "@/components/ai-chat/webllm/hooks"
 
 import { AITools } from "./ai-tools"
 
@@ -22,11 +18,6 @@ export const AIToolsPlugin = (props: any) => {
   const [showCommentInput, setShowCommentInput] = useState(false)
   const [editor] = useLexicalComposerContext()
   const [content, setContent] = useState("")
-
-  const { reload } = useInitWebLLMWorker()
-  useEffect(() => {
-    reload("gemma-2b-it-q4f16_1")
-  }, [reload])
 
   const cancelAIAction = useCallback(() => {
     editor.update(() => {

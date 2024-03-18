@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from "react"
 import { TOGGLE_LINK_COMMAND } from "@lexical/link"
 import { mergeRegister } from "@lexical/utils"
 import { useKeyPress } from "ahooks"
@@ -22,17 +21,16 @@ import {
   Superscript,
   Underline,
 } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
-import { cn } from "@/lib/utils"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Toggle } from "@/components/ui/toggle"
-import { useLoadingStore } from "@/components/ai-chat/webllm/hooks"
+import { cn } from "@/lib/utils"
 
-import { useEditorStore } from "../../hooks/useEditorContext"
 import { getDOMRangeRect } from "../../utils/getDOMRangeRect"
 import { setFloatingElemPosition } from "../../utils/setFloatingElemPosition"
 import { INSERT_AI_COMMAND } from "../AIToolsPlugin"
@@ -210,28 +208,17 @@ export function TextFormatFloatingToolbar({
   useKeyPress("alt.i", (e) => {
     e.preventDefault()
     e.stopPropagation()
-    if (disableAI) {
-      return
-    }
     editor.dispatchCommand(INSERT_AI_COMMAND, content)
   })
 
-  const { progress } = useLoadingStore()
-  const disableAI = progress?.progress !== 1
   return (
     <div
       ref={popupCharStylesEditorRef}
       className="floating-text-format-popup bg-slate-50 dark:bg-slate-700"
     >
       <div
-        className={cn("mx-2 flex cursor-pointer items-center", {
-          "pointer-events-none": disableAI,
-          "opacity-50": disableAI,
-        })}
+        className={cn("mx-2 flex cursor-pointer items-center")}
         onMouseDownCapture={(e) => {
-          if (disableAI) {
-            return
-          }
           editor.dispatchCommand(INSERT_AI_COMMAND, content)
         }}
       >

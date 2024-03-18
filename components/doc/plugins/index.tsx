@@ -10,6 +10,7 @@ import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin
 
 import { useConfigStore } from "@/app/settings/store"
 
+import { AIToolsPlugin } from "./AIToolsPlugin"
 // import { AIToolsPlugin } from "./AIToolsPlugin"
 import AutoLinkPlugin from "./AutoLinkPlugin"
 import AutocompletePlugin from "./AutocompletePlugin"
@@ -45,7 +46,7 @@ export const AllPlugins = () => {
       {/* don't be a dick, don't nest lists too deep */}
       <ListMaxIndentLevelPlugin maxDepth={18} />
       <CheckListPlugin />
-      {/* <AIToolsPlugin /> */}
+      <AIToolsPlugin />
       <LinkPlugin />
       <ShortcutPlugin />
       <AutoLinkPlugin />

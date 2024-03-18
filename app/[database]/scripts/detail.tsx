@@ -1,17 +1,17 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta_table/script"
 import { useMount } from "ahooks"
+import { Suspense, lazy, useCallback, useEffect, useState } from "react"
 import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
-import { ScriptBinding } from "./detail-bind"
+import { ExtensionConfig } from "./config/config"
 // import { CodeEditor } from "./editor/code-editor"
 import { useEditableElement } from "./hooks/use-editable-element"
 import { useScript } from "./hooks/use-script"
@@ -137,7 +137,7 @@ export const ScriptDetailPage = () => {
               </div>
             </TabsContent>
             <TabsContent value="password">
-              <ScriptBinding />
+              <ExtensionConfig />
             </TabsContent>
           </>
         )}

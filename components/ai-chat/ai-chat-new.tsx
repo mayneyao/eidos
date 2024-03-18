@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -21,17 +21,19 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useConfigStore } from "@/app/settings/store"
 
-import "./index.css"
 import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
 import { sysPrompts, useSystemPrompt, useUserPrompts } from "./hooks"
+import "./index.css"
 import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
-import { useLoadingStore } from "./webllm/hooks"
+import { useLoadingStore, useReloadModel } from "./webllm/hooks"
+import { WEB_LLM_MODELS } from "./webllm/models"
 import { useSpeak } from "./webspeech/hooks"
 import { Whisper } from "./whisper"
 
 const promptKeys = Object.keys(sysPrompts)
+const localModels = WEB_LLM_MODELS.map((item) => `${item.local_id}`)
 
 export default function Chat() {
   const loadingRef = useRef<HTMLDivElement>(null)
@@ -47,21 +49,26 @@ export default function Chat() {
   const currentNode = useCurrentNode()
   const { aiConfig } = useConfigStore()
   const { sqlite } = useSqlite()
-  const { progress, setProgress } = useLoadingStore()
+  const { progress } = useLoadingStore()
+
   const { getDocMarkdown } = useDocEditor(sqlite)
   const { handleFunctionCall, handleRunCode } = useAIFunctions()
   const functionCallHandler = getFunctionCallHandler(handleFunctionCall)
   const { systemPrompt, setCurrentDocMarkdown } =
     useSystemPrompt(currentSysPrompt)
 
-  useEffect(() => {
-    if (progress?.progress === 1) {
-      setProgress(undefined)
-    }
-  }, [progress, setProgress])
+  const { reload: reloadModel } = useReloadModel()
 
   const { aiModel, setAIModel } = useAppStore()
   const { speak } = useSpeak()
+
+  useEffect(() => {
+    const isLocal = localModels.includes(aiModel)
+    const localLLM = WEB_LLM_MODELS.find((item) => item.local_id === aiModel)
+    if (isLocal && localLLM) {
+      reloadModel(localLLM.local_id)
+    }
+  }, [reloadModel, aiModel])
 
   const {
     messages,

@@ -19,6 +19,7 @@ import { useRegisterPeriodicSync } from "@/hooks/use-register-period-sync"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useWorker } from "@/hooks/use-worker"
 import { useCurrentUser } from "@/hooks/user-current-user"
+import { useInitWebLLMWorker } from "@/components/ai-chat/webllm/hooks"
 
 import { useConfigStore } from "../settings/store"
 import { useSpaceAppStore } from "./store"
@@ -81,6 +82,8 @@ export const useLayoutInit = () => {
   useEffect(() => {
     initPeer()
   }, [initPeer])
+
+  useInitWebLLMWorker()
 
   useEffect(() => {
     const worker = getWorker()

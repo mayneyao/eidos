@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+import { IScript } from "@/worker/web-worker/meta_table/script"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { createDOMRange, createRectsFromDOMRange } from "@lexical/selection"
 import { useClickAway } from "ahooks"
@@ -27,6 +35,7 @@ export function AITools({
   const selectionRef = useRef<RangeSelection | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   const { aiConfig } = useConfigStore()
+  const [currentModel, setCurrentModel] = useState<string>("")
 
   const {
     messages,
@@ -49,20 +58,31 @@ export function AITools({
       token: aiConfig.token,
       baseUrl: aiConfig.baseUrl,
       GOOGLE_API_KEY: aiConfig.GOOGLE_API_KEY,
-      model: "gemma-2b-it-q4f16_1",
+      model: currentModel,
     },
   })
 
-  const runAction = (prompt: string) => {
-    setMessages([
-      {
-        id: "1",
-        content: prompt.replace(/\{\{input\}\}/g, content),
-        role: "user",
-      },
-    ])
-    reload()
-    cancelAIAction()
+  const runAction = (prompt: IScript) => {
+    if (prompt.model) {
+      setCurrentModel(prompt.model)
+      setTimeout(() => {
+        //
+        setMessages([
+          {
+            id: "1",
+            content: prompt.code,
+            role: "system",
+          },
+          {
+            id: "2",
+            content: content,
+            role: "user",
+          },
+        ])
+        reload()
+        cancelAIAction()
+      }, 100)
+    }
   }
   useClickAway(() => {
     cancelAIAction()
@@ -173,7 +193,7 @@ export function AITools({
               key={prompt.id}
               value={prompt.id}
               onSelect={(currentValue) => {
-                runAction(prompt.code)
+                runAction(prompt)
               }}
             >
               {prompt.name}

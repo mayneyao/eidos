@@ -14,32 +14,54 @@ export const useLoadingStore = create<LoadingState>((set) => ({
   setProgress: (progress) => set({ progress }),
 }))
 
+export const useReloadModel = () => {
+  const reload = (model: string) => {
+    document.dispatchEvent(new CustomEvent("reloadModel", { detail: model }))
+  }
+  return {
+    reload,
+  }
+}
+
 export const useInitWebLLMWorker = () => {
   const ref = useRef<webllm.ChatWorkerClient>()
   const [currentModel, setCurrentModel] = useState<string>("")
-  const { setProgress } = useLoadingStore()
   const loadingRef = useRef(false)
+  const { progress, setProgress } = useLoadingStore()
 
-  const reload = async (modelId: string) => {
-    if (!ref.current) return
-    if (loadingRef.current) return
-    if (currentModel !== modelId) {
-      loadingRef.current = true
-      console.log("reload", {
-        modelId,
-        currentModel,
-      })
-      try {
-        await ref.current.reload(modelId, undefined, {
-          model_list: WEB_LLM_MODELS,
+  useEffect(() => {
+    if (progress?.progress === 1) {
+      setProgress(undefined)
+    }
+  }, [progress, setProgress])
+
+  useEffect(() => {
+    const reload = async (modelId: string) => {
+      if (!ref.current) return
+      if (loadingRef.current) return
+      if (currentModel !== modelId) {
+        loadingRef.current = true
+        console.log("reload", {
+          modelId,
+          currentModel,
         })
-        setCurrentModel(modelId)
-      } catch (error) {
-      } finally {
-        loadingRef.current = false
+        try {
+          await ref.current.reload(modelId, undefined, {
+            model_list: WEB_LLM_MODELS,
+          })
+          setCurrentModel(modelId)
+        } catch (error) {
+        } finally {
+          loadingRef.current = false
+        }
       }
     }
-  }
+
+    return document.addEventListener("reloadModel", (event) => {
+      const modelId = (event as CustomEvent).detail
+      reload(modelId)
+    })
+  }, [currentModel])
 
   useEffect(() => {
     async function init() {
@@ -78,7 +100,6 @@ export const useInitWebLLMWorker = () => {
   }, [setProgress])
 
   return {
-    reload,
     currentModel,
   }
 }
