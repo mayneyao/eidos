@@ -1,12 +1,15 @@
-import { Editor } from "@/components/doc/editor"
+import { PureEditor } from "@/components/doc/pure-editor"
 
 import { useLaunchQueue } from "./hooks"
 
 export const DocEditor = () => {
-  useLaunchQueue()
+  const { rowText } = useLaunchQueue()
   return (
-    <div>
-      <Editor isEditable docId={""} title={"title"} showTitle={false} />
-    </div>
+    <PureEditor
+      isEditable
+      markdown={rowText}
+      title={"title"}
+      showTitle={false}
+    />
   )
 }
