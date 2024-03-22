@@ -2,7 +2,7 @@ import { useCallback } from "react"
 import { v4 as uuidV4 } from "uuid"
 
 import { getCodeFromMarkdown } from "@/lib/markdown"
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 import { getUuid, uuidv4 } from "@/lib/utils"
 import { startRecorder, stopRecorder } from "@/lib/web/recorder"
 import { useConfigStore } from "@/app/settings/store"
@@ -136,7 +136,7 @@ export const useAIFunctions = () => {
         console.log("save file to opfs: ", fileObj)
         if (!fileObj) return "no file"
         return (
-          window.location.origin + opfsManager.getFileUrlByPath(fileObj.path)
+          window.location.origin + efsManager.getFileUrlByPath(fileObj.path)
         )
       case "createDoc":
         const { markdown } = parameters

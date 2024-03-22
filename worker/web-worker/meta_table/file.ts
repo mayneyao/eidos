@@ -1,4 +1,4 @@
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 import { FileTableName } from "@/lib/sqlite/const"
 import { getUuid } from "@/lib/utils"
 
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       const name = _name || url.split("/").pop()!
       const file = new File([blob], name, { type: blob.type })
       const space = this.dataSpace.dbName
-      const paths = await opfsManager.addFile(
+      const paths = await efsManager.addFile(
         ["spaces", space, "files"],
         file,
         _name ? _name : fileId
@@ -133,18 +133,18 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   }
 
   async getBlobURLbyPath(path: string): Promise<string | null> {
-    const f = await opfsManager.getFileByPath(path)
+    const f = await efsManager.getFileByPath(path)
     return URL.createObjectURL(f)
   }
 
   async getBlobByPath(path: string) {
-    const f = await opfsManager.getFileByPath(path)
+    const f = await efsManager.getFileByPath(path)
     const blob = new Blob([f], { type: f.type })
     return blob
   }
 
   async walk(): Promise<any[]> {
-    const allFiles = await opfsManager.walk([
+    const allFiles = await efsManager.walk([
       "spaces",
       this.dataSpace.dbName,
       "files",

@@ -13,7 +13,6 @@ import SpaceHomePage from "@/app/[database]/page"
 import { ExtensionPage } from "@/app/extensions/page"
 import RootLayout from "@/app/layout"
 import HomePage from "@/app/page"
-import SettingsAccountPage from "@/app/settings/account/page"
 import SettingsAIPage from "@/app/settings/ai/page"
 import SettingsApiPage from "@/app/settings/api/page"
 import SettingsAppearancePage from "@/app/settings/appearance/page"
@@ -22,6 +21,7 @@ import SettingsExperimentPage from "@/app/settings/experiment/page"
 // settings
 import SettingsLayout from "@/app/settings/layout"
 import SettingsPage from "@/app/settings/page"
+import SettingsStoragePage from "@/app/settings/storage/page"
 import ShareNodePage from "@/app/share/[database]/[table]/page"
 import ShareLayout from "@/app/share/[database]/layout"
 // share
@@ -75,8 +75,8 @@ const router = createBrowserRouter([
             element: <SettingsPage />,
           },
           {
-            path: "account",
-            element: <SettingsAccountPage />,
+            path: "storage",
+            element: <SettingsStoragePage />,
           },
           {
             path: "api",

@@ -1,5 +1,51 @@
+import { extension } from "mime-types"
+
+import { getIndexedDBValue } from "./indexeddb"
+
+export enum FileSystemType {
+  OPFS = "opfs",
+  NFS = "nfs",
+}
+
 /**
- * opfs file structure:
+ * get DirHandle for a given path list
+ * we read config from indexeddb to decide which file system to use
+ * there are two file systems:
+ * 1. opfs: origin private file system. store files in web.
+ * 2. nfs: Native File System. store files in local file system.
+ * @param _paths path list just like ["root", "dir1", "dir2"]
+ * @param rootDirHandle we can pass rootDirHandle to avoid reading from indexeddb
+ * @returns
+ */
+export const getDirHandle = async (
+  _paths: string[],
+  rootDirHandle?: FileSystemDirectoryHandle
+) => {
+  const paths = [..._paths]
+  let dirHandle: FileSystemDirectoryHandle
+  if (rootDirHandle) {
+    dirHandle = rootDirHandle
+  } else {
+    const fsType: FileSystemType = await getIndexedDBValue("kv", "fs")
+    switch (fsType) {
+      case FileSystemType.NFS:
+        // how it works https://developer.chrome.com/blog/persistent-permissions-for-the-file-system-access-api
+        dirHandle = await getIndexedDBValue("kv", "localPath")
+        break
+      case FileSystemType.OPFS:
+      default:
+        dirHandle = await navigator.storage.getDirectory()
+        break
+    }
+  }
+  for (let path of paths) {
+    dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
+  }
+  return dirHandle
+}
+
+/**
+ * eidos fs structure:
  * - spaces
  *  - space1
  *    - db.sqlite3
@@ -17,113 +63,8 @@
  * - files is a folder that contains all static files, such as images, videos, etc.
  * - when user upload a file, it will be saved in this folder. hash will be used as file name. e.g. 1234567890.png
  */
-import { extension } from "mime-types"
 
-export const getAllSpaceNames = async (): Promise<string[]> => {
-  const opfsRoot = await navigator.storage.getDirectory()
-  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
-    create: true,
-  })
-  const spaces = []
-  for await (let name of (spacesDirHandle as any).keys()) {
-    spaces.push(name)
-  }
-  return spaces
-}
-
-export class OpfsSpaceManager {
-  async list(): Promise<string[]> {
-    const opfsRoot = await navigator.storage.getDirectory()
-    const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
-      create: true,
-    })
-    const spaces = []
-    for await (let name of (spacesDirHandle as any).keys()) {
-      spaces.push(name)
-    }
-    return spaces
-  }
-
-  async remove(spaceName: string) {
-    const opfsRoot = await navigator.storage.getDirectory()
-    const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
-      create: true,
-    })
-    await spacesDirHandle.removeEntry(spaceName, { recursive: true })
-  }
-}
-
-export const getSpaceDatabasePath = async (spaceName: string) => {
-  return `/spaces/${spaceName}/db.sqlite3`
-}
-
-export const getSpaceDatabaseFileHandle = async (spaceName: string) => {
-  const opfsRoot = await navigator.storage.getDirectory()
-  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
-    create: true,
-  })
-  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName, {
-    create: true,
-  })
-  const dbFileHandle = await spaceDirHandle.getFileHandle("db.sqlite3", {
-    create: true,
-  })
-  return dbFileHandle
-}
-
-export const saveFile = async (file: File, space: string, name?: string) => {
-  const opfsRoot = await navigator.storage.getDirectory()
-  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
-    create: true,
-  })
-  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(space, {
-    create: true,
-  })
-  const filesDirHandle = await spaceDirHandle.getDirectoryHandle("files", {
-    create: true,
-  })
-  const fileHandle = await filesDirHandle.getFileHandle(name ?? file.name, {
-    create: true,
-  })
-  // nextjs can't recognize createWritable of fileHandle
-  const writable = await (fileHandle as any).createWritable()
-  await writable.write(file)
-  await writable.close()
-  return fileHandle
-}
-
-export const getAllDays = async (spaceName: string) => {
-  const opfsRoot = await navigator.storage.getDirectory()
-  const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces")
-  const spaceDirHandle = await spacesDirHandle.getDirectoryHandle(spaceName)
-  const everydayDirHandle = await spaceDirHandle.getDirectoryHandle("everyday")
-
-  // list all entries in everyday folder
-  const entries = []
-  for await (let entry of (everydayDirHandle as any).values()) {
-    entries.push(entry)
-  }
-  return entries
-}
-
-export const getDirHandle = async (
-  _paths: string[],
-  rootDirHandle?: FileSystemDirectoryHandle
-) => {
-  const paths = [..._paths]
-  let dirHandle: FileSystemDirectoryHandle
-  if (rootDirHandle) {
-    dirHandle = rootDirHandle
-  } else {
-    dirHandle = await navigator.storage.getDirectory()
-  }
-  for (let path of paths) {
-    dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
-  }
-  return dirHandle
-}
-
-export class OpfsManager {
+export class EidosFileSystemManager {
   rootDirHandle: FileSystemDirectoryHandle | undefined
   constructor(rootDirHandle?: FileSystemDirectoryHandle) {
     if (rootDirHandle) {
@@ -134,7 +75,7 @@ export class OpfsManager {
   walk = async (_paths: string[]) => {
     const dirHandle = await getDirHandle(_paths, this.rootDirHandle)
     const paths = []
-    const rootDirHandle = await navigator.storage.getDirectory()
+    const rootDirHandle = await getDirHandle([])
     for await (let entry of (dirHandle as any).values()) {
       if (entry.kind === "file") {
         const path = await (this.rootDirHandle || rootDirHandle).resolve(entry)
@@ -225,7 +166,7 @@ export class OpfsManager {
     }
     const dirHandle = await getDirHandle(paths, this.rootDirHandle)
     const r = await dirHandle.getDirectoryHandle(dirName, { create: true })
-    // const opfsRoot = await navigator.storage.getDirectory()
+
     // const path = await opfsRoot.resolve(r)
   }
 
@@ -245,8 +186,8 @@ export class OpfsManager {
     await writable.write(file)
     await writable.close()
     // fileHandle get path
-    const opfsRoot = await navigator.storage.getDirectory()
-    const relativePath = await opfsRoot.resolve(fileHandle)
+    const rootDirHandle = await getDirHandle([])
+    const relativePath = await rootDirHandle.resolve(fileHandle)
     return relativePath
   }
 
@@ -283,4 +224,4 @@ export class OpfsManager {
 }
 
 // deprecated
-export const opfsManager = new OpfsManager()
+export const efsManager = new EidosFileSystemManager()

@@ -3,7 +3,7 @@
 import { Suspense, lazy } from "react"
 import { Menu } from "lucide-react"
 
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 // import SplitPane, { Pane } from "react-split-pane"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -63,7 +63,7 @@ export function DatabaseLayoutBase({
       {currentPreviewFile && (
         <iframe
           className="hidden h-full w-full  md:block"
-          src={opfsManager.getFileUrlByPath(currentPreviewFile.path)}
+          src={efsManager.getFileUrlByPath(currentPreviewFile.path)}
         ></iframe>
       )}
 

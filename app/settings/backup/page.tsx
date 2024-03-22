@@ -2,7 +2,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
+import { useIndexedDB } from "@/hooks/use-indexed-db"
 import { registerPeriodicSync } from "@/hooks/use-register-period-sync"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -91,7 +92,7 @@ export function BackupServerForm() {
     setBackupServer(data)
     // we need use this config to run backup periodic sync task, but we can't access localStorage in service worker
     // so we need to save it to a file in OPFS
-    await opfsManager.updateOrCreateDocFile(
+    await efsManager.updateOrCreateDocFile(
       ["__eidos__config.json"],
       JSON.stringify(data)
     )
@@ -103,227 +104,232 @@ export function BackupServerForm() {
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
-        <FormField
-          control={form.control}
-          name="spaceList"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Space List</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="space1,space2"
-                  autoComplete="off"
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>
-                space in this list will be backup automatically, eg:
-                space1,space2
-                <div className="my-2">
-                  you can also backup space manually even it's not in the list.
-                </div>
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="autoSaveGap"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Auto backup gap(minutes)</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="10"
-                  autoComplete="off"
-                  type="number"
-                  min={0}
-                  {...field}
-                  {...form.register("autoSaveGap", {
-                    valueAsNumber: true,
-                  })}
-                />
-              </FormControl>
-              <FormDescription>
-                {field.value == 0
-                  ? "Disable auto save."
-                  : `backup space every ${field.value} minutes, 0 means disable auto
+    <div>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <FormField
+            control={form.control}
+            name="spaceList"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Space List</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="space1,space2"
+                    autoComplete="off"
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  space in this list will be backup automatically, eg:
+                  space1,space2
+                  <div className="my-2">
+                    you can also backup space manually even it's not in the
+                    list.
+                  </div>
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="autoSaveGap"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Auto backup gap(minutes)</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="10"
+                    autoComplete="off"
+                    type="number"
+                    min={0}
+                    {...field}
+                    {...form.register("autoSaveGap", {
+                      valueAsNumber: true,
+                    })}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {field.value == 0
+                    ? "Disable auto save."
+                    : `backup space every ${field.value} minutes, 0 means disable auto
                   save.`}
-                <div className="my-2">
-                  Tips: If you install Eidos as PWA, the backup task will also
-                  be triggered even if you close the browser.
-                </div>
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div>
-          <Separator className="my-6" />
-          <div className="flex justify-between">
-            <h2 className="text-xl font-bold">Github Backup Server</h2>
-            <FormField
-              control={form.control}
-              name="Github__enabled"
-              render={({ field }) => (
-                <FormItem>
-                  {/* <FormLabel>Enable</FormLabel> */}
-                  <FormControl>
-                    <div>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </div>
-                  </FormControl>
-                  {/* <FormDescription>Enable Github Backup.</FormDescription> */}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+                  <div className="my-2">
+                    Tips: If you install Eidos as PWA, the backup task will also
+                    be triggered even if you close the browser.
+                  </div>
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div>
+            <Separator className="my-6" />
+            <div className="flex justify-between">
+              <h2 className="text-xl font-bold">Github Backup Server</h2>
+              <FormField
+                control={form.control}
+                name="Github__enabled"
+                render={({ field }) => (
+                  <FormItem>
+                    {/* <FormLabel>Enable</FormLabel> */}
+                    <FormControl>
+                      <div>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </div>
+                    </FormControl>
+                    {/* <FormDescription>Enable Github Backup.</FormDescription> */}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-          <div className="space-y-8">
-            <FormField
-              control={form.control}
-              name="Github__repo"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Repo</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="username/repo"
-                      autoComplete="off"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    The Github Repo. go to{" "}
-                    <a
-                      href={`https://github.com/${field.value}`}
-                      className=" underline"
-                      target="_blank"
-                    >
-                      {field.value}
-                    </a>
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="Github__token"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Token</FormLabel>
-                  <FormControl>
-                    <Input autoComplete="off" type="password" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    The Github Token. go to{" "}
-                    <a
-                      href="https://github.com/settings/tokens?type=beta"
-                      className=" underline"
-                      target="_blank"
-                    >
-                      https://github.com/settings/tokens
-                    </a>{" "}
-                    to create one. make sure this token has read&write access to
-                    the repo.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </div>
-        <div className=" pointer-events-none cursor-not-allowed opacity-50">
-          <Separator className="my-6" />
-          <div className="flex justify-between">
-            <h2 className=" text-xl font-bold">
-              S3 Backup Server (Coming Soon...)
-            </h2>
-            <FormField
-              control={form.control}
-              name="S3__enabled"
-              render={({ field }) => (
-                <FormItem>
-                  {/* <FormLabel>Enable</FormLabel> */}
-                  <FormControl>
-                    <div>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
+            <div className="space-y-8">
+              <FormField
+                control={form.control}
+                name="Github__repo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Repo</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="username/repo"
+                        autoComplete="off"
+                        {...field}
                       />
-                    </div>
-                  </FormControl>
-                  {/* <FormDescription>Enable Github Backup.</FormDescription> */}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    </FormControl>
+                    <FormDescription>
+                      The Github Repo. go to{" "}
+                      <a
+                        href={`https://github.com/${field.value}`}
+                        className=" underline"
+                        target="_blank"
+                      >
+                        {field.value}
+                      </a>
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="Github__token"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Token</FormLabel>
+                    <FormControl>
+                      <Input autoComplete="off" type="password" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      The Github Token. go to{" "}
+                      <a
+                        href="https://github.com/settings/tokens?type=beta"
+                        className=" underline"
+                        target="_blank"
+                      >
+                        https://github.com/settings/tokens
+                      </a>{" "}
+                      to create one. make sure this token has read&write access
+                      to the repo.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </div>
-          <div className="space-y-8">
-            <FormField
-              control={form.control}
-              name="S3__endpointUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Endpoint</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="https://"
-                      autoComplete="off"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>The URL of AWS/R2 Endpoint.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="S3__accessKeyId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Access Key ID</FormLabel>
-                  <FormControl>
-                    <Input autoComplete="off" type="text" {...field} />
-                  </FormControl>
-                  <FormDescription>The AWS/R2 Access Key ID.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="S3__secretAccessKey"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Secret Access Key</FormLabel>
-                  <FormControl>
-                    <Input autoComplete="off" type="password" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    The AWS/R2 Secret Access Key.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <div className=" pointer-events-none cursor-not-allowed opacity-50">
+            <Separator className="my-6" />
+            <div className="flex justify-between">
+              <h2 className=" text-xl font-bold">
+                S3 Backup Server (Coming Soon...)
+              </h2>
+              <FormField
+                control={form.control}
+                name="S3__enabled"
+                render={({ field }) => (
+                  <FormItem>
+                    {/* <FormLabel>Enable</FormLabel> */}
+                    <FormControl>
+                      <div>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </div>
+                    </FormControl>
+                    {/* <FormDescription>Enable Github Backup.</FormDescription> */}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <div className="space-y-8">
+              <FormField
+                control={form.control}
+                name="S3__endpointUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Endpoint</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://"
+                        autoComplete="off"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      The URL of AWS/R2 Endpoint.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="S3__accessKeyId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Access Key ID</FormLabel>
+                    <FormControl>
+                      <Input autoComplete="off" type="text" {...field} />
+                    </FormControl>
+                    <FormDescription>The AWS/R2 Access Key ID.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="S3__secretAccessKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Secret Access Key</FormLabel>
+                    <FormControl>
+                      <Input autoComplete="off" type="password" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      The AWS/R2 Secret Access Key.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </div>
-        </div>
-        <Button type="submit" className="mt-4">
-          Update
-        </Button>
-      </form>
-    </Form>
+          <Button type="submit" className="mt-4">
+            Update
+          </Button>
+        </form>
+      </Form>
+    </div>
   )
 }
 

@@ -9,7 +9,7 @@ import {
 import { useFileSystem } from "@/hooks/use-files"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { useSpaceAppStore } from "../store"
@@ -68,7 +68,7 @@ export function FileItemContextMenu({ children }: any) {
 
   const downloadFile = async () => {
     const path = "spaces" + getFileUrlPath(name)
-    const file = await opfsManager.getFileByPath(path)
+    const file = await efsManager.getFileByPath(path)
     try {
       // Show the file save dialog.
       const handle = await (window as any).showSaveFilePicker({

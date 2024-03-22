@@ -1,11 +1,8 @@
 import { MouseEventHandler, useRef, useState } from "react"
-import { useClickAway } from "ahooks"
 import { FolderPlusIcon, MoveLeftIcon, UploadIcon } from "lucide-react"
 import ReactDOM from "react-dom"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useFileSystem } from "@/hooks/use-files"
-import { useOPFS } from "@/hooks/use-opfs"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -36,9 +33,8 @@ export function FileManagerContextMenu({ children }: any) {
     setPos({ x: position.x, y: position.y })
     e.stopPropagation()
   }
-  const { space } = useCurrentPathInfo()
 
-  const { uploadDir } = useOPFS(space)
+  const { uploadDir } = useFileSystem()
   const handleLoadLocalFolder: MouseEventHandler<HTMLDivElement> = async (
     e
   ) => {

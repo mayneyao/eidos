@@ -1,4 +1,4 @@
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 import { nonNullable } from "@/lib/utils"
 
 export abstract class BaseBackupServer {
@@ -97,23 +97,23 @@ export abstract class BaseBackupServer {
   }
 
   async getLocalFile(path: string): Promise<File | null> {
-    return opfsManager.getFileByPath(path)
+    return efsManager.getFileByPath(path)
   }
 
   async walkLocalDirectory(directory: string): Promise<string[]> {
     const paths = directory.split("/")
-    const files = await opfsManager.walk(paths)
+    const files = await efsManager.walk(paths)
     return files.map((file) => file.join("/"))
   }
 
   async save2LocalFile(path: string, file: File) {
     const paths = path.split("/").filter(nonNullable)
     paths.pop()
-    return opfsManager.addFile(paths, file)
+    return efsManager.addFile(paths, file)
   }
   async deleteLocalFile(path: string) {
     const paths = path.split("/").filter(nonNullable)
-    return opfsManager.deleteEntry(paths)
+    return efsManager.deleteEntry(paths)
   }
 
   shouldUpload(

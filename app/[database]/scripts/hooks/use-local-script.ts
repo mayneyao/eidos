@@ -1,7 +1,7 @@
 import { IScript } from "@/worker/web-worker/meta_table/script"
 import { create } from "zustand"
 
-import { OpfsManager } from "@/lib/opfs"
+import { EidosFileSystemManager } from "@/lib/storage/eidos-file-system"
 
 type DirHandleState = {
   scriptId: string
@@ -29,7 +29,7 @@ export const useLocalScript = () => {
     const eidosJson = JSON.parse(eidosData)
     // get main file
     const { main, features, ...eidosMeta } = eidosJson
-    const fsm = new OpfsManager(dirHandle)
+    const fsm = new EidosFileSystemManager(dirHandle)
     const mainFile = await fsm.getFileByPath(main)
     const mainData = await mainFile.text()
     const script = {

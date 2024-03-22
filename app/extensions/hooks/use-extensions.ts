@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react"
 import { create } from "zustand"
 
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 
 interface ExtensionType {
   name: string
@@ -31,16 +31,16 @@ export const useExtensions = () => {
   const { extensions, setExtensions } = useExtensionStore()
 
   const getExtensionIndex = async (name: string) => {
-    const file = await opfsManager.getFile(["extensions", name, "index.html"])
+    const file = await efsManager.getFile(["extensions", name, "index.html"])
     const text = await file.text()
     return text
   }
 
   const getAllExtensions = useCallback(async () => {
-    const extensionDirs = await opfsManager.listDir(["extensions"])
+    const extensionDirs = await efsManager.listDir(["extensions"])
     const allExtensions = await Promise.all(
       extensionDirs.map(async (dir) => {
-        const packageJson = await opfsManager.getFile([
+        const packageJson = await efsManager.getFile([
           "extensions",
           dir.name,
           "package.json",
@@ -65,26 +65,26 @@ export const useExtensions = () => {
       const packageJsonHandle = await dirHandle.getFileHandle("package.json")
       const packageJsonFile = await packageJsonHandle.getFile()
       const extensionInfo = await getExtInfo(packageJsonFile)
-      await opfsManager.addDir(parentPath, extensionInfo.name)
+      await efsManager.addDir(parentPath, extensionInfo.name)
       parentPath = [...parentPath, extensionInfo.name]
     }
     // walk dirHandle upload to /extensions/<name>/
     for await (const [key, value] of dirHandle.entries()) {
       if (value.kind === "directory") {
-        await opfsManager.addDir(parentPath, key)
+        await efsManager.addDir(parentPath, key)
         await uploadExtension(value as FileSystemDirectoryHandle, [
           ...parentPath,
           key,
         ])
       } else if (value.kind === "file") {
         const file = await (value as FileSystemFileHandle).getFile()
-        await opfsManager.addFile(parentPath, file)
+        await efsManager.addFile(parentPath, file)
       }
     }
   }
 
   const removeExtension = async (name: string) => {
-    await opfsManager.deleteEntry(["extensions", name], true)
+    await efsManager.deleteEntry(["extensions", name], true)
     getAllExtensions()
   }
   return {
