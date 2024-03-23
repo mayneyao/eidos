@@ -69,17 +69,11 @@ export function DatabaseLayoutBase({
 
       <ScriptContainer />
       <div className="flex h-full w-full">
-        {/* <div
-          className={cn(
-            "h-full w-[350px]  overflow-x-hidden transition-all duration-150 ease-in-out"
-          )}
-        >
-          <FileManager />
-        </div> */}
         <div
           className={cn(
-            "h-full w-[350px]  overflow-x-hidden transition-all duration-150 ease-in-out",
-            isSidebarOpen ? "hidden  md:block" : "w-0"
+            "h-full max-w-[350px] overflow-x-hidden transition-all duration-150 ease-in-out",
+            isSidebarOpen ? "hidden  md:block" : "w-0",
+            isSidebarOpen && "w-full"
           )}
         >
           <SideBar />
