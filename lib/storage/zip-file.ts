@@ -1,6 +1,7 @@
 import JSZip from "jszip"
 
-import { getDirHandle, opfsManager } from "@/lib/opfs"
+import { efsManager } from "./eidos-file-system"
+import { getDirHandle } from "./eidos-file-system"
 
 export async function zipDirectory(
   dirPaths: string[],
@@ -39,7 +40,7 @@ export async function importZipFileIntoDir(rootPaths: string[], zip: JSZip) {
       const parentDir = paths.slice(0, -1)
       try {
         const dirParents = [...rootPaths, ...parentDir]
-        await opfsManager.addDir(dirParents, dirName)
+        await efsManager.addDir(dirParents, dirName)
       } catch (error) {
         console.warn("import zip file into dir", entry, dirName, error)
       }
@@ -48,7 +49,7 @@ export async function importZipFileIntoDir(rootPaths: string[], zip: JSZip) {
       const p = [...rootPaths, ...dirPaths]
       try {
         const file = await zipFile2Blob(entry)
-        await opfsManager.addFile(p, file)
+        await efsManager.addFile(p, file)
       } catch (error) {
         console.warn("import zip file into dir", entry, p, error)
       }

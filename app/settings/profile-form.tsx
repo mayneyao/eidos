@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { ControllerRenderProps, useForm } from "react-hook-form"
 import * as z from "zod"
 
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -72,7 +72,7 @@ export function ProfileForm() {
       multiple: false,
     })
     const file = await fileHandle.getFile()
-    const res = await opfsManager.addFile(["static"], file)
+    const res = await efsManager.addFile(["static"], file)
     const url = "/" + res?.join("/")
     field.onChange(url)
   }

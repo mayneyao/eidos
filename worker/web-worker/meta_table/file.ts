@@ -1,5 +1,10 @@
-import { opfsManager } from "@/lib/opfs"
 import { FileTableName } from "@/lib/sqlite/const"
+import {
+  EidosFileSystemManager,
+  FileSystemType,
+  efsManager,
+  getFsRootHandle,
+} from "@/lib/storage/eidos-file-system"
 import { getUuid } from "@/lib/utils"
 
 import { BaseTable, BaseTableImpl } from "./base"
@@ -36,7 +41,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       const name = _name || url.split("/").pop()!
       const file = new File([blob], name, { type: blob.type })
       const space = this.dataSpace.dbName
-      const paths = await opfsManager.addFile(
+      const paths = await efsManager.addFile(
         ["spaces", space, "files"],
         file,
         _name ? _name : fileId
@@ -133,22 +138,72 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   }
 
   async getBlobURLbyPath(path: string): Promise<string | null> {
-    const f = await opfsManager.getFileByPath(path)
+    const f = await efsManager.getFileByPath(path)
     return URL.createObjectURL(f)
   }
 
   async getBlobByPath(path: string) {
-    const f = await opfsManager.getFileByPath(path)
+    const f = await efsManager.getFileByPath(path)
     const blob = new Blob([f], { type: f.type })
     return blob
   }
 
   async walk(): Promise<any[]> {
-    const allFiles = await opfsManager.walk([
+    const allFiles = await efsManager.walk([
       "spaces",
       this.dataSpace.dbName,
       "files",
     ])
     return allFiles
+  }
+
+  // transform file system
+  async transformFileSystem(
+    sourceFs: FileSystemType,
+    targetFs: FileSystemType
+  ) {
+    // create temp table to record log
+    this.dataSpace.exec(
+      `CREATE TABLE IF NOT EXISTS file_system_transform_log (
+        current INTEGER,
+        total INTEGER,
+        msg TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );`
+    )
+    const callback = async (data: {
+      current: number
+      total: number
+      msg: string
+    }) => {
+      this.dataSpace.exec(
+        `INSERT INTO file_system_transform_log (current,total,msg) VALUES (?,?,?);`,
+        [data.current, data.total, data.msg]
+      )
+      console.log(`current: ${data.current}/${data.total} ${data.msg}`)
+      this.dataSpace.blockUIMsg(
+        `current: ${data.current}/${data.total} ${data.msg}`
+      )
+      if (data.current === data.total) {
+        this.dataSpace.blockUIMsg(null)
+      }
+    }
+    if (sourceFs !== targetFs) {
+      // if fsType changed, we need to move files to new fs
+      const sourceFsManager = new EidosFileSystemManager(
+        await getFsRootHandle(sourceFs)
+      )
+      const targetFsManager = new EidosFileSystemManager(
+        await getFsRootHandle(targetFs)
+      )
+      const ignoreSqlite = targetFs === FileSystemType.OPFS
+      await sourceFsManager.copyTo(
+        targetFsManager,
+        {
+          ignoreSqlite,
+        },
+        callback
+      )
+    }
   }
 }

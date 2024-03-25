@@ -1,7 +1,9 @@
 import { SQLite3Error } from "@sqlite.org/sqlite-wasm"
 
-import { opfsManager } from "@/lib/opfs"
 import { generateMergeTableWithNewColumnsSql } from "@/lib/sqlite/sql-merge-table-with-new-columns"
+import {
+  EidosFileSystemManager
+} from "@/lib/storage/eidos-file-system"
 
 import { DataSpace } from "./DataSpace"
 
@@ -159,10 +161,14 @@ export class DbMigrator {
         this.migrateTable(table.name)
       }
     }
+    this.cleanDraftDb()
+  }
 
+  private async cleanDraftDb() {
     // delete draft db
     this.draftDb.db.close()
-    opfsManager
+    const rootDirHandle = await navigator.storage.getDirectory()
+    new EidosFileSystemManager(rootDirHandle)
       .deleteEntry(["spaces", this.draftDb.dbName, `db.sqlite3.draft.db`])
       .then(() => {
         console.log("delete draft db")

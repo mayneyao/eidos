@@ -1,3 +1,5 @@
+import { getDirHandle } from "@/lib/storage/eidos-file-system"
+
 declare var self: ServiceWorkerGlobalScope
 
 export const pathname = (url: URL) => {
@@ -14,16 +16,6 @@ export default async function handle(event: FetchEvent) {
     headers.append("Cross-Origin-Embedder-Policy", "require-corp")
     return new Response(file, { headers })
   })
-}
-
-const getDirHandle = async (_paths: string[]) => {
-  const paths = [..._paths]
-  const opfsRoot = await navigator.storage.getDirectory()
-  let dirHandle = opfsRoot
-  for (let path of paths) {
-    dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
-  }
-  return dirHandle
 }
 
 async function readFileFromOpfs(pathname: string) {

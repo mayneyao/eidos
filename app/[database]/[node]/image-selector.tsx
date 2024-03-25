@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react"
 import { useDrop } from "ahooks"
 import { useParams } from "react-router-dom"
 
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 import { cn } from "@/lib/utils"
 import { useFileSystem, useFiles } from "@/hooks/use-files"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
@@ -59,7 +59,7 @@ export function ImageSelector(props: {
       // when drop files into opfs via file manager, we don't use uuid as file name, keep the original name
       const res = await addFiles(files, false)
       const cover = res[0]
-      props.onSelected(opfsManager.getFileUrlByPath(cover.path), true)
+      props.onSelected(efsManager.getFileUrlByPath(cover.path), true)
     },
     onDragEnter: () => setIsHovering(true),
     onDragLeave: () => setIsHovering(false),
@@ -84,7 +84,7 @@ export function ImageSelector(props: {
     const file = await fileHandle.getFile()
     const res = await addFiles([file], false)
     const cover = res[0]
-    props.onSelected(opfsManager.getFileUrlByPath(cover.path), true)
+    props.onSelected(efsManager.getFileUrlByPath(cover.path), true)
   }
 
   return (
@@ -136,7 +136,7 @@ export function ImageSelector(props: {
             <h2 className="mb-3 text-lg font-semibold">Space Images</h2>
             <div className="grid grid-cols-4 gap-4">
               {images.map((image) => {
-                const url = opfsManager.getFileUrlByPath(image.path, database)
+                const url = efsManager.getFileUrlByPath(image.path, database)
                 return (
                   <img
                     onClick={() => props.onSelected(url)}

@@ -1,11 +1,9 @@
 "use client"
 
-import { useState } from "react"
 import { Download, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
+import { useState } from "react"
 import { Link } from "react-router-dom"
 
-import { exportSpace, removeSpace } from "@/lib/space"
-import { useSpace } from "@/hooks/use-space"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -13,6 +11,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useSpace } from "@/hooks/use-space"
+import { spaceFileSystem } from "@/lib/storage/space"
 
 import { CommonSettingLayout } from "../common-setting-layout"
 
@@ -27,10 +27,10 @@ export default function SpaceManagerPage() {
     setMode(mode)
     switch (mode) {
       case "remove":
-        await removeSpace(space)
+        await spaceFileSystem.remove(space)
         break
       case "export":
-        await exportSpace(space)
+        await spaceFileSystem.export(space)
         break
     }
     updateSpaceList()

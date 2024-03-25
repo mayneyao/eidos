@@ -1,6 +1,5 @@
 "use client"
 
-// import { Metadata } from "next"
 import { useKeyPress } from "ahooks"
 import { Minimize2 } from "lucide-react"
 import { Outlet } from "react-router-dom"
@@ -12,11 +11,6 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarNav } from "@/app/settings/components/sidebar-nav"
 
 import { useLastOpened } from "../[database]/hook"
-
-// export const metadata: Metadata = {
-//   title: "Forms",
-//   description: "Advanced form example using react-hook-form and Zod.",
-// }
 
 const sidebarNavItems = [
   {
@@ -31,10 +25,10 @@ const sidebarNavItems = [
     title: "API",
     href: "/settings/api",
   },
-  // {
-  //   title: "Appearance",
-  //   href: "/settings/appearance",
-  // },
+  {
+    title: "Storage",
+    href: "/settings/storage",
+  },
   {
     title: "Backup",
     href: "/settings/backup",

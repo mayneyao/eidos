@@ -1,5 +1,5 @@
-import { opfsManager } from "@/lib/opfs"
-import { getIndexedDBValue } from "@/hooks/use-indexed-db"
+import { efsManager } from "@/lib/storage/eidos-file-system"
+import { getIndexedDBValue } from "@/lib/storage/indexeddb"
 import { BackupServerFormValues } from "@/app/settings/backup/page"
 
 import { GithubBackupServer } from "./provider/github"
@@ -7,13 +7,13 @@ import { GithubBackupServer } from "./provider/github"
 declare var self: ServiceWorkerGlobalScope
 
 export const getConfigFromOpfs = async () => {
-  const configStr = await opfsManager.getDocContent(["__eidos__config.json"])
+  const configStr = await efsManager.getDocContent(["__eidos__config.json"])
   const config: BackupServerFormValues = configStr ? JSON.parse(configStr) : {}
   return config
 }
 
 export const getLastSyncStatus = async () => {
-  const syncStatusStr = await opfsManager.getDocContent([
+  const syncStatusStr = await efsManager.getDocContent([
     "__eidos__sync-status.json",
   ])
   const syncStatus: Record<string, string> = syncStatusStr
@@ -25,7 +25,7 @@ export const getLastSyncStatus = async () => {
 export const updateLastSyncStatus = async (
   syncStatus: Record<string, string>
 ) => {
-  await opfsManager.updateOrCreateDocFile(
+  await efsManager.updateOrCreateDocFile(
     ["__eidos__sync-status.json"],
     JSON.stringify(syncStatus)
   )

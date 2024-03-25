@@ -1,18 +1,17 @@
 import { Separator } from "@/components/ui/separator"
-import { AccountForm } from "@/app/settings/account/account-form"
+import { StorageForm } from "@/app/settings/storage/storage-form"
 
 export default function SettingsAccountPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium">Account</h3>
+        <h3 className="text-lg font-medium">Storage</h3>
         <p className="text-sm text-muted-foreground">
-          Update your account settings. Set your preferred language and
-          timezone.
+          Configure your storage settings.
         </p>
       </div>
       <Separator />
-      <AccountForm />
+      <StorageForm />
     </div>
   )
 }

@@ -110,12 +110,12 @@ export const useLayoutInit = () => {
         },
         id: switchDdMsgId,
       })
-      worker.onmessage = (e) => {
+      worker.addEventListener("message", (e) => {
         const { id: returnId, data } = e.data
         if (returnId === switchDdMsgId) {
           setLastOpenedDatabase(data.dbName)
         }
-      }
+      })
     }
   }, [database, lastOpenedDatabase, setLastOpenedDatabase, sqlite])
 

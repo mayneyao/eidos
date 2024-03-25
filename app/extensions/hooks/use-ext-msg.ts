@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 
 import { MsgType } from "@/lib/const"
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 import { LocalSqlite } from "@/lib/sqlite/proxy"
 import { getWorker } from "@/lib/sqlite/worker"
 import { uuidv4 } from "@/lib/utils"
@@ -41,7 +41,7 @@ export const useExtMsg = () => {
           const _url = new URL(url)
           const extName = _url.hostname.split(".")[0]
           const paths = _url.pathname.split("/").filter(Boolean)
-          opfsManager
+          efsManager
             .getFile(["extensions", extName, ...paths])
             .then((file) => {
               const contentType = file.type

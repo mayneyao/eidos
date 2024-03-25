@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { IFile } from "@/worker/web-worker/meta_table/file"
 import { create } from "zustand"
 
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 import { getUuid } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
@@ -85,7 +85,7 @@ export const useFileSystem = () => {
   }, [currentPath, setCurrentPath])
 
   const refresh = useCallback(async () => {
-    const entries = await opfsManager.listDir([
+    const entries = await efsManager.listDir([
       "spaces",
       space,
       "files",
@@ -106,7 +106,7 @@ export const useFileSystem = () => {
       const res: IFile[] = []
       for (const file of files) {
         const fileId = getUuid()
-        const paths = await opfsManager.addFile(
+        const paths = await efsManager.addFile(
           ["spaces", space, "files", ...currentPath],
           file,
           useUuId ? fileId : undefined
@@ -135,12 +135,45 @@ export const useFileSystem = () => {
 
   const addDir = useCallback(
     async (name: string) => {
-      await opfsManager.addDir(["spaces", space, "files", ...currentPath], name)
+      await efsManager.addDir(["spaces", space, "files", ...currentPath], name)
       await refresh()
     },
     [currentPath, refresh, space]
   )
 
+  const uploadDir = async (
+    dirHandle: FileSystemDirectoryHandle,
+    _parentPath?: string[]
+  ) => {
+    let parentPath = _parentPath || ["spaces", space, "files"]
+    // walk dirHandle upload to /extensions/<name>/
+    await efsManager.addDir(parentPath, dirHandle.name)
+    parentPath = [...parentPath, dirHandle.name]
+    for await (const [key, value] of dirHandle.entries()) {
+      if (value.kind === "directory") {
+        await uploadDir(value as FileSystemDirectoryHandle, parentPath)
+      } else if (value.kind === "file") {
+        const file = await (value as FileSystemFileHandle).getFile()
+        const fileId = getUuid()
+
+        const paths = await efsManager.addFile(parentPath, file)
+        if (!paths) {
+          throw new Error("add file failed")
+        }
+        const { name, size, type: mime } = file
+        const path = paths.join("/")
+        const fileInfo: IFile = {
+          id: fileId,
+          name,
+          size,
+          mime,
+          path,
+        }
+        // TODO: handle duplicate file
+        await sqlite?.addFile(fileInfo)
+      }
+    }
+  }
   const getFileUrlPath = useCallback(
     (name: string) => {
       if (isRootDir) {
@@ -164,7 +197,7 @@ export const useFileSystem = () => {
       }
       for (const { name, isDir } of names) {
         const paths = ["spaces", space, "files", ...currentPath, name]
-        await opfsManager.deleteEntry(paths, isDir)
+        await efsManager.deleteEntry(paths, isDir)
         const path = paths.join("/")
         if (isDir) {
           await sqlite?.deleteFileByPathPrefix(path)
@@ -183,6 +216,7 @@ export const useFileSystem = () => {
     refresh,
     addFiles,
     addDir,
+    uploadDir,
     enterDir,
     backDir,
     currentPath,

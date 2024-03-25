@@ -6,6 +6,7 @@ import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 import { transformQuery } from "@/lib/sqlite/sql-formula-parser"
+import { FileSystemType } from "@/lib/storage/eidos-file-system"
 import { IField } from "@/lib/store/interface"
 import {
   extractIdFromShortId,
@@ -363,6 +364,13 @@ export class DataSpace {
 
   public async walkFiles() {
     return await this.file.walk()
+  }
+
+  public async transformFileSystem(
+    sourceFs: FileSystemType,
+    targetFs: FileSystemType
+  ) {
+    return await this.file.transformFileSystem(sourceFs, targetFs)
   }
 
   // views
@@ -898,6 +906,15 @@ export class DataSpace {
     postMessage({
       type: MsgType.Notify,
       data: msg,
+    })
+  }
+
+  public blockUIMsg(msg: string | null) {
+    postMessage({
+      type: MsgType.BlockUIMsg,
+      data: {
+        msg,
+      },
     })
   }
 }

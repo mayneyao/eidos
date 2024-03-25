@@ -1,8 +1,8 @@
 import { useCallback, useEffect } from "react"
 
 import { MsgType } from "@/lib/const"
-import { getAllSpaceNames } from "@/lib/opfs"
 import { getWorker } from "@/lib/sqlite/worker"
+import { spaceFileSystem } from "@/lib/storage/space"
 import { uuidv4 } from "@/lib/utils"
 
 import { useSqliteStore } from "./use-sqlite"
@@ -11,7 +11,7 @@ export const useSpace = () => {
   const { setSpaceList, spaceList } = useSqliteStore()
 
   const updateSpaceList = useCallback(async () => {
-    const spaceNames = await getAllSpaceNames()
+    const spaceNames = await spaceFileSystem.list()
     setSpaceList(spaceNames)
   }, [setSpaceList])
 
@@ -30,12 +30,12 @@ export const useSpace = () => {
       id: msgId,
     })
     return new Promise((resolve) => {
-      worker.onmessage = (e) => {
+      worker.addEventListener("message", (e) => {
         const { id: returnId, data } = e.data
         if (returnId === msgId) {
           resolve(data)
         }
-      }
+      })
     })
   }, [])
 

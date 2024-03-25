@@ -1,16 +1,10 @@
 "use client"
 
-import * as React from "react"
 import { kebabCase } from "lodash"
 import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
+import * as React from "react"
 import { useNavigate } from "react-router-dom"
 
-import { importSpace } from "@/lib/space"
-import { useAppStore } from "@/lib/store/app-store"
-import { cn } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useGoto } from "@/hooks/use-goto"
-import { useSpace } from "@/hooks/use-space"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -35,6 +29,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useGoto } from "@/hooks/use-goto"
+import { useSpace } from "@/hooks/use-space"
+import { spaceFileSystem } from "@/lib/storage/space"
+import { useAppStore } from "@/lib/store/app-store"
+import { cn } from "@/lib/utils"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -82,7 +82,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
     if (databaseName) {
       setLoading(true)
       if (file) {
-        await importSpace(databaseName, file)
+        await spaceFileSystem.import(databaseName, file)
       } else {
         await createSpace(databaseName)
       }

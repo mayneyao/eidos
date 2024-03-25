@@ -3,7 +3,7 @@
 import { Suspense, lazy } from "react"
 import { Menu } from "lucide-react"
 
-import { opfsManager } from "@/lib/opfs"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 // import SplitPane, { Pane } from "react-split-pane"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -63,23 +63,17 @@ export function DatabaseLayoutBase({
       {currentPreviewFile && (
         <iframe
           className="hidden h-full w-full  md:block"
-          src={opfsManager.getFileUrlByPath(currentPreviewFile.path)}
+          src={efsManager.getFileUrlByPath(currentPreviewFile.path)}
         ></iframe>
       )}
 
       <ScriptContainer />
       <div className="flex h-full w-full">
-        {/* <div
-          className={cn(
-            "h-full w-[350px]  overflow-x-hidden transition-all duration-150 ease-in-out"
-          )}
-        >
-          <FileManager />
-        </div> */}
         <div
           className={cn(
-            "h-full w-[350px]  overflow-x-hidden transition-all duration-150 ease-in-out",
-            isSidebarOpen ? "hidden  md:block" : "w-0"
+            "h-full max-w-[350px] overflow-x-hidden transition-all duration-150 ease-in-out",
+            isSidebarOpen ? "hidden  md:block" : "w-0",
+            isSidebarOpen && "w-full"
           )}
         >
           <SideBar />

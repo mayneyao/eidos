@@ -1,6 +1,5 @@
 import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
-import { getSpaceDatabasePath } from "@/lib/opfs"
 
 import { DataSpace } from "./DataSpace"
 import { Sqlite } from "./sql"
@@ -66,6 +65,10 @@ const handleFunctionCall = async (
     },
     type: MsgType.QueryResp,
   })
+}
+
+const getSpaceDatabasePath = async (spaceName: string) => {
+  return `/spaces/${spaceName}/db.sqlite3`
 }
 
 async function loadDatabase(dbName: string) {
