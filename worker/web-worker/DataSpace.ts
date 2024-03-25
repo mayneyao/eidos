@@ -908,4 +908,13 @@ export class DataSpace {
       data: msg,
     })
   }
+
+  public blockUIMsg(msg: string | null) {
+    postMessage({
+      type: MsgType.BlockUIMsg,
+      data: {
+        msg,
+      },
+    })
+  }
 }

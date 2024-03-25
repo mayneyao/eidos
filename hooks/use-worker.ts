@@ -10,12 +10,12 @@ import { useSqliteStore } from "./use-sqlite"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
-  const { setWebsocketConnected } = useAppRuntimeStore()
+  const { setWebsocketConnected, setBlockUIMsg } = useAppRuntimeStore()
 
   const { toast } = useToast()
   const initWorker = useCallback(() => {
     const worker = getWorker()
-    worker.onmessage = async (event) => {
+    worker.addEventListener("message", async (event) => {
       if (event.data === "init") {
         console.log("sqlite is loaded")
         setInitialized(true)
@@ -33,6 +33,9 @@ export const useWorker = () => {
             title: data.title,
             description: data.description,
           })
+          break
+        case MsgType.BlockUIMsg:
+          setBlockUIMsg(data.msg)
           break
         case MsgType.Error:
           toast({
@@ -52,8 +55,8 @@ export const useWorker = () => {
         default:
           break
       }
-    }
-  }, [setInitialized, setWebsocketConnected, toast])
+    })
+  }, [setBlockUIMsg, setInitialized, setWebsocketConnected, toast])
 
   return {
     initWorker,

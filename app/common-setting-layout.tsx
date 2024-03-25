@@ -1,10 +1,10 @@
 import { useKeyPress } from "ahooks"
 import { Minimize2 } from "lucide-react"
 
-import { useGoto } from "@/hooks/use-goto"
+import { useLastOpened } from "@/app/[database]/hook"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { useLastOpened } from "@/app/[database]/hook"
+import { useGoto } from "@/hooks/use-goto"
 
 export function CommonSettingLayout(props: {
   children: React.ReactNode

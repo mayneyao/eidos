@@ -181,6 +181,12 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
         [data.current, data.total, data.msg]
       )
       console.log(`current: ${data.current}/${data.total} ${data.msg}`)
+      this.dataSpace.blockUIMsg(
+        `current: ${data.current}/${data.total} ${data.msg}`
+      )
+      if (data.current === data.total) {
+        this.dataSpace.blockUIMsg(null)
+      }
     }
     if (sourceFs !== targetFs) {
       // if fsType changed, we need to move files to new fs

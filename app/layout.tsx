@@ -1,7 +1,7 @@
 "use client"
 
 import "@/styles/globals.css"
-import { lazy, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, Outlet } from "react-router-dom"
 
 import { CommandDialogDemo } from "@/components/cmdk"
@@ -9,6 +9,14 @@ import { ReloadPrompt } from "@/components/reload-prompt"
 import { ShortCuts } from "@/components/shortcuts"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Toaster } from "@/components/ui/toaster"
@@ -20,10 +28,32 @@ import {
   MainServiceWorkerMsgType,
 } from "@/lib/const"
 import { isDevMode } from "@/lib/log"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { useConfigStore } from "./settings/store"
 
-const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
+const BlockUIDialog = () => {
+  const { blockUIMsg } = useAppRuntimeStore()
+  const open = blockUIMsg !== null
+
+  return (
+    <AlertDialog open={open}>
+      <AlertDialogTrigger className="fixed bottom-1"></AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            <div className="text-lg font-bold">Processing</div>
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            This may take a while, please wait...
+            <br />
+            {blockUIMsg}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
 
 const useRootLayoutInit = () => {
   const { aiConfig } = useConfigStore()
@@ -119,6 +149,7 @@ export default function RootLayout() {
       )}
       <TailwindIndicator />
       <Toaster />
+      <BlockUIDialog />
       <ReloadPrompt />
     </ThemeProvider>
   )

@@ -30,12 +30,12 @@ export const useSpace = () => {
       id: msgId,
     })
     return new Promise((resolve) => {
-      worker.onmessage = (e) => {
+      worker.addEventListener("message", (e) => {
         const { id: returnId, data } = e.data
         if (returnId === msgId) {
           resolve(data)
         }
-      }
+      })
     })
   }, [])
 
