@@ -7,6 +7,21 @@ export enum FileSystemType {
   NFS = "nfs",
 }
 
+export const getFsRootHandle = async (fsType: FileSystemType) => {
+  let dirHandle: FileSystemDirectoryHandle
+  switch (fsType) {
+    case FileSystemType.NFS:
+      // how it works https://developer.chrome.com/blog/persistent-permissions-for-the-file-system-access-api
+      dirHandle = await getIndexedDBValue("kv", "localPath")
+      break
+    case FileSystemType.OPFS:
+    default:
+      dirHandle = await navigator.storage.getDirectory()
+      break
+  }
+  return dirHandle
+}
+
 /**
  * get DirHandle for a given path list
  * we read config from indexeddb to decide which file system to use
@@ -27,16 +42,7 @@ export const getDirHandle = async (
     dirHandle = rootDirHandle
   } else {
     const fsType: FileSystemType = await getIndexedDBValue("kv", "fs")
-    switch (fsType) {
-      case FileSystemType.NFS:
-        // how it works https://developer.chrome.com/blog/persistent-permissions-for-the-file-system-access-api
-        dirHandle = await getIndexedDBValue("kv", "localPath")
-        break
-      case FileSystemType.OPFS:
-      default:
-        dirHandle = await navigator.storage.getDirectory()
-        break
-    }
+    dirHandle = await getFsRootHandle(fsType)
   }
   for (let path of paths) {
     dirHandle = await dirHandle.getDirectoryHandle(path, { create: true })
@@ -72,10 +78,10 @@ export class EidosFileSystemManager {
     }
   }
 
-  walk = async (_paths: string[]) => {
+  walk = async (_paths: string[]): Promise<string[][]> => {
     const dirHandle = await getDirHandle(_paths, this.rootDirHandle)
     const paths = []
-    const rootDirHandle = await getDirHandle([])
+    const rootDirHandle = await getDirHandle([], this.rootDirHandle)
     for await (let entry of (dirHandle as any).values()) {
       if (entry.kind === "file") {
         const path = await (this.rootDirHandle || rootDirHandle).resolve(entry)
@@ -86,6 +92,69 @@ export class EidosFileSystemManager {
       }
     }
     return paths
+  }
+
+  copyFile = async (_paths: string[], targetFs: EidosFileSystemManager) => {
+    // copy file to target fs
+    const paths = [..._paths]
+    if (paths.length === 0) {
+      throw new Error("paths can't be empty")
+    }
+    const file = await this.getFile(paths)
+    const targetPaths = paths.slice(0, -1)
+    await targetFs.addFile(targetPaths, file)
+  }
+
+  copyTo = async (
+    targetFs: EidosFileSystemManager,
+    options?: {
+      ignoreSqlite?: boolean
+    },
+    cb?: (data: { current: number; total: number; msg: string }) => void
+  ) => {
+    const paths = await this.walk([])
+    const targetPaths = await targetFs.walk([])
+    const targetPathsSet = new Set(targetPaths.map((p) => p.join("/")))
+
+    const total = paths.length
+    for (let path of paths) {
+      const current = paths.indexOf(path) + 1
+      // ignore .opfs-sahpool
+      if (path[0] === ".opfs-sahpool") {
+        cb?.({
+          current,
+          total,
+          msg: "ignore .opfs-sahpool",
+        })
+        continue
+      }
+      if (options?.ignoreSqlite) {
+        if (path[path.length - 1] === "db.sqlite3") {
+          cb?.({
+            current,
+            total,
+            msg: `ignore db.sqlite3`,
+          })
+          continue
+        }
+      }
+      // check if file exists
+      if (targetPathsSet.has(path.join("/"))) {
+        cb?.({
+          current,
+          total,
+          msg: `file exists ${path.join("/")}`,
+        })
+        continue
+      }
+      await this.copyFile(path, targetFs)
+      cb?.({
+        current,
+        total,
+        msg: `copying ${path.join("/")}`,
+      })
+    }
+    console.log("copy done")
   }
 
   getFileUrlByPath = (path: string, replaceSpace?: string) => {
@@ -186,7 +255,7 @@ export class EidosFileSystemManager {
     await writable.write(file)
     await writable.close()
     // fileHandle get path
-    const rootDirHandle = await getDirHandle([])
+    const rootDirHandle = await getDirHandle([], this.rootDirHandle)
     const relativePath = await rootDirHandle.resolve(fileHandle)
     return relativePath
   }
