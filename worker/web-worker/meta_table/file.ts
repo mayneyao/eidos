@@ -162,27 +162,30 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     sourceFs: FileSystemType,
     targetFs: FileSystemType
   ) {
-    // create temp table to record log
-    this.dataSpace.exec(
-      `CREATE TABLE IF NOT EXISTS file_system_transform_log (
-        current INTEGER,
-        total INTEGER,
-        msg TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );`
-    )
+    // // create temp table to record log
+    // this.dataSpace.exec(
+    //   `CREATE TABLE IF NOT EXISTS file_system_transform_log (
+    //     current INTEGER,
+    //     total INTEGER,
+    //     msg TEXT,
+    //     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    //   );`
+    // )
     const callback = async (data: {
       current: number
       total: number
       msg: string
     }) => {
-      this.dataSpace.exec(
-        `INSERT INTO file_system_transform_log (current,total,msg) VALUES (?,?,?);`,
-        [data.current, data.total, data.msg]
-      )
+      // this.dataSpace.exec(
+      //   `INSERT INTO file_system_transform_log (current,total,msg) VALUES (?,?,?);`,
+      //   [data.current, data.total, data.msg]
+      // )
       console.log(`current: ${data.current}/${data.total} ${data.msg}`)
       this.dataSpace.blockUIMsg(
-        `current: ${data.current}/${data.total} ${data.msg}`
+        `current: ${data.current}/${data.total} ${data.msg}`,
+        {
+          progress: (data.current / data.total) * 100,
+        }
       )
       if (data.current === data.total) {
         this.dataSpace.blockUIMsg(null)

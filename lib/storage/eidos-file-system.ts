@@ -128,16 +128,26 @@ export class EidosFileSystemManager {
         })
         continue
       }
-      if (options?.ignoreSqlite) {
-        if (path[path.length - 1] === "db.sqlite3") {
+
+      if (path[path.length - 1] === "db.sqlite3") {
+        if (options?.ignoreSqlite) {
           cb?.({
             current,
             total,
             msg: `ignore db.sqlite3`,
           })
           continue
+        } else {
+          // if target fs is nfs, we need to copy sqlite file every time
+          await this.copyFile(path, targetFs)
+          cb?.({
+            current,
+            total,
+            msg: `copying ${path.join("/")}`,
+          })
         }
       }
+
       // check if file exists
       if (targetPathsSet.has(path.join("/"))) {
         cb?.({

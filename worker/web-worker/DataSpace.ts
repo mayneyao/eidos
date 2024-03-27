@@ -909,11 +909,12 @@ export class DataSpace {
     })
   }
 
-  public blockUIMsg(msg: string | null) {
+  public blockUIMsg(msg: string | null, data?: Record<string, any>) {
     postMessage({
       type: MsgType.BlockUIMsg,
       data: {
         msg,
+        data,
       },
     })
   }

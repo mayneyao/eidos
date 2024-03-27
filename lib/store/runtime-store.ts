@@ -28,12 +28,17 @@ interface AppRuntimeState {
   setScriptContainerRef: (scriptContainerRef: React.RefObject<any>) => void
 
   blockUIMsg: string | null
+  blockUIData?: Record<string, any>
   setBlockUIMsg: (blockUIMsg: string) => void
+  setBlockUIData: (blockUIData: Record<string, any>) => void
 }
 
 export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
   blockUIMsg: null,
   setBlockUIMsg: (blockUIMsg) => set({ blockUIMsg }),
+
+  blockUIData: {},
+  setBlockUIData: (blockUIData) => set({ blockUIData }),
 
   isCmdkOpen: false,
   setCmdkOpen: (isCmdkOpen) => set({ isCmdkOpen }),
