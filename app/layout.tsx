@@ -4,36 +4,37 @@ import "@/styles/globals.css"
 import { useEffect, useState } from "react"
 import { Link, Outlet } from "react-router-dom"
 
-import { CommandDialogDemo } from "@/components/cmdk"
-import { ReloadPrompt } from "@/components/reload-prompt"
-import { ShortCuts } from "@/components/shortcuts"
-import { TailwindIndicator } from "@/components/tailwind-indicator"
-import { ThemeProvider } from "@/components/theme-provider"
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Toaster } from "@/components/ui/toaster"
-import { useActivationCode } from "@/hooks/use-activation-code"
-import { useShareMode } from "@/hooks/use-share-mode"
-import { useWorker } from "@/hooks/use-worker"
 import {
   EidosSharedEnvChannelName,
   MainServiceWorkerMsgType,
 } from "@/lib/const"
 import { isDevMode } from "@/lib/log"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useActivationCode } from "@/hooks/use-activation-code"
+import { useShareMode } from "@/hooks/use-share-mode"
+import { useWorker } from "@/hooks/use-worker"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
+import { Toaster } from "@/components/ui/toaster"
+import { CommandDialogDemo } from "@/components/cmdk"
+import { ReloadPrompt } from "@/components/reload-prompt"
+import { ShortCuts } from "@/components/shortcuts"
+import { TailwindIndicator } from "@/components/tailwind-indicator"
+import { ThemeProvider } from "@/components/theme-provider"
 
 import { useConfigStore } from "./settings/store"
 
 const BlockUIDialog = () => {
-  const { blockUIMsg } = useAppRuntimeStore()
+  const { blockUIMsg, blockUIData } = useAppRuntimeStore()
   const open = blockUIMsg !== null
 
   return (
@@ -45,6 +46,7 @@ const BlockUIDialog = () => {
             <div className="text-lg font-bold">Processing</div>
           </AlertDialogTitle>
           <AlertDialogDescription>
+            <Progress value={blockUIData?.progress || 0} max={100} />
             This may take a while, please wait...
             <br />
             {blockUIMsg}

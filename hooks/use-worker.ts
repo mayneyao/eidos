@@ -10,7 +10,8 @@ import { useSqliteStore } from "./use-sqlite"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
-  const { setWebsocketConnected, setBlockUIMsg } = useAppRuntimeStore()
+  const { setWebsocketConnected, setBlockUIMsg, setBlockUIData } =
+    useAppRuntimeStore()
 
   const { toast } = useToast()
   const initWorker = useCallback(() => {
@@ -36,6 +37,7 @@ export const useWorker = () => {
           break
         case MsgType.BlockUIMsg:
           setBlockUIMsg(data.msg)
+          setBlockUIData(data.data)
           break
         case MsgType.Error:
           toast({
@@ -56,7 +58,13 @@ export const useWorker = () => {
           break
       }
     })
-  }, [setBlockUIMsg, setInitialized, setWebsocketConnected, toast])
+  }, [
+    setBlockUIData,
+    setBlockUIMsg,
+    setInitialized,
+    setWebsocketConnected,
+    toast,
+  ])
 
   return {
     initWorker,

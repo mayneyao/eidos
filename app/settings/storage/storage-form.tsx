@@ -240,7 +240,7 @@ export function StorageForm() {
                 </FormItem>
               )}
             />
-            <FormField
+            {/* <FormField
               control={form.control}
               name="autoBackupDbBeforeQuit"
               render={({ field }) => (
@@ -259,7 +259,7 @@ export function StorageForm() {
                   <FormMessage />
                 </FormItem>
               )}
-            />
+            /> */}
           </>
         )}
         <Button type="button" className="mt-4" onClick={() => onSubmit()}>
