@@ -145,34 +145,7 @@ export const useFileSystem = () => {
     dirHandle: FileSystemDirectoryHandle,
     _parentPath?: string[]
   ) => {
-    let parentPath = _parentPath || ["spaces", space, "files"]
-    // walk dirHandle upload to /extensions/<name>/
-    await efsManager.addDir(parentPath, dirHandle.name)
-    parentPath = [...parentPath, dirHandle.name]
-    for await (const [key, value] of dirHandle.entries()) {
-      if (value.kind === "directory") {
-        await uploadDir(value as FileSystemDirectoryHandle, parentPath)
-      } else if (value.kind === "file") {
-        const file = await (value as FileSystemFileHandle).getFile()
-        const fileId = getUuid()
-
-        const paths = await efsManager.addFile(parentPath, file)
-        if (!paths) {
-          throw new Error("add file failed")
-        }
-        const { name, size, type: mime } = file
-        const path = paths.join("/")
-        const fileInfo: IFile = {
-          id: fileId,
-          name,
-          size,
-          mime,
-          path,
-        }
-        // TODO: handle duplicate file
-        await sqlite?.addFile(fileInfo)
-      }
-    }
+    await sqlite?.uploadDir(dirHandle, _parentPath)
   }
   const getFileUrlPath = useCallback(
     (name: string) => {

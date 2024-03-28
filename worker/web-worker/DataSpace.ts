@@ -6,7 +6,10 @@ import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 import { transformQuery } from "@/lib/sqlite/sql-formula-parser"
-import { FileSystemType } from "@/lib/storage/eidos-file-system"
+import {
+  EidosFileSystemManager,
+  FileSystemType,
+} from "@/lib/storage/eidos-file-system"
 import { IField } from "@/lib/store/interface"
 import {
   extractIdFromShortId,
@@ -324,6 +327,21 @@ export class DataSpace {
   // files
   public async addFile(file: IFile) {
     return await this.file.add(file)
+  }
+
+  public async uploadDir(
+    dirHandle: FileSystemDirectoryHandle,
+    _parentPath?: string[]
+  ) {
+    const fs = new EidosFileSystemManager(dirHandle)
+    console.log(fs)
+    const files = await fs.walk([])
+    console.log(files)
+    const count = files.length
+    console.log(count)
+    await this.file.uploadDir(dirHandle, count, 0, _parentPath)
+    this.blockUIMsg(null)
+    return
   }
 
   public async getFileById(id: string) {

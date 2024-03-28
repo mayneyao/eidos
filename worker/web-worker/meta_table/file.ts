@@ -209,4 +209,54 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       )
     }
   }
+
+  async uploadDir(
+    dirHandle: FileSystemDirectoryHandle,
+    total: number,
+    current: number,
+    _parentPath?: string[]
+  ) {
+    const space = this.dataSpace.dbName
+    let parentPath = _parentPath || ["spaces", space, "files"]
+    // walk dirHandle upload to /extensions/<name>/
+    await efsManager.addDir(parentPath, dirHandle.name)
+    parentPath = [...parentPath, dirHandle.name]
+    for await (const [key, value] of dirHandle.entries()) {
+      if (value.kind === "directory") {
+        await this.uploadDir(
+          value as FileSystemDirectoryHandle,
+          total,
+          current,
+          parentPath
+        )
+      } else if (value.kind === "file") {
+        try {
+          const file = await (value as FileSystemFileHandle).getFile()
+          const fileId = getUuid()
+
+          const paths = await efsManager.addFile(parentPath, file)
+          if (!paths) {
+            throw new Error("add file failed")
+          }
+          const { name, size, type: mime } = file
+          const path = paths.join("/")
+          const fileInfo: IFile = {
+            id: fileId,
+            name,
+            size,
+            mime,
+            path,
+          }
+          // TODO: handle duplicate file
+          await this.add(fileInfo)
+        } catch (error) {
+        } finally {
+          current++
+          this.dataSpace.blockUIMsg(`uploading ${name}`, {
+            progress: (current / total) * 100,
+          })
+        }
+      }
+    }
+  }
 }
