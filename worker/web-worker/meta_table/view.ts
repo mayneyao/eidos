@@ -32,10 +32,6 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     return data
   }
 
-  get(id: string): Promise<IView | null> {
-    throw new Error("Method not implemented.")
-  }
-
   async del(id: string): Promise<boolean> {
     try {
       await this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])

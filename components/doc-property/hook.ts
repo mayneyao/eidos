@@ -39,7 +39,7 @@ export const useDocProperty = (data: { tableId: string; docId: string }) => {
     if (!sqlite) return
     const rowId = extractIdFromShortId(docId)
     const res = await getProperty(tableId, rowId)
-    setDocProperty(res)
+    res && setDocProperty(res)
   }, [docId, getProperty, sqlite, tableId])
 
   const _setProperty = useCallback(

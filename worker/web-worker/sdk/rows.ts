@@ -1,3 +1,5 @@
+import { IView } from "lib/store/IView"
+
 import { getFieldInstance } from "@/lib/fields"
 import type { IField } from "@/lib/store/interface"
 import { uuidv4 } from "@/lib/utils"
@@ -150,6 +152,7 @@ export class RowsManager {
   async query(
     filter: Record<string, any> = {},
     options?: {
+      viewId?: string
       limit?: number
       offset?: number
       raw?: boolean
@@ -158,25 +161,33 @@ export class RowsManager {
     const { fieldRawColumnNameFieldMap, fieldNameRawColumnNameMap } =
       await this.getFieldMap()
 
-    const { rawData, notExistKeys } = this.transformData(filter, {
-      fieldNameRawColumnNameMap,
-      fieldRawColumnNameFieldMap,
-    })
-    if (notExistKeys.length > 0) {
-      throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
-    }
+    let rows: Record<string, any>[] = []
+    if (options?.viewId) {
+      const view: IView = await this.dataSpace.view.get(options.viewId)
+      if (!view) {
+        throw new Error("view not found")
+      }
+      rows = await this.dataSpace.exec2(view.query)
+    } else {
+      const { rawData, notExistKeys } = this.transformData(filter, {
+        fieldNameRawColumnNameMap,
+        fieldRawColumnNameFieldMap,
+      })
+      if (notExistKeys.length > 0) {
+        throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
+      }
 
-    const hasFilter = Object.keys(rawData).length > 0
-    const sql = `SELECT * FROM ${this.table.rawTableName} ${
-      hasFilter ? "WHERE" : ""
-    } ${Object.keys(rawData)
-      .map((key) => `${key} = ?`)
-      .join(" AND ")} ${options?.limit ? `LIMIT ${options.limit}` : ""} ${
-      options?.offset ? `OFFSET ${options.offset}` : ""
-    }`
-    const bind = Object.values(rawData)
-    const rows = await this.dataSpace.exec2(sql, bind)
-    console.log(rows, sql, bind)
+      const hasFilter = Object.keys(rawData).length > 0
+      const sql = `SELECT * FROM ${this.table.rawTableName} ${
+        hasFilter ? "WHERE" : ""
+      } ${Object.keys(rawData)
+        .map((key) => `${key} = ?`)
+        .join(" AND ")} ${options?.limit ? `LIMIT ${options.limit}` : ""} ${
+        options?.offset ? `OFFSET ${options.offset}` : ""
+      }`
+      const bind = Object.values(rawData)
+      rows = await this.dataSpace.exec2(sql, bind)
+    }
     if (options?.raw) {
       return rows
     }
