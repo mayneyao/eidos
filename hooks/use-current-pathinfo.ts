@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom"
+import { useParams, useSearchParams } from "react-router-dom"
 
 import { getRawTableNameById } from "@/lib/utils"
 
@@ -7,6 +7,8 @@ import { useCurrentNode } from "./use-current-node"
 export const useCurrentPathInfo = () => {
   const { database, table } = useParams()
   const currentNode = useCurrentNode()
+  let [searchParams, setSearchParams] = useSearchParams()
+  const viewId = searchParams.get("v")
 
   switch (currentNode?.type) {
     case "table":
@@ -18,6 +20,7 @@ export const useCurrentPathInfo = () => {
         tableName: table ? getRawTableNameById(table) : "",
         // tableId = table
         tableId: table,
+        viewId,
       }
     case "doc":
       return {
@@ -32,6 +35,7 @@ export const useCurrentPathInfo = () => {
         space: database!,
         tableName: "",
         tableId: table,
+        viewId,
       }
   }
 }

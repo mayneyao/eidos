@@ -18,7 +18,7 @@ export const ScriptContextMenu = ({
 }: {
   getRows: () => any[] | undefined
 }) => {
-  const { space, tableId } = useCurrentPathInfo()
+  const { space, tableId, viewId } = useCurrentPathInfo()
   const scripts = useScripts(space)
   const { callFunction } = useScriptFunction()
   const { fieldRawColumnNameFieldMap } = useCurrentUiColumns()
@@ -35,6 +35,7 @@ export const ScriptContextMenu = ({
           env: action.env_map || {},
           currentNodeId: tableId,
           currentRowId: row._id,
+          currentViewId: viewId,
           callFromTableAction: true,
         },
         code: action.code,
