@@ -314,6 +314,10 @@ export class DataSpace {
     // query is a sql string like "select * from tb_xxxxx Order by _id"
     // range is a array of {startIndex: number, endIndex: number}
     // we need to delete rows from startIndex to endIndex
+    if ("order by" !== query.toLowerCase().match(/order by/g)?.[0]) {
+      // when query has no order by, we need to add order by to make sure delete from start to end
+      query += " ORDER BY rowid"
+    }
     const sql = `DELETE FROM ${tableName} WHERE _id in (SELECT _id FROM (${query}) LIMIT ? OFFSET ?)`
     await this.db.transaction(async (db) => {
       // reverse range, delete from end to start to avoid index change

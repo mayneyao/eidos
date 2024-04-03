@@ -236,6 +236,7 @@ export function useAsyncData<TRowType>(
   const handleDelRows = async (
     ranges: { startIndex: number; endIndex: number }[]
   ) => {
+    const _ranges = [...ranges]
     for (const { startIndex, endIndex } of ranges.reverse()) {
       dataRef.current.splice(startIndex, endIndex - startIndex)
       console.log(startIndex, endIndex - startIndex)
@@ -244,7 +245,7 @@ export function useAsyncData<TRowType>(
     if (!qs) {
       throw new Error("query is empty")
     }
-    await deleteRowsByRange(ranges, tableName, qs)
+    await deleteRowsByRange(_ranges, tableName, qs)
   }
 
   const refreshCurrentVisible = useCallback(() => {
@@ -329,12 +330,12 @@ export function useAsyncData<TRowType>(
               })
             break
           case DataUpdateSignalType.Delete:
-            const rowIndex2 = getRowIndexById(_old._id)
-            if (rowIndex2 !== -1) {
-              dataRef.current.splice(rowIndex2, 1)
-              setCount(dataRef.current.length)
-              refreshCurrentVisible()
-            }
+            // const rowIndex2 = getRowIndexById(_old._id)
+            // if (rowIndex2 !== -1) {
+            //   dataRef.current.splice(rowIndex2, 1)
+            //   setCount(dataRef.current.length)
+            //   refreshCurrentVisible()
+            // }
             break
           default:
             break
