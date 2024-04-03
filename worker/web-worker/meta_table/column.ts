@@ -148,20 +148,44 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   async deleteField(tableName: string, tableColumnName: string) {
     try {
       await this.dataSpace.db.transaction(async (db) => {
-        // update trigger before delete column
-        await this.dataSpace.onTableChange(this.dataSpace.dbName, tableName, [
-          tableColumnName,
-        ])
-        this.dataSpace.syncExec2(
-          `DELETE FROM ${ColumnTableName} WHERE table_column_name = ? AND table_name = ?;`,
-          [tableColumnName, tableName],
-          db
-        )
-        this.dataSpace.syncExec2(
-          `ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};`,
-          [],
-          db
-        )
+        const _deleteField = async (
+          tableName: string,
+          tableColumnName: string
+        ) => {
+          await this.dataSpace.onTableChange(this.dataSpace.dbName, tableName, [
+            tableColumnName,
+          ])
+          this.dataSpace.syncExec2(
+            `DELETE FROM ${ColumnTableName} WHERE table_column_name = ? AND table_name = ?;`,
+            [tableColumnName, tableName],
+            db
+          )
+          this.dataSpace.syncExec2(
+            `ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};`,
+            [],
+            db
+          )
+        }
+        const column = await this.getColumn(tableName, tableColumnName)
+        if (column?.type === FieldType.Link) {
+          const tm = new TableManager(
+            getTableIdByRawTableName(tableName),
+            this.dataSpace
+          )
+          const pairedField = await tm.fields.link.getPairedLinkField(column)
+          // delete relation
+          await tm.fields.link.beforeDeleteColumn(
+            tableName,
+            tableColumnName,
+            db
+          )
+          // delete paired field
+          await _deleteField(
+            pairedField.table_name,
+            pairedField.table_column_name
+          )
+        }
+        await _deleteField(tableName, tableColumnName)
       })
     } catch (error) {
       console.error(error)

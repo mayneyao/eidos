@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { useLayer } from "react-laag"
 
+import { FieldType } from "@/lib/fields/const"
 import { IView } from "@/lib/store/IView"
 import { cn } from "@/lib/utils"
 import { useTableOperation } from "@/hooks/use-table"
@@ -239,7 +240,11 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
               <DialogContent className="max-w-[300px]">
                 <DialogHeader>
                   <DialogTitle>Are you sure delete this field?</DialogTitle>
-                  <DialogDescription></DialogDescription>
+                  <DialogDescription>
+                    {currentUiColumn?.type === FieldType.Link
+                      ? "This field is a link field. Deleting this field will also delete the paired field. and this action cannot be undone."
+                      : "This action cannot be undone."}
+                  </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
                   <Button

@@ -426,5 +426,25 @@ export class LinkFieldService {
   /**
    * when user delete a link field, we also need to delete the paired link field and delete relation data
    */
-  async beforeDeleteColumn() {}
+  async beforeDeleteColumn(
+    tableName: string,
+    columnName: string,
+    db = this.dataSpace.db
+  ) {
+    const field = await this.dataSpace.column.getColumn(tableName, columnName)
+    if (!field) return
+    const pairedField = await this.getPairedLinkField(field)
+    const relationTableName = `lk_${tableName}__${pairedField.table_name}`
+    const reverseRelationTableName = `lk_${pairedField.table_name}__${tableName}`
+    // drop relation rows where link_field_id = columnName
+    db.exec({
+      sql: `DELETE FROM ${relationTableName} WHERE link_field_id = ?`,
+      bind: [columnName],
+    })
+    // drop reverse relation rows where link_field_id = pairedField.table_column_name
+    db.exec({
+      sql: `DELETE FROM ${reverseRelationTableName} WHERE link_field_id = ?`,
+      bind: [pairedField.table_column_name],
+    })
+  }
 }
