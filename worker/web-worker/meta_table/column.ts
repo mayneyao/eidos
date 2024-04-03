@@ -146,6 +146,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   }
 
   async deleteField(tableName: string, tableColumnName: string) {
+    const effectTables: string[] = [tableName]
     try {
       await this.dataSpace.db.transaction(async (db) => {
         const _deleteField = async (
@@ -173,6 +174,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
             this.dataSpace
           )
           const pairedField = await tm.fields.link.getPairedLinkField(column)
+          effectTables.push(pairedField.table_name)
           // delete relation
           await tm.fields.link.beforeDeleteColumn(
             tableName,
@@ -195,6 +197,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
           "Failed to delete column, because it is referenced by other fields",
       })
     }
+    return effectTables
   }
 
   /**

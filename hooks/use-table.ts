@@ -159,8 +159,10 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
 
   const deleteField = async (tableColumnName: string) => {
     if (!sqlite) return
-    await sqlite.deleteField(tableName, tableColumnName)
-    await updateUiColumns()
+    const effectTables = await sqlite.deleteField(tableName, tableColumnName)
+    for (const table of effectTables) {
+      await updateUiColumns(table)
+    }
   }
 
   const addRow = async (_uuid?: string) => {

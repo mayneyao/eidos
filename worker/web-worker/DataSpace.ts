@@ -429,7 +429,7 @@ export class DataSpace {
     return await this.column.add(data)
   }
   public async deleteField(tableName: string, tableColumnName: string) {
-    await this.column.deleteField(tableName, tableColumnName)
+    return await this.column.deleteField(tableName, tableColumnName)
   }
 
   public async listRawColumns(tableName: string) {
