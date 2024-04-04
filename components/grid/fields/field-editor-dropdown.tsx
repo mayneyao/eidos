@@ -11,7 +11,6 @@ import { useLayer } from "react-laag"
 import { FieldType } from "@/lib/fields/const"
 import { IView } from "@/lib/store/IView"
 import { cn } from "@/lib/utils"
-import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,13 +22,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { CommonMenuItem } from "@/components/common-menu-item"
 import { useCurrentView, useViewOperation } from "@/components/table/hooks"
 
 import { useColumns } from "../hooks/use-col"
 import { useTableAppStore } from "../store"
-import { checkNewFieldNameIsOk } from "./helper"
+import { FieldNameEdit } from "./field-name-edit"
 
 interface IFieldEditorDropdownProps {
   tableName: string
@@ -60,47 +58,13 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   })
   const { addSort } = useViewOperation()
   const inputRef = useRef<HTMLInputElement>(null)
-  const { updateFieldName } = useTableOperation(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
   const { showColumns } = useColumns(uiColumns, props.view)
-  const [newFieldName, setNewFieldName] = useState<string>(
-    currentUiColumn?.name ?? ""
-  )
+
   useEffect(() => {
     const currentField = showColumns[currentColIndex!]
     setCurrentUiColumn(currentField)
   }, [currentColIndex, setCurrentUiColumn, showColumns])
-
-  const [error, setError] = useState<string>()
-
-  const handleNewFieldNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value
-    if (!currentUiColumn) return
-    const isOk = checkNewFieldNameIsOk(newName, currentUiColumn, uiColumns)
-    if (!isOk) {
-      if (newName.length === 0) {
-        setError("Field name cannot be empty")
-      } else {
-        setError("Field name already exists")
-      }
-    } else {
-      setError("")
-    }
-    setNewFieldName(e.target.value)
-  }
-
-  const handleChangeFieldName = async () => {
-    if (!currentUiColumn) return
-    const tableColumnName = currentUiColumn.table_column_name
-    if (currentUiColumn.name === newFieldName) {
-      return
-    }
-    const isOk = checkNewFieldNameIsOk(newFieldName, currentUiColumn, uiColumns)
-    if (isOk) {
-      updateFieldName(tableColumnName, newFieldName)
-      setMenu(undefined)
-    }
-  }
 
   useEffect(() => {
     if (menu) {
@@ -109,11 +73,6 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     }
   }, [menu])
 
-  useEffect(() => {
-    if (currentUiColumn) {
-      setNewFieldName(currentUiColumn.name)
-    }
-  }, [currentUiColumn])
   const { layerProps, renderLayer } = useLayer({
     isOpen,
     auto: true,
@@ -189,26 +148,15 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
             onMouseMoveCapture={(e) => e.stopPropagation()}
           >
             <div ref={ref2}>
-              <div className="flex flex-col gap-2 p-2">
-                <Input
-                  ref={inputRef}
-                  id="fieldName"
-                  value={newFieldName}
-                  onBlur={handleChangeFieldName}
-                  autoFocus
-                  autoComplete="off"
-                  onChange={handleNewFieldNameChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleChangeFieldName()
-                    }
-                    if (e.key === "Escape") {
-                      setMenu(undefined)
-                    }
-                  }}
-                  className="col-span-3 h-[32px]"
-                />
-                {error && <div className="text-red-500">{error}</div>}
+              <div className="p-2">
+                {currentUiColumn && (
+                  <FieldNameEdit
+                    field={currentUiColumn}
+                    tableName={tableName}
+                    databaseName={databaseName}
+                    onEditEnd={() => setMenu(undefined)}
+                  />
+                )}
               </div>
 
               <CommonMenuItem
