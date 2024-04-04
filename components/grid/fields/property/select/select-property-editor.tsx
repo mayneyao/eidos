@@ -102,54 +102,47 @@ export const SelectPropertyEditor = (props: IFieldPropertyEditorProps) => {
   }
 
   return (
-    <div>
-      <CardHeader>
-        <CardTitle>Edit Field Property</CardTitle>
-        {/* <CardDescription>Card Description</CardDescription> */}
-      </CardHeader>
-      <CardContent ref={ref}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Options
-            </div>
+    <div ref={ref}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Options
           </div>
-          <Button
-            onClick={() => setIsAddNewOption(!isAddNewOption)}
-            variant="ghost"
-            size="sm"
-            className="flex items-center gap-1"
-          >
-            <Plus size={16} />
-            <span>Add Option</span>
-          </Button>
         </div>
-        <hr />
-        <div className="mt-2 flex flex-col items-start">
-          {isAddNewOption && (
-            <Input
-              autoFocus
-              value={newOptionName}
-              onChange={handleNewOptionChange}
-              onKeyDown={handleAddNewOption}
-              onBlur={() => setIsAddNewOption(false)}
+        <Button
+          onClick={() => setIsAddNewOption(!isAddNewOption)}
+          variant="ghost"
+          size="sm"
+          className="flex items-center gap-1"
+        >
+          <Plus size={16} />
+          <span>Add Option</span>
+        </Button>
+      </div>
+      <hr />
+      <div className="mt-2 flex flex-col items-start">
+        {isAddNewOption && (
+          <Input
+            autoFocus
+            value={newOptionName}
+            onChange={handleNewOptionChange}
+            onKeyDown={handleAddNewOption}
+            onBlur={() => setIsAddNewOption(false)}
+          />
+        )}
+        {field.options.map((option) => {
+          return (
+            <SelectOption
+              key={option.id}
+              option={option}
+              container={ref.current}
+              onColorChange={handleOptionColorChange}
+              onNameChange={handleOptionNameChange}
+              onDelete={handleOptionDelete}
             />
-          )}
-          {field.options.map((option) => {
-            return (
-              <SelectOption
-                key={option.id}
-                option={option}
-                container={ref.current}
-                onColorChange={handleOptionColorChange}
-                onNameChange={handleOptionNameChange}
-                onDelete={handleOptionDelete}
-              />
-            )
-          })}
-        </div>
-      </CardContent>
-      <CardFooter></CardFooter>
+          )
+        })}
+      </div>
     </div>
   )
 }

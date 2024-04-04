@@ -13,8 +13,8 @@ import {
   StarIcon,
   TagIcon,
   TagsIcon,
-  UserIcon,
   TextSearchIcon,
+  UserIcon,
 } from "lucide-react"
 
 import { FieldType } from "@/lib/fields/const"
@@ -143,8 +143,23 @@ export function FieldAppendPanel({
     }
   }
 
+  // useClickAway(
+  //   () => {
+  //     isAddFieldEditorOpen && setIsAddFieldEditorOpen(false)
+  //   },
+  //   ref,
+  //   ["mousedown", "touchstart"]
+  // )
+
   useClickAway(
-    () => {
+    (e) => {
+      const res = document.querySelectorAll(".click-outside-ignore")
+      if (Array.from(res).some((node) => node.contains(e.target as Node))) {
+        return
+      }
+      if (ref.current?.contains(e.target as Node)) {
+        return
+      }
       isAddFieldEditorOpen && setIsAddFieldEditorOpen(false)
     },
     ref,
@@ -159,17 +174,12 @@ export function FieldAppendPanel({
       )}
     >
       {currentField ? (
-        <div>
-          {currentField.type}
-          {
-            <Editor
-              uiColumn={currentField!}
-              onPropertyChange={handleUpdateField}
-              onSave={handleSaveField}
-              isCreateNew
-            />
-          }
-        </div>
+        <Editor
+          uiColumn={currentField!}
+          onPropertyChange={handleUpdateField}
+          onSave={handleSaveField}
+          isCreateNew
+        />
       ) : (
         <div>
           <h2 className="relative px-6 text-lg font-semibold tracking-tight">

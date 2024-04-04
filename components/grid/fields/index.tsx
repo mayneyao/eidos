@@ -30,6 +30,9 @@ export const FieldEditor = (props: IFieldEditorProps) => {
         <FieldPropertyEditor
           updateFieldProperty={updateFieldProperty}
           changeFieldType={changeFieldType}
+          databaseName={databaseName}
+          tableName={tableName}
+          deleteField={deleteField}
         />
       )}
       <FieldEditorDropdown

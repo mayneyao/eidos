@@ -69,6 +69,11 @@ export abstract class BaseField<CD, P, R = string, RC = any, FC = any>
     return field
   }
 
+  // is this field can be transformed to another field
+  get isTransformable() {
+    return false
+  }
+
   abstract get compareOperators(): CompareOperator[]
   /**
    * getCellContent will be called when the cell is rendered

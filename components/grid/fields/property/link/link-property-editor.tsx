@@ -5,6 +5,14 @@ import { IField } from "@/lib/store/interface"
 import { generateColumnName } from "@/lib/utils"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface IFieldPropertyEditorProps {
   uiColumn: IField<ILinkProperty>
@@ -28,24 +36,27 @@ export const LinkPropertyEditor = (props: IFieldPropertyEditorProps) => {
         props.uiColumn.property.linkColumnName || generateColumnName(),
     })
   }
+  if (!props.isCreateNew) return null
 
   return (
     <div className="flex flex-col gap-2 p-2">
-      <select
-        name=""
-        id=""
-        value={linkTable}
-        onChange={(e) => handleUpdateLinkTable(e.target.value)}
-      >
-        <option value="">Select a table</option>
-        {allTables.map((table) => {
-          return (
-            <option value={`tb_${table.id}`} key={table.id}>
-              {table.name || "Untitled"}
-            </option>
-          )
-        })}
-      </select>
+      <div className="flex items-center justify-between">
+        <Label>Table</Label>
+        <Select value={linkTable} onValueChange={handleUpdateLinkTable}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Table" />
+          </SelectTrigger>
+          <SelectContent className="click-outside-ignore">
+            {allTables.map((table) => {
+              return (
+                <SelectItem value={`tb_${table.id}`} key={table.id}>
+                  {table.name || "Untitled"}
+                </SelectItem>
+              )
+            })}
+          </SelectContent>
+        </Select>
+      </div>
       {props.isCreateNew && <Button onClick={props.onSave}>Save</Button>}
     </div>
   )

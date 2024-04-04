@@ -2,6 +2,8 @@
 
 a personal digital space for everyone that runs entirely in the browser, Notion-like but local/offline-first
 
+Record and manage all of your personal data within a single sqlite file, take control of your own data and avoid cloud vendor lock-in.
+
 ## Features
 
 - 💻 Runs on web browsers without any installation required. PWA support.

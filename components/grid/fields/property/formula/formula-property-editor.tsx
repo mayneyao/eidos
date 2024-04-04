@@ -1,10 +1,18 @@
 import { useState } from "react"
 
+import FormulaEditor from "@/components/formula-editor"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { FieldType } from "@/lib/fields/const"
 import { FormulaProperty } from "@/lib/fields/formula"
 import { IField } from "@/lib/store/interface"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 
 interface IFieldPropertyEditorProps {
   uiColumn: IField<FormulaProperty>
@@ -28,18 +36,25 @@ export const FormulaPropertyEditor = (props: IFieldPropertyEditorProps) => {
   }
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2 p-2">
-        <Input value={input} onChange={(e) => setInput(e.target.value)} />
-
-        <div>Display as</div>
-        <select
-          value={displayType}
-          onChange={(e) => setDisplayType(e.target.value as any)}
-        >
-          <option value={FieldType.Text}>Text</option>
-          <option value={FieldType.URL}>URL</option>
-          <option value={FieldType.File}>Files</option>
-        </select>
+      <div className="flex flex-col gap-2">
+        <FormulaEditor value={input} onChange={setInput} language="javascript"/>
+        {/* <Input value={input} onChange={(e) => setInput(e.target.value)} /> */}
+        <div className="flex items-center justify-between">
+          <Label>Display as</Label>
+          <Select
+            value={displayType}
+            onValueChange={(value) => setDisplayType(value as any)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="display as" />
+            </SelectTrigger>
+            <SelectContent className="click-outside-ignore">
+              <SelectItem value={FieldType.Text}>Text</SelectItem>
+              <SelectItem value={FieldType.URL}>URL</SelectItem>
+              <SelectItem value={FieldType.File}>Files</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <hr />
         <p>
           the formula is based on sqlite core functions, see more at{" "}
@@ -52,7 +67,6 @@ export const FormulaPropertyEditor = (props: IFieldPropertyEditorProps) => {
           </a>
         </p>
       </div>
-
       <Button onClick={handleUpdate}>Update</Button>
     </div>
   )

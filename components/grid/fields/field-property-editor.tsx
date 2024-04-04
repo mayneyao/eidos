@@ -1,10 +1,16 @@
 import React from "react"
 import { useClickAway } from "ahooks"
+import { Trash2 } from "lucide-react"
 
 import { FieldType } from "@/lib/fields/const"
 import { IField } from "@/lib/store/interface"
+import { Label } from "@/components/ui/label"
+import { CommonMenuItem } from "@/components/common-menu-item"
 
 import { useTableAppStore } from "../store"
+import { FieldDelete } from "./field-delete"
+import { FieldNameEdit } from "./field-name-edit"
+import { FieldTypeSelect } from "./field-type-select"
 import { FilePropertyEditor } from "./property/file/file-property-editor"
 import { FormulaPropertyEditor } from "./property/formula/formula-property-editor"
 import { LinkPropertyEditor } from "./property/link/link-property-editor"
@@ -26,26 +32,25 @@ export const PropertyEditorTypeMap: {
   lookup: LookupPropertyEditor,
   file: FilePropertyEditor,
 }
-const BASE_Fields = [
-  FieldType.Text,
-  FieldType.Number,
-  FieldType.URL,
-  FieldType.File,
-  // FieldType.Link,
-]
 
 export const NotImplementEditor = () => {
-  return <div>Not implement</div>
+  return null
 }
 
 interface IFieldPropertyEditorProps {
   updateFieldProperty: (fieldName: IField, property: any) => void
   changeFieldType: (rawFieldName: string, type: FieldType) => void
+  tableName: string
+  databaseName: string
+  deleteField: (fieldId: string) => void
 }
 
 export const FieldPropertyEditor = ({
   updateFieldProperty,
   changeFieldType,
+  tableName,
+  databaseName,
+  deleteField,
 }: IFieldPropertyEditorProps) => {
   const ref = React.useRef<HTMLDivElement>(null)
   const { setIsFieldPropertiesEditorOpen, currentUiColumn: currentField } =
@@ -53,9 +58,17 @@ export const FieldPropertyEditor = ({
 
   useClickAway(
     (e) => {
+      const res = document.querySelectorAll(".click-outside-ignore")
+      if (Array.from(res).some((node) => node.contains(e.target as Node))) {
+        return
+      }
+      if (ref.current?.contains(e.target as Node)) {
+        return
+      }
       setIsFieldPropertiesEditorOpen(false)
     },
-    [ref]
+    ref,
+    ["mousedown", "touchstart"]
   )
 
   const onPropertyChange = (property: any) => {
@@ -69,25 +82,39 @@ export const FieldPropertyEditor = ({
     PropertyEditorTypeMap[currentField?.type ?? "select"] ?? NotImplementEditor
   return (
     <div
-      className="absolute right-0 top-0 h-full w-[400px] bg-slate-50 dark:bg-slate-950"
+      className="absolute right-0 top-0 h-full w-[400px] border-l bg-white p-3 dark:bg-slate-950"
       ref={ref}
     >
-      {/* simple implement change field type */}
-      {BASE_Fields.includes(currentField!.type) && (
-        <select
-          name="field-type"
-          id="field-type-select"
-          value={currentField?.type}
-          onChange={(e) => handleChangeFieldType(e.target.value as FieldType)}
-        >
-          {BASE_Fields.map((fieldType) => (
-            <option key={fieldType} value={fieldType}>
-              {fieldType}
-            </option>
-          ))}
-        </select>
+      {currentField && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Name</Label>
+            <div className="w-[200px]">
+              <FieldNameEdit
+                field={currentField}
+                tableName={tableName}
+                databaseName={databaseName}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <Label>Type</Label>
+            <FieldTypeSelect
+              value={currentField?.type}
+              onChange={handleChangeFieldType}
+            />
+          </div>
+          <hr />
+          <Editor uiColumn={currentField} onPropertyChange={onPropertyChange} />
+          <hr />
+          <FieldDelete field={currentField} deleteField={deleteField}>
+            <CommonMenuItem>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Field
+            </CommonMenuItem>
+          </FieldDelete>
+        </div>
       )}
-      <Editor uiColumn={currentField!} onPropertyChange={onPropertyChange} />
     </div>
   )
 }

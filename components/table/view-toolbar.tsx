@@ -1,3 +1,4 @@
+import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import {
   useCallback,
   useContext,
@@ -6,8 +7,6 @@ import {
   useRef,
   useState,
 } from "react"
-import { useSize } from "ahooks"
-import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import {
   createSearchParams,
   useLocation,
@@ -15,22 +14,20 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
-import { IView } from "@/lib/store/IView"
-import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
-import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { useTableOperation } from "@/hooks/use-table"
+import { NodeComponent } from "@/app/[database]/[node]/page"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { NodeComponent } from "@/app/[database]/[node]/page"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { useTableOperation } from "@/hooks/use-table"
+import { IView } from "@/lib/store/IView"
+import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { TableContext, useCurrentView, useViewOperation } from "./hooks"
