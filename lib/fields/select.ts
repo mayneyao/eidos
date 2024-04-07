@@ -137,6 +137,16 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
     }
   }
 
+  static generateOptionsByNames(names: string[]) {
+    return names.map((name, index) => {
+      return {
+        id: name,
+        name,
+        color: SelectField.colors[index % SelectField.colors.length].name,
+      }
+    })
+  }
+
   changeOptionName(id: string, newName: string) {
     const options = this.column.property?.options ?? []
     const option = options.find((o) => o.id === id)

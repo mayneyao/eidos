@@ -56,6 +56,10 @@ export const FieldPropertyEditor = ({
   const { setIsFieldPropertiesEditorOpen, currentUiColumn: currentField } =
     useTableAppStore()
 
+  const handleDeleteField = () => {
+    currentField && deleteField(currentField.table_column_name)
+    setIsFieldPropertiesEditorOpen(false)
+  }
   useClickAway(
     (e) => {
       const res = document.querySelectorAll(".click-outside-ignore")
@@ -107,7 +111,7 @@ export const FieldPropertyEditor = ({
           <hr />
           <Editor uiColumn={currentField} onPropertyChange={onPropertyChange} />
           <hr />
-          <FieldDelete field={currentField} deleteField={deleteField}>
+          <FieldDelete field={currentField} deleteField={handleDeleteField}>
             <CommonMenuItem>
               <Trash2 className="mr-2 h-4 w-4" />
               Delete Field

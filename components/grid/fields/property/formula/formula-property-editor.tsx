@@ -1,6 +1,8 @@
 import { useState } from "react"
 
-import FormulaEditor from "@/components/formula-editor"
+import { FieldType } from "@/lib/fields/const"
+import { FormulaProperty } from "@/lib/fields/formula"
+import { IField } from "@/lib/store/interface"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -10,9 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FieldType } from "@/lib/fields/const"
-import { FormulaProperty } from "@/lib/fields/formula"
-import { IField } from "@/lib/store/interface"
+import FormulaEditor from "@/components/formula-editor"
 
 interface IFieldPropertyEditorProps {
   uiColumn: IField<FormulaProperty>
@@ -37,7 +37,11 @@ export const FormulaPropertyEditor = (props: IFieldPropertyEditorProps) => {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
-        <FormulaEditor value={input} onChange={setInput} language="javascript"/>
+        <FormulaEditor
+          value={input}
+          onChange={setInput}
+          language="javascript"
+        />
         {/* <Input value={input} onChange={(e) => setInput(e.target.value)} /> */}
         <div className="flex items-center justify-between">
           <Label>Display as</Label>
@@ -45,7 +49,7 @@ export const FormulaPropertyEditor = (props: IFieldPropertyEditorProps) => {
             value={displayType}
             onValueChange={(value) => setDisplayType(value as any)}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="click-outside-ignore w-[200px]">
               <SelectValue placeholder="display as" />
             </SelectTrigger>
             <SelectContent className="click-outside-ignore">

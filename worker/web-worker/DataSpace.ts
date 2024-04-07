@@ -436,6 +436,14 @@ export class DataSpace {
     return await this.column.deleteField(tableName, tableColumnName)
   }
 
+  public async changeColumnType(
+    tableName: string,
+    columnName: string,
+    type: FieldType
+  ) {
+    return await this.column.changeType(tableName, columnName, type)
+  }
+
   public async listRawColumns(tableName: string) {
     return await this.db.selectObjects(`PRAGMA table_info(${tableName})`)
   }

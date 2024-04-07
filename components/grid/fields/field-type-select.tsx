@@ -60,6 +60,10 @@ const fields = [
 
 const readonlyFields = [
   {
+    value: FieldType.Title,
+    label: "Title",
+  },
+  {
     value: FieldType.Formula,
     label: "Formula",
   },

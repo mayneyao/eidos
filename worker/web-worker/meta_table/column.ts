@@ -3,6 +3,7 @@ import {
   EidosDataEventChannelMsgType,
   EidosDataEventChannelName,
 } from "@/lib/const"
+import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { ILinkProperty } from "@/lib/fields/link"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -278,5 +279,40 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   async list(q: { table_name: string }): Promise<IField[]> {
     const res = await super.list(q)
     return res.filter((col) => !col.name.startsWith("_"))
+  }
+
+  async changeType(
+    tableName: string,
+    tableColumnName: string,
+    newType: FieldType
+  ) {
+    const defaultFieldProperty =
+      allFieldTypesMap[newType].getDefaultFieldProperty()
+    let newProperty = defaultFieldProperty
+    switch (newType) {
+      case FieldType.MultiSelect:
+      case FieldType.Select:
+        const field = await this.getColumn<ILinkProperty>(
+          tableName,
+          tableColumnName
+        )
+        if (!field) return
+        const tm = new TableManager(
+          getTableIdByRawTableName(tableName),
+          this.dataSpace
+        )
+        const options = await tm.fields.select.beforeConvert(field)
+        newProperty = {
+          ...defaultFieldProperty,
+          options,
+        }
+        break
+      default:
+        break
+    }
+    this.dataSpace.syncExec2(
+      `UPDATE ${ColumnTableName} SET type = ?, property = ? WHERE table_column_name = ? AND table_name = ?;`,
+      [newType, JSON.stringify(newProperty), tableColumnName, tableName]
+    )
   }
 }

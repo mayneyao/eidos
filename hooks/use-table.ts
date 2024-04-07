@@ -119,13 +119,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     newType: FieldType
   ) => {
     if (!sqlite) return
-    const defaultFieldProperty =
-      allFieldTypesMap[newType].getDefaultFieldProperty()
-    await sqlite.sql`UPDATE ${Symbol(
-      ColumnTableName
-    )} SET type = ${newType}, property = ${JSON.stringify(
-      defaultFieldProperty
-    )} WHERE table_column_name = ${tableColumnName} AND table_name = ${tableName};`
+    await sqlite.changeColumnType(tableName, tableColumnName, newType)
     await updateUiColumns()
   }
 
