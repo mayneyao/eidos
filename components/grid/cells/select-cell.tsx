@@ -24,6 +24,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { roundedRect } from "./helper"
 
@@ -62,7 +63,7 @@ const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
         <div />
       </PopoverTrigger>
       <PopoverContent
-        className="click-outside-ignore w-[200px] p-0"
+        className="click-outside-ignore w-[300px] p-0"
         align="start"
         sideOffset={-6}
         alignOffset={-9}
@@ -75,46 +76,50 @@ const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
             // value={value}
             onValueChange={setValue}
           />
-          <CommandEmpty>Create some options</CommandEmpty>
-          <CommandGroup>
-            {allowedValues.map((option) => (
-              <CommandItem
-                key={option.id}
-                value={option.name}
-                onSelect={(currentValue) => {
-                  handleSelect(currentValue === oldOptionName ? "" : option.id)
-                }}
-              >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4",
-                    valueIn === option.id ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                <span
-                  className="rounded-sm px-2"
-                  style={{
-                    background: SelectField.getColorValue(option.color),
-                  }}
-                >
-                  {option.name}
-                </span>
-              </CommandItem>
-            ))}
-            {Boolean(value.length) &&
-              allowedValues.findIndex((item) => item.name == value) == -1 && (
+          <ScrollArea className="h-[400px]">
+            <CommandEmpty>Create some options</CommandEmpty>
+            <CommandGroup className="h-full">
+              {allowedValues.map((option) => (
                 <CommandItem
-                  autoFocus
-                  key={value}
-                  value={value}
+                  key={option.id}
+                  value={option.name}
                   onSelect={(currentValue) => {
-                    handleSelect(currentValue)
+                    handleSelect(
+                      currentValue === oldOptionName ? "" : option.id
+                    )
                   }}
                 >
-                  Create {value}
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      valueIn === option.id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span
+                    className="rounded-sm px-2"
+                    style={{
+                      background: SelectField.getColorValue(option.color),
+                    }}
+                  >
+                    {option.name}
+                  </span>
                 </CommandItem>
-              )}
-          </CommandGroup>
+              ))}
+              {Boolean(value.length) &&
+                allowedValues.findIndex((item) => item.name == value) == -1 && (
+                  <CommandItem
+                    autoFocus
+                    key={value}
+                    value={value}
+                    onSelect={(currentValue) => {
+                      handleSelect(currentValue)
+                    }}
+                  >
+                    Create {value}
+                  </CommandItem>
+                )}
+            </CommandGroup>
+          </ScrollArea>
         </Command>
       </PopoverContent>
     </Popover>

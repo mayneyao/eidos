@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { SelectOption } from "./select-option"
 
@@ -102,7 +103,7 @@ export const SelectPropertyEditor = (props: IFieldPropertyEditorProps) => {
   }
 
   return (
-    <div ref={ref}>
+    <ScrollArea className="max-h-[500px] grow-0" ref={ref}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -120,7 +121,7 @@ export const SelectPropertyEditor = (props: IFieldPropertyEditorProps) => {
         </Button>
       </div>
       <hr />
-      <div className="mt-2 flex flex-col items-start">
+      <div className="mt-2 flex flex-col items-start overflow-y-auto">
         {isAddNewOption && (
           <Input
             autoFocus
@@ -143,6 +144,6 @@ export const SelectPropertyEditor = (props: IFieldPropertyEditorProps) => {
           )
         })}
       </div>
-    </div>
+    </ScrollArea>
   )
 }

@@ -5,6 +5,7 @@ import { Trash2 } from "lucide-react"
 import { FieldType } from "@/lib/fields/const"
 import { IField } from "@/lib/store/interface"
 import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { CommonMenuItem } from "@/components/common-menu-item"
 
 import { useTableAppStore } from "../store"
@@ -90,34 +91,40 @@ export const FieldPropertyEditor = ({
       ref={ref}
     >
       {currentField && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label>Name</Label>
-            <div className="w-[200px]">
-              <FieldNameEdit
-                field={currentField}
-                tableName={tableName}
-                databaseName={databaseName}
+        <div className="flex h-full flex-col">
+          <div className="flex-none space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Name</Label>
+              <div className="w-[200px]">
+                <FieldNameEdit
+                  field={currentField}
+                  tableName={tableName}
+                  databaseName={databaseName}
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Type</Label>
+              <FieldTypeSelect
+                value={currentField?.type}
+                onChange={handleChangeFieldType}
               />
             </div>
           </div>
-          <div className="flex items-center justify-between">
-            <Label>Type</Label>
-            <FieldTypeSelect
-              value={currentField?.type}
-              onChange={handleChangeFieldType}
-            />
-          </div>
+
           <Editor uiColumn={currentField} onPropertyChange={onPropertyChange} />
-          <hr />
-          {currentField.table_column_name !== "title" && (
-            <FieldDelete field={currentField} deleteField={handleDeleteField}>
-              <CommonMenuItem>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Field
-              </CommonMenuItem>
-            </FieldDelete>
-          )}
+
+          <div className="flex-none">
+            <hr />
+            {currentField.table_column_name !== "title" && (
+              <FieldDelete field={currentField} deleteField={handleDeleteField}>
+                <CommonMenuItem>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Field
+                </CommonMenuItem>
+              </FieldDelete>
+            )}
+          </div>
         </div>
       )}
     </div>
