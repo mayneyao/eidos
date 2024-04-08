@@ -130,16 +130,16 @@ export const ViewFieldHidden = (props: { view?: IView }) => {
       <PopoverTrigger className={"rounded-md px-2"}>Fields</PopoverTrigger>
       <PopoverContent className="w-auto p-2">
         <DndProvider backend={HTML5Backend} context={window}>
-          <div className="w-[400px]">
+          <div className="w-[300px]">
             {cards.map((card, i) => renderCard(card, i))}
           </div>
         </DndProvider>
         <hr className="my-2" />
         <div className="flex justify-between px-2">
-          <Button size="sm" variant="ghost" onClick={showAllFields}>
+          <Button size="xs" variant="ghost" onClick={showAllFields}>
             show all
           </Button>
-          <Button size="sm" variant="ghost" onClick={hideAllFields}>
+          <Button size="xs" variant="ghost" onClick={hideAllFields}>
             hide all
           </Button>
         </div>

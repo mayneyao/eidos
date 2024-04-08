@@ -236,7 +236,7 @@ export const ViewToolbar = (props: {
           <ViewFilter view={currentView} />
           <ViewSort view={currentView} />
           <ViewFieldHidden view={currentView} />
-          <Button size="sm" onClick={handleAddRow}>
+          <Button size="xs" onClick={handleAddRow}>
             <PlusIcon className="h-4 w-4"></PlusIcon>
             New
           </Button>
