@@ -108,15 +108,16 @@ export const FieldPropertyEditor = ({
               onChange={handleChangeFieldType}
             />
           </div>
-          <hr />
           <Editor uiColumn={currentField} onPropertyChange={onPropertyChange} />
           <hr />
-          <FieldDelete field={currentField} deleteField={handleDeleteField}>
-            <CommonMenuItem>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete Field
-            </CommonMenuItem>
-          </FieldDelete>
+          {currentField.table_column_name !== "title" && (
+            <FieldDelete field={currentField} deleteField={handleDeleteField}>
+              <CommonMenuItem>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Field
+              </CommonMenuItem>
+            </FieldDelete>
+          )}
         </div>
       )}
     </div>
