@@ -10,6 +10,10 @@ import { TableManager } from "./table"
 
 export class RowsManager {
   dataSpace: DataSpace
+  fieldMap?: {
+    fieldRawColumnNameFieldMap: Record<string, IField>
+    fieldNameRawColumnNameMap: Record<string, string>
+  }
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
   }
@@ -35,6 +39,9 @@ export class RowsManager {
   }
 
   async getFieldMap() {
+    if (this.fieldMap) {
+      return this.fieldMap
+    }
     // query ui columns
     const uiColumns = await this.dataSpace.column.list({
       table_name: this.table.rawTableName,
@@ -50,10 +57,11 @@ export class RowsManager {
       return acc
     }, {} as Record<string, string>)
 
-    return {
+    this.fieldMap = {
       fieldRawColumnNameFieldMap,
       fieldNameRawColumnNameMap,
     }
+    return this.fieldMap
   }
 
   static rawData2Json(
@@ -211,6 +219,57 @@ export class RowsManager {
       ...restData,
       _last_edited_by: workerStore.currentCallUserId,
     }
+  }
+
+  /**
+   * for high performance, use transaction
+   * @param datas
+   * @param fieldMap
+   * @param options
+   * @returns
+   */
+  batchSyncCreate(
+    datas: Record<string, any>[],
+    fieldMap: {
+      fieldRawColumnNameFieldMap: Record<string, IField>
+      fieldNameRawColumnNameMap: Record<string, string>
+    },
+    options?: {
+      useFieldId?: boolean
+    }
+  ) {
+    const { fieldRawColumnNameFieldMap, fieldNameRawColumnNameMap } = fieldMap
+    const createDatas = datas.map((data) => {
+      const { rawData, notExistKeys } = this.transformData(
+        data,
+        {
+          fieldNameRawColumnNameMap,
+          fieldRawColumnNameFieldMap,
+        },
+        {
+          useFieldId: options?.useFieldId,
+        }
+      )
+      if (notExistKeys.length > 0) {
+        throw new Error(`not exist keys: ${notExistKeys.join(",")}`)
+      }
+      return this.getCreateData(rawData)
+    })
+    const keys = Object.keys(createDatas[0]).join(",")
+    const values = createDatas.map((data) => Object.values(data))
+    const _values = Array(values[0].length).fill("?").join(",")
+
+    const stmt = this.dataSpace.db.prepare(`
+      INSERT INTO ${this.table.rawTableName} (${keys}) VALUES (${_values})`)
+    // for high performance, use transaction
+    this.dataSpace.db.transaction(async () => {
+      for (const value of values) {
+        stmt.bind(value).step()
+        stmt.reset()
+      }
+      stmt.finalize()
+    })
+    return createDatas
   }
 
   async create(

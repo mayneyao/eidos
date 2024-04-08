@@ -25,6 +25,7 @@ import { useConfigStore } from "@/app/settings/store"
 import { Button } from "../ui/button"
 import { BackupStatus } from "./backup"
 import { EverydaySidebarItem } from "./everyday"
+import { ImportFileDialog } from "./import-file"
 import { CurrentItemTree } from "./item-tree"
 import { TableListLoading } from "./loading"
 import { Trash } from "./trash"
@@ -128,7 +129,7 @@ export const SideBar = ({ className }: any) => {
           )}
           <div>
             <Trash />
-            {/* <CreateFileDialog /> */}
+            <ImportFileDialog />
             <Separator />
             <BackupStatus />
           </div>

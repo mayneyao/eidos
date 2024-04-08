@@ -83,8 +83,8 @@ export const ScriptPage = () => {
     })
   }
   return (
-    <div className="h-full w-full p-6">
-      <div className="flex w-full justify-between p-4">
+    <div className="h-full w-full p-4">
+      <div className="flex w-full justify-between p-2">
         <div className="flex">
           <Button
             className=" rounded-r-none"

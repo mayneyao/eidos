@@ -23,6 +23,7 @@ import { IView } from "../../lib/store/IView"
 import { DataChangeEventHandler } from "./DataChangeEventHandler"
 import { DbMigrator } from "./DbMigrator"
 import { LinkRelationUpdater } from "./LinkRelationUpdater"
+import { CsvImportAndExport } from "./import-and-export/csv"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
 import { ColumnTable } from "./meta_table/column"
@@ -593,11 +594,17 @@ export class DataSpace {
 
   public async createTable(id: string, name: string, tableSchema: string) {
     this.withTransaction(async () => {
-      this.addTreeNode({ id, name, type: "table" })
+      await this.addTreeNode({ id, name, type: "table" })
       await this.sql`${tableSchema}`
       // create view for table
       await this.createDefaultView(id)
     })
+  }
+
+  public async importCsv(file: File) {
+    const csvImport = new CsvImportAndExport()
+    const tableId = await csvImport.import(file, this)
+    return tableId
   }
 
   // table
