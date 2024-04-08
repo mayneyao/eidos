@@ -16,11 +16,11 @@ export class TextField extends BaseField<TextCell, TextProperty> {
     return rawData
   }
 
-  getCellContent(rawData: string): TextCell {
+  getCellContent(rawData: string | null): TextCell {
     return {
       kind: GridCellKind.Text,
-      data: rawData ?? "",
-      displayData: rawData ?? "",
+      data: rawData ? rawData + "" : "",
+      displayData: rawData ? rawData + "" : "",
       allowOverlay: true,
     }
   }
