@@ -15,7 +15,7 @@ import {
 } from "react-router-dom"
 
 import { IView } from "@/lib/store/IView"
-import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
+import { cn, getTableIdByRawTableName, shortenId } from "@/lib/utils"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
@@ -232,7 +232,12 @@ export const ViewToolbar = (props: {
             <PlusIcon className="h-4 w-4"></PlusIcon>
           </Button>
         </div>
-        <div className="flex gap-2" ref={ref2}>
+        <div
+          className={cn("flex gap-2 hover:opacity-100", {
+            "opacity-0": isEmbed,
+          })}
+          ref={ref2}
+        >
           <ViewFilter view={currentView} />
           <ViewSort view={currentView} />
           <ViewField view={currentView} />

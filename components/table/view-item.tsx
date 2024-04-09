@@ -63,10 +63,13 @@ export const ViewItem = ({
         <DropdownMenu onOpenChange={handleOpen} open={open}>
           <DropdownMenuTrigger asChild>
             <Button
-              variant={isActive ? "secondary" : "ghost"}
+              variant="ghost"
               onClick={() => jump2View(view.id)}
               size="sm"
-              className={cn({ "opacity-70": !isActive })}
+              className={cn({
+                "opacity-70": !isActive,
+                " border-b-2 border-primary  rounded-b-none": isActive,
+              })}
             >
               <div className="flex items-center gap-1">
                 <Icon className="h-4 w-4" />
