@@ -47,6 +47,15 @@ interface INodeItemProps {
   children?: React.ReactNode
 }
 
+const downloadFile = (file: Blob, name: string) => {
+  const url = URL.createObjectURL(file)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function NodeItem({
   databaseName,
   tableNodes,
@@ -99,14 +108,12 @@ export function NodeItem({
 
   const exportTable = async (tableId: string) => {
     const file = await sqlite?.exportCsv(tableId)
-    if (file) {
-      const url = URL.createObjectURL(file)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${node.name}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-    }
+    file && downloadFile(file, `${node.name}.csv`)
+  }
+
+  const exportDoc = async (docId: string) => {
+    const file = await sqlite?.exportMarkdown(docId)
+    file && downloadFile(file, `${node.name}.md`)
   }
 
   return (
@@ -185,6 +192,27 @@ export function NodeItem({
         )}
         {node.type === "doc" && (
           <>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <DownloadIcon className="pr-2" />
+                Export{" "}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48">
+                {/* <ContextMenuItem>
+              Export As...
+              <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
+            </ContextMenuItem> */}
+                <ContextMenuItem
+                  onClick={() => {
+                    exportDoc(node.id)
+                  }}
+                >
+                  Markdown(.md)
+                </ContextMenuItem>
+                {/* <ContextMenuSeparator /> */}
+                {/* <ContextMenuItem>Developer Tools</ContextMenuItem> */}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
             <ContextMenuSub>
               <ContextMenuSubTrigger>
                 <PackageIcon className="pr-2" />

@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 
+import { ImportDoc } from "./import-doc"
 import { ImportTable } from "./import-table"
 
 export function ImportFileDialog() {
@@ -41,10 +42,7 @@ export function ImportFileDialog() {
           </DialogDescription>
         </DialogHeader>
         <ImportTable setOpen={setOpen} />
-        {/* placeholder  */}
-        <label className="w-full cursor-not-allowed select-none border p-2 text-center">
-          Markdown
-        </label>
+        <ImportDoc setOpen={setOpen} />
       </DialogContent>
     </Dialog>
   )

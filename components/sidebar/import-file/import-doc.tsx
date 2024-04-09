@@ -1,9 +1,9 @@
-import { Input } from "@/components/ui/input"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { Input } from "@/components/ui/input"
 
-export const ImportTable = ({
+export const ImportDoc = ({
   setOpen,
 }: {
   setOpen: (open: boolean) => void
@@ -13,11 +13,11 @@ export const ImportTable = ({
   const { sqlite } = useSqlite(space)
   const goto = useGoto()
 
-  const handleCreateTable = async (file: File) => {
-    const tableId = await sqlite?.importCsv(file)
-    if (tableId) {
+  const handleCreateDoc = async (file: File) => {
+    const docId = await sqlite?.importMarkdown(file)
+    if (docId) {
       setOpen(false)
-      goto(space, tableId)
+      goto(space, docId)
       window.location.reload()
     }
   }
@@ -25,17 +25,20 @@ export const ImportTable = ({
   return (
     <>
       <div className="flex items-center gap-2">
-        <label htmlFor="csv" className="w-full cursor-pointer border p-2 text-center hover:bg-secondary">
-          CSV
+        <label
+          htmlFor="markdown"
+          className="w-full cursor-pointer border p-2 text-center hover:bg-secondary"
+        >
+          Markdown
         </label>
         <Input
-          id="csv"
+          id="markdown"
           className="hidden"
           type="file"
-          accept=".csv"
+          accept=".md,.markdown"
           onChange={(e) => {
             if (e.target.files) {
-              handleCreateTable(e.target.files[0])
+              handleCreateDoc(e.target.files[0])
             }
           }}
         />

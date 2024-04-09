@@ -24,6 +24,7 @@ import { DataChangeEventHandler } from "./DataChangeEventHandler"
 import { DbMigrator } from "./DbMigrator"
 import { LinkRelationUpdater } from "./LinkRelationUpdater"
 import { CsvImportAndExport } from "./import-and-export/csv"
+import { MarkdownImportAndExport } from "./import-and-export/markdown"
 import { ActionTable } from "./meta_table/action"
 import { BaseTable } from "./meta_table/base"
 import { ColumnTable } from "./meta_table/column"
@@ -567,7 +568,8 @@ export class DataSpace {
   public async createOrUpdateDocWithMarkdown(
     docId: string,
     mdStr: string,
-    parent_id?: string
+    parent_id?: string,
+    title?: string
   ) {
     if (isDayPageId(docId)) {
       return this.doc.createOrUpdateWithMarkdown(docId, mdStr)
@@ -575,7 +577,7 @@ export class DataSpace {
       return this.withTransaction(async () => {
         await this.getOrCreateTreeNode({
           id: docId,
-          name: docId,
+          name: title || docId,
           parent_id: parent_id,
           type: "doc",
         })
@@ -610,6 +612,17 @@ export class DataSpace {
   public async exportCsv(tableId: string) {
     const csvImport = new CsvImportAndExport()
     return await csvImport.export(tableId, this)
+  }
+
+  public async importMarkdown(file: File) {
+    const markdownImport = new MarkdownImportAndExport()
+    const nodeId = await markdownImport.import(file, this)
+    return nodeId
+  }
+
+  public async exportMarkdown(nodeId: string) {
+    const markdownImport = new MarkdownImportAndExport()
+    return await markdownImport.export(nodeId, this)
   }
 
   // table

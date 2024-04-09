@@ -121,10 +121,10 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     return true
   }
 
-  async getMarkdown(id: string) {
+  async getMarkdown(id: string): Promise<string> {
     const doc = await this.get(id)
     const res = await callMain(MsgType.GetDocMarkdown, doc?.content)
-    return res
+    return res as string
   }
 
   async getBaseInfo(id: string): Promise<Partial<IDoc>> {
