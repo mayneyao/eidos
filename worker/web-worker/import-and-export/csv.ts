@@ -12,7 +12,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export class CsvImportAndExport extends BaseImportAndExport {
   async import(file: File, dataSpace: DataSpace): Promise<string> {
-    const nodeName = file.name
+    // name without extension
+    const nodeName = file.name.replace(/\.[^/.]+$/, "")
     const tableId = uuidv4().split("-").join("")
     let tm = new TableManager(tableId, dataSpace)
     let rows2Create: any[] = []
@@ -104,7 +105,14 @@ export class CsvImportAndExport extends BaseImportAndExport {
     // dataSpace.db.exec("PRAGMA foreign_keys = ON;")
     return tableId
   }
-  export(nodeId: string, dataSpace: DataSpace): Promise<File> {
-    throw new Error("Method not implemented.")
+  async export(nodeId: string, dataSpace: DataSpace): Promise<File> {
+    const tableName = getRawTableNameById(nodeId)
+    const columns = await dataSpace.column.list({ table_name: tableName })
+    const columnNames = columns.map((column) => column.name)
+    const tm = new TableManager(nodeId, dataSpace)
+    const rows = await tm.rows.query()
+    const csv = Papa.unparse({ fields: columnNames, data: rows })
+    const blob = new Blob([csv], { type: "text/csv" })
+    return new File([blob], `${tableName}.csv`)
   }
 }

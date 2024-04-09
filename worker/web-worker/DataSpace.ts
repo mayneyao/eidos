@@ -607,6 +607,11 @@ export class DataSpace {
     return tableId
   }
 
+  public async exportCsv(tableId: string) {
+    const csvImport = new CsvImportAndExport()
+    return await csvImport.export(tableId, this)
+  }
+
   // table
 
   public async fixTable(tableId: string) {

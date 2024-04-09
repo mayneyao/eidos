@@ -88,6 +88,18 @@ export function NodeItem({
     }
   }
 
+  const exportTable = async (tableId: string) => {
+    const file = await sqlite?.exportCsv(tableId)
+    if (file) {
+      const url = URL.createObjectURL(file)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${node.name}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+
   return (
     <ContextMenu>
       <Popover open={renameOpen}>
@@ -142,7 +154,13 @@ export function NodeItem({
               Export As...
               <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
             </ContextMenuItem> */}
-                <ContextMenuItem disabled>Csv(.csv)</ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => {
+                    exportTable(node.id)
+                  }}
+                >
+                  Csv(.csv)
+                </ContextMenuItem>
                 <ContextMenuItem disabled>Excel(.xlsx)</ContextMenuItem>
                 {/* <ContextMenuSeparator /> */}
                 {/* <ContextMenuItem>Developer Tools</ContextMenuItem> */}

@@ -1,12 +1,11 @@
-import React from "react"
 import { useClickAway } from "ahooks"
 import { Trash2 } from "lucide-react"
+import React from "react"
 
+import { CommonMenuItem } from "@/components/common-menu-item"
+import { Label } from "@/components/ui/label"
 import { FieldType } from "@/lib/fields/const"
 import { IField } from "@/lib/store/interface"
-import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { CommonMenuItem } from "@/components/common-menu-item"
 
 import { useTableAppStore } from "../store"
 import { FieldDelete } from "./field-delete"
@@ -91,7 +90,7 @@ export const FieldPropertyEditor = ({
       ref={ref}
     >
       {currentField && (
-        <div className="flex h-full flex-col">
+        <div className="flex h-full flex-col space-y-2">
           <div className="flex-none space-y-2">
             <div className="flex items-center justify-between">
               <Label>Name</Label>

@@ -26,7 +26,7 @@ export const ImportTable = ({
   return (
     <>
       <div className="flex items-center gap-2">
-        <label htmlFor="csv" className="hover:bg-secondary w-full cursor-pointer border p-2 text-center">
+        <label htmlFor="csv" className="w-full cursor-pointer border p-2 text-center hover:bg-secondary">
           CSV
         </label>
         <Input
