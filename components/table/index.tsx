@@ -1,6 +1,5 @@
-
-import { useSqliteTableSubscribe } from "@/hooks/use-sqlite-table-subscribe"
 import { ViewTypeEnum } from "@/lib/store/IView"
+import { useSqliteTableSubscribe } from "@/hooks/use-sqlite-table-subscribe"
 
 import GridView from "../grid"
 import { FieldEditor } from "../grid/fields"

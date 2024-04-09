@@ -31,7 +31,7 @@ import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { TableContext, useCurrentView, useViewOperation } from "./hooks"
-import { ViewFieldHidden } from "./view-field-hidden/view-field-hidden"
+import { ViewField } from "./view-field/view-field"
 import { ViewFilter } from "./view-filter"
 import { ViewItem } from "./view-item"
 import { ViewSort } from "./view-sort"
@@ -235,7 +235,7 @@ export const ViewToolbar = (props: {
         <div className="flex gap-2" ref={ref2}>
           <ViewFilter view={currentView} />
           <ViewSort view={currentView} />
-          <ViewFieldHidden view={currentView} />
+          <ViewField view={currentView} />
           <Button size="xs" onClick={handleAddRow}>
             <PlusIcon className="h-4 w-4"></PlusIcon>
             New

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { PlusIcon } from "@radix-ui/react-icons"
 import update from "immutability-helper"
 import { sortBy } from "lodash"
 import { DndProvider } from "react-dnd"
@@ -13,15 +14,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { CommonMenuItem } from "@/components/common-menu-item"
+import { useTableAppStore } from "@/components/grid/store"
 
 import { useViewOperation } from "../hooks"
-import { FieldItemCard } from "./view-field-hidden-item"
+import { FieldItemCard } from "./view-field-item"
 
 export interface ContainerState {
   cards: IField[]
 }
 
-export const ViewFieldHidden = (props: { view?: IView }) => {
+export const ViewField = (props: { view?: IView }) => {
+  const [open, setOpen] = useState(false)
   const orderMap = useMemo(
     () => props.view?.order_map || {},
     [props.view?.order_map]
@@ -31,7 +35,7 @@ export const ViewFieldHidden = (props: { view?: IView }) => {
     [props.view?.hidden_fields]
   )
   const { uiColumns } = useCurrentUiColumns()
-
+  const { setIsAddFieldEditorOpen } = useTableAppStore()
   const [cards, setCards] = useState<IField[]>([])
   const sortedUiColumns = useMemo(
     () =>
@@ -126,16 +130,15 @@ export const ViewFieldHidden = (props: { view?: IView }) => {
     [handleHideField, hiddenFields, moveCard]
   )
 
+  const handleAddFieldClick = () => {
+    setOpen(false)
+    setIsAddFieldEditorOpen(true)
+  }
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className={"rounded-md px-2"}>Fields</PopoverTrigger>
       <PopoverContent className="w-auto p-2">
-        <DndProvider backend={HTML5Backend} context={window}>
-          <div className="w-[300px]">
-            {cards.map((card, i) => renderCard(card, i))}
-          </div>
-        </DndProvider>
-        <hr className="my-2" />
         <div className="flex justify-between px-2">
           <Button size="xs" variant="ghost" onClick={showAllFields}>
             show all
@@ -144,6 +147,17 @@ export const ViewFieldHidden = (props: { view?: IView }) => {
             hide all
           </Button>
         </div>
+        <hr className="my-1" />
+        <DndProvider backend={HTML5Backend} context={window}>
+          <div className="w-[300px]">
+            {cards.map((card, i) => renderCard(card, i))}
+          </div>
+        </DndProvider>
+        <hr className="my-1" />
+        <CommonMenuItem className="pl-4" onClick={handleAddFieldClick}>
+          <PlusIcon className="mr-2 h-4 w-4" />
+          Add Field
+        </CommonMenuItem>
       </PopoverContent>
     </Popover>
   )

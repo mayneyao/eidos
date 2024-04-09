@@ -126,7 +126,8 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
         <div />
       </PopoverTrigger>
       <PopoverContent
-        className="click-outside-ignore w-[300px] p-0"
+        // z-index 10000 > gdg editor portal z index
+        className="click-outside-ignore z-[10000] w-[300px] p-0"
         align="start"
         sideOffset={-6}
         alignOffset={-9}

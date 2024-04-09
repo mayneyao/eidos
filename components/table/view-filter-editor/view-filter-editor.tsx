@@ -11,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { CommonMenuItem } from "@/components/common-menu-item"
 
 import { IFilterValue, IGroupFilterValue } from "./interface"
 import { ViewFilterGroupEditor } from "./view-filter-group-editor"
@@ -134,9 +135,9 @@ export const ViewFilterEditor = ({
         </span>
         {AddFilterComponent}
         <hr />
-        <Button variant="outline" onClick={clearFilter}>
+        <CommonMenuItem className="pl-4" onClick={clearFilter}>
           delete filter
-        </Button>
+        </CommonMenuItem>
       </div>
     )
   }

@@ -128,16 +128,13 @@ export const FieldItemCard: FC<CardProps> = ({
     <div
       ref={ref}
       data-handler-id={handlerId}
-      className={cn(
-        "group mb-1 flex cursor-pointer gap-1 p-1 text-sm hover:bg-secondary",
-        {
-          "dragging opacity-0": isDragging,
-          "opacity-100": !isDragging,
-        }
-      )}
+      className={cn("group mb-1 flex gap-1 p-1 text-sm hover:bg-secondary", {
+        "dragging opacity-0": isDragging,
+        "opacity-100": !isDragging,
+      })}
     >
       <GripVerticalIcon
-        className=" opacity-0 group-hover:opacity-60"
+        className=" cursor-grab opacity-0 group-hover:opacity-60"
         size={20}
       />
       <div
@@ -147,7 +144,7 @@ export const FieldItemCard: FC<CardProps> = ({
         {text}
         <span
           onClick={(e) => handleToggleHidden(e, id)}
-          className={cn({
+          className={cn("cursor-pointer", {
             disabled: id === "title",
           })}
         >

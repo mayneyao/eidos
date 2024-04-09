@@ -7,32 +7,31 @@ import DataEditor, {
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
 
-import { IGridViewProperties, IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
 import { useTransformSqlQuery } from "@/hooks/use-transform-sql-query"
 import { useUiColumns } from "@/hooks/use-ui-columns"
+import { IGridViewProperties, IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 
+import { useCurrentView } from "../table/hooks"
+import { useViewCount } from "../table/hooks/use-view-count"
 import { Button } from "../ui/button"
 import { customCells } from "./cells"
-import { FieldEditor } from "./fields"
 import { headerIcons } from "./fields/header-icons"
 import { GridContextMenu } from "./grid-context-menu"
+import { useAsyncData } from "./hooks/use-async-data"
 import { useColumns } from "./hooks/use-col"
 import { useDataSource } from "./hooks/use-data-source"
 import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
-import { useCurrentView } from "../table/hooks"
-import { useViewCount } from "../table/hooks/use-view-count"
-import { useAsyncData } from "./hooks/use-async-data"
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -218,7 +217,7 @@ export default function GridView(props: IGridProps) {
       className={cn("mb-2 h-full w-full p-2 pb-7 pt-0", props.className)}
       ref={containerRef}
     >
-      <div className="relative flex h-full overflow-hidden rounded-md border-t">
+      <div className="flex h-full w-full overflow-hidden rounded-md border-t">
         <GridContextMenu
           handleDelRows={handleDelRows}
           getRowByIndex={getRowByIndex}
@@ -271,7 +270,6 @@ export default function GridView(props: IGridProps) {
           )}
         </GridContextMenu>
       </div>
-      <div id="portal" />
     </div>
   )
 }
