@@ -1,3 +1,5 @@
+import { MoveDiagonalIcon, MoveUpRightIcon, Trash2Icon } from "lucide-react"
+
 import { FieldType } from "@/lib/fields/const"
 import { FileField } from "@/lib/fields/file"
 import { IField } from "@/lib/store/interface"
@@ -174,13 +176,16 @@ export const GalleryCard = ({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onClick={() => openRow(true)}>
+        <ContextMenuItem onClick={() => openRow(true)}>
+          <MoveUpRightIcon className="pr-2" />
           Open
         </ContextMenuItem>
-        <ContextMenuItem inset onClick={() => openRow()}>
+        <ContextMenuItem onClick={() => openRow()}>
+          <MoveDiagonalIcon className="pr-2" />
           Open in full page
         </ContextMenuItem>
-        <ContextMenuItem inset disabled>
+        <ContextMenuItem disabled>
+          <Trash2Icon className="pr-2" />
           Delete
         </ContextMenuItem>
         <ScriptContextMenu getRows={() => [item]} />

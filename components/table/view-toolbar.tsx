@@ -1,4 +1,3 @@
-import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import {
   useCallback,
   useContext,
@@ -7,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react"
+import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import {
   createSearchParams,
   useLocation,
@@ -14,20 +14,20 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
-import { NodeComponent } from "@/app/[database]/[node]/page"
+import { IView } from "@/lib/store/IView"
+import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { useTableOperation } from "@/hooks/use-table"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { useTableOperation } from "@/hooks/use-table"
-import { IView } from "@/lib/store/IView"
-import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
+import { NodeComponent } from "@/app/[database]/[node]/page"
 
 import { Button } from "../ui/button"
 import { TableContext, useCurrentView, useViewOperation } from "./hooks"
@@ -244,7 +244,7 @@ export const ViewToolbar = (props: {
             <DialogTrigger>
               <div></div>
             </DialogTrigger>
-            <DialogContent className="h-[95vh] min-w-[756px] p-0">
+            <DialogContent className="container h-[95vh] p-0 md:max-w-[756px]">
               <ScrollArea className="h-full">
                 <NodeComponent nodeId={subPageId} />
               </ScrollArea>

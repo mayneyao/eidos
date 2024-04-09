@@ -1,8 +1,18 @@
-import {
-  CompactSelectionRanges
-} from "@glideapps/glide-data-grid"
 import { useCallback, useMemo } from "react"
+import { CompactSelectionRanges } from "@glideapps/glide-data-grid"
+import {
+  ExternalLinkIcon,
+  MoveDiagonalIcon,
+  MoveUpRightIcon,
+  Trash2Icon,
+} from "lucide-react"
 
+import { IField } from "@/lib/store/interface"
+import { shortenId } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
+import { useGoto } from "@/hooks/use-goto"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -10,12 +20,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
-import { useGoto } from "@/hooks/use-goto"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { IField } from "@/lib/store/interface"
-import { shortenId } from "@/lib/utils"
 
 import { ScriptContextMenu } from "./script-context-menu"
 import { useTableAppStore } from "./store"
@@ -138,19 +142,23 @@ export function GridContextMenu({
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onSelect={() => openRow(true)}>
+        <ContextMenuItem onSelect={() => openRow(true)}>
+          <MoveUpRightIcon className="pr-2" />
           Open
         </ContextMenuItem>
-        <ContextMenuItem inset onSelect={() => openRow()}>
+        <ContextMenuItem onSelect={() => openRow()}>
+          <MoveDiagonalIcon className="pr-2" />
           Open in full page
         </ContextMenuItem>
-        <ContextMenuItem inset onClick={handleDelete}>
+        <ContextMenuItem onClick={handleDelete}>
+          <Trash2Icon className="pr-2" />
           Delete Rows ({count})
         </ContextMenuItem>
         <ContextMenuSeparator />
         {currentField?.type === "url" && (
           <>
-            <ContextMenuItem inset onSelect={openURl}>
+            <ContextMenuItem onSelect={openURl}>
+              <ExternalLinkIcon className="pr-2" />
               Open URL
             </ContextMenuItem>
           </>
