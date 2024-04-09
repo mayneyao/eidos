@@ -1,5 +1,14 @@
 import { MouseEventHandler, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
+import {
+  CopyIcon,
+  DownloadIcon,
+  PackageIcon,
+  PencilLineIcon,
+  PinIcon,
+  PinOffIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
@@ -122,33 +131,39 @@ export function NodeItem({
         </PopoverContent>
       </Popover>
       <ContextMenuContent className="w-64">
-        <ContextMenuItem inset onClick={handleDeleteTable}>
-          Delete
+        <ContextMenuItem onClick={handleDeleteTable}>
+          <Trash2Icon className="pr-2" /> Delete
         </ContextMenuItem>
-        <ContextMenuItem inset onClick={handleRename}>
+        <ContextMenuItem onClick={handleRename}>
+          <PencilLineIcon className="pr-2" />
           Rename
         </ContextMenuItem>
         {node.is_pinned ? (
-          <ContextMenuItem inset onClick={() => unpin(node.id)}>
+          <ContextMenuItem onClick={() => unpin(node.id)}>
+            <PinOffIcon className="pr-2" />
             Unpin
           </ContextMenuItem>
         ) : (
-          <ContextMenuItem inset onClick={() => pin(node.id)}>
+          <ContextMenuItem onClick={() => pin(node.id)}>
+            <PinIcon className="pr-2" />
             Pin
           </ContextMenuItem>
         )}
         {node.type === "table" && (
           <>
             <ContextMenuItem
-              inset
               onClick={() => duplicateTable(node.name, `${node.name}_copy`)}
               disabled
             >
+              <CopyIcon className="pr-2" />
               Duplicate
               {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
             </ContextMenuItem>
             <ContextMenuSub>
-              <ContextMenuSubTrigger inset>Export </ContextMenuSubTrigger>
+              <ContextMenuSubTrigger>
+                <DownloadIcon className="pr-2" />
+                Export{" "}
+              </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
                 {/* <ContextMenuItem>
               Export As...
@@ -171,7 +186,10 @@ export function NodeItem({
         {node.type === "doc" && (
           <>
             <ContextMenuSub>
-              <ContextMenuSubTrigger inset>Move Into</ContextMenuSubTrigger>
+              <ContextMenuSubTrigger>
+                <PackageIcon className="pr-2" />
+                Move Into
+              </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
                 <Command>
                   <CommandInput
