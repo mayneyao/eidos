@@ -2,10 +2,11 @@ import { useState } from "react"
 import {
   BlocksIcon,
   BookOpenIcon,
+  DownloadIcon,
   Github,
   Keyboard,
   MoreHorizontal,
-  MoveRightIcon,
+  PackageIcon,
   Settings,
   Trash2Icon,
 } from "lucide-react"
@@ -15,17 +16,8 @@ import { EIDOS_VERSION } from "@/lib/log"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useAllNodes, useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,7 +34,8 @@ import {
 import { DiscordIcon } from "@/components/icons/discord"
 import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
 
-import { ScrollArea } from "../ui/scroll-area"
+import { NodeMoveInto } from "../node-menu/move-into"
+import { NodeExport } from "../node-menu/node-export"
 import { Switch } from "../ui/switch"
 
 export function NavDropdownMenu() {
@@ -51,13 +44,8 @@ export function NavDropdownMenu() {
 
   const { deleteNode, toggleNodeFullWidth } = useSqlite()
   const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
-  const allTables = useAllNodes({
-    type: "table",
-    isDeleted: false,
-  })
-  const node = useCurrentNode()
 
-  const { moveIntoTable } = useNode()
+  const node = useCurrentNode()
 
   const { space } = useCurrentPathInfo()
   const toggleCMDK = () => {
@@ -140,53 +128,24 @@ export function NavDropdownMenu() {
             )}
             <DropdownMenuSeparator />
             {/* node related operate */}
-            <DropdownMenuItem onClick={deleteCurrentNode}>
-              <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
-              <span>Delete</span>
-            </DropdownMenuItem>
+            <NodeExport node={node} />
             {node.type === "doc" && (
               <>
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
-                    <MoveRightIcon className="mr-2 h-4 w-4" />
+                    <PackageIcon className="pr-2" />
                     Move Into
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="w-48">
-                    <Command>
-                      <CommandInput
-                        placeholder="Filter label..."
-                        autoFocus={true}
-                      />
-                      <ScrollArea className="">
-                        <CommandList className="max-h-[300px]">
-                          <CommandEmpty>No table found.</CommandEmpty>
-                          <CommandGroup>
-                            {allTables.map((tableNode) => (
-                              <CommandItem
-                                key={tableNode.id}
-                                onClick={() => {}}
-                                title={tableNode.name || "Untitled"}
-                                className=" truncate"
-                                onSelect={(value) => {
-                                  moveIntoTable(
-                                    node.id,
-                                    tableNode.id,
-                                    node.parent_id
-                                  )
-                                  setOpen(false)
-                                }}
-                              >
-                                {tableNode.name || "Untitled"}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </ScrollArea>
-                    </Command>
+                    <NodeMoveInto node={node} />
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
               </>
             )}
+            <DropdownMenuItem onClick={deleteCurrentNode}>
+              <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
+              <span>Delete</span>
+            </DropdownMenuItem>
             <NodeUpdateTime />
           </>
         )}

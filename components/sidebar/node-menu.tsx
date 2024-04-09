@@ -12,6 +12,7 @@ import {
 import { useNavigate } from "react-router-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
+import { downloadFile } from "@/lib/web/file"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
@@ -29,31 +30,15 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "../ui/command"
+import { NodeMoveInto } from "../node-menu/move-into"
+import { NodeExport, NodeExportContextMenu } from "../node-menu/node-export"
 import { Input } from "../ui/input"
-import { ScrollArea } from "../ui/scroll-area"
 
 interface INodeItemProps {
   databaseName: string
   node: ITreeNode
   tableNodes: ITreeNode[]
   children?: React.ReactNode
-}
-
-const downloadFile = (file: Blob, name: string) => {
-  const url = URL.createObjectURL(file)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = name
-  a.click()
-  URL.revokeObjectURL(url)
 }
 
 export function NodeItem({
@@ -106,16 +91,6 @@ export function NodeItem({
     }
   }
 
-  const exportTable = async (tableId: string) => {
-    const file = await sqlite?.exportCsv(tableId)
-    file && downloadFile(file, `${node.name}.csv`)
-  }
-
-  const exportDoc = async (docId: string) => {
-    const file = await sqlite?.exportMarkdown(docId)
-    file && downloadFile(file, `${node.name}.md`)
-  }
-
   return (
     <ContextMenu>
       <Popover open={renameOpen}>
@@ -166,89 +141,22 @@ export function NodeItem({
               Duplicate
               {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
             </ContextMenuItem>
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <DownloadIcon className="pr-2" />
-                Export{" "}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="w-48">
-                {/* <ContextMenuItem>
-              Export As...
-              <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
-            </ContextMenuItem> */}
-                <ContextMenuItem
-                  onClick={() => {
-                    exportTable(node.id)
-                  }}
-                >
-                  Csv(.csv)
-                </ContextMenuItem>
-                <ContextMenuItem disabled>Excel(.xlsx)</ContextMenuItem>
-                {/* <ContextMenuSeparator /> */}
-                {/* <ContextMenuItem>Developer Tools</ContextMenuItem> */}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
           </>
         )}
         {node.type === "doc" && (
           <>
             <ContextMenuSub>
               <ContextMenuSubTrigger>
-                <DownloadIcon className="pr-2" />
-                Export{" "}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="w-48">
-                {/* <ContextMenuItem>
-              Export As...
-              <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
-            </ContextMenuItem> */}
-                <ContextMenuItem
-                  onClick={() => {
-                    exportDoc(node.id)
-                  }}
-                >
-                  Markdown(.md)
-                </ContextMenuItem>
-                {/* <ContextMenuSeparator /> */}
-                {/* <ContextMenuItem>Developer Tools</ContextMenuItem> */}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
                 <PackageIcon className="pr-2" />
                 Move Into
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
-                <Command>
-                  <CommandInput
-                    placeholder="Filter label..."
-                    autoFocus={true}
-                  />
-                  <ScrollArea className="">
-                    <CommandList className="max-h-[300px]">
-                      <CommandEmpty>No table found.</CommandEmpty>
-                      <CommandGroup>
-                        {tableNodes.map((tableNode) => (
-                          <CommandItem
-                            key={tableNode.id}
-                            onClick={() => {}}
-                            title={tableNode.name || "Untitled"}
-                            className=" truncate"
-                            onSelect={(value) => {
-                              moveDraftIntoTable(node.id, tableNode.id)
-                            }}
-                          >
-                            {tableNode.name || "Untitled"}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </ScrollArea>
-                </Command>
+                <NodeMoveInto node={node} />
               </ContextMenuSubContent>
             </ContextMenuSub>
           </>
         )}
+        <NodeExportContextMenu node={node} />
       </ContextMenuContent>
     </ContextMenu>
   )
