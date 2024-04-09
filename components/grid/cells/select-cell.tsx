@@ -76,7 +76,7 @@ const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
             // value={value}
             onValueChange={setValue}
           />
-          <ScrollArea className="h-[400px]">
+          <ScrollArea className="max-h-[400px]">
             <CommandEmpty>Create some options</CommandEmpty>
             <CommandGroup className="h-full">
               {allowedValues.map((option) => (
