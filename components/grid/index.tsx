@@ -270,11 +270,6 @@ export default function GridView(props: IGridProps) {
             />
           )}
         </GridContextMenu>
-        <FieldEditor
-          tableName={tableName}
-          databaseName={databaseName}
-          view={props.view!}
-        />
       </div>
       <div id="portal" />
     </div>

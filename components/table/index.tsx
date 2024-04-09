@@ -1,9 +1,9 @@
-import { createContext } from "react"
 
-import { ViewTypeEnum } from "@/lib/store/IView"
 import { useSqliteTableSubscribe } from "@/hooks/use-sqlite-table-subscribe"
+import { ViewTypeEnum } from "@/lib/store/IView"
 
 import GridView from "../grid"
+import { FieldEditor } from "../grid/fields"
 import { TableContext, useCurrentView } from "./hooks"
 import { ViewToolbar } from "./view-toolbar"
 import GalleryView from "./views/gallery"
@@ -32,16 +32,27 @@ export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
           space={space}
           isEmbed={Boolean(isEmbed)}
         />
-        {currentView?.type === ViewTypeEnum.Grid && (
-          <GridView
-            tableName={tableName!}
+        <div className="relative h-full w-full overflow-hidden">
+          {currentView?.type === ViewTypeEnum.Grid && (
+            <GridView
+              tableName={tableName!}
+              databaseName={space}
+              view={currentView}
+            />
+          )}
+          {currentView?.type === ViewTypeEnum.Gallery && (
+            <GalleryView
+              space={space}
+              tableName={tableName}
+              view={currentView}
+            />
+          )}
+          <FieldEditor
+            tableName={tableName}
             databaseName={space}
             view={currentView}
           />
-        )}
-        {currentView?.type === ViewTypeEnum.Gallery && (
-          <GalleryView space={space} tableName={tableName} view={currentView} />
-        )}
+        </div>
       </div>
     </TableContext.Provider>
   )

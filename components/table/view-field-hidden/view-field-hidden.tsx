@@ -112,6 +112,7 @@ export const ViewFieldHidden = (props: { view?: IView }) => {
         (hiddenFields || []).indexOf(card.table_column_name) !== -1
       return (
         <FieldItemCard
+          field={card}
           key={card.table_column_name}
           index={index}
           id={card.table_column_name}

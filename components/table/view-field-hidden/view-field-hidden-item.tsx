@@ -1,4 +1,4 @@
-import { useRef, type FC } from "react"
+import { MouseEvent, useRef, type FC } from "react"
 import type { Identifier, XYCoord } from "dnd-core"
 import { EyeIcon, EyeOffIcon, GripVerticalIcon } from "lucide-react"
 import { useDrag, useDrop } from "react-dnd"
@@ -6,6 +6,8 @@ import { useDrag, useDrop } from "react-dnd"
 import { cn } from "@/lib/utils"
 
 import "./index.css"
+import { IField } from "@/lib/store/interface"
+import { useTableAppStore } from "@/components/grid/store"
 
 export const ItemTypes = {
   CARD: "card",
@@ -16,6 +18,7 @@ export interface CardProps {
   text: string
   index: number
   isHidden: boolean
+  field: IField
   moveCard: (dragIndex: number, hoverIndex: number) => void
   onToggleHidden: (id: any) => void
 }
@@ -31,10 +34,13 @@ export const FieldItemCard: FC<CardProps> = ({
   text,
   index,
   isHidden,
+  field,
   moveCard,
   onToggleHidden,
 }) => {
   const ref = useRef<HTMLDivElement>(null)
+  const { setIsFieldPropertiesEditorOpen, setCurrentUiColumn } =
+    useTableAppStore()
   const [{ handlerId }, drop] = useDrop<
     DragItem,
     void,
@@ -107,9 +113,15 @@ export const FieldItemCard: FC<CardProps> = ({
   })
 
   drag(drop(ref))
-  const handleToggleHidden = (id: string) => {
+  const handleToggleHidden = (e: MouseEvent, id: any) => {
+    e.stopPropagation()
     if (id === "title") return
     onToggleHidden(id)
+  }
+
+  const handleFieldClick = () => {
+    setIsFieldPropertiesEditorOpen(true)
+    setCurrentUiColumn(field)
   }
 
   return (
@@ -117,7 +129,7 @@ export const FieldItemCard: FC<CardProps> = ({
       ref={ref}
       data-handler-id={handlerId}
       className={cn(
-        "hover:bg-secondary group mb-1 flex cursor-pointer gap-1 p-1 text-sm",
+        "group mb-1 flex cursor-pointer gap-1 p-1 text-sm hover:bg-secondary",
         {
           "dragging opacity-0": isDragging,
           "opacity-100": !isDragging,
@@ -128,10 +140,13 @@ export const FieldItemCard: FC<CardProps> = ({
         className=" opacity-0 group-hover:opacity-60"
         size={20}
       />
-      <div className="flex w-full justify-between pr-2">
+      <div
+        className="flex w-full justify-between pr-2"
+        onClick={handleFieldClick}
+      >
         {text}
         <span
-          onClick={() => handleToggleHidden(id)}
+          onClick={(e) => handleToggleHidden(e, id)}
           className={cn({
             disabled: id === "title",
           })}
