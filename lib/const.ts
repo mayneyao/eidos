@@ -26,6 +26,7 @@ export enum MainServiceWorkerMsgType {
 
 export enum EidosDataEventChannelMsgType {
   DataUpdateSignalType = "DataUpdateSignalType",
+  MetaTableUpdateSignalType = "MetaTableUpdateSignalType",
 }
 
 export type EidosDataEventChannelMsg = {
