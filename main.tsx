@@ -10,7 +10,6 @@ import { FileManager } from "@/app/[database]/files/page"
 import SpaceLayout from "@/app/[database]/layout"
 import SpaceHomePage from "@/app/[database]/page"
 // extensions
-import { ExtensionPage } from "@/app/extensions/page"
 import RootLayout from "@/app/layout"
 import HomePage from "@/app/page"
 import SettingsAIPage from "@/app/settings/ai/page"
@@ -34,7 +33,6 @@ import { ScriptPage } from "./app/[database]/scripts/page"
 import { ScriptStorePage } from "./app/[database]/scripts/store"
 import { SpaceSetting } from "./app/[database]/settings/page"
 import { DocEditor } from "./app/eidtor/doc"
-import { ExtensionContainer } from "./app/extensions/container"
 import { LlmChat } from "./app/llm"
 
 const router = createBrowserRouter([
@@ -54,19 +52,10 @@ const router = createBrowserRouter([
         path: "offline",
         element: <HomePage />,
       },
-      {
-        path: "extensions",
-        element: <ExtensionPage />,
-      },
-      {
-        path: "ext",
-        children: [
-          {
-            path: ":ext",
-            element: <ExtensionContainer />,
-          },
-        ],
-      },
+      // {
+      //   path: "extensions",
+      //   element: <ExtensionPage />,
+      // },
       {
         path: "settings",
         element: <SettingsLayout />,

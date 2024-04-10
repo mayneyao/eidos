@@ -54,7 +54,7 @@ export const useExtensions = () => {
 
   useEffect(() => {
     getAllExtensions()
-  }, [extensions, getAllExtensions, setExtensions])
+  }, [getAllExtensions])
 
   const uploadExtension = async (
     dirHandle: FileSystemDirectoryHandle,

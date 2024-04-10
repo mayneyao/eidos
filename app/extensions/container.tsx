@@ -1,17 +1,10 @@
 import { useEffect, useRef } from "react"
-import { useParams, useSearchParams } from "react-router-dom"
 
 import { useExtMsg } from "./hooks/use-ext-msg"
 
-export function ExtensionContainer() {
+export function ExtensionContainer({ ext }: { ext: string }) {
   const containerRef = useRef<HTMLIFrameElement>(null)
   const { handleMsg } = useExtMsg()
-  const { ext } = useParams()
-  // searchParams
-  const [searchParams] = useSearchParams()
-  const isDev = searchParams.get("isDev")
-  const port = searchParams.get("port")
-  const devUrl = `http://localhost:${port}`
 
   useEffect(() => {
     window.addEventListener("message", handleMsg)
@@ -20,12 +13,15 @@ export function ExtensionContainer() {
     }
   }, [handleMsg])
 
+  if (!ext.length) {
+    return null
+  }
   return (
     <iframe
       ref={containerRef}
-      src={isDev ? devUrl : `https://${ext}.ext.eidos.space`}
+      src={`https://${ext}.ext.eidos.space`}
       frameBorder="0"
-      className="flex h-full  w-full"
+      className="flex h-full w-full"
     ></iframe>
   )
 }

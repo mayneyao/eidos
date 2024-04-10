@@ -1,27 +1,29 @@
 import {
-    Bot,
-    Cable,
-    PinIcon,
-    PinOffIcon,
-    SparklesIcon,
-    Unplug,
+  Bot,
+  Cable,
+  PanelRightIcon,
+  PinIcon,
+  PinOffIcon,
+  SparklesIcon,
+  Unplug,
 } from "lucide-react"
 
-import { AvatarList } from "@/components/avatar-list"
-import { ShareDialog } from "@/components/share-dialog"
-import { Button } from "@/components/ui/button"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 import { useAPIAgent } from "@/hooks/use-api-agent"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { usePeer } from "@/hooks/use-peer"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { AvatarList } from "@/components/avatar-list"
+import { ShareDialog } from "@/components/share-dialog"
 
 import { useSpaceAppStore } from "../../app/[database]/store"
 import { useConfigStore } from "../../app/settings/store"
 
 export const NavStatus = () => {
-  const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
+  const { isAiOpen, setIsAiOpen, isExtAppOpen, setIsExtAppOpen } =
+    useSpaceAppStore()
   const { connected } = useAPIAgent()
 
   const {
@@ -43,6 +45,9 @@ export const NavStatus = () => {
   }
   const toggleAi = () => {
     setIsAiOpen(!isAiOpen)
+  }
+  const toggleExtApp = () => {
+    setIsExtAppOpen(!isExtAppOpen)
   }
 
   return (
@@ -103,6 +108,9 @@ export const NavStatus = () => {
       {!isShareMode && <ShareDialog />}
       <Button variant="ghost" onClick={toggleAi}>
         <Bot className="h-5 w-5" />
+      </Button>
+      <Button variant="ghost" onClick={toggleExtApp}>
+        <PanelRightIcon className="h-5 w-5" />
       </Button>
     </>
   )

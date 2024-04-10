@@ -15,6 +15,7 @@ import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
 import { Nav } from "../../components/nav"
+import { ExtensionPage } from "../extensions/page"
 // import { FileManager } from "./files/page"
 import { useLayoutInit } from "./hook"
 import { useSpaceAppStore } from "./store"
@@ -45,7 +46,7 @@ export function DatabaseLayoutBase({
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useSpaceAppStore()
-  const { isAiOpen } = useSpaceAppStore()
+  const { isAiOpen, isExtAppOpen } = useSpaceAppStore()
 
   // event listen should be in useLayoutInit, and just listen once
   useLayoutInit()
@@ -94,6 +95,11 @@ export function DatabaseLayoutBase({
           <Suspense fallback={<Loading />}>
             <AIChat />
           </Suspense>
+        )}
+        {isExtAppOpen && (
+          <div className="relative flex h-screen w-[24%] min-w-[475px] max-w-[500px] grow flex-col overflow-auto border-l border-l-slate-400 p-2">
+            <ExtensionPage />
+          </div>
         )}
       </div>
     </div>

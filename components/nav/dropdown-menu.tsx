@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   BlocksIcon,
   BookOpenIcon,
@@ -6,13 +7,15 @@ import {
   Keyboard,
   MoreHorizontal,
   PackageIcon,
-  Trash2Icon
+  Trash2Icon,
 } from "lucide-react"
-import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
-import { DiscordIcon } from "@/components/icons/discord"
+import { EIDOS_VERSION } from "@/lib/log"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -27,11 +30,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { EIDOS_VERSION } from "@/lib/log"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { DiscordIcon } from "@/components/icons/discord"
+import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
 
 import { NodeMoveInto } from "../node-menu/move-into"
 import { NodeExport } from "../node-menu/node-export"
@@ -77,13 +77,12 @@ export function NavDropdownMenu() {
             <span>Command Palette</span>
             <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
           </DropdownMenuItem>
-          <Link to="/extensions">
+          {/* <Link to="/extensions">
             <DropdownMenuItem>
               <BlocksIcon className="mr-2 h-4 w-4" />
               <span>Extensions</span>
-              {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
             </DropdownMenuItem>
-          </Link>
+          </Link> */}
           <DropdownMenuItem onSelect={goSettings}>
             <CogIcon className="mr-2 h-4 w-4" />
             <span>Settings</span>

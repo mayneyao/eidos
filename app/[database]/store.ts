@@ -6,6 +6,9 @@ interface ISpaceAppState {
   isAiOpen: boolean
   setIsAiOpen: (isAiOpen: boolean) => void
 
+  isExtAppOpen: boolean
+  setIsExtAppOpen: (isExtAppOpen: boolean) => void
+
   aiMessages: any[]
   setAiMessages: (aiMessages: any[]) => void
 
@@ -28,6 +31,9 @@ interface ISpaceAppState {
 export const useSpaceAppStore = create<ISpaceAppState>()((set) => ({
   isAiOpen: false,
   setIsAiOpen: (isAiOpen) => set({ isAiOpen }),
+  
+  isExtAppOpen: false,
+  setIsExtAppOpen: (isExtAppOpen) => set({ isExtAppOpen }),
 
   aiMessages: [],
   setAiMessages: (aiMessages) => set({ aiMessages }),

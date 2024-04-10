@@ -195,7 +195,9 @@ export class EidosFileSystemManager {
   }
 
   listDir = async (_paths: string[]) => {
+    console.log("list dir", _paths)
     const dirHandle = await getDirHandle(_paths, this.rootDirHandle)
+    console.log("dirHandle", dirHandle)
     const entries: FileSystemFileHandle[] = []
     for await (let entry of (dirHandle as any).values()) {
       entries.push(entry)
