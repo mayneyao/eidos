@@ -1,22 +1,18 @@
-import { useState } from "react"
 import {
   BlocksIcon,
   BookOpenIcon,
-  DownloadIcon,
+  CogIcon,
   Github,
   Keyboard,
   MoreHorizontal,
   PackageIcon,
-  Settings,
-  Trash2Icon,
+  Trash2Icon
 } from "lucide-react"
+import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { EIDOS_VERSION } from "@/lib/log"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
+import { DiscordIcon } from "@/components/icons/discord"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -31,8 +27,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DiscordIcon } from "@/components/icons/discord"
-import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { EIDOS_VERSION } from "@/lib/log"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { NodeMoveInto } from "../node-menu/move-into"
 import { NodeExport } from "../node-menu/node-export"
@@ -86,7 +85,7 @@ export function NavDropdownMenu() {
             </DropdownMenuItem>
           </Link>
           <DropdownMenuItem onSelect={goSettings}>
-            <Settings className="mr-2 h-4 w-4" />
+            <CogIcon className="mr-2 h-4 w-4" />
             <span>Settings</span>
             {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
           </DropdownMenuItem>

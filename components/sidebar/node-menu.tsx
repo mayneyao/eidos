@@ -2,7 +2,6 @@ import { MouseEventHandler, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
 import {
   CopyIcon,
-  DownloadIcon,
   PackageIcon,
   PencilLineIcon,
   PinIcon,
@@ -12,7 +11,6 @@ import {
 import { useNavigate } from "react-router-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
-import { downloadFile } from "@/lib/web/file"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
@@ -31,22 +29,16 @@ import {
 } from "@/components/ui/popover"
 
 import { NodeMoveInto } from "../node-menu/move-into"
-import { NodeExport, NodeExportContextMenu } from "../node-menu/node-export"
+import { NodeExportContextMenu } from "../node-menu/node-export"
 import { Input } from "../ui/input"
 
 interface INodeItemProps {
   databaseName: string
   node: ITreeNode
-  tableNodes: ITreeNode[]
   children?: React.ReactNode
 }
 
-export function NodeItem({
-  databaseName,
-  tableNodes,
-  children,
-  node,
-}: INodeItemProps) {
+export function NodeItem({ databaseName, children, node }: INodeItemProps) {
   const { duplicateTable, deleteNode, renameNode, sqlite } =
     useSqlite(databaseName)
   const { setNode, pin, unpin } = useNodeTree()
@@ -59,15 +51,6 @@ export function NodeItem({
   }, [renameInputRef])
 
   const router = useNavigate()
-
-  const moveDraftIntoTable = async (nodeId: string, tableId: string) => {
-    if (!sqlite) return
-    await sqlite.moveDraftIntoTable(nodeId, tableId)
-    setNode({
-      id: nodeId,
-      parent_id: tableId,
-    })
-  }
 
   const handleDeleteTable = () => {
     deleteNode(node)

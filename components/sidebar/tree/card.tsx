@@ -125,12 +125,7 @@ export const Card: FC<CardProps> = ({ id, node, index, moveCard, onDrop }) => {
     : `/${spaceName}/${node.id}`
   return (
     <div ref={ref} style={{ opacity }} data-handler-id={handlerId}>
-      <NodeItem
-        node={node}
-        databaseName={spaceName}
-        key={node.id}
-        tableNodes={allTableNodes}
-      >
+      <NodeItem node={node} databaseName={spaceName} key={node.id}>
         <Button
           variant={node.id === currentNode?.id ? "secondary" : "ghost"}
           size="sm"

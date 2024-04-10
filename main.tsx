@@ -32,6 +32,7 @@ import SpaceManagePage from "@/app/space-manage/page"
 import { ScriptDetailPage } from "./app/[database]/scripts/detail"
 import { ScriptPage } from "./app/[database]/scripts/page"
 import { ScriptStorePage } from "./app/[database]/scripts/store"
+import { SpaceSetting } from "./app/[database]/settings/page"
 import { DocEditor } from "./app/eidtor/doc"
 import { ExtensionContainer } from "./app/extensions/container"
 import { LlmChat } from "./app/llm"
@@ -111,6 +112,10 @@ const router = createBrowserRouter([
           {
             index: true,
             element: <SpaceHomePage />,
+          },
+          {
+            path: "settings",
+            element: <SpaceSetting />,
           },
           {
             path: "opfs",
