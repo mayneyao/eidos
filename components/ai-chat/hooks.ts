@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { IScript } from "@/worker/web-worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 
 import { getPrompt } from "@/lib/ai/openai"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"

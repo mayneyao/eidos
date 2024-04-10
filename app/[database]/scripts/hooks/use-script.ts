@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { IScript } from "@/worker/web-worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 
 import { stringify } from "@/lib/sqlite/helper"
 import { useSqlite } from "@/hooks/use-sqlite"

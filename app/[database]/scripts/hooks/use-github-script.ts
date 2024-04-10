@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { IScript } from "@/worker/web-worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 
 export const getRawUrl = (url: string, branch: string = "main") => {
   const urlParts = url.split("/")

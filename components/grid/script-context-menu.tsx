@@ -1,4 +1,4 @@
-import { ICommand, IScript } from "@/worker/web-worker/meta_table/script"
+import { ICommand, IScript } from "@/worker/web-worker/meta-table/script"
 import { RowsManager } from "@/worker/web-worker/sdk/rows"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"

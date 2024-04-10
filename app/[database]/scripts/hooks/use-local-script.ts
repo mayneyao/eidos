@@ -1,4 +1,4 @@
-import { IScript } from "@/worker/web-worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 import { create } from "zustand"
 
 import { EidosFileSystemManager } from "@/lib/storage/eidos-file-system"

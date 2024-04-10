@@ -5,7 +5,7 @@ import {
   EidosFileSystemManager
 } from "@/lib/storage/eidos-file-system"
 
-import { DataSpace } from "./DataSpace"
+import { DataSpace } from "../DataSpace"
 
 type ITable = {
   type: string

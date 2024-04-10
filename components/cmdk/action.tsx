@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { IAction } from "@/worker/web-worker/meta_table/action"
+import { IAction } from "@/worker/web-worker/meta-table/action"
 import { useKeyPress } from "ahooks"
 
 import { ActionExecutor } from "@/lib/action/action"

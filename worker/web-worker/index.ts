@@ -2,9 +2,9 @@ import { MsgType } from "@/lib/const"
 import { logger } from "@/lib/log"
 
 import { DataSpace } from "./DataSpace"
+import { initWs } from "./api-agent/ws"
 import { Sqlite } from "./sql"
 import { workerStore } from "./store"
-import { initWs } from "./ws"
 
 // current DB
 let _dataspace: DataSpace | null = null

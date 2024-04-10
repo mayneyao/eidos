@@ -1,7 +1,7 @@
 import { getTableIdByRawTableName } from "@/lib/utils"
 
-import { DataSpace } from "./DataSpace"
-import { TableManager } from "./sdk/table"
+import { DataSpace } from "../DataSpace"
+import { TableManager } from "../sdk/table"
 
 export class LinkRelationUpdater {
   needUpdateCell: Record<string, Record<string, Set<string>>>

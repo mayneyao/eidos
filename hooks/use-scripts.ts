@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { IScript } from "@/worker/web-worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 
 import { useSqlite } from "./use-sqlite"
 

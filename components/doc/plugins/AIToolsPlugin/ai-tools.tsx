@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { IScript } from "@/worker/web-worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { createDOMRange, createRectsFromDOMRange } from "@lexical/selection"
 import { useClickAway } from "ahooks"

@@ -1,4 +1,4 @@
-import { IScript } from "@/worker/web-worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useNavigate } from "react-router-dom"
 
 import { generateId } from "@/lib/utils"

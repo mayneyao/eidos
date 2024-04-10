@@ -6,8 +6,8 @@ import {
 } from "@/lib/const"
 import { getTableIdByRawTableName } from "@/lib/utils"
 
-import { DataSpace } from "./DataSpace"
-import { TableManager } from "./sdk/table"
+import { DataSpace } from "../DataSpace"
+import { TableManager } from "../sdk/table"
 
 const bc = new BroadcastChannel(EidosDataEventChannelName)
 

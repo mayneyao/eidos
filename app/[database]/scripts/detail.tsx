@@ -1,4 +1,4 @@
-import { IScript } from "@/worker/web-worker/meta_table/script"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import { Suspense, lazy, useCallback, useEffect, useState } from "react"
 import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom"
