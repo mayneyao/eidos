@@ -1,4 +1,4 @@
-import { UserProfileCell } from "@/components/grid/cells/user-profile-cell"
+import type { UserProfileCell } from "@/components/grid/cells/user-profile-cell"
 
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"

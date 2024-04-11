@@ -7,7 +7,7 @@ import {
     type CustomRenderer,
 } from "@glideapps/glide-data-grid"
 
-interface UserProfileCellProps {
+export interface UserProfileCellProps {
   readonly kind: "user-profile-cell"
   readonly image: string
   readonly initial: string

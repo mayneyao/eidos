@@ -1,4 +1,4 @@
-import Papa from "papaparse"
+import * as Papa from "papaparse"
 import { v4 as uuidv4 } from "uuid"
 
 import { ColumnTableName } from "@/lib/sqlite/const"

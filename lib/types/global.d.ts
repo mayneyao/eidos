@@ -4,3 +4,7 @@ interface FileSystemDirectoryHandle {
   keys(): AsyncIterableIterator<string>
   values(): AsyncIterableIterator<FileSystemHandle>
 }
+
+interface ImportMeta {
+  env: Record<string, unknown>
+}

@@ -3,7 +3,9 @@ import { DocTableName } from "@/lib/sqlite/const"
 
 import { BaseTable, BaseTableImpl } from "./base"
 
-interface IDoc {
+declare var self: DedicatedWorkerGlobalScope
+
+export interface IDoc {
   id: string
   content: string
   markdown: string
@@ -17,7 +19,7 @@ const callMain = (
   data: any
 ) => {
   const channel = new MessageChannel()
-  postMessage(
+  self.postMessage(
     {
       type,
       data,

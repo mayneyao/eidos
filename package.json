@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
     "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
-    "gen-types": "tsc -p tsconfig.typings.json || echo . && tsx fix-types.ts",
+    "gen-types": "tsc -p tsconfig.typings.json && tsx fix-types.ts",
     "test": "jest"
   },
   "dependencies": {
