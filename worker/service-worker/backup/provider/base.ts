@@ -1,4 +1,7 @@
-import { efsManager } from "@/lib/storage/eidos-file-system"
+import {
+  EidosFileSystemManager,
+  efsManager,
+} from "@/lib/storage/eidos-file-system"
 import { nonNullable } from "@/lib/utils"
 
 export abstract class BaseBackupServer {
@@ -47,9 +50,25 @@ export abstract class BaseBackupServer {
     console.log(`finish pull ${directoryPath} use ${cost}ms`)
   }
 
+  private async getOPFSManager() {
+    const opfsRoot = await navigator.storage.getDirectory()
+    return new EidosFileSystemManager(opfsRoot)
+  }
+
+  private async getOPFSDatabaseFile(directoryPath: string) {
+    const opfsManager = await this.getOPFSManager()
+    const dbFilePath = directoryPath + "/db.sqlite3"
+    const opfsDBFile = await opfsManager.getFileByPath(dbFilePath)
+    return opfsDBFile
+  }
+
   async push(directoryPath: string) {
     const start = Date.now()
     console.log("start sync", directoryPath)
+    // before push, copy db.sqlite3 file from opfs to nfs.
+    const dbFilePath = directoryPath + "/db.sqlite3"
+    const opfsManager = await this.getOPFSManager()
+    await opfsManager.copyFile(dbFilePath.split("/"), efsManager)
     // Get all files in the directory
     const localFiles = await this.walkLocalDirectory(directoryPath)
     const remoteFiles = await this.walk(directoryPath)
@@ -77,18 +96,17 @@ export abstract class BaseBackupServer {
     }
 
     // check db.sqlite3 file last modified time
-    const dbFilePath = directoryPath + "/db.sqlite3"
-    const fileContent = await this.getLocalFile(dbFilePath)
+    const opfsDBFile = await this.getOPFSDatabaseFile(directoryPath)
 
-    if (fileContent) {
+    if (opfsDBFile) {
       const lastModifiedTime = await this.getLastModifiedTime(dbFilePath)
       const shouldUpload = this.shouldUpload(
-        new Date(fileContent.lastModified),
+        new Date(opfsDBFile.lastModified),
         lastModifiedTime!
       )
       if (shouldUpload) {
         console.log("need update db.sqlite3", dbFilePath)
-        await this.uploadFile(dbFilePath, fileContent)
+        await this.uploadFile(dbFilePath, opfsDBFile)
       }
     }
     const end = Date.now()
