@@ -1,6 +1,6 @@
 {
     "name": "@eidos.space/types",
-    "version": "0.0.9",
+    "version": "0.0.10",
     "description": "",
     "types": "index.d.ts",
     "keywords": [],
