@@ -1,13 +1,18 @@
 import { z } from "zod"
 
-const saveFile2OPFS = {
-  name: "saveFile2OPFS",
+const saveFile2EFS = {
+  name: "saveFile2EFS",
   description: "save file to opfs, return file object",
   schema: z
     .object({
       url: z.string({
         description: "url of file",
       }),
+      subPath: z
+        .array(z.string(), {
+          description: "subPath of file",
+        })
+        .optional(),
       filename: z
         .string({
           description: "filename of file",
@@ -17,4 +22,4 @@ const saveFile2OPFS = {
     .describe("save file to opfs"),
 }
 
-export default saveFile2OPFS
+export default saveFile2EFS

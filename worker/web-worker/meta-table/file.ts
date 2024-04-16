@@ -34,18 +34,26 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
 );  
 `
 
-  async saveFile2OPFS(url: string, _name?: string): Promise<IFile | null> {
+  /**
+   * save file to efs
+   * @param url a url of file
+   * @param subDir sub directory of file, default is [], which means save file to spaces/\<space\>/files/, if subDir is ["a","b"], then save file to spaces/\<space\>/files/a/b/
+   * @param _name file name, default is null, which means use the file name in url
+   * @returns
+   */
+  async saveFile2EFS(
+    url: string,
+    subDir: string[],
+    _name?: string
+  ): Promise<IFile | null> {
     if (typeof url === "string") {
       const fileId = getUuid()
       const blob = await fetch(url).then((res) => res.blob())
       const name = _name || url.split("/").pop()!
       const file = new File([blob], name, { type: blob.type })
       const space = this.dataSpace.dbName
-      const paths = await efsManager.addFile(
-        ["spaces", space, "files"],
-        file,
-        _name ? _name : fileId
-      )
+      const dirs = ["spaces", space, "files", ...subDir]
+      const paths = await efsManager.addFile(dirs, file, _name ? _name : fileId)
       if (!paths) {
         throw new Error("add file failed")
       }

@@ -20,10 +20,11 @@ import {
 
 import { ITreeNode } from "../../lib/store/ITreeNode"
 import { IView } from "../../lib/store/IView"
-import { DbMigrator } from "./db-migrator/DbMigrator"
 import { DataChangeEventHandler } from "./data-pipeline/DataChangeEventHandler"
 import { DataChangeTrigger } from "./data-pipeline/DataChangeTrigger"
 import { LinkRelationUpdater } from "./data-pipeline/LinkRelationUpdater"
+import { SQLiteUndoRedo } from "./data-pipeline/sql_undo_redo_v2"
+import { DbMigrator } from "./db-migrator/DbMigrator"
 import { CsvImportAndExport } from "./import-and-export/csv"
 import { MarkdownImportAndExport } from "./import-and-export/markdown"
 import { ActionTable } from "./meta-table/action"
@@ -38,7 +39,6 @@ import { TreeTable } from "./meta-table/tree"
 import { ViewTable } from "./meta-table/view"
 import { RowsManager } from "./sdk/rows"
 import { TableManager } from "./sdk/table"
-import { SQLiteUndoRedo } from "./data-pipeline/sql_undo_redo_v2"
 import { withSqlite3AllUDF } from "./udf"
 
 export type EidosTable =
@@ -378,8 +378,12 @@ export class DataSpace {
     return await this.file.updateVectorized(id, isVectorized)
   }
 
-  public async saveFile2OPFS(url: string, name?: string) {
-    return await this.file.saveFile2OPFS(url, name)
+  public async saveFile2EFS(
+    url: string,
+    subDir: string[] = [],
+    name?: string
+  ) {
+    return await this.file.saveFile2EFS(url, subDir, name)
   }
 
   public async listFiles() {

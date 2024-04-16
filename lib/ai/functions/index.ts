@@ -4,7 +4,7 @@ import { zodToJsonSchema } from "zod-to-json-schema"
 import createDoc from "./create-doc"
 import createQuickAction from "./quick-action"
 import { startRecorder, stopRecorder } from "./recorder"
-import saveFile2OPFS from "./save-file"
+import saveFile2EFS from "./save-file"
 import sqlQuery from "./sql-query"
 
 const allFunctions = [
@@ -13,7 +13,7 @@ const allFunctions = [
   // createQuickAction,
   startRecorder,
   stopRecorder,
-  saveFile2OPFS,
+  saveFile2EFS,
 ]
 
 export const functions = allFunctions.map((f) => {

@@ -131,8 +131,8 @@ export const useAIFunctions = () => {
         const fileUrl = await stopRecorder(parameters.id)
         console.log("recorded file url: ", fileUrl)
         return fileUrl
-      case "saveFile2OPFS":
-        const fileObj = await sqlite?.saveFile2OPFS(parameters.url)
+      case "saveFile2EFS":
+        const fileObj = await sqlite?.saveFile2EFS(parameters.url)
         console.log("save file to opfs: ", fileObj)
         if (!fileObj) return "no file"
         return (

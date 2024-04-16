@@ -378,24 +378,6 @@ declare module "lib/sqlite/sql-merge-table-with-new-columns" {
         sql: string;
     };
 }
-declare module "worker/web-worker/db-migrator/DbMigrator" {
-    import { DataSpace } from "worker/web-worker/DataSpace";
-    /**
-     * auto migrate db schema when db schema changed
-     */
-    export class DbMigrator {
-        private db;
-        private draftDb;
-        private allowDeletions;
-        constructor(db: DataSpace, draftDb: DataSpace, allowDeletions?: boolean);
-        private compareTables;
-        private compareColumns;
-        private migrateTables;
-        private migrateTable;
-        migrate(): void;
-        private cleanDraftDb;
-    }
-}
 declare module "lib/fields/base" {
     import { IField } from "lib/store/interface";
     import { CompareOperator, FieldType } from "lib/fields/const";
@@ -637,7 +619,7 @@ declare module "worker/web-worker/meta-table/file" {
     export class FileTable extends BaseTableImpl implements BaseTable<IFile> {
         name: string;
         createTableSql: string;
-        saveFile2OPFS(url: string, _name?: string): Promise<IFile | null>;
+        saveFile2EFS(url: string, subDir: string[], _name?: string): Promise<IFile | null>;
         add(data: IFile): Promise<IFile>;
         getFileByPath(path: string): Promise<IFile | null>;
         deleteFileByPathPrefix(prefix: string): Promise<boolean>;
@@ -2052,6 +2034,60 @@ declare module "worker/web-worker/data-pipeline/LinkRelationUpdater" {
         addCell: (tableName: string, tableColumnName: string, rowId: string) => void;
     }
 }
+declare module "worker/web-worker/data-pipeline/sql_undo_redo_v2" {
+    import { DataSpace } from "worker/web-worker/DataSpace";
+    interface StackEntry {
+        begin: number;
+        end: number;
+    }
+    interface UndoRedoState {
+        active: boolean;
+        undostack: StackEntry[];
+        redostack: StackEntry[];
+        pending?: any;
+        firstlog: number;
+        freeze?: number;
+        startstate?: unknown;
+    }
+    export class SQLiteUndoRedo {
+        undo: UndoRedoState;
+        db: DataSpace;
+        constructor(db: DataSpace);
+        activate(tables: string[]): void;
+        deactivate(): void;
+        freeze(): void;
+        unfreeze(): void;
+        event(): void;
+        barrier(): Promise<void>;
+        callUndo(): void;
+        callRedo(): void;
+        refresh(): void;
+        reload_all(): void;
+        private _makeTriggersForTbl;
+        private createTriggers;
+        private _drop_triggers;
+        private _start_interval;
+        private _step;
+    }
+}
+declare module "worker/web-worker/db-migrator/DbMigrator" {
+    import { DataSpace } from "worker/web-worker/DataSpace";
+    /**
+     * auto migrate db schema when db schema changed
+     */
+    export class DbMigrator {
+        private db;
+        private draftDb;
+        private allowDeletions;
+        constructor(db: DataSpace, draftDb: DataSpace, allowDeletions?: boolean);
+        private compareTables;
+        private compareColumns;
+        private migrateTables;
+        private migrateTable;
+        migrate(): void;
+        private cleanDraftDb;
+    }
+}
 declare module "worker/web-worker/import-and-export/base" {
     import { DataSpace } from "worker/web-worker/DataSpace";
     export abstract class BaseImportAndExport {
@@ -2321,42 +2357,6 @@ declare module "worker/web-worker/meta-table/view" {
         recompute(table_id: string, rowIds: string[]): Promise<any[]>;
     }
 }
-declare module "worker/web-worker/data-pipeline/sql_undo_redo_v2" {
-    import { DataSpace } from "worker/web-worker/DataSpace";
-    interface StackEntry {
-        begin: number;
-        end: number;
-    }
-    interface UndoRedoState {
-        active: boolean;
-        undostack: StackEntry[];
-        redostack: StackEntry[];
-        pending?: any;
-        firstlog: number;
-        freeze?: number;
-        startstate?: unknown;
-    }
-    export class SQLiteUndoRedo {
-        undo: UndoRedoState;
-        db: DataSpace;
-        constructor(db: DataSpace);
-        activate(tables: string[]): void;
-        deactivate(): void;
-        freeze(): void;
-        unfreeze(): void;
-        event(): void;
-        barrier(): Promise<void>;
-        callUndo(): void;
-        callRedo(): void;
-        refresh(): void;
-        reload_all(): void;
-        private _makeTriggersForTbl;
-        private createTriggers;
-        private _drop_triggers;
-        private _start_interval;
-        private _step;
-    }
-}
 declare module "worker/web-worker/udf/index" {
     import { ScalarFunctionOptions, Sqlite3Static } from "@sqlite.org/sqlite-wasm";
     export const withSqlite3AllUDF: (sqlite3: Sqlite3Static) => (ScalarFunctionOptions | {
@@ -2374,6 +2374,7 @@ declare module "worker/web-worker/DataSpace" {
     import { DataChangeEventHandler } from "worker/web-worker/data-pipeline/DataChangeEventHandler";
     import { DataChangeTrigger } from "worker/web-worker/data-pipeline/DataChangeTrigger";
     import { LinkRelationUpdater } from "worker/web-worker/data-pipeline/LinkRelationUpdater";
+    import { SQLiteUndoRedo } from "worker/web-worker/data-pipeline/sql_undo_redo_v2";
     import { ActionTable } from "worker/web-worker/meta-table/action";
     import { BaseTable } from "worker/web-worker/meta-table/base";
     import { ColumnTable } from "worker/web-worker/meta-table/column";
@@ -2385,7 +2386,6 @@ declare module "worker/web-worker/DataSpace" {
     import { TreeTable } from "worker/web-worker/meta-table/tree";
     import { ViewTable } from "worker/web-worker/meta-table/view";
     import { TableManager } from "worker/web-worker/sdk/table";
-    import { SQLiteUndoRedo } from "worker/web-worker/data-pipeline/sql_undo_redo_v2";
     export type EidosTable = DocTable | ActionTable | ScriptTable | TreeTable | ViewTable | ColumnTable | EmbeddingTable | FileTable;
     export class DataSpace {
         db: Database;
@@ -2449,7 +2449,7 @@ declare module "worker/web-worker/DataSpace" {
         delFileByPath(path: string): Promise<boolean>;
         deleteFileByPathPrefix(prefix: string): Promise<boolean>;
         updateFileVectorized(id: string, isVectorized: boolean): Promise<boolean>;
-        saveFile2OPFS(url: string, name?: string): Promise<IFile>;
+        saveFile2EFS(url: string, subDir?: string[], name?: string): Promise<IFile>;
         listFiles(): Promise<any[]>;
         walkFiles(): Promise<any[]>;
         transformFileSystem(sourceFs: FileSystemType, targetFs: FileSystemType): Promise<void>;
