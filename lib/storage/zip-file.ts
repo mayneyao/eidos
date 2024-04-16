@@ -1,7 +1,10 @@
 import JSZip from "jszip"
 
-import { efsManager } from "./eidos-file-system"
-import { getDirHandle } from "./eidos-file-system"
+import {
+  EidosFileSystemManager,
+  efsManager,
+  getDirHandle,
+} from "./eidos-file-system"
 
 export async function zipDirectory(
   dirPaths: string[],
@@ -31,6 +34,12 @@ export const zipFile2Blob = async (file: JSZip.JSZipObject) => {
   return new File([content], filename)
 }
 
+const isDbFilePaths = (paths: string[]) => {
+  return (
+    paths.length === 3 && paths[0] === "spaces" && paths[2] === "db.sqlite3"
+  )
+}
+
 export async function importZipFileIntoDir(rootPaths: string[], zip: JSZip) {
   for (let path in zip.files) {
     const entry = zip.files[path]
@@ -49,6 +58,11 @@ export async function importZipFileIntoDir(rootPaths: string[], zip: JSZip) {
       const p = [...rootPaths, ...dirPaths]
       try {
         const file = await zipFile2Blob(entry)
+        if (isDbFilePaths([...p, file.name])) {
+          const opfsRoot = await navigator.storage.getDirectory()
+          new EidosFileSystemManager(opfsRoot).addFile(p, file)
+          continue
+        }
         await efsManager.addFile(p, file)
       } catch (error) {
         console.warn("import zip file into dir", entry, p, error)
