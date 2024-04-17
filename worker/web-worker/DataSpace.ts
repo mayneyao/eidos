@@ -378,11 +378,7 @@ export class DataSpace {
     return await this.file.updateVectorized(id, isVectorized)
   }
 
-  public async saveFile2EFS(
-    url: string,
-    subDir: string[] = [],
-    name?: string
-  ) {
+  public async saveFile2EFS(url: string, subDir: string[] = [], name?: string) {
     return await this.file.saveFile2EFS(url, subDir, name)
   }
 
@@ -578,7 +574,8 @@ export class DataSpace {
     if (isDayPageId(docId)) {
       return this.doc.createOrUpdateWithMarkdown(docId, mdStr)
     } else {
-      return this.withTransaction(async () => {
+      return this.db.transaction(async () => {
+        // FIXME: should use db transaction to execute multiple sql
         await this.getOrCreateTreeNode({
           id: docId,
           name: title || docId,
@@ -599,7 +596,8 @@ export class DataSpace {
   }
 
   public async createTable(id: string, name: string, tableSchema: string) {
-    this.withTransaction(async () => {
+    // FIXME: should use db transaction to execute multiple sql
+    this.db.transaction(async () => {
       await this.addTreeNode({ id, name, type: "table" })
       await this.sql`${tableSchema}`
       // create view for table
@@ -732,7 +730,8 @@ export class DataSpace {
     if (node?.name === name) {
       return
     }
-    return this.withTransaction(async () => {
+    return this.db.transaction(async () => {
+      // FIXME: should use db transaction to execute multiple sql
       await this.tree.updateName(id, name)
       // if this node is subDoc, we need to update row.title
       if (node?.parent_id) {
@@ -946,19 +945,6 @@ export class DataSpace {
       },
     })
     console.debug("onUpdate")
-  }
-
-  public async withTransaction(fn: Function) {
-    // TODO: use this.db.transaction replace
-    try {
-      this.db.exec("BEGIN TRANSACTION;")
-      const res = await fn()
-      this.db.exec("COMMIT;")
-      return res
-    } catch (error) {
-      this.db.exec("ROLLBACK;")
-      throw error
-    }
   }
 
   public notify(msg: { title: string; description: string }) {

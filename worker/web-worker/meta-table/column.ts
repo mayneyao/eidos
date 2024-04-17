@@ -219,7 +219,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     type: FieldType
   }) {
     const { tableName, tableColumnName, property, type } = data
-    await this.dataSpace.withTransaction(async () => {
+    await this.dataSpace.db.transaction(async (D) => {
       const oldField = await this.getColumn(tableName, tableColumnName)
       if (!oldField) return
       await this.dataSpace.sql`UPDATE ${Symbol(
@@ -255,7 +255,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
             tableColumnName,
             fields
           )
-          this.dataSpace.exec(
+          D.exec(
             `
             ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};
             ALTER TABLE ${tableName} ADD COLUMN ${tableColumnName} GENERATED ALWAYS AS ${formulaExpr};

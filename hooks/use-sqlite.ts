@@ -265,18 +265,6 @@ export const useSqlite = (dbName?: string) => {
     })
   }, [queryAllNodes, queryAllUiColumns, setAllNodes, setAllUiColumns])
 
-  const withTransaction = async (callback: () => Promise<void>) => {
-    if (!sqlWorker) return
-    try {
-      await sqlWorker.sql`BEGIN TRANSACTION;`
-      await callback()
-      await sqlWorker.sql`COMMIT;`
-    } catch (error) {
-      console.error(error)
-      await sqlWorker.sql`ROLLBACK;`
-    }
-  }
-
   const createTableAndRegister = async (data: {
     tableName: string
     tableId: string
@@ -552,7 +540,6 @@ export const useSqlite = (dbName?: string) => {
     handleSql,
     undo,
     redo,
-    withTransaction,
     createDoc,
     updateDoc,
     renameNode,

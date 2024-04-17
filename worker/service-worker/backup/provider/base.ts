@@ -100,6 +100,8 @@ export abstract class BaseBackupServer {
 
     if (opfsDBFile) {
       const lastModifiedTime = await this.getLastModifiedTime(dbFilePath)
+      console.log("lastModifiedTime[server]", lastModifiedTime)
+      console.log("lastModifiedTime[opfs]", new Date(opfsDBFile.lastModified))
       const shouldUpload = this.shouldUpload(
         new Date(opfsDBFile.lastModified),
         lastModifiedTime!
