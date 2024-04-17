@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react"
 
-import { useExtMsg } from "./hooks/use-ext-msg"
+import { ExtensionSourceType, useExtMsg } from "./hooks/use-ext-msg"
 
 export function ExtensionContainer({ ext }: { ext: string }) {
   const containerRef = useRef<HTMLIFrameElement>(null)
-  const { handleMsg } = useExtMsg()
+  const { handleMsg } = useExtMsg(ExtensionSourceType.App)
 
   useEffect(() => {
     window.addEventListener("message", handleMsg)

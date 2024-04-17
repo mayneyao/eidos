@@ -2,7 +2,10 @@ import { useEffect, useRef } from "react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useExtMsg } from "@/app/extensions/hooks/use-ext-msg"
+import {
+  ExtensionSourceType,
+  useExtMsg,
+} from "@/app/extensions/hooks/use-ext-msg"
 
 import iframeHTML from "./iframe.html?raw"
 
@@ -11,7 +14,7 @@ export const ScriptContainer = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const { scriptContainerRef, setScriptContainerRef } = useAppRuntimeStore()
 
-  const { handleMsg } = useExtMsg()
+  const { handleMsg } = useExtMsg(ExtensionSourceType.Script)
   useEffect(() => {
     window.addEventListener("message", handleMsg)
     return () => {

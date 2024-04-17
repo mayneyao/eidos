@@ -61,7 +61,7 @@ export const useGalleryViewData = (view: IView) => {
   useEffect(() => {
     // TODO: Use a universal data source manager, which should be a singleton instance, with a mapping to store all data sources, and also an array to store the order.
     const bc = new BroadcastChannel(EidosDataEventChannelName)
-    bc.onmessage = (e: MessageEvent<EidosDataEventChannelMsg>) => {
+    const handleMsg = (e: MessageEvent<EidosDataEventChannelMsg>) => {
       const { type, payload } = e.data
       if (
         type === EidosDataEventChannelMsgType.DataUpdateSignalType &&
@@ -82,7 +82,9 @@ export const useGalleryViewData = (view: IView) => {
         }
       }
     }
+    bc.addEventListener("message", handleMsg)
     return () => {
+      bc.removeEventListener("message", handleMsg)
       bc.close()
     }
   }, [getViewSortedRows, data, tableName])
