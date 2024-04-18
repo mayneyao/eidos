@@ -1,9 +1,11 @@
 import { ReactNode } from "react"
+import { $isAutoLinkNode, $isLinkNode } from "@lexical/link"
 import { TextMatchTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import { DecoratorNode, EditorConfig, LexicalEditor } from "lexical"
 import { LexicalNode, NodeKey } from "lexical/LexicalNode"
 
+import { markdownLinkInfoMap } from "../../plugins/const"
 import { BookmarkComponent } from "./BookmarkComponent"
 
 export interface BookmarkPayload {
@@ -105,24 +107,39 @@ export function $isBookmarkNode(
 export async function $getUrlMetaData(
   url: string
 ): Promise<BookmarkPayload & { error?: string }> {
-  const data = await fetch(`https://link-preview.eidos.space/?q=${url}`)
-  const json = await data.json()
-  return json
+  // timeout 3s for fetch
+  const controller = new AbortController()
+  const timeout = setTimeout(() => {
+    controller.abort()
+  }, 3000)
+  try {
+    const data = await fetch(`https://link-preview.eidos.space/?q=${url}`, {
+      signal: controller.signal,
+    })
+    const json = await data.json()
+    return json
+  } catch (e) {
+    return { url, title: url }
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 export const BOOKMARK: TextMatchTransformer = {
   dependencies: [BookmarkNode],
   export: (node) => {
-    if (!$isBookmarkNode(node)) {
-      return null
+    if ($isBookmarkNode(node)) {
+      return `[${node.getUrl()}](${node.getUrl()})`
     }
-    return `[${node.getUrl()}](${node.getUrl()})`
+    return null
   },
-  importRegExp: /(?:\[([^[]*)\])(?:\(([^(]+)\))/,
-  regExp: /(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
-  replace: async (textNode, match) => {
+  importRegExp: /(?<!\!)\[([^\]]*)\]\(([^)]*)\)/,
+  regExp: /(?<!\!)\[([^\]]*)\]\(([^)]*)\)$/,
+  replace: (textNode, match) => {
     const [, altText, src] = match
-    const data = await $getUrlMetaData(src)
+    const data = markdownLinkInfoMap.get(src) || {
+      url: src,
+    }
     const bookmarkNode = $createBookmarkNode(data)
     textNode.replace(bookmarkNode)
   },
