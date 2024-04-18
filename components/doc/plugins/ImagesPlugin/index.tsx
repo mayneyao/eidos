@@ -33,7 +33,7 @@ import {
   $isImageNode,
   ImageNode,
   ImagePayload,
-} from "../../nodes/ImageNode"
+} from "../../nodes/ImageNode/ImageNode"
 import { CAN_USE_DOM } from "../../utils/dom"
 
 // import { DialogActions, DialogButtonsList } from "../../ui/Dialog"
