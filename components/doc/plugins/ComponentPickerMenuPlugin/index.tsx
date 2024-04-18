@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils"
 import { TocIcon } from "@/components/icons/toc"
 
 import { AI_COMPLETE_COMMAND } from "../AutocompletePlugin/cmd"
+import { INSERT_BOOKMARK_COMMAND } from "../BookmarkPlugin"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
@@ -297,6 +298,15 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
           editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
             src: "",
             altText: "",
+          }),
+      }),
+
+      new ComponentPickerOption("Bookmark", {
+        icon: IconMap["image"],
+        keywords: ["bookmark"],
+        onSelect: () =>
+          editor.dispatchCommand(INSERT_BOOKMARK_COMMAND, {
+            url: "",
           }),
       }),
 

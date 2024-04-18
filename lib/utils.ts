@@ -111,3 +111,10 @@ export function timeAgo(date: Date) {
     return `${Math.floor(diffInSeconds / 86400)} days ago`
   }
 }
+
+export const proxyImageURL = (url?: string) => {
+  if (!url) {
+    return ""
+  }
+  return `https://proxy.eidos.space?url=${url}`
+}

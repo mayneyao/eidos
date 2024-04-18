@@ -5,6 +5,7 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 
+import { BookmarkNode } from "./BookmarkNode"
 import { DatabaseTableNode } from "./DatabaseTableNode"
 import { ImageNode } from "./ImageNode"
 import { MentionNode } from "./MentionNode"
@@ -28,4 +29,5 @@ export const AllNodes = [
   MentionNode,
   DatabaseTableNode,
   TableOfContentsNode,
+  BookmarkNode,
 ]
