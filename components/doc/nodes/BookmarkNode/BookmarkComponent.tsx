@@ -93,7 +93,7 @@ export const BookmarkComponent = (
         </div>
         <div className="text-sm text-gray-500">{props.url}</div>
       </div>
-      <div className="relative w-full">
+      <div className="relative w-[30%]">
         <div className="h-full w-full">
           {props.image && (
             <img
