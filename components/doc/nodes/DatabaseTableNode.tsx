@@ -1,7 +1,6 @@
 import { ReactNode } from "react"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
-import { DecoratorNode, EditorConfig, LexicalEditor } from "lexical"
-import { NodeKey } from "lexical/LexicalNode"
+import { DecoratorNode, EditorConfig, LexicalEditor, NodeKey } from "lexical"
 
 import { getRawTableNameById } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"

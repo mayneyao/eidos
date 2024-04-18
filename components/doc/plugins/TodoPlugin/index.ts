@@ -28,7 +28,7 @@ export function TodoPlugin(props: TodoPluginProps) {
         for (let [nodeKey, mutation] of mutatedNodes) {
           const node = $getNodeByKey(nodeKey) as ListItemNode | undefined
           const listNode = node?.getParent()
-          const listType = listNode?.getListType()
+          const listType = listNode?.getType()
           if (listType === "check") {
             const checked = node?.getChecked()
             const text = node?.getTextContent()

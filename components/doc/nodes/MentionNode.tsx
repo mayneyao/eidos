@@ -1,13 +1,12 @@
-import { DecoratorNode } from "lexical"
-import { NodeKey } from "lexical/LexicalNode"
 import { ReactNode, useEffect, useState } from "react"
+import { DecoratorNode, NodeKey } from "lexical"
 import { useNavigate } from "react-router-dom"
 
-import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
-import { ItemIcon } from "@/components/sidebar/item-tree"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/hooks/use-query-node"
-import { ITreeNode } from "@/lib/store/ITreeNode"
+import { ItemIcon } from "@/components/sidebar/item-tree"
+import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
 const MentionComponent = (props: { id: string }) => {
   const [node, setNode] = useState<ITreeNode | null>(null)

@@ -2,8 +2,14 @@ import { ReactNode } from "react"
 import { $isAutoLinkNode, $isLinkNode } from "@lexical/link"
 import { TextMatchTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
-import { DecoratorNode, EditorConfig, LexicalEditor } from "lexical"
-import { LexicalNode, NodeKey } from "lexical/LexicalNode"
+import {
+  $applyNodeReplacement,
+  DecoratorNode,
+  EditorConfig,
+  LexicalEditor,
+  LexicalNode,
+  NodeKey,
+} from "lexical"
 
 import { markdownLinkInfoMap } from "../../plugins/const"
 import { BookmarkComponent } from "./BookmarkComponent"
@@ -28,6 +34,10 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
 
   static clone(node: BookmarkNode): BookmarkNode {
     return new BookmarkNode(node.exportJSON())
+  }
+
+  getTextContent(): string {
+    return `[${this.getUrl()}](${this.getUrl()})`
   }
 
   constructor(payload: BookmarkPayload) {
@@ -95,7 +105,7 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
 }
 
 export function $createBookmarkNode(payload: BookmarkPayload): BookmarkNode {
-  return new BookmarkNode(payload)
+  return $applyNodeReplacement(new BookmarkNode(payload))
 }
 
 export function $isBookmarkNode(
@@ -128,10 +138,13 @@ export async function $getUrlMetaData(
 export const BOOKMARK: TextMatchTransformer = {
   dependencies: [BookmarkNode],
   export: (node) => {
-    if ($isBookmarkNode(node)) {
-      return `[${node.getUrl()}](${node.getUrl()})`
+    // not working as expected
+    // DecoratorNode will be exported via getTextContent method
+    // see:https://github.com/facebook/lexical/blob/main/packages/lexical-markdown/src/MarkdownExport.ts#L78
+    if (!$isBookmarkNode(node)) {
+      return null
     }
-    return null
+    return `[${node.getUrl()}](${node.getUrl()})`
   },
   importRegExp: /(?<!\!)\[([^\]]*)\]\(([^)]*)\)/,
   regExp: /(?<!\!)\[([^\]]*)\]\(([^)]*)\)$/,

@@ -36,8 +36,8 @@ export function BookmarkPlugin({
       editor.registerCommand<InsertBookmarkPayload>(
         INSERT_BOOKMARK_COMMAND,
         (payload) => {
-          const BookmarkNode = $createBookmarkNode(payload)
-          $insertNodeToNearestRoot(BookmarkNode)
+          const bookmarkNode = $createBookmarkNode(payload)
+          $insertNodeToNearestRoot(bookmarkNode)
           return true
         },
         COMMAND_PRIORITY_EDITOR

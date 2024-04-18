@@ -1,5 +1,5 @@
-import type { DataSpace } from "@/worker/web-worker/DataSpace"
 import { useCallback } from "react"
+import type { DataSpace } from "@/worker/web-worker/DataSpace"
 
 import "@/lib/prism-config"
 // lexical code highlight depends on prismjs which run in worker prism-config disable messageHandler otherwise it will throw error
@@ -10,15 +10,13 @@ import {
 } from "@lexical/markdown"
 import zip from "lodash/zip"
 
+import { getAllLinks } from "@/lib/markdown"
 import { AllNodes } from "@/components/doc/nodes"
-import {
-  $getUrlMetaData
-} from "@/components/doc/nodes/BookmarkNode"
+import { $getUrlMetaData } from "@/components/doc/nodes/BookmarkNode"
 import {
   allTransformers,
   markdownLinkInfoMap,
 } from "@/components/doc/plugins/const"
-import { getAllLinks } from "@/lib/markdown"
 
 export const _getDocMarkdown = async (
   articleEditorStateJSON: string

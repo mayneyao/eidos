@@ -226,7 +226,6 @@ export default function ImagesPlugin({
           if ($isRootOrShadowRoot(imageNode.getParentOrThrow())) {
             $wrapNodeInElement(imageNode, $createParagraphNode).selectEnd()
           }
-
           return true
         },
         COMMAND_PRIORITY_EDITOR

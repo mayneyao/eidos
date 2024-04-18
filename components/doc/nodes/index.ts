@@ -24,10 +24,10 @@ export const AllNodes = [
   AutoLinkNode,
   LinkNode,
   SQLNode,
+  BookmarkNode,
   ImageNode,
   HashtagNode,
   MentionNode,
   DatabaseTableNode,
   TableOfContentsNode,
-  BookmarkNode,
 ]
