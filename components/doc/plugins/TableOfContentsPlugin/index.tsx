@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { $insertNodeToNearestRoot } from "@lexical/utils"
 import {
   $insertNodes,
   COMMAND_PRIORITY_EDITOR,
@@ -29,7 +30,7 @@ export const TableOfContentsPlugin = () => {
       INSERT_TOC_COMMAND,
       (payload) => {
         const sqlNode = $createTableOfContentsNode()
-        $insertNodes([sqlNode])
+        $insertNodeToNearestRoot(sqlNode)
         return true
       },
       COMMAND_PRIORITY_EDITOR

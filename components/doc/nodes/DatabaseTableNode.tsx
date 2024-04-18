@@ -1,5 +1,6 @@
 import { ReactNode } from "react"
-import { DecoratorNode } from "lexical"
+import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
+import { DecoratorNode, EditorConfig, LexicalEditor } from "lexical"
 import { NodeKey } from "lexical/LexicalNode"
 
 import { getRawTableNameById } from "@/lib/utils"
@@ -39,8 +40,20 @@ export class DatabaseTableNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  decorate(): ReactNode {
-    return <DatabaseTableComponent id={this.__id} />
+  decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
+    const data = this.exportJSON()
+    const nodeKey = this.getKey()
+    const embedBlockTheme = config.theme.embedBlock || {}
+
+    const className = {
+      base: embedBlockTheme.base || "",
+      focus: embedBlockTheme.focus || "",
+    }
+    return (
+      <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
+        <DatabaseTableComponent id={this.__id} />
+      </BlockWithAlignableContents>
+    )
   }
 
   static importJSON(data: any): DatabaseTableNode {
