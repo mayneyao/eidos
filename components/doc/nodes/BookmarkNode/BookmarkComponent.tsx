@@ -83,17 +83,17 @@ export const BookmarkComponent = (
   }
   return (
     <div
-      className="not-prose flex h-auto w-full border hover:cursor-pointer hover:bg-secondary"
+      className="not-prose grid h-auto w-full grid-cols-[3fr,1fr] border hover:cursor-pointer hover:bg-secondary"
       onClick={handleClick}
     >
-      <div className="w-[70%] p-2">
+      <div className="overflow-auto p-2">
         <div className="truncate text-lg font-bold">{props.title}</div>
         <div className="line-clamp-3 text-sm text-gray-500 ">
           {props.description}
         </div>
         <div className="text-sm text-gray-500">{props.url}</div>
       </div>
-      <div className="relative w-[30%]">
+      <div className="relative">
         <div className="h-full w-full">
           {props.image && (
             <img
