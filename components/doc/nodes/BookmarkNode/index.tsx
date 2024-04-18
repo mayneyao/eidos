@@ -1,4 +1,5 @@
 import { ReactNode } from "react"
+import { TextMatchTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import { DecoratorNode, EditorConfig, LexicalEditor } from "lexical"
 import { LexicalNode, NodeKey } from "lexical/LexicalNode"
@@ -36,6 +37,9 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
     this.__image = image
   }
 
+  getUrl(): string {
+    return this.__url
+  }
   createDOM(): HTMLElement {
     const node = document.createElement("div")
     node.style.position = "relative"
@@ -96,4 +100,32 @@ export function $isBookmarkNode(
   node: LexicalNode | null | undefined
 ): node is BookmarkNode {
   return node instanceof BookmarkNode
+}
+
+export async function $getUrlMetaData(
+  url: string
+): Promise<BookmarkPayload & { error?: string }> {
+  const data = await fetch(`https://link-preview.eidos.space/?q=${url}`)
+  const json = await data.json()
+  return json
+}
+
+export const BOOKMARK: TextMatchTransformer = {
+  dependencies: [BookmarkNode],
+  export: (node) => {
+    if (!$isBookmarkNode(node)) {
+      return null
+    }
+    return `![${node.getUrl()}](${node.getUrl()})`
+  },
+  importRegExp: /(?:\[([^[]*)\])(?:\(([^(]+)\))/,
+  regExp: /(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
+  replace: async (textNode, match) => {
+    const [, altText, src] = match
+    const data = await $getUrlMetaData(src)
+    const bookmarkNode = $createBookmarkNode(data)
+    textNode.replace(bookmarkNode)
+  },
+  trigger: ")",
+  type: "text-match",
 }
