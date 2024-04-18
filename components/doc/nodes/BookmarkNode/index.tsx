@@ -116,7 +116,7 @@ export const BOOKMARK: TextMatchTransformer = {
     if (!$isBookmarkNode(node)) {
       return null
     }
-    return `![${node.getUrl()}](${node.getUrl()})`
+    return `[${node.getUrl()}](${node.getUrl()})`
   },
   importRegExp: /(?:\[([^[]*)\])(?:\(([^(]+)\))/,
   regExp: /(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
