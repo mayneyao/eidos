@@ -1,5 +1,5 @@
-import { useCallback } from "react"
 import type { DataSpace } from "@/worker/web-worker/DataSpace"
+import { useCallback } from "react"
 
 import "@/lib/prism-config"
 // lexical code highlight depends on prismjs which run in worker prism-config disable messageHandler otherwise it will throw error
@@ -8,9 +8,17 @@ import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
 } from "@lexical/markdown"
+import zip from "lodash/zip"
 
 import { AllNodes } from "@/components/doc/nodes"
-import { allTransformers } from "@/components/doc/plugins/const"
+import {
+  $getUrlMetaData
+} from "@/components/doc/nodes/BookmarkNode"
+import {
+  allTransformers,
+  markdownLinkInfoMap,
+} from "@/components/doc/plugins/const"
+import { getAllLinks } from "@/lib/markdown"
 
 export const _getDocMarkdown = async (
   articleEditorStateJSON: string
@@ -40,14 +48,26 @@ export const _getDocMarkdown = async (
 export const _convertMarkdown2State = async (
   markdown: string
 ): Promise<string> => {
+  // parse all links from markdown, then get preview data of all links
+  const allLinks = getAllLinks(markdown)
+  const infos = await Promise.all(
+    allLinks.map(async (link) => {
+      return $getUrlMetaData(link)
+    })
+  )
+  zip(infos, allLinks).forEach(([info, link]) => {
+    markdownLinkInfoMap.set(link!, info!)
+  })
   return new Promise((resolve) => {
     const editor = createHeadlessEditor({
       nodes: AllNodes,
       onError: () => {},
     })
+
     editor.update(
       () => {
         $convertFromMarkdownString(markdown, allTransformers)
+        markdownLinkInfoMap.clear()
       },
       {
         discrete: true,

@@ -4,16 +4,27 @@ export const getAllCodeBlocks = (
   code: string
   lang: string
 }[] => {
-  const codeBlockRegex = new RegExp(
-    /```([a-z]*)\n([\s\S]*?)\n```/gim
-  )
+  const codeBlockRegex = new RegExp(/```([a-z]*)\n([\s\S]*?)\n```/gim)
   const codeBlocks = markdown.matchAll(codeBlockRegex)
   const code = Array.from(codeBlocks).map((codeBlock) => ({
     code: codeBlock[2],
     lang: codeBlock[1],
   }))
   return code
-  
+}
+
+/**
+ * get all links from markdown, but not include image
+ * @param markdown
+ * @returns
+ */
+export const getAllLinks = (markdown: string): string[] => {
+  const linkRegex = new RegExp(/(?<!\!)\[([^\]]*)\]\(([^)]*)\)/gim)
+  const links = markdown.matchAll(linkRegex)
+  const linkArr = Array.from(links)
+    .map((link) => link[2])
+    .filter((link) => link.length > 0)
+  return Array.from(new Set(linkArr))
 }
 
 // export const getSQLFromMarkdownCodeBlock = (

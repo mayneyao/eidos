@@ -277,7 +277,6 @@ export const IMAGE: TextMatchTransformer = {
       altText,
       src,
     })
-    console.log(imageNode)
     textNode.replace(imageNode)
   },
   trigger: ")",

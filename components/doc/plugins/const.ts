@@ -13,7 +13,7 @@ import {
 import { IMAGE } from "@/components/doc/nodes/ImageNode/ImageNode"
 import { SQL_NODE_TRANSFORMER } from "@/components/doc/nodes/SQL"
 
-import { BOOKMARK } from "../nodes/BookmarkNode"
+import { BOOKMARK, BookmarkPayload } from "../nodes/BookmarkNode"
 import { HR } from "./MarkdownTransformers"
 
 export const allTransformers = [
@@ -22,12 +22,12 @@ export const allTransformers = [
   HEADING,
   HIGHLIGHT,
   INLINE_CODE,
+  BOOKMARK,
   LINK,
   ORDERED_LIST,
   QUOTE,
   HR,
   IMAGE,
-  BOOKMARK,
   SQL_NODE_TRANSFORMER,
   ...TRANSFORMERS,
 ]
@@ -55,3 +55,6 @@ export const bgColors = [
   { name: "indigo", value: "#bdb2ffff" },
   { name: "pink", value: "#ffc6ffff" },
 ]
+
+// global map for bookmark link info
+export const markdownLinkInfoMap = new Map<string, BookmarkPayload>()
