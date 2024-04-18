@@ -1,3 +1,5 @@
+import * as React from "react"
+import { ReactNode } from "react"
 import { DataSpace } from "@/worker/web-worker/DataSpace"
 import { ElementTransformer } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
@@ -7,8 +9,6 @@ import {
   type LexicalNode,
   type NodeKey,
 } from "lexical"
-import * as React from "react"
-import { ReactNode } from "react"
 
 import { useModal } from "../hooks/useModal"
 import { SqlQueryDialog } from "../plugins/SQLPlugin/SqlQueryDialog"
@@ -97,6 +97,10 @@ export class SQLNode extends DecoratorNode<ReactNode> {
   constructor(sql: string, key?: NodeKey) {
     super(key)
     this.sql = sql
+  }
+
+  getTextContent(): string {
+    return this.sql
   }
 
   setSQL(sql: string): void {
