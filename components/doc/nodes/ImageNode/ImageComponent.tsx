@@ -79,8 +79,8 @@ function ImagePlaceholder(props: { nodeKey: string }) {
 
   return (
     <Popover>
-      <PopoverTrigger>
-        <div className="flex h-[70px] w-[640px] items-center justify-center bg-gray-200">
+      <PopoverTrigger className="w-full">
+        <div className="flex h-[70px] w-full items-center justify-center bg-gray-200">
           <div className="text-center">
             <div className="text-sm text-gray-500">Add an image</div>
           </div>

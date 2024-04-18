@@ -3,7 +3,7 @@ import { useDrop } from "ahooks"
 import { useParams } from "react-router-dom"
 
 import { efsManager } from "@/lib/storage/eidos-file-system"
-import { cn } from "@/lib/utils"
+import { cn, proxyImageURL } from "@/lib/utils"
 import { useFileSystem, useFiles } from "@/hooks/use-files"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
@@ -49,7 +49,7 @@ export function ImageSelector(props: {
   const handleSelectWebFile = async () => {
     const url = (document.getElementById("web-image-url") as HTMLInputElement)
       .value
-    const cover = `https://proxy.eidos.space/?url=${url}`
+    const cover = proxyImageURL(url)
     props.onSelected(cover, true)
   }
 

@@ -1,7 +1,8 @@
 import { ReactNode } from "react"
+import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import LexicalTableOfContents from "@lexical/react/LexicalTableOfContents"
-import { DecoratorNode, NodeKey } from "lexical"
+import { DecoratorNode, EditorConfig, LexicalEditor, NodeKey } from "lexical"
 
 import { cn } from "@/lib/utils"
 
@@ -91,8 +92,20 @@ export class TableOfContentsNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  decorate(): ReactNode {
-    return <TableOfContentsComponent />
+  decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
+    const data = this.exportJSON()
+    const nodeKey = this.getKey()
+    const embedBlockTheme = config.theme.embedBlock || {}
+
+    const className = {
+      base: embedBlockTheme.base || "",
+      focus: embedBlockTheme.focus || "",
+    }
+    return (
+      <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
+        <TableOfContentsComponent />
+      </BlockWithAlignableContents>
+    )
   }
 
   static importJSON(data: any): TableOfContentsNode {

@@ -14,6 +14,7 @@ import { AIToolsPlugin } from "./AIToolsPlugin"
 // import { AIToolsPlugin } from "./AIToolsPlugin"
 import AutoLinkPlugin from "./AutoLinkPlugin"
 import AutocompletePlugin from "./AutocompletePlugin"
+import { BookmarkPlugin } from "./BookmarkPlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import { DatabasePlugin } from "./DatabasePlugin"
@@ -56,6 +57,7 @@ export const AllPlugins = () => {
       <ComponentPickerMenuPlugin />
       <MarkdownShortcutPlugin transformers={allTransformers} />
       <FloatingLinkEditorPlugin />
+      <BookmarkPlugin />
     </>
   )
 }
