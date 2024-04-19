@@ -1,20 +1,22 @@
+import { useEffect } from "react"
+import { $isListItemNode, ListItemNode } from "@lexical/list"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { $insertNodeToNearestRoot, mergeRegister } from "@lexical/utils"
 import {
-  $insertNodeToNearestRoot,
-  mergeRegister
-} from "@lexical/utils"
-import {
+  $getSelection,
+  $insertNodes,
+  $isRangeSelection,
   COMMAND_PRIORITY_EDITOR,
   LexicalCommand,
-  createCommand
+  createCommand,
 } from "lexical"
-import { useEffect } from "react"
 
 import {
   $createBookmarkNode,
   BookmarkNode,
   BookmarkPayload,
 } from "../../nodes/BookmarkNode"
+import { getSelectedNode } from "../../utils/getSelectedNode"
 
 export type InsertBookmarkPayload = Readonly<BookmarkPayload>
 
@@ -36,8 +38,19 @@ export function BookmarkPlugin({
       editor.registerCommand<InsertBookmarkPayload>(
         INSERT_BOOKMARK_COMMAND,
         (payload) => {
+          const selection = $getSelection()
           const bookmarkNode = $createBookmarkNode(payload)
-          $insertNodeToNearestRoot(bookmarkNode)
+          if ($isRangeSelection(selection)) {
+            // $insertNodes([bookmarkNode])
+            const node = getSelectedNode(selection)
+            if ($isListItemNode(node)) {
+              node.append(bookmarkNode)
+            } else {
+              $insertNodeToNearestRoot(bookmarkNode)
+            }
+          } else {
+            $insertNodeToNearestRoot(bookmarkNode)
+          }
           return true
         },
         COMMAND_PRIORITY_EDITOR

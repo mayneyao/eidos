@@ -6,6 +6,7 @@
  *
  */
 
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
@@ -31,19 +32,17 @@ import {
   SELECTION_CHANGE_COMMAND,
   type BaseSelection,
   type LexicalEditor,
-  type NodeKey
+  type NodeKey,
 } from "lexical"
-import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-
 import { ImageSelector } from "@/app/[database]/[node]/image-selector"
-import "./ImageNode.css"
 
+import "./ImageNode.css"
 import { $isImageNode } from "./ImageNode"
 // import { useSettings } from "../context/SettingsContext"
 // import { useSharedHistoryContext } from "../context/SharedHistoryContext"

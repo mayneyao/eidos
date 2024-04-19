@@ -28,6 +28,9 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
   __description?: string
   __image?: string
 
+  isKeyboardSelectable(): boolean {
+    return true
+  }
   static getType(): string {
     return "bookmark"
   }

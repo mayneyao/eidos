@@ -62,6 +62,7 @@ function BookmarkPlaceholder(props: { nodeKey: string }) {
             className="grow rounded-lg border border-gray-300 px-3 py-2"
             placeholder="https://eidos.space"
             id="web-url"
+            autoFocus
           />
           <Button size="sm" className="w-full" onClick={() => handleSelect()}>
             Confirm

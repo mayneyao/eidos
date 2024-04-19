@@ -9,7 +9,11 @@ import { Table } from "@/components/table"
 const DatabaseTableComponent = (props: { id: string }) => {
   const { space } = useCurrentPathInfo()
   const rawTableName = getRawTableNameById(props.id)
-  return <Table tableName={rawTableName} space={space} isEmbed />
+  return (
+    <div className="border">
+      <Table tableName={rawTableName} space={space} isEmbed />
+    </div>
+  )
 }
 
 export class DatabaseTableNode extends DecoratorNode<ReactNode> {

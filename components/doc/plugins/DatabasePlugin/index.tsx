@@ -1,7 +1,11 @@
-import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { $insertNodeToNearestRoot } from "@lexical/utils"
-import { COMMAND_PRIORITY_EDITOR, LexicalCommand, createCommand } from "lexical"
+import {
+  $insertNodes,
+  COMMAND_PRIORITY_EDITOR,
+  LexicalCommand,
+  createCommand,
+} from "lexical"
+import { useEffect } from "react"
 
 import {
   $createDatabaseTableNode,
@@ -25,7 +29,7 @@ export const DatabasePlugin = () => {
       INSERT_DATABASE_TABLE_COMMAND,
       (payload) => {
         const DatabaseNode = $createDatabaseTableNode(payload)
-        $insertNodeToNearestRoot(DatabaseNode)
+        $insertNodes([DatabaseNode])
         return true
       },
       COMMAND_PRIORITY_EDITOR

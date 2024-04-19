@@ -45,6 +45,7 @@ import {
   SheetIcon,
   SparklesIcon,
   VariableIcon,
+  BookMarkedIcon,
 } from "lucide-react"
 import * as ReactDOM from "react-dom"
 
@@ -77,6 +78,7 @@ const IconMap: Record<string, JSX.Element> = {
   text: <CaseSensitiveIcon className="h-5 w-5" />,
   hr: <MinusSquareIcon className="h-5 w-5" />,
   sql: <VariableIcon className="h-5 w-5" />,
+  bookmark: <BookMarkedIcon className="h-5 w-5" />,
 }
 
 class ComponentPickerOption extends MenuOption {
@@ -302,7 +304,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
       }),
 
       new ComponentPickerOption("Bookmark", {
-        icon: IconMap["image"],
+        icon: IconMap["bookmark"],
         keywords: ["bookmark"],
         onSelect: () =>
           editor.dispatchCommand(INSERT_BOOKMARK_COMMAND, {
