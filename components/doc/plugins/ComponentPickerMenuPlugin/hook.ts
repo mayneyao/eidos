@@ -12,9 +12,7 @@ export function useBasicTypeaheadTriggerMatch(
     (text: string) => {
       const validChars = "[^" + trigger + PUNCTUATION + "\\s]"
       const TypeaheadTriggerRegex = new RegExp(
-        // remove the ^ from the beginning of the regex to match anywhere in the string
-        "(|\\s|\\()(" +
-          // "(^|\\s|\\()(" +
+        "(^|\\s|\\()(" +
           "[" +
           trigger +
           "]" +
