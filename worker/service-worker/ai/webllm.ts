@@ -1,5 +1,10 @@
-import { ChatCompletionChunk } from "@mlc-ai/web-llm"
+import {
+  ChatCompletionChunk,
+  ChatCompletionRequestStreaming,
+} from "@mlc-ai/web-llm"
 import { StreamingTextResponse } from "ai"
+
+import { tools } from "@/lib/ai/functions"
 
 declare var self: ServiceWorkerGlobalScope
 
@@ -8,22 +13,26 @@ export async function handleWebLLM(req: any) {
 
   const channel = new MessageChannel()
   let cls = await self.clients.matchAll()
+  const request: ChatCompletionRequestStreaming = {
+    stream: true,
+    messages: [
+      systemPrompt?.length
+        ? {
+            role: "system" as const,
+            content: systemPrompt,
+          }
+        : undefined,
+      ...messages,
+    ].filter(Boolean),
+    temperature: 0,
+    tool_choice: "auto",
+    tools,
+  }
+
   cls[0].postMessage(
     {
       type: "proxyMsg",
-      data: {
-        stream: true,
-        messages: [
-          systemPrompt?.length
-            ? {
-                role: "system" as const,
-                content: systemPrompt,
-              }
-            : undefined,
-          ...messages,
-        ].filter(Boolean),
-        temperature: 0,
-      },
+      data: request,
     },
     [channel.port2]
   )

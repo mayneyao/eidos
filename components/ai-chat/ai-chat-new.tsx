@@ -33,7 +33,7 @@ import { useSpeak } from "./webspeech/hooks"
 import { Whisper } from "./whisper"
 
 const promptKeys = Object.keys(sysPrompts)
-const localModels = WEB_LLM_MODELS.map((item) => `${item.local_id}`)
+const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
 export default function Chat() {
   const loadingRef = useRef<HTMLDivElement>(null)
@@ -64,9 +64,9 @@ export default function Chat() {
 
   useEffect(() => {
     const isLocal = localModels.includes(aiModel)
-    const localLLM = WEB_LLM_MODELS.find((item) => item.local_id === aiModel)
+    const localLLM = WEB_LLM_MODELS.find((item) => item.model_id === aiModel)
     if (isLocal && localLLM) {
-      reloadModel(localLLM.local_id)
+      reloadModel(localLLM.model_id)
     }
   }, [reloadModel, aiModel])
 

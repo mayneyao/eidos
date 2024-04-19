@@ -1,7 +1,7 @@
 import { OpenAIStream, StreamingTextResponse } from "ai"
 import OpenAI from "openai"
 
-import { functions } from "@/lib/ai/functions"
+import { tools } from "@/lib/ai/functions"
 
 import { queryEmbedding } from "../routes/lib"
 
@@ -61,13 +61,15 @@ export async function handleOpenAI(
     model: model ?? "gpt-3.5-turbo-0613",
     stream: true,
     messages: newMsgs,
-  }
+  } as any
   if (useFunctions) {
     request = {
       ...request,
-      functions,
+      tool_choice: "auto",
+      tools: tools as any,
     }
   }
+  console.log(request)
   const response = await openai.chat.completions.create(request)
   const stream = OpenAIStream(response)
   return new StreamingTextResponse(stream)

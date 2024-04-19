@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils"
 import { ScrollArea } from "../ui/scroll-area"
 import { WEB_LLM_MODELS } from "./webllm/models"
 
-const localModels = WEB_LLM_MODELS.map((item) => `${item.local_id}`)
+const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
 const useModels = () => {
   const { aiConfig } = useConfigStore()

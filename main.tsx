@@ -33,7 +33,6 @@ import { ScriptPage } from "./app/[database]/scripts/page"
 import { ScriptStorePage } from "./app/[database]/scripts/store"
 import { SpaceSetting } from "./app/[database]/settings/page"
 import { DocEditor } from "./app/eidtor/doc"
-import { LlmChat } from "./app/llm"
 
 const router = createBrowserRouter([
   {
@@ -43,10 +42,6 @@ const router = createBrowserRouter([
       {
         path: "/",
         element: <HomePage />,
-      },
-      {
-        path: "/llm",
-        element: <LlmChat />,
       },
       {
         path: "offline",

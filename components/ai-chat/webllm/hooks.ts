@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react"
 import * as webllm from "@mlc-ai/web-llm"
+import { useEffect, useRef, useState } from "react"
 import { create } from "zustand"
 
-import { WEB_LLM_MODELS } from "./models"
 
 type LoadingState = {
   progress: webllm.InitProgressReport | undefined
@@ -24,7 +23,7 @@ export const useReloadModel = () => {
 }
 
 export const useInitWebLLMWorker = () => {
-  const ref = useRef<webllm.ChatWorkerClient>()
+  const ref = useRef<webllm.EngineInterface>()
   const [currentModel, setCurrentModel] = useState<string>("")
   const loadingRef = useRef(false)
   const { progress, setProgress } = useLoadingStore()
@@ -37,24 +36,25 @@ export const useInitWebLLMWorker = () => {
 
   useEffect(() => {
     const reload = async (modelId: string) => {
-      if (!ref.current) return
-      if (loadingRef.current) return
-      if (currentModel !== modelId) {
-        loadingRef.current = true
-        console.log("reload", {
-          modelId,
-          currentModel,
-        })
-        try {
-          await ref.current.reload(modelId, undefined, {
-            model_list: WEB_LLM_MODELS,
-          })
-          setCurrentModel(modelId)
-        } catch (error) {
-        } finally {
-          loadingRef.current = false
-        }
-      }
+      setCurrentModel(modelId)
+      // if (!ref.current) return
+      // if (loadingRef.current) return
+      // if (currentModel !== modelId) {
+      //   loadingRef.current = true
+      //   console.log("reload", {
+      //     modelId,
+      //     currentModel,
+      //   })
+      //   try {
+      //     await ref.current.reload(modelId, undefined, {
+      //       model_list: WEB_LLM_MODELS,
+      //     })
+      //     setCurrentModel(modelId)
+      //   } catch (error) {
+      //   } finally {
+      //     loadingRef.current = false
+      //   }
+      // }
     }
 
     return document.addEventListener("reloadModel", (event) => {
@@ -65,31 +65,42 @@ export const useInitWebLLMWorker = () => {
 
   useEffect(() => {
     async function init() {
-      if (ref.current) return
-      const chat = new webllm.ChatWorkerClient(
+      if (ref.current || !currentModel.length) return
+      const appConfig = webllm.prebuiltAppConfig
+      // CHANGE THIS TO SEE EFFECTS OF BOTH, CODE BELOW DO NOT NEED TO CHANGE
+      appConfig.useIndexedDBCache = true
+      if (appConfig.useIndexedDBCache) {
+        console.log("Using IndexedDB Cache")
+      } else {
+        console.log("Using Cache API")
+      }
+      const engine: webllm.EngineInterface = await webllm.CreateWebWorkerEngine(
         new Worker(
           new URL("@/worker/web-worker/web-llm/llm.ts", import.meta.url),
           {
             type: "module",
           }
-        )
+        ),
+        currentModel,
+        {
+          initProgressCallback: (report) => {
+            setProgress(report)
+          },
+        }
       )
-
-      chat.setInitProgressCallback((report) => {
-        setProgress(report)
-      })
-      ref.current = chat
-      navigator.serviceWorker.onmessage = async (event) => {
+      ref.current = engine
+      navigator.serviceWorker.addEventListener("message", async (event) => {
         const { type, data } = event.data
         if (type === "proxyMsg") {
-          const res: any = await chat.chatCompletion(data)
+          console.log(data)
+          const res: any = await engine.chat.completions.create(data)
           for await (const chunk of res) {
             event.ports[0].postMessage(chunk)
           }
-          chat.resetChat()
-          console.log(await chat.runtimeStatsText())
+          console.log(await engine.runtimeStatsText())
+          engine.resetChat()
         }
-      }
+      })
     }
     init()
     return () => {
@@ -97,7 +108,7 @@ export const useInitWebLLMWorker = () => {
         ref.current.unload()
       }
     }
-  }, [setProgress])
+  }, [currentModel, setProgress])
 
   return {
     currentModel,

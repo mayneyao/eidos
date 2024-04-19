@@ -1,3 +1,4 @@
+import { ChatCompletionTool } from "@mlc-ai/web-llm"
 import { z } from "zod"
 import { zodToJsonSchema } from "zod-to-json-schema"
 
@@ -24,6 +25,13 @@ export const functions = allFunctions.map((f) => {
     parameters: zodToJsonSchema(f.schema, "schema").definitions!.schema,
   }
 })
+
+export const tools = functions.map((f) => {
+  return {
+    type: "function",
+    function: f,
+  }
+}) as ChatCompletionTool[]
 
 type FunctionParamsSchemaMap = {
   [funName: string]: z.ZodSchema<any>
