@@ -1,14 +1,14 @@
 import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { useAppStore } from "@/lib/store/app-store"
 
-import { useSpaceAppStore } from "../../app/[database]/store"
 import { BreadCrumb } from "./breadcrumb"
 import { NavDropdownMenu } from "./dropdown-menu"
 import { NavStatus } from "./nav-status"
 
 export const Nav = () => {
-  const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
+  const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen)

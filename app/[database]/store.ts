@@ -23,15 +23,12 @@ interface ISpaceAppState {
 
   isMobileSidebarOpen: boolean
   setMobileSidebarOpen: (isMobileSidebarOpen: boolean) => void
-
-  isSidebarOpen: boolean
-  setSidebarOpen: (isSidebarOpen: boolean) => void
 }
 
 export const useSpaceAppStore = create<ISpaceAppState>()((set) => ({
   isAiOpen: false,
   setIsAiOpen: (isAiOpen) => set({ isAiOpen }),
-  
+
   isExtAppOpen: false,
   setIsExtAppOpen: (isExtAppOpen) => set({ isExtAppOpen }),
 
@@ -49,7 +46,4 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set) => ({
 
   isMobileSidebarOpen: false,
   setMobileSidebarOpen: (isMobileSidebarOpen) => set({ isMobileSidebarOpen }),
-
-  isSidebarOpen: true,
-  setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
 }))

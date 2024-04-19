@@ -15,11 +15,17 @@ interface AppState {
 
   aiModel: string
   setAIModel: (model: string) => void
+
+  isSidebarOpen: boolean
+  setSidebarOpen: (isSidebarOpen: boolean) => void
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
+      isSidebarOpen: true,
+      setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
+
       lastOpenedDatabase: "",
       setLastOpenedDatabase: (database) =>
         set({ lastOpenedDatabase: database }),

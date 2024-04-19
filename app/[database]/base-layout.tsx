@@ -4,6 +4,7 @@ import { Suspense, lazy } from "react"
 import { Menu } from "lucide-react"
 
 import { efsManager } from "@/lib/storage/eidos-file-system"
+import { useAppStore } from "@/lib/store/app-store"
 // import SplitPane, { Pane } from "react-split-pane"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -45,7 +46,7 @@ export function DatabaseLayoutBase({
 }) {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
-  const { isSidebarOpen } = useSpaceAppStore()
+  const { isSidebarOpen } = useAppStore()
   const { isAiOpen, isExtAppOpen } = useSpaceAppStore()
 
   // event listen should be in useLayoutInit, and just listen once

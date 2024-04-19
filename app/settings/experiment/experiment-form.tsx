@@ -71,7 +71,7 @@ export function ExperimentForm() {
             {"POC💡 -> alpha🔨 -> beta🚀 -> release📦"}
           </h4>
           <div className="space-y-4">
-            <FormField
+            {/* <FormField
               control={form.control}
               name="undoRedo"
               render={({ field }) => (
@@ -92,8 +92,8 @@ export function ExperimentForm() {
                   </FormControl>
                 </FormItem>
               )}
-            />
-            <FormField
+            /> */}
+            {/* <FormField
               control={form.control}
               name="enableTableLinkField"
               render={({ field }) => (
@@ -116,7 +116,7 @@ export function ExperimentForm() {
                   </FormControl>
                 </FormItem>
               )}
-            />
+            /> */}
             <FormField
               control={form.control}
               name="enableFileManager"

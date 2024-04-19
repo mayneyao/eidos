@@ -1,4 +1,3 @@
-
 import { useConfigStore } from "@/app/settings/store"
 import {
   ContextMenu,
@@ -10,14 +9,14 @@ import { useFileSystem } from "@/hooks/use-files"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { efsManager } from "@/lib/storage/eidos-file-system"
+import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
-import { useSpaceAppStore } from "../store"
 
 export function FileItemContextMenu({ children }: any) {
   const { selectedEntries, deleteFiles, getFileUrlPath } = useFileSystem()
   const { setCurrentPreviewFile } = useAppRuntimeStore()
-  const { isSidebarOpen, setSidebarOpen } = useSpaceAppStore()
+  const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { createEmbedding } = useHnsw()
   const { aiConfig } = useConfigStore()
   const { sqlite } = useSqlite()
