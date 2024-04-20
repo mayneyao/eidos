@@ -50,7 +50,7 @@ export const NodeMoveInto = ({ node }: { node: ITreeNode }) => {
                   nodeId={tableNode.id}
                   size="1em"
                   disabled
-                  className="ml-[-2px] pr-[6px]"
+                  className="pr-[6px]"
                   customTrigger={
                     <ItemIcon type={tableNode.type} className="pr-2" />
                   }

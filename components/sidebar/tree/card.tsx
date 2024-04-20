@@ -137,7 +137,7 @@ export const Card: FC<CardProps> = ({ id, node, index, moveCard, onDrop }) => {
               icon={node.icon!}
               nodeId={node.id}
               size="1em"
-              className="ml-[-2px] pr-[6px]"
+              className="flex h-6 w-6 items-center justify-start"
               customTrigger={<ItemIcon type={node.type} className="pr-2" />}
             />
             <span className="truncate" title={node.name}>
