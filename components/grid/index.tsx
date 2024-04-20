@@ -7,17 +7,17 @@ import DataEditor, {
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
 
+import { IGridViewProperties, IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
 import { useTransformSqlQuery } from "@/hooks/use-transform-sql-query"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import { IGridViewProperties, IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
 
 import { useCurrentView } from "../table/hooks"
 import { useViewCount } from "../table/hooks/use-view-count"
@@ -52,7 +52,7 @@ const defaultConfig: Partial<DataEditorProps> = {
   onPaste: true,
   headerIcons: headerIcons,
   experimental: {
-    paddingBottom: 14,
+    paddingBottom: 0,
     kineticScrollPerfHack: true,
   },
 }
@@ -146,37 +146,11 @@ export default function GridView(props: IGridProps) {
   const freezeColumns = isSm ? 0 : 1
 
   const config = useMemo(() => {
-    let _config = props.isEmbed
-      ? {
-          // height: "100%",
-          experimental: {
-            paddingBottom: 0,
-          },
-        }
-      : {}
-    const allWidth = columns.reduce((acc, cur: any) => acc + cur.width, 0) + 100
-    // fix scroll bar bug
-    if ((size?.width || 0) < allWidth) {
-      _config = {
-        ..._config,
-        experimental: {
-          paddingBottom: 0,
-        },
-      }
-    } else {
-      _config = {
-        ..._config,
-        experimental: {
-          paddingBottom: 14,
-        },
-      }
-    }
     return {
       ...defaultConfig,
       freezeColumns,
-      ..._config,
     }
-  }, [freezeColumns, props.isEmbed, size?.width, columns])
+  }, [freezeColumns])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
