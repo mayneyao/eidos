@@ -20,12 +20,12 @@ html {
   height: env(titlebar-area-height, 40px);
   width: env(titlebar-area-width, 100%);
   z-index: 9999999;
+  background-color: hsl(var(--background));
 }
 
 #drag-region {
   -webkit-app-region: drag;
 }
-
 
 @layer base {
   :root {
