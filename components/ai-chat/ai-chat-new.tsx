@@ -143,7 +143,7 @@ export default function Chat() {
 
   return (
     <div
-      className="relative flex h-screen w-[24%] min-w-[400px] max-w-[700px] flex-col overflow-auto border-l border-l-slate-400 p-2"
+      className="relative flex h-full w-[24%] min-w-[400px] max-w-[700px] flex-col overflow-auto border-l border-l-slate-400 p-2"
       ref={divRef}
     >
       <div className="flex grow flex-col gap-2 pb-[100px]">

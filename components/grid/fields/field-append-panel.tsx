@@ -170,7 +170,7 @@ export function FieldAppendPanel({
     <div
       ref={ref}
       className={cn(
-        "absolute right-0 top-0 z-50 h-screen w-[400px] bg-white shadow-lg dark:bg-slate-950"
+        "absolute right-0 top-0 z-50 h-full w-[400px] bg-white shadow-lg dark:bg-slate-950"
       )}
     >
       {currentField ? (

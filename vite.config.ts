@@ -30,6 +30,9 @@ const config = defineConfig({
         description: "an all-in-one workspace for everyone",
         theme_color: "#ffffff",
         icons: iconJson.icons,
+        display_override: ["window-controls-overlay"],
+        display: "standalone",
+        // display: "standalone",
         file_handlers: [
           {
             action: "/editor/doc",
