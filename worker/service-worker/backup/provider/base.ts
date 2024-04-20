@@ -21,6 +21,8 @@ export abstract class BaseBackupServer {
     )
     console.log("filesToDownload", filesToDownload)
     console.log("filesToDelete", filesToDelete)
+    // pull database file first
+    await this.pullDBFile(directoryPath)
     try {
       // Upload new or modified files to the remote directory
       for (const filePath of filesToDownload) {
@@ -39,12 +41,6 @@ export abstract class BaseBackupServer {
       console.error(error)
     }
 
-    // save db.sqlite3 file
-    const dbFilePath = directoryPath + "/db.sqlite3"
-    const fileContent = await this.getFile(dbFilePath)
-    if (fileContent) {
-      await this.save2LocalFile(dbFilePath, fileContent)
-    }
     const end = Date.now()
     const cost = end - start
     console.log(`finish pull ${directoryPath} use ${cost}ms`)
@@ -62,6 +58,33 @@ export abstract class BaseBackupServer {
     return opfsDBFile
   }
 
+  private async pullDBFile(directoryPath: string) {
+    // save db.sqlite3 file
+    const dbFilePath = directoryPath + "/db.sqlite3"
+    const fileContent = await this.getFile(dbFilePath)
+    if (fileContent) {
+      await this.save2LocalFile(dbFilePath, fileContent)
+    }
+  }
+  private async pushDBFile(directoryPath: string) {
+    const dbFilePath = directoryPath + "/db.sqlite3"
+    // check db.sqlite3 file last modified time
+    const opfsDBFile = await this.getOPFSDatabaseFile(directoryPath)
+
+    if (opfsDBFile) {
+      const lastModifiedTime = await this.getLastModifiedTime(dbFilePath)
+      console.log("lastModifiedTime[server]", lastModifiedTime)
+      console.log("lastModifiedTime[opfs]", new Date(opfsDBFile.lastModified))
+      const shouldUpload = this.shouldUpload(
+        new Date(opfsDBFile.lastModified),
+        lastModifiedTime!
+      )
+      if (shouldUpload) {
+        console.log("need update db.sqlite3", dbFilePath)
+        await this.uploadFile(dbFilePath, opfsDBFile)
+      }
+    }
+  }
   async push(directoryPath: string) {
     const start = Date.now()
     console.log("start sync", directoryPath)
@@ -80,6 +103,8 @@ export abstract class BaseBackupServer {
     const filesToDelete = remoteFiles.filter(
       (file) => !localFiles.includes(file)
     )
+
+    await this.pushDBFile(directoryPath)
     // Upload new or modified files to the remote directory
     for (const filePath of filesToUpload) {
       const fileContent = await this.getLocalFile(filePath)
@@ -95,22 +120,6 @@ export abstract class BaseBackupServer {
       await this.deleteFile(file)
     }
 
-    // check db.sqlite3 file last modified time
-    const opfsDBFile = await this.getOPFSDatabaseFile(directoryPath)
-
-    if (opfsDBFile) {
-      const lastModifiedTime = await this.getLastModifiedTime(dbFilePath)
-      console.log("lastModifiedTime[server]", lastModifiedTime)
-      console.log("lastModifiedTime[opfs]", new Date(opfsDBFile.lastModified))
-      const shouldUpload = this.shouldUpload(
-        new Date(opfsDBFile.lastModified),
-        lastModifiedTime!
-      )
-      if (shouldUpload) {
-        console.log("need update db.sqlite3", dbFilePath)
-        await this.uploadFile(dbFilePath, opfsDBFile)
-      }
-    }
     const end = Date.now()
     const cost = end - start
     console.log(`finish sync ${directoryPath} use ${cost}ms`)
