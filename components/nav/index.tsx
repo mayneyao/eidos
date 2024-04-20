@@ -13,7 +13,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
 
   const fixStyle =
     navigator.userAgent.toLowerCase().indexOf("windows") > -1 &&
-    navigator.windowControlsOverlay.visible
+    navigator.windowControlsOverlay?.visible
 
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen)
@@ -26,10 +26,10 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
         "flex h-8 w-full border-separate items-center justify-between",
         {
           "!mt-[5px]": fixStyle,
-          fixed: navigator.windowControlsOverlay.visible,
+          fixed: navigator.windowControlsOverlay?.visible,
           // PWA does not support css variables for theme color yet, we just use bg-white text-black for now
           // https://github.com/w3c/manifest/issues/975
-          "bg-white text-black": navigator.windowControlsOverlay.visible,
+          "bg-white text-black": navigator.windowControlsOverlay?.visible,
         }
       )}
     >
