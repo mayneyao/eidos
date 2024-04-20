@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 
 export const useWindowControlsOverlayVisible = () => {
   const [visible, setVisible] = useState(
-    navigator.windowControlsOverlay.visible
+    navigator.windowControlsOverlay?.visible
   )
 
   useEffect(() => {
