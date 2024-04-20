@@ -1,7 +1,7 @@
 export const EidosIcon = () => (
   <svg
-    width="400"
-    height="400"
+    width="320"
+    height="320"
     viewBox="0 0 512 512"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
