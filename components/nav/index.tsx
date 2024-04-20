@@ -1,13 +1,14 @@
 import { Menu } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { useAppStore } from "@/lib/store/app-store"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 
 import { BreadCrumb } from "./breadcrumb"
 import { NavDropdownMenu } from "./dropdown-menu"
 import { NavStatus } from "./nav-status"
 
-export const Nav = () => {
+export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
   const toggleSidebar = () => {
@@ -15,19 +16,27 @@ export const Nav = () => {
   }
 
   return (
-    <div className="flex h-8 w-full border-separate items-center justify-between">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={toggleSidebar}
-        className="hidden md:block"
-      >
-        <Menu className="h-5 w-5" />
-      </Button>
+    <div
+      id="title-bar"
+      className={cn(
+        "flex h-8 w-full border-separate items-center justify-between"
+      )}
+    >
+      {showMenu && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleSidebar}
+          className="hidden md:block"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+      )}
+
       <div className="hidden md:block">
         <BreadCrumb />
       </div>
-      <div className="grow" />
+      <div className="h-full grow" id="drag-region" />
       <div className="flex items-center justify-between self-end">
         <NavStatus />
         <NavDropdownMenu />
