@@ -1,19 +1,23 @@
 import { useEffect, useState } from "react"
 
 export const useWindowControlsOverlayVisible = () => {
-  const [visible, setVisible] = useState(false)
+  const [visible, setVisible] = useState(
+    navigator.windowControlsOverlay.visible
+  )
 
   useEffect(() => {
     if ("windowControlsOverlay" in navigator) {
       const handler = () => {
-        setVisible((navigator as any).windowControlsOverlay.visible)
+        setTimeout(() => {
+          setVisible(navigator.windowControlsOverlay.visible)
+        }, 200)
       }
-      ;(navigator.windowControlsOverlay as any).addEventListener(
+      navigator.windowControlsOverlay.addEventListener(
         "geometrychange",
         handler
       )
       return () => {
-        ;((navigator as any).windowControlsOverlay as any).removeEventListener(
+        navigator.windowControlsOverlay.removeEventListener(
           "geometrychange",
           handler
         )

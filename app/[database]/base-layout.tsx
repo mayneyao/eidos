@@ -81,7 +81,7 @@ export function DatabaseLayoutBase({
           <SideBar />
         </div>
         <div className={cn("flex h-full w-auto grow flex-col lg:border-l")}>
-          <div className="flex justify-between p-2 md:justify-end">
+          <div className="flex justify-between md:justify-end">
             <MobileSideBar />
             <Nav />
           </div>

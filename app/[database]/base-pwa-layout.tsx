@@ -1,17 +1,16 @@
 "use client"
 
-import { Suspense, lazy } from "react"
 import { Menu } from "lucide-react"
+import { Suspense, lazy } from "react"
 
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
-// import SplitPane, { Pane } from "react-split-pane"
-
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { useWindowControlsOverlayVisible } from "@/hooks/use-window-controls-overlay-visiabe"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+// import SplitPane, { Pane } from "react-split-pane"
+
 import { Loading } from "@/components/loading"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
@@ -72,7 +71,7 @@ export function PWALayoutBase({
       <ScriptContainer />
       <div className="flex h-screen w-full flex-col">
         <Nav />
-        <div className={cn("flex h-screen w-full")}>
+        <div className="flex h-screen w-full pt-8">
           <div
             className={cn(
               "max-w-[300px] overflow-x-hidden transition-all duration-150 ease-in-out",
@@ -83,7 +82,7 @@ export function PWALayoutBase({
             <SideBar />
           </div>
           <div className={cn("flex h-full w-auto grow flex-col lg:border-l")}>
-            <div className="flex justify-between p-2 md:justify-end">
+            <div className="flex justify-between md:justify-end">
               <MobileSideBar />
             </div>
             <main

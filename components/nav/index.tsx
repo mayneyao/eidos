@@ -11,6 +11,10 @@ import { NavStatus } from "./nav-status"
 export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
+  const fixStyle =
+    navigator.userAgent.toLowerCase().indexOf("windows") > -1 &&
+    navigator.windowControlsOverlay.visible
+
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen)
   }
@@ -19,7 +23,11 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
     <div
       id="title-bar"
       className={cn(
-        "flex h-8 w-full border-separate items-center justify-between"
+        "flex h-8 w-full border-separate items-center justify-between",
+        {
+          "!mt-[5px]": fixStyle,
+          fixed: navigator.windowControlsOverlay.visible,
+        }
       )}
     >
       {showMenu && (

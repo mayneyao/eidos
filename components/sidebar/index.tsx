@@ -51,7 +51,7 @@ export const SideBar = ({ className }: any) => {
 
   return (
     <>
-      <div className={cn("flex h-full flex-col p-4", className)}>
+      <div className={cn("flex h-full flex-col p-4 pt-2", className)}>
         <div className="flex items-center justify-between">
           {/* {!isShareMode && (
             <h2 className="relative px-6 text-lg font-semibold tracking-tight">
