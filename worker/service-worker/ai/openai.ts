@@ -31,7 +31,7 @@ export async function handleOpenAI(
     content: systemPrompt,
   }
   const lastMsg = messages[messages.length - 1]
-  let newMsgs = [...messages, sysPrompt]
+  let newMsgs = systemPrompt ? [...messages, sysPrompt] : messages
   if (
     currentPreviewFile &&
     // is user query
