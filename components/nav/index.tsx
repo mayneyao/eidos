@@ -2,6 +2,7 @@ import { Menu } from "lucide-react"
 
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
+import { isWindows } from "@/lib/web/helper"
 import { Button } from "@/components/ui/button"
 
 import { BreadCrumb } from "./breadcrumb"
@@ -11,9 +12,7 @@ import { NavStatus } from "./nav-status"
 export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
-  const fixStyle =
-    navigator.userAgent.toLowerCase().indexOf("windows") > -1 &&
-    navigator.windowControlsOverlay?.visible
+  const fixStyle = isWindows() && navigator.windowControlsOverlay?.visible
 
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen)

@@ -32,6 +32,8 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
+import { isWindows } from "@/lib/web/helper"
+
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -75,6 +77,11 @@ export default function GridView(props: IGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
+
+  const r = containerRef.current?.querySelector(".dvn-scroll-inner")
+  const hasScroll = r && r?.scrollWidth > r?.clientWidth
+
+  const isWin = isWindows()
 
   const { currentView } = useCurrentView({
     space: databaseName,
@@ -146,11 +153,21 @@ export default function GridView(props: IGridProps) {
   const freezeColumns = isSm ? 0 : 1
 
   const config = useMemo(() => {
-    return {
+    let conf = {
       ...defaultConfig,
       freezeColumns,
     }
-  }, [freezeColumns])
+    if (!hasScroll && isWin) {
+      conf = {
+        ...conf,
+        experimental: {
+          ...conf.experimental,
+          paddingBottom: 14,
+        },
+      }
+    }
+    return conf
+  }, [freezeColumns, hasScroll, isWin])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
