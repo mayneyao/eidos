@@ -53,7 +53,7 @@ export const NavStatus = () => {
   return (
     <>
       <AvatarList nameList={nameList} />
-      {enableAICompletionInDoc && (
+      {/* {enableAICompletionInDoc && (
         <div
           className="cursor-pointer p-2"
           title={
@@ -74,10 +74,10 @@ export const NavStatus = () => {
             )}
           />
         </div>
-      )}
+      )} */}
 
       <div
-        className="p-2"
+        className="px-2"
         title={connected ? "API Agent Connected" : "No API Agent Connected"}
       >
         {connected ? (
@@ -95,21 +95,29 @@ export const NavStatus = () => {
           }
         >
           {currentNode?.is_pinned ? (
-            <Button variant="ghost" onClick={() => unpin(currentNode.id)}>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => unpin(currentNode.id)}
+            >
               <PinOffIcon className="h-5 w-5" />
             </Button>
           ) : (
-            <Button variant="ghost" onClick={() => pin(currentNode.id)}>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => pin(currentNode.id)}
+            >
               <PinIcon className="h-5 w-5" />
             </Button>
           )}
         </div>
       )}
       {!isShareMode && <ShareDialog />}
-      <Button variant="ghost" onClick={toggleAi}>
+      <Button size="xs" variant="ghost" onClick={toggleAi}>
         <Bot className="h-5 w-5" />
       </Button>
-      <Button variant="ghost" onClick={toggleExtApp}>
+      <Button size="xs" variant="ghost" onClick={toggleExtApp}>
         <PanelRightIcon className="h-5 w-5" />
       </Button>
     </>

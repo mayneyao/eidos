@@ -2,7 +2,6 @@ import { Menu } from "lucide-react"
 
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
-import { isWindows } from "@/lib/web/helper"
 import { Button } from "@/components/ui/button"
 
 import { BreadCrumb } from "./breadcrumb"
@@ -11,8 +10,6 @@ import { NavStatus } from "./nav-status"
 
 export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
-
-  const fixStyle = isWindows() && navigator.windowControlsOverlay?.visible
 
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen)
@@ -24,7 +21,6 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
       className={cn(
         "flex h-8 w-full border-separate items-center justify-between",
         {
-          "!mt-[5px]": fixStyle,
           fixed: navigator.windowControlsOverlay?.visible,
           // PWA does not support css variables for theme color yet, we just use bg-white text-black for now
           // https://github.com/w3c/manifest/issues/975
@@ -35,7 +31,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
       {showMenu && (
         <Button
           variant="ghost"
-          size="sm"
+          size="xs"
           onClick={toggleSidebar}
           className="hidden md:block"
         >
@@ -47,7 +43,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
         <BreadCrumb />
       </div>
       <div className="h-full grow" id="drag-region" />
-      <div className="flex items-center justify-between self-end">
+      <div className="flex items-center justify-between gap-2 self-end">
         <NavStatus />
         <NavDropdownMenu />
       </div>

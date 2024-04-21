@@ -27,7 +27,7 @@ const MobileSideBar = () => {
   const { isMobileSidebarOpen, setMobileSidebarOpen } = useSpaceAppStore()
   return (
     <Sheet open={isMobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-      <SheetTrigger className="flex md:hidden">
+      <SheetTrigger className="flex items-center md:hidden">
         <Menu className="h-6 w-6" />
       </SheetTrigger>
       <SheetContent size="content" position="left" className="w-[300px]">

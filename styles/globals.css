@@ -17,9 +17,8 @@ html {
 #title-bar {
   margin-left: env(titlebar-area-x, 0);
   margin-top: env(titlebar-area-y, 0);
-  height: env(titlebar-area-height, 40px);
+  height: env(titlebar-area-height, 32px);
   width: env(titlebar-area-width, 100%);
-  z-index: 9999999;
 }
 
 #drag-region {

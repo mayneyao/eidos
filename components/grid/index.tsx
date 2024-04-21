@@ -243,7 +243,9 @@ export default function GridView(props: IGridProps) {
               rows={viewCount}
               rightElement={
                 <Button
+                  size="sm"
                   variant="ghost"
+                  className="w-full rounded-none"
                   onClick={() => {
                     setIsAddFieldEditorOpen(true)
                   }}
@@ -252,8 +254,8 @@ export default function GridView(props: IGridProps) {
                 </Button>
               }
               rightElementProps={{
-                sticky: true,
-                fill: false,
+                // sticky: true,
+                fill: true,
               }}
               onCellEdited={onCellEdited}
               onRowAppended={handleAddRow}

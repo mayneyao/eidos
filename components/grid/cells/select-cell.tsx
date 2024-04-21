@@ -37,7 +37,7 @@ interface SelectCellProps {
 
 export type SelectCell = CustomCell<SelectCellProps>
 
-const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
+export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
   const { value: cell, onFinishedEditing, initialValue } = p
   const { allowedValues, value: valueIn } = cell.data
 

@@ -64,7 +64,7 @@ export function NavDropdownMenu() {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost">
+        <Button size="xs" variant="ghost">
           <MoreHorizontal className="h-5 w-5" />
         </Button>
       </DropdownMenuTrigger>
