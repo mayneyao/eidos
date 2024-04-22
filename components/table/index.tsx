@@ -37,6 +37,7 @@ export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
               tableName={tableName!}
               databaseName={space}
               view={currentView}
+              isEmbed={isEmbed}
             />
           )}
           {currentView?.type === ViewTypeEnum.Gallery && (

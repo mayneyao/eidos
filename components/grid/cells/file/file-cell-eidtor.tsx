@@ -142,7 +142,8 @@ export const Card: FC<CardProps> = ({
         <DropdownMenuTrigger className="click-outside-ignore h-[32px]">
           <MoreHorizontal className="m-1 h-4 w-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="click-outside-ignore">
+        {/* z-index 10000 > gdg editor 9999 */}
+        <DropdownMenuContent className="click-outside-ignore z-[10000]">
           <DropdownMenuItem onClick={() => setCurrentPreviewIndex(index)}>
             Fullscreen
           </DropdownMenuItem>

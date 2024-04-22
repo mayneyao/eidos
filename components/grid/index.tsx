@@ -205,10 +205,17 @@ export default function GridView(props: IGridProps) {
 
   return (
     <div
-      className={cn("mb-2 h-full w-full p-2 pb-7 pt-0", props.className)}
+      className={cn("h-full w-full p-2 pt-0", props.className)}
       ref={containerRef}
     >
-      <div className="flex h-full w-full overflow-hidden rounded-md border-t pb-4">
+      <div
+        className={cn(
+          "flex h-full w-full overflow-hidden rounded-md border-t",
+          {
+            "pb-8": !props.isEmbed,
+          }
+        )}
+      >
         <GridContextMenu
           handleDelRows={handleDelRows}
           getRowByIndex={getRowByIndex}
