@@ -17,62 +17,116 @@ export type SelectProperty = {
 export class SelectField extends BaseField<SelectCell, SelectProperty> {
   static type = FieldType.Select
 
-  static colors = [
-    {
-      name: "default",
-      value: "cccccc",
-    },
-    {
-      name: "gray",
-      value: "eeeeee",
-    },
-    {
-      name: "brown",
-      value: "e6c9a8",
-    },
-    {
-      name: "pink",
-      value: "ffd3e6",
-    },
-    {
-      name: "red",
-      value: "ffadad",
-    },
-    {
-      name: "orange",
-      value: "ffd6a5",
-    },
-    {
-      name: "yellow",
-      value: "fdffb6",
-    },
-    {
-      name: "green",
-      value: "caffbf",
-    },
-    {
-      name: "cyan",
-      value: "9bf6ff",
-    },
-    {
-      name: "blue",
-      value: "a0c4ff",
-    },
-    {
-      name: "purple",
-      value: "bdb2ff",
-    },
-  ]
+  static colors = {
+    light: [
+      {
+        name: "default",
+        value: "cccccc",
+      },
+      {
+        name: "gray",
+        value: "eeeeee",
+      },
+      {
+        name: "brown",
+        value: "e6c9a8",
+      },
+      {
+        name: "pink",
+        value: "ffd3e6",
+      },
+      {
+        name: "red",
+        value: "ffadad",
+      },
+      {
+        name: "orange",
+        value: "ffd6a5",
+      },
+      {
+        name: "yellow",
+        value: "fdffb6",
+      },
+      {
+        name: "green",
+        value: "caffbf",
+      },
+      {
+        name: "cyan",
+        value: "9bf6ff",
+      },
+      {
+        name: "blue",
+        value: "a0c4ff",
+      },
+      {
+        name: "purple",
+        value: "bdb2ff",
+      },
+    ],
+    dark: [
+      {
+        name: "default",
+        value: "333333",
+      },
+      {
+        name: "gray",
+        value: "555555",
+      },
+      {
+        name: "brown",
+        value: "5b4d3d",
+      },
+      {
+        name: "pink",
+        value: "9a3f5e",
+      },
+      {
+        name: "red",
+        value: "a63232",
+      },
+      {
+        name: "orange",
+        value: "ff9f4d",
+      },
+      {
+        name: "yellow",
+        value: "6e6620",
+      },
+      {
+        name: "green",
+        value: "23563b",
+      },
+      {
+        name: "cyan",
+        value: "1c5858",
+      },
+      {
+        name: "blue",
+        value: "3168a8",
+      },
+      {
+        name: "purple",
+        value: "6e33b4",
+      },
+    ],
+  }
 
-  static defaultColor = SelectField.colors[0].name
+  static defaultColor = SelectField.colors.light[0].name
 
-  static colorNameValueMap = SelectField.colors.reduce((acc, color) => {
-    acc[color.name] = color.value
-    return acc
-  }, {} as Record<string, string>)
+  static colorNameValueMap = {
+    light: SelectField.colors.light.reduce((acc, color) => {
+      acc[color.name] = color.value
+      return acc
+    }, {} as Record<string, string>),
+    dark: SelectField.colors.dark.reduce((acc, color) => {
+      acc[color.name] = color.value
+      return acc
+    }, {} as Record<string, string>),
+  }
 
-  static getColorValue(colorName: string) {
-    return `#${SelectField.colorNameValueMap[colorName]}`
+  static getColorValue(colorName: string, theme: "light" | "dark" = "light") {
+    return `#${SelectField.colorNameValueMap[theme][colorName]}`
   }
 
   get compareOperators() {
@@ -142,7 +196,9 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
       return {
         id: name,
         name,
-        color: SelectField.colors[index % SelectField.colors.length].name,
+        color:
+          SelectField.colors.light[index % SelectField.colors.light.length]
+            .name,
       }
     })
   }

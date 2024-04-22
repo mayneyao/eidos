@@ -1,5 +1,5 @@
 import { MsgType } from "@/lib/const"
-import { logger } from "@/lib/log"
+import { EIDOS_VERSION, logger } from "@/lib/log"
 
 import { DataSpace } from "./DataSpace"
 import { initWs } from "./api-agent/ws"
@@ -160,4 +160,5 @@ onmessage = async (e) => {
   }
 }
 
+logger.info(`current version: ${EIDOS_VERSION}`)
 main()

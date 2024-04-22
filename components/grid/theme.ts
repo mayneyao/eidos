@@ -14,7 +14,8 @@ const commonTheme: Partial<Theme> = {
   lineHeight: 1.4, //unitless scaler depends on your font
 }
 
-export const darkTheme: Partial<Theme> = {
+export const darkTheme: Partial<Theme> & { name: string } = {
+  name: "dark",
   accentColor: "hsl(0,0%,100%)",
   accentLight: "hsl(222.2,47.4%,11.2%)",
 
@@ -47,7 +48,8 @@ export const darkTheme: Partial<Theme> = {
   ...commonTheme,
 }
 
-export const lightTheme: Partial<Theme> = {
+export const lightTheme: Partial<Theme> & { name: string } = {
+  name: "light",
   accentColor: "#4F5DFF",
   accentFg: "#FFFFFF",
   accentLight: "rgba(62, 116, 253, 0.1)",

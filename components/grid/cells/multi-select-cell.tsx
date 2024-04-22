@@ -40,12 +40,14 @@ const tagHeight = 20
 const innerPad = 6
 
 const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
-  const { value: cell, initialValue, onChange } = p
+  const { value: cell, initialValue, onChange, theme } = p
   const { allowedValues, values } = cell.data
   const allowedValuesMap = allowedValues.reduce((res, option) => {
     res[option.id] = option
     return res
   }, {} as Record<string, SelectOption>)
+  const themeName = (theme as any).name
+
   const oldOptions = values
     .map((optionId) => allowedValuesMap[optionId])
     .filter(Boolean)
@@ -142,7 +144,10 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
                   key={option.id}
                   className="flex h-6 items-center gap-2 rounded-sm px-2"
                   style={{
-                    background: SelectField.getColorValue(option.color),
+                    background: SelectField.getColorValue(
+                      option.color,
+                      themeName
+                    ),
                   }}
                 >
                   {option.name}
@@ -174,7 +179,10 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
                 <span
                   className="rounded-sm px-2"
                   style={{
-                    background: SelectField.getColorValue(option.color),
+                    background: SelectField.getColorValue(
+                      option.color,
+                      themeName
+                    ),
                   }}
                 >
                   {option.name}
@@ -210,6 +218,7 @@ const renderer: CustomRenderer<MultiSelectCell> = {
     const { ctx, theme, rect } = args
     const { allowedValues, values } = cell.data
 
+    const themeName = (theme as any).name
     const drawArea: Rectangle = {
       x: rect.x + theme.cellHorizontalPadding,
       y: rect.y + theme.cellVerticalPadding,
@@ -229,7 +238,7 @@ const renderer: CustomRenderer<MultiSelectCell> = {
     for (const optionId of values) {
       const option = allowedValues.find((t) => t.id === optionId)
       const colorName = option?.color
-      const color = SelectField.getColorValue(colorName ?? "default")
+      const color = SelectField.getColorValue(colorName ?? "default", themeName)
       const name = option?.name ?? ""
 
       ctx.font = `12px ${theme.fontFamily}`

@@ -19,7 +19,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
     <div
       id="title-bar"
       className={cn(
-        "flex h-8 w-full border-separate items-center justify-between",
+        "flex h-8 w-full border-separate items-center justify-between pl-2",
         {
           fixed: navigator.windowControlsOverlay?.visible,
           // PWA does not support css variables for theme color yet, we just use bg-white text-black for now

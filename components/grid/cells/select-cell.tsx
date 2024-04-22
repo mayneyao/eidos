@@ -38,9 +38,10 @@ interface SelectCellProps {
 export type SelectCell = CustomCell<SelectCellProps>
 
 export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
-  const { value: cell, onFinishedEditing, initialValue } = p
+  const { value: cell, onFinishedEditing, initialValue, theme } = p
   const { allowedValues, value: valueIn } = cell.data
 
+  const themeName = (theme as any).name
   const oldOptionName = allowedValues.find((item) => item.id == valueIn)?.name
   const handleSelect = (value: string) => {
     setValue(value)
@@ -99,7 +100,10 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
                   <span
                     className="rounded-sm px-2"
                     style={{
-                      background: SelectField.getColorValue(option.color),
+                      background: SelectField.getColorValue(
+                        option.color,
+                        themeName
+                      ),
                     }}
                   >
                     {option.name}
@@ -139,8 +143,12 @@ const renderer: CustomRenderer<SelectCell> = {
     if (!value) {
       return true
     }
+    const currentTheme = (theme as any).name
     const colorName = allowedValues.find((t) => t.id === value)?.color
-    const color = SelectField.getColorValue(colorName ?? "default")
+    const color = SelectField.getColorValue(
+      colorName ?? "default",
+      currentTheme
+    )
     const drawArea: Rectangle = {
       x: rect.x + theme.cellHorizontalPadding,
       y: rect.y + theme.cellVerticalPadding,

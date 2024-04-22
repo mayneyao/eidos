@@ -1,13 +1,14 @@
-import { Trash } from "lucide-react"
 import { useState } from "react"
+import { Trash } from "lucide-react"
+import { useTheme } from "next-themes"
 
+import { SelectOption as ISelectOption, SelectField } from "@/lib/fields/select"
 import { Input } from "@/components/ui/input"
 import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from "@/components/ui/popover"
-import { SelectOption as ISelectOption, SelectField } from "@/lib/fields/select"
 
 interface ISelectOptionProps {
   option: ISelectOption
@@ -29,6 +30,7 @@ export const SelectOption = ({
     setOpen(false)
   }
 
+  const { theme } = useTheme()
   const handleColorChange = (e: any) => {
     onColorChange(option.id, e.target.dataset.color)
     e.stopPropagation()
@@ -48,7 +50,10 @@ export const SelectOption = ({
           <div
             className="cursor-pointer rounded-sm px-[6px]"
             style={{
-              background: `#${SelectField.colorNameValueMap[option.color]}`,
+              background: `${SelectField.getColorValue(
+                option.color,
+                theme as any
+              )}`,
             }}
           >
             {option.name}
@@ -70,17 +75,17 @@ export const SelectOption = ({
           />
           <div
             onClick={handleDelete}
-            className="hover:bg-secondary mt-4 flex cursor-pointer items-center gap-3 p-[6px]"
+            className="mt-4 flex cursor-pointer items-center gap-3 p-[6px] hover:bg-secondary"
           >
             <Trash className="h-4 w-4 opacity-60" /> Delete
           </div>
           <div className="flex flex-col">
             <span className="pl-1 opacity-60">colors</span>
-            {SelectField.colors.map((color) => (
+            {SelectField.colors[theme as "light"].map((color) => (
               <div
                 data-color={color.name}
                 onClick={handleColorChange}
-                className="hover:bg-secondary flex cursor-pointer items-center gap-3 p-[6px]"
+                className="flex cursor-pointer items-center gap-3 p-[6px] hover:bg-secondary"
               >
                 <div
                   className="h-3 w-3"
