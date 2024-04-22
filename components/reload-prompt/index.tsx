@@ -26,9 +26,9 @@ export function ReloadPrompt() {
   }
 
   return (
-    <div className="ReloadPrompt-container">
+    <div>
       {(offlineReady || needRefresh) && (
-        <div className="fixed bottom-0 right-0 z-10 m-4 rounded border border-gray-500 bg-white p-3 shadow">
+        <div className="fixed bottom-0 right-0 z-10 m-4 rounded border border-gray-500 bg-primary-foreground p-3 text-black shadow  dark:text-white">
           <div className="mb-2">
             {offlineReady ? (
               <span>App ready to work offline</span>

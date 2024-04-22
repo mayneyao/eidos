@@ -67,6 +67,12 @@ html {
     --token-attr-color: #07a;
     --token-variable-color: #e90;
     --token-function-color: #dd4a68;
+
+    /* --rhm */
+    --rhm-rect: #ebedf0;
+    --rhm-text-color: #24292e;
+    --rhm-rect-hover-stroke: rgba(0, 0, 0, 0.14);
+    --rhm-rect-active: #196127;
   }
 
   .dark {
@@ -109,6 +115,12 @@ html {
     --token-attr-color: #56a8a8;
     --token-variable-color: #e09062;
     --token-function-color: #cb6d90;
+
+    /* --rhm */
+    --rhm-rect: #2d333b;
+    --rhm-text-color: #c9d1d9;
+    --rhm-rect-hover-stroke: rgba(255, 255, 255, 0.14);
+    --rhm-rect-active: #196127;
   }
 }
 

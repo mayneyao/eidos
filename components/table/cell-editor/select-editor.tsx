@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTheme } from "next-themes"
 
 import { SelectField, SelectOption } from "@/lib/fields/select"
 import { cn } from "@/lib/utils"
@@ -28,6 +29,7 @@ export const SelectEditor = ({
 }: ISelectEditorProps) => {
   const [_value, setValue] = useState<string>(value)
 
+  const { theme } = useTheme()
   useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
@@ -51,7 +53,10 @@ export const SelectEditor = ({
           <SelectItem key={option.id} value={option.id}>
             <span
               style={{
-                background: SelectField.getColorValue(option.color),
+                background: SelectField.getColorValue(
+                  option.color,
+                  theme as any
+                ),
               }}
               className="select-none rounded-sm px-2"
             >

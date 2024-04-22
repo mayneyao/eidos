@@ -123,7 +123,7 @@ export const ViewFilterEditor = ({
     )
   if (!_value) {
     return (
-      <div className="flex max-w-[600px] flex-col gap-2 border border-gray-200 p-2">
+      <div className="flex max-w-[600px] flex-col gap-2 border border-gray-200 p-2 dark:border-gray-700">
         <div
           className={cn({
             "sub-group-filter": depth > 0,
@@ -146,7 +146,7 @@ export const ViewFilterEditor = ({
   ) {
     if (depth === 0) {
       return (
-        <div className="flex min-w-[400px] max-w-[900px] flex-col gap-2 border border-gray-200 p-2">
+        <div className="flex min-w-[400px] max-w-[900px] flex-col gap-2 border border-gray-200 p-2 dark:border-gray-700">
           <div
             className={cn("items-start", {
               "sub-group-filter": depth > 0,
@@ -170,7 +170,7 @@ export const ViewFilterEditor = ({
       )
     }
     return (
-      <div className="sub-group-filter flex flex-col gap-2 border border-gray-200">
+      <div className="sub-group-filter flex flex-col gap-2 border border-gray-200 dark:border-gray-700">
         <div className="group-wrapper-root items-start">
           <ViewFilterGroupEditor
             value={_value as IGroupFilterValue}
