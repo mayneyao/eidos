@@ -270,7 +270,7 @@ export function TextFormatFloatingToolbar({
           >
             <Strikethrough className="h-4 w-4" />
           </Toggle>
-          <Toggle
+          {/* <Toggle
             size="sm"
             type="button"
             onClick={() => {
@@ -293,7 +293,7 @@ export function TextFormatFloatingToolbar({
             aria-label="Format Superscript"
           >
             <Superscript className="h-4 w-4" />
-          </Toggle>
+          </Toggle> */}
           <Toggle
             size="sm"
             type="button"
