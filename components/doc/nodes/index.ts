@@ -12,6 +12,7 @@ import { MentionNode } from "./MentionNode"
 // custom node
 import { SQLNode } from "./SQL"
 import { TableOfContentsNode } from "./TableOfContentsNode"
+import { YouTubeNode } from "./YoutubeNode"
 
 export const AllNodes = [
   HorizontalRuleNode,
@@ -30,4 +31,7 @@ export const AllNodes = [
   MentionNode,
   DatabaseTableNode,
   TableOfContentsNode,
+
+  // custom embed node
+  YouTubeNode,
 ]
