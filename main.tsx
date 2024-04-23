@@ -11,7 +11,7 @@ import SpaceLayout from "@/app/[database]/layout"
 import SpaceHomePage from "@/app/[database]/page"
 // extensions
 import RootLayout from "@/app/layout"
-import HomePage from "@/app/page"
+import { LandingPage } from "@/app/page"
 import SettingsAIPage from "@/app/settings/ai/page"
 import SettingsApiPage from "@/app/settings/api/page"
 import SettingsAppearancePage from "@/app/settings/appearance/page"
@@ -41,11 +41,11 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/",
-        element: <HomePage />,
+        element: <LandingPage />,
       },
       {
         path: "offline",
-        element: <HomePage />,
+        element: <LandingPage />,
       },
       // {
       //   path: "extensions",

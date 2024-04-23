@@ -1,8 +1,9 @@
-export const EidosIcon = () => (
+export const EidosIcon = ({ className }: { className?: string }) => (
   <svg
     width="320"
     height="320"
     viewBox="0 0 512 512"
+    className={className ?? ""}
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
   >
