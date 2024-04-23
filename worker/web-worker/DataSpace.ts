@@ -725,6 +725,12 @@ export class DataSpace {
     })
   }
 
+  public async toggleNodeLock(id: string, isLocked: boolean) {
+    return this.tree.set(id, {
+      is_locked: isLocked,
+    })
+  }
+
   public async updateTreeNodeName(id: string, name: string) {
     const node = await this.tree.get(id)
     if (node?.name === name) {

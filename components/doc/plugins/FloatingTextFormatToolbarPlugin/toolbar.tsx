@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react"
 import { TOGGLE_LINK_COMMAND } from "@lexical/link"
 import { mergeRegister } from "@lexical/utils"
 import { useKeyPress } from "ahooks"
@@ -21,15 +22,14 @@ import {
   Superscript,
   Underline,
 } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
 
+import { cn } from "@/lib/utils"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Toggle } from "@/components/ui/toggle"
-import { cn } from "@/lib/utils"
 
 import { getDOMRangeRect } from "../../utils/getDOMRangeRect"
 import { setFloatingElemPosition } from "../../utils/setFloatingElemPosition"
@@ -216,16 +216,16 @@ export function TextFormatFloatingToolbar({
       ref={popupCharStylesEditorRef}
       className="floating-text-format-popup bg-slate-50 dark:bg-slate-700"
     >
-      <div
-        className={cn("mx-2 flex cursor-pointer items-center")}
-        onMouseDownCapture={(e) => {
-          editor.dispatchCommand(INSERT_AI_COMMAND, content)
-        }}
-      >
-        <SparkleIcon className="h-4 w-4" /> AI
-      </div>
       {editor.isEditable() && (
         <>
+          <div
+            className={cn("mx-2 flex cursor-pointer items-center")}
+            onMouseDownCapture={(e) => {
+              editor.dispatchCommand(INSERT_AI_COMMAND, content)
+            }}
+          >
+            <SparkleIcon className="h-4 w-4" /> AI
+          </div>
           <Toggle
             size="sm"
             type="button"

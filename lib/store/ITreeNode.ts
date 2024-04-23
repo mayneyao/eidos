@@ -7,6 +7,7 @@ export interface ITreeNode {
   // is pin to top
   is_pinned?: boolean
   is_full_width?: boolean
+  is_locked?: boolean
   is_deleted?: boolean
   icon?: string
   cover?: string

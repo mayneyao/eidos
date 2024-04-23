@@ -1,15 +1,14 @@
 import {
   Bot,
   Cable,
+  LockIcon,
   PanelRightIcon,
   PinIcon,
   PinOffIcon,
-  SparklesIcon,
   Unplug,
 } from "lucide-react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
 import { useAPIAgent } from "@/hooks/use-api-agent"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useNodeTree } from "@/hooks/use-node-tree"
@@ -75,7 +74,16 @@ export const NavStatus = () => {
           />
         </div>
       )} */}
-
+      {Boolean(currentNode?.is_locked) && (
+        <Button
+          size="xs"
+          variant="ghost"
+          title="this node is locked (read-only)"
+          className=" flex gap-1 opacity-60"
+        >
+          <LockIcon className="h-4 w-4" /> Locked
+        </Button>
+      )}
       <div
         className="px-2"
         title={connected ? "API Agent Connected" : "No API Agent Connected"}
@@ -87,31 +95,33 @@ export const NavStatus = () => {
         )}
       </div>
       {currentNode && (
-        <div
-          title={
-            currentNode?.is_pinned
-              ? "this node is pinned, click to unpin"
-              : "click to pin this node"
-          }
-        >
-          {currentNode?.is_pinned ? (
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => unpin(currentNode.id)}
-            >
-              <PinOffIcon className="h-5 w-5" />
-            </Button>
-          ) : (
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => pin(currentNode.id)}
-            >
-              <PinIcon className="h-5 w-5" />
-            </Button>
-          )}
-        </div>
+        <>
+          <div
+            title={
+              currentNode?.is_pinned
+                ? "this node is pinned, click to unpin"
+                : "click to pin this node"
+            }
+          >
+            {currentNode?.is_pinned ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={() => unpin(currentNode.id)}
+              >
+                <PinOffIcon className="h-5 w-5" />
+              </Button>
+            ) : (
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={() => pin(currentNode.id)}
+              >
+                <PinIcon className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
+        </>
       )}
       {!isShareMode && <ShareDialog />}
       <Button size="xs" variant="ghost" onClick={toggleAi}>

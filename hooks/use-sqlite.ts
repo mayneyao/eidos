@@ -447,6 +447,15 @@ export const useSqlite = (dbName?: string) => {
       is_full_width: !node.is_full_width,
     })
   }
+
+  const toggleNodeLock = async (node: ITreeNode) => {
+    if (!sqlWorker) return
+    sqlWorker.toggleNodeLock(node.id, !node.is_locked)
+    setNode({
+      id: node.id,
+      is_locked: !node.is_locked,
+    })
+  }
   const deleteNode = async (node: ITreeNode) => {
     if (!sqlWorker) return
     sqlWorker.deleteNode(node.id)
@@ -547,6 +556,7 @@ export const useSqlite = (dbName?: string) => {
     deleteNode,
     restoreNode,
     toggleNodeFullWidth,
+    toggleNodeLock,
     permanentlyDeleteNode,
     getOrCreateTableSubDoc,
     updateNodeName,

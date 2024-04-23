@@ -157,6 +157,7 @@ export function Editor(props: EditorProps) {
               {props.docId && (
                 <EidosAutoSavePlugin
                   docId={props.docId}
+                  isEditable={props.isEditable}
                   disableManuallySave={props.disableManuallySave}
                 />
               )}

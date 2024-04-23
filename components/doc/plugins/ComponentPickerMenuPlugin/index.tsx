@@ -204,11 +204,11 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
 
   const options = useMemo(() => {
     const baseOptions = [
-      new ComponentPickerOption("AI Complete", {
-        icon: IconMap["ai"],
-        keywords: ["ai", "auto"],
-        onSelect: () => editor.dispatchCommand(AI_COMPLETE_COMMAND, ""),
-      }),
+      // new ComponentPickerOption("AI Complete", {
+      //   icon: IconMap["ai"],
+      //   keywords: ["ai", "auto"],
+      //   onSelect: () => editor.dispatchCommand(AI_COMPLETE_COMMAND, ""),
+      // }),
       new ComponentPickerOption("Paragraph", {
         icon: IconMap["text"],
         keywords: ["normal", "paragraph", "p", "text"],

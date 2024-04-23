@@ -1,5 +1,4 @@
 import { ReactNode } from "react"
-import { $isAutoLinkNode, $isLinkNode } from "@lexical/link"
 import { TextMatchTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {

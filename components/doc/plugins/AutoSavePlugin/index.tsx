@@ -10,6 +10,7 @@ import { allTransformers } from "../const"
 interface AutoSavePluginProps {
   docId: string
   disableManuallySave?: boolean
+  isEditable?: boolean
 }
 
 export const DefaultState = {
@@ -38,6 +39,10 @@ export function EidosAutoSavePlugin(props: AutoSavePluginProps) {
   const { docId } = props
   const lock = useRef(false)
   const { updateDoc, getDoc } = useSqlite()
+
+  useEffect(() => {
+    editor.setEditable(Boolean(props.isEditable))
+  }, [editor, props.isEditable])
 
   const handleSave = useCallback(async () => {
     if (!editor.isEditable()) return

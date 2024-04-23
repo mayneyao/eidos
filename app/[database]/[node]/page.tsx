@@ -1,12 +1,12 @@
+import { DocProperty } from "@/components/doc-property"
+import { Editor } from "@/components/doc/editor"
+import { Table } from "@/components/table"
+import { Button } from "@/components/ui/button"
 import { useCurrentNode, useNodeMap } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useEmoji } from "@/hooks/use-emoji"
 import { useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { Button } from "@/components/ui/button"
-import { DocProperty } from "@/components/doc-property"
-import { Editor } from "@/components/doc/editor"
-import { Table } from "@/components/table"
 
 import { DefaultColors } from "./image-selector"
 import { NodeCover } from "./node-cover"
@@ -43,7 +43,7 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
       )}
       {node?.type === "doc" && (
         <Editor
-          isEditable
+          isEditable={node.is_locked ? false : true}
           docId={node.id}
           title={node.name}
           showTitle

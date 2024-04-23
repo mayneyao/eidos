@@ -64,6 +64,7 @@ interface IGridProps {
   databaseName: string
   view?: IView<IGridViewProperties>
   isEmbed?: boolean
+  isEditable?: boolean
   className?: string
 }
 

@@ -14,6 +14,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     parent_id TEXT NULL,
     is_pinned BOOLEAN DEFAULT 0,
     is_full_width BOOLEAN DEFAULT 0,
+    is_locked BOOLEAN DEFAULT 0,
     icon TEXT NULL,
     cover TEXT NULL,
     is_deleted BOOLEAN DEFAULT 0,
@@ -22,7 +23,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
   
-  CREATE TRIGGER IF NOT EXISTS ${TreeTableName}_insert_trigger
+  CREATE TEMP TRIGGER IF NOT EXISTS ${TreeTableName}_insert_trigger
   AFTER INSERT ON ${TreeTableName}
   BEGIN
     SELECT eidos_meta_table_event_insert(
@@ -34,6 +35,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
         'parent_id', new.parent_id,
         'is_pinned', new.is_pinned,
         'is_full_width', new.is_full_width,
+        'is_locked', new.is_locked,
         'icon', new.icon,
         'cover', new.cover,
         'is_deleted', new.is_deleted,

@@ -41,7 +41,7 @@ export function NavDropdownMenu() {
   const router = useNavigate()
   const [open, setOpen] = useState(false)
 
-  const { deleteNode, toggleNodeFullWidth } = useSqlite()
+  const { deleteNode, toggleNodeFullWidth, toggleNodeLock } = useSqlite()
   const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
 
   const node = useCurrentNode()
@@ -113,17 +113,30 @@ export function NavDropdownMenu() {
           <>
             <DropdownMenuSeparator />
             {node.type === "doc" && (
-              <DropdownMenuItem
-                className="flex justify-between"
-                onClick={(e) => {
-                  e.preventDefault()
-                  toggleNodeFullWidth(node)
-                }}
-              >
-                Full Width
-                <Switch checked={node.is_full_width} />
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem
+                  className="flex justify-between"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    toggleNodeFullWidth(node)
+                  }}
+                >
+                  Full Width
+                  <Switch checked={node.is_full_width} />
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex justify-between"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    toggleNodeLock(node)
+                  }}
+                >
+                  Lock
+                  <Switch checked={node.is_locked} />
+                </DropdownMenuItem>
+              </>
             )}
+
             <DropdownMenuSeparator />
             {/* node related operate */}
             <NodeExport node={node} />

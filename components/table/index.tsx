@@ -14,9 +14,16 @@ interface ITableProps {
   tableName: string
   viewId?: string
   isEmbed?: boolean
+  isEditable?: boolean
 }
 
-export const Table = ({ tableName, space, viewId, isEmbed }: ITableProps) => {
+export const Table = ({
+  tableName,
+  space,
+  viewId,
+  isEmbed,
+  isEditable,
+}: ITableProps) => {
   const { currentView } = useCurrentView({
     space,
     tableName,
