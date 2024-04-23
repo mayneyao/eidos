@@ -159,12 +159,17 @@ export class LinkFieldService {
       return null
     }
     const rowIds = value?.split(",") || []
-    const sql = `SELECT title FROM ${
+    const sql = `SELECT _id,title FROM ${
       property.linkTableName
     } WHERE _id IN (${rowIds.map(() => "?").join(",")})`
     const bind = [...rowIds]
     const rows = await this.dataSpace.exec2(sql, bind)
-    return rows.map((item) => item.title).join(",")
+    // map id to title, avoid order change
+    const idTitleMap = rows.reduce((acc: Record<string, string>, item: any) => {
+      acc[item._id] = item.title
+      return acc
+    }, {})
+    return rows.map((item) => idTitleMap[item._id]).join(",")
   }
 
   private getLinkCellValue = async (
@@ -175,7 +180,7 @@ export class LinkFieldService {
     const relationTableName = this.getRelationTableName(field)
     const sql = `SELECT * FROM ${relationTableName} WHERE link_field_id = ? AND self IN (${rowIds
       .map(() => "?")
-      .join(",")})`
+      .join(",")}) ORDER BY rowid ASC`
     const bind = [field.table_column_name, ...rowIds]
     const res = this.dataSpace.syncExec2(sql, bind, db)
     // group by self
