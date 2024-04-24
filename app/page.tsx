@@ -153,7 +153,7 @@ export const LandingPage = () => {
           className="w-full bg-gray-100 py-12 dark:bg-gray-800 md:py-24 lg:py-32"
           id="features"
         >
-          <div className="container space-y-12 px-4 md:px-6">
+          <div className="container space-y-12 px-4 xs:px-0 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
                 <div className="inline-block rounded-lg bg-gray-100 px-3 py-1 text-sm dark:bg-gray-800">
