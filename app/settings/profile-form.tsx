@@ -5,6 +5,7 @@ import { ControllerRenderProps, useForm } from "react-hook-form"
 import * as z from "zod"
 
 import { efsManager } from "@/lib/storage/eidos-file-system"
+import { useActivation, useActivationCodeStore } from "@/hooks/use-activation"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +49,7 @@ export function ProfileForm() {
     },
     mode: "onChange",
   })
+  const { clientId } = useActivationCodeStore()
 
   const handleChangeAvatar = async (
     field: ControllerRenderProps<
@@ -122,6 +124,14 @@ export function ProfileForm() {
             )}
           />
         </div>
+        <FormItem className="flex items-center gap-2">
+          <FormLabel className="  whitespace-nowrap">Client ID</FormLabel>
+          <FormControl>
+            <Input disabled value={clientId} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+
         <FormField
           control={form.control}
           name="userId"

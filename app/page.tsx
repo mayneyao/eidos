@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
 import { LockClosedIcon } from "@radix-ui/react-icons"
 import { CloudOffIcon, SparkleIcon, WifiOffIcon } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
-import { useActivationCode } from "@/hooks/use-activation-code"
+import { useActivation } from "@/hooks/use-activation"
 import { useGoto } from "@/hooks/use-goto"
 import { useShareMode } from "@/hooks/use-share-mode"
 import { useSpace } from "@/hooks/use-space"
@@ -16,13 +16,24 @@ import { EidosIcon } from "@/components/icons/eidos"
 import { useLastOpened } from "./[database]/hook"
 
 const Activation = () => {
-  const { active } = useActivationCode()
+  const { active, isActivated } = useActivation()
   const [code, setCode] = useState("")
   const [loading, setLoading] = useState(false)
+  const nav = useNavigate()
   const handleActive = async () => {
     setLoading(true)
     await active(code)
     setLoading(false)
+  }
+  if (isActivated) {
+    return (
+      <div>
+        🎉You have already activated Eidos.
+        <Button size="xs" variant="ghost" onClick={() => nav("/")}>
+          Open App
+        </Button>
+      </div>
+    )
   }
   return (
     <div className="flex w-full flex-col items-center justify-center">
@@ -43,8 +54,9 @@ const Activation = () => {
           Enter
         </Button>
       </div>
+
       <div className="mt-2 p-2 text-sm">
-        Eidos is currently in development. Join{" "}
+        Eidos is currently in development; join our{" "}
         <Link
           to="https://discord.gg/KAeDX8VEpK"
           target="_blank"
@@ -52,7 +64,7 @@ const Activation = () => {
         >
           Discord
         </Link>{" "}
-        to gain early access.
+        server to stay updated on the latest progress
       </div>
     </div>
   )
@@ -60,20 +72,22 @@ const Activation = () => {
 
 export const LandingPage = () => {
   const { spaceList } = useSpace()
+  let [searchParams, setSearchParams] = useSearchParams()
+  const isHome = Boolean(searchParams.get("home"))
   const { lastOpenedDatabase } = useLastOpened()
   const goto = useGoto()
 
-  const { isActivated } = useActivationCode()
+  const { isActivated } = useActivation()
   const { isShareMode } = useShareMode()
 
   useEffect(() => {
-    if (isActivated && lastOpenedDatabase) {
+    if (isActivated && lastOpenedDatabase && !isHome) {
       goto(lastOpenedDatabase)
     }
-  }, [lastOpenedDatabase, goto, isActivated])
+  }, [lastOpenedDatabase, goto, isActivated, isHome])
 
   // activated and it's the first time to open the app
-  if (isActivated && !lastOpenedDatabase) {
+  if (isActivated && !lastOpenedDatabase && !isHome) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
         <div className="w-[200px]">
@@ -135,9 +149,10 @@ export const LandingPage = () => {
               <div className="space-x-4">
                 <Link
                   className="inline-flex h-9 items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-gray-50 shadow transition-colors hover:bg-gray-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:pointer-events-none disabled:opacity-50 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-50/90 dark:focus-visible:ring-gray-300"
-                  to="#join"
+                  target="_blank"
+                  to="https://store.eidos.space/buy/2397216c-4322-40fa-b425-681d455e6702"
                 >
-                  Get Started
+                  Get Early Access
                 </Link>
                 <Link
                   className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:pointer-events-none disabled:opacity-50 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-800 dark:hover:text-gray-50 dark:focus-visible:ring-gray-300"
