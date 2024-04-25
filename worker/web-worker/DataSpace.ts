@@ -271,16 +271,6 @@ export class DataSpace {
     const oldValue = row?.[data.fieldId]
 
     if (oldValue !== data.value) {
-      const tableName = getRawTableNameById(data.tableId)
-      const field = await this.column.getColumn(tableName, data.fieldId)
-      if (field?.type === FieldType.Link) {
-        await tableManager.fields.link.updateLinkRelation(
-          field,
-          data.rowId,
-          data.value,
-          oldValue
-        )
-      }
       return await this.table(data.tableId).rows.update(
         data.rowId,
         {

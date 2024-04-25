@@ -75,24 +75,24 @@ export class MultiSelectField extends BaseField<
    * @param text tag1,tag2
    * return tag1id,tag2id
    */
-  text2RawData(text: string) {
-    // text can be a uuid or a name
-    return text
-      ?.split(/[\s,]+/)
-      .map((value) => {
-        const option = this.options.find((i) => i.id === value)
-        if (option) {
-          return option.id
-        } else {
-          // a new option name is entered, create a new option
-          return
-          const newOption = this.addOption(value)
-          return newOption[0].id
-        }
-      })
-      .filter(Boolean)
-      .join(",")
-  }
+  // text2RawData(text: string) {
+  //   // text can be a uuid or a name
+  //   return text
+  //     ?.split(/[\s,]+/)
+  //     .map((value) => {
+  //       const option = this.options.find((i) => i.id === value)
+  //       if (option) {
+  //         return option.id
+  //       } else {
+  //         // a new option name is entered, create a new option
+  //         return
+  //         const newOption = this.addOption(value)
+  //         return newOption[0].id
+  //       }
+  //     })
+  //     .filter(Boolean)
+  //     .join(",")
+  // }
 
   cellData2RawData(cell: MultiSelectCell) {
     const allowedOptionIds = new Set(this.options.map((i) => i.id))

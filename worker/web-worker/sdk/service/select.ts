@@ -11,6 +11,24 @@ export class SelectFieldService {
     this.dataSpace = this.table.dataSpace
   }
 
+  updateFieldPropertyIfNeed = async (
+    field: IField<SelectProperty>,
+    value: string
+  ) => {
+    const selectFieldInstance = new SelectField(field)
+    const cellValue = selectFieldInstance.getCellContent(value)
+    const { shouldUpdateColumnProperty } =
+      selectFieldInstance.cellData2RawData(cellValue)
+    if (shouldUpdateColumnProperty) {
+      await this.dataSpace.updateColumnProperty({
+        tableColumnName: field.table_column_name,
+        tableName: field.table_name,
+        property: selectFieldInstance.column.property,
+        type: field.type,
+      })
+    }
+  }
+
   updateSelectOptionName = async (
     field: IField<SelectProperty>,
     update: {

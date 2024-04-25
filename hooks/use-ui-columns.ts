@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react"
 
-import { IView } from "@/lib/store/IView"
 import { getTableIdByRawTableName } from "@/lib/utils"
 
 import { IField } from "../lib/store/interface"

@@ -1,6 +1,7 @@
 import { IView } from "lib/store/IView"
 
 import { getFieldInstance } from "@/lib/fields"
+import { FieldType } from "@/lib/fields/const"
 import type { IField } from "@/lib/store/interface"
 import { uuidv4 } from "@/lib/utils"
 
@@ -14,8 +15,10 @@ export class RowsManager {
     fieldRawColumnNameFieldMap: Record<string, IField>
     fieldNameRawColumnNameMap: Record<string, string>
   }
+  tableManager: TableManager
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
+    this.tableManager = table
   }
 
   static getReadableRows(rows: Record<string, any>[], fields: IField[]) {
@@ -317,6 +320,40 @@ export class RowsManager {
     }
   }
 
+  private updateCellSideEffect = async (
+    field: IField<any>,
+    rowId: string,
+    value: any
+  ) => {
+    switch (field?.type) {
+      // if field type is select or multiSelect, we need to update select option
+      case FieldType.Select:
+        await this.tableManager.fields.select.updateFieldPropertyIfNeed(
+          field,
+          value
+        )
+        break
+      case FieldType.MultiSelect:
+        await this.tableManager.fields.multiSelect.updateFieldPropertyIfNeed(
+          field,
+          value
+        )
+        break
+      case FieldType.Link:
+        const row = await this.tableManager.rows.get(rowId, { raw: true })
+        const oldValue = row?.[field.table_column_name]
+        await this.tableManager.fields.link.updateLinkRelation(
+          field,
+          rowId,
+          value,
+          oldValue
+        )
+        break
+      default:
+        break
+    }
+  }
+
   async update(
     id: string,
     data: Record<string, any>,
@@ -341,6 +378,13 @@ export class RowsManager {
     }
 
     const updateData = this.getUpdateData(rawData)
+
+    for (const [key, value] of Object.entries(updateData)) {
+      const field = fieldRawColumnNameFieldMap[key]
+      if (field) {
+        await this.updateCellSideEffect(field, id, value)
+      }
+    }
     const values = Object.values(updateData)
     const sql = `UPDATE ${this.table.rawTableName} SET ${Object.keys(updateData)
       .map((key) => `${key} = ?`)

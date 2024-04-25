@@ -245,23 +245,23 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
    * @param text tag1
    * return tag1id
    */
-  text2RawData(text: string | undefined) {
-    // if text is isUuid
-    if (
-      text?.length === 36 &&
-      text[8] === "-" &&
-      this.options.find((i) => i.id === text)
-    ) {
-      return text
-    }
-    const option = this.options.find((i) => i.name === text)
-    if (option) {
-      return option.id
-    } else {
-      // a new option name is entered, create a new option
-      return ""
-      // const newOption = this.addOption(text)
-      // return newOption[0].id
-    }
-  }
+  // text2RawData(text: string | undefined) {
+  //   // if text is isUuid
+  //   if (
+  //     text?.length === 36 &&
+  //     text[8] === "-" &&
+  //     this.options.find((i) => i.id === text)
+  //   ) {
+  //     return text
+  //   }
+  //   const option = this.options.find((i) => i.name === text)
+  //   if (option) {
+  //     return option.id
+  //   } else {
+  //     // a new option name is entered, create a new option
+  //     return ""
+  //     // const newOption = this.addOption(text)
+  //     // return newOption[0].id
+  //   }
+  // }
 }

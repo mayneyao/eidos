@@ -92,15 +92,15 @@ export const useDataSource = (tableName: string, databaseName: string) => {
           const res = fieldInstance.cellData2RawData(newCell as never)
           // rawData is what we want to save to database
           const rawData = res.rawData
-          const shouldUpdateColumnProperty = (res as any)
-            .shouldUpdateColumnProperty
-          // when field property changed, update field property
-          if (shouldUpdateColumnProperty) {
-            updateFieldProperty(
-              fieldInstance.column,
-              fieldInstance.column.property
-            )
-          }
+          // const shouldUpdateColumnProperty = (res as any)
+          //   .shouldUpdateColumnProperty
+          // // when field property changed, update field property
+          // if (shouldUpdateColumnProperty) {
+          //   updateFieldProperty(
+          //     fieldInstance.column,
+          //     fieldInstance.column.property
+          //   )
+          // }
           console.log("updateCell", { rowId, fieldName, rawData })
           updateCell(rowId, fieldName, rawData)
           let newRowData: any

@@ -1,3 +1,4 @@
+import { MultiSelectField } from "@/lib/fields/multi-select"
 import { SelectProperty } from "@/lib/fields/select"
 import { IField } from "@/lib/store/interface"
 
@@ -8,6 +9,26 @@ export class MultiSelectFieldService {
   dataSpace: DataSpace
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
+  }
+
+  updateFieldPropertyIfNeed = async (
+    field: IField<SelectProperty>,
+    value: string
+  ) => {
+    const selectFieldInstance = new MultiSelectField(field)
+    const cellValue = selectFieldInstance.getCellContent(value)
+
+    const { shouldUpdateColumnProperty } =
+      selectFieldInstance.cellData2RawData(cellValue)
+
+    if (shouldUpdateColumnProperty) {
+      await this.dataSpace.updateColumnProperty({
+        tableColumnName: field.table_column_name,
+        tableName: field.table_name,
+        property: selectFieldInstance.column.property,
+        type: field.type,
+      })
+    }
   }
 
   updateSelectOptionName = async (
