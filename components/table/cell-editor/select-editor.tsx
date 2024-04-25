@@ -34,6 +34,7 @@ export const SelectEditor = ({
   isEditing,
 }: ISelectEditorProps) => {
   const [_value, setValue] = useState<string>(value)
+  const [_options, setOptions] = useState<SelectOption[]>(options)
 
   const [open, setOpen] = useState(false)
   const { theme } = useTheme()
@@ -43,10 +44,13 @@ export const SelectEditor = ({
 
   const handleSelect = (value: string) => {
     setValue(value)
+    if (_options.findIndex((item) => item.name == value) == -1) {
+      setOptions([..._options, { id: value, name: value, color: "default" }])
+    }
     onChange(value)
     setOpen(false)
   }
-  const option = options.find((item) => item.id == _value)
+  const option = _options.find((item) => item.id == _value)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -69,7 +73,7 @@ export const SelectEditor = ({
           <div className="max-h-[400px] overflow-y-scroll">
             <CommandEmpty>Create some options</CommandEmpty>
             <CommandGroup className="h-full">
-              {options.map((option) => (
+              {_options.map((option) => (
                 <CommandItem
                   key={option.id}
                   value={option.name}
@@ -87,7 +91,7 @@ export const SelectEditor = ({
                 </CommandItem>
               ))}
               {Boolean(_value?.length) &&
-                options.findIndex((item) => item.name == _value) == -1 && (
+                _options.findIndex((item) => item.name == _value) == -1 && (
                   <CommandItem
                     autoFocus
                     key={_value}

@@ -173,7 +173,7 @@ export const CellEditor = ({
     <div
       ref={editorRef}
       onClick={() => setIsEditing(true)}
-      className={cn("h-full w-full overflow-hidden", className, {
+      className={cn("flex h-full w-full overflow-hidden", className, {
         "hover:bg-secondary": !_isEditing,
       })}
     >
