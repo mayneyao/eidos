@@ -2,26 +2,23 @@ import "@/styles/globals.css"
 import { useEffect } from "react"
 import { Outlet } from "react-router-dom"
 
-import { useActivation } from "@/hooks/use-activation"
-import { useWorker } from "@/hooks/use-worker"
-import { Toaster } from "@/components/ui/toaster"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { ReloadPrompt } from "@/components/reload-prompt"
 import { ShortCuts } from "@/components/shortcuts"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toaster"
+import { useWorker } from "@/hooks/use-worker"
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
-  const { isActivated } = useActivation()
 
   useEffect(() => {
-    // load worker when app start
-    if (isActivated && !isInitialized) {
+    if (!isInitialized) {
       initWorker()
     }
-  }, [initWorker, isInitialized, isActivated])
+  }, [initWorker, isInitialized])
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
