@@ -67,10 +67,6 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [loading, setLoading] = React.useState(false)
   const { updateSpaceList } = useSpace()
 
-  const handleGoSpaceManagement = () => {
-    router("/space-manage")
-  }
-
   const handleSelect = (currentValue: string) => {
     setLastOpenedDatabase(currentValue)
     setOpen(false)

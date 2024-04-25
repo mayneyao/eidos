@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { LockClosedIcon } from "@radix-ui/react-icons"
+import { useWhyDidYouUpdate } from "ahooks"
 import { CloudOffIcon, SparkleIcon, WifiOffIcon } from "lucide-react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
@@ -79,7 +80,6 @@ export const LandingPage = () => {
   const goto = useGoto()
 
   const { isActivated } = useActivation()
-  const { isShareMode } = useShareMode()
 
   useEffect(() => {
     if (isActivated && lastOpenedDatabase && !isHome) {
@@ -104,8 +104,9 @@ export const LandingPage = () => {
         className={cn(
           "sticky top-0 flex h-14 items-center bg-card px-4  lg:px-6",
           {
-            "!px-2": window.matchMedia("(display-mode: window-controls-overlay)")
-              .matches,
+            "!px-2": window.matchMedia(
+              "(display-mode: window-controls-overlay)"
+            ).matches,
           }
         )}
         id="title-bar"

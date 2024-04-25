@@ -1,3 +1,4 @@
+import { useCallback } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -30,8 +31,8 @@ export const useGoto = () => {
   const { isShareMode } = useAppRuntimeStore()
   const [searchParams] = useSearchParams()
 
-  if (isShareMode) {
-    return (space: string, tableName?: string, rowId?: string) => {
+  const gotoAtShareMode = useCallback(
+    (space: string, tableName?: string, rowId?: string) => {
       let path = `/share/${space}`
       if (tableName) {
         path += `/${tableName}`
@@ -41,16 +42,26 @@ export const useGoto = () => {
       }
       path += `?${searchParams.toString()}`
       router(path)
-    }
+    },
+    [router, searchParams]
+  )
+
+  const goto = useCallback(
+    (space: string, tableName?: string, rowId?: string) => {
+      let path = `/${space}`
+      if (tableName) {
+        path += `/${tableName}`
+      }
+      if (rowId) {
+        path += `?p=${rowId}`
+      }
+      router(path)
+    },
+    [router]
+  )
+
+  if (isShareMode) {
+    return gotoAtShareMode
   }
-  return (space: string, tableName?: string, rowId?: string) => {
-    let path = `/${space}`
-    if (tableName) {
-      path += `/${tableName}`
-    }
-    if (rowId) {
-      path += `?p=${rowId}`
-    }
-    router(path)
-  }
+  return goto
 }
