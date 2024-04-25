@@ -44,6 +44,9 @@ export function useMouseSelection(
     if (selectedKeySet.size > 0) {
       e.preventDefault()
       editor.update(() => {
+        if (!editor.isEditable()) {
+          return
+        }
         selectedKeySet.forEach((key) => {
           const node = $getNodeByKey(key) as LexicalNode
           node?.remove()

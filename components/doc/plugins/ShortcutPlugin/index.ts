@@ -12,6 +12,9 @@ export function ShortcutPlugin() {
     (e) => {
       e.stopPropagation()
       editor.update(() => {
+        if (!editor.isEditable()) {
+          return
+        }
         const selection = $getSelection()
         const nodes = selection?.getNodes()
         if (nodes?.length === 1) {
