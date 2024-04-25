@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { LayoutGridIcon, Table2Icon } from "lucide-react"
+import ReactDOM from "react-dom"
 
 import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { cn } from "@/lib/utils"
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 import { Button } from "../ui/button"
+import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 import { ViewEditor } from "./view-editor"
 
 interface IViewItemProps {
@@ -107,9 +109,11 @@ export const ViewItem = ({
           </DialogHeader>
         </DialogContent>
       </Dialog>
-      {editDialogOpen && (
-        <ViewEditor setEditDialogOpen={setEditDialogOpen} view={view} />
-      )}
+      {editDialogOpen &&
+        ReactDOM.createPortal(
+          <ViewEditor setEditDialogOpen={setEditDialogOpen} view={view} />,
+          document.getElementById(TABLE_CONTENT_ELEMENT_ID)!
+        )}
     </>
   )
 }

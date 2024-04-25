@@ -1,9 +1,12 @@
+import { startTransition, useRef } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useClickAway } from "ahooks"
-import { startTransition, useRef } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
+import { IView, ViewTypeEnum } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
 import {
   Form,
   FormControl,
@@ -13,9 +16,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
-import { Input } from "@/components/ui/input"
-import { IView, ViewTypeEnum } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { useViewOperation } from "./hooks"
@@ -66,7 +66,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
 
   return (
     <div
-      className="absolute right-0 top-[100px] z-10 h-[calc(100vh-100px)] w-[400px] overflow-hidden bg-slate-50  p-2 dark:bg-slate-950"
+      className="absolute right-0 top-0 z-10 h-[calc(100vh-100px)] w-[400px] overflow-hidden bg-white p-3 shadow-lg dark:bg-slate-950"
       ref={ref}
     >
       <Form {...form}>
@@ -142,7 +142,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                   sql query to use for this view.
                 </FormDescription>
                 <FormControl>
-                  <Input {...field} />
+                  <Input {...field} disabled />
                 </FormControl>
                 <FormMessage />
               </FormItem>

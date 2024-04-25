@@ -23,3 +23,5 @@ export const getShowColumns = (
   }
   return sortedUiColumns
 }
+
+export const TABLE_CONTENT_ELEMENT_ID = "table-content-area"

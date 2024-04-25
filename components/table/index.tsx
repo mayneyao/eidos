@@ -6,6 +6,7 @@ import { FieldEditor } from "../grid/fields"
 import { TableContext, useCurrentView } from "./hooks"
 import { ViewToolbar } from "./view-toolbar"
 import GalleryView from "./views/gallery"
+import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 
 // const GalleryView = React.lazy(() => import("./views/gallery"))
 
@@ -38,7 +39,10 @@ export const Table = ({
           space={space}
           isEmbed={Boolean(isEmbed)}
         />
-        <div className="relative h-full w-full overflow-hidden">
+        <div
+          className="relative h-full w-full overflow-hidden"
+          id={TABLE_CONTENT_ELEMENT_ID}
+        >
           {currentView?.type === ViewTypeEnum.Grid && (
             <GridView
               tableName={tableName!}
