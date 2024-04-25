@@ -1,21 +1,18 @@
 import {
   Bot,
-  Cable,
   LockIcon,
   PanelRightIcon,
   PinIcon,
-  PinOffIcon,
-  Unplug,
+  PinOffIcon
 } from "lucide-react"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { AvatarList } from "@/components/avatar-list"
+import { Button } from "@/components/ui/button"
 import { useAPIAgent } from "@/hooks/use-api-agent"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { usePeer } from "@/hooks/use-peer"
-import { Button } from "@/components/ui/button"
-import { AvatarList } from "@/components/avatar-list"
-import { ShareDialog } from "@/components/share-dialog"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { useSpaceAppStore } from "../../app/[database]/store"
 import { useConfigStore } from "../../app/settings/store"
@@ -84,7 +81,7 @@ export const NavStatus = () => {
           <LockIcon className="h-4 w-4" /> Locked
         </Button>
       )}
-      <div
+      {/* <div
         className="px-2"
         title={connected ? "API Agent Connected" : "No API Agent Connected"}
       >
@@ -93,7 +90,7 @@ export const NavStatus = () => {
         ) : (
           <Unplug className="h-5 w-5 text-red-500" />
         )}
-      </div>
+      </div> */}
       {currentNode && (
         <>
           <div
@@ -123,7 +120,7 @@ export const NavStatus = () => {
           </div>
         </>
       )}
-      {!isShareMode && <ShareDialog />}
+      {/* {!isShareMode && <ShareDialog />} */}
       <Button size="xs" variant="ghost" onClick={toggleAi}>
         <Bot className="h-5 w-5" />
       </Button>
