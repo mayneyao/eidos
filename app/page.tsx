@@ -3,6 +3,7 @@ import { LockClosedIcon } from "@radix-ui/react-icons"
 import { CloudOffIcon, SparkleIcon, WifiOffIcon } from "lucide-react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
+import { cn } from "@/lib/utils"
 import { useActivation } from "@/hooks/use-activation"
 import { useGoto } from "@/hooks/use-goto"
 import { useShareMode } from "@/hooks/use-share-mode"
@@ -96,13 +97,24 @@ export const LandingPage = () => {
       </div>
     )
   }
+
   return (
     <div className="h-full w-full">
-      <header className="sticky top-0 flex h-14 items-center bg-card px-4  lg:px-6">
+      <header
+        className={cn(
+          "sticky top-0 flex h-14 items-center bg-card px-4  lg:px-6",
+          {
+            "!px-2": window.matchMedia("(display-mode: window-controls-overlay)")
+              .matches,
+          }
+        )}
+        id="title-bar"
+      >
         <Link className="flex items-center justify-center gap-2" to="#">
           <EidosIcon className="h-8 w-8" />{" "}
           <span className=" text-2xl font-semibold">Eidos</span>
         </Link>
+        <div className="h-full grow" id="drag-region" />
         <nav className="ml-auto flex gap-4 sm:gap-6">
           <Link
             className="text-sm font-medium underline-offset-4 hover:underline"
