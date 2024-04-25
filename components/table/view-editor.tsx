@@ -66,7 +66,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
 
   return (
     <div
-      className="absolute right-0 top-0 z-10 h-[calc(100vh-100px)] w-[400px] overflow-hidden bg-white p-3 shadow-lg dark:bg-slate-950"
+      className="absolute right-0 top-0 z-10 h-full w-[400px] overflow-hidden bg-white p-3 shadow-lg dark:bg-slate-950"
       ref={ref}
     >
       <Form {...form}>

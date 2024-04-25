@@ -1,11 +1,11 @@
+import React from "react"
 import { useClickAway } from "ahooks"
 import { Trash2 } from "lucide-react"
-import React from "react"
 
-import { CommonMenuItem } from "@/components/common-menu-item"
-import { Label } from "@/components/ui/label"
 import { FieldType } from "@/lib/fields/const"
 import { IField } from "@/lib/store/interface"
+import { Label } from "@/components/ui/label"
+import { CommonMenuItem } from "@/components/common-menu-item"
 
 import { useTableAppStore } from "../store"
 import { FieldDelete } from "./field-delete"
@@ -86,7 +86,7 @@ export const FieldPropertyEditor = ({
     PropertyEditorTypeMap[currentField?.type ?? "select"] ?? NotImplementEditor
   return (
     <div
-      className="absolute right-0 top-0 h-full w-[400px] border-l bg-white p-3 dark:bg-slate-950"
+      className="absolute right-0 top-0 h-full w-[400px] border-l bg-white p-3 shadow-lg dark:bg-slate-950"
       ref={ref}
     >
       {currentField && (
