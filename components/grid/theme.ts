@@ -50,7 +50,7 @@ export const darkTheme: Partial<Theme> & { name: string } = {
 
 export const lightTheme: Partial<Theme> & { name: string } = {
   name: "light",
-  accentColor: "#4F5DFF",
+  accentColor: "hsl(0,0%,0%)",
   accentFg: "#FFFFFF",
   accentLight: "rgba(62, 116, 253, 0.1)",
 
