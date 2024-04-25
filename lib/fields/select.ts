@@ -163,10 +163,11 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
   }
 
   cellData2RawData(cell: SelectCell) {
+    if (cell.data.value == null) return { rawData: null }
     if (cell.data.kind !== "select-cell") {
       throw new Error("invalid cell data")
     }
-    if (cell.data.value?.length === 0) {
+    if (cell.data.value.length === 0) {
       return {
         rawData: cell.data.value,
       }

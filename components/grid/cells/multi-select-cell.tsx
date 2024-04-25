@@ -11,6 +11,7 @@ import {
 import { XIcon } from "lucide-react"
 
 import { SelectField, SelectOption } from "@/lib/fields/select"
+import { cn } from "@/lib/utils"
 import {
   Command,
   CommandEmpty,
@@ -26,12 +27,11 @@ import {
 import { SelectOptionItem } from "@/components/table/cell-editor/common"
 
 import { roundedRect } from "./helper"
-import { cn } from "@/lib/utils"
 
 interface MultiSelectCellProps {
   readonly kind: "multi-select-cell"
   //  option id
-  readonly values: readonly string[]
+  readonly values: readonly string[] | null
   readonly readonly?: boolean
   readonly allowedValues: readonly SelectOption[]
 }
@@ -45,15 +45,15 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
   p
 ) => {
   const { value: cell, initialValue, onChange, theme, onFinishedEditing } = p
-  const { allowedValues, values } = cell.data
+  const { allowedValues, values = [] } = cell.data
   const allowedValuesMap = allowedValues.reduce((res, option) => {
     res[option.id] = option
     return res
   }, {} as Record<string, SelectOption>)
   const themeName = (theme as any).name
-  const [oldValues, setOldValues] = React.useState(values)
+  const [oldValues, setOldValues] = React.useState(values ?? [])
 
-  const oldOptions = values
+  const oldOptions = values!
     .map((optionId) => allowedValuesMap[optionId])
     .filter(Boolean)
 
@@ -89,7 +89,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
   const [inputValue, setInputValue] = React.useState("")
   const handleBackspace: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === "Backspace" && !inputValue?.length) {
-      const _values: string[] = Array.from(values)
+      const _values: string[] = Array.from(values!)
       _values.pop()
       setNewValues(_values)
     }
@@ -243,7 +243,7 @@ const renderer: CustomRenderer<MultiSelectCell> = {
     let y =
       drawArea.y +
       (drawArea.height - rows * tagHeight - (rows - 1) * innerPad) / 2
-    for (const optionId of values) {
+    for (const optionId of values!) {
       const option = allowedValues.find((t) => t.id === optionId)
       const colorName = option?.color
       const color = SelectField.getColorValue(colorName ?? "default", themeName)

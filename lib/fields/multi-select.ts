@@ -95,6 +95,7 @@ export class MultiSelectField extends BaseField<
   // }
 
   cellData2RawData(cell: MultiSelectCell) {
+    if (cell.data.values == null) return { rawData: null }
     const allowedOptionIds = new Set(this.options.map((i) => i.id))
     const newValues = []
     let shouldUpdateColumnProperty = false

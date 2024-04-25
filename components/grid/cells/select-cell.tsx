@@ -30,7 +30,7 @@ import { roundedRect } from "./helper"
 
 interface SelectCellProps {
   readonly kind: "select-cell"
-  readonly value: string
+  readonly value: string | null
   readonly allowedValues: readonly SelectOption[]
   readonly readonly?: boolean
 }
