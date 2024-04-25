@@ -23,6 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { roundedRect } from "./helper"
 
@@ -40,13 +41,14 @@ const tagHeight = 20
 const innerPad = 6
 
 const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
-  const { value: cell, initialValue, onChange, theme } = p
+  const { value: cell, initialValue, onChange, theme, onFinishedEditing } = p
   const { allowedValues, values } = cell.data
   const allowedValuesMap = allowedValues.reduce((res, option) => {
     res[option.id] = option
     return res
   }, {} as Record<string, SelectOption>)
   const themeName = (theme as any).name
+  const [oldValues, setOldValues] = React.useState(values)
 
   const oldOptions = values
     .map((optionId) => allowedValuesMap[optionId])
@@ -87,6 +89,12 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
       const _values: string[] = Array.from(values)
       _values.pop()
       setNewValues(_values)
+    }
+    if (e.key === "Escape") {
+      if (JSON.stringify(oldValues) == JSON.stringify(values)) {
+        return
+      }
+      onFinishedEditing(cell)
     }
     if (e.key === "Enter") {
       e.stopPropagation()
@@ -166,44 +174,46 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
               />
             </div>
           </div>
-          <CommandEmpty>Create option</CommandEmpty>
-          <CommandGroup className="border-t">
-            {allowedValues.map((option) => (
-              <CommandItem
-                key={option.id}
-                value={option.name}
-                onSelect={(currentValue) => {
-                  handleSelect(option.id)
-                }}
-              >
-                <span
-                  className="rounded-sm px-2"
-                  style={{
-                    background: SelectField.getColorValue(
-                      option.color,
-                      themeName
-                    ),
-                  }}
-                >
-                  {option.name}
-                </span>
-              </CommandItem>
-            ))}
-            {Boolean(inputValue.length) &&
-              allowedValues.findIndex((item) => item.name == inputValue) ==
-                -1 && (
+          <ScrollArea className="max-h-[400px]">
+            <CommandEmpty>Create option</CommandEmpty>
+            <CommandGroup className="h-full border-t">
+              {allowedValues.map((option) => (
                 <CommandItem
-                  autoFocus
-                  key={inputValue}
-                  value={inputValue}
+                  key={option.id}
+                  value={option.name}
                   onSelect={(currentValue) => {
-                    handleSelect(currentValue)
+                    handleSelect(option.id)
                   }}
                 >
-                  Create {inputValue}
+                  <span
+                    className="rounded-sm px-2"
+                    style={{
+                      background: SelectField.getColorValue(
+                        option.color,
+                        themeName
+                      ),
+                    }}
+                  >
+                    {option.name}
+                  </span>
                 </CommandItem>
-              )}
-          </CommandGroup>
+              ))}
+              {Boolean(inputValue.length) &&
+                allowedValues.findIndex((item) => item.name == inputValue) ==
+                  -1 && (
+                  <CommandItem
+                    autoFocus
+                    key={inputValue}
+                    value={inputValue}
+                    onSelect={(currentValue) => {
+                      handleSelect(currentValue)
+                    }}
+                  >
+                    Create {inputValue}
+                  </CommandItem>
+                )}
+            </CommandGroup>
+          </ScrollArea>
         </Command>
       </PopoverContent>
     </Popover>
