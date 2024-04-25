@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useMemo } from "react"
 import { XIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
@@ -31,18 +31,23 @@ export const MultiSelectEditor = ({
   options,
   isEditing,
 }: IMultiSelectEditorProps) => {
-  const optionsMap = options.reduce((res, option) => {
-    res[option.id] = option
-    return res
-  }, {} as Record<string, SelectOption>)
+  const optionsMap = useMemo(
+    () =>
+      options.reduce((res, option) => {
+        res[option.id] = option
+        return res
+      }, {} as Record<string, SelectOption>),
+    [options]
+  )
+
+  const [oldOptionsMap, setOldOptionsMap] = React.useState(optionsMap)
+
   const { theme } = useTheme()
   const [values, setValues] = React.useState(value ? value.split(",") : [])
 
-  const oldOptions = values
-    .map((optionId) => optionsMap[optionId])
+  const allOptions = values
+    .map((optionId) => oldOptionsMap[optionId])
     .filter(Boolean)
-
-  const [newOptions, setNewOptions] = React.useState<SelectOption[]>([])
 
   const [currentSelect, setCurrentSelect] = React.useState("")
   const setNewValues = (newValues: string[]) => {
@@ -91,20 +96,19 @@ export const MultiSelectEditor = ({
         // is creating new option
         handleSelect(currentSelect)
         setInputValue("")
-        setNewOptions([
-          ...newOptions,
-          { id: currentSelect, name: currentSelect, color: "default" },
-        ])
+        setOldOptionsMap({
+          ...optionsMap,
+          [currentSelect]: {
+            id: currentSelect,
+            name: currentSelect,
+            color: "default",
+          },
+        })
       }
     }
   }
 
   const [open, setOpen] = React.useState(false)
-
-  const allOptions = React.useMemo(
-    () => [...oldOptions, ...newOptions],
-    [oldOptions, newOptions]
-  )
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -112,7 +116,7 @@ export const MultiSelectEditor = ({
         {value ? (
           <div className="flex gap-2">
             {values.map((optionId) => {
-              const option = optionsMap[optionId]
+              const option = oldOptionsMap[optionId]
               if (!option) return null
               return <SelectOptionItem theme={theme} option={option} />
             })}
