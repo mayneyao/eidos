@@ -3,6 +3,7 @@ import { XIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { SelectField, SelectOption } from "@/lib/fields/select"
+import { cn } from "@/lib/utils"
 import {
   Command,
   CommandEmpty,
@@ -162,10 +163,14 @@ export const MultiSelectEditor = ({
               />
             </div>
           </div>
-          <div className="max-h-[400px] overflow-y-scroll">
+          <div
+            className={cn("max-h-[400px]", {
+              "overflow-y-scroll": allOptions.length * 32 > 400,
+            })}
+          >
             <CommandEmpty>Create option</CommandEmpty>
             <CommandGroup className="h-full border-t">
-              {options.map((option) => (
+              {allOptions.map((option) => (
                 <CommandItem
                   key={option.id}
                   value={option.name}
@@ -177,7 +182,7 @@ export const MultiSelectEditor = ({
                 </CommandItem>
               ))}
               {Boolean(inputValue.length) &&
-                options.findIndex((item) => item.name == inputValue) == -1 && (
+                allOptions.findIndex((item) => item.name == inputValue) == -1 && (
                   <CommandItem
                     autoFocus
                     key={inputValue}

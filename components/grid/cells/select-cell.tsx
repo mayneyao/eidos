@@ -1,3 +1,4 @@
+import * as React from "react"
 import {
   CustomCell,
   CustomRenderer,
@@ -8,9 +9,9 @@ import {
   measureTextCached,
 } from "@glideapps/glide-data-grid"
 import { Check } from "lucide-react"
-import * as React from "react"
 
-import { SelectOptionItem } from "@/components/table/cell-editor/common"
+import { SelectField, SelectOption } from "@/lib/fields/select"
+import { cn } from "@/lib/utils"
 import {
   Command,
   CommandEmpty,
@@ -23,8 +24,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { SelectField, SelectOption } from "@/lib/fields/select"
-import { cn } from "@/lib/utils"
+import { SelectOptionItem } from "@/components/table/cell-editor/common"
 
 import { roundedRect } from "./helper"
 
@@ -78,7 +78,11 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
             // value={value}
             onValueChange={setValue}
           />
-          <div className="max-h-[400px] overflow-y-scroll">
+          <div
+            className={cn("max-h-[400px]", {
+              "overflow-y-scroll": allowedValues.length * 32 > 400,
+            })}
+          >
             <CommandEmpty>Create some options</CommandEmpty>
             <CommandGroup className="h-full">
               {allowedValues.map((option) => (

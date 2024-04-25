@@ -70,7 +70,12 @@ export const SelectEditor = ({
             // value={value}
             onValueChange={setValue}
           />
-          <div className="max-h-[400px] overflow-y-scroll">
+          <div
+            className={cn("max-h-[400px]", {
+              "overflow-y-scroll": _options.length * 32 > 400,
+            })}
+          >
+            {" "}
             <CommandEmpty>Create some options</CommandEmpty>
             <CommandGroup className="h-full">
               {_options.map((option) => (

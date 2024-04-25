@@ -26,6 +26,7 @@ import {
 import { SelectOptionItem } from "@/components/table/cell-editor/common"
 
 import { roundedRect } from "./helper"
+import { cn } from "@/lib/utils"
 
 interface MultiSelectCellProps {
   readonly kind: "multi-select-cell"
@@ -176,7 +177,12 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
               />
             </div>
           </div>
-          <div className="max-h-[400px] overflow-y-scroll">
+          <div
+            className={cn("max-h-[400px]", {
+              "overflow-y-scroll": allowedValues.length * 32 > 400,
+            })}
+          >
+            {" "}
             <CommandEmpty>Create option</CommandEmpty>
             <CommandGroup className="h-full border-t">
               {allowedValues.map((option) => (

@@ -166,7 +166,7 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
     if (cell.data.kind !== "select-cell") {
       throw new Error("invalid cell data")
     }
-    if (cell.data.value.length === 0) {
+    if (cell.data.value?.length === 0) {
       return {
         rawData: cell.data.value,
       }
