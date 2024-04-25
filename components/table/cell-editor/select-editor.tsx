@@ -1,18 +1,24 @@
 import { useState } from "react"
+import { Check } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import { SelectField, SelectOption } from "@/lib/fields/select"
+import { SelectOption } from "@/lib/fields/select"
 import { cn } from "@/lib/utils"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 import useChangeEffect from "../hooks/use-change-effect"
-import { EmptyValue } from "./common"
+import { EmptyValue, SelectOptionItem } from "./common"
 
 interface ISelectEditorProps {
   value: string
@@ -29,42 +35,74 @@ export const SelectEditor = ({
 }: ISelectEditorProps) => {
   const [_value, setValue] = useState<string>(value)
 
+  const [open, setOpen] = useState(false)
   const { theme } = useTheme()
   useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 
+  const handleSelect = (value: string) => {
+    setValue(value)
+    onChange(value)
+    setOpen(false)
+  }
+  const option = options.find((item) => item.id == _value)
+
   return (
-    <Select value={_value} onValueChange={setValue}>
-      <SelectTrigger
-        hideSelectIcon
-        className={cn("w-[180px] focus:ring-0 focus:ring-offset-0", {
-          "border-none pl-0": !isEditing,
-        })}
-      >
-        {_value?.length ? (
-          <SelectValue placeholder={_value} className="box-shadow-none" />
-        ) : (
-          <EmptyValue />
-        )}
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.id} value={option.id}>
-            <span
-              style={{
-                background: SelectField.getColorValue(
-                  option.color,
-                  theme as any
-                ),
-              }}
-              className="select-none rounded-sm px-2"
-            >
-              {option.name}
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger className="w-full">
+        <div className="flex gap-2">
+          {_value && _value.length ? (
+            option && <SelectOptionItem theme={theme} option={option} />
+          ) : (
+            <EmptyValue />
+          )}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="mt-[-42px] w-[300px] p-0" align="start">
+        <Command>
+          <CommandInput
+            placeholder="Search Option..."
+            // value={value}
+            onValueChange={setValue}
+          />
+          <div className="max-h-[400px] overflow-y-scroll">
+            <CommandEmpty>Create some options</CommandEmpty>
+            <CommandGroup className="h-full">
+              {options.map((option) => (
+                <CommandItem
+                  key={option.id}
+                  value={option.name}
+                  onSelect={() => {
+                    handleSelect(option.id === _value ? "" : option.id)
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      _value === option.id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <SelectOptionItem theme={theme} option={option} />
+                </CommandItem>
+              ))}
+              {Boolean(_value?.length) &&
+                options.findIndex((item) => item.name == _value) == -1 && (
+                  <CommandItem
+                    autoFocus
+                    key={_value}
+                    value={_value}
+                    onSelect={(currentValue) => {
+                      handleSelect(currentValue)
+                    }}
+                  >
+                    Create {_value}
+                  </CommandItem>
+                )}
+            </CommandGroup>
+          </div>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }

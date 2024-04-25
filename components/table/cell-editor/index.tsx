@@ -12,6 +12,7 @@ import { FileCell } from "@/components/grid/cells/file/file-cell"
 import { CheckboxEditor } from "./checkbox-editor"
 import { DateEditor } from "./date-editor"
 import { FileEditor } from "./file-editor"
+import { MultiSelectEditor } from "./multi-select-editor"
 import { RatingEditor } from "./rating-editor"
 import { SelectEditor } from "./select-editor"
 import { TextBaseEditor } from "./text-base-editor"
@@ -33,7 +34,7 @@ export const CellEditorMap: Record<
   [FieldType.URL]: TextBaseEditor,
   [FieldType.Number]: TextBaseEditor,
   [FieldType.Select]: SelectEditor as any,
-  [FieldType.MultiSelect]: null,
+  [FieldType.MultiSelect]: MultiSelectEditor as any,
   [FieldType.File]: FileEditor,
   [FieldType.Rating]: RatingEditor,
   [FieldType.Link]: null,
@@ -129,6 +130,15 @@ export const CellEditor = ({
             isEditing={_isEditing}
           />
         )
+      case FieldType.MultiSelect:
+        return (
+          <MultiSelectEditor
+            value={value}
+            onChange={run}
+            options={(field as IField<SelectProperty>).property.options || []}
+            isEditing={_isEditing}
+          />
+        )
       case FieldType.File:
         return (
           <FileEditor value={cell} onChange={onFileCellChange}></FileEditor>
@@ -163,7 +173,7 @@ export const CellEditor = ({
     <div
       ref={editorRef}
       onClick={() => setIsEditing(true)}
-      className={cn("h-full w-full", className, {
+      className={cn("h-full w-full overflow-hidden", className, {
         "hover:bg-secondary": !_isEditing,
       })}
     >

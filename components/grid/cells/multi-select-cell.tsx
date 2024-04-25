@@ -23,7 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { SelectOptionItem } from "@/components/table/cell-editor/common"
 
 import { roundedRect } from "./helper"
 
@@ -40,7 +40,9 @@ export type MultiSelectCell = CustomCell<MultiSelectCellProps>
 const tagHeight = 20
 const innerPad = 6
 
-const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
+export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
+  p
+) => {
   const { value: cell, initialValue, onChange, theme, onFinishedEditing } = p
   const { allowedValues, values } = cell.data
   const allowedValuesMap = allowedValues.reduce((res, option) => {
@@ -150,7 +152,7 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
               {allOptions.map((option) => (
                 <div
                   key={option.id}
-                  className="flex h-6 items-center gap-2 rounded-sm px-2"
+                  className="flex h-6 items-center gap-2  truncate rounded-sm px-2 text-sm"
                   style={{
                     background: SelectField.getColorValue(
                       option.color,
@@ -174,7 +176,7 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
               />
             </div>
           </div>
-          <ScrollArea className="max-h-[400px]">
+          <div className="max-h-[400px] overflow-y-scroll">
             <CommandEmpty>Create option</CommandEmpty>
             <CommandGroup className="h-full border-t">
               {allowedValues.map((option) => (
@@ -185,17 +187,7 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
                     handleSelect(option.id)
                   }}
                 >
-                  <span
-                    className="rounded-sm px-2"
-                    style={{
-                      background: SelectField.getColorValue(
-                        option.color,
-                        themeName
-                      ),
-                    }}
-                  >
-                    {option.name}
-                  </span>
+                  <SelectOptionItem theme={themeName} option={option} />
                 </CommandItem>
               ))}
               {Boolean(inputValue.length) &&
@@ -213,7 +205,7 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (p) => {
                   </CommandItem>
                 )}
             </CommandGroup>
-          </ScrollArea>
+          </div>
         </Command>
       </PopoverContent>
     </Popover>

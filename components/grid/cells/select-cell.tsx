@@ -1,4 +1,3 @@
-import * as React from "react"
 import {
   CustomCell,
   CustomRenderer,
@@ -9,9 +8,9 @@ import {
   measureTextCached,
 } from "@glideapps/glide-data-grid"
 import { Check } from "lucide-react"
+import * as React from "react"
 
-import { SelectField, SelectOption } from "@/lib/fields/select"
-import { cn } from "@/lib/utils"
+import { SelectOptionItem } from "@/components/table/cell-editor/common"
 import {
   Command,
   CommandEmpty,
@@ -24,7 +23,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { SelectField, SelectOption } from "@/lib/fields/select"
+import { cn } from "@/lib/utils"
 
 import { roundedRect } from "./helper"
 
@@ -78,7 +78,7 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
             // value={value}
             onValueChange={setValue}
           />
-          <ScrollArea className="max-h-[400px]">
+          <div className="max-h-[400px] overflow-y-scroll">
             <CommandEmpty>Create some options</CommandEmpty>
             <CommandGroup className="h-full">
               {allowedValues.map((option) => (
@@ -97,17 +97,7 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
                       valueIn === option.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <span
-                    className="rounded-sm px-2"
-                    style={{
-                      background: SelectField.getColorValue(
-                        option.color,
-                        themeName
-                      ),
-                    }}
-                  >
-                    {option.name}
-                  </span>
+                  <SelectOptionItem theme={themeName} option={option} />
                 </CommandItem>
               ))}
               {Boolean(value.length) &&
@@ -124,7 +114,7 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
                   </CommandItem>
                 )}
             </CommandGroup>
-          </ScrollArea>
+          </div>
         </Command>
       </PopoverContent>
     </Popover>
