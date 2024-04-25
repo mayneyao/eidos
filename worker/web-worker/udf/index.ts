@@ -134,6 +134,21 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     },
   }
 
+  const eidos_column_event_update = {
+    name: "eidos_column_event_update",
+    xFunc: function (pCx, table, _new, _old) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.UpdateColumn,
+          table,
+          _new: JSON.parse(_new),
+          _old: JSON.parse(_old),
+        },
+      })
+    },
+  }
+
   const eidos_meta_table_event_insert = {
     name: "eidos_meta_table_event_insert",
     xFunc: function (pCx, table, _new) {
@@ -160,6 +175,7 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
 
     // column
     eidos_column_event_insert,
+    eidos_column_event_update,
     // meta table
     eidos_meta_table_event_insert,
   ]

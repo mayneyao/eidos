@@ -36,6 +36,13 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   BEGIN
       SELECT eidos_column_event_insert(new.table_name, json_object('name', new.name, 'type', new.type, 'table_name', new.table_name, 'table_column_name', new.table_column_name, 'property', new.property));
   END;
+
+  CREATE TRIGGER IF NOT EXISTS column_update_trigger_${ColumnTableName}
+  AFTER UPDATE ON ${ColumnTableName}
+  FOR EACH ROW
+  BEGIN
+      SELECT eidos_column_event_update(new.table_name, json_object('name', new.name, 'type', new.type, 'table_name', new.table_name, 'table_column_name', new.table_column_name, 'property', new.property), json_object('name', old.name, 'type', old.type, 'table_name', old.table_name, 'table_column_name', old.table_column_name, 'property', old.property));
+  END;
 `
   JSONFields: string[] = ["property"]
 

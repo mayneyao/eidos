@@ -277,19 +277,6 @@ export function useAsyncData<TRowType>(
       const { type, payload } = ev.data
       if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
         const { table, _new, _old } = payload
-        if (
-          [
-            DataUpdateSignalType.AddColumn,
-            DataUpdateSignalType.UpdateColumn,
-          ].includes(payload.type)
-        ) {
-          switch (payload.type) {
-            case DataUpdateSignalType.AddColumn:
-            case DataUpdateSignalType.UpdateColumn:
-              updateUiColumns(table)
-              break
-          }
-        }
         if (tableName !== table) return
         switch (payload.type) {
           case DataUpdateSignalType.Insert:

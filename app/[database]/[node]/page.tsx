@@ -1,3 +1,5 @@
+import { useEffect } from "react"
+
 import { DocProperty } from "@/components/doc-property"
 import { Editor } from "@/components/doc/editor"
 import { Table } from "@/components/table"
@@ -7,6 +9,12 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useEmoji } from "@/hooks/use-emoji"
 import { useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { useUiColumns } from "@/hooks/use-ui-columns"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsg,
+  EidosDataEventChannelMsgType,
+} from "@/lib/const"
 
 import { DefaultColors } from "./image-selector"
 import { NodeCover } from "./node-cover"
@@ -16,11 +24,39 @@ import { NodeRestore } from "./node-restore"
 export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
   const params = useCurrentPathInfo()
   const { updateNodeName } = useSqlite(params.database)
-
+  const { tableName } = params
   const nodeMap = useNodeMap()
+  const { updateUiColumns } = useUiColumns(tableName)
 
   const { getEmoji } = useEmoji()
   const { updateIcon, updateCover } = useNode()
+
+  useEffect(() => {
+    const handler = (ev: MessageEvent<EidosDataEventChannelMsg>) => {
+      const { type, payload } = ev.data
+      if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
+        const { table, _new, _old } = payload
+        if (
+          [
+            DataUpdateSignalType.AddColumn,
+            DataUpdateSignalType.UpdateColumn,
+          ].includes(payload.type)
+        ) {
+          switch (payload.type) {
+            case DataUpdateSignalType.AddColumn:
+            case DataUpdateSignalType.UpdateColumn:
+              updateUiColumns(table)
+              break
+          }
+        }
+      }
+    }
+    window.addEventListener("message", handler)
+    return () => {
+      window.removeEventListener("message", handler)
+    }
+  }, [updateUiColumns])
+
   if (!nodeId) {
     return null
   }
