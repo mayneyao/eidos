@@ -25,8 +25,6 @@ import ShareNodePage from "@/app/share/[database]/[table]/page"
 import ShareLayout from "@/app/share/[database]/layout"
 // share
 import SharePage from "@/app/share/page"
-// space-manage
-import SpaceManagePage from "@/app/space-manage/page"
 
 import { ScriptDetailPage } from "./app/[database]/scripts/detail"
 import { ScriptPage } from "./app/[database]/scripts/page"
@@ -84,10 +82,6 @@ const router = createBrowserRouter([
             element: <BackupSettings />,
           },
         ],
-      },
-      {
-        path: "space-manage",
-        element: <SpaceManagePage />,
       },
       {
         path: ":database",

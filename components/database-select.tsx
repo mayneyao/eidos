@@ -1,10 +1,16 @@
 "use client"
 
+import * as React from "react"
 import { kebabCase } from "lodash"
 import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
-import * as React from "react"
 import { useNavigate } from "react-router-dom"
 
+import { spaceFileSystem } from "@/lib/storage/space"
+import { useAppStore } from "@/lib/store/app-store"
+import { cn } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useGoto } from "@/hooks/use-goto"
+import { useSpace } from "@/hooks/use-space"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -29,12 +35,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useGoto } from "@/hooks/use-goto"
-import { useSpace } from "@/hooks/use-space"
-import { spaceFileSystem } from "@/lib/storage/space"
-import { useAppStore } from "@/lib/store/app-store"
-import { cn } from "@/lib/utils"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -148,9 +148,6 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
                     <span>Create New</span>
                   </CommandItem>
                 </DialogTrigger>
-                <CommandItem onSelect={handleGoSpaceManagement}>
-                  <Wrench className="mr-2 h-4 w-4" /> <span>Manage Space</span>
-                </CommandItem>
               </CommandGroup>
             </CommandList>
           </Command>
