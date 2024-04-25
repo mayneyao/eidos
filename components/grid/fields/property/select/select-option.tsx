@@ -46,7 +46,7 @@ export const SelectOption = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div className="flex w-full py-1 hover:bg-gray-100">
+        <div className="flex w-full items-center gap-2 py-1 hover:bg-secondary">
           <div
             className="cursor-pointer rounded-sm px-[6px]"
             style={{
