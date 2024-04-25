@@ -25,7 +25,19 @@ export const rewriteQuery2getSortedRowIds = (query: string) => {
       return map.super().ref(t)
     },
   }))
+  if (!ast.orderBy) {
+    ast.orderBy = [
+      {
+        by: {
+          type: "ref",
+          name: "rowid",
+        },
+        order: "ASC",
+      },
+    ]
+  }
   const modified = mapper.statement(ast) as SelectFromStatement
+
   return toSql.statement(modified)
 }
 

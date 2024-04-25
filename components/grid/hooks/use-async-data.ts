@@ -219,19 +219,10 @@ export function useAsyncData<TRowType>(
     [getRowDataById, onEdited]
   )
 
-  const handleAddRow = useCallback(async () => {
-    setCount(dataRef.current.length + 1)
-    try {
-      const uuid = uuidv4()
-      addAddedRowId(uuid)
-      const rowId = await addRow(uuid)
-      if (rowId) {
-        dataRef.current.push(rowId)
-      }
-    } catch (error) {
-      setCount(dataRef.current.length)
-    }
-  }, [addAddedRowId, addRow, setCount])
+  const getRowIndexById = (id: string) => {
+    const rowIndex = dataRef.current.findIndex((rowId) => rowId === id)
+    return rowIndex
+  }
 
   const handleDelRows = async (
     ranges: { startIndex: number; endIndex: number }[]
@@ -262,14 +253,28 @@ export function useAsyncData<TRowType>(
     gridRef.current?.updateCells(damageList)
   }, [gridRef])
 
+  const handleAddRow = useCallback(async () => {
+    setCount(dataRef.current.length + 1)
+    try {
+      const uuid = uuidv4()
+      addAddedRowId(uuid)
+      const rowId = await addRow(uuid)
+      if (rowId) {
+        dataRef.current.push(rowId)
+        const rows = await getViewSortedRows()
+        const rowIds = rows.map((r) => r._id)
+        dataRef.current = rowIds
+        setCount(dataRef.current.length)
+        return getRowIndexById(rowId)
+      }
+    } catch (error) {
+      setCount(dataRef.current.length)
+    }
+  }, [addAddedRowId, addRow, getViewSortedRows, setCount])
+
   const getRowByIndex = (index: number) => {
     const rowId = dataRef.current[index]
     return getRowDataById(rowId)
-  }
-
-  const getRowIndexById = (id: string) => {
-    const rowIndex = dataRef.current.findIndex((rowId) => rowId === id)
-    return rowIndex
   }
 
   useEffect(() => {
