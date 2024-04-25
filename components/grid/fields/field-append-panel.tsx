@@ -116,7 +116,15 @@ export function FieldAppendPanel({
     PropertyEditorTypeMap[currentField?.type ?? "select"] ?? NotImplementEditor
 
   const handleCreateField = (field: (typeof fieldTypes)[0]) => {
-    const newFieldName = `${field.name}${uiColumns.length + 1}`
+    // generate new field name, use field.name if it is not duplicated. otherwise, append a number
+    let newFieldName = field.name
+    if (uiColumns.some((col) => col.name === newFieldName)) {
+      let i = 1
+      while (uiColumns.some((col) => col.name === `${newFieldName} ${i}`)) {
+        i++
+      }
+      newFieldName = `${newFieldName} ${i}`
+    }
     // link field need to fill more property
     if (field.value === FieldType.Link) {
       setCurrentField({
