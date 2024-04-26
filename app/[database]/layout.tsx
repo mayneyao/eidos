@@ -1,6 +1,5 @@
-"use client"
-
 import { useEffect } from "react"
+import { useTheme } from "next-themes"
 import { Outlet, useNavigate } from "react-router-dom"
 
 import { useActivation } from "@/hooks/use-activation"
@@ -14,6 +13,32 @@ export default function DatabaseLayout() {
 
   const navigate = useNavigate()
   const { isActivated } = useActivation()
+
+  const { theme } = useTheme()
+  useEffect(() => {
+    if (theme === "dark") {
+      const themeMeta = document.querySelector('meta[name="theme-color"]')
+      if (themeMeta) {
+        themeMeta.setAttribute("content", "#000000")
+      } else {
+        const meta = document.createElement("meta")
+        meta.setAttribute("name", "theme-color")
+        meta.setAttribute("content", "#000000")
+        document.head.appendChild(meta)
+      }
+    } else {
+      const themeMeta = document.querySelector('meta[name="theme-color"]')
+      if (themeMeta) {
+        themeMeta.setAttribute("content", "#ffffff")
+      } else {
+        const meta = document.createElement("meta")
+        meta.setAttribute("name", "theme-color")
+        meta.setAttribute("content", "#ffffff")
+        document.head.appendChild(meta)
+      }
+    }
+  }, [theme])
+
   useEffect(() => {
     if (!isActivated) {
       // navigate to home page

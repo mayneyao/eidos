@@ -24,7 +24,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
           fixed: navigator.windowControlsOverlay?.visible,
           // PWA does not support css variables for theme color yet, we just use bg-white text-black for now
           // https://github.com/w3c/manifest/issues/975
-          "bg-white text-black": navigator.windowControlsOverlay?.visible,
+          // "bg-white text-black": navigator.windowControlsOverlay?.visible,
         }
       )}
     >
