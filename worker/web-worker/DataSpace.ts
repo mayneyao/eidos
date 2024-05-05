@@ -23,7 +23,7 @@ import { IView } from "../../lib/store/IView"
 import { DataChangeEventHandler } from "./data-pipeline/DataChangeEventHandler"
 import { DataChangeTrigger } from "./data-pipeline/DataChangeTrigger"
 import { LinkRelationUpdater } from "./data-pipeline/LinkRelationUpdater"
-import { SQLiteUndoRedo } from "./data-pipeline/sql_undo_redo_v2"
+import { SQLiteUndoRedo } from "./data-pipeline/UndoRedo"
 import { DbMigrator } from "./db-migrator/DbMigrator"
 import { CsvImportAndExport } from "./import-and-export/csv"
 import { MarkdownImportAndExport } from "./import-and-export/markdown"
@@ -117,10 +117,10 @@ export class DataSpace {
     if (this.draftDb) {
       const dbMigrator = new DbMigrator(this, this.draftDb)
       dbMigrator.migrate()
-      // after migration, enable opfs SyncAccessHandle Pool for better performance
-      this.sqlite3.installOpfsSAHPoolVfs({}).then((poolUtil) => {
-        console.debug("poolUtil", poolUtil)
-      })
+      // // after migration, enable opfs SyncAccessHandle Pool for better performance
+      // this.sqlite3.installOpfsSAHPoolVfs({}).then((poolUtil) => {
+      //   console.debug("poolUtil", poolUtil)
+      // })
     }
     this.initMetaTable()
     this.initUDF2()
@@ -128,9 +128,6 @@ export class DataSpace {
     // other
     this.undoRedoManager = new SQLiteUndoRedo(this)
     this.activeUndoManager = activeUndoManager
-    if (activeUndoManager) {
-      this.activeAllTablesUndoRedo()
-    }
   }
 
   // close db
@@ -191,6 +188,9 @@ export class DataSpace {
         collist,
         toDeleteColumns
       )
+      if (this.activeUndoManager) {
+        this.activeTablesUndoRedo([tableName])
+      }
     }
   }
   // embedding
@@ -271,13 +271,14 @@ export class DataSpace {
     const oldValue = row?.[data.fieldId]
 
     if (oldValue !== data.value) {
-      return await this.table(data.tableId).rows.update(
+      await this.table(data.tableId).rows.update(
         data.rowId,
         {
           [data.fieldId]: data.value,
         },
         { useFieldId: true }
       )
+      return
     }
   }
 
@@ -318,6 +319,7 @@ export class DataSpace {
         this.syncExec2(sql, bind, db)
       }
     })
+    this.undoRedoManager.event()
   }
 
   // files
@@ -452,7 +454,9 @@ export class DataSpace {
   public async addRow(tableName: string, data: Record<string, any>) {
     const tableId = getTableIdByRawTableName(tableName)
     const tm = new TableManager(tableId, this)
-    return await tm.rows.create(data)
+    const res = await tm.rows.create(data)
+    // this.undoRedoManager.event()
+    return res
   }
 
   // actions
@@ -794,15 +798,11 @@ export class DataSpace {
     this.undoRedoManager.callRedo()
   }
 
-  private async activeAllTablesUndoRedo() {
-    const allTables = await this
-      .sql`SELECT name FROM sqlite_master WHERE type='table';`
-    // [undefined] why?
-    const tables = allTables.map((item) => item[0])?.filter(Boolean)
-    logger.info(tables)
+  private async activeTablesUndoRedo(tables: string[]) {
     if (!tables) {
       return
     }
+    this.undoRedoManager.deactivate()
     this.undoRedoManager.activate(tables)
   }
 

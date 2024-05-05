@@ -1,3 +1,31 @@
+import { del, get, set } from "idb-keyval"
+// can use anything: IndexedDB, Ionic Storage, etc.
+import { StateStorage } from "zustand/middleware"
+
+// Custom storage object
+export const indexedDBStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    // console.log(name, "has been retrieved")
+    return (await get(name)) || null
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    // console.log(name, "with value", value, "has been saved")
+    await set(name, value)
+  },
+  removeItem: async (name: string): Promise<void> => {
+    // console.log(name, "has been deleted")
+    await del(name)
+  },
+}
+
+export const getConfig = async <T = Record<string, any>>(
+  name: string
+): Promise<T> => {
+  const r = await get(name)
+  const store = JSON.parse(r)
+  return store.state
+}
+
 export const DATABASE_NAME = "eidos"
 
 export async function getIndexedDBValue(

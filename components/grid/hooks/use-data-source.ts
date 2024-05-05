@@ -124,7 +124,7 @@ export const useDataSource = (tableName: string, databaseName: string) => {
       updateCell(rowId, fieldName, newCell.data)
       return rowData
     },
-    [showColumns, updateCell, updateFieldProperty]
+    [showColumns, updateCell]
   )
   return {
     toCell,

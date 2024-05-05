@@ -1,5 +1,7 @@
 import { MsgType } from "@/lib/const"
 import { EIDOS_VERSION, logger } from "@/lib/log"
+import { getConfig } from "@/lib/storage/indexeddb"
+import { APIAgentFormValues } from "@/app/settings/api/store"
 
 import { DataSpace } from "./DataSpace"
 import { initWs } from "./api-agent/ws"
@@ -78,11 +80,8 @@ async function loadDatabase(dbName: string) {
   }
 
   // we will create a draft db for table schema migration
-  const draftDb = await sqlite.db({
-    path: `${filename}.draft.db`,
-    flags: "c",
-    name: dbName,
-  })
+
+  const draftDb = await sqlite.draftDb()
 
   const db = await sqlite.db({
     path: filename,
@@ -96,6 +95,18 @@ async function loadDatabase(dbName: string) {
 
 async function main() {
   await sqlite.init()
+  const data = await getConfig<{ apiAgentConfig: APIAgentFormValues }>(
+    "config-api"
+  )
+  const { url, enabled } = data.apiAgentConfig
+  if (!enabled) {
+    ws?.close()
+  } else {
+    setTimeout(() => {
+      ws = initWs(handleFunctionCall, url)
+    }, 1000)
+  }
+
   postMessage("init")
 }
 
@@ -131,17 +142,6 @@ onmessage = async (e) => {
         },
       })
       return
-    case MsgType.SetConfig:
-      sqlite.setConfig(data)
-      const { url, enabled } = data.apiAgentConfig
-      if (!enabled) {
-        ws?.close()
-      } else {
-        setTimeout(() => {
-          ws = initWs(handleFunctionCall, url)
-        }, 1000)
-      }
-      break
     case MsgType.Syscall:
       console.log(e.data)
       ws.send(

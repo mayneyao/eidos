@@ -1,5 +1,4 @@
 import { useKeyPress } from "ahooks"
-import * as d3 from "d3"
 import { useEffect, useState } from "react"
 
 import { useInitWebLLMWorker } from "@/components/ai-chat/webllm/hooks"
@@ -22,7 +21,6 @@ import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv4 } from "@/lib/utils"
 
-import { useConfigStore } from "../settings/store"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
@@ -66,7 +64,6 @@ export const useLastOpened = () => {
 export const useLayoutInit = () => {
   const { space: database, tableName } = useCurrentPathInfo()
   const { setSqliteProxy: setSqlWorker } = useSqliteStore()
-  const { experiment, backupServer, apiAgentConfig } = useConfigStore()
   const { sqlite } = useSqlite(database)
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
@@ -85,19 +82,9 @@ export const useLayoutInit = () => {
 
   useInitWebLLMWorker()
   useSqliteMetaTableSubscribe()
-
-  useEffect(() => {
-    const worker = getWorker()
-    worker.postMessage({
-      type: MsgType.SetConfig,
-      data: {
-        experiment,
-        backupServer,
-        apiAgentConfig,
-      },
-    })
-    ;(window as any).d3 = d3
-  }, [experiment, backupServer, apiAgentConfig])
+  // useEffect(() => {
+  //   getWorker()
+  // }, [])
 
   useEffect(() => {
     if (database && sqlite) {

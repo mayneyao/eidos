@@ -12,6 +12,7 @@ export class DataChangeTrigger {
   constructor() {
     this.triggerMap = new Map()
   }
+
   private getRowJSONObj(collist: any[], type: "new" | "old") {
     let json_object = "json_object("
     for (const col of collist) {
@@ -54,6 +55,7 @@ export class DataChangeTrigger {
     collist: any[],
     toDeleteColumns?: string[]
   ) {
+    console.log("setTrigger", tableName)
     const _collist = collist.filter((col) => {
       if (toDeleteColumns) {
         return !toDeleteColumns.includes(col.name)
@@ -64,11 +66,12 @@ export class DataChangeTrigger {
     const new_json_object = this.getRowJSONObj(_collist, "new")
     const old_json_object = this.getRowJSONObj(_collist, "old")
 
+
+    // UPDATE ${tableName} SET _last_edited_time = CURRENT_TIMESTAMP WHERE _id = NEW._id;
     const updateSql = `CREATE TEMP TRIGGER data_update_trigger_${tableName}
     AFTER UPDATE ON ${tableName}
     FOR EACH ROW
     BEGIN
-        UPDATE ${tableName} SET _last_edited_time = CURRENT_TIMESTAMP WHERE _id = NEW._id;
         SELECT eidos_data_event_update('${tableName}', ${new_json_object}, ${old_json_object});
     END;`
 

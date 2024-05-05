@@ -1,9 +1,6 @@
 import { SQLite3Error } from "@sqlite.org/sqlite-wasm"
 
 import { generateMergeTableWithNewColumnsSql } from "@/lib/sqlite/sql-merge-table-with-new-columns"
-import {
-  EidosFileSystemManager
-} from "@/lib/storage/eidos-file-system"
 
 import { DataSpace } from "../DataSpace"
 
@@ -167,11 +164,12 @@ export class DbMigrator {
   private async cleanDraftDb() {
     // delete draft db
     this.draftDb.db.close()
-    const rootDirHandle = await navigator.storage.getDirectory()
-    new EidosFileSystemManager(rootDirHandle)
-      .deleteEntry(["spaces", this.draftDb.dbName, `db.sqlite3.draft.db`])
-      .then(() => {
-        console.log("delete draft db")
-      })
+    // now we use memory db, so we don't need to delete draft db
+    // const rootDirHandle = await navigator.storage.getDirectory()
+    // new EidosFileSystemManager(rootDirHandle)
+    //   .deleteEntry(["spaces", this.draftDb.dbName, `db.sqlite3.draft.db`])
+    //   .then(() => {
+    //     console.log("delete draft db")
+    //   })
   }
 }

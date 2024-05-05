@@ -220,6 +220,11 @@ export class RowsManager {
     const { _id, _created_by, _created_time, ...restData } = data
     return {
       ...restData,
+      _last_edited_time: new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", " ")
+        .replace("Z", ""),
       _last_edited_by: workerStore.currentCallUserId,
     }
   }
@@ -305,6 +310,7 @@ export class RowsManager {
     const _values = Array(values.length).fill("?").join(",")
     const sql = `INSERT INTO ${this.table.rawTableName} (${keys}) VALUES (${_values})`
     await this.dataSpace.exec2(sql, values)
+    this.dataSpace.undoRedoManager.event()
     return createData
   }
 
@@ -391,6 +397,9 @@ export class RowsManager {
       .join(",")} WHERE _id = ?`
     const bind = [...values, id]
     await this.dataSpace.exec2(sql, bind)
+
+    this.dataSpace.undoRedoManager.event()
+
     return {
       id,
       ...updateData,

@@ -20,6 +20,7 @@ interface UndoRedoState {
 export class SQLiteUndoRedo {
   undo: UndoRedoState
   db: DataSpace
+  triggerNames: string[] = []
   constructor(db: DataSpace) {
     this.db = db
     this.undo = {
@@ -31,6 +32,7 @@ export class SQLiteUndoRedo {
   }
   public activate(tables: string[]): void {
     if (this.undo.active) return
+    this.deactivate()
     this.createTriggers(this.db, tables)
     this.undo.active = true
     this.undo.undostack = []
@@ -41,7 +43,6 @@ export class SQLiteUndoRedo {
 
   public deactivate(): void {
     if (!this.undo.active) return
-
     this._drop_triggers()
     this.undo.undostack = []
     this.undo.redostack = []
@@ -159,7 +160,7 @@ export class SQLiteUndoRedo {
       sql += `,\'||quote(old.${name})||\'`
     }
     sql += `)\');\nEND;\n`
-    logger.info(`Creating triggers for ${tbl}`, sql)
+    logger.debug(`Creating triggers for ${tbl}`, sql)
     return sql
   }
 
@@ -174,22 +175,18 @@ export class SQLiteUndoRedo {
       try {
         const sql = await this._makeTriggersForTbl(db, tbl)
         db.exec(sql)
+        this.triggerNames.push(`_${tbl}_it`)
+        this.triggerNames.push(`_${tbl}_ut`)
+        this.triggerNames.push(`_${tbl}_dt`)
       } catch (error) {
         logger.info(`Error creating triggers for ${tbl}`, error)
       }
     }
   }
   private _drop_triggers(): void {
-    logger.info("not implemented, but should be")
-    // const tables = this.db?.all(
-    //   `SELECT DISTINCT tbl_name FROM sqlite_master WHERE type='trigger' AND name LIKE '_%_%'`
-    // )!;
-
-    // for (const { tbl_name } of tables) {
-    //   this.db.exec(`DROP TRIGGER _${tbl_name}_it`);
-    //   this.db.exec(`DROP TRIGGER _${tbl_name}_ut`);
-    //   this.db.exec(`DROP TRIGGER _${tbl_name}_dt`);
-    // }
+    for (const triggerName of this.triggerNames) {
+      this.db.exec(`DROP TRIGGER IF EXISTS ${triggerName}`)
+    }
   }
 
   private _start_interval(): void {

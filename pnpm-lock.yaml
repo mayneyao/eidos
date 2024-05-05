@@ -194,6 +194,9 @@ importers:
       hnswlib-wasm:
         specifier: ^0.8.2
         version: 0.8.2
+      idb-keyval:
+        specifier: ^6.2.1
+        version: 6.2.1
       immutability-helper:
         specifier: ^3.1.1
         version: 3.1.1
@@ -7989,6 +7992,10 @@ packages:
     engines: {node: '>=0.10.0'}
     dependencies:
       safer-buffer: 2.1.2
+    dev: false
+
+  /idb-keyval@6.2.1:
+    resolution: {integrity: sha512-8Sb3veuYCyrZL+VBt9LJfZjLUPWVvqn8tG28VqYNFCo43KHcKuq+b4EiXGeuaLAQWL2YmyDgMp2aSpH9JHsEQg==}
     dev: false
 
   /idb@7.1.1:

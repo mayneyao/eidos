@@ -1,8 +1,5 @@
-"use client"
-
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import * as z from "zod"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,18 +15,11 @@ import {
   FormMessage,
 } from "@/components/react-hook-form/form"
 
-import { useConfigStore } from "../store"
-
-const apiAgentFormSchema = z.object({
-  url: z.string({
-    description: "The URL of your api agent",
-  }),
-  enabled: z.boolean({
-    description: "Whether to enable api agent",
-  }),
-})
-
-export type APIAgentFormValues = z.infer<typeof apiAgentFormSchema>
+import {
+  APIAgentFormValues,
+  apiAgentFormSchema,
+  useAPIConfigStore,
+} from "./store"
 
 // This can come from your database or API.
 const defaultValues: Partial<APIAgentFormValues> = {
@@ -38,7 +28,7 @@ const defaultValues: Partial<APIAgentFormValues> = {
 }
 
 export function APIAgentForm() {
-  const { apiAgentConfig, setAPIAgentConfig } = useConfigStore()
+  const { apiAgentConfig, setAPIAgentConfig } = useAPIConfigStore()
 
   const form = useForm<APIAgentFormValues>({
     resolver: zodResolver(apiAgentFormSchema),

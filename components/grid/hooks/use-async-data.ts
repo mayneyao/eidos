@@ -230,7 +230,6 @@ export function useAsyncData<TRowType>(
     const _ranges = [...ranges]
     for (const { startIndex, endIndex } of ranges.reverse()) {
       dataRef.current.splice(startIndex, endIndex - startIndex)
-      console.log(startIndex, endIndex - startIndex)
     }
     setCount(dataRef.current.length)
     if (!qs) {
@@ -298,7 +297,6 @@ export function useAsyncData<TRowType>(
               }
             })
             if (addedRowIds.has(_new._id)) {
-              console.log("return")
               clearAddedRowIds()
               refreshCurrentVisible()
               return
@@ -322,12 +320,13 @@ export function useAsyncData<TRowType>(
               })
             break
           case DataUpdateSignalType.Delete:
-            // const rowIndex2 = getRowIndexById(_old._id)
-            // if (rowIndex2 !== -1) {
-            //   dataRef.current.splice(rowIndex2, 1)
-            //   setCount(dataRef.current.length)
-            //   refreshCurrentVisible()
-            // }
+            // more simple way to refresh the data, but cost more
+            getViewSortedRows().then((rows) => {
+              const rowIds = rows.map((r) => r._id)
+              dataRef.current = rowIds
+              setCount(dataRef.current.length)
+              refreshCurrentVisible()
+            })
             break
           default:
             break

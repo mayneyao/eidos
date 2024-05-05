@@ -77,6 +77,7 @@
     "eventemitter3": "^5.0.1",
     "gpt-tokenizer": "^2.1.1",
     "hnswlib-wasm": "^0.8.2",
+    "idb-keyval": "^6.2.1",
     "immutability-helper": "^3.1.1",
     "jszip": "^3.10.1",
     "lexical": "^0.14.5",
