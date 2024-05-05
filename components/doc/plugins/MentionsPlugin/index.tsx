@@ -18,6 +18,7 @@ import { $getSelection, $insertNodes, RangeSelection, TextNode } from "lexical"
 import * as ReactDOM from "react-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
+import { shortenId, uuidv4 } from "@/lib/utils"
 import { useQueryNode } from "@/hooks/use-query-node"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { ItemIcon } from "@/components/sidebar/item-tree"
@@ -253,7 +254,7 @@ export default function NewMentionsPlugin(props: {
   }, [results])
 
   const onSelectOption = useCallback(
-    async (
+    (
       selectedOption: MentionTypeaheadOption,
       nodeToReplace: TextNode | null,
       closeMenu: () => void
@@ -261,7 +262,8 @@ export default function NewMentionsPlugin(props: {
       let nodeId = selectedOption.id
       if (nodeId.startsWith("new-")) {
         const docTitle = nodeId.slice(4)
-        const docId = await createDoc(docTitle, currentDocId)
+        const docId = shortenId(uuidv4())
+        createDoc(docTitle, currentDocId, docId)
         docId && (nodeId = docId)
       }
       editor.update(() => {

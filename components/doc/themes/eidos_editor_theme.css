@@ -488,5 +488,6 @@ ul li.eidos_editor_theme__listItem[role="checkbox"]:before {
   user-select: none;
 }
 .eidos_editor_theme__embedBlockFocus {
-  outline: 2px solid hsl(var(--primary));
+  outline: 1px solid hsl(var(--primary));
+  background-color: hsl(var(--secondary));
 }

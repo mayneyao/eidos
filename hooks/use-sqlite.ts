@@ -291,9 +291,13 @@ export const useSqlite = (dbName?: string) => {
     return tableId
   }
 
-  const createDoc = async (docName: string, parent_id?: string) => {
+  const createDoc = async (
+    docName: string,
+    parent_id?: string,
+    nodeId?: string
+  ) => {
     if (!sqlWorker) return
-    const docId = uuidv4().split("-").join("")
+    const docId = nodeId || uuidv4().split("-").join("")
     const node = await sqlWorker.addTreeNode({
       id: docId,
       name: docName,

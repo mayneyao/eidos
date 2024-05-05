@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from "react"
-import { DecoratorNode, NodeKey } from "lexical"
+import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
+import { DecoratorNode, EditorConfig, LexicalEditor, NodeKey } from "lexical"
 import { useNavigate } from "react-router-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
@@ -8,7 +9,7 @@ import { useQueryNode } from "@/hooks/use-query-node"
 import { ItemIcon } from "@/components/sidebar/item-tree"
 import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
-const MentionComponent = (props: { id: string }) => {
+export const MentionComponent = (props: { id: string }) => {
   const [node, setNode] = useState<ITreeNode | null>(null)
   const { space } = useCurrentPathInfo()
   // TODO: pass from props
@@ -25,7 +26,7 @@ const MentionComponent = (props: { id: string }) => {
   }, [getNode, id])
   return (
     <span
-      className="inline-block cursor-pointer rounded-sm px-1 underline hover:bg-secondary"
+      className=" inline-block cursor-pointer rounded-sm px-1 underline hover:bg-secondary"
       id={id}
       onClick={onClick}
     >
@@ -38,7 +39,7 @@ const MentionComponent = (props: { id: string }) => {
           customTrigger={
             <ItemIcon
               type={node?.type ?? ""}
-              className="mr-1 inline-block h-5 w-5"
+              className="mr-1 inline-block h-4 w-4"
             />
           }
         />
@@ -74,8 +75,21 @@ export class MentionNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  decorate(): ReactNode {
-    return <MentionComponent id={this.__id} />
+  decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
+    const nodeKey = this.getKey()
+    const embedBlockTheme = config.theme.embedBlock || {}
+
+    const className = {
+      base: embedBlockTheme.base || "",
+      focus: embedBlockTheme.focus || "",
+    }
+    return (
+      <div className="inline-block">
+        <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
+          <MentionComponent id={this.__id} />
+        </BlockWithAlignableContents>
+      </div>
+    )
   }
 
   static importJSON(data: any): MentionNode {
