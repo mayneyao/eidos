@@ -24,7 +24,11 @@ const deserializedMsg = (str: string): IMsg => {
   }
 }
 
-export const initWs = (handleFunctionCall: Function, url: string) => {
+export const initWs = (
+  handleFunctionCall: Function,
+  url: string,
+  cb: (_ws: WebSocket) => void
+) => {
   const ws = new WebSocket(url)
   ws.onopen = () => {
     console.log("Connected to server")
@@ -50,6 +54,10 @@ export const initWs = (handleFunctionCall: Function, url: string) => {
       data: null,
       type: MsgType.WebSocketDisconnected,
     })
+    // try to reconnect after 1s
+    setTimeout(() => {
+      initWs(handleFunctionCall, url, cb)
+    }, 1000)
   }
-  return ws
+  cb(ws)
 }

@@ -103,7 +103,9 @@ async function main() {
     ws?.close()
   } else {
     setTimeout(() => {
-      ws = initWs(handleFunctionCall, url)
+      initWs(handleFunctionCall, url, (_ws) => {
+        ws = _ws
+      })
     }, 1000)
   }
 
