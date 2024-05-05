@@ -1,26 +1,24 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import {
   BlocksIcon,
   Database,
   FileBoxIcon,
-  FileCodeIcon,
   Files,
-  PinIcon,
+  PinIcon
 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
-import { useCurrentNode } from "@/hooks/use-current-node"
+import { useExperimentConfigStore } from "@/app/settings/experiment/store"
+import { DatabaseSelect } from "@/components/database-select"
+import { Separator } from "@/components/ui/separator"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { Separator } from "@/components/ui/separator"
-import { DatabaseSelect } from "@/components/database-select"
-import { useConfigStore } from "@/app/settings/store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { BackupStatus } from "./backup"
@@ -32,7 +30,6 @@ import { Trash } from "./trash"
 
 export const SideBar = ({ className }: any) => {
   const { space } = useCurrentPathInfo()
-  const currentNode = useCurrentNode()
   const [loading, setLoading] = useState(true)
   const { updateNodeList } = useSqlite(space)
   const allNodes = useAllNodes()
@@ -47,7 +44,7 @@ export const SideBar = ({ className }: any) => {
 
   const {
     experiment: { enableFileManager },
-  } = useConfigStore()
+  } = useExperimentConfigStore()
 
   return (
     <>

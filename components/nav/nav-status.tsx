@@ -3,19 +3,18 @@ import {
   LockIcon,
   PanelRightIcon,
   PinIcon,
-  PinOffIcon
+  PinOffIcon,
 } from "lucide-react"
 
-import { AvatarList } from "@/components/avatar-list"
-import { Button } from "@/components/ui/button"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useAPIAgent } from "@/hooks/use-api-agent"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { usePeer } from "@/hooks/use-peer"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { Button } from "@/components/ui/button"
+import { AvatarList } from "@/components/avatar-list"
 
 import { useSpaceAppStore } from "../../app/[database]/store"
-import { useConfigStore } from "../../app/settings/store"
 
 export const NavStatus = () => {
   const { isAiOpen, setIsAiOpen, isExtAppOpen, setIsExtAppOpen } =
@@ -33,12 +32,6 @@ export const NavStatus = () => {
   const currentNode = useCurrentNode()
   const { pin, unpin } = useNodeTree()
 
-  const {
-    experiment: { enableAICompletionInDoc },
-  } = useConfigStore()
-  const toggleDocAIComplete = () => {
-    setDisableDocAIComplete(!disableDocAIComplete)
-  }
   const toggleAi = () => {
     setIsAiOpen(!isAiOpen)
   }

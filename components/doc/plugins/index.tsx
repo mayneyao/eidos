@@ -28,9 +28,6 @@ import { TableOfContentsPlugin } from "./TableOfContentsPlugin"
 import { allTransformers } from "./const"
 
 export const AllPlugins = () => {
-  const {
-    experiment: { enableAICompletionInDoc },
-  } = useConfigStore()
   return (
     <>
       <HorizontalRulePlugin />
@@ -40,7 +37,6 @@ export const AllPlugins = () => {
       <HistoryPlugin />
       <HashtagPlugin />
       <ListPlugin />
-      {enableAICompletionInDoc && <AutocompletePlugin />}
       <DatabasePlugin />
       {/* TabIndentationPlugin let you type `Tab` to indent a list item, ListMaxIndentLevelPlugin let you control the max indent level */}
       <TabIndentationPlugin />

@@ -46,3 +46,5 @@ export const Whisper = ({ setText }: IWhisperProps) => {
     </>
   )
 }
+
+export default Whisper

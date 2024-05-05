@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { Suspense, lazy, useState } from "react"
 
 import { FieldType } from "@/lib/fields/const"
 import { FormulaProperty } from "@/lib/fields/formula"
@@ -12,7 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import FormulaEditor from "@/components/formula-editor"
+import { Skeleton } from "@/components/ui/skeleton"
+
+const FormulaEditor = lazy(() => import("@/components/formula-editor"))
 
 interface IFieldPropertyEditorProps {
   uiColumn: IField<FormulaProperty>
@@ -37,11 +39,16 @@ export const FormulaPropertyEditor = (props: IFieldPropertyEditorProps) => {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
-        <FormulaEditor
-          value={input}
-          onChange={setInput}
-          language="javascript"
-        />
+        <Suspense
+          fallback={<Skeleton className="h-[20px] w-[100px] rounded-full" />}
+        >
+          <FormulaEditor
+            value={input}
+            onChange={setInput}
+            language="javascript"
+          />
+        </Suspense>
+
         {/* <Input value={input} onChange={(e) => setInput(e.target.value)} /> */}
         <div className="flex items-center justify-between">
           <Label>Display as</Label>

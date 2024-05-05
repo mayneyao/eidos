@@ -1,11 +1,15 @@
-import * as webllm from "@mlc-ai/web-llm"
 import { useEffect, useRef, useState } from "react"
+import {
+  CreateWebWorkerEngine,
+  prebuiltAppConfig,
+  type EngineInterface,
+  type InitProgressReport,
+} from "@mlc-ai/web-llm"
 import { create } from "zustand"
 
-
 type LoadingState = {
-  progress: webllm.InitProgressReport | undefined
-  setProgress: (progress: webllm.InitProgressReport | undefined) => void
+  progress: InitProgressReport | undefined
+  setProgress: (progress: InitProgressReport | undefined) => void
 }
 
 export const useLoadingStore = create<LoadingState>((set) => ({
@@ -23,7 +27,7 @@ export const useReloadModel = () => {
 }
 
 export const useInitWebLLMWorker = () => {
-  const ref = useRef<webllm.EngineInterface>()
+  const ref = useRef<EngineInterface>()
   const [currentModel, setCurrentModel] = useState<string>("")
   const loadingRef = useRef(false)
   const { progress, setProgress } = useLoadingStore()
@@ -66,7 +70,7 @@ export const useInitWebLLMWorker = () => {
   useEffect(() => {
     async function init() {
       if (ref.current || !currentModel.length) return
-      const appConfig = webllm.prebuiltAppConfig
+      const appConfig = prebuiltAppConfig
       // CHANGE THIS TO SEE EFFECTS OF BOTH, CODE BELOW DO NOT NEED TO CHANGE
       appConfig.useIndexedDBCache = true
       if (appConfig.useIndexedDBCache) {
@@ -74,7 +78,7 @@ export const useInitWebLLMWorker = () => {
       } else {
         console.log("Using Cache API")
       }
-      const engine: webllm.EngineInterface = await webllm.CreateWebWorkerEngine(
+      const engine: EngineInterface = await CreateWebWorkerEngine(
         new Worker(
           new URL("@/worker/web-worker/web-llm/llm.ts", import.meta.url),
           {

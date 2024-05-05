@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -25,12 +25,14 @@ import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
 import { sysPrompts, useSystemPrompt, useUserPrompts } from "./hooks"
 import "./index.css"
+import { Loading } from "../loading"
 import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore, useReloadModel } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
 import { useSpeak } from "./webspeech/hooks"
-import { Whisper } from "./whisper"
+
+const Whisper = lazy(() => import("./whisper"))
 
 const promptKeys = Object.keys(sysPrompts)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
@@ -220,7 +222,10 @@ export default function Chat() {
               <PauseIcon className="h-5 w-5" />
             </Button>
           )}
-          <Whisper setText={setSpeechText} />
+
+          <Suspense fallback={<Loading />}>
+            <Whisper setText={setSpeechText} />
+          </Suspense>
           <Button
             variant="ghost"
             onClick={() => reload()}

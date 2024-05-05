@@ -42,9 +42,6 @@ export function FieldAppendPanel({
   uiColumns: IField[]
 }) {
   const [currentField, setCurrentField] = React.useState<IField>()
-  const {
-    experiment: { enableTableLinkField },
-  } = useConfigStore()
   const { tableName } = useCurrentPathInfo()
   const ref = React.useRef<HTMLDivElement>(null)
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()

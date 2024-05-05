@@ -1,12 +1,8 @@
-"use client"
-
 import { Suspense, lazy } from "react"
 import { Menu } from "lucide-react"
 
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
-// import SplitPane, { Pane } from "react-split-pane"
-
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
@@ -17,7 +13,6 @@ import { SideBar } from "@/components/sidebar"
 
 import { Nav } from "../../components/nav"
 import { ExtensionPage } from "../extensions/page"
-// import { FileManager } from "./files/page"
 import { useLayoutInit } from "./hook"
 import { useSpaceAppStore } from "./store"
 
@@ -27,7 +22,7 @@ const MobileSideBar = () => {
   const { isMobileSidebarOpen, setMobileSidebarOpen } = useSpaceAppStore()
   return (
     <Sheet open={isMobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-      <SheetTrigger className="flex items-center md:hidden">
+      <SheetTrigger className="mx-2 flex items-center md:hidden">
         <Menu className="h-6 w-6" />
       </SheetTrigger>
       <SheetContent size="content" position="left" className="w-[300px]">
@@ -58,8 +53,6 @@ export function DatabaseLayoutBase({
       </div>
     )
   }
-  // when chat is open  2:7:3
-  // when chat is close 2:10
   return (
     <div className={cn("relative  flex h-screen ", className)}>
       {currentPreviewFile && (
@@ -81,7 +74,7 @@ export function DatabaseLayoutBase({
           <SideBar />
         </div>
         <div className={cn("flex h-full w-auto grow flex-col lg:border-l")}>
-          <div className="flex justify-between px-2 md:justify-end">
+          <div className="flex justify-between md:justify-end">
             <MobileSideBar />
             <Nav />
           </div>

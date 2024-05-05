@@ -19,8 +19,8 @@ const config = defineConfig({
       filename: "sw.ts",
       strategies: "injectManifest",
       injectManifest: {
-        // 5MB
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // 7MB
+        maximumFileSizeToCacheInBytes: 7 * 1024 * 1024,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
       },
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],

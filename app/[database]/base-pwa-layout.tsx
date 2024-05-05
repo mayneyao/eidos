@@ -1,23 +1,20 @@
 "use client"
 
-import { Menu } from "lucide-react"
 import { Suspense, lazy } from "react"
+import { Menu } from "lucide-react"
 
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
-// import SplitPane, { Pane } from "react-split-pane"
-
+import { useSqlite } from "@/hooks/use-sqlite"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Loading } from "@/components/loading"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
 import { Nav } from "../../components/nav"
 import { ExtensionPage } from "../extensions/page"
-// import { FileManager } from "./files/page"
 import { useLayoutInit } from "./hook"
 import { useSpaceAppStore } from "./store"
 

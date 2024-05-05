@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { Suspense, lazy, useEffect } from "react"
 import { useTheme } from "next-themes"
 import { Outlet, useNavigate } from "react-router-dom"
 
@@ -7,6 +7,8 @@ import { useWindowControlsOverlayVisible } from "@/hooks/use-window-controls-ove
 
 import { DatabaseLayoutBase } from "./base-layout"
 import { PWALayoutBase } from "./base-pwa-layout"
+
+const WebLLM = lazy(() => import("@/components/ai-chat/webllm"))
 
 export default function DatabaseLayout() {
   const windowControlsOverlayVisible = useWindowControlsOverlayVisible()
@@ -51,12 +53,18 @@ export default function DatabaseLayout() {
   ) {
     return (
       <PWALayoutBase>
+        <Suspense fallback={<div></div>}>
+          <WebLLM />
+        </Suspense>
         <Outlet />
       </PWALayoutBase>
     )
   }
   return (
     <DatabaseLayoutBase>
+      <Suspense fallback={<div></div>}>
+        <WebLLM />
+      </Suspense>
       <Outlet />
     </DatabaseLayoutBase>
   )

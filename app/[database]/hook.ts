@@ -1,15 +1,6 @@
-import { useKeyPress } from "ahooks"
 import { useEffect, useState } from "react"
+import { useKeyPress } from "ahooks"
 
-import { useInitWebLLMWorker } from "@/components/ai-chat/webllm/hooks"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useIndexedDB } from "@/hooks/use-indexed-db"
-import { usePeer } from "@/hooks/use-peer"
-import { useRegisterPeriodicSync } from "@/hooks/use-register-period-sync"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { useSqliteMetaTableSubscribe } from "@/hooks/use-sqlite-meta-table-subscribe"
-import { useWorker } from "@/hooks/use-worker"
-import { useCurrentUser } from "@/hooks/user-current-user"
 import {
   EidosSharedEnvChannelName,
   MainServiceWorkerMsgType,
@@ -20,7 +11,14 @@ import { getWorker } from "@/lib/sqlite/worker"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv4 } from "@/lib/utils"
-
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useIndexedDB } from "@/hooks/use-indexed-db"
+import { usePeer } from "@/hooks/use-peer"
+import { useRegisterPeriodicSync } from "@/hooks/use-register-period-sync"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { useSqliteMetaTableSubscribe } from "@/hooks/use-sqlite-meta-table-subscribe"
+import { useWorker } from "@/hooks/use-worker"
+import { useCurrentUser } from "@/hooks/user-current-user"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
@@ -80,7 +78,6 @@ export const useLayoutInit = () => {
     initPeer()
   }, [initPeer])
 
-  useInitWebLLMWorker()
   useSqliteMetaTableSubscribe()
   // useEffect(() => {
   //   getWorker()
