@@ -18,6 +18,7 @@ export interface BookmarkPayload {
   title?: string
   description?: string
   image?: string
+  fetched?: boolean
   key?: NodeKey
 }
 
@@ -26,6 +27,7 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
   __title?: string
   __description?: string
   __image?: string
+  __fetched?: boolean
 
   isKeyboardSelectable(): boolean {
     return true
@@ -49,6 +51,11 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
     this.__title = title
     this.__description = description
     this.__image = image
+    this.__fetched = false
+  }
+
+  getFetched(): boolean {
+    return Boolean(this.__fetched)
   }
 
   getUrl(): string {
@@ -100,6 +107,7 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
       title: this.__title,
       description: this.__description,
       image: this.__image,
+      fetched: this.__fetched,
       type: "bookmark",
       version: 1,
     }

@@ -1,4 +1,3 @@
-import React, { useCallback, useEffect, useMemo } from "react"
 import { $isListItemNode } from "@lexical/list"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
@@ -10,18 +9,21 @@ import { $insertNodeToNearestRoot, mergeRegister } from "@lexical/utils"
 import {
   $getSelection,
   $isRangeSelection,
+  $nodesOfType,
   COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_NORMAL,
   LexicalCommand,
   PASTE_COMMAND,
   TextNode,
-  createCommand,
+  createCommand
 } from "lexical"
+import React, { useCallback, useEffect, useMemo } from "react"
 import ReactDOM from "react-dom"
 
 import {
   $createBookmarkNode,
   $getUrlMetaData,
+  $isBookmarkNode,
   BookmarkNode,
   BookmarkPayload,
 } from "../../nodes/BookmarkNode"
@@ -208,6 +210,40 @@ export function BookmarkPlugin({
     )
   }, [captionsEnabled, editor])
 
+  const updateBookmarkInfo = useCallback(async () => {
+    editor.update(() => {
+      const nodes = $nodesOfType(BookmarkNode)
+      const needFetchNodes = nodes.filter((node) => {
+        if ($isBookmarkNode(node)) {
+          return !node.getFetched()
+        }
+        return false
+      })
+      if (!needFetchNodes.length) return
+      const data = Promise.all(
+        needFetchNodes.map((node) => {
+          return $getUrlMetaData(node.getUrl())
+        })
+      )
+      data.then((res) => {
+        editor.update(() => {
+          res.forEach((item, index) => {
+            const node = needFetchNodes[index]
+            if (item.error) {
+              node.setAll({
+                title: node.getUrl(),
+                url: node.getUrl(),
+                fetched: true,
+              })
+            } else {
+              node.setAll(item)
+            }
+          })
+        })
+      })
+    })
+  }, [editor])
+
   const handleSelectOption = useCallback(
     (
       option: LinkOptTypeaheadOption,
@@ -217,12 +253,19 @@ export function BookmarkPlugin({
     ) => {
       if (option.id === "bookmark") {
         if (textNode) {
-          $getUrlMetaData(textNode.getTextContent()).then((metaData) => {
-            editor.update(() => {
-              textNode.remove()
-              editor.dispatchCommand(INSERT_BOOKMARK_COMMAND, metaData)
+          const url = textNode.getTextContent()
+          editor.update(() => {
+            textNode.remove()
+            editor.dispatchCommand(INSERT_BOOKMARK_COMMAND, {
+              url,
+              title: url,
+              fetched: false,
             })
           })
+
+          setTimeout(() => {
+            updateBookmarkInfo()
+          }, 1000)
         }
       }
       if (option.id === "youtube") {
@@ -235,7 +278,7 @@ export function BookmarkPlugin({
       setIsPaste(false)
       closeMenu()
     },
-    [editor, link]
+    [editor, link, updateBookmarkInfo]
   )
 
   return (
