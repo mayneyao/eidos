@@ -1,9 +1,11 @@
 import {
   Bot,
+  Cable,
   LockIcon,
   PanelRightIcon,
   PinIcon,
   PinOffIcon,
+  Unplug,
 } from "lucide-react"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -74,7 +76,7 @@ export const NavStatus = () => {
           <LockIcon className="h-4 w-4" /> Locked
         </Button>
       )}
-      {/* <div
+      <div
         className="px-2"
         title={connected ? "API Agent Connected" : "No API Agent Connected"}
       >
@@ -83,7 +85,7 @@ export const NavStatus = () => {
         ) : (
           <Unplug className="h-5 w-5 text-red-500" />
         )}
-      </div> */}
+      </div>
       {currentNode && (
         <>
           <div
