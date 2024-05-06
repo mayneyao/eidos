@@ -69,8 +69,8 @@ importers:
         specifier: ^0.14.5
         version: 0.14.5
       '@mlc-ai/web-llm':
-        specifier: ^0.2.33
-        version: 0.2.33
+        specifier: ^0.2.35
+        version: 0.2.35
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.6.0(monaco-editor@0.44.0)(react-dom@18.2.0)(react@18.2.0)
@@ -3373,8 +3373,8 @@ packages:
     dev: false
     optional: true
 
-  /@mlc-ai/web-llm@0.2.33:
-    resolution: {integrity: sha512-3sWAoP8xXN0xgTgTTJks7eIGRN3SZfHK0iKptdYMIrVELbcIwVA7lID/w/BqSo1K1Ia+zZu7nGRJNy9gRZwMpg==}
+  /@mlc-ai/web-llm@0.2.35:
+    resolution: {integrity: sha512-ud56bL4A1jluQSP24TPAMvda08AN89WC7NlpjIqCcYWw3xd4wDYmgJ9RnusqFYE8hLF+jrEYG3yUvAbWDHgfoQ==}
     dev: false
 
   /@monaco-editor/loader@1.4.0(monaco-editor@0.44.0):
