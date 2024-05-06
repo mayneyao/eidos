@@ -7,6 +7,9 @@ import {
 } from "@mlc-ai/web-llm"
 import { create } from "zustand"
 
+import { getLocalModelList } from "@/lib/ai/helper"
+import { useConfigStore } from "@/app/settings/store"
+
 type LoadingState = {
   progress: InitProgressReport | undefined
   setProgress: (progress: InitProgressReport | undefined) => void
@@ -67,12 +70,15 @@ export const useInitWebLLMWorker = () => {
     })
   }, [currentModel])
 
+  const { aiConfig } = useConfigStore()
+  const localModels = aiConfig.localModels
+
   useEffect(() => {
     async function init() {
       if (ref.current || !currentModel.length) return
       const appConfig = prebuiltAppConfig
       // CHANGE THIS TO SEE EFFECTS OF BOTH, CODE BELOW DO NOT NEED TO CHANGE
-      appConfig.useIndexedDBCache = true
+      // appConfig.useIndexedDBCache = true
       if (appConfig.useIndexedDBCache) {
         console.log("Using IndexedDB Cache")
       } else {
@@ -89,6 +95,10 @@ export const useInitWebLLMWorker = () => {
         {
           initProgressCallback: (report) => {
             setProgress(report)
+          },
+          appConfig: {
+            model_list: getLocalModelList(localModels),
+            useIndexedDBCache: appConfig.useIndexedDBCache,
           },
         }
       )
@@ -112,7 +122,7 @@ export const useInitWebLLMWorker = () => {
         ref.current.unload()
       }
     }
-  }, [currentModel, setProgress])
+  }, [currentModel, localModels, setProgress])
 
   return {
     currentModel,

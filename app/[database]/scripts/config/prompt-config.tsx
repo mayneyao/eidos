@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { AIModelSelect } from "@/components/ai-chat/ai-chat-model-select"
+import { useConfigStore } from "@/app/settings/store"
 
 import { useScript } from "../hooks/use-script"
 
@@ -19,6 +20,7 @@ export const PromptConfig = () => {
   const revalidator = useRevalidator()
   const { toast } = useToast()
 
+  const { aiConfig } = useConfigStore()
   const handleSave = async (model: string) => {
     await updateScript({
       ...script,
@@ -41,6 +43,7 @@ export const PromptConfig = () => {
           <AIModelSelect
             value={script.model ?? ""}
             onValueChange={handleSave}
+            localModels={aiConfig.localModels}
           />
         </div>
       </CardContent>

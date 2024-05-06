@@ -1,6 +1,3 @@
-"use client"
-
-import { lazy } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -29,6 +26,7 @@ import {
 
 import { useConfigStore } from "../store"
 import { AutoRunScopesWithDesc } from "./const"
+import { LocalLLMManage } from "./local-llm-manage"
 
 const AIConfigFormSchema = z.object({
   // openai
@@ -57,6 +55,7 @@ const AIConfigFormSchema = z.object({
     .default("llama2-70b-4096, mixtral-8x7b-32768"),
 
   autoRunScope: z.array(z.string()),
+  localModels: z.array(z.string()),
 })
 
 export type AIConfigFormValues = z.infer<typeof AIConfigFormSchema>
@@ -68,6 +67,7 @@ const defaultValues: Partial<AIConfigFormValues> = {
   // name: "Your name",
   // dob: new Date("2023-01-23"),
   autoRunScope: [],
+  localModels: [],
 }
 
 export function AIConfigForm() {
@@ -87,10 +87,19 @@ export function AIConfigForm() {
       title: "AI Config updated.",
     })
   }
+  function updateModels(models: string[]) {
+    form.setValue("localModels", models)
+    form.trigger("localModels")
+    onSubmit(form.getValues())
+  }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <LocalLLMManage
+          models={form.getValues("localModels")}
+          setModels={updateModels}
+        />
         <Card>
           <CardHeader>
             <CardTitle>Provider</CardTitle>
@@ -276,7 +285,6 @@ export function AIConfigForm() {
             </Tabs>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader>
             <CardTitle>Permission</CardTitle>

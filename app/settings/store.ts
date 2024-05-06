@@ -1,9 +1,9 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+import { uuidv4 } from "@/lib/utils"
 import { AIConfigFormValues } from "@/app/settings/ai/ai-form"
 import { BackupServerFormValues } from "@/app/settings/backup/page"
-import { uuidv4 } from "@/lib/utils"
 
 import { ProfileFormValues } from "./profile-form"
 
@@ -33,6 +33,7 @@ export const useConfigStore = create<ConfigState>()(
         GROQ_API_KEY: "",
         GROQ_MODELS: "llama2-70b-4096, mixtral-8x7b-32768",
         autoRunScope: [],
+        localModels: [],
       },
       profile: {
         username: "",

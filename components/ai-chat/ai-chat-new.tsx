@@ -175,7 +175,11 @@ export default function Chat() {
               })}
             </SelectContent>
           </Select>
-          <AIModelSelect onValueChange={setAIModel as any} value={aiModel} />
+          <AIModelSelect
+            onValueChange={setAIModel as any}
+            value={aiModel}
+            localModels={aiConfig.localModels}
+          />
           <AIChatSettings />
         </div>
         {!aiConfig.token && (

@@ -1,9 +1,9 @@
 "use client"
 
-import { Check, ChevronsUpDown } from "lucide-react"
 import * as React from "react"
+import { Check, ChevronsUpDown } from "lucide-react"
 
-import { useConfigStore } from "@/app/settings/store"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -17,12 +17,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
+import { useConfigStore } from "@/app/settings/store"
 
 import { ScrollArea } from "../ui/scroll-area"
 import { WEB_LLM_MODELS } from "./webllm/models"
 
-const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
+const allLocalModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
 const useModels = () => {
   const { aiConfig } = useConfigStore()
@@ -48,14 +48,28 @@ const useModels = () => {
 export function AIModelSelect({
   value,
   onValueChange: setValue,
+  onlyLocal,
+  className,
+  excludeLocalModels,
+  localModels,
 }: {
   onValueChange: (value: string) => void
   value: string
+  onlyLocal?: boolean
+  className?: string
+  excludeLocalModels?: string[]
+  localModels?: string[]
 }) {
   const [open, setOpen] = React.useState(false)
   const { models } = useModels()
 
-  const allModels = [...models, ...localModels]
+  const _allLocalModels = localModels || allLocalModels || []
+
+  const allModels = onlyLocal ? _allLocalModels : [...models, ...allLocalModels]
+
+  const _localModels = excludeLocalModels
+    ? _allLocalModels.filter((model) => !excludeLocalModels.includes(model))
+    : _allLocalModels
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -64,7 +78,7 @@ export function AIModelSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-[300px] justify-between"
+          className={cn("w-[300px] justify-between", className)}
         >
           {value
             ? allModels.find((model) => model === value)
@@ -78,28 +92,30 @@ export function AIModelSelect({
           <CommandEmpty>No model found.</CommandEmpty>
           <ScrollArea className="w-[350px]">
             <div className="max-h-[500px]">
-              <CommandGroup heading="Service via API">
-                {models.map((model) => (
-                  <CommandItem
-                    key={model}
-                    value={model}
-                    onSelect={(currentValue) => {
-                      setValue(currentValue === value ? "" : currentValue)
-                      setOpen(false)
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        value === model ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    {model}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {!onlyLocal && (
+                <CommandGroup heading="Service via API">
+                  {models.map((model) => (
+                    <CommandItem
+                      key={model}
+                      value={model}
+                      onSelect={(currentValue) => {
+                        setValue(currentValue === value ? "" : currentValue)
+                        setOpen(false)
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === model ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {model}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
               <CommandGroup heading="Local LLM">
-                {localModels.map((model) => (
+                {_localModels.map((model) => (
                   <CommandItem
                     key={model}
                     value={model}

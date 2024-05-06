@@ -219,6 +219,21 @@ export class EidosFileSystemManager {
     console.log("update doc file", filename)
   }
 
+  checkFileExists = async (_paths: string[]) => {
+    const paths = [..._paths]
+    if (paths.length === 0) {
+      throw new Error("paths can't be empty")
+    }
+    const filename = paths.pop()
+    const dirHandle = await getDirHandle(paths, this.rootDirHandle)
+    try {
+      await dirHandle.getFileHandle(filename!)
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+
   getFile = async (_paths: string[]) => {
     const paths = [..._paths]
     if (paths.length === 0) {
