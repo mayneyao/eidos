@@ -7,17 +7,17 @@ import DataEditor, {
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
 
-import { IGridViewProperties, IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
 import { useTransformSqlQuery } from "@/hooks/use-transform-sql-query"
 import { useUiColumns } from "@/hooks/use-ui-columns"
+import { IGridViewProperties, IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 
 import { useCurrentView } from "../table/hooks"
 import { useViewCount } from "../table/hooks/use-view-count"
@@ -32,7 +32,6 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
-import { isWindows } from "@/lib/web/helper"
 
 import { darkTheme, lightTheme } from "./theme"
 
@@ -81,8 +80,6 @@ export default function GridView(props: IGridProps) {
 
   const r = containerRef.current?.querySelector(".dvn-scroll-inner")
   const hasScroll = r && r?.scrollWidth > r?.clientWidth
-
-  const isWin = isWindows()
 
   const { currentView } = useCurrentView({
     space: databaseName,
@@ -158,7 +155,7 @@ export default function GridView(props: IGridProps) {
       ...defaultConfig,
       freezeColumns,
     }
-    if (!hasScroll && isWin) {
+    if (!hasScroll) {
       conf = {
         ...conf,
         experimental: {
@@ -168,7 +165,7 @@ export default function GridView(props: IGridProps) {
       }
     }
     return conf
-  }, [freezeColumns, hasScroll, isWin])
+  }, [freezeColumns, hasScroll])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
