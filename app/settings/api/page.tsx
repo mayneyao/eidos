@@ -1,6 +1,10 @@
+import { useMemo } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { CopyIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
 
+import { DOMAINS } from "@/lib/const"
+import { shortenId, uuidv4 } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -44,6 +48,36 @@ export function APIAgentForm() {
       title: "API Agent settings updated.",
     })
   }
+  const regen = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const url = new URL(DOMAINS.API_AGENT_SERVER)
+    url.pathname = `/websocket/${uuidv4()}`
+    url.protocol = "wss:"
+    form.setValue("url", url.toString())
+    form.trigger("url")
+  }
+  const url = form.getValues("url")
+  const apiURL = useMemo(() => {
+    try {
+      const apiURL = new URL(url)
+      if (apiURL.hostname === new URL(DOMAINS.API_AGENT_SERVER).hostname) {
+        apiURL.pathname = apiURL.pathname.replace("websocket", "rpc")
+        apiURL.protocol = "https:"
+        return apiURL.toString()
+      }
+      return ""
+    } catch (error) {
+      return ""
+    }
+  }, [url])
+
+  const handleCopyUrl = (e: React.MouseEvent) => {
+    e.preventDefault()
+    navigator.clipboard.writeText(apiURL)
+    toast({
+      title: "Copied to clipboard",
+    })
+  }
 
   return (
     <Form {...form}>
@@ -55,9 +89,25 @@ export function APIAgentForm() {
             <FormItem>
               <FormLabel>API Agent URL</FormLabel>
               <FormControl>
-                <Input placeholder="wss://" autoComplete="off" {...field} />
+                <div className="flex gap-2">
+                  <Input placeholder="wss://" autoComplete="off" {...field} />
+                  <Button variant="secondary" onClick={regen}>
+                    Regenerate
+                  </Button>
+                </div>
               </FormControl>
               <FormDescription>The URL of your API Agent.</FormDescription>
+              {Boolean(apiURL.length) && (
+                <FormDescription>
+                  Call API through{" "}
+                  <div className="flex items-center gap-2">
+                    <span className=" text-cyan-500">{apiURL}</span>
+                    <Button variant="ghost" size="xs" onClick={handleCopyUrl}>
+                      <CopyIcon className="h-4 w-4"></CopyIcon>
+                    </Button>
+                  </div>
+                </FormDescription>
+              )}
               <FormMessage />
             </FormItem>
           )}

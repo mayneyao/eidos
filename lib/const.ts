@@ -62,4 +62,5 @@ export const DOMAINS = {
   WIKI: "https://wiki.eidos.space",
   ACTIVATION_SERVER: "https://active.eidos.space",
   EXTENSION_SERVER: "https://ext.eidos.space",
+  API_AGENT_SERVER: "https://api.eidos.space",
 }
