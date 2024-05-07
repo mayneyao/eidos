@@ -4,12 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { ControllerRenderProps, useForm } from "react-hook-form"
 import * as z from "zod"
 
-import { efsManager } from "@/lib/storage/eidos-file-system"
-import { useActivation, useActivationCodeStore } from "@/hooks/use-activation"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { toast } from "@/components/ui/use-toast"
 import {
   Form,
   FormControl,
@@ -18,6 +12,12 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { toast } from "@/components/ui/use-toast"
+import { useActivationCodeStore } from "@/hooks/use-activation"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 
 import { useConfigStore } from "./store"
 

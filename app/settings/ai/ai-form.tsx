@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -79,6 +80,11 @@ export function AIConfigForm() {
       ...aiConfig,
     },
   })
+  const { reset } = form
+
+  useEffect(() => {
+    reset(aiConfig)
+  }, [aiConfig, reset])
 
   function onSubmit(data: AIConfigFormValues) {
     setAiConfig(data)

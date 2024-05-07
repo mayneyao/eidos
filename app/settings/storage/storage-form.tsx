@@ -1,20 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { get } from "lodash"
 import { Check, ChevronsUpDown } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
 import {
-  EidosFileSystemManager,
-  FileSystemType,
-  getFsRootHandle,
-} from "@/lib/storage/eidos-file-system"
-import { cn } from "@/lib/utils"
-import { useIndexedDB } from "@/hooks/use-indexed-db"
-import { useSqlite } from "@/hooks/use-sqlite"
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/react-hook-form/form"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -29,17 +29,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/use-toast"
+import { useIndexedDB } from "@/hooks/use-indexed-db"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/react-hook-form/form"
+  FileSystemType
+} from "@/lib/storage/eidos-file-system"
+import { cn } from "@/lib/utils"
 
 const fsTypes = [
   { label: "OPFS", value: FileSystemType.OPFS },

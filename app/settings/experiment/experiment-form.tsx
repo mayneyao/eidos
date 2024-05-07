@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 
@@ -34,6 +35,12 @@ export function ExperimentForm() {
       ...experiment,
     },
   })
+
+  const { reset } = form
+
+  useEffect(() => {
+    reset(experiment)
+  }, [experiment, reset])
 
   function onSubmit(data: ExperimentFormValues) {
     setExperiment(data)

@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CopyIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
@@ -36,11 +36,13 @@ export function APIAgentForm() {
 
   const form = useForm<APIAgentFormValues>({
     resolver: zodResolver(apiAgentFormSchema),
-    defaultValues: {
-      ...defaultValues,
-      ...apiAgentConfig,
-    },
+    defaultValues,
   })
+  const { reset } = form
+
+  useEffect(() => {
+    reset(apiAgentConfig)
+  }, [apiAgentConfig, reset])
 
   function onSubmit(data: APIAgentFormValues) {
     setAPIAgentConfig(data)

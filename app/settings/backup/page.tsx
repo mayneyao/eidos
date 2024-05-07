@@ -1,7 +1,15 @@
+import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
+import { efsManager } from "@/lib/storage/eidos-file-system"
+import { registerPeriodicSync } from "@/hooks/use-register-period-sync"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { toast } from "@/components/ui/use-toast"
 import {
   Form,
   FormControl,
@@ -11,13 +19,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { Switch } from "@/components/ui/switch"
-import { toast } from "@/components/ui/use-toast"
-import { registerPeriodicSync } from "@/hooks/use-register-period-sync"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 
 import { useConfigStore } from "../store"
 
@@ -86,6 +87,12 @@ export function BackupServerForm() {
       ...backupServer,
     },
   })
+
+  const { reset } = form
+
+  useEffect(() => {
+    reset(backupServer)
+  }, [backupServer, reset])
 
   async function onSubmit(data: BackupServerFormValues) {
     setBackupServer(data)
