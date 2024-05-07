@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+import { isDevMode } from "@/lib/log"
 import { uuidv4 } from "@/lib/utils"
 import { verifyMessage } from "@/lib/web/crypto"
 import { useToast } from "@/components/ui/use-toast"
@@ -95,7 +96,7 @@ export const useActivation = () => {
     }
   }
   return {
-    isActivated: clientId && license ? isActivated : false,
+    isActivated: isDevMode ? true : clientId && license ? isActivated : false,
     active,
   }
 }
