@@ -1,4 +1,4 @@
-import { ArrowBigLeftIcon, PauseIcon, Play } from "lucide-react"
+import { AreaChart, ArrowBigLeftIcon, PauseIcon, Play } from "lucide-react"
 import Prism from "prismjs"
 
 import { Button } from "@/components/ui/button"
@@ -65,6 +65,12 @@ export const AIMessage = ({
     }
   }, [msgId, _msgId, msgIndex, charIndex, charLength])
 
+  const createMermaidChart = (code: string) => {
+    const event = new CustomEvent("createMermaidChart", {
+      detail: code,
+    })
+    document.dispatchEvent(event)
+  }
   const renderers: MarkdownRenderers = {
     ...DEFAULT_MARKDOWN_RENDERERS,
     codespan: function CodeSpan({ children }) {
@@ -78,6 +84,25 @@ export const AIMessage = ({
       // if it's a d3 codeblock, we need to render it differently
       if (lang === "js" && text.includes("d3.")) {
         return <div />
+      }
+      if (lang === "mermaid") {
+        return (
+          <pre className="relative flex w-[calc(100%-24px)] rounded-sm bg-gray-700 p-2">
+            <code
+              className={`language-${lang} w-full overflow-x-auto`}
+              dangerouslySetInnerHTML={{
+                __html: codeHtml,
+              }}
+            ></code>
+            <Button
+              className=" absolute right-0 top-0 text-gray-300"
+              variant="ghost"
+              onClick={() => createMermaidChart(text)}
+            >
+              <AreaChart className="h-4 w-4" />
+            </Button>
+          </pre>
+        )
       }
       return (
         <pre className="relative flex w-[calc(100%-24px)] rounded-sm bg-gray-700 p-2">

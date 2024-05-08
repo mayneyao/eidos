@@ -1,8 +1,9 @@
-import { FunctionComponent, useEffect, useMemo, useState } from "react"
+import { FunctionComponent, useEffect, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
+import { ElementTransformer } from "@lexical/markdown"
+import { LexicalCommand } from "lexical"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useScripts } from "@/hooks/use-scripts"
 import { useSqlite } from "@/hooks/use-sqlite"
 
 export interface ExtBlock {
@@ -12,6 +13,10 @@ export interface ExtBlock {
   plugin: FunctionComponent
   onSelect: (editor: any) => void
   keywords: string[]
+  transform: ElementTransformer
+  command: {
+    create: LexicalCommand<any>
+  }
 }
 export const useExtBlocks = () => {
   const [extBlocks, setExtBlocks] = useState<ExtBlock[]>([])

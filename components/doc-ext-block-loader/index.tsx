@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import * as React from "react"
+import * as LexicalMarkdown from "@lexical/markdown"
 import * as BlockWithAlignableContents from "@lexical/react/LexicalBlockWithAlignableContents"
 import * as LexicalComposerContext from "@lexical/react/LexicalComposerContext"
 import * as LexicalUtils from "@lexical/utils"
@@ -47,6 +48,7 @@ export const DocExtBlockLoader = () => {
     ;(window as any)["__REACT"] = React
     ;(window as any)["__LEXICAL"] = Lexical
     ;(window as any)["__@LEXICAL/UTILS"] = LexicalUtils
+    ;(window as any)["__@LEXICAL/MARKDOWN"] = LexicalMarkdown
     ;(window as any)["__@LEXICAL/REACT/LEXICALCOMPOSERCONTEXT"] =
       LexicalComposerContext
     ;(window as any)["__@LEXICAL/REACT/LEXICALBLOCKWITHALIGNABLECONTENTS"] =

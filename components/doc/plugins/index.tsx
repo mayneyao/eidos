@@ -27,6 +27,10 @@ import { allTransformers } from "./const"
 
 export const AllPlugins = () => {
   const extBlocks = useExtBlocks()
+  const __allTransformers = [
+    ...allTransformers,
+    ...extBlocks.map((block) => block.transform),
+  ]
   return (
     <>
       <HorizontalRulePlugin />
@@ -50,7 +54,7 @@ export const AllPlugins = () => {
       <DragDropPaste />
       <LexicalClickableLinkPlugin />
       <ComponentPickerMenuPlugin />
-      <MarkdownShortcutPlugin transformers={allTransformers} />
+      <MarkdownShortcutPlugin transformers={__allTransformers} />
       <FloatingLinkEditorPlugin />
       <BookmarkPlugin />
       {extBlocks.map((block) => (
