@@ -20,8 +20,7 @@ export async function extHandle(event: FetchEvent) {
 async function readFileFromOpfs(extName: string, pathname: string) {
   const paths = decodeURIComponent(pathname).split("/").filter(Boolean)
   const filename = paths.pop()
-  const _paths = ["extensions", extName, ...paths]
-  console.log(_paths)
+  const _paths = ["extensions", "apps", extName, ...paths]
   const dirHandle = await getDirHandle(_paths)
   const existingFileHandle = await dirHandle.getFileHandle(filename!)
   return existingFileHandle.getFile()

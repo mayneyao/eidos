@@ -1,6 +1,8 @@
-import { Check, ChevronsUpDown, PlusIcon } from "lucide-react"
 import * as React from "react"
+import { Check, ChevronsUpDown, PlusIcon } from "lucide-react"
 
+import { cn } from "@/lib/utils"
+import { useIndexedDB } from "@/hooks/use-indexed-db"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -14,8 +16,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useIndexedDB } from "@/hooks/use-indexed-db"
-import { cn } from "@/lib/utils"
 
 import { ExtensionContainer } from "./container"
 import { useExtensions } from "./hooks/use-extensions"
@@ -31,6 +31,7 @@ export function ExtensionPage() {
     await getAllExtensions()
   }
 
+  console.log("extensions", extensions)
   const [open, setOpen] = React.useState(false)
   const [value, setValue] = useIndexedDB("kv", "lastOpenedApp", "")
 

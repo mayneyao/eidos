@@ -63,28 +63,30 @@ export const useExtMsg = (source: ExtensionSourceType) => {
           const _url = new URL(url)
           const extName = _url.hostname.split(".")[0]
           const paths = _url.pathname.split("/").filter(Boolean)
-          efsManager.getFile(["extensions", extName, ...paths]).then((file) => {
-            const contentType = file.type
-            if (contentType.startsWith("text")) {
-              file.text().then((text) => {
-                const data = {
-                  type: "loadExtensionAssetResp",
-                  text,
-                  contentType,
-                }
-                event.ports[0].postMessage(data)
-              })
-            } else {
-              file.arrayBuffer().then((buffer) => {
-                const data = {
-                  type: "loadExtensionAssetResp",
-                  text: buffer,
-                  contentType,
-                }
-                event.ports[0].postMessage(data)
-              })
-            }
-          })
+          efsManager
+            .getFile(["extensions", "apps", extName, ...paths])
+            .then((file) => {
+              const contentType = file.type
+              if (contentType.startsWith("text")) {
+                file.text().then((text) => {
+                  const data = {
+                    type: "loadExtensionAssetResp",
+                    text,
+                    contentType,
+                  }
+                  event.ports[0].postMessage(data)
+                })
+              } else {
+                file.arrayBuffer().then((buffer) => {
+                  const data = {
+                    type: "loadExtensionAssetResp",
+                    text: buffer,
+                    contentType,
+                  }
+                  event.ports[0].postMessage(data)
+                })
+              }
+            })
           break
         case ExtMsgType.rpcCall:
           const { method, params, space } = event.data.data
