@@ -3,8 +3,8 @@ import { getDirHandle } from "@/lib/storage/eidos-file-system"
 declare var self: ServiceWorkerGlobalScope
 
 export const pathname = (url: URL) => {
-  // pathname: /static/*
-  const pathnameRegex = /^\/static\/(.*)$/
+  // pathname: /static/* or /extensions/*
+  const pathnameRegex = /^\/(static|extensions)\/.*$/
   return url.origin === self.location.origin && pathnameRegex.test(url.pathname)
 }
 

@@ -12,7 +12,7 @@ export const useNewScript = () => {
   const { space } = useCurrentPathInfo()
 
   const handleCreateNewScript = async (
-    template: IScript["type"] = "script"
+    template: "script" | "udf" | "prompt" = "script"
   ) => {
     const newScriptId = generateId()
     const newScript: IScript = {

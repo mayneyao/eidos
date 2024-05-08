@@ -4,6 +4,7 @@ import { Outlet, useNavigate } from "react-router-dom"
 
 import { useActivation } from "@/hooks/use-activation"
 import { useWindowControlsOverlayVisible } from "@/hooks/use-window-controls-overlay-visiabe"
+import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 
 import { DatabaseLayoutBase } from "./base-layout"
 import { PWALayoutBase } from "./base-pwa-layout"
@@ -53,6 +54,7 @@ export default function DatabaseLayout() {
   ) {
     return (
       <PWALayoutBase>
+        <DocExtBlockLoader />
         <Suspense fallback={<div></div>}>
           <WebLLM />
         </Suspense>
@@ -62,6 +64,7 @@ export default function DatabaseLayout() {
   }
   return (
     <DatabaseLayoutBase>
+      <DocExtBlockLoader />
       <Suspense fallback={<div></div>}>
         <WebLLM />
       </Suspense>

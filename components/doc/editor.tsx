@@ -1,6 +1,4 @@
-"use client"
-
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import {
   InitialConfigType,
@@ -14,6 +12,8 @@ import { useDebounceFn } from "ahooks"
 import { cn } from "@/lib/utils"
 import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 
+import { Loading } from "../loading"
+import { ExtBlock, useEnabledExtBlocks } from "./hooks/use-ext-blocks"
 import { useEditorStore } from "./hooks/useEditorContext"
 import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
@@ -24,17 +24,6 @@ import NewMentionsPlugin from "./plugins/MentionsPlugin"
 import { SafeBottomPaddingPlugin } from "./plugins/SafeBottomPaddingPlugin"
 import { SelectionPlugin } from "./plugins/SelectionPlugin"
 import defaultTheme from "./themes/default"
-
-const editorConfig: any = {
-  // The editor theme
-  theme: defaultTheme,
-  // Handling of errors during update
-  onError(error: any) {
-    console.error(error)
-  },
-  // Any custom nodes go here
-  nodes: AllNodes,
-}
 
 interface EditorProps {
   docId?: string
@@ -58,6 +47,19 @@ interface EditorProps {
 }
 
 export function Editor(props: EditorProps) {
+  const { scripts: allEnabledExtBlocks, loading } = useEnabledExtBlocks()
+  const extBlocks = ((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []
+  if (loading || allEnabledExtBlocks.length !== extBlocks.length) {
+    return (
+      <div className="flex h-full items-center justify-center gap-2">
+        <Loading /> <span>Loading Ext Blocks...</span>
+      </div>
+    )
+  }
+  return <DocEditor {...props} />
+}
+
+export function DocEditor(props: EditorProps) {
   const canChangeTitle = props.onTitleChange !== undefined
   const ref = React.useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState(props.title ?? "")
@@ -70,10 +72,22 @@ export function Editor(props: EditorProps) {
       setFloatingAnchorElem(_floatingAnchorElem)
     }
   }
-  const initConfig: InitialConfigType = {
-    ...editorConfig,
-    editable: props.isEditable,
-  }
+
+  const initConfig: InitialConfigType = useMemo(() => {
+    const extBlocks = ((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []
+    return {
+      namespace: "doc",
+      // The editor theme
+      theme: defaultTheme,
+      // Handling of errors during update
+      onError(error: any) {
+        console.error(error)
+      },
+      // Any custom nodes go here
+      nodes: [...AllNodes, ...extBlocks.map((block) => block.node)],
+      editable: props.isEditable,
+    }
+  }, [props.isEditable])
 
   const { run: handleSave } = useDebounceFn(
     (title: string) => {

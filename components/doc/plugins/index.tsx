@@ -8,12 +8,10 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin"
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 
-import { useConfigStore } from "@/app/settings/store"
-
+import { useExtBlocks } from "../hooks/use-ext-blocks"
 import { AIToolsPlugin } from "./AIToolsPlugin"
 // import { AIToolsPlugin } from "./AIToolsPlugin"
 import AutoLinkPlugin from "./AutoLinkPlugin"
-import AutocompletePlugin from "./AutocompletePlugin"
 import { BookmarkPlugin } from "./BookmarkPlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
@@ -28,6 +26,7 @@ import { TableOfContentsPlugin } from "./TableOfContentsPlugin"
 import { allTransformers } from "./const"
 
 export const AllPlugins = () => {
+  const extBlocks = useExtBlocks()
   return (
     <>
       <HorizontalRulePlugin />
@@ -54,6 +53,9 @@ export const AllPlugins = () => {
       <MarkdownShortcutPlugin transformers={allTransformers} />
       <FloatingLinkEditorPlugin />
       <BookmarkPlugin />
+      {extBlocks.map((block) => (
+        <block.plugin key={block.name} />
+      ))}
     </>
   )
 }

@@ -1,9 +1,11 @@
+import { useMemo, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import {
   ChevronDownIcon,
   FunctionSquareIcon,
   RotateCcwIcon,
+  ShapesIcon,
   SparkleIcon,
   SquareCodeIcon,
 } from "lucide-react"
@@ -34,6 +36,7 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 
+import { useAllBlocks } from "./hooks/use-all-blocks"
 import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
 import { useNewScript } from "./hooks/use-new-script"
 import { useScript } from "./hooks/use-script"
@@ -43,11 +46,42 @@ const IconMap = {
   script: SquareCodeIcon,
   udf: FunctionSquareIcon,
   prompt: SparkleIcon,
+  block: ShapesIcon,
 }
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
   const { space } = useCurrentPathInfo()
-  const { deleteScript, enableScript, disableScript, updateScript } =
+  const [filter, setFilter] = useState("All")
+
+  const blocks = useAllBlocks()
+  const _scripts = useMemo(() => {
+    const unRecordedBlocks = blocks.filter(
+      (block) =>
+        scripts.findIndex((script) => script.id === "block-" + block) === -1
+    )
+    return [
+      ...scripts,
+      ...unRecordedBlocks.map((block) => ({
+        id: "block-" + block,
+        name: block,
+        type: "block",
+        description: "Block",
+        version: "1.0.0",
+        code: "",
+      })),
+    ] as IScript[]
+  }, [blocks, scripts])
+
+  const filterExts = useMemo(() => {
+    if (filter === "All") {
+      return _scripts
+    }
+    return _scripts.filter(
+      (script) => script.type.toLocaleLowerCase() === filter.toLowerCase()
+    )
+  }, [filter, _scripts])
+
+  const { deleteScript, enableScript, disableScript, updateScript, addScript } =
     useScript()
   const revalidator = useRevalidator()
 
@@ -65,6 +99,21 @@ export const ScriptPage = () => {
 
   const handleToggleEnabled = async (id: string, checked: boolean) => {
     if (checked) {
+      if (
+        id.startsWith("block-") &&
+        scripts.findIndex((script) => script.id === id) === -1
+      ) {
+        await addScript({
+          id,
+          name: id.replace("block-", ""),
+          type: "block",
+          description: "Block",
+          version: "1.0.0",
+          code: "",
+          enabled: true,
+          commands: [],
+        })
+      }
       await enableScript(id)
     } else {
       await disableScript(id)
@@ -111,11 +160,25 @@ export const ScriptPage = () => {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <InstallScript />
+        <div className="flex gap-2">
+          <div className="flex gap-1">
+            {["All", "Script", "UDF", "Prompt", "Block"].map((type) => (
+              <Button
+                key={type}
+                onClick={() => setFilter(type)}
+                size="sm"
+                variant={filter === type ? "secondary" : "ghost"}
+              >
+                {type}
+              </Button>
+            ))}
+          </div>
+          <InstallScript />
+        </div>
       </div>
       <Separator />
       <div className="grid w-full grid-cols-1 gap-4 p-4 md:grid-cols-2 2xl:grid-cols-3">
-        {scripts.map((script) => {
+        {filterExts.map((script) => {
           const Icon = IconMap[script.type]
           return (
             <div

@@ -22,26 +22,36 @@ export const useExtensionStore = create<ExtensionsState>()((set) => ({
 // get ext info from package.json file
 export const getExtInfo = async (file: File): Promise<ExtensionType> => {
   const packageJsonText = await file.text()
-  const packageJsonObj = JSON.parse(packageJsonText)
-  const { name, version, description } = packageJsonObj
-  return { name, version, description }
+  try {
+    const packageJsonObj = JSON.parse(packageJsonText)
+    const { name, version, description } = packageJsonObj
+    return { name, version, description }
+  } catch (error) {
+    return { name: "", version: "", description: "" }
+  }
 }
 
 export const useExtensions = () => {
   const { extensions, setExtensions } = useExtensionStore()
 
   const getExtensionIndex = async (name: string) => {
-    const file = await efsManager.getFile(["extensions", name, "index.html"])
+    const file = await efsManager.getFile([
+      "extensions",
+      "apps",
+      name,
+      "index.html",
+    ])
     const text = await file.text()
     return text
   }
 
   const getAllExtensions = useCallback(async () => {
-    const extensionDirs = await efsManager.listDir(["extensions"])
+    const extensionDirs = await efsManager.listDir(["extensions", "apps"])
     const allExtensions = await Promise.all(
       extensionDirs.map(async (dir) => {
         const packageJson = await efsManager.getFile([
           "extensions",
+          "apps",
           dir.name,
           "package.json",
         ])
@@ -60,7 +70,7 @@ export const useExtensions = () => {
     dirHandle: FileSystemDirectoryHandle,
     _parentPath?: string[]
   ) => {
-    let parentPath = _parentPath || ["extensions"]
+    let parentPath = _parentPath || ["extensions", "apps"]
     if (!_parentPath) {
       const packageJsonHandle = await dirHandle.getFileHandle("package.json")
       const packageJsonFile = await packageJsonHandle.getFile()
@@ -84,7 +94,7 @@ export const useExtensions = () => {
   }
 
   const removeExtension = async (name: string) => {
-    await efsManager.deleteEntry(["extensions", name], true)
+    await efsManager.deleteEntry(["extensions", "apps", name], true)
     getAllExtensions()
   }
   return {

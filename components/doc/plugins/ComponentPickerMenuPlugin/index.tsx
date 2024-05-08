@@ -31,6 +31,7 @@ import {
 } from "lexical"
 import {
   BaselineIcon,
+  BookMarkedIcon,
   CaseSensitiveIcon,
   CodeIcon,
   Heading1Icon,
@@ -45,19 +46,19 @@ import {
   SheetIcon,
   SparklesIcon,
   VariableIcon,
-  BookMarkedIcon,
+  icons,
 } from "lucide-react"
 import * as ReactDOM from "react-dom"
+
+import { cn } from "@/lib/utils"
+import { TocIcon } from "@/components/icons/toc"
 
 import { useModal } from "../../hooks/useModal"
 import { SelectDatabaseTableDialog } from "../DatabasePlugin/SelectDatabaseTableDialog"
 import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
 import { bgColors, fgColors } from "../const"
 import "./index.css"
-import { cn } from "@/lib/utils"
-import { TocIcon } from "@/components/icons/toc"
-
-import { AI_COMPLETE_COMMAND } from "../AutocompletePlugin/cmd"
+import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { INSERT_BOOKMARK_COMMAND } from "../BookmarkPlugin"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
@@ -150,6 +151,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
   const [editor] = useLexicalComposerContext()
   const [modal, showModal] = useModal()
   const [queryString, setQueryString] = useState<string | null>(null)
+  const extBlocks = useExtBlocks()
 
   const checkForTriggerMatch = useBasicTypeaheadTriggerMatch("/", {
     minLength: 0,
@@ -393,6 +395,15 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
             }),
         })
       }),
+      ...extBlocks.map((block) => {
+        const iconName = block.icon
+        const BlockIcon = (icons as any)[iconName]
+        return new ComponentPickerOption(block.name, {
+          icon: <BlockIcon className="h-5 w-5" />,
+          keywords: block.keywords,
+          onSelect: () => block.onSelect(editor),
+        })
+      }),
 
       // ...["left", "center", "right", "justify"].map(
       //   (alignment) =>
@@ -421,7 +432,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
           }),
         ]
       : baseOptions
-  }, [editor, getDynamicOptions, queryString, showModal])
+  }, [editor, extBlocks, getDynamicOptions, queryString, showModal])
 
   const onSelectOption = useCallback(
     (

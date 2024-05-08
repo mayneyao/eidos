@@ -234,16 +234,14 @@ export class EidosFileSystemManager {
     }
   }
 
-  getFile = async (_paths: string[]) => {
+  getFile = async (_paths: string[], options?: FileSystemGetFileOptions) => {
     const paths = [..._paths]
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
     }
     const filename = paths.pop()
     const dirHandle = await getDirHandle(paths, this.rootDirHandle)
-    const fileHandle = await dirHandle.getFileHandle(filename!, {
-      create: true,
-    })
+    const fileHandle = await dirHandle.getFileHandle(filename!, options)
     const file = await fileHandle.getFile()
     return file
   }
