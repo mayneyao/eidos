@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 
 import { getPrompt } from "@/lib/ai/openai"
+import { ITreeNode } from "@/lib/store/ITreeNode"
+import { getRawTableNameById } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
+import { useTablesUiColumns } from "@/app/[database]/scripts/hooks/use-all-table-fields"
 
 export const sysPrompts = {
   base: ``,
@@ -95,18 +98,38 @@ export const useUserPrompts = () => {
   }
 }
 
-export const useSystemPrompt = (currentSysPrompt: string) => {
+export const useSystemPrompt = (
+  currentSysPrompt: string,
+  contextNodes: ITreeNode[] = []
+) => {
   const { context, setCurrentDocMarkdown } = usePromptContext()
+  const tables = useMemo(
+    () => contextNodes.map((node) => getRawTableNameById(node.id)),
+    [contextNodes]
+  )
+  const { uiColumnsMap } = useTablesUiColumns(tables)
   const { prompts } = useUserPrompts()
   return useMemo(() => {
     if (sysPrompts.hasOwnProperty(currentSysPrompt)) {
       const baseSysPrompt =
         sysPrompts[currentSysPrompt as keyof typeof sysPrompts]
-      const systemPrompt = getPrompt(
-        baseSysPrompt,
-        context,
-        currentSysPrompt === "base"
-      )
+      const systemPrompt =
+        getPrompt(baseSysPrompt, context, currentSysPrompt === "base") +
+        `\n--------------- \nhere are some data for nodes:\n ${JSON.stringify(
+          contextNodes,
+          null,
+          2
+        )}` +
+        Object.keys(uiColumnsMap)
+          .map((tableName) => {
+            return `\n ${tableName} has columns: ${JSON.stringify(
+              uiColumnsMap[tableName].map((c) => c.name),
+              null,
+              2
+            )}`
+          })
+          .join("\n")
+
       return {
         systemPrompt,
         setCurrentDocMarkdown,
@@ -118,5 +141,12 @@ export const useSystemPrompt = (currentSysPrompt: string) => {
         setCurrentDocMarkdown,
       }
     }
-  }, [context, currentSysPrompt, prompts, setCurrentDocMarkdown])
+  }, [
+    context,
+    contextNodes,
+    currentSysPrompt,
+    prompts,
+    setCurrentDocMarkdown,
+    uiColumnsMap,
+  ])
 }

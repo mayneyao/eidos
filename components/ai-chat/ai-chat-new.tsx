@@ -18,14 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { useConfigStore } from "@/app/settings/store"
 
+import { Loading } from "../loading"
 import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
+import { AIInputEditor } from "./ai-input-editor"
 import { sysPrompts, useSystemPrompt, useUserPrompts } from "./hooks"
 import "./index.css"
-import { Loading } from "../loading"
+import { ITreeNode } from "@/lib/store/ITreeNode"
+
 import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore, useReloadModel } from "./webllm/hooks"
@@ -34,7 +36,7 @@ import { useSpeak } from "./webspeech/hooks"
 
 const Whisper = lazy(() => import("./whisper"))
 
-const promptKeys = Object.keys(sysPrompts)
+const promptKeys = Object.keys(sysPrompts).slice(0, 1)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
 export default function Chat() {
@@ -44,7 +46,6 @@ export default function Chat() {
 
   const { autoSpeak } = useAIChatSettingsStore()
   const divRef = useRef<HTMLDivElement>(null)
-  const textInputRef = useRef<HTMLTextAreaElement>()
   const [currentSysPrompt, setCurrentSysPrompt] =
     useState<keyof typeof sysPrompts>("base")
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
@@ -56,8 +57,12 @@ export default function Chat() {
   const { getDocMarkdown } = useDocEditor(sqlite)
   const { handleFunctionCall, handleRunCode } = useAIFunctions()
   const functionCallHandler = getFunctionCallHandler(handleFunctionCall)
-  const { systemPrompt, setCurrentDocMarkdown } =
-    useSystemPrompt(currentSysPrompt)
+
+  const [contextNodes, setContextNodes] = useState<ITreeNode[]>([])
+  const { systemPrompt, setCurrentDocMarkdown } = useSystemPrompt(
+    currentSysPrompt,
+    contextNodes
+  )
 
   const { reload: reloadModel } = useReloadModel()
 
@@ -72,17 +77,7 @@ export default function Chat() {
     }
   }, [reloadModel, aiModel])
 
-  const {
-    messages,
-    setMessages,
-    reload,
-    input,
-    handleInputChange,
-    handleSubmit,
-    append,
-    isLoading,
-    stop,
-  } = useChat({
+  const { messages, setMessages, reload, append, isLoading, stop } = useChat({
     experimental_onFunctionCall: functionCallHandler as any,
     onFinish(message) {
       autoSpeak && speak(message.content, message.id)
@@ -113,14 +108,6 @@ export default function Chat() {
     }
   }, [currentNode, getDocMarkdown, setCurrentDocMarkdown])
 
-  const handleEnter = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      if (!input) return
-      if (isLoading) return
-      handleSubmit(e as any)
-    }
-  }
   const handleManualRun = async (data: any) => {
     const res = await handleRunCode(data)
     append({
@@ -244,17 +231,13 @@ export default function Chat() {
         </div>
         <div
           id="circle"
-          className=" absolute right-0 ml-0 h-1 rounded-sm bg-green-300 opacity-50"
+          className=" absolute right-0 z-10 ml-0 h-1 rounded-sm bg-green-300 opacity-50"
         ></div>
-        <Textarea
-          ref={textInputRef as any}
-          autoFocus
+        <AIInputEditor
           disabled={progress && (progress?.progress || 0) < 1}
-          placeholder="Type your message here."
-          className=" bg-gray-100 dark:bg-gray-800"
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleEnter}
+          setContextNodes={setContextNodes}
+          append={append}
+          isLoading={isLoading}
         />
       </div>
     </div>

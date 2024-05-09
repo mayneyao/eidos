@@ -5,7 +5,10 @@ import { FieldType } from "@/lib/fields/const"
 import { logger } from "@/lib/log"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
-import { transformQuery } from "@/lib/sqlite/sql-formula-parser"
+import {
+  getTableNameFromSql,
+  transformQuery,
+} from "@/lib/sqlite/sql-formula-parser"
 import {
   EidosFileSystemManager,
   FileSystemType,
@@ -692,7 +695,8 @@ export class DataSpace {
   }
 
   public async runAIgeneratedSQL(sql: string, tableName: string) {
-    const fields = await this.column.list({ table_name: tableName })
+    const _tableName = getTableNameFromSql(sql) || tableName
+    const fields = await this.column.list({ table_name: _tableName })
     const _sql = transformQuery(sql, fields)
     const res = await this.exec2(_sql)
     return RowsManager.getReadableRows(res, fields)

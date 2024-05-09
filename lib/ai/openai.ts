@@ -50,6 +50,15 @@ export const getPrompt = (
 1. Follow the user's instructions carefully. 
 2. Respond using markdown.
 3. you can call functions the system provides Only when user have a clear intention to call functions.
+4. use will refer some nodes in the document, it seems like this: <span data-node-id="af45e5d8dbe34da3bed288f99b120b8e">import data</span>
+  in this example, node title is 'import data', node id is 'af45e5d8dbe34da3bed288f99b120b8e'. 
+  when you response, you just use node title, for example, you can response like this: '\`import data\` successfully'. don't need to use node id.
+5. data from query which can be trusted, you can display it directly, don't need to check it. 
+6. if user want to query some data, you need to generate SQL. then user will tell you the query result. return the sql in markdown code block with language type 'sql'
+7. answer must be simple, don't use redundant words like "ok", "got it", "please wait" etc.
+8. when user want to generate visualization, you use mermaid to generate it. return the mermaid code in code block. with language type 'mermaid'
+9. answer with user's input language.
+10. if the node is a table, most time, user want to query data from it. you can generate a simple select sql for user. the table name is the tb_<node-id>, just like this: 'tb_af45e5d8dbe34da3bed288f99b120b8e'
 `
   if (useBlankPrompt) {
     return base

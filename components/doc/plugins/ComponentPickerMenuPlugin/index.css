@@ -1,12 +1,12 @@
 #typeahead-menu {
   z-index: 999;
+  position: fixed !important;
 }
 
 .typeahead-popover {
   background: hsl(var(--background));
   box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.3);
   border-radius: 8px;
-  margin-top: 25px;
 }
 
 .typeahead-popover ul {

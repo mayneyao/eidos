@@ -30,7 +30,12 @@ export const AIChatMessage = ({
       {message.role === "user" && (
         <>
           <User className="h-4 w-4 shrink-0" />
-          <p className="grow">{message.content}</p>
+          <AIMessage
+            msgId={message.id}
+            message={message.content}
+            onRun={handleRunCode}
+            msgIndex={msgIndex}
+          />
         </>
       )}
       {/* <Trash2

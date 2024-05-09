@@ -1,6 +1,7 @@
 import { FieldType } from "../fields/const"
 import { getTransformedQuery } from "./helper"
 import {
+  getTableNameFromSql,
   transformFormula2VirtualGeneratedField,
   transformQueryWithFormulaFields2Sql,
 } from "./sql-formula-parser"
@@ -38,6 +39,12 @@ describe("transformQueryWithFormulaFields2Sql", () => {
     const qs = "select * from table1"
     const result = transformQueryWithFormulaFields2Sql(qs, fields)
     expect(result).toBe(qs)
+  })
+
+  test("should return table name from SQL", () => {
+    const sql = "select * from tb_asddasdasd;"
+    const tableName = getTableNameFromSql(sql)
+    expect(tableName).toBe("tb_asddasdasd")
   })
 
   test("should formula transformed to sql function call", () => {

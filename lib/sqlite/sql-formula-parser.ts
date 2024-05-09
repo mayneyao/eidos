@@ -1,5 +1,6 @@
 import {
   ExprRef,
+  FromTable,
   SelectFromStatement,
   SelectedColumn,
   astMapper,
@@ -10,6 +11,12 @@ import {
 import { FieldType } from "../fields/const"
 import { IField } from "../store/interface"
 import { nonNullable } from "../utils"
+
+export const getTableNameFromSql = (sql: string) => {
+  // tableName just like tb_xxx
+  const tableName = sql.match(/from\s+(\w+)/i)
+  return tableName ? tableName[1] : ""
+}
 
 /**
  * example:

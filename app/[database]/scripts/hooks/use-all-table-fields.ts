@@ -26,7 +26,7 @@ export const useTableStore = create<TableState>()((set) => ({
 
 export const useTablesUiColumns = (
   tableNames: string[],
-  databaseName: string
+  databaseName?: string
 ) => {
   const { sqlite } = useSqlite(databaseName)
   const { uiColumnsMap, setUiColumns } = useTableStore()

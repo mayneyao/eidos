@@ -181,9 +181,9 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
   }
 
   const runQuery = useCallback(
-    async (querySql: string) => {
+    async (querySql: string, _tableName = tableName) => {
       if (sqlite) {
-        const res = await sqlite.runAIgeneratedSQL(querySql, tableName)
+        const res = await sqlite.runAIgeneratedSQL(querySql, _tableName)
         if (checkSqlIsModifyTableSchema(querySql)) {
         }
         if (checkSqlIsOnlyQuery(querySql)) {

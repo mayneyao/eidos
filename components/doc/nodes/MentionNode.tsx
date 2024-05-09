@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/hooks/use-query-node"
+import { nodeInfoMap } from "@/components/ai-chat/ai-input-editor"
 import { ItemIcon } from "@/components/sidebar/item-tree"
 import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
@@ -44,7 +45,7 @@ export const MentionComponent = (props: { id: string }) => {
           }
         />
       )}
-      {node?.name ?? "loading"}
+      {node ? node.name || "Untitled" : "loading"}
     </span>
   )
 }
@@ -63,6 +64,11 @@ export class MentionNode extends DecoratorNode<ReactNode> {
   constructor(id: string, key?: NodeKey) {
     super(key)
     this.__id = id
+  }
+
+  getTextContent(): string {
+    const title = nodeInfoMap.get(this.__id)?.name ?? "Untitled"
+    return `<span data-node-id="${this.__id}">${title}</span>`
   }
 
   createDOM(): HTMLElement {

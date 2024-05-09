@@ -7,6 +7,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  FloatingPortal,
+  flip,
+  offset,
+  shift,
+  useFloating,
+} from "@floating-ui/react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
   LexicalTypeaheadMenuPlugin,
@@ -15,7 +22,6 @@ import {
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import { $getSelection, $insertNodes, RangeSelection, TextNode } from "lexical"
-import * as ReactDOM from "react-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { shortenId, uuidv4 } from "@/lib/utils"
@@ -91,7 +97,10 @@ const SUGGESTION_LIST_LENGTH_LIMIT = 5
 
 const mentionsCache = new Map()
 
-function useMentionLookupService(mentionString: string | null) {
+function useMentionLookupService(
+  mentionString: string | null,
+  enabledCreate: boolean
+) {
   const [results, setResults] = useState<Array<ITreeNode>>([])
 
   const { queryNodes } = useQueryNode()
@@ -105,21 +114,21 @@ function useMentionLookupService(mentionString: string | null) {
       return
     }
 
-    mentionString &&
-      queryNodes(mentionString).then((newResults) => {
-        const _newResults = [
-          ...(newResults || []),
-          {
-            id: `new-${mentionString}`,
-            name: `New "${mentionString}" sub-doc`,
-            type: "doc",
-            mode: "node",
-          },
-        ] as any
-        mentionsCache.set(mentionString, _newResults)
-        setResults(_newResults ?? [])
-      })
-  }, [mentionString, queryNodes])
+    // mentionString &&
+    queryNodes(mentionString ?? "").then((newResults) => {
+      const _newResults = [...(newResults || [])] as any
+      if (enabledCreate) {
+        _newResults.push({
+          id: `new-${mentionString}`,
+          name: `New "${mentionString}" sub-doc`,
+          type: "doc",
+          mode: "node",
+        })
+      }
+      mentionsCache.set(mentionString, _newResults)
+      setResults(_newResults ?? [])
+    })
+  }, [enabledCreate, mentionString, queryNodes])
 
   return results
 }
@@ -151,7 +160,7 @@ function checkForAtSignMentions(
 }
 
 function getPossibleQueryMatch(text: string): MenuTextMatch | null {
-  const match = checkForAtSignMentions(text, 1)
+  const match = checkForAtSignMentions(text, 0)
   if (text.startsWith("@") && match === null) {
     return {
       leadOffset: 0,
@@ -166,11 +175,18 @@ class MentionTypeaheadOption extends MenuOption {
   name: string
   id: string
   picture: JSX.Element
+  rawData: ITreeNode
 
-  constructor(name: string, id: string, picture: JSX.Element) {
+  constructor(
+    name: string,
+    id: string,
+    rawData: ITreeNode,
+    picture: JSX.Element
+  ) {
     super(name)
     this.name = name
     this.id = id
+    this.rawData = rawData
     this.picture = picture
   }
 }
@@ -206,20 +222,35 @@ function MentionsTypeaheadMenuItem({
     >
       {option.picture}
       <span className="text truncate" title={option.name}>
-        {option.name}
+        {option.name || "Untitled"}
       </span>
     </li>
   )
 }
 
-export default function NewMentionsPlugin(props: {
-  currentDocId: string
-}): JSX.Element | null {
+export interface MentionPluginProps {
+  onOptionSelectCallback?: (selectedOption: MentionTypeaheadOption) => void
+  currentDocId?: string
+}
+
+export default function NewMentionsPlugin(
+  props: MentionPluginProps
+): JSX.Element | null {
+  // fix context menu position
+  // https://github.com/facebook/lexical/issues/3834
+  const { x, y, refs, strategy } = useFloating({
+    placement: "top-start",
+    middleware: [offset(24), flip(), shift()],
+  })
+
   const [editor] = useLexicalComposerContext()
 
   const [queryString, setQueryString] = useState<string | null>(null)
 
-  const results = useMentionLookupService(queryString)
+  const results = useMentionLookupService(
+    queryString,
+    Boolean(props.currentDocId)
+  )
   const { currentDocId } = props
   const { createDoc } = useSqlite()
 
@@ -234,6 +265,7 @@ export default function NewMentionsPlugin(props: {
           new MentionTypeaheadOption(
             result.name,
             result.id,
+            result,
             (
               <NodeIconEditor
                 icon={result.icon}
@@ -274,9 +306,10 @@ export default function NewMentionsPlugin(props: {
         selectedNode.insertAfter(mentionNode)
         nodeToReplace?.remove()
         closeMenu()
+        props.onOptionSelectCallback?.(selectedOption)
       })
     },
-    [createDoc, currentDocId, editor]
+    [createDoc, currentDocId, editor, props]
   )
 
   const checkForMentionMatch = useCallback(
@@ -299,34 +332,47 @@ export default function NewMentionsPlugin(props: {
       onSelectOption={onSelectOption}
       triggerFn={checkForMentionMatch}
       options={options}
+      onOpen={(r) => {
+        refs.setPositionReference({
+          getBoundingClientRect: r.getRect,
+        })
+      }}
       menuRenderFn={(
         anchorElementRef,
         { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }
       ) =>
-        anchorElementRef.current && results.length
-          ? ReactDOM.createPortal(
-              <div className="typeahead-popover mentions-menu min-w-[220px]">
-                <ul>
-                  {options.map((option, i: number) => (
-                    <MentionsTypeaheadMenuItem
-                      index={i}
-                      isSelected={selectedIndex === i}
-                      onClick={() => {
-                        setHighlightedIndex(i)
-                        selectOptionAndCleanUp(option)
-                      }}
-                      onMouseEnter={() => {
-                        setHighlightedIndex(i)
-                      }}
-                      key={option.id}
-                      option={option}
-                    />
-                  ))}
-                </ul>
-              </div>,
-              anchorElementRef.current
-            )
-          : null
+        anchorElementRef.current && results.length ? (
+          <FloatingPortal root={anchorElementRef.current}>
+            <div
+              className="typeahead-popover mentions-menu min-w-[220px]"
+              ref={refs.setFloating}
+              style={{
+                position: strategy,
+                top: y ?? 0,
+                left: x ?? 0,
+                width: "max-content",
+              }}
+            >
+              <ul>
+                {options.map((option, i: number) => (
+                  <MentionsTypeaheadMenuItem
+                    index={i}
+                    isSelected={selectedIndex === i}
+                    onClick={() => {
+                      setHighlightedIndex(i)
+                      selectOptionAndCleanUp(option)
+                    }}
+                    onMouseEnter={() => {
+                      setHighlightedIndex(i)
+                    }}
+                    key={option.id}
+                    option={option}
+                  />
+                ))}
+              </ul>
+            </div>
+          </FloatingPortal>
+        ) : null
       }
     />
   )
