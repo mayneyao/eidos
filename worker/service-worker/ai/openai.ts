@@ -26,12 +26,19 @@ export async function handleOpenAI(
     apiKey: token,
     baseURL: baseUrl,
   })
-  const sysPrompt = {
-    role: "system" as const,
-    content: systemPrompt,
-  }
+
   const lastMsg = messages[messages.length - 1]
-  let newMsgs = systemPrompt ? [...messages, sysPrompt] : messages
+  let newMsgs = [
+    systemPrompt?.length
+      ? {
+          role: "system" as const,
+          content: systemPrompt,
+        }
+      : undefined,
+    ...messages,
+  ].filter(Boolean)
+
+  console.log({ systemPrompt, messages, newMsgs })
   if (
     currentPreviewFile &&
     // is user query
@@ -53,7 +60,6 @@ export async function handleOpenAI(
         role: "user",
         content: `here are some information: \n${context}`,
       },
-      sysPrompt,
     ]
     console.log("sw", newMsgs)
   }

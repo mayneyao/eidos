@@ -64,7 +64,7 @@ export function DocEditor(props: EditorProps) {
   const ref = React.useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState(props.title ?? "")
 
-  const { isToolbarVisible } = useEditorStore()
+  const { isToolbarVisible, isAIToolsOpen } = useEditorStore()
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null)
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
@@ -146,7 +146,10 @@ export function DocEditor(props: EditorProps) {
             ref={ref}
             id="editor-container"
           >
-            <div className="editor-inner relative w-full">
+            <div
+              className="editor-inner relative w-full"
+              id="editor-container-inner"
+            >
               <RichTextPlugin
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
@@ -186,7 +189,7 @@ export function DocEditor(props: EditorProps) {
               )}
             </div>
           </div>
-          {props.disableSelectionPlugin || isToolbarVisible ? (
+          {props.disableSelectionPlugin || isToolbarVisible || isAIToolsOpen ? (
             <></>
           ) : (
             <SelectionPlugin />

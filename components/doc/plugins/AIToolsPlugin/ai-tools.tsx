@@ -6,13 +6,20 @@ import {
   useRef,
   useState,
 } from "react"
-import { IScript } from "@/worker/web-worker/meta-table/script"
+import { $convertFromMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { createDOMRange, createRectsFromDOMRange } from "@lexical/selection"
-import { useClickAway } from "ahooks"
+import { useClickAway, useKeyPress } from "ahooks"
 import { useChat } from "ai/react"
-import { $getSelection, $isRangeSelection, RangeSelection } from "lexical"
+import {
+  $createParagraphNode,
+  $getRoot,
+  $getSelection,
+  $isRangeSelection,
+  RangeSelection,
+} from "lexical"
 
+import { uuidv4 } from "@/lib/utils"
 import {
   Command,
   CommandEmpty,
@@ -23,11 +30,21 @@ import {
 import { useUserPrompts } from "@/components/ai-chat/hooks"
 import { useConfigStore } from "@/app/settings/store"
 
+import { useExtBlocks } from "../../hooks/use-ext-blocks"
+import { allTransformers } from "../const"
+import { AIContentEditor } from "./ai-msg-editor"
+
+enum AIActionEnum {
+  INSERT_BELOW = "insert_below",
+  REPLACE = "replace",
+  TRY_AGAIN = "try_again",
+}
+
 export function AITools({
   cancelAIAction,
   content,
 }: {
-  cancelAIAction: () => void
+  cancelAIAction: (flag?: boolean) => void
   content: string
 }) {
   const { prompts } = useUserPrompts()
@@ -36,6 +53,17 @@ export function AITools({
   const boxRef = useRef<HTMLDivElement>(null)
   const { aiConfig } = useConfigStore()
   const [currentModel, setCurrentModel] = useState<string>("")
+  const extBlocks = useExtBlocks()
+  const __allTransformers = useMemo(() => {
+    return [...extBlocks.map((block) => block.transform), ...allTransformers]
+  }, [extBlocks])
+
+  const [isFinished, setIsFinished] = useState(true)
+  const [customPrompt, setCustomPrompt] = useState<string>("")
+  const [open, setOpen] = useState(true)
+  const [actionOpen, setActionOpen] = useState(false)
+  const [aiResult, setAiResult] = useState<string>("")
+  const [editorWidth, setEditorWidth] = useState(0)
 
   const {
     messages,
@@ -49,10 +77,8 @@ export function AITools({
     stop,
   } = useChat({
     onFinish(message) {
-      editor.update(() => {
-        const selection = selectionRef.current
-        selection?.insertText(message.content)
-      })
+      setAiResult(message.content)
+      setActionOpen(true)
     },
     body: {
       token: aiConfig.token,
@@ -62,31 +88,117 @@ export function AITools({
     },
   })
 
-  const runAction = (prompt: IScript) => {
-    if (prompt.model) {
-      setCurrentModel(prompt.model)
+  const handleAction = useCallback(
+    (action: AIActionEnum) => {
+      setActionOpen(false)
+      switch (action) {
+        case AIActionEnum.INSERT_BELOW:
+          editor.update(() => {
+            const selection = selectionRef.current
+            const text = aiResult
+            editor.focus()
+            const paragraphNode = $createParagraphNode()
+            $convertFromMarkdownString(text, __allTransformers, paragraphNode)
+            if (selection) {
+              const newSelection = selection.clone()
+              let node
+              try {
+                const selectNodes = newSelection.getNodes()
+                node = selectNodes[selectNodes.length - 1]
+              } catch (error) {}
+              if (node) {
+                try {
+                  node.getParent()?.insertAfter(paragraphNode)
+                } catch (error) {
+                  node.insertAfter(paragraphNode)
+                }
+                paragraphNode.select()
+              } else {
+                const root = $getRoot()
+                root.append(paragraphNode)
+              }
+            } else {
+              const root = $getRoot()
+              root.append(paragraphNode)
+            }
+          })
+          setIsFinished(true)
+          break
+        case AIActionEnum.REPLACE:
+          editor.update(() => {
+            const selection = selectionRef.current
+            const text = aiResult
+            editor.focus()
+            const paragraphNode = $createParagraphNode()
+            $convertFromMarkdownString(text, __allTransformers, paragraphNode)
+            if (selection) {
+              const newSelection = selection.clone()
+              let node
+              try {
+                node = newSelection.getNodes()[0]
+              } catch (error) {}
+              if (node) {
+                node.replace(paragraphNode)
+                paragraphNode.select()
+              } else {
+                const root = $getRoot()
+                root.append(paragraphNode)
+              }
+            } else {
+              const root = $getRoot()
+              root.append(paragraphNode)
+            }
+          })
+          break
+        case AIActionEnum.TRY_AGAIN:
+          reload()
+          return
+      }
+      cancelAIAction()
+    },
+    [__allTransformers, aiResult, cancelAIAction, editor, reload]
+  )
+
+  const runAction = (prompt: string, model?: string) => {
+    if (model) {
+      setIsFinished(false)
+      setCurrentModel(model)
       setTimeout(() => {
-        //
         setMessages([
           {
-            id: "1",
-            content: prompt.code,
+            id: uuidv4(),
+            content: prompt,
             role: "system",
           },
           {
-            id: "2",
+            id: uuidv4(),
             content: content,
             role: "user",
           },
         ])
         reload()
-        cancelAIAction()
+        setOpen(false)
       }, 100)
     }
   }
-  useClickAway(() => {
-    cancelAIAction()
-  }, boxRef)
+
+  useKeyPress("esc", () => {
+    cancelAIAction(Boolean(isLoading || aiResult.length))
+  })
+  useClickAway(
+    (e) => {
+      if (
+        document
+          .querySelector("[role=ai-action-cancel-confirm]")
+          ?.parentElement?.contains(e.target as Node)
+      ) {
+        return
+      }
+      cancelAIAction(Boolean(isLoading || aiResult.length))
+    },
+    boxRef,
+    ["touchstart", "mousedown"]
+  )
 
   const selectionState = useMemo(
     () => ({
@@ -119,10 +231,10 @@ export function AITools({
           if (correctedLeft < 10) {
             correctedLeft = 10
           }
-          boxElem.style.left = `${correctedLeft}px`
+          boxElem.style.left = `${left}px`
           boxElem.style.top = `${
             bottom +
-            20 +
+            8 +
             (window.pageYOffset || document.documentElement.scrollTop)
           }px`
           const selectionRectsLength = selectionRects.length
@@ -162,6 +274,10 @@ export function AITools({
   useLayoutEffect(() => {
     updateLocation()
     const container = selectionState.container
+    const editorContainer = document.querySelector("#editor-container-inner")
+    if (editorWidth !== editorContainer?.clientWidth) {
+      setEditorWidth(editorContainer?.clientWidth || 0)
+    }
     const body = document.body
     if (body !== null) {
       body.appendChild(container)
@@ -169,7 +285,7 @@ export function AITools({
         body.removeChild(container)
       }
     }
-  }, [selectionState.container, updateLocation])
+  }, [editorWidth, selectionState.container, updateLocation])
 
   useEffect(() => {
     window.addEventListener("resize", updateLocation)
@@ -180,27 +296,71 @@ export function AITools({
   }, [updateLocation])
 
   return (
-    <div
-      className="absolute z-50 h-[300px] w-[200px] rounded-md border"
-      ref={boxRef}
-    >
-      <Command>
-        <CommandInput placeholder="Search Action..." autoFocus />
-        <CommandEmpty>No Action found.</CommandEmpty>
-        <CommandGroup>
-          {prompts.map((prompt) => (
-            <CommandItem
-              key={prompt.id}
-              value={prompt.id}
-              onSelect={(currentValue) => {
-                runAction(prompt)
-              }}
-            >
-              {prompt.name}
-            </CommandItem>
-          ))}
-        </CommandGroup>
-      </Command>
+    <div className=" absolute z-50" ref={boxRef}>
+      {!isFinished && (
+        <div>
+          <div
+            className=" rounded-md border bg-white p-2 shadow-md dark:border-gray-700 dark:bg-slate-800"
+            style={{
+              width: editorWidth,
+            }}
+          >
+            <AIContentEditor markdown={messages[2]?.content} />
+          </div>
+          {actionOpen && (
+            <Command className="mt-1 h-[300px] w-[200px] rounded-md border shadow-md">
+              <CommandInput
+                placeholder="Search Action..."
+                autoFocus
+                value={customPrompt}
+                onValueChange={(value) => {
+                  setCustomPrompt(value)
+                }}
+              />
+              <CommandEmpty>No Action found.</CommandEmpty>
+              <CommandGroup>
+                {Object.values(AIActionEnum).map((action) => (
+                  <CommandItem
+                    key={action}
+                    value={action}
+                    onSelect={(currentValue) => {
+                      handleAction(action)
+                    }}
+                  >
+                    {action}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </Command>
+          )}
+        </div>
+      )}
+      {open && (
+        <Command className=" h-[300px] w-[200px] rounded-md border shadow-md">
+          <CommandInput
+            placeholder="Search Action..."
+            autoFocus
+            value={customPrompt}
+            onValueChange={(value) => {
+              setCustomPrompt(value)
+            }}
+          />
+          <CommandEmpty>No Action found.</CommandEmpty>
+          <CommandGroup>
+            {prompts.map((prompt) => (
+              <CommandItem
+                key={prompt.id}
+                value={prompt.id}
+                onSelect={(currentValue) => {
+                  runAction(prompt.code, prompt.model)
+                }}
+              >
+                {prompt.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </Command>
+      )}
     </div>
   )
 }

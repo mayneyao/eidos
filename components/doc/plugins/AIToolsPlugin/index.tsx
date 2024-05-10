@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
   $getSelection,
@@ -9,6 +9,19 @@ import {
 } from "lexical"
 import { createPortal } from "react-dom"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+
+import { useEditorStore } from "../../hooks/useEditorContext"
 import { AITools } from "./ai-tools"
 
 export const INSERT_AI_COMMAND: LexicalCommand<string> =
@@ -17,9 +30,13 @@ export const INSERT_AI_COMMAND: LexicalCommand<string> =
 export const AIToolsPlugin = (props: any) => {
   const [showCommentInput, setShowCommentInput] = useState(false)
   const [editor] = useLexicalComposerContext()
+  const { setIsAIToolsOpen } = useEditorStore()
   const [content, setContent] = useState("")
-
-  const cancelAIAction = useCallback(() => {
+  const [cancelActionConfirmOpen, setCancelActionConfirmOpen] = useState(false)
+  const closeConfirm = useCallback(() => {
+    setCancelActionConfirmOpen(false)
+  }, [])
+  const cancel = useCallback(() => {
     editor.update(() => {
       const selection = $getSelection()
       // Restore selection
@@ -29,6 +46,24 @@ export const AIToolsPlugin = (props: any) => {
     })
     setShowCommentInput(false)
   }, [editor])
+
+  useEffect(() => {
+    setIsAIToolsOpen(showCommentInput)
+  }, [setIsAIToolsOpen, showCommentInput])
+
+  const cancelAIAction = useCallback(
+    (showConfirm?: boolean) => {
+      if (cancelActionConfirmOpen) {
+        return
+      }
+      if (showConfirm) {
+        setCancelActionConfirmOpen(true)
+        return
+      }
+      cancel()
+    },
+    [cancel, cancelActionConfirmOpen]
+  )
 
   useEffect(() => {
     return editor.registerCommand(
@@ -65,6 +100,24 @@ export const AIToolsPlugin = (props: any) => {
           <AITools cancelAIAction={cancelAIAction} content={content} />,
           document.body
         )}
+      <AlertDialog
+        open={cancelActionConfirmOpen}
+        onOpenChange={setCancelActionConfirmOpen}
+      >
+        <AlertDialogTrigger asChild>
+          <div />
+        </AlertDialogTrigger>
+        <AlertDialogContent role="ai-action-cancel-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription></AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={closeConfirm}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={cancel}>Continue</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
