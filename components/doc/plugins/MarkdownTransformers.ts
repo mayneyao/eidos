@@ -4,6 +4,7 @@ import {
   $isHorizontalRuleNode,
   HorizontalRuleNode,
 } from "@lexical/react/LexicalHorizontalRuleNode"
+import { $insertNodeToNearestRoot } from "@lexical/utils"
 import {
   $createParagraphNode,
   $getEditor,
@@ -57,12 +58,9 @@ export const HR: ElementTransformer = {
           })
         }
         if (container.getChildren().length > 0) {
-          // remove line and after nodes
-          while (line.getNextSibling()) {
-            line.getNextSibling()?.remove()
-          }
+          line.selectNext()
+          $insertNodeToNearestRoot(container)
           line.remove()
-          $insertNodes([container, $createParagraphNode()])
         }
       }
     } else {

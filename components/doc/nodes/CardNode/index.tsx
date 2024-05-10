@@ -1,8 +1,8 @@
 import {
-    ElementNode,
-    LexicalNode,
-    SerializedElementNode,
-    SerializedLexicalNode
+  ElementNode,
+  LexicalNode,
+  SerializedElementNode,
+  SerializedLexicalNode,
 } from "lexical"
 
 export class CardNode extends ElementNode {
@@ -32,9 +32,7 @@ export class CardNode extends ElementNode {
     // Define the DOM element here
     const dom = document.createElement("div")
     // with border padding 1rem rounded corners background #ccc
-    dom.style.border = "1px solid #ccc"
-    dom.style.padding = "1rem"
-    dom.style.borderRadius = "0.5rem"
+    dom.classList.add("eidos_editor_card_block")
     return dom
   }
 

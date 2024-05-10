@@ -6,6 +6,12 @@ code::before {
   display: none;
 }
 
+.eidos_editor_card_block {
+  border: 1px solid #ccc;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+}
 .eidos_editor_theme__ltr {
   text-align: left;
 }
