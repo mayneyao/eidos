@@ -32,6 +32,7 @@ import { ScriptPage } from "./app/[database]/scripts/page"
 import { ScriptStorePage } from "./app/[database]/scripts/store"
 import { SpaceSetting } from "./app/[database]/settings/page"
 import { DocEditor } from "./app/eidtor/doc"
+import { RAGPage } from "./app/rag"
 import { spaceFileSystem } from "./lib/storage/space"
 
 const router = createBrowserRouter([
@@ -39,6 +40,10 @@ const router = createBrowserRouter([
     path: "/",
     element: <RootLayout />,
     children: [
+      {
+        path: "/rag",
+        element: <RAGPage />,
+      },
       {
         path: "/",
         element: <LandingPage />,

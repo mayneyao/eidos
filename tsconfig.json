@@ -34,7 +34,8 @@
     "**/*.js",
     ".eslintrc.cjs",
     "prettier.config.cjs",
-    "jest.config.cjs"
+    "jest.config.cjs",
+    "app/rag.jsx"
   ],
   "exclude": ["node_modules", "dist", "dev-dist"],
   "references": [{ "path": "./tsconfig.node.json" }]
