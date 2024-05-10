@@ -221,6 +221,8 @@ export function TextFormatFloatingToolbar({
           <div
             className={cn("mx-2 flex cursor-pointer items-center")}
             onMouseDownCapture={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
               editor.dispatchCommand(INSERT_AI_COMMAND, content)
             }}
           >

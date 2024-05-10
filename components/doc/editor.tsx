@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 
 import { Loading } from "../loading"
+import { useLoadingExtBlocks } from "./hooks/use-all-nodes"
 import { ExtBlock, useEnabledExtBlocks } from "./hooks/use-ext-blocks"
 import { useEditorStore } from "./hooks/useEditorContext"
 import { AllNodes } from "./nodes"
@@ -47,12 +48,11 @@ interface EditorProps {
 }
 
 export function Editor(props: EditorProps) {
-  const { scripts: allEnabledExtBlocks, loading } = useEnabledExtBlocks()
-  const extBlocks = ((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []
-  if (loading || allEnabledExtBlocks.length !== extBlocks.length) {
+  const isLoading = useLoadingExtBlocks()
+  if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center gap-2">
-        <Loading /> <span>Loading Ext Blocks...</span>
+        <Loading />
       </div>
     )
   }

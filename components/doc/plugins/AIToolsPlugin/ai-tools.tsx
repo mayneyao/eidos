@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react"
+import { CodeNode } from "@lexical/code"
 import { $convertFromMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { createDOMRange, createRectsFromDOMRange } from "@lexical/selection"
@@ -16,6 +17,7 @@ import {
   $getRoot,
   $getSelection,
   $isRangeSelection,
+  $nodesOfType,
   RangeSelection,
 } from "lexical"
 
@@ -31,6 +33,7 @@ import { useUserPrompts } from "@/components/ai-chat/hooks"
 import { useConfigStore } from "@/app/settings/store"
 
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
+import { $transformExtCodeBlock } from "../../utils/helper"
 import { allTransformers } from "../const"
 import { AIContentEditor } from "./ai-msg-editor"
 
@@ -121,6 +124,7 @@ export function AITools({
               const root = $getRoot()
               root.append(paragraphNode)
             }
+            $transformExtCodeBlock(extBlocks)
           })
           setIsFinished(true)
           break
@@ -156,7 +160,7 @@ export function AITools({
       }
       cancelAIAction()
     },
-    [__allTransformers, aiResult, cancelAIAction, editor, reload]
+    [__allTransformers, aiResult, cancelAIAction, editor, extBlocks, reload]
   )
 
   const runAction = (prompt: string, model?: string) => {

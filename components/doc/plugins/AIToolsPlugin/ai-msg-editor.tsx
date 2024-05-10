@@ -8,16 +8,25 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 
 import defaultTheme from "@/components/doc/themes/default"
 
-import { AllNodes } from "../../nodes"
+// too wired to import mermaid here, but it's necessary
+// import mermaid let lexical code node recognize 'mermaid' language
+
+import "prismjs/components/prism-mermaid"
+import { useAllNodes, useLoadingExtBlocks } from "../../hooks/use-all-nodes"
 import { MarkdownLoaderPlugin } from "../MarkdownLoaderPlugin"
 
 export const AIContentEditor = ({ markdown }: { markdown: string }) => {
+  const allNodes = useAllNodes()
+  const isLoading = useLoadingExtBlocks()
   const initialConfig: InitialConfigType = {
     namespace: "AI-Chat-Input-Editor",
     theme: defaultTheme,
     onError: console.error,
     editable: false,
-    nodes: AllNodes,
+    nodes: allNodes,
+  }
+  if (isLoading) {
+    return <div>Loading...</div>
   }
 
   return (
