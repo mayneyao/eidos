@@ -29,6 +29,7 @@ import defaultTheme from "./themes/default"
 interface EditorProps {
   docId?: string
   isEditable: boolean
+  namespace?: string
   placeholder?: string
   autoFocus?: boolean
   title?: string
@@ -76,7 +77,7 @@ export function DocEditor(props: EditorProps) {
   const initConfig: InitialConfigType = useMemo(() => {
     const extBlocks = ((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []
     return {
-      namespace: "doc",
+      namespace: props.namespace || "doc",
       // The editor theme
       theme: defaultTheme,
       // Handling of errors during update
@@ -87,7 +88,7 @@ export function DocEditor(props: EditorProps) {
       nodes: [...AllNodes, ...extBlocks.map((block) => block.node)],
       editable: props.isEditable,
     }
-  }, [props.isEditable])
+  }, [props.isEditable, props.namespace])
 
   const { run: handleSave } = useDebounceFn(
     (title: string) => {

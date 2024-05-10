@@ -6,6 +6,7 @@ import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 
 import { BookmarkNode } from "./BookmarkNode"
+import { CardNode } from "./CardNode"
 import { DatabaseTableNode } from "./DatabaseTableNode"
 import { ImageNode } from "./ImageNode/ImageNode"
 import { MentionNode } from "./MentionNode"
@@ -31,7 +32,7 @@ export const AllNodes = [
   MentionNode,
   DatabaseTableNode,
   TableOfContentsNode,
-
+  CardNode,
   // custom embed node
   YouTubeNode,
 ]

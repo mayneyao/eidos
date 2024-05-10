@@ -33,6 +33,7 @@ export default function EverydayPage() {
         isEditable
         title={day}
         showTitle
+        namespace="eidos-notes"
         docId={day}
         titleStyle={{ maxWidth: "10ch" }}
         afterTitle={
