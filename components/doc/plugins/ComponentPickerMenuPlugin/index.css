@@ -4,16 +4,13 @@
 }
 
 .typeahead-popover {
-  background: hsl(var(--background));
-  box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
+  @apply rounded-md bg-popover text-popover-foreground p-0 shadow-lg border overflow-hidden;
 }
 
 .typeahead-popover ul {
   padding: 0;
   list-style: none;
   margin: 0;
-  border-radius: 8px;
   max-height: 320px;
   overflow-y: scroll;
 }
@@ -33,7 +30,6 @@
   font-size: 14px;
   outline: none;
   cursor: pointer;
-  border-radius: 8px;
 }
 
 .typeahead-popover ul li.selected {
@@ -52,8 +48,8 @@
   flex-direction: row;
   flex-shrink: 0;
   background-color: hsl(var(--background));
-  border-radius: 8px;
   border: 0;
+  @apply gap-2;
 }
 
 .typeahead-popover li.active {
@@ -61,14 +57,6 @@
   width: 20px;
   height: 20px;
   background-size: contain;
-}
-
-.typeahead-popover li:first-child {
-  border-radius: 8px 8px 0px 0px;
-}
-
-.typeahead-popover li:last-child {
-  border-radius: 0px 0px 8px 8px;
 }
 
 .typeahead-popover li:hover {
