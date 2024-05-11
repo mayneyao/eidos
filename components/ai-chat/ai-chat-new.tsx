@@ -26,6 +26,8 @@ import { AIModelSelect } from "./ai-chat-model-select"
 import { AIInputEditor } from "./ai-input-editor"
 import { sysPrompts, useSystemPrompt, useUserPrompts } from "./hooks"
 import "./index.css"
+import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
+
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAiConfig } from "@/hooks/use-ai-config"
 
@@ -60,9 +62,11 @@ export default function Chat() {
   const functionCallHandler = getFunctionCallHandler(handleFunctionCall)
 
   const [contextNodes, setContextNodes] = useState<ITreeNode[]>([])
+  const [contextEmbeddings, setContextEmbeddings] = useState<IEmbedding[]>([])
   const { systemPrompt, setCurrentDocMarkdown } = useSystemPrompt(
     currentSysPrompt,
-    contextNodes
+    contextNodes,
+    contextEmbeddings
   )
 
   const { reload: reloadModel } = useReloadModel()
@@ -131,6 +135,19 @@ export default function Chat() {
     setMessages([])
   }, [setMessages])
 
+  const appendHiddenMessage = useCallback(
+    (message: any) => {
+      setMessages([
+        ...messages,
+        {
+          ...message,
+          hidden: true,
+        },
+      ])
+    },
+    [setMessages, messages]
+  )
+
   return (
     <div
       className="relative flex h-full w-[24%] min-w-[400px] max-w-[700px] flex-col overflow-auto border-l border-l-slate-400 p-2"
@@ -193,6 +210,7 @@ export default function Chat() {
                 key={i}
                 msgIndex={i}
                 message={message}
+                messages={messages}
                 handleRunCode={handleManualRun}
               />
             )
@@ -237,7 +255,9 @@ export default function Chat() {
         <AIInputEditor
           disabled={progress && (progress?.progress || 0) < 1}
           setContextNodes={setContextNodes}
+          setContextEmbeddings={setContextEmbeddings}
           append={append}
+          appendHiddenMessage={appendHiddenMessage}
           isLoading={isLoading}
         />
       </div>

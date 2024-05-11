@@ -1,4 +1,4 @@
-import { HnswlibModule, loadHnswlib } from "hnswlib-wasm"
+import { HierarchicalNSW, HnswlibModule, loadHnswlib } from "hnswlib-wasm"
 
 let hnswlib: HnswlibModule
 const EF_SIZE = 32
@@ -27,15 +27,18 @@ const modelInfoMap: {
   },
 }
 
+let vectorHnswIndex: HierarchicalNSW | undefined
 export const getHnswIndex = async (model: string, filename: string) => {
   const hnswlib = await getHnswlib()
   const modelInfo = modelInfoMap[model]
   hnswlib.EmscriptenFileSystemManager.setDebugLogs(true)
-  const vectorHnswIndex = new hnswlib.HierarchicalNSW(
-    "cosine",
-    modelInfo.dim,
-    filename
-  )
+  if (!vectorHnswIndex) {
+    vectorHnswIndex = new hnswlib.HierarchicalNSW(
+      "cosine",
+      modelInfo.dim,
+      filename
+    )
+  }
   const exists = hnswlib.EmscriptenFileSystemManager.checkFileExists(filename)
   if (!exists) {
     vectorHnswIndex.initIndex(MAX_ELEMENTS, 48, 128, 100)

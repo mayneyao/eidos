@@ -78,7 +78,7 @@ class EmbeddingManager {
     scope: string,
     k = 3,
     provider: LLMBaseVendor
-  ) {
+  ): Promise<IEmbedding[]> {
     const embeddings = await provider.embedding([query], model)
     const embedding = embeddings[0]
     if (!embedding) return []
@@ -93,7 +93,9 @@ class EmbeddingManager {
       k,
       undefined
     ) as any
-    return this.getMetadata(neighbors.map((r: number) => r.toString()))
+    return (
+      await this.getMetadata(neighbors.map((r: number) => r.toString()))
+    ).filter(Boolean)
   }
 
   public async createEmbedding(
@@ -194,7 +196,7 @@ export const useHnsw = () => {
     scope: string
     k?: number
     provider: LLMBaseVendor
-  }): Promise<any[] | undefined> {
+  }): Promise<IEmbedding[] | undefined> {
     const { query, model, scope, k, provider } = data
     return await emRef.current?.query(query, model, scope, k, provider)
   }

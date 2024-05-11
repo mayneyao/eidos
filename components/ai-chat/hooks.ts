@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 
 import { getPrompt } from "@/lib/ai/openai"
@@ -100,7 +101,8 @@ export const useUserPrompts = () => {
 
 export const useSystemPrompt = (
   currentSysPrompt: string,
-  contextNodes: ITreeNode[] = []
+  contextNodes: ITreeNode[] = [],
+  contextEmbeddings: IEmbedding[] = []
 ) => {
   const { context, setCurrentDocMarkdown } = usePromptContext()
   const tables = useMemo(
@@ -113,7 +115,7 @@ export const useSystemPrompt = (
     if (sysPrompts.hasOwnProperty(currentSysPrompt)) {
       const baseSysPrompt =
         sysPrompts[currentSysPrompt as keyof typeof sysPrompts]
-      const systemPrompt =
+      let systemPrompt =
         getPrompt(baseSysPrompt, context, currentSysPrompt === "base") +
         `\n--------------- \nhere are some data for nodes:\n ${JSON.stringify(
           contextNodes,
@@ -129,6 +131,11 @@ export const useSystemPrompt = (
             )}`
           })
           .join("\n")
+      if (contextEmbeddings.length > 0) {
+        systemPrompt += `\n--------------- \nhere are some context: \n${contextEmbeddings
+          .map((r) => r.raw_content)
+          .join("\n")}`
+      }
 
       return {
         systemPrompt,
@@ -141,12 +148,5 @@ export const useSystemPrompt = (
         setCurrentDocMarkdown,
       }
     }
-  }, [
-    context,
-    contextNodes,
-    currentSysPrompt,
-    prompts,
-    setCurrentDocMarkdown,
-    uiColumnsMap,
-  ])
+  }, [context, contextEmbeddings, contextNodes, currentSysPrompt, prompts, setCurrentDocMarkdown, uiColumnsMap])
 }

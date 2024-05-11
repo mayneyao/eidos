@@ -24,6 +24,7 @@ import {
 const defaultValues: Partial<ExperimentFormValues> = {
   undoRedo: false,
   enableFileManager: false,
+  enableRAG: false,
 }
 
 export function ExperimentForm() {
@@ -58,6 +59,26 @@ export function ExperimentForm() {
             {"POC💡 -> alpha🔨 -> beta🚀 -> release📦"}
           </h4>
           <div className="space-y-4">
+            <FormField
+              control={form.control}
+              name="enableRAG"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">RAG(alpha🔨)</FormLabel>
+                    <FormDescription>
+                      get better answers from the AI model. chat with your space
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="undoRedo"

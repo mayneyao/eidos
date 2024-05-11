@@ -6,10 +6,12 @@ export const AIChatMessage = ({
   message,
   msgIndex,
   handleRunCode,
+  messages,
 }: {
   msgIndex: number
   message: any
   handleRunCode: any
+  messages: any
 }) => {
   return (
     <div
@@ -22,6 +24,7 @@ export const AIChatMessage = ({
           <AIMessage
             msgId={message.id}
             message={message.content}
+            prevMessage={messages[msgIndex - 2]}
             onRun={handleRunCode}
             msgIndex={msgIndex}
           />

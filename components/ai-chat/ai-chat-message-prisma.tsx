@@ -6,23 +6,27 @@ import { Button } from "@/components/ui/button"
 import "prismjs/components/prism-sql"
 import "prismjs/themes/prism-tomorrow.css"
 import { useEffect, useRef } from "react"
+import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import {
   DEFAULT_MARKDOWN_RENDERERS,
   Markdown,
   MarkdownRenderers,
 } from "react-marked-renderer"
 
+import { MentionComponent } from "../doc/nodes/MentionNode"
 import { useSpeak, useSpeakStore } from "./webspeech/hooks"
 
 export const AIMessage = ({
   msgId: _msgId,
   message,
+  prevMessage,
   onRun,
   msgIndex,
 }: {
   msgId: string
   msgIndex: number
   message?: string
+  prevMessage?: any
   onRun: (props: {
     code: string
     lang: string
@@ -36,6 +40,8 @@ export const AIMessage = ({
   const ref = useRef<HTMLDivElement>(null)
   const { msgId, charIndex, charLength } = useSpeakStore()
   const { cancel } = useSpeak()
+  const hasRef = Boolean(prevMessage?.references)
+
   useEffect(() => {
     if (msgId === _msgId) {
       const el = ref.current
@@ -142,6 +148,16 @@ export const AIMessage = ({
       ref={ref}
     >
       {message && <Markdown markdown={message} renderers={renderers} />}
+      {hasRef && (
+        <div className="mb-8">
+          <div className=" m-2 h-[1px] border border-purple-300" />
+          <div className="flex flex-col">
+            {prevMessage?.references.map((source: string) => (
+              <MentionComponent id={source} key={source} />
+            ))}
+          </div>
+        </div>
+      )}
       <div id={`chart-${msgIndex}`} />
       {_msgId === msgId && (
         <div className=" absolute bottom-0 right-0" onClick={cancel}>

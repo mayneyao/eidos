@@ -39,6 +39,7 @@ import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
 import { NodeMoveInto } from "../node-menu/move-into"
 import { NodeExport } from "../node-menu/node-export"
 import { Switch } from "../ui/switch"
+import { useToast } from "../ui/use-toast"
 
 export function NavDropdownMenu() {
   const router = useNavigate()
@@ -48,6 +49,8 @@ export function NavDropdownMenu() {
   const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
 
   const node = useCurrentNode()
+  const { toast } = useToast()
+
   const { createEmbedding } = useHnsw()
   const { space } = useCurrentPathInfo()
   const toggleCMDK = () => {
@@ -64,14 +67,21 @@ export function NavDropdownMenu() {
     }
   }
 
-  const handleCreateDocEmbedding = () => {
-    node &&
-      createEmbedding({
+  const handleCreateDocEmbedding = async () => {
+    if (node) {
+      toast({
+        title: `Creating Embedding for ${node.name}`,
+      })
+      await createEmbedding({
         id: node.id,
         type: "doc",
         model: "bge-m3",
         provider: new BGEM3(),
       })
+      toast({
+        title: "Embedding Created",
+      })
+    }
   }
 
   return (
