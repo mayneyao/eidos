@@ -90,6 +90,15 @@ export const useUpdateLocation = (
     })
   }, [boxRef, editor, selectionRef, selectionState])
 
+  useEffect(() => {
+    const main = document.querySelector("#main-content")
+    main?.addEventListener("scroll", updateLocation)
+
+    return () => {
+      main?.removeEventListener("scroll", updateLocation)
+    }
+  }, [updateLocation])
+
   useLayoutEffect(() => {
     updateLocation()
     const container = selectionState.container

@@ -194,7 +194,7 @@ export function AITools({
   const { editorWidth } = useUpdateLocation(editor, selectionRef, boxRef)
 
   return (
-    <div className=" absolute z-50" ref={boxRef}>
+    <div className=" fixed z-50" ref={boxRef}>
       {!isFinished && (
         <div>
           <div

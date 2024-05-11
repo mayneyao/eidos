@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { FloatingPortal } from "@floating-ui/react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
   $getSelection,
@@ -95,11 +96,11 @@ export const AIToolsPlugin = (props: any) => {
 
   return (
     <div>
-      {showCommentInput &&
-        createPortal(
-          <AITools cancelAIAction={cancelAIAction} content={content} />,
-          document.body
-        )}
+      {showCommentInput && (
+        <FloatingPortal root={document.querySelector("#editor-container")! as any}>
+          <AITools cancelAIAction={cancelAIAction} content={content} />
+        </FloatingPortal>
+      )}
       <AlertDialog
         open={cancelActionConfirmOpen}
         onOpenChange={setCancelActionConfirmOpen}
