@@ -78,7 +78,7 @@ export default function Chat() {
     }
   }, [reloadModel, aiModel])
 
-  const { getConfigByModel } = useAiConfig()
+  const { getConfigByModel, hasAvailableModels } = useAiConfig()
   const { messages, setMessages, reload, append, isLoading, stop } = useChat({
     experimental_onFunctionCall: functionCallHandler as any,
     onFinish(message) {
@@ -170,9 +170,9 @@ export default function Chat() {
           />
           <AIChatSettings />
         </div>
-        {!aiConfig.token && (
+        {!hasAvailableModels && (
           <p className="p-2">
-            you need to set your openai token in{" "}
+            you need to set up LLMs in{" "}
             <span>
               <Link to="/settings/ai" className="text-cyan-500">
                 settings

@@ -31,9 +31,7 @@ import { LocalLLMManage } from "./local-llm-manage"
 
 const AIConfigFormSchema = z.object({
   // openai
-  token: z.string().min(2, {
-    message: "Name must be at least 2 characters.",
-  }),
+  token: z.string().optional(),
   baseUrl: z.string().url().default("https://api.openai.com/v1"),
   OPENAI_MODELS: z
     .string()
