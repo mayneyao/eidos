@@ -14,9 +14,8 @@ export const MarkdownLoaderPlugin = ({ markdown }: { markdown: string }) => {
   useEffect(() => {
     if (markdown) {
       editor.update(() => {
-        $convertFromMarkdownString(markdown, allTransformers)
+        $convertFromMarkdownString(markdown ?? "\n", allTransformers)
         for (const code of $nodesOfType(CodeNode)) {
-          console.log(code.getLanguage(), markdown)
           const lang = code.getLanguage()
           if (lang) {
             const extBlock = extBlocks.find(
@@ -24,7 +23,6 @@ export const MarkdownLoaderPlugin = ({ markdown }: { markdown: string }) => {
             )
             if (extBlock) {
               const node = extBlock.createNode(code.getTextContent())
-              console.log(node)
               code.replace(node)
             }
           }

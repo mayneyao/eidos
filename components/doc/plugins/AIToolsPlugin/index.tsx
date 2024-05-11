@@ -109,12 +109,12 @@ export const AIToolsPlugin = (props: any) => {
         </AlertDialogTrigger>
         <AlertDialogContent role="ai-action-cancel-confirm">
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>Discard the AI response?</AlertDialogTitle>
             <AlertDialogDescription></AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={closeConfirm}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={cancel}>Continue</AlertDialogAction>
+            <AlertDialogAction onClick={cancel}>Discard</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

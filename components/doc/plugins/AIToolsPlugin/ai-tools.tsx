@@ -1,27 +1,13 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
-import { CodeNode } from "@lexical/code"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { $convertFromMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { createDOMRange, createRectsFromDOMRange } from "@lexical/selection"
 import { useClickAway, useKeyPress } from "ahooks"
 import { useChat } from "ai/react"
-import {
-  $createParagraphNode,
-  $getRoot,
-  $getSelection,
-  $isRangeSelection,
-  $nodesOfType,
-  RangeSelection,
-} from "lexical"
+import { $createParagraphNode, $getRoot, RangeSelection } from "lexical"
+import { PauseIcon, RefreshCcwIcon } from "lucide-react"
 
 import { uuidv4 } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
@@ -36,12 +22,22 @@ import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { $transformExtCodeBlock } from "../../utils/helper"
 import { allTransformers } from "../const"
 import { AIContentEditor } from "./ai-msg-editor"
+import { useUpdateLocation } from "./hooks"
 
 enum AIActionEnum {
   INSERT_BELOW = "insert_below",
   REPLACE = "replace",
   TRY_AGAIN = "try_again",
 }
+
+const AIActionDisplay = Object.values(AIActionEnum).reduce((acc, key) => {
+  // uppercase to title case
+  acc[key] = key
+    .split("_")
+    .join(" ")
+    .replace(/\b\w/g, (l) => l.toUpperCase())
+  return acc
+}, {} as Record<string, string>)
 
 export function AITools({
   cancelAIAction,
@@ -66,19 +62,7 @@ export function AITools({
   const [open, setOpen] = useState(true)
   const [actionOpen, setActionOpen] = useState(false)
   const [aiResult, setAiResult] = useState<string>("")
-  const [editorWidth, setEditorWidth] = useState(0)
-
-  const {
-    messages,
-    setMessages,
-    reload,
-    input,
-    handleInputChange,
-    handleSubmit,
-    append,
-    isLoading,
-    stop,
-  } = useChat({
+  const { messages, setMessages, reload, isLoading, stop } = useChat({
     onFinish(message) {
       setAiResult(message.content)
       setActionOpen(true)
@@ -203,101 +187,11 @@ export function AITools({
     boxRef,
     ["touchstart", "mousedown"]
   )
+  const regenerate = () => {
+    reload()
+  }
 
-  const selectionState = useMemo(
-    () => ({
-      container: document.createElement("div"),
-      elements: [],
-    }),
-    []
-  )
-  const updateLocation = useCallback(() => {
-    editor.getEditorState().read(() => {
-      const selection = $getSelection()
-
-      if ($isRangeSelection(selection)) {
-        selectionRef.current = selection.clone()
-        const anchor = selection.anchor
-        const focus = selection.focus
-        const range = createDOMRange(
-          editor,
-          anchor.getNode(),
-          anchor.offset,
-          focus.getNode(),
-          focus.offset
-        )
-        const boxElem = boxRef.current
-        if (range !== null && boxElem !== null) {
-          const { left, bottom, width } = range.getBoundingClientRect()
-          const selectionRects = createRectsFromDOMRange(editor, range)
-          let correctedLeft =
-            selectionRects.length === 1 ? left + width / 2 - 125 : left - 125
-          if (correctedLeft < 10) {
-            correctedLeft = 10
-          }
-          boxElem.style.left = `${left}px`
-          boxElem.style.top = `${
-            bottom +
-            8 +
-            (window.pageYOffset || document.documentElement.scrollTop)
-          }px`
-          const selectionRectsLength = selectionRects.length
-          const { container } = selectionState
-          const elements: Array<HTMLSpanElement> = selectionState.elements
-          const elementsLength = elements.length
-
-          for (let i = 0; i < selectionRectsLength; i++) {
-            const selectionRect = selectionRects[i]
-            let elem: HTMLSpanElement = elements[i]
-            if (elem === undefined) {
-              elem = document.createElement("span")
-              elements[i] = elem
-              container.appendChild(elem)
-            }
-            const color = "255, 212, 0"
-            const style = `position:absolute;top:${
-              selectionRect.top +
-              (window.pageYOffset || document.documentElement.scrollTop)
-            }px;left:${selectionRect.left}px;height:${
-              selectionRect.height
-            }px;width:${
-              selectionRect.width
-            }px;background-color:rgba(${color}, 0.3);pointer-events:none;z-index:5;`
-            elem.style.cssText = style
-          }
-          for (let i = elementsLength - 1; i >= selectionRectsLength; i--) {
-            const elem = elements[i]
-            container.removeChild(elem)
-            elements.pop()
-          }
-        }
-      }
-    })
-  }, [editor, selectionState])
-
-  useLayoutEffect(() => {
-    updateLocation()
-    const container = selectionState.container
-    const editorContainer = document.querySelector("#editor-container-inner")
-    if (editorWidth !== editorContainer?.clientWidth) {
-      setEditorWidth(editorContainer?.clientWidth || 0)
-    }
-    const body = document.body
-    if (body !== null) {
-      body.appendChild(container)
-      return () => {
-        body.removeChild(container)
-      }
-    }
-  }, [editorWidth, selectionState.container, updateLocation])
-
-  useEffect(() => {
-    window.addEventListener("resize", updateLocation)
-
-    return () => {
-      window.removeEventListener("resize", updateLocation)
-    }
-  }, [updateLocation])
+  const { editorWidth } = useUpdateLocation(editor, selectionRef, boxRef)
 
   return (
     <div className=" absolute z-50" ref={boxRef}>
@@ -310,6 +204,21 @@ export function AITools({
             }}
           >
             <AIContentEditor markdown={messages[2]?.content} />
+            <div className="flex  w-full items-center justify-end opacity-50">
+              {isLoading && (
+                <Button onClick={stop} variant="ghost" size="sm">
+                  <PauseIcon className="h-5 w-5" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                onClick={regenerate}
+                size="sm"
+                disabled={isLoading}
+              >
+                <RefreshCcwIcon className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
           {actionOpen && (
             <Command className="mt-1 h-[300px] w-[200px] rounded-md border shadow-md">
@@ -331,7 +240,7 @@ export function AITools({
                       handleAction(action)
                     }}
                   >
-                    {action}
+                    {AIActionDisplay[action]}
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -354,7 +263,7 @@ export function AITools({
             {prompts.map((prompt) => (
               <CommandItem
                 key={prompt.id}
-                value={prompt.id}
+                value={prompt.name}
                 onSelect={(currentValue) => {
                   runAction(prompt.code, prompt.model)
                 }}
