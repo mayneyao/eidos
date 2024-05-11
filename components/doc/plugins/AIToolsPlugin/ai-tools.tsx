@@ -7,6 +7,7 @@ import { $createParagraphNode, $getRoot, RangeSelection } from "lexical"
 import { PauseIcon, RefreshCcwIcon } from "lucide-react"
 
 import { uuidv4 } from "@/lib/utils"
+import { useAiConfig } from "@/hooks/use-ai-config"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -62,14 +63,14 @@ export function AITools({
   const [open, setOpen] = useState(true)
   const [actionOpen, setActionOpen] = useState(false)
   const [aiResult, setAiResult] = useState<string>("")
+  const { getConfigByModel } = useAiConfig()
   const { messages, setMessages, reload, isLoading, stop } = useChat({
     onFinish(message) {
       setAiResult(message.content)
       setActionOpen(true)
     },
     body: {
-      token: aiConfig.token,
-      baseUrl: aiConfig.baseUrl,
+      ...getConfigByModel(currentModel),
       GOOGLE_API_KEY: aiConfig.GOOGLE_API_KEY,
       model: currentModel,
     },
