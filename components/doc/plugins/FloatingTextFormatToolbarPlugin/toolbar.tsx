@@ -17,6 +17,7 @@ import {
   Italic,
   Link,
   SparkleIcon,
+  SparklesIcon,
   Strikethrough,
   Subscript,
   Superscript,
@@ -219,12 +220,18 @@ export function TextFormatFloatingToolbar({
       {editor.isEditable() && (
         <>
           <div
-            className={cn("mx-2 flex cursor-pointer items-center")}
+            className={cn(
+              "mx-2 flex cursor-pointer items-center justify-center gap-1 px-2",
+              "border-r text-purple-500 hover:bg-secondary hover:text-purple-600"
+            )}
             onMouseDownCapture={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
               editor.dispatchCommand(INSERT_AI_COMMAND, content)
             }}
+            title="alt+i"
           >
-            <SparkleIcon className="h-4 w-4" /> AI
+            <SparklesIcon className="h-4 w-4" /> AI
           </div>
           <Toggle
             size="sm"

@@ -84,7 +84,7 @@ export function PWALayoutBase({
             </div>
             <main
               id="main-content"
-              className="z-[1] flex w-full grow flex-col overflow-auto"
+              className="z-[1] flex w-full grow flex-col overflow-y-auto"
             >
               {children}
             </main>

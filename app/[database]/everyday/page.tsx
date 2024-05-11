@@ -76,6 +76,7 @@ export default function EverydayPage() {
                 </Link>
                 <Editor
                   docId={day.id}
+                  namespace="eidos-notes"
                   autoFocus={index === 0}
                   isEditable
                   placeholder=""

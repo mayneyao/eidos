@@ -12,6 +12,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { eventFiles } from "@lexical/rich-text"
 import { mergeRegister } from "@lexical/utils"
 import {
+  $createParagraphNode,
   $getNearestNodeFromDOMNode,
   $getNodeByKey,
   $getRoot,
@@ -210,6 +211,17 @@ function useDraggableBlockMenu(
   const [draggableBlockElem, setDraggableBlockElem] =
     useState<HTMLElement | null>(null)
 
+  const addNodeBelow = () => {
+    editor.update(() => {
+      const node =
+        draggableBlockElem && $getNearestNodeFromDOMNode(draggableBlockElem)
+      if (node) {
+        const newLine = $createParagraphNode()
+        node.insertAfter(newLine)
+        newLine.select()
+      }
+    })
+  }
   useEffect(() => {
     function onMouseMove(event: MouseEvent) {
       const target = event.target
@@ -353,12 +365,13 @@ function useDraggableBlockMenu(
   return createPortal(
     <>
       <div
-        className="icon draggable-block-menu"
         ref={menuRef}
+        className="draggable-block-menu flex gap-2 "
         draggable={true}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
+        <div className={isEditable ? "add-icon" : ""} onClick={addNodeBelow} />
         <div className={isEditable ? "icon" : ""} />
       </div>
       <div className="draggable-block-target-line" ref={targetLineRef} />

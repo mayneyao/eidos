@@ -1,17 +1,16 @@
-import { useConfigStore } from "@/app/settings/store"
+import { efsManager } from "@/lib/storage/eidos-file-system"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useFileSystem } from "@/hooks/use-files"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { useFileSystem } from "@/hooks/use-files"
-import { useHnsw } from "@/hooks/use-hnsw"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { efsManager } from "@/lib/storage/eidos-file-system"
-import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-
+import { useConfigStore } from "@/app/settings/store"
 
 export function FileItemContextMenu({ children }: any) {
   const { selectedEntries, deleteFiles, getFileUrlPath } = useFileSystem()
@@ -91,7 +90,7 @@ export function FileItemContextMenu({ children }: any) {
     if (name.endsWith(".pdf")) {
       const path = "spaces" + getFileUrlPath(name)
       const file = await sqlite?.getFileByPath(path)
-      if (file && !file.is_vectorized) {
+      if (file && !file.is_vectorized && aiConfig.token?.length) {
         await createEmbedding({
           id: file.id,
           type: "file",

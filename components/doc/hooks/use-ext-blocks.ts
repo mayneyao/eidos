@@ -17,6 +17,8 @@ export interface ExtBlock {
   command: {
     create: LexicalCommand<any>
   }
+  createNode: (args: any) => any
+  markdownLanguage?: string
 }
 export const useExtBlocks = () => {
   const [extBlocks, setExtBlocks] = useState<ExtBlock[]>([])

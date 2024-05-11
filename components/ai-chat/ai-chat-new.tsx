@@ -27,6 +27,7 @@ import { AIInputEditor } from "./ai-input-editor"
 import { sysPrompts, useSystemPrompt, useUserPrompts } from "./hooks"
 import "./index.css"
 import { ITreeNode } from "@/lib/store/ITreeNode"
+import { useAiConfig } from "@/hooks/use-ai-config"
 
 import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
@@ -77,14 +78,14 @@ export default function Chat() {
     }
   }, [reloadModel, aiModel])
 
+  const { getConfigByModel, hasAvailableModels } = useAiConfig()
   const { messages, setMessages, reload, append, isLoading, stop } = useChat({
     experimental_onFunctionCall: functionCallHandler as any,
     onFinish(message) {
       autoSpeak && speak(message.content, message.id)
     },
     body: {
-      token: aiConfig.token,
-      baseUrl: aiConfig.baseUrl,
+      ...getConfigByModel(aiModel),
       GOOGLE_API_KEY: aiConfig.GOOGLE_API_KEY,
       systemPrompt,
       model: aiModel,
@@ -169,9 +170,9 @@ export default function Chat() {
           />
           <AIChatSettings />
         </div>
-        {!aiConfig.token && (
+        {!hasAvailableModels && (
           <p className="p-2">
-            you need to set your openai token in{" "}
+            you need to set up LLMs in{" "}
             <span>
               <Link to="/settings/ai" className="text-cyan-500">
                 settings

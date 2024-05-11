@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+#root {
+  overflow: hidden;
+}
+
 /* fix prism code wrap */
 pre[class*="language-"],
 code[class*="language-"] {

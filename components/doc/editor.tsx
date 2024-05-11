@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 
 import { Loading } from "../loading"
+import { useLoadingExtBlocks } from "./hooks/use-all-nodes"
 import { ExtBlock, useEnabledExtBlocks } from "./hooks/use-ext-blocks"
 import { useEditorStore } from "./hooks/useEditorContext"
 import { AllNodes } from "./nodes"
@@ -28,6 +29,7 @@ import defaultTheme from "./themes/default"
 interface EditorProps {
   docId?: string
   isEditable: boolean
+  namespace?: string
   placeholder?: string
   autoFocus?: boolean
   title?: string
@@ -47,12 +49,11 @@ interface EditorProps {
 }
 
 export function Editor(props: EditorProps) {
-  const { scripts: allEnabledExtBlocks, loading } = useEnabledExtBlocks()
-  const extBlocks = ((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []
-  if (loading || allEnabledExtBlocks.length !== extBlocks.length) {
+  const isLoading = useLoadingExtBlocks()
+  if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center gap-2">
-        <Loading /> <span>Loading Ext Blocks...</span>
+        <Loading />
       </div>
     )
   }
@@ -64,7 +65,7 @@ export function DocEditor(props: EditorProps) {
   const ref = React.useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState(props.title ?? "")
 
-  const { isToolbarVisible } = useEditorStore()
+  const { isToolbarVisible, isAIToolsOpen } = useEditorStore()
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null)
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
@@ -76,7 +77,7 @@ export function DocEditor(props: EditorProps) {
   const initConfig: InitialConfigType = useMemo(() => {
     const extBlocks = ((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []
     return {
-      namespace: "doc",
+      namespace: props.namespace || "doc",
       // The editor theme
       theme: defaultTheme,
       // Handling of errors during update
@@ -87,7 +88,7 @@ export function DocEditor(props: EditorProps) {
       nodes: [...AllNodes, ...extBlocks.map((block) => block.node)],
       editable: props.isEditable,
     }
-  }, [props.isEditable])
+  }, [props.isEditable, props.namespace])
 
   const { run: handleSave } = useDebounceFn(
     (title: string) => {
@@ -146,7 +147,10 @@ export function DocEditor(props: EditorProps) {
             ref={ref}
             id="editor-container"
           >
-            <div className="editor-inner relative w-full">
+            <div
+              className="editor-inner relative w-full"
+              id="editor-container-inner"
+            >
               <RichTextPlugin
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
@@ -163,6 +167,8 @@ export function DocEditor(props: EditorProps) {
                 }
                 ErrorBoundary={LexicalErrorBoundary}
               />
+
+              {isAIToolsOpen && <div id="ai-content-placeholder" />}
 
               <AIEditorPlugin />
               <AllPlugins />
@@ -186,7 +192,7 @@ export function DocEditor(props: EditorProps) {
               )}
             </div>
           </div>
-          {props.disableSelectionPlugin || isToolbarVisible ? (
+          {props.disableSelectionPlugin || isToolbarVisible || isAIToolsOpen ? (
             <></>
           ) : (
             <SelectionPlugin />
