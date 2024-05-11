@@ -1,4 +1,4 @@
-abstract class LLMBaseVendor {
+export abstract class LLMBaseVendor {
   abstract name: string
 
   // text encoding and decoding

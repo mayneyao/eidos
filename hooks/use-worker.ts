@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 
 import { MsgType } from "@/lib/const"
+import { embeddingTexts, getEmbeddingWorker } from "@/lib/embedding/worker"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useToast } from "@/components/ui/use-toast"
@@ -66,7 +67,19 @@ export const useWorker = () => {
     toast,
   ])
 
+  const initEmbeddingWorker = useCallback(() => {
+    const worker = getEmbeddingWorker()
+    ;(window as any).embeddingWorker = worker
+    ;(window as any).embeddingTexts = embeddingTexts
+    const handler = async (event: MessageEvent) => {
+      console.log("embedding worker message", event.data)
+    }
+    worker.addEventListener("message", handler)
+    return () => worker.removeEventListener("message", handler)
+  }, [])
+
   return {
+    initEmbeddingWorker,
     initWorker,
     isInitialized,
   }

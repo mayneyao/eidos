@@ -21,6 +21,10 @@ const modelInfoMap: {
     dim: 1536,
     defaultSpaceName: "cosine", // recommend by openai
   },
+  "bge-m3": {
+    dim: 1024,
+    defaultSpaceName: "cosine",
+  },
 }
 
 export const getHnswIndex = async (model: string, filename: string) => {

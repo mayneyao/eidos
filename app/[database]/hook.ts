@@ -65,7 +65,7 @@ export const useLayoutInit = () => {
   const { sqlite } = useSqlite(database)
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
-  const { isInitialized, initWorker } = useWorker()
+  const { isInitialized, initWorker, initEmbeddingWorker } = useWorker()
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
 
   const { initPeer } = usePeer()
@@ -79,9 +79,10 @@ export const useLayoutInit = () => {
   }, [initPeer])
 
   useSqliteMetaTableSubscribe()
-  // useEffect(() => {
-  //   getWorker()
-  // }, [])
+  useEffect(() => {
+    console.log("initEmbeddingWorker")
+    initEmbeddingWorker()
+  }, [initEmbeddingWorker])
 
   useEffect(() => {
     if (database && sqlite) {

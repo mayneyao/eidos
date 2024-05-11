@@ -45,8 +45,7 @@ export function PWALayoutBase({
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useAppStore()
   const { isAiOpen, isExtAppOpen } = useSpaceAppStore()
-  // event listen should be in useLayoutInit, and just listen once
-  useLayoutInit()
+
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">

@@ -1,3 +1,6 @@
+import OpenAI from "openai"
+
+import { LLMOpenAI } from "@/lib/ai/llm_vendors/openai"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -95,10 +98,7 @@ export function FileItemContextMenu({ children }: any) {
           id: file.id,
           type: "file",
           model: "text-embedding-ada-002",
-          provider: {
-            name: "openai",
-            token: aiConfig.token,
-          },
+          provider: new LLMOpenAI(new OpenAI({ apiKey: aiConfig.token })),
         })
       }
     }

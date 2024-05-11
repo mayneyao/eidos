@@ -3,12 +3,12 @@ import { DataSpace } from "@/worker/web-worker/DataSpace"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import zip from "lodash/zip"
 
+import { DocLoader } from "@/lib/ai/doc_loader/doc"
 import { PDFLoader } from "@/lib/ai/doc_loader/pdf"
-import { LLMOpenAI } from "@/lib/ai/llm_vendors/openai"
-import { getOpenAI } from "@/lib/ai/openai"
+import { LLMBaseVendor } from "@/lib/ai/llm_vendors/base"
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { getHnswIndex } from "@/lib/ai/vec_search"
 import { EmbeddingTableName } from "@/lib/sqlite/const"
-import { getUuid } from "@/lib/utils"
 
 import { useSqlite } from "./use-sqlite"
 
@@ -20,27 +20,13 @@ class EmbeddingManager {
     this.dataSpace = dataSpace
   }
 
-  getEmbeddingMethod(
-    model: string,
-    provider: {
-      name: "openai"
-      token: string
-    }
-  ) {
-    if (provider.name === "openai") {
-      const openai = getOpenAI(provider.token)
-      const llmOpenAI = new LLMOpenAI(openai)
-      return (text: string[]) => llmOpenAI.embedding(text, model)
-    }
-    return (text: string[]) => Promise.resolve([])
-  }
-
   /**
    * @param model
    * @param source for hnswlib, it's the filename. for query, it's scope param
    */
   async filterEmbeddings(model: string, source: string) {
-    const res = await this.dataSpace.sql2`SELECT * FROM ${Symbol(
+    const res = await this.dataSpace
+      .sql2`SELECT id, raw_content,source,source_type FROM ${Symbol(
       EmbeddingTableName
     )} WHERE model = ${model} AND source = ${source}`
 
@@ -57,88 +43,128 @@ class EmbeddingManager {
     }
   }
 
+  async getMetadata(ids: string[]) {
+    const res = await this.dataSpace
+      .sql2`SELECT id, raw_content,source,source_type FROM ${Symbol(
+      EmbeddingTableName
+    )} WHERE id IN ${ids}`
+    const resMap = res.reduce((acc, row) => {
+      acc[row.id] = row
+      return acc
+    }, {} as Record<string, IEmbedding>)
+    return ids.map((id) => resMap[id])
+  }
+
+  async clearEmbeddings(model: string, source: string) {
+    // query all embeddings of this source
+    const res = await this.dataSpace.sql2`SELECT id FROM ${Symbol(
+      EmbeddingTableName
+    )} WHERE model = ${model} AND source = ${source}`
+
+    const { exists, vectorHnswIndex } = await getHnswIndex(model, "all")
+    const ids = res.map((row) => parseInt(row.id))
+    if (exists) {
+      vectorHnswIndex.markDeleteItems(ids)
+    }
+    // delete all embeddings of this source
+    await this.dataSpace.sql2`DELETE FROM ${Symbol(
+      EmbeddingTableName
+    )} WHERE model = ${model} AND source = ${source}`
+  }
+
   public async query(
     query: string,
     model: string,
     scope: string,
     k = 3,
-    provider: {
-      name: "openai"
-      token: string
-    }
+    provider: LLMBaseVendor
   ) {
-    const embeddingMethod = this.getEmbeddingMethod(model, provider)
-    const embeddings = await embeddingMethod([query])
+    const embeddings = await provider.embedding([query], model)
     const embedding = embeddings[0]
-    console.log({
-      text: query,
-      embedding,
-    })
     if (!embedding) return []
     const { exists, vectorHnswIndex } = await getHnswIndex(model, scope)
-    const { embeddingIndexMap, embeddings: oldEmbeddings } =
-      await this.filterEmbeddings(model, scope)
-    if (!exists) {
-      vectorHnswIndex.addItems(oldEmbeddings, true)
-    }
+    // const { embeddingIndexMap, embeddings: oldEmbeddings } =
+    //   await this.filterEmbeddings(model, scope)
+    // if (!exists) {
+    //   vectorHnswIndex.addItems(oldEmbeddings, true)
+    // }
     const { neighbors } = vectorHnswIndex.searchKnn(
       embedding,
       k,
       undefined
     ) as any
-    const res = neighbors.map((index: any) => {
-      const row = embeddingIndexMap.get(index)
-      return row
-    })
-    console.log(neighbors, res)
-    return res
+    return this.getMetadata(neighbors.map((r: number) => r.toString()))
   }
 
   public async createEmbedding(
     id: string,
     type: "doc" | "table" | "file",
     model: string,
-    provider: {
-      name: "openai"
-      token: string
-    }
+    provider: LLMBaseVendor
   ) {
     let loader
+    let pages: { content: string; meta: any }[]
+    const dataSpace = this.dataSpace
+    if (type !== "file") {
+      await this.clearEmbeddings(model, id)
+      console.log("clearEmbeddings", model, id)
+    }
+    async function embedding(pages: { content: string; meta: any }[]) {
+      if (!pages.length) {
+        return
+      }
+      const embeddingMethod = async (texts: string[]) =>
+        provider.embedding(texts, model)
+      const embeddings = await embeddingMethod(
+        pages.map((page) => page.content)
+      )
+      const { exists, vectorHnswIndex } = await getHnswIndex(model, "all")
+      const labels = vectorHnswIndex.addItems(embeddings, true)
+      console.log("labels", labels)
+      for (const [page, embedding, embeddingId] of zip(
+        pages,
+        embeddings,
+        labels
+      )) {
+        if (page && embedding) {
+          await dataSpace.addEmbedding({
+            id: embeddingId!.toString(),
+            embedding: JSON.stringify(embedding),
+            model,
+            raw_content: page.content,
+            source_type: type,
+            source: id,
+          })
+        }
+      }
+    }
+
     switch (type) {
       case "file":
         // pdf
         loader = new PDFLoader()
+        const file = await this.dataSpace.getFileById(id)
+        if (!file) {
+          console.warn("file not found")
+          return
+        }
+        if (file.is_vectorized) {
+          console.warn("file is already vectorized")
+          return
+        }
+        pages = await loader.load(file.path)
+        await embedding(pages)
+        await this.dataSpace.updateFileVectorized(id, true)
         break
       case "doc":
+        loader = new DocLoader(this.dataSpace)
+        pages = await loader.load(id)
+        await embedding(pages)
+        break
       case "table":
       default:
         throw new Error("unknown type")
     }
-    const file = await this.dataSpace.getFileById(id)
-    if (!file) {
-      throw new Error("file not found")
-    }
-    if (file.is_vectorized) {
-      console.warn("file is already vectorized")
-      return
-    }
-    const pages = await loader!.load(file.path)
-    if (!pages.length) return
-    const embeddingMethod = this.getEmbeddingMethod(model, provider)
-    const embeddings = await embeddingMethod(pages.map((page) => page.content))
-    for (const [page, embedding] of zip(pages, embeddings)) {
-      if (page && embedding) {
-        await this.dataSpace.addEmbedding({
-          id: getUuid(),
-          embedding: JSON.stringify(embedding),
-          model,
-          raw_content: page.content,
-          source_type: type,
-          source: id,
-        })
-      }
-    }
-    await this.dataSpace.updateFileVectorized(id, true)
   }
 }
 
@@ -156,10 +182,7 @@ export const useHnsw = () => {
     id: string
     type: "doc" | "table" | "file"
     model: string
-    provider: {
-      name: "openai"
-      token: string
-    }
+    provider: LLMBaseVendor
   }) {
     const { id, type, model, provider } = data
     return await emRef.current?.createEmbedding(id, type, model, provider)
@@ -170,16 +193,22 @@ export const useHnsw = () => {
     model: string
     scope: string
     k?: number
-    provider: {
-      name: "openai"
-      token: string
-    }
-  }): Promise<any[]> {
+    provider: LLMBaseVendor
+  }): Promise<any[] | undefined> {
     const { query, model, scope, k, provider } = data
     return await emRef.current?.query(query, model, scope, k, provider)
   }
 
   useEffect(() => {
+    ;(window as any).queryEmbedding = async (text: string) => {
+      const res = await queryEmbedding({
+        query: text,
+        model: "bge-m3",
+        scope: "all",
+        provider: new BGEM3(),
+      })
+      return res
+    }
     navigator.serviceWorker.onmessage = async (event) => {
       const { type, data } = event.data
       console.log("hnsw", type, data)
