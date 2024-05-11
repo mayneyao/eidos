@@ -80,7 +80,6 @@ export const useLayoutInit = () => {
 
   useSqliteMetaTableSubscribe()
   useEffect(() => {
-    console.log("initEmbeddingWorker")
     initEmbeddingWorker()
   }, [initEmbeddingWorker])
 

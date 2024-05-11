@@ -69,10 +69,10 @@ export const useWorker = () => {
 
   const initEmbeddingWorker = useCallback(() => {
     const worker = getEmbeddingWorker()
-    ;(window as any).embeddingWorker = worker
-    ;(window as any).embeddingTexts = embeddingTexts
     const handler = async (event: MessageEvent) => {
-      console.log("embedding worker message", event.data)
+      if (event.data.status === "ready") {
+        console.log("embedding worker is ready")
+      }
     }
     worker.addEventListener("message", handler)
     return () => worker.removeEventListener("message", handler)

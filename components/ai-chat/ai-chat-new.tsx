@@ -28,8 +28,10 @@ import { sysPrompts, useSystemPrompt, useUserPrompts } from "./hooks"
 import "./index.css"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 
+import { embeddingTexts } from "@/lib/embedding/worker"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAiConfig } from "@/hooks/use-ai-config"
+import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
 import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
@@ -54,8 +56,15 @@ export default function Chat() {
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const currentNode = useCurrentNode()
   const { aiConfig } = useConfigStore()
+  const { experiment } = useExperimentConfigStore()
   const { sqlite } = useSqlite()
   const { progress } = useLoadingStore()
+  useEffect(() => {
+    if (experiment.enableRAG) {
+      // warmup embedding service for RAG
+      embeddingTexts(["hi"])
+    }
+  }, [experiment.enableRAG])
 
   const { getDocMarkdown } = useDocEditor(sqlite)
   const { handleFunctionCall, handleRunCode } = useAIFunctions()
