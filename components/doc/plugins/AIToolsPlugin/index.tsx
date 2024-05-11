@@ -97,7 +97,7 @@ export const AIToolsPlugin = (props: any) => {
   return (
     <div>
       {showCommentInput && (
-        <FloatingPortal root={document.querySelector("#editor-container")! as any}>
+        <FloatingPortal root={document.body}>
           <AITools cancelAIAction={cancelAIAction} content={content} />
         </FloatingPortal>
       )}

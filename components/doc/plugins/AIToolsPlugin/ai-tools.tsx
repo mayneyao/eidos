@@ -197,7 +197,7 @@ export function AITools({
   return (
     <div className=" fixed z-50" ref={boxRef}>
       {!isFinished && (
-        <div>
+        <>
           <div
             className=" rounded-md border bg-white p-2 shadow-md dark:border-gray-700 dark:bg-slate-800"
             style={{
@@ -247,7 +247,7 @@ export function AITools({
               </CommandGroup>
             </Command>
           )}
-        </div>
+        </>
       )}
       {open && (
         <Command className=" h-[300px] w-[200px] rounded-md border shadow-md">

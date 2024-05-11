@@ -56,6 +56,10 @@ export const useUpdateLocation = (
             8 +
             (window.pageYOffset || document.documentElement.scrollTop)
           }px`
+
+          document
+            .querySelector("#ai-content-placeholder")
+            ?.setAttribute("style", `height: ${boxElem.clientHeight}px;`)
           const selectionRectsLength = selectionRects.length
           const { container } = selectionState
           const elements: Array<HTMLSpanElement> = selectionState.elements

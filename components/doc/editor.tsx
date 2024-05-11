@@ -168,6 +168,8 @@ export function DocEditor(props: EditorProps) {
                 ErrorBoundary={LexicalErrorBoundary}
               />
 
+              {isAIToolsOpen && <div id="ai-content-placeholder" />}
+
               <AIEditorPlugin />
               <AllPlugins />
               <NewMentionsPlugin currentDocId={props.docId!} />
