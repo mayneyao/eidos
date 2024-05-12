@@ -32,6 +32,7 @@ import { ScriptPage } from "./app/[database]/scripts/page"
 import { ScriptStorePage } from "./app/[database]/scripts/store"
 import { SpaceSetting } from "./app/[database]/settings/page"
 import { DocEditor } from "./app/eidtor/doc"
+import { DevtoolsPage } from "./app/settings/dev/page"
 import { spaceFileSystem } from "./lib/storage/space"
 
 const router = createBrowserRouter([
@@ -54,6 +55,10 @@ const router = createBrowserRouter([
           {
             index: true,
             element: <SettingsPage />,
+          },
+          {
+            path: "dev",
+            element: <DevtoolsPage />,
           },
           {
             path: "storage",

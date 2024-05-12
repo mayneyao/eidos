@@ -1,11 +1,32 @@
 import { FeatureExtractionPipeline, env, pipeline } from "@xenova/transformers"
 
-env.allowLocalModels = false
+import { efsManager } from "@/lib/storage/eidos-file-system"
 
 let instance: FeatureExtractionPipeline | null = null
 
+async function checkLocalModelIsExist(model: string) {
+  return await efsManager.checkFileExists([
+    "static",
+    "transformers",
+    ...model.split("/"),
+    "config.json",
+  ])
+}
+
 async function getInstances(): Promise<FeatureExtractionPipeline> {
   if (!instance) {
+    const model = "Xenova/bge-m3"
+    const isExist = await checkLocalModelIsExist(model)
+    if (!isExist) {
+      env.allowLocalModels = false
+      console.log(
+        "Model not found in local storage, downloading from Hugging Face"
+      )
+    } else {
+      console.log("Model found in local storage")
+      env.allowLocalModels = true
+      env.localModelPath = `/static/transformers`
+    }
     instance = await pipeline("feature-extraction", "Xenova/bge-m3", {
       progress_callback: (x: {
         status: string

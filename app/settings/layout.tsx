@@ -37,6 +37,10 @@ const sidebarNavItems = [
     title: "Experiment",
     href: "/settings/experiment",
   },
+  {
+    title: "Devtools",
+    href: "/settings/dev",
+  },
 ]
 
 export default function SettingsLayout() {
