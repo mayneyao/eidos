@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { DataSpace } from "@/worker/web-worker/DataSpace"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
+import { chunk } from "lodash"
 import zip from "lodash/zip"
 
 import { DocLoader } from "@/lib/ai/doc_loader/doc"
@@ -161,7 +162,15 @@ class EmbeddingManager {
       case "doc":
         loader = new DocLoader(this.dataSpace)
         pages = await loader.load(id)
-        await embedding(pages)
+        // chunk and print progress
+        const chunks = chunk(pages, 2)
+        for (let i = 0; i < chunks.length; i++) {
+          const chunkedPages = chunks[i]
+          await embedding(chunkedPages)
+          // print progress
+          const progress = ((i + 1) / chunks.length) * 100
+          console.log(`progress: ${progress.toFixed(2)}%`)
+        }
         break
       case "table":
       default:

@@ -8,12 +8,12 @@ export class DocLoader implements BaseLoader {
   async load(docId: string) {
     const markdown = await this.dataSpace.getDocMarkdown(docId)
     // split markdown into pages,every 100 lines is a page
-    const lines = markdown.split("\n").filter((line) => line.trim() !== "")
+    const lines = markdown.split("\n")
     const pages: {
       content: string
       meta: Record<string, any>
     }[] = []
-    chunk(lines, 100).forEach((chunk, index) => {
+    chunk(lines, 10).forEach((chunk, index) => {
       pages.push({
         content: chunk.join("\n"),
         meta: {

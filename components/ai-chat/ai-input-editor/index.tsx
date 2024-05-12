@@ -118,7 +118,6 @@ export const AIInputEditor = ({
       }
       const markdown = dataPluginRef.current?.getData()
       if (markdown) {
-        
         if (experiment.enableRAG) {
           const res = await queryEmbedding({
             query: markdown,
@@ -134,7 +133,9 @@ export const AIInputEditor = ({
             id: crypto.randomUUID(),
             role: "user",
             content: "[ignore this message]",
-            references: res?.map((embedding) => embedding.source),
+            references: Array.from(
+              new Set(res?.map((embedding) => embedding.source))
+            ),
           } as any)
         }
         append({
