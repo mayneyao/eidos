@@ -8,6 +8,7 @@ import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 
 import { DatabaseLayoutBase } from "./base-layout"
 import { PWALayoutBase } from "./base-pwa-layout"
+import { useLayoutInit } from "./hook"
 
 const WebLLM = lazy(() => import("@/components/ai-chat/webllm"))
 
@@ -16,6 +17,8 @@ export default function DatabaseLayout() {
 
   const navigate = useNavigate()
   const { isActivated } = useActivation()
+
+  useLayoutInit()
 
   const { theme } = useTheme()
   useEffect(() => {

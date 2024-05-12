@@ -10,7 +10,9 @@ import {
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { ITreeNode } from "@/lib/store/ITreeNode"
+import { useHnsw } from "@/hooks/use-hnsw"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {

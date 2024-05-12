@@ -1,21 +1,20 @@
 "use client"
 
-import { Suspense, lazy } from "react"
 import { Menu } from "lucide-react"
+import { Suspense, lazy } from "react"
 
+import { Loading } from "@/components/loading"
+import { ScriptContainer } from "@/components/script-container"
+import { SideBar } from "@/components/sidebar"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Loading } from "@/components/loading"
-import { ScriptContainer } from "@/components/script-container"
-import { SideBar } from "@/components/sidebar"
 
 import { Nav } from "../../components/nav"
 import { ExtensionPage } from "../extensions/page"
-import { useLayoutInit } from "./hook"
 import { useSpaceAppStore } from "./store"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
@@ -45,8 +44,7 @@ export function PWALayoutBase({
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useAppStore()
   const { isAiOpen, isExtAppOpen } = useSpaceAppStore()
-  // event listen should be in useLayoutInit, and just listen once
-  useLayoutInit()
+
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">

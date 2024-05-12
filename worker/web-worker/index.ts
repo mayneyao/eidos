@@ -145,7 +145,6 @@ onmessage = async (e) => {
       })
       return
     case MsgType.Syscall:
-      console.log(e.data)
       ws.send(
         JSON.stringify({
           id,

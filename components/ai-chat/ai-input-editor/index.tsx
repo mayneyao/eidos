@@ -1,4 +1,5 @@
 import React, { useEffect, useImperativeHandle, useRef } from "react"
+import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
 import { MarkNode } from "@lexical/mark"
@@ -17,12 +18,15 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { Message } from "ai/react"
 import { $getRoot } from "lexical"
 
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { ITreeNode } from "@/lib/store/ITreeNode"
+import { useHnsw } from "@/hooks/use-hnsw"
 import { MentionNode } from "@/components/doc/nodes/MentionNode"
 import NewMentionsPlugin, {
   MentionPluginProps,
 } from "@/components/doc/plugins/MentionsPlugin"
 import { allTransformers } from "@/components/doc/plugins/const"
+import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
 const theme = {
   // Theme styling goes here
@@ -31,8 +35,10 @@ const theme = {
 interface InputEditorProps {
   disabled?: boolean
   append: (message: Message) => void
+  appendHiddenMessage: (messages: Message) => void
   isLoading?: boolean
   setContextNodes?: (nodes: ITreeNode[]) => void
+  setContextEmbeddings?: (embeddings: IEmbedding[]) => void
 }
 
 export const nodeInfoMap = new Map<string, ITreeNode>()
@@ -58,11 +64,15 @@ const AIInputEditorDataPlugin = React.forwardRef((props, ref) => {
   return null
 })
 
+const appendedEmbeddingMap = new Map<string, IEmbedding>()
+
 export const AIInputEditor = ({
   disabled,
   append,
+  appendHiddenMessage,
   isLoading,
   setContextNodes,
+  setContextEmbeddings,
 }: InputEditorProps) => {
   const initialConfig: InitialConfigType = {
     namespace: "AI-Chat-Input-Editor",
@@ -79,6 +89,10 @@ export const AIInputEditor = ({
       MentionNode,
     ],
   }
+
+  const { experiment } = useExperimentConfigStore()
+
+  const { queryEmbedding } = useHnsw()
   const dataPluginRef = useRef<{
     getData: () => string
     clear: () => void
@@ -90,7 +104,7 @@ export const AIInputEditor = ({
     }
   }, [])
 
-  const handleEnterPress = (e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleEnterPress = async (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter") {
       const contextMenu = document.querySelector("#typeahead-menu")
       if (contextMenu?.hasChildNodes()) {
@@ -103,12 +117,33 @@ export const AIInputEditor = ({
         return
       }
       const markdown = dataPluginRef.current?.getData()
-      markdown &&
+      if (markdown) {
+        if (experiment.enableRAG) {
+          const res = await queryEmbedding({
+            query: markdown,
+            model: "bge-m3",
+            scope: "all",
+            provider: new BGEM3(),
+          })
+          res?.forEach((embedding) => {
+            appendedEmbeddingMap.set(embedding.id, embedding)
+          })
+          setContextEmbeddings?.([...appendedEmbeddingMap.values()])
+          appendHiddenMessage({
+            id: crypto.randomUUID(),
+            role: "user",
+            content: "[ignore this message]",
+            references: Array.from(
+              new Set(res?.map((embedding) => embedding.source))
+            ),
+          } as any)
+        }
         append({
           id: crypto.randomUUID(),
           role: "user",
           content: markdown,
         })
+      }
       dataPluginRef.current?.clear()
     }
   }

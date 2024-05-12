@@ -1,4 +1,5 @@
 import { efsManager } from "@/lib/storage/eidos-file-system"
+import { BaseLoader } from "./base"
 
 const getPdfjs = async () => {
   const pdfjs = await import("pdfjs-dist")
@@ -45,7 +46,7 @@ export async function pdfLoader(file: File) {
   return pages
 }
 
-export class PDFLoader {
+export class PDFLoader implements BaseLoader {
   async load(path: string): Promise<any[]> {
     const file = await efsManager.getFileByPath(path)
     const pages = await pdfLoader(file)

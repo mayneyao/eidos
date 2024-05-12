@@ -7,6 +7,7 @@ import { indexedDBStorage } from "@/lib/storage/indexeddb"
 export const experimentFormSchema = z.object({
   undoRedo: z.boolean().default(false),
   enableFileManager: z.boolean().default(false),
+  enableRAG: z.boolean().default(false),
 })
 
 export type ExperimentFormValues = z.infer<typeof experimentFormSchema>
@@ -22,6 +23,7 @@ export const useExperimentConfigStore = create<ConfigState>()(
       experiment: {
         undoRedo: false,
         enableFileManager: false,
+        enableRAG: false,
       },
       setExperiment: (experiment) => set({ experiment }),
     }),

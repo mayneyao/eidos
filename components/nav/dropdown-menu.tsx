@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   BookOpenIcon,
   CogIcon,
@@ -6,13 +7,18 @@ import {
   Keyboard,
   MoreHorizontal,
   PackageIcon,
-  Trash2Icon
+  ScanTextIcon,
+  Trash2Icon,
 } from "lucide-react"
-import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
-import { DiscordIcon } from "@/components/icons/discord"
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
+import { EIDOS_VERSION } from "@/lib/log"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -27,15 +33,13 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { EIDOS_VERSION } from "@/lib/log"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { DiscordIcon } from "@/components/icons/discord"
+import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
 
 import { NodeMoveInto } from "../node-menu/move-into"
 import { NodeExport } from "../node-menu/node-export"
 import { Switch } from "../ui/switch"
+import { useToast } from "../ui/use-toast"
 
 export function NavDropdownMenu() {
   const router = useNavigate()
@@ -45,7 +49,9 @@ export function NavDropdownMenu() {
   const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
 
   const node = useCurrentNode()
+  const { toast } = useToast()
 
+  const { createEmbedding } = useHnsw()
   const { space } = useCurrentPathInfo()
   const toggleCMDK = () => {
     setCmdkOpen(!isCmdkOpen)
@@ -58,6 +64,23 @@ export function NavDropdownMenu() {
     if (node) {
       deleteNode(node)
       router(`/${space}`)
+    }
+  }
+
+  const handleCreateDocEmbedding = async () => {
+    if (node) {
+      toast({
+        title: `Creating Embedding for ${node.name}`,
+      })
+      await createEmbedding({
+        id: node.id,
+        type: "doc",
+        model: "bge-m3",
+        provider: new BGEM3(),
+      })
+      toast({
+        title: "Embedding Created",
+      })
     }
   }
 
@@ -157,6 +180,10 @@ export function NavDropdownMenu() {
                   <DropdownMenuSubContent className="w-48">
                     <NodeMoveInto node={node} />
                   </DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={handleCreateDocEmbedding}>
+                    <ScanTextIcon className="mr-2 h-4 w-4"></ScanTextIcon>
+                    {`Create Embedding(Beta)`}
+                  </DropdownMenuItem>
                 </DropdownMenuSub>
               </>
             )}
