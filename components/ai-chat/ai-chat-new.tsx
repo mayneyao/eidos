@@ -142,6 +142,8 @@ export default function Chat() {
 
   const cleanMessages = useCallback(() => {
     setMessages([])
+    setContextNodes([])
+    setContextEmbeddings([])
   }, [setMessages])
 
   const appendHiddenMessage = useCallback(

@@ -19,6 +19,7 @@ async function getInstances(): Promise<FeatureExtractionPipeline> {
     const isExist = await checkLocalModelIsExist(model)
     if (!isExist) {
       env.allowLocalModels = false
+      env.localModelPath = `/static/transformers`
       console.log(
         "Model not found in local storage, downloading from Hugging Face"
       )
@@ -33,6 +34,7 @@ async function getInstances(): Promise<FeatureExtractionPipeline> {
         task: string
         model: string
       }) => {
+        console.log(x)
         self.postMessage(x)
       },
     })

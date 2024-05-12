@@ -37,21 +37,6 @@ export function DevtoolsPage() {
             </Button>
           </CardFooter>
         </Card>
-        <Card x-chunk="dashboard-04-chunk-1">
-          <CardHeader>
-            <CardTitle>Save transformer.js cache </CardTitle>
-            <CardDescription>
-              <p>
-                Save transformer.js cache to <code>/static/transformers/</code>
-              </p>
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="border-t px-6 py-4">
-            <Button className="w-[200px]" onClick={saveTransformerCache}>
-              Save
-            </Button>
-          </CardFooter>
-        </Card>
       </div>
     </div>
   )

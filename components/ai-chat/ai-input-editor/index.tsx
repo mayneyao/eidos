@@ -138,11 +138,14 @@ export const AIInputEditor = ({
             ),
           } as any)
         }
-        append({
-          id: crypto.randomUUID(),
-          role: "user",
-          content: markdown,
-        })
+        setTimeout(() => {
+          append({
+            id: crypto.randomUUID(),
+            role: "user",
+            content: markdown,
+          })  
+        }, 100);
+        
       }
       dataPluginRef.current?.clear()
     }
