@@ -24,6 +24,22 @@ export const NodeCommandItems = () => {
     <>
       {Boolean(space && searchNodes.length) && (
         <>
+          <CommandGroup heading="Nodes">
+            {searchNodes
+              .filter((node) => node.mode === "node")
+              .map((node) => (
+                <CommandItem
+                  key={node.id}
+                  onSelect={handleGoto(node.id)}
+                  value={`${input} - ${node.id} - ${node.mode}`}
+                >
+                  <ItemIcon type={node.type} className="mr-2 h-4 w-4" />
+                  <span>{node.name}</span>
+                  <CommandShortcut>Jump to</CommandShortcut>
+                </CommandItem>
+              ))}
+          </CommandGroup>
+          <CommandSeparator />
           <CommandGroup heading="Search">
             {searchNodes
               .filter((node) => node.mode === "fts")
@@ -48,22 +64,6 @@ export const NodeCommandItems = () => {
                     )}
                   </div>
                   {/* <CommandShortcut>Jump to</CommandShortcut> */}
-                </CommandItem>
-              ))}
-          </CommandGroup>
-          <CommandSeparator />
-          <CommandGroup heading="Nodes">
-            {searchNodes
-              .filter((node) => node.mode === "node")
-              .map((node) => (
-                <CommandItem
-                  key={node.id}
-                  onSelect={handleGoto(node.id)}
-                  value={`${input} - ${node.id} - ${node.mode}`}
-                >
-                  <ItemIcon type={node.type} className="mr-2 h-4 w-4" />
-                  <span>{node.name}</span>
-                  <CommandShortcut>Jump to</CommandShortcut>
                 </CommandItem>
               ))}
           </CommandGroup>

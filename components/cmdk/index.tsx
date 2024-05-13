@@ -126,10 +126,10 @@ export function CommandDialogDemo() {
             <Bot className="mr-2 h-4 w-4" />
             <span>AI</span>
           </CommandItem>
-          <CommandItem onSelect={goShare}>
+          {/* <CommandItem onSelect={goShare}>
             <Forward className="mr-2 h-4 w-4" />
             <span>Share</span>
-          </CommandItem>
+          </CommandItem> */}
         </CommandGroup>
         <CommandSeparator />
         {/* <ExtensionCommandItems /> */}
