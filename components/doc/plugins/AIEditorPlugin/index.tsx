@@ -57,6 +57,10 @@ export const AIEditorPlugin = (props: any) => {
   }, [__allTransformers, editor, extBlocks, selection])
   useEffect(() => {
     const aiComplete = (event: Event) => {
+      if (editor._config.namespace === "eidos-notes-home-page") {
+        // disable AIComplete for home page's editor
+        return
+      }
       const text = (event as CustomEvent).detail
 
       editor.update(() => {
