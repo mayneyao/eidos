@@ -7,18 +7,19 @@ import zip from "lodash/zip"
 import { DocLoader } from "@/lib/ai/doc_loader/doc"
 import { PDFLoader } from "@/lib/ai/doc_loader/pdf"
 import { LLMBaseVendor } from "@/lib/ai/llm_vendors/base"
-import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { getHnswIndex } from "@/lib/ai/vec_search"
 import { EmbeddingTableName } from "@/lib/sqlite/const"
 
+import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite } from "./use-sqlite"
 
 // we can't import hnswlib in worker directly, because it's also a web worker
 class EmbeddingManager {
-  dataSpace: DataSpace
-
-  constructor(dataSpace: DataSpace) {
+  dataSpace: DataSpace // this is the proxy of worker, not instance of DataSpace
+  spaceName: string
+  constructor(dataSpace: DataSpace, spaceName: string) {
     this.dataSpace = dataSpace
+    this.spaceName = spaceName
   }
 
   /**
@@ -62,7 +63,10 @@ class EmbeddingManager {
       EmbeddingTableName
     )} WHERE model = ${model} AND source = ${source}`
 
-    const { exists, vectorHnswIndex } = await getHnswIndex(model, "all")
+    const { exists, vectorHnswIndex } = await getHnswIndex(
+      model,
+      this.spaceName
+    )
     const ids = res.map((row) => parseInt(row.id))
     if (exists) {
       vectorHnswIndex.markDeleteItems(ids)
@@ -76,24 +80,17 @@ class EmbeddingManager {
   public async query(
     query: string,
     model: string,
-    scope: string,
     k = 3,
     provider: LLMBaseVendor
   ): Promise<IEmbedding[]> {
     const embeddings = await provider.embedding([query], model)
     const embedding = embeddings[0]
     if (!embedding) return []
-    const { exists, vectorHnswIndex } = await getHnswIndex(model, scope)
-    // const { embeddingIndexMap, embeddings: oldEmbeddings } =
-    //   await this.filterEmbeddings(model, scope)
-    // if (!exists) {
-    //   vectorHnswIndex.addItems(oldEmbeddings, true)
-    // }
-    const { neighbors } = vectorHnswIndex.searchKnn(
-      embedding,
-      k,
-      undefined
-    ) as any
+    const { exists, vectorHnswIndex } = await getHnswIndex(
+      model,
+      this.spaceName
+    )
+    const { neighbors } = vectorHnswIndex.searchKnn(embedding, k, undefined)
     return (
       await this.getMetadata(neighbors.map((r: number) => r.toString()))
     ).filter(Boolean)
@@ -112,6 +109,7 @@ class EmbeddingManager {
       await this.clearEmbeddings(model, id)
       console.log("clearEmbeddings", model, id)
     }
+    const spaceName = this.spaceName
     async function embedding(pages: { content: string; meta: any }[]) {
       if (!pages.length) {
         return
@@ -121,7 +119,7 @@ class EmbeddingManager {
       const embeddings = await embeddingMethod(
         pages.map((page) => page.content)
       )
-      const { exists, vectorHnswIndex } = await getHnswIndex(model, "all")
+      const { exists, vectorHnswIndex } = await getHnswIndex(model, spaceName)
       const labels = vectorHnswIndex.addItems(embeddings, true)
       console.log("labels", labels)
       for (const [page, embedding, embeddingId] of zip(
@@ -180,14 +178,16 @@ class EmbeddingManager {
 }
 
 export const useHnsw = () => {
+  const { space } = useCurrentPathInfo()
   const { sqlite } = useSqlite()
   const emRef = useRef<EmbeddingManager | null>(null)
 
   useEffect(() => {
-    if (sqlite) {
-      emRef.current = new EmbeddingManager(sqlite)
+    if (sqlite && space) {
+      console.log("create embedding manager", space)
+      emRef.current = new EmbeddingManager(sqlite, space)
     }
-  }, [sqlite])
+  }, [space, sqlite])
   // embedding
   async function createEmbedding(data: {
     id: string
@@ -202,24 +202,14 @@ export const useHnsw = () => {
   async function queryEmbedding(data: {
     query: string
     model: string
-    scope: string
     k?: number
     provider: LLMBaseVendor
   }): Promise<IEmbedding[] | undefined> {
-    const { query, model, scope, k, provider } = data
-    return await emRef.current?.query(query, model, scope, k, provider)
+    const { query, model, k, provider } = data
+    return await emRef.current?.query(query, model, k, provider)
   }
 
   useEffect(() => {
-    ;(window as any).queryEmbedding = async (text: string) => {
-      const res = await queryEmbedding({
-        query: text,
-        model: "bge-m3",
-        scope: "all",
-        provider: new BGEM3(),
-      })
-      return res
-    }
     navigator.serviceWorker.onmessage = async (event) => {
       const { type, data } = event.data
       console.log("hnsw", type, data)
