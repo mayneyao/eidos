@@ -6,6 +6,7 @@ import {
   MainServiceWorkerMsgType,
   MsgType,
 } from "@/lib/const"
+import { embeddingTexts } from "@/lib/embedding/worker"
 import { getSqliteProxy } from "@/lib/sqlite/proxy"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppStore } from "@/lib/store/app-store"
@@ -19,6 +20,8 @@ import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useSqliteMetaTableSubscribe } from "@/hooks/use-sqlite-meta-table-subscribe"
 import { useWorker } from "@/hooks/use-worker"
 import { useCurrentUser } from "@/hooks/user-current-user"
+
+import { useConfigStore } from "../settings/store"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
@@ -73,7 +76,12 @@ export const useLayoutInit = () => {
   useKeyPress(["ctrl.backslash", "meta.backslash"], () => {
     setSidebarOpen(!isSidebarOpen)
   })
-
+  const { aiConfig } = useConfigStore()
+  useEffect(() => {
+    if (aiConfig.autoLoadEmbeddingModel) {
+      embeddingTexts(["hi"])
+    }
+  }, [aiConfig.autoLoadEmbeddingModel])
   useEffect(() => {
     initPeer()
   }, [initPeer])

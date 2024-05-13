@@ -184,7 +184,6 @@ export const useHnsw = () => {
 
   useEffect(() => {
     if (sqlite && space) {
-      console.log("create embedding manager", space)
       emRef.current = new EmbeddingManager(sqlite, space)
     }
   }, [space, sqlite])

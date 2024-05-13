@@ -23,9 +23,7 @@ export function DevtoolsPage() {
   const { aiConfig, setAiConfig } = useConfigStore()
   const { toast } = useToast()
   const [space, setSpace] = useState<string>("")
-  console.log("space", space)
   const clearAllEmbeddings = useCallback(async () => {
-    console.log(space)
     if (!space) {
       throw new Error("Please select a space")
     }

@@ -34,6 +34,7 @@ export const useConfigStore = create<ConfigState>()(
         GROQ_MODELS: "llama2-70b-4096, mixtral-8x7b-32768",
         autoRunScope: [],
         localModels: [],
+        autoLoadEmbeddingModel: false,
       },
       profile: {
         username: "",

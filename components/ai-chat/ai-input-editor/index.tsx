@@ -19,14 +19,17 @@ import { Message } from "ai/react"
 import { $getRoot } from "lexical"
 
 import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
+import { embeddingTexts } from "@/lib/embedding/worker"
 import { ITreeNode } from "@/lib/store/ITreeNode"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useHnsw } from "@/hooks/use-hnsw"
+import { useToast } from "@/components/ui/use-toast"
 import { MentionNode } from "@/components/doc/nodes/MentionNode"
 import NewMentionsPlugin, {
   MentionPluginProps,
 } from "@/components/doc/plugins/MentionsPlugin"
 import { allTransformers } from "@/components/doc/plugins/const"
-import { useExperimentConfigStore } from "@/app/settings/experiment/store"
+import { useConfigStore } from "@/app/settings/store"
 
 const theme = {
   // Theme styling goes here
@@ -104,6 +107,19 @@ export const AIInputEditor = ({
     }
   }, [])
 
+  const { toast } = useToast()
+  const { aiConfig } = useConfigStore()
+  const { isEmbeddingModeLoaded } = useAppRuntimeStore()
+  const [tryToLoadEmbeddingModel, setTryToLoadEmbeddingModel] =
+    React.useState(false)
+  useEffect(() => {
+    isEmbeddingModeLoaded &&
+      tryToLoadEmbeddingModel &&
+      toast({
+        title: "Embedding Mode is loaded.",
+      })
+  }, [isEmbeddingModeLoaded, toast, tryToLoadEmbeddingModel])
+
   const handleEnterPress = async (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter") {
       const contextMenu = document.querySelector("#typeahead-menu")
@@ -119,10 +135,19 @@ export const AIInputEditor = ({
       const markdown = dataPluginRef.current?.getData()
       if (markdown) {
         if (enableRAG) {
+          if (!isEmbeddingModeLoaded) {
+            toast({
+              title: "Embedding Mode is not loaded yet. this may take a while.",
+            })
+            if (!aiConfig.autoLoadEmbeddingModel) {
+              embeddingTexts(["hi"])
+            }
+            setTryToLoadEmbeddingModel(true)
+            return
+          }
           const res = await queryEmbedding({
             query: markdown,
             model: "bge-m3",
-            scope: "all",
             provider: new BGEM3(),
           })
           res?.forEach((embedding) => {

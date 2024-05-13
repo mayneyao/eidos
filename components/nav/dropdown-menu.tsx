@@ -1,4 +1,3 @@
-import { useState } from "react"
 import {
   BookOpenIcon,
   CogIcon,
@@ -10,15 +9,11 @@ import {
   ScanTextIcon,
   Trash2Icon,
 } from "lucide-react"
+import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
-import { EIDOS_VERSION } from "@/lib/log"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useHnsw } from "@/hooks/use-hnsw"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
+import { DiscordIcon } from "@/components/icons/discord"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -33,8 +28,13 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DiscordIcon } from "@/components/icons/discord"
-import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
+import { EIDOS_VERSION } from "@/lib/log"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { NodeMoveInto } from "../node-menu/move-into"
 import { NodeExport } from "../node-menu/node-export"
@@ -46,7 +46,8 @@ export function NavDropdownMenu() {
   const [open, setOpen] = useState(false)
 
   const { deleteNode, toggleNodeFullWidth, toggleNodeLock } = useSqlite()
-  const { setCmdkOpen, isCmdkOpen } = useAppRuntimeStore()
+  const { setCmdkOpen, isCmdkOpen, isEmbeddingModeLoaded } =
+    useAppRuntimeStore()
 
   const node = useCurrentNode()
   const { toast } = useToast()
@@ -180,9 +181,16 @@ export function NavDropdownMenu() {
                   <DropdownMenuSubContent className="w-48">
                     <NodeMoveInto node={node} />
                   </DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={handleCreateDocEmbedding}>
-                    <ScanTextIcon className="mr-2 h-4 w-4"></ScanTextIcon>
-                    {`Create Embedding(Beta)`}
+                  <DropdownMenuItem
+                    onClick={handleCreateDocEmbedding}
+                    disabled={!isEmbeddingModeLoaded}
+                  >
+                    <div className="flex w-full items-center justify-between pr-1">
+                      <div className="flex items-center">
+                        <ScanTextIcon className="mr-2 h-4 w-4"></ScanTextIcon>
+                        Embedding(Beta)
+                      </div>
+                    </div>
                   </DropdownMenuItem>
                 </DropdownMenuSub>
               </>

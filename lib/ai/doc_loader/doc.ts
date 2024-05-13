@@ -13,7 +13,7 @@ export class DocLoader implements BaseLoader {
       content: string
       meta: Record<string, any>
     }[] = []
-    chunk(lines, 10).forEach((chunk, index) => {
+    chunk(lines, 20).forEach((chunk, index) => {
       pages.push({
         content: chunk.join("\n"),
         meta: {

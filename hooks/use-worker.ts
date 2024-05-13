@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 
 import { MsgType } from "@/lib/const"
-import { embeddingTexts, getEmbeddingWorker } from "@/lib/embedding/worker"
+import { getEmbeddingWorker } from "@/lib/embedding/worker"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useToast } from "@/components/ui/use-toast"
@@ -11,8 +11,12 @@ import { useSqliteStore } from "./use-sqlite"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
-  const { setWebsocketConnected, setBlockUIMsg, setBlockUIData } =
-    useAppRuntimeStore()
+  const {
+    setWebsocketConnected,
+    setBlockUIMsg,
+    setBlockUIData,
+    setEmbeddingModeLoaded,
+  } = useAppRuntimeStore()
 
   const { toast } = useToast()
   const initWorker = useCallback(() => {
@@ -72,11 +76,12 @@ export const useWorker = () => {
     const handler = async (event: MessageEvent) => {
       if (event.data.status === "ready") {
         console.log("embedding worker is ready")
+        setEmbeddingModeLoaded(true)
       }
     }
     worker.addEventListener("message", handler)
     return () => worker.removeEventListener("message", handler)
-  }, [])
+  }, [setEmbeddingModeLoaded])
 
   return {
     initEmbeddingWorker,

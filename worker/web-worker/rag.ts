@@ -34,7 +34,6 @@ async function getInstances(): Promise<FeatureExtractionPipeline> {
         task: string
         model: string
       }) => {
-        console.log(x)
         self.postMessage(x)
       },
     })

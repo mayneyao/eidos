@@ -12,6 +12,9 @@ interface AppRuntimeState {
   isShareMode: boolean
   setShareMode: (isShareMode: boolean) => void
 
+  isEmbeddingModeLoaded: boolean
+  setEmbeddingModeLoaded: (isEmbeddingModeLoaded: boolean) => void
+
   currentPreviewFile: IFile | null
   setCurrentPreviewFile: (currentPreviewFile: IFile) => void
 
@@ -34,6 +37,10 @@ interface AppRuntimeState {
 }
 
 export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
+  isEmbeddingModeLoaded: false,
+  setEmbeddingModeLoaded: (isEmbeddingModeLoaded) =>
+    set({ isEmbeddingModeLoaded }),
+
   blockUIMsg: null,
   setBlockUIMsg: (blockUIMsg) => set({ blockUIMsg }),
 

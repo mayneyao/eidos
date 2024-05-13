@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
 import {
@@ -55,6 +56,9 @@ const AIConfigFormSchema = z.object({
 
   autoRunScope: z.array(z.string()).default([]),
   localModels: z.array(z.string()).default([]),
+
+  // runtime
+  autoLoadEmbeddingModel: z.boolean().default(false),
 })
 
 export type AIConfigFormValues = z.infer<typeof AIConfigFormSchema>
@@ -67,6 +71,7 @@ const defaultValues: Partial<AIConfigFormValues> = {
   // dob: new Date("2023-01-23"),
   autoRunScope: [],
   localModels: [],
+  autoLoadEmbeddingModel: false,
 }
 
 export function AIConfigForm() {
@@ -287,6 +292,36 @@ export function AIConfigForm() {
                 />
               </TabsContent>
             </Tabs>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Runtime</CardTitle>
+            <CardDescription></CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FormField
+              control={form.control}
+              name="autoLoadEmbeddingModel"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Auto Load Embedding Model</FormLabel>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    ></Switch>
+                  </FormControl>
+                  <FormDescription>
+                    The embedding model is automatically loaded when the app
+                    starts. It will warm up the embedding model in the worker,
+                    which will make the first search faster. This may increase
+                    memory usage.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </CardContent>
         </Card>
         <Card>
