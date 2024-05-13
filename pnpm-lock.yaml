@@ -147,8 +147,8 @@ importers:
         specifier: ^1.0.7
         version: 1.0.7(@types/react-dom@18.2.6)(@types/react@18.2.14)(react-dom@18.2.0)(react@18.2.0)
       '@sqlite.org/sqlite-wasm':
-        specifier: 3.44.2-build3
-        version: 3.44.2-build3
+        specifier: 3.45.3-build2
+        version: 3.45.3-build2
       '@uiw/react-heat-map':
         specifier: ^2.2.1
         version: 2.2.1(@babel/runtime@7.23.8)(react-dom@18.2.0)(react@18.2.0)
@@ -5116,8 +5116,8 @@ packages:
       '@sinonjs/commons': 3.0.0
     dev: true
 
-  /@sqlite.org/sqlite-wasm@3.44.2-build3:
-    resolution: {integrity: sha512-TX6h+Sdd7mSf84qLRvuN6pTxvb6FG/jQ4UJyBG8fpcrcLyCU9I9RGivIT6/KoZBpy61w8g2w3zx5lXCbS1fKkA==}
+  /@sqlite.org/sqlite-wasm@3.45.3-build2:
+    resolution: {integrity: sha512-KFcakpnjodQT89x90BtGOYq6BOW5rIQ4Rm38Q3rX+qE8Gu5SeBaRgLR5t9vHdQ+uA5a2DawYtlxmotI5el2dhQ==}
     hasBin: true
     dev: false
 
