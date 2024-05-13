@@ -353,6 +353,17 @@ ul li.eidos_editor_theme__listItem[role="checkbox"]:before {
   top: 6px;
 }
 
+ul
+  li.eidos_editor_theme__listItem[role="checkbox"]
+  > div
+  > .eidos_editor_theme__embedBlock {
+  padding-top: 6px;
+}
+
+ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
+  top: 6px;
+}
+
 .eidos_editor_theme__nestedListItem::before {
   display: none !important;
 }
