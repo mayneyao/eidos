@@ -75,7 +75,7 @@ code::before {
   vertical-align: super;
 }
 .eidos_editor_theme__textCode {
-  background-color: rgb(240, 242, 245);
+  background-color: hsl(var(--secondary));
   padding: 1px 0.25rem;
   font-family: Menlo, Consolas, Monaco, monospace;
   font-size: 94%;

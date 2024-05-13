@@ -3,7 +3,7 @@ import { useMemo } from "react"
 import { AllNodes } from "../nodes"
 import { ExtBlock, useEnabledExtBlocks, useExtBlocks } from "./use-ext-blocks"
 
-export const useAllNodes = () => {
+export const useAllEditorNodes = () => {
   const extBlocks = useExtBlocks()
   return useMemo(
     () => [...AllNodes, ...extBlocks.map((block) => block.node)],

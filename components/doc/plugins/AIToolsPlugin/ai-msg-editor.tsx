@@ -12,11 +12,11 @@ import defaultTheme from "@/components/doc/themes/default"
 // import mermaid let lexical code node recognize 'mermaid' language
 
 import "prismjs/components/prism-mermaid"
-import { useAllNodes, useLoadingExtBlocks } from "../../hooks/use-all-nodes"
+import { useAllEditorNodes, useLoadingExtBlocks } from "../../hooks/use-all-nodes"
 import { MarkdownLoaderPlugin } from "../MarkdownLoaderPlugin"
 
 export const AIContentEditor = ({ markdown }: { markdown: string }) => {
-  const allNodes = useAllNodes()
+  const allNodes = useAllEditorNodes()
   const isLoading = useLoadingExtBlocks()
   const initialConfig: InitialConfigType = {
     namespace: "AI-Chat-Input-Editor",

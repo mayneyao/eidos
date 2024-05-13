@@ -12,9 +12,9 @@ import { useDebounceFn } from "ahooks"
 import { cn } from "@/lib/utils"
 import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 
-import { Loading } from "../loading"
-import { useLoadingExtBlocks } from "./hooks/use-all-nodes"
-import { ExtBlock, useEnabledExtBlocks } from "./hooks/use-ext-blocks"
+import { Skeleton } from "../ui/skeleton"
+import { useAllEditorNodes, useLoadingExtBlocks } from "./hooks/use-all-nodes"
+import { ExtBlock } from "./hooks/use-ext-blocks"
 import { useEditorStore } from "./hooks/useEditorContext"
 import { AllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
@@ -48,23 +48,8 @@ interface EditorProps {
   propertyComponent?: React.ReactNode
 }
 
-export function Editor(props: EditorProps) {
-  const isLoading = useLoadingExtBlocks()
-  if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center gap-2">
-        <Loading />
-      </div>
-    )
-  }
-  return <DocEditor {...props} />
-}
-
-export function DocEditor(props: EditorProps) {
-  const canChangeTitle = props.onTitleChange !== undefined
+function InnerEditor(props: EditorProps) {
   const ref = React.useRef<HTMLDivElement>(null)
-  const [title, setTitle] = useState(props.title ?? "")
-
   const { isToolbarVisible, isAIToolsOpen } = useEditorStore()
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null)
@@ -75,7 +60,6 @@ export function DocEditor(props: EditorProps) {
   }
 
   const initConfig: InitialConfigType = useMemo(() => {
-    const extBlocks = ((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []
     return {
       namespace: props.namespace || "doc",
       // The editor theme
@@ -85,10 +69,77 @@ export function DocEditor(props: EditorProps) {
         console.error(error)
       },
       // Any custom nodes go here
-      nodes: [...AllNodes, ...extBlocks.map((block) => block.node)],
+      nodes: [
+        ...AllNodes,
+        ...(((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []).map(
+          (block) => block.node
+        ),
+      ],
       editable: props.isEditable,
     }
   }, [props.isEditable, props.namespace])
+
+  return (
+    <LexicalComposer initialConfig={initConfig}>
+      <div className="editor-container w-full" ref={ref} id="editor-container">
+        <div
+          className="editor-inner relative w-full"
+          id="editor-container-inner"
+        >
+          <RichTextPlugin
+            contentEditable={
+              <div className="editor relative" ref={onRef}>
+                <ContentEditable className="editor-input outline-none dark:prose-invert" />
+                {!props.disableSafeBottomPaddingPlugin && (
+                  <SafeBottomPaddingPlugin />
+                )}
+              </div>
+            }
+            placeholder={
+              <div className="pointer-events-none absolute left-1 top-0 text-base text-[#aaa]">
+                <span>{props.placeholder ?? "press / for Command"}</span>
+              </div>
+            }
+            ErrorBoundary={LexicalErrorBoundary}
+          />
+
+          {isAIToolsOpen && <div id="ai-content-placeholder" />}
+
+          <AIEditorPlugin />
+          <AllPlugins />
+          <NewMentionsPlugin currentDocId={props.docId!} />
+          {props.autoFocus && <AutoFocusPlugin />}
+          {props.docId && (
+            <EidosAutoSavePlugin
+              docId={props.docId}
+              isEditable={props.isEditable}
+              disableManuallySave={props.disableManuallySave}
+            />
+          )}
+
+          {floatingAnchorElem && (
+            <>
+              <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
+              <FloatingTextFormatToolbarPlugin
+                anchorElem={floatingAnchorElem}
+              />
+            </>
+          )}
+        </div>
+      </div>
+      {props.disableSelectionPlugin || isToolbarVisible || isAIToolsOpen ? (
+        <></>
+      ) : (
+        <SelectionPlugin />
+      )}
+    </LexicalComposer>
+  )
+}
+
+export function Editor(props: EditorProps) {
+  const canChangeTitle = props.onTitleChange !== undefined
+  const [title, setTitle] = useState(props.title ?? "")
+  const isLoading = useLoadingExtBlocks()
 
   const { run: handleSave } = useDebounceFn(
     (title: string) => {
@@ -141,63 +192,18 @@ export function DocEditor(props: EditorProps) {
           </div>
         )}
         {props.propertyComponent}
-        <LexicalComposer initialConfig={initConfig}>
-          <div
-            className="editor-container w-full"
-            ref={ref}
-            id="editor-container"
-          >
-            <div
-              className="editor-inner relative w-full"
-              id="editor-container-inner"
-            >
-              <RichTextPlugin
-                contentEditable={
-                  <div className="editor relative" ref={onRef}>
-                    <ContentEditable className="editor-input outline-none dark:prose-invert" />
-                    {!props.disableSafeBottomPaddingPlugin && (
-                      <SafeBottomPaddingPlugin />
-                    )}
-                  </div>
-                }
-                placeholder={
-                  <div className="pointer-events-none absolute left-1 top-0 text-base text-[#aaa]">
-                    <span>{props.placeholder ?? "press / for Command"}</span>
-                  </div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-
-              {isAIToolsOpen && <div id="ai-content-placeholder" />}
-
-              <AIEditorPlugin />
-              <AllPlugins />
-              <NewMentionsPlugin currentDocId={props.docId!} />
-              {props.autoFocus && <AutoFocusPlugin />}
-              {props.docId && (
-                <EidosAutoSavePlugin
-                  docId={props.docId}
-                  isEditable={props.isEditable}
-                  disableManuallySave={props.disableManuallySave}
-                />
-              )}
-
-              {floatingAnchorElem && (
-                <>
-                  <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
-                  <FloatingTextFormatToolbarPlugin
-                    anchorElem={floatingAnchorElem}
-                  />
-                </>
-              )}
+        {isLoading ? (
+          <div className="flex h-full items-center gap-2">
+            <div className="prose w-full space-y-2">
+              {/* a text editor skeleton */}
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-5 w-1/2" />
+              <Skeleton className="h-5 w-2/5" />
             </div>
           </div>
-          {props.disableSelectionPlugin || isToolbarVisible || isAIToolsOpen ? (
-            <></>
-          ) : (
-            <SelectionPlugin />
-          )}
-        </LexicalComposer>
+        ) : (
+          <InnerEditor {...props} />
+        )}
       </div>
     </div>
   )
