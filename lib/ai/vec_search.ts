@@ -39,6 +39,7 @@ export const getHnswIndex = async (model: string, filename: string) => {
       filename
     )
   }
+
   const exists = hnswlib.EmscriptenFileSystemManager.checkFileExists(filename)
   if (!exists) {
     vectorHnswIndex.initIndex(MAX_ELEMENTS, 48, 128, 100)
