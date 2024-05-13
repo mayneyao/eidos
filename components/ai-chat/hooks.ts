@@ -106,7 +106,10 @@ export const useSystemPrompt = (
 ) => {
   const { context, setCurrentDocMarkdown } = usePromptContext()
   const tables = useMemo(
-    () => contextNodes.map((node) => getRawTableNameById(node.id)),
+    () =>
+      contextNodes
+        .filter((node) => node.type === "table")
+        .map((node) => getRawTableNameById(node.id)),
     [contextNodes]
   )
   const { uiColumnsMap } = useTablesUiColumns(tables)
@@ -148,5 +151,13 @@ export const useSystemPrompt = (
         setCurrentDocMarkdown,
       }
     }
-  }, [context, contextEmbeddings, contextNodes, currentSysPrompt, prompts, setCurrentDocMarkdown, uiColumnsMap])
+  }, [
+    context,
+    contextEmbeddings,
+    contextNodes,
+    currentSysPrompt,
+    prompts,
+    setCurrentDocMarkdown,
+    uiColumnsMap,
+  ])
 }

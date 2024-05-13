@@ -57,7 +57,7 @@ export const getPrompt = (
 6. if user want to query some data, you need to generate SQL. then user will tell you the query result. return the sql in markdown code block with language type 'sql'
 7. answer must be simple, don't use redundant words like "ok", "got it", "please wait" etc.
 8. when user want to generate visualization, you use mermaid to generate it. return the mermaid code in code block. with language type 'mermaid'
-9. answer with user's input language.
+9. answer with user's input language. 使用用户的输入语言回答问题
 10. if the node is a table, most time, user want to query data from it. you can generate a simple select sql for user. the table name is the tb_<node-id>, just like this: 'tb_af45e5d8dbe34da3bed288f99b120b8e'
 `
   if (useBlankPrompt) {
