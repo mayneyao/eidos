@@ -8,9 +8,18 @@ import {
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
+import { useConfigStore } from "../store"
 import { saveTransformerCache } from "./helper"
 
 export function DevtoolsPage() {
+  const { aiConfig, setAiConfig } = useConfigStore()
+
+  const clearLocalModels = () => {
+    setAiConfig({
+      ...aiConfig,
+      localModels: [],
+    })
+  }
   return (
     <div className="space-y-6">
       <div>
@@ -21,7 +30,7 @@ export function DevtoolsPage() {
         <span className=" text-red-500"> use it with caution.</span>
       </div>
       <Separator />
-      <div>
+      <div className="flex flex-col gap-4">
         <Card x-chunk="dashboard-04-chunk-1">
           <CardHeader>
             <CardTitle>Save transformer.js cache </CardTitle>
@@ -34,6 +43,22 @@ export function DevtoolsPage() {
           <CardFooter className="border-t px-6 py-4">
             <Button className="w-[200px]" onClick={saveTransformerCache}>
               Save
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Clear local LLMs </CardTitle>
+            <CardDescription>
+              <p>
+                just set local models to empty array, don't remove the cache
+              </p>
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="border-t px-6 py-4">
+            <Button className="w-[200px]" onClick={clearLocalModels}>
+              Clear
             </Button>
           </CardFooter>
         </Card>

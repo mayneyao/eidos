@@ -53,8 +53,8 @@ const AIConfigFormSchema = z.object({
     .optional()
     .default("llama2-70b-4096, mixtral-8x7b-32768"),
 
-  autoRunScope: z.array(z.string()),
-  localModels: z.array(z.string()),
+  autoRunScope: z.array(z.string()).default([]),
+  localModels: z.array(z.string()).default([]),
 })
 
 export type AIConfigFormValues = z.infer<typeof AIConfigFormSchema>
