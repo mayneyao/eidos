@@ -33,6 +33,8 @@ import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAiConfig } from "@/hooks/use-ai-config"
 import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
+import { Label } from "../ui/label"
+import { Switch } from "../ui/switch"
 import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore, useReloadModel } from "./webllm/hooks"
@@ -48,6 +50,9 @@ export default function Chat() {
   const loadingRef = useRef<HTMLDivElement>(null)
 
   const { prompts } = useUserPrompts()
+  const { experiment } = useExperimentConfigStore()
+
+  const [withSpaceData, setWithSpaceData] = useState(experiment.enableRAG)
 
   const { autoSpeak } = useAIChatSettingsStore()
   const divRef = useRef<HTMLDivElement>(null)
@@ -56,7 +61,6 @@ export default function Chat() {
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const currentNode = useCurrentNode()
   const { aiConfig } = useConfigStore()
-  const { experiment } = useExperimentConfigStore()
   const { sqlite } = useSqlite()
   const { progress } = useLoadingStore()
   useEffect(() => {
@@ -237,33 +241,51 @@ export default function Chat() {
         </div>
       </div>
       <div className="sticky bottom-0">
-        <div className="flex  w-full items-center justify-end">
-          {isLoading && (
-            <Button onClick={stop} variant="ghost" size="sm">
-              <PauseIcon className="h-5 w-5" />
-            </Button>
-          )}
+        <div className="flex items-center justify-between">
+          <div className="flex min-w-[200px]  gap-2">
+            <Switch
+              id="ai-chat-use-space-data"
+              checked={withSpaceData}
+              onCheckedChange={setWithSpaceData}
+            ></Switch>
+            <Label
+              htmlFor="ai-chat-use-space-data"
+              className=" text-sm opacity-80"
+            >
+              use space data
+            </Label>
+          </div>
 
-          <Suspense fallback={<Loading />}>
-            <Whisper setText={setSpeechText} />
-          </Suspense>
-          <Button
-            variant="ghost"
-            onClick={() => reload()}
-            size="sm"
-            disabled={isLoading}
-          >
-            <RefreshCcwIcon className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" onClick={cleanMessages} size="sm">
-            <Paintbrush className="h-5 w-5" />
-          </Button>
+          <div className="flex  w-full items-center justify-end">
+            {isLoading && (
+              <Button onClick={stop} variant="ghost" size="sm">
+                <PauseIcon className="h-5 w-5" />
+              </Button>
+            )}
+
+            <Suspense fallback={<Loading />}>
+              <Whisper setText={setSpeechText} />
+            </Suspense>
+            <Button
+              variant="ghost"
+              onClick={() => reload()}
+              size="sm"
+              disabled={isLoading}
+            >
+              <RefreshCcwIcon className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" onClick={cleanMessages} size="sm">
+              <Paintbrush className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
+
         <div
           id="circle"
           className=" absolute right-0 z-10 ml-0 h-1 rounded-sm bg-green-300 opacity-50"
         ></div>
         <AIInputEditor
+          enableRAG={withSpaceData}
           disabled={progress && (progress?.progress || 0) < 1}
           setContextNodes={setContextNodes}
           setContextEmbeddings={setContextEmbeddings}

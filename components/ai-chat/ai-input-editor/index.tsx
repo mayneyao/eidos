@@ -34,6 +34,7 @@ const theme = {
 
 interface InputEditorProps {
   disabled?: boolean
+  enableRAG?: boolean
   append: (message: Message) => void
   appendHiddenMessage: (messages: Message) => void
   isLoading?: boolean
@@ -69,6 +70,7 @@ const appendedEmbeddingMap = new Map<string, IEmbedding>()
 export const AIInputEditor = ({
   disabled,
   append,
+  enableRAG,
   appendHiddenMessage,
   isLoading,
   setContextNodes,
@@ -89,8 +91,6 @@ export const AIInputEditor = ({
       MentionNode,
     ],
   }
-
-  const { experiment } = useExperimentConfigStore()
 
   const { queryEmbedding } = useHnsw()
   const dataPluginRef = useRef<{
@@ -118,7 +118,7 @@ export const AIInputEditor = ({
       }
       const markdown = dataPluginRef.current?.getData()
       if (markdown) {
-        if (experiment.enableRAG) {
+        if (enableRAG) {
           const res = await queryEmbedding({
             query: markdown,
             model: "bge-m3",
@@ -143,9 +143,8 @@ export const AIInputEditor = ({
             id: crypto.randomUUID(),
             role: "user",
             content: markdown,
-          })  
-        }, 100);
-        
+          })
+        }, 100)
       }
       dataPluginRef.current?.clear()
     }
