@@ -28,10 +28,10 @@ export const getConfig = async <T = Record<string, any>>(
 
 export const DATABASE_NAME = "eidos"
 
-export async function getIndexedDBValue(
+export async function getIndexedDBValue<T = any>(
   tableName: string,
   key: string
-): Promise<any> {
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const openRequest = indexedDB.open(DATABASE_NAME, 1)
 

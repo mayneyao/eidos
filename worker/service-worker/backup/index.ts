@@ -1,4 +1,8 @@
-import { efsManager } from "@/lib/storage/eidos-file-system"
+import {
+  EidosFileSystemManager,
+  FileSystemType,
+  efsManager,
+} from "@/lib/storage/eidos-file-system"
 import { getIndexedDBValue } from "@/lib/storage/indexeddb"
 import { BackupServerFormValues } from "@/app/settings/backup/page"
 
@@ -120,5 +124,37 @@ export const autoBackup = async () => {
     const lastSyncStatus = await getLastSyncStatus()
     const newSyncStatus = { ...lastSyncStatus, ...syncStatus }
     await updateLastSyncStatus(newSyncStatus)
+  }
+}
+
+export const backupAllSpaceData = async () => {
+  const fsType = await getIndexedDBValue<FileSystemType>("kv", "fs")
+  // only when fs is set to NFS, we do the backup. copy db.sqlite3 to the nfs folder
+  if (fsType !== FileSystemType.NFS) {
+    return
+  }
+  const opfsRoot = await navigator.storage.getDirectory()
+  const opfsManager = new EidosFileSystemManager(opfsRoot)
+  const spaces = await opfsManager.listDir(["spaces"])
+  for (const space of spaces) {
+    const dbPaths = ["spaces", space.name, "db.sqlite3"]
+    if (!(await opfsManager.checkFileExists(dbPaths))) {
+      continue
+    }
+    const isNFSdbExist = await efsManager.checkFileExists(dbPaths)
+    const opfsDB = await opfsManager.getFile(dbPaths)
+    // check modified time
+    if (!isNFSdbExist) {
+      console.log(`backup ${space.name} db.sqlite3 into NFS`)
+      await opfsManager.copyFile(dbPaths, efsManager)
+      console.log(`backup ${space.name} db.sqlite3 done`)
+    } else {
+      const nfsDB = await efsManager.getFile(dbPaths)
+      if (nfsDB.lastModified < opfsDB.lastModified) {
+        console.log(`backup ${space.name} db.sqlite3 into NFS`)
+        await opfsManager.copyFile(dbPaths, efsManager)
+        console.log(`backup ${space.name} db.sqlite3 done`)
+      }
+    }
   }
 }

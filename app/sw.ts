@@ -2,6 +2,7 @@ import {
   autoBackup,
   backUpPullOnce,
   backUpPushOnce,
+  backupAllSpaceData,
 } from "@/worker/service-worker/backup"
 import { routes } from "@/worker/service-worker/routes"
 import { precacheAndRoute } from "workbox-precaching"
@@ -24,8 +25,15 @@ self.addEventListener("activate", (event) => {
 })
 
 self.addEventListener("periodicsync", (event: any) => {
-  if (event.tag === "backup") {
-    event.waitUntil(autoBackup())
+  switch (event.tag) {
+    case "backup":
+      event.waitUntil(backUpPushOnce())
+      break
+    case "backup-db":
+      event.waitUntil(backupAllSpaceData())
+      break
+    default:
+      break
   }
 })
 

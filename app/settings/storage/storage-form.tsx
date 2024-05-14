@@ -1,20 +1,15 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/react-hook-form/form"
+import { FileSystemType } from "@/lib/storage/eidos-file-system"
+import { cn } from "@/lib/utils"
+import { useIndexedDB } from "@/hooks/use-indexed-db"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -30,12 +25,15 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { toast } from "@/components/ui/use-toast"
-import { useIndexedDB } from "@/hooks/use-indexed-db"
-import { useSqlite } from "@/hooks/use-sqlite"
 import {
-  FileSystemType
-} from "@/lib/storage/eidos-file-system"
-import { cn } from "@/lib/utils"
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/react-hook-form/form"
 
 const fsTypes = [
   { label: "OPFS", value: FileSystemType.OPFS },
@@ -45,7 +43,7 @@ const fsTypes = [
 const storageFormSchema = z.object({
   fsType: z.enum([FileSystemType.OPFS, FileSystemType.NFS]),
   localPath: z.string().optional(),
-  autoBackupDbBeforeQuit: z.boolean().optional(),
+  autoBackupGap: z.number().default(15),
 })
 
 type StorageFormValues = z.infer<typeof storageFormSchema>
@@ -53,11 +51,17 @@ type StorageFormValues = z.infer<typeof storageFormSchema>
 export function StorageForm() {
   const [localPath, setLocalPath] = useIndexedDB("kv", "localPath", null)
   const [fsType, setFsType] = useIndexedDB("kv", "fs", FileSystemType.OPFS)
-  const [autoBackupDbBeforeQuit, setAutoBackupDbBeforeQuit] = useIndexedDB(
+  const [autoBackupGap, setAutoBackupGap] = useIndexedDB(
     "kv",
-    "autoBackupDbBeforeQuit",
-    false
+    "autoBackupGap",
+    15
   )
+
+  const updateAutoBackupGap = (value: number) => {
+    if (value >= 10) {
+      setAutoBackupGap(value)
+    }
+  }
   const [isGranted, setIsGranted] = useState(false)
   const { sqlite } = useSqlite()
 
@@ -86,22 +90,18 @@ export function StorageForm() {
   }, [form, localPath])
 
   useEffect(() => {
-    form.setValue("autoBackupDbBeforeQuit", autoBackupDbBeforeQuit)
-  }, [form, autoBackupDbBeforeQuit])
+    form.setValue("autoBackupGap", autoBackupGap)
+  }, [form, autoBackupGap])
 
   const handleSelectLocalPath = async () => {
     const dirHandle = await (window as any).showDirectoryPicker()
     // store this dirHandle to indexedDB
     setLocalPath(dirHandle as FileSystemDirectoryHandle)
     if (dirHandle) {
-      const res = await dirHandle.requestPermission({
+      await dirHandle.requestPermission({
         mode: "readwrite",
       })
     }
-  }
-
-  const handleAutoBackupChange = (checked: boolean) => {
-    setAutoBackupDbBeforeQuit(checked)
   }
 
   async function onSubmit() {
@@ -127,7 +127,7 @@ export function StorageForm() {
     const targetFs = data.fsType
     sqlite?.transformFileSystem(sourceFs, targetFs)
     setFsType(data.fsType)
-    setAutoBackupDbBeforeQuit(data.autoBackupDbBeforeQuit)
+    setAutoBackupGap(data.autoBackupGap)
     toast({
       title: "Settings updated",
     })
@@ -236,26 +236,38 @@ export function StorageForm() {
                 </FormItem>
               )}
             />
-            {/* <FormField
+            <FormField
               control={form.control}
-              name="autoBackupDbBeforeQuit"
+              name="autoBackupGap"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Auto Backup Database</FormLabel>
-                  <div className="flex flex-col gap-1">
-                    <Switch
-                      checked={autoBackupDbBeforeQuit}
-                      onCheckedChange={handleAutoBackupChange}
-                      className="form-checkbox"
+                <FormItem>
+                  <FormLabel>Auto backup gap(minutes)</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="10"
+                      autoComplete="off"
+                      type="number"
+                      min={10}
+                      value={autoBackupGap}
+                      onChange={(e) => {
+                        updateAutoBackupGap(e.target.valueAsNumber)
+                      }}
                     />
-                    <FormDescription>
-                      backup the database before you quit the app.
-                    </FormDescription>
-                  </div>
+                  </FormControl>
+                  <FormDescription>
+                    {autoBackupGap == 0
+                      ? "Disable auto save."
+                      : `backup data every ${field.value} minutes, 0 means disable auto
+                  save.`}
+                    <div className="my-2">
+                      backup every space's database to the local path. keep data
+                      more secure.
+                    </div>
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
-            /> */}
+            />
           </>
         )}
         <Button type="button" className="mt-4" onClick={() => onSubmit()}>
