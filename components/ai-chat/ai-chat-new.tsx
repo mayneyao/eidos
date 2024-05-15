@@ -24,7 +24,12 @@ import { Loading } from "../loading"
 import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
 import { AIInputEditor } from "./ai-input-editor"
-import { sysPrompts, useSystemPrompt, useUserPrompts } from "./hooks"
+import {
+  sysPrompts,
+  useAIChatStore,
+  useSystemPrompt,
+  useUserPrompts,
+} from "./hooks"
 import "./index.css"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 
@@ -55,8 +60,7 @@ export default function Chat() {
 
   const { autoSpeak } = useAIChatSettingsStore()
   const divRef = useRef<HTMLDivElement>(null)
-  const [currentSysPrompt, setCurrentSysPrompt] =
-    useState<keyof typeof sysPrompts>("base")
+  const { currentSysPrompt, setCurrentSysPrompt } = useAIChatStore()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const currentNode = useCurrentNode()
   const { aiConfig } = useConfigStore()

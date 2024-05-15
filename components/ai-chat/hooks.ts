@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { IScript } from "@/worker/web-worker/meta-table/script"
+import { create } from "zustand"
 
 import { getPrompt } from "@/lib/ai/openai"
 import { ITreeNode } from "@/lib/store/ITreeNode"
@@ -161,3 +162,13 @@ export const useSystemPrompt = (
     uiColumnsMap,
   ])
 }
+
+type Store = {
+  currentSysPrompt: keyof typeof sysPrompts | string
+  setCurrentSysPrompt: (value: keyof typeof sysPrompts | string) => void
+}
+
+export const useAIChatStore = create<Store>((set) => ({
+  currentSysPrompt: "base",
+  setCurrentSysPrompt: (value) => set(() => ({ currentSysPrompt: value })),
+}))

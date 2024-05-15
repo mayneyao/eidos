@@ -31,6 +31,8 @@ import NewMentionsPlugin, {
 import { allTransformers } from "@/components/doc/plugins/const"
 import { useConfigStore } from "@/app/settings/store"
 
+import { SwitchPromptPlugin } from "./plugins/switch-prompt"
+
 const theme = {
   // Theme styling goes here
 }
@@ -202,6 +204,7 @@ export const AIInputEditor = ({
         />
       </div>
       <NewMentionsPlugin onOptionSelectCallback={handleNodeInsert} />
+      <SwitchPromptPlugin />
       <HistoryPlugin />
       <AutoFocusPlugin />
       <AIInputEditorDataPlugin ref={dataPluginRef} />
