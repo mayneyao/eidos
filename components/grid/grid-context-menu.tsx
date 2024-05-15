@@ -4,6 +4,7 @@ import {
   ExternalLinkIcon,
   MoveDiagonalIcon,
   MoveUpRightIcon,
+  SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -18,6 +19,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 
@@ -29,11 +31,13 @@ export function GridContextMenu({
   handleDelRows,
   getRowByIndex,
   getFieldByIndex,
+  openAItools,
 }: {
   getFieldByIndex: (index: number) => IField
   handleDelRows: (ranges: { startIndex: number; endIndex: number }[]) => void
   getRowByIndex: (index: number) => any
   children: React.ReactNode
+  openAItools: () => void
 }) {
   const { selection, clearSelection } = useTableAppStore()
   const count = useMemo(() => {
@@ -163,6 +167,11 @@ export function GridContextMenu({
             </ContextMenuItem>
           </>
         )}
+        <ContextMenuItem onClick={openAItools}>
+          <SparklesIcon className="pr-2" />
+          Ask AI
+          <ContextMenuShortcut>Alt+I</ContextMenuShortcut>
+        </ContextMenuItem>
         <ScriptContextMenu getRows={getRows} />
       </ContextMenuContent>
     </ContextMenu>

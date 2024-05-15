@@ -7,15 +7,25 @@ export const useAiConfig = () => {
   const getConfigByModel = useCallback(
     (model: string) => {
       const { baseUrl, token, GROQ_BASE_URL, GROQ_API_KEY } = aiConfig
+      const [modelId, provider] = model.split("@")
       if (model.endsWith("groq")) {
         return {
           baseUrl: GROQ_BASE_URL,
           token: GROQ_API_KEY,
+          modelId,
+        }
+      }
+      if (provider === "openai") {
+        return {
+          baseUrl,
+          token,
+          modelId,
         }
       }
       return {
-        baseUrl,
-        token,
+        baseUrl: "/",
+        token: "",
+        modelId,
       }
     },
     [aiConfig]

@@ -108,9 +108,14 @@ export const useInitWebLLMWorker = () => {
         if (type === "proxyMsg") {
           console.log(data)
           const res: any = await engine.chat.completions.create(data)
-          for await (const chunk of res) {
-            event.ports[0].postMessage(chunk)
+          if (data.stream) {
+            for await (const chunk of res) {
+              event.ports[0].postMessage(chunk)
+            }
+          } else {
+            event.ports[0].postMessage(res)
           }
+
           console.log(await engine.runtimeStatsText())
           engine.resetChat()
         }

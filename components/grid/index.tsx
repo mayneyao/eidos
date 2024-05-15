@@ -7,21 +7,22 @@ import DataEditor, {
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
 
+import { IGridViewProperties, IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
 import { useTransformSqlQuery } from "@/hooks/use-transform-sql-query"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import { IGridViewProperties, IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
 
 import { useCurrentView } from "../table/hooks"
 import { useViewCount } from "../table/hooks/use-view-count"
 import { Button } from "../ui/button"
+import { AITools } from "./ai-tools"
 import { customCells } from "./cells"
 import { headerIcons } from "./fields/header-icons"
 import { GridContextMenu } from "./grid-context-menu"
@@ -32,7 +33,6 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
-
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -77,6 +77,7 @@ export default function GridView(props: IGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
+  const aiContainerRef = useRef<HTMLDivElement>(null)
 
   const r = containerRef.current?.querySelector(".dvn-scroll-inner")
   const hasScroll = r && r?.scrollWidth > r?.clientWidth
@@ -136,6 +137,7 @@ export default function GridView(props: IGridProps) {
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
     useTableAppStore()
+  const [isAItoolsOpen, setIsAItoolsOpen] = React.useState(false)
 
   // handle undo redo
   useKeyPress(["ctrl.z", "meta.z"], (e) => {
@@ -146,6 +148,20 @@ export default function GridView(props: IGridProps) {
       undo()
     }
   })
+
+  useEffect(() => {
+    if (!selection.current){
+      closeAItools()
+    }
+    const bounds = glideDataGridRef.current?.getBounds(
+      selection.current?.cell[0],
+      selection.current?.cell[1]
+    )
+    if (aiContainerRef.current && bounds) {
+      aiContainerRef.current.style.left = `${bounds.x + bounds.width}px`
+      aiContainerRef.current.style.top = `${bounds.y}px`
+    }
+  }, [selection])
 
   const isSm = size?.width ?? 0 < 768
   const freezeColumns = isSm ? 0 : 1
@@ -201,10 +217,22 @@ export default function GridView(props: IGridProps) {
     setCellValue: (col, row, value) => onCellEdited?.([col, row], value),
   })
 
+  const closeAItools = () => {
+    setIsAItoolsOpen(false)
+    glideDataGridRef.current?.focus()
+  }
+
   return (
     <div
       className={cn("h-full w-full p-2 pt-0", props.className)}
       ref={containerRef}
+      onKeyDownCapture={(e) => {
+        if (e.altKey && e.key === "i") {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsAItoolsOpen(!isAItoolsOpen)
+        }
+      }}
     >
       <div
         className={cn(
@@ -218,6 +246,7 @@ export default function GridView(props: IGridProps) {
           handleDelRows={handleDelRows}
           getRowByIndex={getRowByIndex}
           getFieldByIndex={getFieldByIndex}
+          openAItools={() => setIsAItoolsOpen(true)}
         >
           {Boolean(uiColumns.length) && (
             <DataEditor
@@ -267,6 +296,17 @@ export default function GridView(props: IGridProps) {
             />
           )}
         </GridContextMenu>
+        <div ref={aiContainerRef} className=" fixed">
+          {isAItoolsOpen && (
+            <AITools
+              close={closeAItools}
+              fields={showColumns}
+              getRowByIndex={getRowByIndex}
+              getFieldByIndex={getFieldByIndex}
+              selection={selection}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

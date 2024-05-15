@@ -14,6 +14,10 @@ export const routes = [
     pathname,
     handle: aiHandle,
   },
+  // {
+  //   pathname: "/chat/completions",
+  //   handle: webllmHandle,
+  // },
   {
     pathname: fileHandlePathname,
     handle: fileHandle,

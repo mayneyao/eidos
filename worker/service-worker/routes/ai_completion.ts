@@ -1,37 +1,71 @@
-import { OpenAIStream, StreamingTextResponse } from "ai"
-import OpenAI from "openai"
+import {
+  ChatCompletionContentPartText,
+  ChatCompletionRequest,
+  ChatCompletionUserMessageParam,
+} from "@mlc-ai/web-llm"
+import { StreamingTextResponse } from "ai"
 
-export const pathname = "/api/completion"
-export default async function handle(event: FetchEvent) {
-  const req = await event.request.json()
-  const { prompt, token, baseUrl, systemPrompt } = req
-  const openai = new OpenAI({
-    apiKey: token,
-    baseURL: baseUrl,
+import { tools } from "@/lib/ai/functions"
+
+declare var self: ServiceWorkerGlobalScope
+
+export const pathname = "/chat/completions"
+export default async function handle(event: FetchEvent): Promise<Response> {
+  const data = await event.request.json()
+  const { messages, model, systemPrompt } = data
+  messages.forEach((msg: ChatCompletionUserMessageParam) => {
+    if (typeof msg.content !== "string") {
+      msg.content = msg.content
+        .map((part) => (part as ChatCompletionContentPartText).text)
+        .join(" ")
+    }
   })
-  // Request the OpenAI API for the response based on the prompt
-  const response = await openai.chat.completions.create({
-    model: "gpt-3.5-turbo",
-    stream: true,
-    // a precise prompt is important for the AI to reply with the correct tokens
-    messages: [
+  if (model.includes("deepseek")) {
+    const request = new Request(
+      "https://api.deepseek.com/v1/chat/completions",
       {
-        role: "system",
-        content: systemPrompt,
-      },
+        method: event.request.method,
+        headers: event.request.headers,
+        body: JSON.stringify({
+          ...data,
+          messages,
+          model: model.split("@")[0],
+        }),
+      }
+    )
+    return fetch(request)
+  } else {
+    // local model
+    const channel = new MessageChannel()
+    let cls = await self.clients.matchAll()
+    const request: ChatCompletionRequest = {
+      messages: [
+        systemPrompt?.length
+          ? {
+              role: "system" as const,
+              content: systemPrompt,
+            }
+          : undefined,
+        ...messages,
+      ].filter(Boolean),
+      temperature: 0,
+      tool_choice: "auto",
+      tools,
+    }
+
+    cls[0].postMessage(
       {
-        role: "user",
-        content: prompt,
+        type: "proxyMsg",
+        data: request,
       },
-    ],
-    max_tokens: 200,
-    temperature: 0, // you want absolute certainty for spell check
-    top_p: 1,
-    frequency_penalty: 1,
-    presence_penalty: 1,
-  })
+      [channel.port2]
+    )
 
-  const stream = OpenAIStream(response)
-
-  return new StreamingTextResponse(stream)
+    return new Promise((resolve) => {
+      channel.port1.onmessage = (e) => {
+        const res = e.data as StreamingTextResponse
+        resolve(new Response(JSON.stringify(res), { status: 200 }))
+      }
+    })
+  }
 }
