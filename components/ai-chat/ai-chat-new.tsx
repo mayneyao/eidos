@@ -47,7 +47,7 @@ import { useSpeak } from "./webspeech/hooks"
 
 const Whisper = lazy(() => import("./whisper"))
 
-const promptKeys = Object.keys(sysPrompts).slice(0, 1)
+const promptKeys = Object.keys(sysPrompts).slice(0, 2)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
 export default function Chat() {
