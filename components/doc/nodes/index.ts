@@ -11,7 +11,7 @@ import { DatabaseTableNode } from "./DatabaseTableNode"
 import { ImageNode } from "./ImageNode/ImageNode"
 import { MentionNode } from "./MentionNode"
 // custom node
-import { SQLNode } from "./SQL"
+import { SQLNode } from "./SQLNode"
 import { TableOfContentsNode } from "./TableOfContentsNode"
 import { YouTubeNode } from "./YoutubeNode"
 

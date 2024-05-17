@@ -1,16 +1,13 @@
-import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { $insertNodeToNearestRoot } from "@lexical/utils"
 import {
-  $getSelection,
   $insertNodes,
   COMMAND_PRIORITY_EDITOR,
   LexicalCommand,
-  RangeSelection,
-  createCommand,
+  createCommand
 } from "lexical"
+import { useEffect } from "react"
 
-import { $createSQLNode, SQLNode } from "../../nodes/SQL"
+import { $createSQLNode, SQLNode } from "../../nodes/SQLNode"
 
 export const INSERT_SQL_COMMAND: LexicalCommand<string> = createCommand()
 

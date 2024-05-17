@@ -1,6 +1,13 @@
 import { LexicalEditor } from "lexical"
 import { useMemo } from "react"
 
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList
+} from "@/components/ui/command"
 import { useAllNodes } from "@/hooks/use-nodes"
 
 import { INSERT_DATABASE_TABLE_COMMAND } from "."
@@ -24,18 +31,18 @@ export const SelectDatabaseTableDialog = (props: DialogProps) => {
   }
 
   return (
-    <ul className="flex flex-col gap-2">
-      {tableNodes.map((table) => {
-        return (
-          <li
-            key={table.id}
-            className="cursor-pointer rounded-md px-2 py-1 hover:bg-secondary"
-            onClick={() => handleQuery(table.id)}
-          >
-            {table.name || "Untitled"}
-          </li>
-        )
-      })}
-    </ul>
+    <Command>
+      <CommandInput placeholder="search..." />
+      <CommandList>
+        <CommandEmpty>No results found.</CommandEmpty>
+        {tableNodes.map((table) => {
+          return (
+            <CommandItem key={table.id} onSelect={() => handleQuery(table.id)}>
+              {table.name || "Untitled"}
+            </CommandItem>
+          )
+        })}
+      </CommandList>
+    </Command>
   )
 }

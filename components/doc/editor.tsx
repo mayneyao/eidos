@@ -1,4 +1,3 @@
-import React, { useEffect, useMemo, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import {
   InitialConfigType,
@@ -8,12 +7,13 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { useDebounceFn } from "ahooks"
+import React, { useEffect, useMemo, useState } from "react"
 
-import { cn } from "@/lib/utils"
 import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
+import { cn } from "@/lib/utils"
 
 import { Skeleton } from "../ui/skeleton"
-import { useAllEditorNodes, useLoadingExtBlocks } from "./hooks/use-all-nodes"
+import { useLoadingExtBlocks } from "./hooks/use-all-nodes"
 import { ExtBlock } from "./hooks/use-ext-blocks"
 import { useEditorStore } from "./hooks/useEditorContext"
 import { AllNodes } from "./nodes"

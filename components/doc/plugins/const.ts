@@ -11,7 +11,7 @@ import {
 } from "@lexical/markdown"
 
 import { IMAGE } from "@/components/doc/nodes/ImageNode/ImageNode"
-import { SQL_NODE_TRANSFORMER } from "@/components/doc/nodes/SQL"
+import { SQL_NODE_TRANSFORMER } from "@/components/doc/nodes/SQLNode"
 
 import { BOOKMARK, BookmarkPayload } from "../nodes/BookmarkNode"
 import { HR } from "./MarkdownTransformers"

@@ -1,73 +1,12 @@
-import * as React from "react"
-import { ReactNode } from "react"
-import { DataSpace } from "@/worker/web-worker/DataSpace"
 import { ElementTransformer } from "@lexical/markdown"
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
-  $getNodeByKey,
   DecoratorNode,
   type LexicalNode,
-  type NodeKey,
+  type NodeKey
 } from "lexical"
+import { ReactNode } from "react"
 
-import { useModal } from "../hooks/useModal"
-import { SqlQueryDialog } from "../plugins/SQLPlugin/SqlQueryDialog"
-import { getQueryResultText } from "../utils/sql"
-
-type SQLProps = Readonly<{
-  sql: string
-  nodeKey: string
-}>
-
-function SQLComponent({ sql, nodeKey }: SQLProps) {
-  const [res, setRes] = React.useState("")
-  const [modal, showModal] = useModal()
-  const [editor] = useLexicalComposerContext()
-
-  React.useEffect(() => {
-    if (!sql) {
-      return
-    }
-    const sqlite: DataSpace = (window as any).sqlite
-    sqlite.exec2(sql).then((res: any) => {
-      const text = getQueryResultText(res)
-      setRes(text)
-    })
-  }, [sql])
-
-  const updateSql = (sql: string) => {
-    editor.update(() => {
-      const node = $getNodeByKey(nodeKey) as SQLNode
-      console.log(node, nodeKey)
-      if ($isSQLNode(node)) {
-        node.setSQL(sql)
-      }
-    })
-  }
-
-  const handleClick = () => {
-    showModal("Insert SqlQuery", (onClose) => (
-      <SqlQueryDialog
-        activeEditor={editor}
-        onClose={onClose}
-        sql={sql}
-        handleSqlChange={updateSql}
-      />
-    ))
-  }
-
-  return (
-    <>
-      {modal}
-      <span
-        className="inline-block cursor-pointer rounded-sm px-1 text-purple-500 hover:bg-secondary"
-        onClick={handleClick}
-      >
-        {res}
-      </span>
-    </>
-  )
-}
+import { SQLComponent } from "./component"
 
 export class SQLNode extends DecoratorNode<ReactNode> {
   sql: string
