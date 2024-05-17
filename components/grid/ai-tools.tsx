@@ -1,11 +1,10 @@
-import { useCallback, useContext, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
-import { GridSelection } from "@glideapps/glide-data-grid"
+import {
+  DataEditorProps,
+  GridSelection
+} from "@glideapps/glide-data-grid"
+import { useCallback, useContext, useState } from "react"
 
-import { generateText } from "@/lib/ai/generate"
-import { IField } from "@/lib/store/interface"
-import { useAiConfig } from "@/hooks/use-ai-config"
-import { useTableOperation } from "@/hooks/use-table"
 import {
   Command,
   CommandEmpty,
@@ -13,9 +12,12 @@ import {
   CommandInput,
   CommandItem,
 } from "@/components/ui/command"
+import { useAiConfig } from "@/hooks/use-ai-config"
+import { useTableOperation } from "@/hooks/use-table"
+import { generateText } from "@/lib/ai/generate"
+import { IField } from "@/lib/store/interface"
 
 import { useUserPrompts } from "../ai-chat/hooks"
-import { TwinkleSparkle } from "../loading"
 import { TableContext } from "../table/hooks"
 
 export const AITools = ({
@@ -24,12 +26,14 @@ export const AITools = ({
   selection,
   getRowByIndex,
   getFieldByIndex,
+  setAIHighlightRegions,
 }: {
   close: () => void
   fields: IField[]
   selection: GridSelection
   getRowByIndex: (index: number) => Record<string, any>
   getFieldByIndex: (index: number) => IField
+  setAIHighlightRegions: (regions: DataEditorProps["highlightRegions"]) => void
 }) => {
   const [customPrompt, setCustomPrompt] = useState<string>("")
   const [searchFieldName, setSearchFieldName] = useState<string>("")
@@ -41,11 +45,35 @@ export const AITools = ({
   const { updateCell } = useTableOperation(tableName, space)
   const [isProcessing, setIsProcessing] = useState(false)
 
+  const getAIHighlightRegions = useCallback(
+    (selectedField: string): DataEditorProps["highlightRegions"] => {
+      if (selectedPrompt && selection.current) {
+        const x = fields.findIndex((f) => f.table_column_name === selectedField)
+        return [
+          {
+            color: "#b000b021",
+            range: {
+              x: x,
+              y: selection.current.range.y,
+              width: 1,
+              height: selection.current.range.height,
+            },
+            // style: "solid",
+          },
+        ]
+      }
+      return []
+    },
+    [selectedPrompt, selection, fields]
+  )
+
   const runAction = useCallback(
     async (selectedField: string) => {
       setIsProcessing(true)
       try {
         if (selectedPrompt && selection.current) {
+          const highlightRegions = getAIHighlightRegions(selectedField)
+          setAIHighlightRegions(highlightRegions)
           const { model, code } = selectedPrompt
           const needFixMessage =
             model?.includes("deepseek") || !model?.includes("@")
@@ -72,22 +100,25 @@ export const AITools = ({
       } catch (error) {
       } finally {
         setIsProcessing(false)
+        setAIHighlightRegions([])
         close()
       }
     },
     [
       selectedPrompt,
       selection,
-      close,
+      getAIHighlightRegions,
+      setAIHighlightRegions,
       getFieldByIndex,
       getRowByIndex,
       getConfigByModel,
       updateCell,
+      close,
     ]
   )
 
   if (isProcessing) {
-    return <TwinkleSparkle />
+    return null
   }
   if (step === 1) {
     return (

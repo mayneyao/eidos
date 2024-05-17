@@ -33,6 +33,7 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
+import { TwinkleSparkle } from "../loading"
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -78,6 +79,9 @@ export default function GridView(props: IGridProps) {
   const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
   const aiContainerRef = useRef<HTMLDivElement>(null)
+  const [aiHighlightRegions, setAIHighlightRegions] = React.useState<
+    DataEditorProps["highlightRegions"]
+  >([])
 
   const r = containerRef.current?.querySelector(".dvn-scroll-inner")
   const hasScroll = r && r?.scrollWidth > r?.clientWidth
@@ -150,7 +154,7 @@ export default function GridView(props: IGridProps) {
   })
 
   useEffect(() => {
-    if (!selection.current){
+    if (!selection.current) {
       closeAItools()
     }
     const bounds = glideDataGridRef.current?.getBounds(
@@ -221,6 +225,31 @@ export default function GridView(props: IGridProps) {
     setIsAItoolsOpen(false)
     glideDataGridRef.current?.focus()
   }
+  const highlightRegions = useMemo(() => {
+    return [...(highlights ?? []), ...(aiHighlightRegions ?? [])]
+  }, [highlights, aiHighlightRegions])
+
+  const { showAILoading, positionStyle } = useMemo(() => {
+    if (aiHighlightRegions?.length) {
+      const bounds = glideDataGridRef.current?.getBounds(
+        aiHighlightRegions[0].range.x,
+        aiHighlightRegions[0].range.y
+      )
+      if (bounds) {
+        return {
+          showAILoading: true,
+          positionStyle: {
+            left: bounds.x + bounds.width - 30,
+            top: bounds.y + 4,
+          },
+        }
+      }
+    }
+    return {
+      showAILoading: false,
+      positionStyle: {},
+    }
+  }, [aiHighlightRegions])
 
   return (
     <div
@@ -259,7 +288,7 @@ export default function GridView(props: IGridProps) {
               onDragLeave={onDragLeave}
               onDrop={onDrop}
               onDragOverCell={onDragOverCell}
-              highlightRegions={highlights}
+              highlightRegions={highlightRegions}
               showSearch={showSearch}
               gridSelection={selection}
               onItemHovered={onItemHovered}
@@ -304,9 +333,15 @@ export default function GridView(props: IGridProps) {
               getRowByIndex={getRowByIndex}
               getFieldByIndex={getFieldByIndex}
               selection={selection}
+              setAIHighlightRegions={setAIHighlightRegions}
             />
           )}
         </div>
+        {showAILoading && (
+          <div style={positionStyle} className="fixed">
+            <TwinkleSparkle />
+          </div>
+        )}
       </div>
     </div>
   )
