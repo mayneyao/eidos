@@ -3,10 +3,11 @@ import { useSqliteTableSubscribe } from "@/hooks/use-sqlite-table-subscribe"
 
 import GridView from "../grid"
 import { FieldEditor } from "../grid/fields"
+import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 import { TableContext, useCurrentView } from "./hooks"
 import { ViewToolbar } from "./view-toolbar"
+import { DocListView } from "./views/doc-list"
 import GalleryView from "./views/gallery"
-import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 
 // const GalleryView = React.lazy(() => import("./views/gallery"))
 
@@ -53,6 +54,13 @@ export const Table = ({
           )}
           {currentView?.type === ViewTypeEnum.Gallery && (
             <GalleryView
+              space={space}
+              tableName={tableName}
+              view={currentView}
+            />
+          )}
+          {currentView?.type === ViewTypeEnum.DocList && (
+            <DocListView
               space={space}
               tableName={tableName}
               view={currentView}

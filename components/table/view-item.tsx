@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { LayoutGridIcon, Table2Icon } from "lucide-react"
+import { LayoutGridIcon, LayoutListIcon, Table2Icon } from "lucide-react"
 import ReactDOM from "react-dom"
 
 import { IView, ViewTypeEnum } from "@/lib/store/IView"
@@ -32,10 +32,12 @@ interface IViewItemProps {
   disabledDelete?: boolean
 }
 
-const ViewIconMap = {
+export const ViewIconMap = {
   [ViewTypeEnum.Grid]: Table2Icon,
   [ViewTypeEnum.Gallery]: LayoutGridIcon,
+  [ViewTypeEnum.DocList]: LayoutListIcon,
 }
+
 export const ViewItem = ({
   view,
   isActive,

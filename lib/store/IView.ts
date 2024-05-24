@@ -3,6 +3,7 @@ import { FilterValueType } from "@/components/table/view-filter-editor/interface
 export enum ViewTypeEnum {
   Grid = "grid",
   Gallery = "gallery",
+  DocList = "doc_list",
 }
 
 export interface IView<T = any> {

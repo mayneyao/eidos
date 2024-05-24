@@ -1,11 +1,11 @@
 import { startTransition, useRef } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useClickAway } from "ahooks"
+import { LayoutGridIcon, LayoutListIcon, Table2Icon } from "lucide-react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
 import { IView, ViewTypeEnum } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import {
   Form,
@@ -19,6 +19,7 @@ import {
 
 import { Button } from "../ui/button"
 import { useViewOperation } from "./hooks"
+import { ViewIconMap } from "./view-item"
 
 const formSchema = z.object({
   name: z.string(),
@@ -29,6 +30,27 @@ const formSchema = z.object({
 interface IViewEditorProps {
   setEditDialogOpen: (open: boolean) => void
   view: IView
+}
+
+const ViewLayout = (props: {
+  icon: React.FC
+  title: string
+  isActive?: boolean
+  onClick?: () => void
+}) => {
+  const { icon: Icon } = props
+  return (
+    <Button
+      onClick={props.onClick}
+      className="flex w-full justify-start gap-2"
+      variant={props.isActive ? "secondary" : "outline"}
+    >
+      <>
+        <Icon />
+        {props.title}
+      </>
+    </Button>
+  )
 }
 
 export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
@@ -96,35 +118,34 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                   The type of view to use for this table.
                 </FormDescription>
                 <FormControl>
-                  <div className="flex gap-2">
-                    <div
+                  <div className="flex flex-col gap-2">
+                    <ViewLayout
                       onClick={() => {
                         field.onChange("grid")
                         handleChangeViewType(ViewTypeEnum.Grid)
                       }}
-                      className={cn(
-                        "flex h-12 w-12 cursor-pointer items-center justify-center border border-slate-900",
-                        field.value === "grid"
-                          ? "bg-slate-900 text-white"
-                          : "bg-white text-slate-900"
-                      )}
-                    >
-                      grid
-                    </div>
-                    <div
+                      isActive={field.value === "grid"}
+                      title="Grid"
+                      icon={ViewIconMap[ViewTypeEnum.Grid]}
+                    ></ViewLayout>
+                    <ViewLayout
                       onClick={() => {
                         field.onChange("gallery")
                         handleChangeViewType(ViewTypeEnum.Gallery)
                       }}
-                      className={cn(
-                        "flex h-12 w-12 cursor-pointer items-center justify-center border border-slate-900",
-                        field.value === "gallery"
-                          ? "bg-slate-900 text-white"
-                          : "bg-white text-slate-900"
-                      )}
-                    >
-                      gallery
-                    </div>
+                      isActive={field.value === "gallery"}
+                      title="Gallery"
+                      icon={ViewIconMap[ViewTypeEnum.Gallery]}
+                    ></ViewLayout>
+                    <ViewLayout
+                      onClick={() => {
+                        field.onChange("doc_list")
+                        handleChangeViewType(ViewTypeEnum.DocList)
+                      }}
+                      isActive={field.value === "doc_list"}
+                      title="Doc list (beta)"
+                      icon={ViewIconMap[ViewTypeEnum.DocList]}
+                    ></ViewLayout>
                   </div>
                 </FormControl>
 

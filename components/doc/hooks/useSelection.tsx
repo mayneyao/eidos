@@ -11,7 +11,7 @@ type BoxStyle = {
   height: string
   border?: string
   backgroundColor?: string
-  position: "absolute" | "relative"
+  position: "absolute" | "relative" | "fixed"
   opacity?: number
 }
 
@@ -33,7 +33,7 @@ export function useMouseSelection(
     top: "",
     width: "",
     height: "",
-    position: "absolute",
+    position: "fixed",
     opacity: 0.5,
   })
 

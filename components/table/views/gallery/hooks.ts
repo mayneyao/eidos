@@ -21,19 +21,10 @@ export const useGalleryViewData = (view: IView) => {
   const { setRows } = useSqliteStore()
   const { getViewSortedRows } = useViewSort(query)
   const [data, setData] = useState<string[]>([])
+  const [list, setList] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const { space } = useCurrentPathInfo()
   const { nameRawIdMap, uiColumnMap } = useUiColumns(tableName, space)
-
-  // const checkRowExistInQuery = useCallback(
-  //   async (rowId: string, callback: (isExist: boolean) => void) => {
-  //     if (!sqlite || !query) return
-  //     const tableId = getTableIdByRawTableName(tableName)
-  //     const isExist = await sqlite.isRowExistInQuery(tableId, rowId, query)
-  //     callback(isExist)
-  //   },
-  //   [sqlite, tableName, query]
-  // )
 
   useEffect(() => {
     if (sqlite && nameRawIdMap.size && tableName) {
@@ -44,6 +35,7 @@ export const useGalleryViewData = (view: IView) => {
       sqlite.sql2`${sql}`.then((data) => {
         setRows(tableId, data)
         setData(data.map((d) => d._id))
+        setList(data)
         setLoading(false)
       })
     }
@@ -91,6 +83,7 @@ export const useGalleryViewData = (view: IView) => {
 
   return {
     data,
+    list,
     loading,
   }
 }
