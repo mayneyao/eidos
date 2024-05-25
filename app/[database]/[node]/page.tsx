@@ -1,20 +1,20 @@
 import { useEffect } from "react"
 
-import { DocProperty } from "@/components/doc-property"
-import { Editor } from "@/components/doc/editor"
-import { Table } from "@/components/table"
-import { Button } from "@/components/ui/button"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsg,
+  EidosDataEventChannelMsgType,
+} from "@/lib/const"
 import { useCurrentNode, useNodeMap } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useEmoji } from "@/hooks/use-emoji"
 import { useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import {
-  DataUpdateSignalType,
-  EidosDataEventChannelMsg,
-  EidosDataEventChannelMsgType,
-} from "@/lib/const"
+import { Button } from "@/components/ui/button"
+import { DocProperty } from "@/components/doc-property"
+import { Editor } from "@/components/doc/editor"
+import { Table } from "@/components/table"
 
 import { DefaultColors } from "./image-selector"
 import { NodeCover } from "./node-cover"
@@ -29,7 +29,7 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
   const { updateUiColumns } = useUiColumns(tableName)
 
   const { getEmoji } = useEmoji()
-  const { updateIcon, updateCover } = useNode()
+  const { updateIcon, updateCover, updateHideProperties } = useNode()
 
   useEffect(() => {
     const handler = (ev: MessageEvent<EidosDataEventChannelMsg>) => {
@@ -71,6 +71,10 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
     await updateCover(node?.id!, `color://${color}`)
   }
 
+  const toggleProperties = async () => {
+    await updateHideProperties(node?.id!, !node?.hide_properties)
+  }
+
   return (
     <>
       <NodeRestore node={node} />
@@ -92,7 +96,8 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
           }
           coverComponent={node.cover && <NodeCover node={node} />}
           propertyComponent={
-            node.parent_id && (
+            node.parent_id &&
+            !node.hide_properties && (
               <DocProperty tableId={node.parent_id!} docId={node.id} />
             )
           }
@@ -106,6 +111,11 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
               {!node.cover && (
                 <Button size="sm" variant="ghost" onClick={handleAddCover}>
                   Add Cover
+                </Button>
+              )}
+              {node.parent_id && (
+                <Button size="sm" variant="ghost" onClick={toggleProperties}>
+                  {node.hide_properties ? "Show Properties" : "Hide Properties"}
                 </Button>
               )}
             </div>

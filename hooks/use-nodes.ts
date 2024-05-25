@@ -53,6 +53,16 @@ export const useNode = () => {
     })
   }
 
+  const updateHideProperties = async (id: string, hideProperties: boolean) => {
+    await sqlite?.tree.set(id, {
+      hide_properties: hideProperties,
+    })
+    setNode({
+      id,
+      hide_properties: hideProperties,
+    })
+  }
+
   const moveIntoTable = async (
     nodeId: string,
     tableId: string,
@@ -70,6 +80,7 @@ export const useNode = () => {
     updateIcon,
     updateCover,
     updatePosition,
+    updateHideProperties,
     moveIntoTable,
   }
 }

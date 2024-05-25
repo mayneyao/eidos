@@ -18,6 +18,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     icon TEXT NULL,
     cover TEXT NULL,
     is_deleted BOOLEAN DEFAULT 0,
+    hide_properties BOOLEAN DEFAULT 0,
     position REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -39,6 +40,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
         'icon', new.icon,
         'cover', new.cover,
         'is_deleted', new.is_deleted,
+        'hide_properties', new.hide_properties,
         'position', new.position,
         'created_at', new.created_at,
         'updated_at', new.updated_at
