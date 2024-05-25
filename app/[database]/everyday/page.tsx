@@ -3,6 +3,7 @@ import useInfiniteScroll from "react-infinite-scroll-hook"
 import { Link } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
 
@@ -39,7 +40,7 @@ export default function EverydayPage() {
   }, [year])
 
   return (
-    <div className="mx-auto flex w-full">
+    <ScrollArea className="mx-auto flex w-full">
       <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert xl:prose-xl xs:p-5">
         <div className="hidden md:block">
           <div className="flex cursor-pointer select-none gap-2">
@@ -96,6 +97,6 @@ export default function EverydayPage() {
           )}
         </div>
       </div>
-    </div>
+    </ScrollArea>
   )
 }

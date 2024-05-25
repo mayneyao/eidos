@@ -31,7 +31,6 @@ export function ExtensionPage() {
     await getAllExtensions()
   }
 
-  console.log("extensions", extensions)
   const [open, setOpen] = React.useState(false)
   const [value, setValue] = useIndexedDB("kv", "lastOpenedApp", "")
 

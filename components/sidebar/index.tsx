@@ -1,26 +1,21 @@
 "use client"
 
-import {
-  BlocksIcon,
-  Database,
-  FileBoxIcon,
-  Files,
-  PinIcon
-} from "lucide-react"
 import { useEffect, useState } from "react"
+import { BlocksIcon, Database, FileBoxIcon, Files, PinIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
-import { useExperimentConfigStore } from "@/app/settings/experiment/store"
-import { DatabaseSelect } from "@/components/database-select"
-import { Separator } from "@/components/ui/separator"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { Separator } from "@/components/ui/separator"
+import { DatabaseSelect } from "@/components/database-select"
+import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
 import { Button } from "../ui/button"
+import { ScrollArea } from "../ui/scroll-area"
 import { BackupStatus } from "./backup"
 import { EverydaySidebarItem } from "./everyday"
 import { ImportFileDialog } from "./import-file"
@@ -64,7 +59,7 @@ export const SideBar = ({ className }: any) => {
           )}
         </div>
         <div className="my-2" />
-        <div className="flex h-full flex-col justify-between overflow-y-auto">
+        <ScrollArea className="flex h-full flex-col justify-between overflow-y-auto">
           {loading ? (
             <TableListLoading />
           ) : (
@@ -124,12 +119,12 @@ export const SideBar = ({ className }: any) => {
               />
             </div>
           )}
-          <div>
-            <Trash />
-            <ImportFileDialog />
-            <Separator />
-            <BackupStatus />
-          </div>
+        </ScrollArea>
+        <div>
+          <Trash />
+          <ImportFileDialog />
+          <Separator />
+          <BackupStatus />
         </div>
       </div>
     </>

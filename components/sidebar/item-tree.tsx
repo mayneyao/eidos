@@ -75,7 +75,7 @@ export const CurrentItemTree = ({
         </Button>
         {!disableAdd && (
           <Button
-            className=""
+            className=" opacity-50"
             variant="ghost"
             size="sm"
             onClick={handleCreateNode}
@@ -85,13 +85,11 @@ export const CurrentItemTree = ({
         )}
       </div>
       {showNodes && (
-        <ScrollArea className="grow px-2">
-          <div className="space-y-1 p-2">
-            <DndProvider backend={HTML5Backend} context={window}>
-              <NodeTreeContainer nodes={allNodes} />
-            </DndProvider>
-          </div>
-        </ScrollArea>
+        <div className="space-y-1 p-2">
+          <DndProvider backend={HTML5Backend} context={window}>
+            <NodeTreeContainer nodes={allNodes} />
+          </DndProvider>
+        </div>
       )}
     </>
   )

@@ -32,6 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
@@ -132,7 +133,7 @@ export const ScriptPage = () => {
     })
   }
   return (
-    <div className="h-full w-full p-4">
+    <ScrollArea className="h-full w-full p-4">
       <div className="flex w-full justify-between p-2">
         <div className="flex">
           <Button
@@ -249,6 +250,6 @@ export const ScriptPage = () => {
           )
         })}
       </div>
-    </div>
+    </ScrollArea>
   )
 }
