@@ -79,32 +79,29 @@ export const BookmarkComponent = (
   if (!props.url.length) {
     return <BookmarkPlaceholder nodeKey={props.nodeKey} />
   }
-  const handleClick = () => {
-    window.open(props.url, "_blank")
-  }
+
   return (
-    <div
-      className="not-prose grid h-auto w-full grid-cols-[3fr,1fr] border hover:cursor-pointer hover:bg-secondary"
-      onClick={handleClick}
-    >
-      <div className="overflow-auto p-2">
-        <div className="truncate text-lg font-bold">{props.title}</div>
-        <div className="line-clamp-3 text-sm text-gray-500 ">
-          {props.description}
+    <a href={props.url} target="_blank" rel="noreferrer">
+      <div className="not-prose grid h-auto w-full grid-cols-[3fr,1fr] border hover:cursor-pointer hover:bg-secondary">
+        <div className="overflow-auto p-2">
+          <div className="truncate text-lg font-bold">{props.title}</div>
+          <div className="line-clamp-3 text-sm text-gray-500 ">
+            {props.description}
+          </div>
+          <div className="text-sm text-gray-500">{props.url}</div>
         </div>
-        <div className="text-sm text-gray-500">{props.url}</div>
-      </div>
-      <div className="relative">
-        <div className="h-full w-full">
-          {props.image && (
-            <img
-              src={proxyImageURL(props.image)}
-              alt=""
-              className="absolute inset-0 hidden h-full w-full object-cover md:block"
-            />
-          )}
+        <div className="relative">
+          <div className="h-full w-full">
+            {props.image && (
+              <img
+                src={proxyImageURL(props.image)}
+                alt=""
+                className="absolute inset-0 hidden h-full w-full object-cover md:block"
+              />
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </a>
   )
 }
