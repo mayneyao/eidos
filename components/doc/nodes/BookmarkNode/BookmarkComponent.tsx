@@ -81,7 +81,12 @@ export const BookmarkComponent = (
   }
 
   return (
-    <a href={props.url} target="_blank" rel="noreferrer">
+    <a
+      href={props.url}
+      target="_blank"
+      rel="noreferrer"
+      className="no-underline"
+    >
       <div className="not-prose grid h-auto w-full grid-cols-[3fr,1fr] border hover:cursor-pointer hover:bg-secondary">
         <div className="overflow-auto p-2">
           <div className="truncate text-lg font-bold">{props.title}</div>
