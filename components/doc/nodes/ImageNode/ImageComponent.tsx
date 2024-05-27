@@ -43,6 +43,8 @@ import {
 import { ImageSelector } from "@/app/[database]/[node]/image-selector"
 
 import "./ImageNode.css"
+import { DOMAINS } from "@/lib/const"
+
 import { $isImageNode } from "./ImageNode"
 // import { useSettings } from "../context/SettingsContext"
 // import { useSharedHistoryContext } from "../context/SharedHistoryContext"
@@ -98,6 +100,18 @@ function ImagePlaceholder(props: { nodeKey: string }) {
   )
 }
 
+const getDisplayURL = (url: string) => {
+  try {
+    const urlObj = new URL(url)
+    if (urlObj.host === window.location.host) {
+      return url
+    }
+    return DOMAINS.IMAGE_PROXY + "/?url=" + url
+  } catch (error) {
+    return url
+  }
+}
+
 function LazyImage({
   altText,
   className,
@@ -115,11 +129,12 @@ function LazyImage({
   src: string
   width: "inherit" | number
 }): JSX.Element {
-  useSuspenseImage(src)
+  const displaySrc = getDisplayURL(src)
+  useSuspenseImage(displaySrc)
   return (
     <img
       className={className ?? ""}
-      src={src}
+      src={displaySrc}
       alt={altText}
       ref={imageRef}
       style={{

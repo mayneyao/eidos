@@ -127,6 +127,9 @@ export function $isBookmarkNode(
 export async function $getUrlMetaData(
   url: string
 ): Promise<BookmarkPayload & { error?: string }> {
+  if (!url) {
+    return { url, title: url }
+  }
   // timeout 3s for fetch
   const controller = new AbortController()
   const timeout = setTimeout(() => {
@@ -156,15 +159,19 @@ export const BOOKMARK: TextMatchTransformer = {
     }
     return `[${node.getUrl()}](${node.getUrl()})`
   },
-  importRegExp: /(?<!\!)\[([^\]]*)\]\(([^)]*)\)/,
+  importRegExp: /^(?<!\!)\[([^\]]*)\]\(([^)]*)\)$/,
   regExp: /(?<!\!)\[([^\]]*)\]\(([^)]*)\)$/,
   replace: (textNode, match) => {
     const [, altText, src] = match
-    const data = markdownLinkInfoMap.get(src) || {
-      url: src,
-    }
-    const bookmarkNode = $createBookmarkNode(data)
-    textNode.replace(bookmarkNode)
+    try {
+      new URL(src)
+      const data = markdownLinkInfoMap.get(src) || {
+        url: src,
+      }
+      console.log("data", data)
+      const bookmarkNode = $createBookmarkNode(data)
+      textNode.replace(bookmarkNode)
+    } catch (error) {}
   },
   trigger: ")",
   type: "text-match",

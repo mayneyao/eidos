@@ -1,4 +1,4 @@
-import { IView } from "lib/store/IView"
+import { IView } from "@/lib/store/IView"
 
 import { getFieldInstance } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
@@ -167,6 +167,7 @@ export class RowsManager {
       limit?: number
       offset?: number
       raw?: boolean
+      select?: string[]
     }
   ) {
     const { fieldRawColumnNameFieldMap, fieldNameRawColumnNameMap } =

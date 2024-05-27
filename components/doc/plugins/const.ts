@@ -22,12 +22,13 @@ export const allTransformers = [
   HEADING,
   HIGHLIGHT,
   INLINE_CODE,
+  // IMAGE => Bookmarks  this order is important
+  IMAGE,
   BOOKMARK,
   LINK,
   ORDERED_LIST,
   QUOTE,
   HR,
-  IMAGE,
   SQL_NODE_TRANSFORMER,
   ...TRANSFORMERS,
 ]
