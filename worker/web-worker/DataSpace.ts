@@ -584,6 +584,28 @@ export class DataSpace {
     }
   }
 
+  public async createOrAppendDocWithMarkdown(
+    docId: string,
+    mdStr: string,
+    parent_id?: string,
+    title?: string
+  ) {
+    if (isDayPageId(docId)) {
+      return this.doc.createOrAppendWithMarkdown(docId, mdStr)
+    } else {
+      return this.db.transaction(async () => {
+        // FIXME: should use db transaction to execute multiple sql
+        await this.getOrCreateTreeNode({
+          id: docId,
+          name: title || docId,
+          parent_id: parent_id,
+          type: "doc",
+        })
+        return await this.doc.createOrAppendWithMarkdown(docId, mdStr)
+      })
+    }
+  }
+
   public async deleteDoc(docId: string) {
     await this.doc.del(docId)
   }
@@ -757,10 +779,21 @@ export class DataSpace {
 
   public async getOrCreateTreeNode(data: ITreeNode) {
     const node = await this.tree.get(data.id)
+    const _data = { ...data }
+    const parent = data.parent_id && (await this.tree.getNode(data.parent_id))
+    if (parent && parent.type === "table") {
+      const tableRawName = getRawTableNameById(parent.id)
+      // fix parent_id
+      _data.parent_id = parent.id
+      await this.exec2(
+        `INSERT OR IGNORE INTO ${tableRawName} (_id,title) VALUES (?,?);`,
+        [extractIdFromShortId(data.id), data.name]
+      )
+    }
     if (node) {
       return node
     }
-    return this.tree.add(data)
+    return this.tree.add(_data)
   }
 
   public async getTreeNode(id: string) {

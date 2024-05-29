@@ -181,4 +181,17 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
       return Promise.resolve(false)
     }
   }
+
+  /**
+   * id: uuid without '-'
+   * miniId: last 8 char of id. most of time, it's enough to identify a node
+   * @param idOrMiniId
+   */
+  async getNode(idOrMiniId: string): Promise<ITreeNode | null> {
+    const res = await this.dataSpace.exec2(
+      `SELECT * FROM ${TreeTableName} WHERE id = ? OR substr(id, -8) = ?;`,
+      [idOrMiniId, idOrMiniId]
+    )
+    return res.length > 0 ? res[0] : null
+  }
 }

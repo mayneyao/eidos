@@ -1,3 +1,5 @@
+import type { SerializedEditorState, SerializedLexicalNode } from "lexical"
+
 import { MsgType } from "@/lib/const"
 import { DocTableName } from "@/lib/sqlite/const"
 
@@ -14,6 +16,13 @@ export interface IDoc {
   updated_at?: string
 }
 
+/**
+ * for now lexical's code node depends on the browser's dom, so we can't use lexical in worker.
+ * wait for lexical improve code node to support worker
+ * @param type
+ * @param data
+ * @returns
+ */
 const callMain = (
   type: MsgType.GetDocMarkdown | MsgType.ConvertMarkdown2State,
   data: any
@@ -169,6 +178,54 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
           content,
           is_day_page: is_day_page,
           markdown: mdStr,
+        })
+      }
+      return {
+        id,
+        success: true,
+      }
+    } catch (error) {
+      console.error(error)
+      return {
+        id,
+        success: false,
+        msg: `${JSON.stringify(error)}`,
+      }
+    }
+  }
+
+  static mergeState = (oldState: string, newState: string) => {
+    const _oldState = JSON.parse(
+      oldState
+    ) as SerializedEditorState<SerializedLexicalNode>
+
+    const _appendState = JSON.parse(
+      newState
+    ) as SerializedEditorState<SerializedLexicalNode>
+
+    _oldState.root.children.push(..._appendState.root.children)
+    return JSON.stringify(_oldState)
+  }
+
+  async createOrAppendWithMarkdown(id: string, mdStr: string) {
+    const res = await this.get(id)
+    const content = (await callMain(
+      MsgType.ConvertMarkdown2State,
+      mdStr
+    )) as string
+    try {
+      if (!res) {
+        await this.add({
+          id,
+          content,
+          markdown: mdStr,
+        })
+      } else {
+        const mdContent = res.markdown + "\n" + mdStr
+        await this.set(id, {
+          id,
+          content: DocTable.mergeState(res.content, content),
+          markdown: mdContent,
         })
       }
       return {
