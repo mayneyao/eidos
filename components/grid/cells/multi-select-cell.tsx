@@ -1,4 +1,3 @@
-import * as React from "react"
 import {
   CustomCell,
   CustomRenderer,
@@ -9,9 +8,9 @@ import {
   measureTextCached,
 } from "@glideapps/glide-data-grid"
 import { XIcon } from "lucide-react"
+import * as React from "react"
 
-import { SelectField, SelectOption } from "@/lib/fields/select"
-import { cn } from "@/lib/utils"
+import { SelectOptionItem } from "@/components/table/cell-editor/common"
 import {
   Command,
   CommandEmpty,
@@ -24,7 +23,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { SelectOptionItem } from "@/components/table/cell-editor/common"
+import { SelectField, SelectOption } from "@/lib/fields/select"
+import { cn } from "@/lib/utils"
 
 import { roundedRect } from "./helper"
 
@@ -46,18 +46,25 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
 ) => {
   const { value: cell, initialValue, onChange, theme, onFinishedEditing } = p
   const { allowedValues, values = [] } = cell.data
-  const allowedValuesMap = allowedValues.reduce((res, option) => {
-    res[option.id] = option
-    return res
-  }, {} as Record<string, SelectOption>)
+
   const themeName = (theme as any).name
   const [oldValues, setOldValues] = React.useState(values ?? [])
-
-  const oldOptions = values!
-    .map((optionId) => allowedValuesMap[optionId])
-    .filter(Boolean)
+  const createNewOptionRef = React.useRef<HTMLInputElement>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
 
   const [newOptions, setNewOptions] = React.useState<SelectOption[]>([])
+
+  const allowedValuesMap = React.useMemo(
+    () =>
+      [...allowedValues, ...newOptions].reduce((res, option) => {
+        res[option.id] = option
+        return res
+      }, {} as Record<string, SelectOption>),
+    [allowedValues, newOptions]
+  )
+  const currentOptions = values!
+    .map((optionId) => allowedValuesMap[optionId])
+    .filter(Boolean)
 
   const [currentSelect, setCurrentSelect] = React.useState("")
   const setNewValues = (newValues: string[]) => {
@@ -78,6 +85,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
   }
   const handleSelect = (value?: string) => {
     if (!value) return
+    setInputValue("")
     const set = new Set<string>(values)
     if (set.has(value)) {
       set.delete(value)
@@ -85,8 +93,19 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
       set.add(value)
     }
     setNewValues(Array.from(set))
+    createNewOptionRef.current?.blur()
+    inputRef.current?.focus()
   }
   const [inputValue, setInputValue] = React.useState("")
+
+  React.useEffect(() => {
+    if (allowedValues.findIndex((item) => item.name == inputValue) == -1) {
+      setTimeout(() => {
+        createNewOptionRef.current?.focus()
+      }, 200)
+    }
+  }, [allowedValues, inputValue])
+
   const handleBackspace: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === "Backspace" && !inputValue?.length) {
       const _values: string[] = Array.from(values!)
@@ -128,11 +147,6 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
     setOpen(open)
   }
 
-  const allOptions = React.useMemo(
-    () => [...oldOptions, ...newOptions],
-    [oldOptions, newOptions]
-  )
-
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger>
@@ -150,7 +164,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
         <Command value={currentSelect} onValueChange={setCurrentSelect}>
           <div className="flex w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
             <div className="flex flex-wrap gap-2 px-2">
-              {allOptions.map((option) => (
+              {currentOptions.map((option) => (
                 <div
                   key={option.id}
                   className="flex h-6 items-center gap-2  truncate rounded-sm px-2 text-sm"
@@ -170,6 +184,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
                 </div>
               ))}
               <CommandInput2
+                ref={inputRef}
                 onKeyDown={handleBackspace}
                 value={inputValue}
                 onValueChange={setInputValue}
@@ -200,7 +215,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
                 allowedValues.findIndex((item) => item.name == inputValue) ==
                   -1 && (
                   <CommandItem
-                    autoFocus
+                    ref={createNewOptionRef}
                     key={inputValue}
                     value={inputValue}
                     onSelect={(currentValue) => {

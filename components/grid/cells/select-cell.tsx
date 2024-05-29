@@ -40,6 +40,7 @@ export type SelectCell = CustomCell<SelectCellProps>
 export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
   const { value: cell, onFinishedEditing, initialValue, theme } = p
   const { allowedValues, value: valueIn } = cell.data
+  const createNewOptionRef = React.useRef<HTMLInputElement>(null)
 
   const themeName = (theme as any).name
   const oldOptionName = allowedValues.find((item) => item.id == valueIn)?.name
@@ -57,6 +58,13 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
   const [open, setOpen] = React.useState(true)
   //  input
   const [value, setValue] = React.useState("")
+  React.useEffect(() => {
+    if (allowedValues.findIndex((item) => item.name == value) == -1) {
+      setTimeout(() => {
+        createNewOptionRef.current?.focus()
+      }, 200)
+    }
+  }, [allowedValues, value])
 
   return (
     <Popover open={open}>
@@ -107,8 +115,8 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
               {Boolean(value.length) &&
                 allowedValues.findIndex((item) => item.name == value) == -1 && (
                   <CommandItem
-                    autoFocus
                     key={value}
+                    ref={createNewOptionRef}
                     value={value}
                     onSelect={(currentValue) => {
                       handleSelect(currentValue)
