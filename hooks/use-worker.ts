@@ -6,7 +6,11 @@ import { getWorker } from "@/lib/sqlite/worker"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useToast } from "@/components/ui/use-toast"
 
-import { _convertMarkdown2State, _getDocMarkdown } from "./use-doc-editor"
+import {
+  _convertHtml2State,
+  _convertMarkdown2State,
+  _getDocMarkdown,
+} from "./use-doc-editor"
 import { useSqliteStore } from "./use-sqlite"
 
 export const useWorker = () => {
@@ -58,6 +62,10 @@ export const useWorker = () => {
         case MsgType.ConvertMarkdown2State:
           const res2 = await _convertMarkdown2State(data)
           event.ports[0].postMessage(res2)
+          break
+        case MsgType.ConvertHtml2State:
+          const res3 = await _convertHtml2State(data)
+          event.ports[0].postMessage(res3)
           break
         default:
           break

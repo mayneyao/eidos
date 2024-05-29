@@ -16,6 +16,7 @@ export enum MsgType {
   WebSocketDisconnected = "WebSocketDisconnected",
 
   ConvertMarkdown2State = "ConvertMarkdown2State",
+  ConvertHtml2State = "ConvertHtml2State",
   GetDocMarkdown = "GetDocMarkdown",
 }
 

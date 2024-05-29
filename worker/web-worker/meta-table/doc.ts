@@ -24,7 +24,10 @@ export interface IDoc {
  * @returns
  */
 const callMain = (
-  type: MsgType.GetDocMarkdown | MsgType.ConvertMarkdown2State,
+  type:
+    | MsgType.GetDocMarkdown
+    | MsgType.ConvertMarkdown2State
+    | MsgType.ConvertHtml2State,
   data: any
 ) => {
   const channel = new MessageChannel()
@@ -157,27 +160,42 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   }
 
   async createOrUpdateWithMarkdown(id: string, mdStr: string) {
-    // if id is year-month-day, then is_day_page = true
-    let is_day_page = /^\d{4}-\d{2}-\d{2}$/.test(id)
-    const res = await this.get(id)
     const content = (await callMain(
       MsgType.ConvertMarkdown2State,
       mdStr
     )) as string
+    return this._createOrUpdate(id, content, mdStr)
+  }
+
+  async createOrUpdate(id: string, text: string, type: "html" | "markdown") {
+    switch (type) {
+      case "html":
+        return this.createOrUpdateWithHtml(id, text)
+      case "markdown":
+        return this.createOrUpdateWithMarkdown(id, text)
+      default:
+        throw new Error(`unknown type ${type}`)
+    }
+  }
+
+  async _createOrUpdate(id: string, content: string, markdown: string) {
+    let is_day_page = /^\d{4}-\d{2}-\d{2}$/.test(id)
+
+    const res = await this.get(id)
     try {
       if (!res) {
         await this.add({
           id,
           content,
-          is_day_page: is_day_page,
-          markdown: mdStr,
+          is_day_page,
+          markdown,
         })
       } else {
         await this.set(id, {
           id,
           content,
-          is_day_page: is_day_page,
-          markdown: mdStr,
+          is_day_page,
+          markdown,
         })
       }
       return {
@@ -194,6 +212,16 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     }
   }
 
+  async createOrUpdateWithHtml(id: string, htmlStr: string) {
+    const content = (await callMain(
+      MsgType.ConvertHtml2State,
+      htmlStr
+    )) as string
+
+    const markdown = (await callMain(MsgType.GetDocMarkdown, content)) as string
+    return this._createOrUpdate(id, content, markdown)
+  }
+
   static mergeState = (oldState: string, newState: string) => {
     const _oldState = JSON.parse(
       oldState
@@ -207,25 +235,23 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     return JSON.stringify(_oldState)
   }
 
-  async createOrAppendWithMarkdown(id: string, mdStr: string) {
+  async _createOrAppend(id: string, content: string, markdown: string) {
+    let is_day_page = /^\d{4}-\d{2}-\d{2}$/.test(id)
     const res = await this.get(id)
-    const content = (await callMain(
-      MsgType.ConvertMarkdown2State,
-      mdStr
-    )) as string
     try {
       if (!res) {
         await this.add({
           id,
           content,
-          markdown: mdStr,
+          is_day_page,
+          markdown,
         })
       } else {
-        const mdContent = res.markdown + "\n" + mdStr
         await this.set(id, {
           id,
+          is_day_page,
           content: DocTable.mergeState(res.content, content),
-          markdown: mdContent,
+          markdown: res.markdown + "\n" + markdown,
         })
       }
       return {
@@ -239,6 +265,38 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
         success: false,
         msg: `${JSON.stringify(error)}`,
       }
+    }
+  }
+
+  async createOrAppendWithMarkdown(id: string, mdStr: string) {
+    const content = (await callMain(
+      MsgType.ConvertMarkdown2State,
+      mdStr
+    )) as string
+    return this._createOrAppend(id, content, mdStr)
+  }
+
+  async createOrAppendWithHtml(id: string, htmlStr: string) {
+    const content = (await callMain(
+      MsgType.ConvertHtml2State,
+      htmlStr
+    )) as string
+    const markdown = (await callMain(MsgType.GetDocMarkdown, content)) as string
+    return this._createOrAppend(id, content, markdown)
+  }
+
+  async createOrAppend(
+    id: string,
+    content: string,
+    type: "html" | "markdown" = "markdown"
+  ) {
+    switch (type) {
+      case "html":
+        return this.createOrAppendWithHtml(id, content)
+      case "markdown":
+        return this.createOrAppendWithMarkdown(id, content)
+      default:
+        throw new Error(`unknown type ${type}`)
     }
   }
 }

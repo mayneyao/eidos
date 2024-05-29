@@ -1,5 +1,6 @@
-import type { DataSpace } from "@/worker/web-worker/DataSpace"
 import { useCallback } from "react"
+import type { DataSpace } from "@/worker/web-worker/DataSpace"
+import { $generateNodesFromDOM } from "@lexical/html"
 
 import "@/lib/prism-config"
 // lexical code highlight depends on prismjs which run in worker prism-config disable messageHandler otherwise it will throw error
@@ -8,15 +9,16 @@ import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
 } from "@lexical/markdown"
+import { $getRoot, $insertNodes } from "lexical"
 import zip from "lodash/zip"
 
+import { getAllLinks } from "@/lib/markdown"
 import { AllNodes } from "@/components/doc/nodes"
 import { $getUrlMetaData } from "@/components/doc/nodes/BookmarkNode"
 import {
   allTransformers,
   markdownLinkInfoMap,
 } from "@/components/doc/plugins/const"
-import { getAllLinks } from "@/lib/markdown"
 
 export const _getDocMarkdown = async (
   articleEditorStateJSON: string
@@ -41,6 +43,36 @@ export const _getDocMarkdown = async (
     console.warn(`parse doc error`, error)
     return ""
   }
+}
+
+export const _convertHtml2State = async (html: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const editor = createHeadlessEditor({
+      nodes: AllNodes,
+      onError: () => {},
+    })
+
+    editor.update(
+      () => {
+        // In the browser you can use the native DOMParser API to parse the HTML string.
+        const parser = new DOMParser()
+        const dom = parser.parseFromString(html, "text/html")
+
+        // Once you have the DOM instance it's easy to generate LexicalNodes.
+        const nodes = ($generateNodesFromDOM as any)(editor, dom)
+        // Select the root
+        $getRoot().select()
+        // Insert them at a selection.
+        $insertNodes(nodes)
+      },
+      {
+        discrete: true,
+      }
+    )
+    const json = editor.getEditorState().toJSON()
+    const content = JSON.stringify(json)
+    resolve(content)
+  })
 }
 
 export const _convertMarkdown2State = async (
