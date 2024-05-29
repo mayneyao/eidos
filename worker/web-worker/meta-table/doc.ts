@@ -1,4 +1,5 @@
 import type { SerializedEditorState, SerializedLexicalNode } from "lexical"
+import { Email } from "postal-mime"
 
 import { MsgType } from "@/lib/const"
 import { DocTableName } from "@/lib/sqlite/const"
@@ -27,7 +28,8 @@ const callMain = (
   type:
     | MsgType.GetDocMarkdown
     | MsgType.ConvertMarkdown2State
-    | MsgType.ConvertHtml2State,
+    | MsgType.ConvertHtml2State
+    | MsgType.ConvertEmail2State,
   data: any
 ) => {
   const channel = new MessageChannel()
@@ -167,59 +169,45 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     return this._createOrUpdate(id, content, mdStr)
   }
 
-  async createOrUpdate(id: string, text: string, type: "html" | "markdown") {
+  async createOrUpdate(data: {
+    id: string
+    text: string | Email
+    type: "html" | "markdown" | "email"
+    mode?: "replace" | "append"
+  }) {
+    const { id, text, type, mode = "replace" } = data
     switch (type) {
       case "html":
-        return this.createOrUpdateWithHtml(id, text)
+        const content = (await callMain(
+          MsgType.ConvertHtml2State,
+          text
+        )) as string
+
+        const markdown = (await callMain(
+          MsgType.GetDocMarkdown,
+          content
+        )) as string
+        return this._createOrUpdate(id, content, markdown, mode)
+
       case "markdown":
-        return this.createOrUpdateWithMarkdown(id, text)
+        const content2 = (await callMain(
+          MsgType.ConvertMarkdown2State,
+          text
+        )) as string
+        return this._createOrUpdate(id, content2, text as string, mode)
+      case "email":
+        const content3 = (await callMain(MsgType.ConvertEmail2State, {
+          space: this.dataSpace.dbName,
+          email: text,
+        })) as string
+        const markdown3 = (await callMain(
+          MsgType.GetDocMarkdown,
+          content3
+        )) as string
+        return this._createOrUpdate(id, content3, markdown3, mode)
       default:
         throw new Error(`unknown type ${type}`)
     }
-  }
-
-  async _createOrUpdate(id: string, content: string, markdown: string) {
-    let is_day_page = /^\d{4}-\d{2}-\d{2}$/.test(id)
-
-    const res = await this.get(id)
-    try {
-      if (!res) {
-        await this.add({
-          id,
-          content,
-          is_day_page,
-          markdown,
-        })
-      } else {
-        await this.set(id, {
-          id,
-          content,
-          is_day_page,
-          markdown,
-        })
-      }
-      return {
-        id,
-        success: true,
-      }
-    } catch (error) {
-      console.error(error)
-      return {
-        id,
-        success: false,
-        msg: `${JSON.stringify(error)}`,
-      }
-    }
-  }
-
-  async createOrUpdateWithHtml(id: string, htmlStr: string) {
-    const content = (await callMain(
-      MsgType.ConvertHtml2State,
-      htmlStr
-    )) as string
-
-    const markdown = (await callMain(MsgType.GetDocMarkdown, content)) as string
-    return this._createOrUpdate(id, content, markdown)
   }
 
   static mergeState = (oldState: string, newState: string) => {
@@ -235,7 +223,12 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     return JSON.stringify(_oldState)
   }
 
-  async _createOrAppend(id: string, content: string, markdown: string) {
+  async _createOrUpdate(
+    id: string,
+    content: string,
+    markdown: string,
+    mode: "replace" | "append" = "replace"
+  ) {
     let is_day_page = /^\d{4}-\d{2}-\d{2}$/.test(id)
     const res = await this.get(id)
     try {
@@ -247,12 +240,26 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
           markdown,
         })
       } else {
-        await this.set(id, {
-          id,
-          is_day_page,
-          content: DocTable.mergeState(res.content, content),
-          markdown: res.markdown + "\n" + markdown,
-        })
+        switch (mode) {
+          case "replace":
+            await this.set(id, {
+              id,
+              is_day_page,
+              content,
+              markdown,
+            })
+            break
+          case "append":
+            await this.set(id, {
+              id,
+              is_day_page,
+              content: DocTable.mergeState(res.content, content),
+              markdown: res.markdown + "\n" + markdown,
+            })
+            break
+          default:
+            throw new Error(`unknown mode ${mode}`)
+        }
       }
       return {
         id,
@@ -265,38 +272,6 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
         success: false,
         msg: `${JSON.stringify(error)}`,
       }
-    }
-  }
-
-  async createOrAppendWithMarkdown(id: string, mdStr: string) {
-    const content = (await callMain(
-      MsgType.ConvertMarkdown2State,
-      mdStr
-    )) as string
-    return this._createOrAppend(id, content, mdStr)
-  }
-
-  async createOrAppendWithHtml(id: string, htmlStr: string) {
-    const content = (await callMain(
-      MsgType.ConvertHtml2State,
-      htmlStr
-    )) as string
-    const markdown = (await callMain(MsgType.GetDocMarkdown, content)) as string
-    return this._createOrAppend(id, content, markdown)
-  }
-
-  async createOrAppend(
-    id: string,
-    content: string,
-    type: "html" | "markdown" = "markdown"
-  ) {
-    switch (type) {
-      case "html":
-        return this.createOrAppendWithHtml(id, content)
-      case "markdown":
-        return this.createOrAppendWithMarkdown(id, content)
-      default:
-        throw new Error(`unknown type ${type}`)
     }
   }
 }

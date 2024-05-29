@@ -4,17 +4,22 @@ import { MsgType } from "@/lib/const"
 import { getEmbeddingWorker } from "@/lib/embedding/worker"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { useToast } from "@/components/ui/use-toast"
 
 import {
+  _convertEmail2State,
   _convertHtml2State,
   _convertMarkdown2State,
   _getDocMarkdown,
 } from "./use-doc-editor"
 import { useSqliteStore } from "./use-sqlite"
+import { useCurrentUser } from "./user-current-user"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
+  const { id: userId } = useCurrentUser()
+  const {} = useSqlite
   const {
     setWebsocketConnected,
     setBlockUIMsg,
@@ -25,7 +30,8 @@ export const useWorker = () => {
   const { toast } = useToast()
   const initWorker = useCallback(() => {
     const worker = getWorker()
-    worker.addEventListener("message", async (event) => {
+
+    const handle = async (event: MessageEvent) => {
       if (event.data === "init") {
         console.log("sqlite is loaded")
         setInitialized(true)
@@ -67,16 +73,23 @@ export const useWorker = () => {
           const res3 = await _convertHtml2State(data)
           event.ports[0].postMessage(res3)
           break
+        case MsgType.ConvertEmail2State:
+          const res4 = await _convertEmail2State(data.email, data.space, userId)
+          event.ports[0].postMessage(res4)
+          break
         default:
           break
       }
-    })
+    }
+    worker.addEventListener("message", handle)
+    return () => worker.removeEventListener("message", handle)
   }, [
     setBlockUIData,
     setBlockUIMsg,
     setInitialized,
     setWebsocketConnected,
     toast,
+    userId,
   ])
 
   const initEmbeddingWorker = useCallback(() => {

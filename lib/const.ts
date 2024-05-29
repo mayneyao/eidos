@@ -17,6 +17,8 @@ export enum MsgType {
 
   ConvertMarkdown2State = "ConvertMarkdown2State",
   ConvertHtml2State = "ConvertHtml2State",
+  ConvertEmail2State = "ConvertEmail2State",
+
   GetDocMarkdown = "GetDocMarkdown",
 }
 

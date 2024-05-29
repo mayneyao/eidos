@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       }
       const path = paths.join("/")
       const size = file.size
+      const oldFile = await this.getFileByPath(path)
+      if (oldFile) {
+        return oldFile
+      }
       const fileObj = this.add({
         id: fileId,
         name,

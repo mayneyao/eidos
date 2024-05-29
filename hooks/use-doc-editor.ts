@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import type { DataSpace } from "@/worker/web-worker/DataSpace"
 import { $generateNodesFromDOM } from "@lexical/html"
+import type { Email } from "postal-mime"
 
 import "@/lib/prism-config"
 // lexical code highlight depends on prismjs which run in worker prism-config disable messageHandler otherwise it will throw error
@@ -13,6 +14,8 @@ import { $getRoot, $insertNodes } from "lexical"
 import zip from "lodash/zip"
 
 import { getAllLinks } from "@/lib/markdown"
+import { getSqliteProxy } from "@/lib/sqlite/proxy"
+import { efsManager } from "@/lib/storage/eidos-file-system"
 import { AllNodes } from "@/components/doc/nodes"
 import { $getUrlMetaData } from "@/components/doc/nodes/BookmarkNode"
 import {
@@ -45,6 +48,41 @@ export const _getDocMarkdown = async (
   }
 }
 
+export const _convertEmail2State = async (
+  email: Email,
+  space: string,
+  userId?: string
+): Promise<string> => {
+  if (!email.html) return ""
+  const sqlite = getSqliteProxy(space, userId ?? "")
+  const parser = new DOMParser()
+  const dom = parser.parseFromString(email.html, "text/html")
+  // get all images in email, find attachment and replace with cid
+  const images = dom.querySelectorAll("img")
+  try {
+    for (const img of images) {
+      const src = img.getAttribute("src")
+      const cid = src?.replace("cid:", "")
+      const file = email.attachments.find(
+        (attachment) => attachment.contentId === `<${cid}>`
+      )
+      if (!file) continue
+      // file.content is base64 encoded
+      const url = `data:${file.mimeType};base64,${file.content}`
+      const savedFile = await sqlite.saveFile2EFS(
+        url,
+        ["images"],
+        file.filename ?? undefined
+      )
+      savedFile?.path &&
+        img.setAttribute("src", efsManager.getFileUrlByPath(savedFile?.path))
+    }
+  } catch (error) {
+    console.warn(error)
+  }
+  return _convertHtml2State(dom.documentElement.outerHTML)
+}
+
 export const _convertHtml2State = async (html: string): Promise<string> => {
   return new Promise((resolve) => {
     const editor = createHeadlessEditor({
@@ -59,7 +97,7 @@ export const _convertHtml2State = async (html: string): Promise<string> => {
         const dom = parser.parseFromString(html, "text/html")
 
         // Once you have the DOM instance it's easy to generate LexicalNodes.
-        const nodes = ($generateNodesFromDOM as any)(editor, dom)
+        const nodes = $generateNodesFromDOM(editor, dom)
         // Select the root
         $getRoot().select()
         // Insert them at a selection.
@@ -70,6 +108,7 @@ export const _convertHtml2State = async (html: string): Promise<string> => {
       }
     )
     const json = editor.getEditorState().toJSON()
+    console.log("json", json)
     const content = JSON.stringify(json)
     resolve(content)
   })

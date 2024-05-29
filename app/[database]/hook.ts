@@ -114,11 +114,13 @@ export const useLayoutInit = () => {
 
   const { id: userId } = useCurrentUser()
   useEffect(() => {
+    let clearFunc: () => void = () => {}
     if (!isInitialized) {
-      initWorker()
+      clearFunc = initWorker()
     }
     const sqlWorker = getSqliteProxy(database, userId || "")
     setSqlWorker(sqlWorker)
+    return clearFunc
   }, [database, setSqlWorker, isInitialized, initWorker, userId])
 
   useEffect(() => {

@@ -568,101 +568,30 @@ export class DataSpace {
     parent_id?: string,
     title?: string
   ) {
-    if (isDayPageId(docId)) {
-      return this.doc.createOrUpdateWithMarkdown(docId, mdStr)
-    } else {
-      return this.db.transaction(async () => {
-        // FIXME: should use db transaction to execute multiple sql
-        await this.getOrCreateTreeNode({
-          id: docId,
-          name: title || docId,
-          parent_id: parent_id,
-          type: "doc",
-        })
-        return await this.doc.createOrUpdateWithMarkdown(docId, mdStr)
-      })
-    }
-  }
-
-  public async createOrAppendDocWithMarkdown(
-    docId: string,
-    mdStr: string,
-    parent_id?: string,
-    title?: string
-  ) {
-    if (isDayPageId(docId)) {
-      return this.doc.createOrAppend(docId, mdStr, "markdown")
-    } else {
-      return this.db.transaction(async () => {
-        // FIXME: should use db transaction to execute multiple sql
-        await this.getOrCreateTreeNode({
-          id: docId,
-          name: title || docId,
-          parent_id: parent_id,
-          type: "doc",
-        })
-        return await this.doc.createOrAppend(docId, mdStr, "markdown")
-      })
-    }
-  }
-
-  public async createOrUpdateDocWithHtml(
-    docId: string,
-    htmlStr: string,
-    parent_id?: string,
-    title?: string
-  ) {
-    if (isDayPageId(docId)) {
-      return this.doc.createOrAppend(docId, htmlStr, "html")
-    } else {
-      return this.db.transaction(async () => {
-        // FIXME: should use db transaction to execute multiple sql
-        await this.getOrCreateTreeNode({
-          id: docId,
-          name: title || docId,
-          parent_id: parent_id,
-          type: "doc",
-        })
-        return await this.doc.createOrAppend(docId, htmlStr, "html")
-      })
-    }
-  }
-
-  public async createOrAppendDocWithHtml(
-    docId: string,
-    htmlStr: string,
-    parent_id?: string,
-    title?: string
-  ) {
-    if (isDayPageId(docId)) {
-      return this.doc.createOrAppend(docId, htmlStr, "html")
-    } else {
-      return this.db.transaction(async () => {
-        await this.getOrCreateTreeNode({
-          id: docId,
-          name: title || docId,
-          parent_id: parent_id,
-          type: "doc",
-        })
-        return await this.doc.createOrAppend(docId, htmlStr, "html")
-      })
-    }
+    return this.createOrUpdateDoc({
+      docId,
+      content: mdStr,
+      type: "markdown",
+      parent_id,
+      title,
+    })
   }
 
   public async createOrUpdateDoc(data: {
     docId: string
     content: string
-    type: "html" | "markdown"
+    type: "html" | "markdown" | "email"
     parent_id?: string
     title?: string
     mode?: "replace" | "append"
   }) {
-    const method =
-      data.mode === "replace"
-        ? this.doc.createOrUpdate
-        : this.doc.createOrAppend
     if (isDayPageId(data.docId)) {
-      return method.call(this.doc, data.docId, data.content, data.type)
+      return this.doc.createOrUpdate({
+        id: data.docId,
+        text: data.content,
+        type: data.type,
+        mode: data.mode,
+      })
     } else {
       return this.db.transaction(async () => {
         await this.getOrCreateTreeNode({
@@ -671,7 +600,12 @@ export class DataSpace {
           parent_id: data.parent_id,
           type: "doc",
         })
-        return await method.call(this.doc, data.docId, data.content, data.type)
+        return await this.doc.createOrUpdate({
+          id: data.docId,
+          text: data.content,
+          type: data.type,
+          mode: data.mode,
+        })
       })
     }
   }
