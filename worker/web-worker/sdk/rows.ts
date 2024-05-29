@@ -1,7 +1,6 @@
-import { IView } from "@/lib/store/IView"
-
 import { getFieldInstance } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
+import { IView } from "@/lib/store/IView"
 import type { IField } from "@/lib/store/interface"
 import { uuidv4 } from "@/lib/utils"
 

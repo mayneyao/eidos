@@ -23,13 +23,15 @@ export const useNewScript = () => {
       description: "Script Description",
       version: "0.0.1",
       code: `export default async function (input, context) {
-    console.log('hello eidos!')
+    eidos.currentSpace.notify({
+        title: "hello eidos"
+    })
 }`,
     }
 
     const newUDFScript: IScript = {
       id: newScriptId,
-      name: `myFunc`,
+      name: `myTwice`,
       commands: [],
       type: "udf",
       description: "twice the input",
