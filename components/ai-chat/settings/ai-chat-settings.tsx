@@ -31,7 +31,10 @@ export function AIChatSettings() {
         <DialogHeader>
           <DialogTitle>AI Chat Settings</DialogTitle>
           <DialogDescription>
-            Here you can configure your AI Chat settings.
+            Configure speaking performance or{" "}
+            <a href="/settings/ai" className="text-cyan-500">
+              other settings
+            </a>
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">

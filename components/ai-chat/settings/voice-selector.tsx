@@ -25,8 +25,17 @@ import { useAIChatSettingsStore } from "./ai-chat-settings-store"
 export function VoiceSelector() {
   const { voiceURI: value, setVoiceURI: setValue } = useAIChatSettingsStore()
   const [open, setOpen] = React.useState(false)
-  const synth = window.speechSynthesis
-  const voices = synth.getVoices()
+  const [voices, setVoices] = React.useState<SpeechSynthesisVoice[]>([])
+  React.useEffect(() => {
+    const fetchVoices = () => {
+      setVoices(window.speechSynthesis.getVoices())
+    }
+    fetchVoices()
+    window.speechSynthesis.addEventListener("voiceschanged", fetchVoices)
+    return () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", fetchVoices)
+    }
+  }, [])
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
