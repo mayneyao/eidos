@@ -109,6 +109,7 @@
     "react-infinite-scroll-hook": "^4.1.1",
     "react-laag": "^2.0.5",
     "react-marked-renderer": "^1.1.2",
+    "react-qr-code": "^2.0.13",
     "react-resizable-panels": "^1.0.5",
     "react-responsive-carousel": "^3.2.23",
     "react-router-dom": "^6.14.1",
