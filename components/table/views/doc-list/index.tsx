@@ -1,9 +1,10 @@
-import { useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useVirtualList } from "ahooks"
 
 import { IView } from "@/lib/store/IView"
 import { cn, shortenId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { NodeComponent } from "@/app/[database]/[node]/page"
 
@@ -17,10 +18,19 @@ interface IDocListViewProps {
 
 export function DocListView(props: IDocListViewProps) {
   const [nodeId, setNodeId] = useState<string>()
+  const [query, setQuery] = useState("")
   const { list: originalList } = useGalleryViewData(props.view)
   const containerRef = useRef(null)
   const wrapperRef = useRef(null)
-  const [list] = useVirtualList(originalList, {
+
+  const filteredList = useMemo(() => {
+    if (!query) return originalList
+    return originalList.filter((item) =>
+      item.title?.toLowerCase().includes(query.toLowerCase())
+    )
+  }, [originalList, query])
+
+  const [list] = useVirtualList(filteredList, {
     containerTarget: containerRef,
     wrapperTarget: wrapperRef,
     itemHeight: 36,
@@ -30,9 +40,17 @@ export function DocListView(props: IDocListViewProps) {
   return (
     <div className="flex h-full gap-4 p-2">
       <ScrollArea
-        className={cn("h-full w-[350px]  overflow-y-auto border-r")}
+        className={cn(" h-full  w-[350px] overflow-y-auto border-r")}
         ref={containerRef}
       >
+        <div className="w-full p-2">
+          <Input
+            className="focus-visible:ring-0"
+            placeholder="Search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         <div ref={wrapperRef} className={`h-full`}>
           {list.map((item, index) => (
             <Button
