@@ -14,6 +14,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 import { useRowDataOperation } from "@/components/doc-property/hook"
+import { Editor } from "@/components/doc/editor"
 import { ScriptContextMenu } from "@/components/grid/script-context-menu"
 
 import { CellEditor } from "../../cell-editor"
@@ -91,6 +92,7 @@ export const GalleryCard = ({
       return
     }
     const shortId = shortenId(item._id)
+
     await getOrCreateTableSubDoc({
       docId: shortId,
       title: item.title,
@@ -122,7 +124,19 @@ export const GalleryCard = ({
                   className="h-[200px] w-full object-cover"
                 />
               ) : (
-                <div className="h-[200px] w-full object-cover" />
+                <div className="h-[200px] w-full overflow-hidden object-cover">
+                  <Editor
+                    docId={shortenId(item._id)}
+                    namespace="eidos-notes-home-page"
+                    isEditable={false}
+                    placeholder=""
+                    disableSelectionPlugin
+                    disableSafeBottomPaddingPlugin
+                    disableUpdateTitle
+                    disableManuallySave
+                    className="prose-sm ml-0  !h-[200px] bg-gray-50 dark:bg-gray-700"
+                  />
+                </div>
               )}
             </div>
             <div className="p-2">

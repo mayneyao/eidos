@@ -117,7 +117,7 @@ export function NavDropdownMenu() {
                   {node && <CopyShowHide text={getEmail(node.id, space)} />}
                 </DialogDescription>
                 <p className="p-2">
-                  1. Scan the QR code to save the address to your contacts
+                  1. Scan the QR code to add the address to your contacts
                   <br />
                   2. Send an email to this address to save data into this table
                   <br />

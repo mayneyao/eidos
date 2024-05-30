@@ -1,3 +1,4 @@
+import React, { useEffect, useMemo, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import {
   InitialConfigType,
@@ -7,10 +8,9 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { useDebounceFn } from "ahooks"
-import React, { useEffect, useMemo, useState } from "react"
 
-import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 import { cn } from "@/lib/utils"
+import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 
 import { Skeleton } from "../ui/skeleton"
 import { useLoadingExtBlocks } from "./hooks/use-all-nodes"
@@ -163,7 +163,7 @@ export function Editor(props: EditorProps) {
       {props.coverComponent}
       <div
         className={cn(
-          "prose mx-auto h-full w-full flex-col p-10 dark:prose-invert xs:p-5",
+          "prose mx-auto h-full w-full flex-col p-10 dark:prose-invert  xs:p-5",
           props.className
         )}
         id="eidos-editor-container"
