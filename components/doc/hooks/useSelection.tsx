@@ -70,7 +70,7 @@ export function useMouseSelection(
   }, [editor])
 
   useEffect(() => {
-    const container = document.querySelector("#main-content") as HTMLElement
+    const container = document.querySelector(".doc-editor-area") as HTMLElement
 
     function disableSelection() {
       container.setAttribute("style", "user-select: none")

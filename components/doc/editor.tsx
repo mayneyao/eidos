@@ -159,7 +159,7 @@ export function Editor(props: EditorProps) {
   }, [props.title])
 
   return (
-    <div className="flex w-full flex-col">
+    <div className="doc-editor-area flex w-full flex-col">
       {props.coverComponent}
       <div
         className={cn(
