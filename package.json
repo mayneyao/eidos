@@ -38,7 +38,7 @@
     "@lexical/table": "^0.15.0",
     "@lexical/text": "^0.15.0",
     "@lexical/utils": "^0.15.0",
-    "@mlc-ai/web-llm": "^0.2.35",
+    "@mlc-ai/web-llm": "^0.2.40",
     "@monaco-editor/react": "^4.6.0",
     "@octokit/rest": "^20.0.2",
     "@radix-ui/react-alert-dialog": "^1.0.4",

@@ -211,7 +211,6 @@ export const useHnsw = () => {
   useEffect(() => {
     navigator.serviceWorker.onmessage = async (event) => {
       const { type, data } = event.data
-      console.log("hnsw", type, data)
       if (type === "createEmbedding") {
         const res = await createEmbedding(data)
         event.ports[0].postMessage(res)

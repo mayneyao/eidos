@@ -29,26 +29,3 @@ export async function queryEmbedding(data: {
     }
   })
 }
-
-export async function proxyMsg(data: any) {
-  const channel = new MessageChannel()
-  let cls = await self.clients.matchAll()
-  cls[0].postMessage(
-    {
-      type: "proxyMsg",
-      data,
-    },
-    [channel.port2]
-  )
-  return new Promise((resolve) => {
-    const chunks: any = []
-    channel.port1.onmessage = (event) => {
-      const chunk = event.data as ChatCompletionChunk
-      chunks.push(chunk)
-      if (chunk.choices[0].finish_reason === "stop") {
-        resolve(chunks)
-        channel.port1.close()
-      }
-    }
-  })
-}

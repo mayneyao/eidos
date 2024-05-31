@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import {
-  CreateWebWorkerEngine,
+  CreateWebWorkerMLCEngine,
   prebuiltAppConfig,
-  type EngineInterface,
   type InitProgressReport,
+  type MLCEngineInterface,
 } from "@mlc-ai/web-llm"
 import { create } from "zustand"
 
@@ -30,7 +30,7 @@ export const useReloadModel = () => {
 }
 
 export const useInitWebLLMWorker = () => {
-  const ref = useRef<EngineInterface>()
+  const ref = useRef<MLCEngineInterface>()
   const [currentModel, setCurrentModel] = useState<string>("")
   const loadingRef = useRef(false)
   const { progress, setProgress } = useLoadingStore()
@@ -84,7 +84,7 @@ export const useInitWebLLMWorker = () => {
       } else {
         console.log("Using Cache API")
       }
-      const engine: EngineInterface = await CreateWebWorkerEngine(
+      const engine: MLCEngineInterface = await CreateWebWorkerMLCEngine(
         new Worker(
           new URL("@/worker/web-worker/web-llm/llm.ts", import.meta.url),
           {
@@ -97,7 +97,7 @@ export const useInitWebLLMWorker = () => {
             setProgress(report)
           },
           appConfig: {
-            model_list: getLocalModelList(localModels),
+            model_list: getLocalModelList(localModels, window.location.origin),
             useIndexedDBCache: appConfig.useIndexedDBCache,
           },
         }
@@ -106,7 +106,6 @@ export const useInitWebLLMWorker = () => {
       navigator.serviceWorker.addEventListener("message", async (event) => {
         const { type, data } = event.data
         if (type === "proxyMsg") {
-          console.log(data)
           const res: any = await engine.chat.completions.create(data)
           if (data.stream) {
             for await (const chunk of res) {

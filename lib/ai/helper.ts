@@ -1,3 +1,5 @@
+import type { ModelRecord } from "@mlc-ai/web-llm"
+
 import {
   WEB_LLM_MODELS,
   modelLibURLPrefix,
@@ -32,18 +34,19 @@ interface ModelFileList {
   }[]
 }
 
-export const getLocalModelList = (modelIds: string[]) => {
+export const getLocalModelList = (modelIds: string[], origin: string) => {
   return modelIds.map((modelId) => {
     const originalModel = WEB_LLM_MODELS.find(
       (item) => item.model_id === modelId
     )
-    const wasmFileName = originalModel?.model_lib_url.split("/").pop()
+    const wasmFileName = originalModel?.model_lib.split("/").pop()
+
     return {
       ...originalModel,
-      model_url: "/static/webllm/models/" + modelId + "/",
-      model_lib_url: "/static/webllm/wasm/" + wasmFileName,
+      model: new URL("/static/webllm/models/" + modelId + "/", origin).href,
+      model_lib: new URL("/static/webllm/wasm/" + wasmFileName, origin).href,
     }
-  }) as Model[]
+  }) as ModelRecord[]
 }
 
 export const downloadWebLLM = async (
@@ -54,7 +57,7 @@ export const downloadWebLLM = async (
   const downloadModelFile = async (
     modelsDir: string[],
     name: string,
-    baseUrl: string = model.model_url
+    baseUrl: string = model.model + "/resolve/main/"
   ) => {
     const isFileExist = await efsManager.checkFileExists([...modelsDir, name])
     if (isFileExist) {
@@ -71,13 +74,20 @@ export const downloadWebLLM = async (
 
   // download wasm lib
   const wasmDir = ["static", "webllm", "wasm"]
-  const name = model.model_lib_url.split("/").pop()
+  const name = model.model_lib.split("/").pop()
   downloadModelFile(wasmDir, name!, modelLibURLPrefix + modelVersion + "/")
 
   cb?.(0.03)
   // download model weights
   await efsManager.addDir(["static", "webllm", "models"], model.model_id)
-  const modelsDir = ["static", "webllm", "models", model.model_id]
+  const modelsDir = [
+    "static",
+    "webllm",
+    "models",
+    model.model_id,
+    "resolve",
+    "main",
+  ]
 
   const fileListJSONFile = await downloadModelFile(
     modelsDir,

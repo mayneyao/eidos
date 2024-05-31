@@ -1,8 +1,8 @@
-import {
+import type {
   ChatCompletionChunk,
   ChatCompletionRequestStreaming,
 } from "@mlc-ai/web-llm"
-import { StreamingTextResponse } from "ai"
+import { OpenAIStream, StreamingTextResponse } from "ai"
 
 import { tools } from "@/lib/ai/functions"
 
@@ -37,14 +37,11 @@ export async function handleWebLLM(req: any) {
     [channel.port2]
   )
 
-  const llmStream = new ReadableStream({
+  const resp = new ReadableStream({
     start(controller) {
       channel.port1.onmessage = (event) => {
         const chunk = event.data as ChatCompletionChunk
-        const data = new TextEncoder().encode(
-          chunk.choices[0].delta.content ?? ""
-        )
-        controller.enqueue(data)
+        controller.enqueue(chunk)
         if (chunk.choices[0].finish_reason === "stop") {
           channel.port1.close()
           controller.close()
@@ -53,5 +50,16 @@ export async function handleWebLLM(req: any) {
     },
   })
 
-  return new StreamingTextResponse(llmStream)
+  const reader = resp.getReader()
+  const asyncIterable = {
+    [Symbol.asyncIterator]() {
+      return {
+        next() {
+          return reader.read()
+        },
+      }
+    },
+  }
+  const stream = OpenAIStream(asyncIterable as any)
+  return new StreamingTextResponse(stream)
 }
