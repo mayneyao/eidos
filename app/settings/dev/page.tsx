@@ -2,7 +2,6 @@ import { useCallback, useState } from "react"
 
 import { getHnswIndex } from "@/lib/ai/vec_search"
 import { getSqliteProxy } from "@/lib/sqlite/proxy"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   Card,

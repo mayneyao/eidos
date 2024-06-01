@@ -167,12 +167,12 @@ export function NavDropdownMenu() {
                 <span>Discord</span>
               </DropdownMenuItem>
             </Link>
-            <Link to="https://wiki.eidos.space" target="_blank">
+            {/* <Link to="https://wiki.eidos.space" target="_blank">
               <DropdownMenuItem>
                 <BookOpenIcon className="mr-2 h-4 w-4" />
                 <span>Wiki</span>
               </DropdownMenuItem>
-            </Link>
+            </Link> */}
 
             <Link to="/?home=1">
               <DropdownMenuItem>
