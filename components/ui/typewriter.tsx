@@ -3,22 +3,41 @@
 import { useEffect, useState } from "react"
 import { animate, motion, useMotionValue, useTransform } from "framer-motion"
 
+import { cn } from "@/lib/utils"
+
 export interface ITypewriterProps {
   delay: number
   texts: string[]
+  colors?: string[] // tailwind colors
   baseText?: string
 }
 
-export function Typewriter({ delay, texts, baseText = "" }: ITypewriterProps) {
+function visibleLength(str: string) {
+  return [...new Intl.Segmenter().segment(str)].length
+}
+
+function sliceText(str: string, length: number) {
+  return [...new Intl.Segmenter().segment(str)]
+    .slice(0, length)
+    .map((s) => s.segment)
+    .join("")
+}
+
+export function Typewriter({
+  delay,
+  texts,
+  colors,
+  baseText = "",
+}: ITypewriterProps) {
   const [animationComplete, setAnimationComplete] = useState(false)
   const count = useMotionValue(0)
   const rounded = useTransform(count, (latest) => Math.round(latest))
   const displayText = useTransform(rounded, (latest) =>
-    baseText.slice(0, latest)
+    sliceText(baseText, latest)
   )
 
   useEffect(() => {
-    const controls = animate(count, baseText.length, {
+    const controls = animate(count, visibleLength(baseText), {
       type: "tween",
       delay,
       duration: 1,
@@ -28,13 +47,17 @@ export function Typewriter({ delay, texts, baseText = "" }: ITypewriterProps) {
     return () => {
       controls.stop && controls.stop()
     }
-  }, [count, baseText.length, delay])
+  }, [count, baseText.length, delay, baseText])
 
   return (
     <span>
       <motion.span>{displayText}</motion.span>
       {animationComplete && (
-        <RepeatedTextAnimation texts={texts} delay={delay + 1} />
+        <RepeatedTextAnimation
+          texts={texts}
+          colors={colors}
+          delay={delay + 1}
+        />
       )}
       <BlinkingCursor />
     </span>
@@ -44,6 +67,7 @@ export function Typewriter({ delay, texts, baseText = "" }: ITypewriterProps) {
 export interface IRepeatedTextAnimationProps {
   delay: number
   texts: string[]
+  colors?: string[]
 }
 
 const defaultTexts = [
@@ -57,15 +81,17 @@ const defaultTexts = [
 ]
 function RepeatedTextAnimation({
   delay,
+  colors,
   texts = defaultTexts,
 }: IRepeatedTextAnimationProps) {
   const textIndex = useMotionValue(0)
 
   const baseText = useTransform(textIndex, (latest) => texts[latest] || "")
+  const [color, setColor] = useState(colors?.[0] || "text-primary")
   const count = useMotionValue(0)
   const rounded = useTransform(count, (latest) => Math.round(latest))
   const displayText = useTransform(rounded, (latest) =>
-    baseText.get().slice(0, latest)
+    sliceText(baseText.get(), latest)
   )
   const updatedThisRound = useMotionValue(true)
 
@@ -84,15 +110,20 @@ function RepeatedTextAnimation({
         } else if (!updatedThisRound.get() && latest === 0) {
           textIndex.set((textIndex.get() + 1) % texts.length)
           updatedThisRound.set(true)
+          setColor(
+            colors?.[(textIndex.get() + 1) % colors.length] || "text-primary"
+          )
         }
       },
     })
     return () => {
       animation.stop && animation.stop()
     }
-  }, [count, delay, textIndex, texts, updatedThisRound])
+  }, [colors, count, delay, textIndex, texts, updatedThisRound])
 
-  return <motion.span className="inline">{displayText}</motion.span>
+  return (
+    <motion.span className={cn("inline", color)}>{displayText}</motion.span>
+  )
 }
 
 const cursorVariants = {
