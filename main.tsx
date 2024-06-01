@@ -34,6 +34,7 @@ import { SpaceSetting } from "./app/[database]/settings/page"
 import { DocEditor } from "./app/eidtor/doc"
 import { DevtoolsPage } from "./app/settings/dev/page"
 import { spaceFileSystem } from "./lib/storage/space"
+import { LabPage } from "./app/lab"
 
 const router = createBrowserRouter([
   {
@@ -47,6 +48,10 @@ const router = createBrowserRouter([
       {
         path: "404",
         element: <NotFound />,
+      },
+      {
+        path: "lab",
+        element: <LabPage />,
       },
       {
         path: "settings",

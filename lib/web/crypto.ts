@@ -50,3 +50,23 @@ export async function verifyMessage(payload: object, signature: ArrayBuffer) {
     encoded
   )
 }
+
+/**
+ * file checksum sha3-256
+ * return checksum
+ */
+export async function fileChecksum(file: File): Promise<string> {
+  const worker = new Worker(
+    new URL("@/worker/web-worker/checksum.ts", import.meta.url),
+    {
+      type: "module",
+    }
+  )
+  const promise = new Promise<string>((resolve) => {
+    worker.onmessage = (event) => {
+      resolve(event.data)
+    }
+  })
+  worker.postMessage({ file })
+  return promise
+}
