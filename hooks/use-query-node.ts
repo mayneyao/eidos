@@ -10,14 +10,17 @@ export const useQueryNode = () => {
   const { space } = useCurrentPathInfo()
   const { sqlite } = useSqlite(space)
   const nodeMap = useNodeMap()
-  const queryNodes = async (q: string): Promise<ISearchNodes[] | undefined> => {
-    if (!sqlite) return
-    const nodes = await sqlite.listTreeNodes(q, true)
-    return nodes.map((item) => ({
-      ...item,
-      mode: "node",
-    }))
-  }
+  const queryNodes = useCallback(
+    async (q: string): Promise<ISearchNodes[] | undefined> => {
+      if (!sqlite) return
+      const nodes = await sqlite.listTreeNodes(q, true)
+      return nodes.map((item) => ({
+        ...item,
+        mode: "node",
+      }))
+    },
+    [sqlite]
+  )
 
   const fullTextSearch = async (
     q: string

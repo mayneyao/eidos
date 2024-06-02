@@ -113,21 +113,20 @@ function useMentionLookupService(
       setResults(cachedResults)
       return
     }
-
-    // mentionString &&
-    queryNodes(mentionString ?? "").then((newResults) => {
-      const _newResults = [...(newResults || [])] as any
-      if (enabledCreate) {
-        _newResults.push({
-          id: `new-${mentionString}`,
-          name: `New "${mentionString}" sub-doc`,
-          type: "doc",
-          mode: "node",
-        })
-      }
-      mentionsCache.set(mentionString, _newResults)
-      setResults(_newResults ?? [])
-    })
+    mentionString &&
+      queryNodes(mentionString ?? "").then((newResults) => {
+        const _newResults = [...(newResults || [])] as any
+        if (enabledCreate) {
+          _newResults.push({
+            id: `new-${mentionString}`,
+            name: `New "${mentionString}" sub-doc`,
+            type: "doc",
+            mode: "node",
+          })
+        }
+        mentionsCache.set(mentionString, _newResults)
+        setResults(_newResults ?? [])
+      })
   }, [enabledCreate, mentionString, queryNodes])
 
   return results
