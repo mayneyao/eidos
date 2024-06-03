@@ -43,7 +43,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
         <BreadCrumb />
       </div>
       <div className="h-full grow" id="drag-region" />
-      <div className="flex items-center justify-between gap-2">
+      <div className="mr-3 flex items-center justify-between gap-2">
         <NavStatus />
         <NavDropdownMenu />
       </div>

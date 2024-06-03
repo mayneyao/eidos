@@ -2,7 +2,9 @@ import { useMemo, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import {
+  AppWindowIcon,
   ChevronDownIcon,
+  FilterIcon,
   FunctionSquareIcon,
   RotateCcwIcon,
   ShapesIcon,
@@ -11,6 +13,7 @@ import {
 } from "lucide-react"
 import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 
+import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import {
   AlertDialog,
@@ -23,6 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -33,10 +37,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 
+import { useAllApps } from "./hooks/use-all-apps"
 import { useAllBlocks } from "./hooks/use-all-blocks"
 import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
 import { useNewScript } from "./hooks/use-new-script"
@@ -48,30 +60,65 @@ const IconMap = {
   udf: FunctionSquareIcon,
   prompt: SparkleIcon,
   block: ShapesIcon,
+  app: AppWindowIcon,
 }
+
+const extensionTypes = [
+  {
+    name: "App",
+    icon: AppWindowIcon,
+    isGlobal: true,
+  },
+  {
+    name: "Block",
+    icon: ShapesIcon,
+    isGlobal: true,
+  },
+  {
+    name: "Script",
+    icon: SquareCodeIcon,
+  },
+  {
+    name: "UDF",
+    icon: FunctionSquareIcon,
+  },
+  {
+    name: "Prompt",
+    icon: SparkleIcon,
+  },
+]
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
   const { space } = useCurrentPathInfo()
   const [filter, setFilter] = useState("All")
 
   const blocks = useAllBlocks()
+  const apps = useAllApps()
   const _scripts = useMemo(() => {
-    const unRecordedBlocks = blocks.filter(
-      (block) =>
-        scripts.findIndex((script) => script.id === "block-" + block) === -1
-    )
     return [
-      ...scripts,
-      ...unRecordedBlocks.map((block) => ({
-        id: "block-" + block,
+      ...scripts.filter(
+        (script) => script.type !== "script" && script.type !== "app"
+      ),
+      ...blocks.map((block) => ({
+        id: block,
         name: block,
         type: "block",
         description: "Block",
+        enabled: scripts.find((script) => script.id === block)?.enabled,
+        version: "1.0.0",
+        code: "",
+      })),
+      ...apps.map((app) => ({
+        id: app.id,
+        name: app.name,
+        type: "app",
+        enabled: scripts.find((script) => script.id === app.id)?.enabled,
+        description: "App",
         version: "1.0.0",
         code: "",
       })),
     ] as IScript[]
-  }, [blocks, scripts])
+  }, [apps, blocks, scripts])
 
   const filterExts = useMemo(() => {
     if (filter === "All") {
@@ -98,10 +145,11 @@ export const ScriptPage = () => {
   const { dirHandle, scriptId } = useDirHandleStore()
   const { reload } = useLocalScript()
 
-  const handleToggleEnabled = async (id: string, checked: boolean) => {
+  const handleToggleEnabled = async (script: IScript, checked: boolean) => {
+    const { id } = script
     if (checked) {
       if (
-        id.startsWith("block-") &&
+        script.type === "block" &&
         scripts.findIndex((script) => script.id === id) === -1
       ) {
         await addScript({
@@ -111,6 +159,16 @@ export const ScriptPage = () => {
           description: "Block",
           version: "1.0.0",
           code: "",
+          enabled: true,
+          commands: [],
+        })
+      }
+      if (
+        script.type === "app" &&
+        scripts.findIndex((script) => script.id === id) === -1
+      ) {
+        await addScript({
+          ...script,
           enabled: true,
           commands: [],
         })
@@ -133,7 +191,7 @@ export const ScriptPage = () => {
     })
   }
   return (
-    <ScrollArea className="h-full w-full p-4">
+    <ScrollArea className="h-full w-full p-2">
       <div className="flex w-full justify-between p-2">
         <div className="flex">
           <Button
@@ -161,19 +219,41 @@ export const ScriptPage = () => {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
         <div className="flex gap-2">
-          <div className="flex gap-1">
-            {["All", "Script", "UDF", "Prompt", "Block"].map((type) => (
-              <Button
-                key={type}
-                onClick={() => setFilter(type)}
-                size="sm"
-                variant={filter === type ? "secondary" : "ghost"}
-              >
-                {type}
-              </Button>
-            ))}
-          </div>
+          <Select
+            onValueChange={(value) => {
+              setFilter(value as string)
+            }}
+            defaultValue="All"
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem key={"All"} value={"All"}>
+                <div className="flex items-center gap-2">
+                  <FilterIcon size={18} className=" opacity-60" />
+                  All
+                </div>
+              </SelectItem>
+              {extensionTypes.map((type) => {
+                const Icon =
+                  IconMap[type.name.toLowerCase() as keyof typeof IconMap]
+                return (
+                  <SelectItem key={type.name} value={type.name}>
+                    <div className="flex items-center gap-2">
+                      <Icon size={18} className=" opacity-60" />
+                      {type.name}{" "}
+                      {type.isGlobal && (
+                        <Badge variant="secondary">Global</Badge>
+                      )}
+                    </div>
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
           <InstallScript />
         </div>
       </div>
@@ -195,12 +275,19 @@ export const ScriptPage = () => {
                   <Switch
                     checked={script.enabled}
                     onCheckedChange={(checked) =>
-                      handleToggleEnabled(script.id, checked)
+                      handleToggleEnabled(script, checked)
                     }
                   ></Switch>
                 </div>
                 <p className="h-[50px]">{script.description}</p>
-                <div className="flex items-end justify-between">
+
+                <div
+                  className={cn("flex items-end justify-between", {
+                    "opacity-0 pointer-events-none": ["block", "app"].includes(
+                      script.type
+                    ),
+                  })}
+                >
                   <div className="flex gap-2">
                     <Link to={`/${space}/extensions/${script.id}`}>
                       <Button className="mt-4" variant="outline">

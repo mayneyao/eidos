@@ -1,13 +1,21 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { BlocksIcon, Database, FileBoxIcon, Files, PinIcon } from "lucide-react"
+import {
+  AppWindowIcon,
+  BlocksIcon,
+  Database,
+  FileBoxIcon,
+  Files,
+  PinIcon,
+} from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
+import { useScripts } from "@/hooks/use-scripts"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Separator } from "@/components/ui/separator"
@@ -30,6 +38,8 @@ export const SideBar = ({ className }: any) => {
   const allNodes = useAllNodes()
   const { spaceList } = useSpace()
   const { isShareMode } = useAppRuntimeStore()
+  const scripts = useScripts(space)
+  const apps = scripts.filter((script) => script.type === "app")
 
   useEffect(() => {
     updateNodeList().then(() => {
@@ -117,6 +127,20 @@ export const SideBar = ({ className }: any) => {
                 )}
                 Icon={<Files className="pr-2" />}
               />
+              {/* apps */}
+              {apps.map((app) => (
+                <Button
+                  variant={"ghost"}
+                  size="sm"
+                  className="w-full justify-start font-normal"
+                  asChild
+                >
+                  <Link to={`/${space}/apps/${app.id}`}>
+                    <AppWindowIcon className="pr-2" />
+                    {app.name}
+                  </Link>
+                </Button>
+              ))}
             </div>
           )}
         </ScrollArea>

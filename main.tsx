@@ -27,14 +27,15 @@ import ShareLayout from "@/app/share/[database]/layout"
 import SharePage from "@/app/share/page"
 
 import { NotFound } from "./app/404"
+import { AppPage } from "./app/[database]/apps/page"
 import { ScriptDetailPage } from "./app/[database]/scripts/detail"
 import { ScriptPage } from "./app/[database]/scripts/page"
 import { ScriptStorePage } from "./app/[database]/scripts/store"
 import { SpaceSetting } from "./app/[database]/settings/page"
 import { DocEditor } from "./app/eidtor/doc"
+import { LabPage } from "./app/lab"
 import { DevtoolsPage } from "./app/settings/dev/page"
 import { spaceFileSystem } from "./lib/storage/space"
-import { LabPage } from "./app/lab"
 
 const router = createBrowserRouter([
   {
@@ -114,6 +115,15 @@ const router = createBrowserRouter([
           {
             path: "opfs",
             element: <FileManager />,
+          },
+          {
+            path: "apps",
+            children: [
+              {
+                path: ":id",
+                element: <AppPage />,
+              },
+            ],
           },
           {
             path: "extensions",

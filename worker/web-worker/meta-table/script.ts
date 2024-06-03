@@ -17,7 +17,7 @@ export interface ICommand {
 export interface IScript {
   id: string
   name: string
-  type: "script" | "udf" | "prompt" | "block"
+  type: "script" | "udf" | "prompt" | "block" | "app"
   description: string
   version: string
   code: string

@@ -2,11 +2,15 @@ import { useCallback, useEffect } from "react"
 import { create } from "zustand"
 
 import { efsManager } from "@/lib/storage/eidos-file-system"
+import { nonNullable } from "@/lib/utils"
+import { toast } from "@/components/ui/use-toast"
 
 interface ExtensionType {
+  id: string
   name: string
   version: string
   description: string
+  displayMode: "full" | "side"
 }
 
 interface ExtensionsState {
@@ -20,14 +24,15 @@ export const useExtensionStore = create<ExtensionsState>()((set) => ({
 }))
 
 // get ext info from package.json file
-export const getExtInfo = async (file: File): Promise<ExtensionType> => {
+export const getExtInfo = async (file: File): Promise<ExtensionType | null> => {
   const packageJsonText = await file.text()
   try {
     const packageJsonObj = JSON.parse(packageJsonText)
-    const { name, version, description } = packageJsonObj
-    return { name, version, description }
+    const { id, name, version, description, displayMode } =
+      packageJsonObj.eidos || packageJsonObj
+    return { id: id || name, name, version, description, displayMode }
   } catch (error) {
-    return { name: "", version: "", description: "" }
+    return null
   }
 }
 
@@ -48,18 +53,20 @@ export const useExtensions = () => {
   const getAllExtensions = useCallback(async () => {
     const extensionDirs = await efsManager.listDir(["extensions", "apps"])
     const allExtensions = await Promise.all(
-      extensionDirs.map(async (dir) => {
-        const packageJson = await efsManager.getFile([
-          "extensions",
-          "apps",
-          dir.name,
-          "package.json",
-        ])
-        const extInfo = await getExtInfo(packageJson)
-        return extInfo
-      })
+      extensionDirs
+        .map(async (dir) => {
+          const packageJson = await efsManager.getFile([
+            "extensions",
+            "apps",
+            dir.name,
+            "package.json",
+          ])
+          const extInfo = await getExtInfo(packageJson)
+          return extInfo
+        })
+        .filter(nonNullable)
     )
-    setExtensions(allExtensions)
+    setExtensions(allExtensions as ExtensionType[])
   }, [setExtensions])
 
   useEffect(() => {
@@ -75,8 +82,14 @@ export const useExtensions = () => {
       const packageJsonHandle = await dirHandle.getFileHandle("package.json")
       const packageJsonFile = await packageJsonHandle.getFile()
       const extensionInfo = await getExtInfo(packageJsonFile)
-      await efsManager.addDir(parentPath, extensionInfo.name)
-      parentPath = [...parentPath, extensionInfo.name]
+      if (!extensionInfo) {
+        toast({
+          title: "Invalid extension package.json",
+        })
+        return
+      }
+      await efsManager.addDir(parentPath, extensionInfo.id)
+      parentPath = [...parentPath, extensionInfo.id]
     }
     // walk dirHandle upload to /extensions/<name>/
     for await (const [key, value] of dirHandle.entries()) {
