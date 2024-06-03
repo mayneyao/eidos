@@ -1,5 +1,8 @@
 import { useEffect } from "react"
-import { getConfigFromOpfs } from "@/worker/service-worker/backup"
+import {
+  backupAllSpaceData,
+  getConfigFromOpfs,
+} from "@/worker/service-worker/backup"
 
 import { FileSystemType } from "@/lib/storage/eidos-file-system"
 import { getIndexedDBValue } from "@/lib/storage/indexeddb"
@@ -19,7 +22,7 @@ export const registerPeriodicSync = async () => {
           return "unregistered"
         }
         await registration.periodicSync.register("backup", {
-          minInterval: config.autoSaveGap * 1000,
+          minInterval: config.autoSaveGap * 60 * 1000,
         })
         console.log("Periodic background sync registered!", "[backup]")
         return "registered"
@@ -51,7 +54,7 @@ export const registerSpaceDatabaseSync = async () => {
           return "unregistered"
         }
         await registration.periodicSync.register("backup-db", {
-          minInterval: autoBackupGap * 1000,
+          minInterval: autoBackupGap * 1000 * 60,
         })
         console.log("Periodic background sync registered!", "[backup-db]")
         return "registered"
@@ -64,9 +67,35 @@ export const registerSpaceDatabaseSync = async () => {
   }
 }
 
+export const _registerSpaceDatabaseSync = async () => {
+  const fsType = await getIndexedDBValue<FileSystemType>("kv", "fs")
+  const autoBackupGap = await getIndexedDBValue<number>("kv", "autoBackupGap")
+  if (fsType === FileSystemType.OPFS || autoBackupGap == 0) {
+    return
+  }
+  console.log("register auto backup")
+  return setInterval(async () => {
+    await backupAllSpaceData()
+  }, autoBackupGap * 1000 * 60)
+}
+
 export const useRegisterPeriodicSync = () => {
   useEffect(() => {
     registerPeriodicSync()
-    registerSpaceDatabaseSync()
+    // registerSpaceDatabaseSync()
+    // use setInterval instead of periodic background sync for now, it's more reliable to keep the data safe
+    let timer: NodeJS.Timeout | null = null
+    ;(async () => {
+      const _timer = await _registerSpaceDatabaseSync()
+      if (_timer) {
+        timer = _timer
+      }
+    })()
+    return () => {
+      if (timer) {
+        clearInterval(timer)
+        console.log("unregister auto backup")
+      }
+    }
   }, [])
 }

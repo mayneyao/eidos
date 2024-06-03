@@ -65,7 +65,7 @@ export class Sqlite {
     const config = await getConfig<{ experiment: ExperimentFormValues }>(
       "config-experiment"
     )
-    console.log("config.experiment.undoRedo", config.experiment.undoRedo)
+    // console.log("config.experiment.undoRedo", config.experiment.undoRedo)
     return new DataSpace(
       db,
       Boolean(draftDb && config.experiment.undoRedo),

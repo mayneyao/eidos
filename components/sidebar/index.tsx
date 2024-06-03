@@ -132,6 +132,7 @@ export const SideBar = ({ className }: any) => {
                 <Button
                   variant={"ghost"}
                   size="sm"
+                  key={app.id}
                   className="w-full justify-start font-normal"
                   asChild
                 >

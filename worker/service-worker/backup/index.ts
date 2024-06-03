@@ -128,6 +128,7 @@ export const autoBackup = async () => {
 }
 
 export const backupAllSpaceData = async () => {
+  console.log("trigger backup all space data")
   const fsType = await getIndexedDBValue<FileSystemType>("kv", "fs")
   // only when fs is set to NFS, we do the backup. copy db.sqlite3 to the nfs folder
   if (fsType !== FileSystemType.NFS) {
