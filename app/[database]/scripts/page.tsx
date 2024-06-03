@@ -96,8 +96,8 @@ export const ScriptPage = () => {
   const apps = useAllApps()
   const _scripts = useMemo(() => {
     return [
-      ...scripts.filter(
-        (script) => script.type !== "script" && script.type !== "app"
+      ...scripts.filter((script) =>
+        ["script", "udf", "prompt"].includes(script.type)
       ),
       ...blocks.map((block) => ({
         id: block,
@@ -227,7 +227,7 @@ export const ScriptPage = () => {
             }}
             defaultValue="All"
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="h-[36px] w-[180px]">
               <SelectValue placeholder="" />
             </SelectTrigger>
             <SelectContent>
