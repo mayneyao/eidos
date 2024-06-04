@@ -1,4 +1,5 @@
 import { Menu } from "lucide-react"
+import { useTheme } from "next-themes"
 
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
@@ -12,6 +13,7 @@ import { NavStatus } from "./nav-status"
 export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
+  const { theme } = useTheme()
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen)
   }
@@ -20,10 +22,12 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
     <div
       id="title-bar"
       className={cn(
-        "flex h-8 w-full border-separate items-center justify-between bg-primary-foreground  pl-2",
+        "flex h-8 w-full border-separate items-center justify-between pl-2",
         {
           fixed: navigator.windowControlsOverlay?.visible,
           "!h-[38px]": isMac(),
+          "bg-[#000]": theme === "dark",
+          "bg-[#fff]": theme === "light",
           // PWA does not support css variables for theme color yet, we just use bg-white text-black for now
           // https://github.com/w3c/manifest/issues/975
           // "bg-white text-black": navigator.windowControlsOverlay?.visible,
