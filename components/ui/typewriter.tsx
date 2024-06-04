@@ -10,6 +10,7 @@ export interface ITypewriterProps {
   texts: string[]
   colors?: string[] // tailwind colors
   baseText?: string
+  onIndexChange?: (index: number) => void
 }
 
 function visibleLength(str: string) {
@@ -28,6 +29,7 @@ export function Typewriter({
   texts,
   colors,
   baseText = "",
+  onIndexChange,
 }: ITypewriterProps) {
   const [animationComplete, setAnimationComplete] = useState(false)
   const count = useMotionValue(0)
@@ -57,6 +59,7 @@ export function Typewriter({
           texts={texts}
           colors={colors}
           delay={delay + 1}
+          onIndexChange={onIndexChange}
         />
       )}
       <BlinkingCursor />
@@ -68,6 +71,7 @@ export interface IRepeatedTextAnimationProps {
   delay: number
   texts: string[]
   colors?: string[]
+  onIndexChange?: (index: number) => void
 }
 
 const defaultTexts = [
@@ -83,9 +87,13 @@ function RepeatedTextAnimation({
   delay,
   colors,
   texts = defaultTexts,
+  onIndexChange,
 }: IRepeatedTextAnimationProps) {
   const textIndex = useMotionValue(0)
 
+  useTransform(textIndex, (latest) => {
+    onIndexChange && onIndexChange(latest)
+  })
   const baseText = useTransform(textIndex, (latest) => texts[latest] || "")
   const [color, setColor] = useState(colors?.[0] || "text-primary")
   const count = useMotionValue(0)
@@ -103,7 +111,7 @@ function RepeatedTextAnimation({
       ease: "easeIn",
       repeat: Infinity,
       repeatType: "reverse",
-      repeatDelay: 0.3,
+      repeatDelay: 1,
       onUpdate(latest) {
         if (updatedThisRound.get() && latest > 0) {
           updatedThisRound.set(false)

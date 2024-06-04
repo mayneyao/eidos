@@ -7,27 +7,8 @@ import { Typewriter } from "@/components/ui/typewriter"
 import { EidosIcon } from "@/components/icons/eidos"
 
 import { Activation } from "./activation"
+import { BuildYourOwn } from "./build-your-own"
 import { Features } from "./features"
-
-const texts = [
-  "📚 bookmark",
-  "📝 wiki",
-  "🎵 music library ",
-  "📖 reading list",
-  "📷 photo album",
-  "📼 movie collection",
-  "📰 news reader",
-]
-
-const colors = [
-  "text-cyan-400",
-  "text-purple-400",
-  "text-pink-400",
-  "text-yellow-400",
-  "text-green-400",
-  "text-blue-400",
-  "text-red-400",
-]
 
 export const Landing = () => {
   return (
@@ -91,7 +72,7 @@ export const Landing = () => {
               : "rgba(155, 1, 221, 0.5)"
           }
         /> */}
-        <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48">
+        <section className="w-full overflow-hidden py-12 md:py-24 lg:py-32 xl:py-48">
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center space-y-4 text-center">
               <div className="space-y-2">
@@ -105,34 +86,10 @@ export const Landing = () => {
                   for recording and managing your personal data throughout your
                   lifetime in one place.
                 </p>
-                <div className=" text-2xl">
-                  Building your own{" "}
-                  <Typewriter texts={texts} colors={colors} delay={0} />
-                </div>
-              </div>
-              <div className="space-x-4">
-                <Link
-                  className="inline-flex h-9 items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-gray-50 shadow transition-colors hover:bg-gray-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:pointer-events-none disabled:opacity-50 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-50/90 dark:focus-visible:ring-gray-300"
-                  target="_blank"
-                  to="https://store.eidos.space/buy/2397216c-4322-40fa-b425-681d455e6702"
-                >
-                  Get Early Access
-                </Link>
-                {/* <Link
-                  className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:pointer-events-none disabled:opacity-50 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-800 dark:hover:text-gray-50 dark:focus-visible:ring-gray-300"
-                  to="#join"
-                >
-                  Learn More
-                </Link> */}
+                <BuildYourOwn />
               </div>
             </div>
-            <div className="md:min-w-[20rem]">
-              {/* <BackgroundMedia
-              type="video"
-              variant="light"
-              src="/static/hero-cover.mp4"
-            /> */}
-            </div>
+            <div className="md:min-w-[20rem]"></div>
           </div>
         </section>
         <section
