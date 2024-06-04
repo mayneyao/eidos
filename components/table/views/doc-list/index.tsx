@@ -51,7 +51,7 @@ export function DocListView(props: IDocListViewProps) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <div ref={wrapperRef} className={`h-full`}>
+        <div ref={wrapperRef} className="h-full w-[350px] p-2">
           {list.map((item, index) => (
             <Button
               key={item.data._id}
@@ -59,10 +59,14 @@ export function DocListView(props: IDocListViewProps) {
                 shortenId(item.data._id) === nodeId ? "secondary" : "ghost"
               }
               size="sm"
-              className="w-full justify-start truncate font-normal"
               onClick={() => setNodeId(shortenId(item.data._id))}
             >
-              {item.data.title || "Untitled"}
+              <p
+                className="w-[330px] truncate text-start font-normal"
+                title={item.data.title || "Untitled"}
+              >
+                {item.data.title || "Untitled"}
+              </p>
             </Button>
           ))}
         </div>
