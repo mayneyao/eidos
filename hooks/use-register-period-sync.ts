@@ -70,7 +70,12 @@ export const registerSpaceDatabaseSync = async () => {
 export const _registerSpaceDatabaseSync = async () => {
   const fsType = await getIndexedDBValue<FileSystemType>("kv", "fs")
   const autoBackupGap = await getIndexedDBValue<number>("kv", "autoBackupGap")
-  if (fsType === FileSystemType.OPFS || autoBackupGap == 0) {
+  if (
+    !fsType ||
+    !autoBackupGap ||
+    fsType === FileSystemType.OPFS ||
+    autoBackupGap == 0
+  ) {
     return
   }
   console.log("register auto backup")

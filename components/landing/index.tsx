@@ -2,12 +2,12 @@ import { SparkleIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TextAnimate } from "@/components/ui/text-animate"
 import { Typewriter } from "@/components/ui/typewriter"
 import { EidosIcon } from "@/components/icons/eidos"
 
 import { Activation } from "./activation"
+import { Features } from "./features"
 
 const texts = [
   "📚 bookmark",
@@ -43,8 +43,8 @@ export const Landing = () => {
         )}
         id="title-bar"
       >
-        <Link className="mt-4 flex items-center justify-center gap-2" to="#">
-          <EidosIcon className="h-8 w-8" />{" "}
+        <Link className="mt-2 flex items-center justify-center gap-2" to="#">
+          <EidosIcon className="h-6 w-6" />{" "}
           <span className=" text-2xl font-semibold">Eidos</span>
         </Link>
         <div className="h-full grow" id="drag-region" />
@@ -195,95 +195,21 @@ export const Landing = () => {
               <div className="grid gap-1">
                 <h3 className="text-lg font-bold">Open Source</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Eidos is an open-source project, and this ensures that code
-                  doesn't lie, which is essential for software freedom.
+                  Eidos is an{" "}
+                  <span className=" text-purple-500"> open-source</span>{" "}
+                  project, and this ensures that code doesn't lie, which is
+                  essential for software freedom.
                 </p>
               </div>
             </div>
           </div>
         </section>
-        <section className="w-full py-12 md:py-24 lg:py-32">
-          <div className="container px-4 md:px-6">
-            <Tabs className="w-full" defaultValue="doc">
-              <TabsList className="mx-auto flex max-w-sm justify-center gap-4 border-b bg-secondary py-4 md:max-w-md">
-                <TabsTrigger value="doc">Doc</TabsTrigger>
-                <TabsTrigger value="table">Table</TabsTrigger>
-                <TabsTrigger value="extension">Extension</TabsTrigger>
-                {/* <TabsTrigger value="ai">AI</TabsTrigger> */}
-              </TabsList>
-              <TabsContent value="doc">
-                <div className="flex flex-col  items-center gap-6 py-12  lg:gap-12">
-                  <div className="flex flex-col justify-center space-y-4">
-                    <div className="grid gap-1">
-                      <h3 className="text-xl font-bold">Doc</h3>
-                      <p className="text-gray-500 dark:text-gray-400">
-                        Write your own document with markdown and organize your
-                        knowledge.
-                      </p>
-                    </div>
-                  </div>
-                  <img
-                    alt="eidos doc"
-                    className="mx-auto aspect-video overflow-hidden rounded-xl object-contain  sm:w-full lg:order-last"
-                    src="/screenshots/doc.jpeg"
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="table">
-                <div className="flex flex-col items-center gap-6 py-12  lg:gap-12">
-                  <div className="flex flex-col justify-center space-y-4">
-                    <div className="grid gap-1">
-                      <h3 className="text-xl font-bold">Table</h3>
-                      <p className="text-gray-500 dark:text-gray-400">
-                        Manage your data with a spreadsheet-like interface.
-                      </p>
-                    </div>
-                  </div>
-                  <img
-                    alt="eidos table"
-                    className="mx-auto aspect-video overflow-hidden rounded-xl object-contain  sm:w-full lg:order-last"
-                    height="500"
-                    src="/screenshots/table.jpeg"
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="extension">
-                <div className="flex  flex-col items-center gap-6 py-12  lg:gap-12">
-                  <div className="flex flex-col justify-center space-y-4">
-                    <div className="grid gap-1">
-                      <h3 className="text-xl font-bold">Extension</h3>
-                      <p className="text-gray-500 dark:text-gray-400">
-                        Build your own Eidos with an easy extension system.
-                      </p>
-                    </div>
-                  </div>
-                  <img
-                    alt="eidos extension"
-                    className="mx-auto aspect-video overflow-hidden rounded-xl object-contain  sm:w-full lg:order-last"
-                    height="310"
-                    src="/screenshots/ext.jpeg"
-                  />
-                </div>
-              </TabsContent>
-              {/* <TabsContent value="ai">
-                <div className="flex  flex-col  items-center gap-6 py-12  lg:gap-12">
-                  <div className="flex flex-col justify-center space-y-4">
-                    <div className="grid gap-1">
-                      <h3 className="text-xl font-bold">AI</h3>
-                      <p className="text-gray-500 dark:text-gray-400">
-                        Talk to your data, let AI help you to manage your data.
-                      </p>
-                    </div>
-                  </div>
-                  <img
-                    alt="Image"
-                    className="mx-auto aspect-video  overflow-hidden rounded-xl object-cover object-center sm:w-full lg:order-last"
-                    height="310"
-                    src="/placeholder.svg"
-                  />
-                </div>
-              </TabsContent> */}
-            </Tabs>
+        <section
+          className="w-full py-12 md:py-24 lg:py-32"
+          // id="features"
+        >
+          <div className="container space-y-12 px-4 xs:px-0 md:px-6">
+            <Features />
           </div>
         </section>
         {/* <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48">
