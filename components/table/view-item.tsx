@@ -70,8 +70,8 @@ export const ViewItem = ({
               variant="ghost"
               onClick={() => jump2View(view.id)}
               size="sm"
-              className={cn({
-                "opacity-70": !isActive,
+              className={cn("pl-0", {
+                "opacity-60": !isActive,
                 " border-b-2 border-primary  rounded-b-none": isActive,
               })}
             >

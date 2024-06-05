@@ -1,4 +1,5 @@
 import { useWhyDidYouUpdate } from "ahooks"
+import { FilterIcon } from "lucide-react"
 
 import { BinaryOperator, CompareOperator } from "@/lib/fields/const"
 import {
@@ -15,6 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
+import { Button } from "../ui/button"
 import { useViewOperation } from "./hooks"
 import { useViewQuery } from "./hooks/use-view-query"
 import { FilterValueType } from "./view-filter-editor/interface"
@@ -52,11 +54,13 @@ export const ViewFilter = (props: { view: IView }) => {
   return (
     <Popover>
       <PopoverTrigger
-        className={cn("rounded-md px-2", {
+        className={cn("rounded-md", {
           "bg-secondary": hasFilter,
         })}
       >
-        <span>Filter</span>
+        <Button size="xs" variant="ghost">
+          <FilterIcon className="h-4 w-4 opacity-60"></FilterIcon>
+        </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <ViewFilterEditor

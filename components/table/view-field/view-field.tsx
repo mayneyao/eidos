@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { PlusIcon } from "@radix-ui/react-icons"
 import update from "immutability-helper"
 import { sortBy } from "lodash"
+import { ArrowDownUpIcon, SlidersHorizontalIcon } from "lucide-react"
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
 
@@ -137,7 +138,11 @@ export const ViewField = (props: { view?: IView }) => {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={"rounded-md px-2"}>Fields</PopoverTrigger>
+      <PopoverTrigger className={"rounded-md"}>
+        <Button size="xs" variant="ghost">
+          <SlidersHorizontalIcon className="h-4 w-4 opacity-60"></SlidersHorizontalIcon>
+        </Button>
+      </PopoverTrigger>
       <PopoverContent className="w-auto p-2">
         <div className="flex justify-between px-2">
           <Button size="xs" variant="ghost" onClick={showAllFields}>

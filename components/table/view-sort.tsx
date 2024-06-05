@@ -1,4 +1,5 @@
 import { useCallback } from "react"
+import { ArrowDownUpIcon } from "lucide-react"
 import {
   OrderByStatement,
   SelectFromStatement,
@@ -14,6 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
+import { Button } from "../ui/button"
 import { useViewOperation } from "./hooks"
 import { OrderByItem, ViewSortEditor } from "./view-sort-editor"
 
@@ -50,11 +52,13 @@ export const ViewSort = ({ view }: { view?: IView }) => {
   return (
     <Popover>
       <PopoverTrigger
-        className={cn("rounded-md px-2", {
+        className={cn("rounded-md", {
           "bg-secondary": hasOrderBy,
         })}
       >
-        Sort
+        <Button size="xs" variant="ghost">
+          <ArrowDownUpIcon className="h-4 w-4 opacity-60"></ArrowDownUpIcon>
+        </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <ViewSortEditor onSortChange={handleOrderByChange} />
