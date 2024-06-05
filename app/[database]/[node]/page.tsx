@@ -88,7 +88,7 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
           docId={node.id}
           title={node.name}
           showTitle
-          className={node.is_full_width ? "max-w-full md:!px-8" : ""}
+          className={node.is_full_width ? "max-w-full md:!px-12" : ""}
           onTitleChange={(title) => {
             updateNodeName(node.id, title)
           }}

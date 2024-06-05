@@ -30,7 +30,7 @@ export const NodeCover = (props: { node: ITreeNode }) => {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <div className="absolute right-[24%] opacity-0 group-hover:opacity-100">
-            <Button>Change cover</Button>
+            <Button size="sm">Change cover</Button>
           </div>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">
