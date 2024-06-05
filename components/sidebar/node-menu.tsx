@@ -41,10 +41,16 @@ import { Input } from "../ui/input"
 interface INodeItemProps {
   databaseName: string
   node: ITreeNode
+  depth: number
   children?: React.ReactNode
 }
 
-export function NodeItem({ databaseName, children, node }: INodeItemProps) {
+export function NodeItem({
+  databaseName,
+  children,
+  node,
+  depth,
+}: INodeItemProps) {
   const {
     createDoc,
     createTable,
@@ -154,7 +160,7 @@ export function NodeItem({ databaseName, children, node }: INodeItemProps) {
               <FileSpreadsheetIcon className="pr-2" />
               New Table
             </ContextMenuItem>
-            <ContextMenuItem onClick={handleCreateFolder}>
+            <ContextMenuItem onClick={handleCreateFolder} disabled={depth > 6}>
               <FolderPlusIcon className="pr-2" />
               New Nested Folder
             </ContextMenuItem>

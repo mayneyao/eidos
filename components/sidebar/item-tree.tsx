@@ -44,7 +44,7 @@ export const CurrentItemTree = ({
         {!disableAdd && <CreateNodeTrigger />}
       </div>
       {showNodes && (
-        <div className="mt-1 space-y-1 pl-4">
+        <div className="mt-1 max-w-[284px] space-y-1 pl-4">
           <DndProvider backend={HTML5Backend} context={window}>
             <NodeTreeContainer nodes={allNodes} />
           </DndProvider>

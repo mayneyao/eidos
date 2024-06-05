@@ -11,7 +11,13 @@ export interface ContainerState {
   cards: ITreeNode[]
 }
 
-export const NodeTreeContainer = ({ nodes }: { nodes: ITreeNode[] }) => {
+export const NodeTreeContainer = ({
+  nodes,
+  depth = 1,
+}: {
+  nodes: ITreeNode[]
+  depth?: number
+}) => {
   {
     const [cards, setCards] = useState(nodes)
     useEffect(() => {
@@ -88,6 +94,7 @@ export const NodeTreeContainer = ({ nodes }: { nodes: ITreeNode[] }) => {
             className={cn({
               border: showBorder,
             })}
+            depth={depth}
             key={node.id}
             index={index}
             id={node.id}
@@ -98,7 +105,7 @@ export const NodeTreeContainer = ({ nodes }: { nodes: ITreeNode[] }) => {
           />
         )
       },
-      [moveCard, moveIntoCard, onDrop, targetCard?.id]
+      [depth, moveCard, moveIntoCard, onDrop, targetCard?.id]
     )
 
     return (

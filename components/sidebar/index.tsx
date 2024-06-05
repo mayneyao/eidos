@@ -1,33 +1,25 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import {
   AppWindowIcon,
   BlocksIcon,
-  Database,
   FileBoxIcon,
-  Files,
   ListTreeIcon,
-  PinIcon,
+  PinIcon
 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { useExperimentConfigStore } from "@/app/settings/experiment/store"
+import { DatabaseSelect } from "@/components/database-select"
+import { Separator } from "@/components/ui/separator"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { useScripts } from "@/hooks/use-scripts"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
-import { Separator } from "@/components/ui/separator"
-import { DatabaseSelect } from "@/components/database-select"
-import { useExperimentConfigStore } from "@/app/settings/experiment/store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
@@ -76,7 +68,7 @@ export const SideBar = ({ className }: any) => {
           )}
         </div>
         <div className="my-2" />
-        <ScrollArea className="flex h-full flex-col justify-between overflow-y-auto">
+        <ScrollArea className="flex h-full max-w-[300px] flex-col justify-between overflow-y-auto">
           {loading ? (
             <TableListLoading />
           ) : (

@@ -25,6 +25,7 @@ export interface CardProps {
   id: any
   node: ITreeNode
   index: number
+  depth: number
   className?: string
   moveCard: (dragIndex: number, hoverIndex: number) => void
   moveIntoCard: (dragIndex: number, hoverIndex: number) => void
@@ -44,6 +45,7 @@ export const Card: FC<CardProps> = ({
   moveCard,
   onDrop,
   className,
+  depth,
   moveIntoCard,
 }) => {
   const { space: spaceName } = useCurrentPathInfo()
@@ -159,7 +161,12 @@ export const Card: FC<CardProps> = ({
         className={cn("flex flex-col gap-1")}
       >
         <div className={cn("group flex w-full", className)}>
-          <NodeItem node={node} databaseName={spaceName} key={node.id}>
+          <NodeItem
+            node={node}
+            databaseName={spaceName}
+            key={node.id}
+            depth={depth}
+          >
             <Button
               variant={node.id === currentNode?.id ? "secondary" : "ghost"}
               size="sm"
@@ -200,7 +207,10 @@ export const Card: FC<CardProps> = ({
       </div>
       {open && node.type === "folder" && (
         <div className="ml-3 border-l pl-1">
-          <NodeTreeContainer nodes={allNodes.filter((i) => !i.is_deleted)} />
+          <NodeTreeContainer
+            nodes={allNodes.filter((i) => !i.is_deleted)}
+            depth={depth + 1}
+          />
         </div>
       )}
     </>
