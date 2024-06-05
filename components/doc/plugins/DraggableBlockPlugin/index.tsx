@@ -366,7 +366,7 @@ function useDraggableBlockMenu(
     <>
       <div
         ref={menuRef}
-        className="draggable-block-menu flex gap-2 "
+        className="draggable-block-menu flex gap-1"
         draggable={true}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
