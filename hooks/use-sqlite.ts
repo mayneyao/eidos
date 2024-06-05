@@ -269,13 +269,27 @@ export const useSqlite = (dbName?: string) => {
     tableName: string
     tableId: string
     sql: string
+    parent_id?: string
   }) => {
     if (!sqlWorker) return
-    const { tableName, tableId, sql } = data
-    await sqlWorker.createTable(tableId, tableName, sql)
+    const { tableName, tableId, sql, parent_id } = data
+    await sqlWorker.createTable(tableId, tableName, sql, parent_id)
+  }
+
+  const createFolder = async (parent_id?: string) => {
+    if (!sqlWorker) return
+    const folderId = uuidv4().split("-").join("")
+    const node = await sqlWorker.addTreeNode({
+      id: folderId,
+      name: "New Folder",
+      type: "folder",
+      parent_id,
+    })
+    node && addNode(node)
+    return folderId
   }
   // create table with default template
-  const createTable = async (tableName: string) => {
+  const createTable = async (tableName: string, parent_id?: string) => {
     if (!sqlWorker) return
     const tableId = uuidv4().split("-").join("")
     const _tableName = getRawTableNameById(tableId)
@@ -285,6 +299,7 @@ export const useSqlite = (dbName?: string) => {
       tableName,
       tableId,
       sql,
+      parent_id,
     })
     const node = await sqlWorker.getTreeNode(tableId)
     node && addNode(node)
@@ -544,6 +559,7 @@ export const useSqlite = (dbName?: string) => {
     sqlite: isShareMode ? sqlWorker : isInitialized ? sqlWorker : null,
     createTable,
     deleteTable,
+    createFolder,
     duplicateTable,
     queryAllTables: queryAllNodes,
     updateNodeList,

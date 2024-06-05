@@ -63,7 +63,7 @@ export function DatabaseLayoutBase({
       <div className="flex h-full w-full">
         <div
           className={cn(
-            "h-full max-w-[350px] overflow-x-hidden transition-all duration-150 ease-in-out",
+            "h-full max-w-[300px] overflow-x-hidden transition-all duration-150 ease-in-out",
             isSidebarOpen ? "hidden  md:block" : "w-0",
             isSidebarOpen && "w-full"
           )}

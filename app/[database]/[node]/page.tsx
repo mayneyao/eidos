@@ -1,20 +1,20 @@
 import { useEffect } from "react"
 
-import { DocProperty } from "@/components/doc-property"
-import { Editor } from "@/components/doc/editor"
-import { Table } from "@/components/table"
-import { Button } from "@/components/ui/button"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsg,
+  EidosDataEventChannelMsgType,
+} from "@/lib/const"
 import { useCurrentNode, useNodeMap } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useEmoji } from "@/hooks/use-emoji"
 import { useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import {
-  DataUpdateSignalType,
-  EidosDataEventChannelMsg,
-  EidosDataEventChannelMsgType,
-} from "@/lib/const"
+import { Button } from "@/components/ui/button"
+import { DocProperty } from "@/components/doc-property"
+import { Editor } from "@/components/doc/editor"
+import { Table } from "@/components/table"
 
 import { DefaultColors } from "./image-selector"
 import { NodeCover } from "./node-cover"
@@ -61,6 +61,7 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
     return null
   }
   const node = nodeMap[nodeId]
+  const parentNode = node.parent_id ? nodeMap[node.parent_id] : null
   const handleAddIcon = async () => {
     const emojiNative = await getEmoji(node?.name)
     await updateIcon(node?.id!, emojiNative)
@@ -96,25 +97,25 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
           }
           coverComponent={node.cover && <NodeCover node={node} />}
           propertyComponent={
-            node.parent_id &&
+            parentNode?.type === "table" &&
             !node.hide_properties && (
               <DocProperty tableId={node.parent_id!} docId={node.id} />
             )
           }
           topComponent={
-            <div className="flex h-[36px] cursor-pointer gap-2 opacity-0 hover:opacity-100">
+            <div className="flex h-[28px] cursor-pointer gap-2 opacity-0 hover:opacity-100">
               {!node.icon && (
-                <Button size="sm" variant="ghost" onClick={handleAddIcon}>
+                <Button size="xs" variant="ghost" onClick={handleAddIcon}>
                   Add Icon
                 </Button>
               )}
               {!node.cover && (
-                <Button size="sm" variant="ghost" onClick={handleAddCover}>
+                <Button size="xs" variant="ghost" onClick={handleAddCover}>
                   Add Cover
                 </Button>
               )}
-              {node.parent_id && (
-                <Button size="sm" variant="ghost" onClick={toggleProperties}>
+              {parentNode?.type === "table" && (
+                <Button size="xs" variant="ghost" onClick={toggleProperties}>
                   {node.hide_properties ? "Show Properties" : "Hide Properties"}
                 </Button>
               )}

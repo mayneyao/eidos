@@ -16,7 +16,10 @@ import {
 import { ScrollArea } from "../ui/scroll-area"
 
 export const NodeMoveInto = ({ node }: { node: ITreeNode }) => {
-  const tableNodes = useAllNodes({ type: "table", isDeleted: false })
+  const tableNodes = useAllNodes({
+    type: ["table", "folder"],
+    isDeleted: false,
+  })
   const { sqlite } = useSqlite()
   const { setNode } = useNodeTree()
 

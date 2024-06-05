@@ -1,8 +1,9 @@
-import update from "immutability-helper"
 import { useCallback, useEffect, useState } from "react"
+import update from "immutability-helper"
 
-import { useNode } from "@/hooks/use-nodes"
 import { ITreeNode } from "@/lib/store/ITreeNode"
+import { cn } from "@/lib/utils"
+import { useNode } from "@/hooks/use-nodes"
 
 import { Card } from "./card"
 
@@ -17,28 +18,34 @@ export const NodeTreeContainer = ({ nodes }: { nodes: ITreeNode[] }) => {
       setCards(nodes)
     }, [nodes])
 
-    const { updatePosition } = useNode()
+    const [targetCard, setTargetCard] = useState<ITreeNode | null>(null)
+    const { updatePosition, updateParentId } = useNode()
     const onDrop = useCallback(
       (dragId: string, index: number) => {
-        const dragNode = cards.find((card) => card.id === dragId)
-        if (!dragNode) return
-        const prevIndex = index - 1
-        const nextIndex = index + 1
-        const prevNode = cards[prevIndex]
-        const nextNode = cards[nextIndex]
-        const newPosition = () => {
-          if (prevIndex === -1) {
-            return nextNode?.position! + 0.5
+        if (targetCard) {
+          // move into folder
+          updateParentId(dragId, targetCard.id)
+        } else {
+          const dragNode = cards.find((card) => card.id === dragId)
+          if (!dragNode) return
+          const prevIndex = index - 1
+          const nextIndex = index + 1
+          const prevNode = cards[prevIndex]
+          const nextNode = cards[nextIndex]
+          const newPosition = () => {
+            if (prevIndex === -1) {
+              return nextNode?.position! + 0.5
+            }
+            if (!nextNode) {
+              return prevNode?.position! / 2
+            }
+            return ((prevNode?.position! || 0) + nextNode?.position!) / 2
           }
-          if (!nextNode) {
-            return prevNode?.position! / 2
-          }
-          return ((prevNode?.position! || 0) + nextNode?.position!) / 2
+          updatePosition(dragId, newPosition())
         }
-
-        updatePosition(dragId, newPosition())
+        setTargetCard(null)
       },
-      [cards, updatePosition]
+      [cards, targetCard, updateParentId, updatePosition]
     )
 
     const moveCard = useCallback((dragIndex: number, hoverIndex: number) => {
@@ -50,27 +57,53 @@ export const NodeTreeContainer = ({ nodes }: { nodes: ITreeNode[] }) => {
           ],
         })
       })
+      setTargetCard(null)
     }, [])
+
+    const moveIntoCard = useCallback(
+      (dragIndex: number, hoverIndex: number) => {
+        const _targetCard = cards[hoverIndex]
+        if (!_targetCard) {
+          setTargetCard(null)
+          return
+        }
+        if (_targetCard.id === targetCard?.id) return
+        if (_targetCard.type === "folder") {
+          setTargetCard(_targetCard)
+        } else {
+          setTargetCard(null)
+        }
+      },
+      [cards, targetCard]
+    )
 
     const renderCard = useCallback(
       (node: ITreeNode, index: number) => {
+        if (!node?.id) return null
+        const showBorder = targetCard?.id === node.id
         return (
           <Card
+            className={cn({
+              border: showBorder,
+            })}
             key={node.id}
             index={index}
             id={node.id}
             node={node}
             moveCard={moveCard}
+            moveIntoCard={moveIntoCard}
             onDrop={onDrop}
           />
         )
       },
-      [moveCard, onDrop]
+      [moveCard, moveIntoCard, onDrop, targetCard?.id]
     )
 
     return (
       <>
-        <div>{cards.map((card, i) => renderCard(card, i))}</div>
+        <div className="flex flex-col gap-1">
+          {cards.map((card, i) => renderCard(card, i))}
+        </div>
       </>
     )
   }

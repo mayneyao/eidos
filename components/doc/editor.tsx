@@ -163,19 +163,20 @@ export function Editor(props: EditorProps) {
       {props.coverComponent}
       <div
         className={cn(
-          "prose mx-auto h-full w-full flex-col p-10 dark:prose-invert  xs:p-5",
+          "prose mx-auto h-full w-full flex-col px-5 dark:prose-invert sm:px-12",
           props.className
         )}
         id="eidos-editor-container"
       >
         {props.topComponent}
         {props.showTitle && (
-          <div className="mb-4 flex w-full items-baseline">
+          <div className="mb-4 flex w-full items-baseline gap-2">
             {props.beforeTitle && <div>{props.beforeTitle}</div>}
             <input
               id="doc-title"
               placeholder="Untitled"
-              className="h-[50px] w-[90%] truncate bg-transparent text-4xl font-bold text-primary outline-none"
+              autoFocus
+              className="h-[50px] grow truncate bg-transparent text-4xl font-bold text-primary outline-none"
               value={title}
               title={title}
               style={props.titleStyle}

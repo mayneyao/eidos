@@ -7,6 +7,7 @@ import {
   Database,
   FileBoxIcon,
   Files,
+  ListTreeIcon,
   PinIcon,
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -18,6 +19,12 @@ import { useAllNodes } from "@/hooks/use-nodes"
 import { useScripts } from "@/hooks/use-scripts"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import { Separator } from "@/components/ui/separator"
 import { DatabaseSelect } from "@/components/database-select"
 import { useExperimentConfigStore } from "@/app/settings/experiment/store"
@@ -53,7 +60,7 @@ export const SideBar = ({ className }: any) => {
 
   return (
     <>
-      <div className={cn("flex h-full flex-col p-4 pt-2", className)}>
+      <div className={cn("flex h-full flex-col p-2", className)}>
         <div className="flex items-center justify-between">
           {/* {!isShareMode && (
             <h2 className="relative px-6 text-lg font-semibold tracking-tight">
@@ -101,32 +108,39 @@ export const SideBar = ({ className }: any) => {
                       Extensions
                     </Link>
                   </Button>
-
                   <CurrentItemTree
                     title="Pins"
-                    type="table"
                     allNodes={allNodes.filter((node) => node.is_pinned)}
                     Icon={<PinIcon className="pr-2" />}
                     disableAdd
                   />
                 </>
               )}
+              {/* <ContextMenu>
+                <ContextMenuTrigger> */}
               <CurrentItemTree
-                title="Tables"
-                type="table"
+                title="Nodes"
                 allNodes={allNodes.filter(
-                  (node) => node.type === "table" && !node.parent_id
+                  (node) => !node.parent_id && !node.is_deleted
                 )}
-                Icon={<Database className="pr-2" />}
+                Icon={<ListTreeIcon className="pr-2" />}
               />
-              <CurrentItemTree
+              {/* </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem>new doc</ContextMenuItem>
+                  <ContextMenuItem>new table</ContextMenuItem>
+                  <ContextMenuItem>new folder</ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu> */}
+
+              {/* <CurrentItemTree
                 title="Drafts"
                 type="doc"
                 allNodes={allNodes.filter(
                   (node) => node.type === "doc" && !node.parent_id
                 )}
                 Icon={<Files className="pr-2" />}
-              />
+              /> */}
               {/* apps */}
               {apps.map((app) => (
                 <Button

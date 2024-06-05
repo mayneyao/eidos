@@ -618,10 +618,15 @@ export class DataSpace {
     return this.doc.search(query)
   }
 
-  public async createTable(id: string, name: string, tableSchema: string) {
+  public async createTable(
+    id: string,
+    name: string,
+    tableSchema: string,
+    parent_id?: string
+  ) {
     // FIXME: should use db transaction to execute multiple sql
     this.db.transaction(async () => {
-      await this.addTreeNode({ id, name, type: "table" })
+      await this.addTreeNode({ id, name, type: "table", parent_id })
       await this.sql`${tableSchema}`
       // create view for table
       await this.createDefaultView(id)
