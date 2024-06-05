@@ -24,7 +24,9 @@ export const NodeTreeContainer = ({ nodes }: { nodes: ITreeNode[] }) => {
       (dragId: string, index: number) => {
         if (targetCard) {
           // move into folder
-          updateParentId(dragId, targetCard.id)
+          if (dragId !== targetCard.id) {
+            updateParentId(dragId, targetCard.id)
+          }
         } else {
           const dragNode = cards.find((card) => card.id === dragId)
           if (!dragNode) return

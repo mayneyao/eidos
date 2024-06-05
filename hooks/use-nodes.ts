@@ -89,9 +89,10 @@ export const useNode = () => {
   }
 
   const updateParentId = async (id: string, parentId: string) => {
-    await sqlite?.tree.set(id, {
-      parent_id: parentId,
-    })
+    if (id == parentId) {
+      return
+    }
+    await sqlite?.nodeChangeParent(id, parentId)
     setNode({
       id,
       parent_id: parentId,

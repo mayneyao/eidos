@@ -817,6 +817,13 @@ export class DataSpace {
     return this.tree.moveIntoTable(id, tableId, parentId)
   }
 
+  public async nodeChangeParent(id: string, parentId: string) {
+    await this.tree.checkLoop(id, parentId)
+    return this.tree.set(id, {
+      parent_id: parentId,
+    })
+  }
+
   public async listUiColumns(tableName: string) {
     return this.column.list({ table_name: tableName })
   }
