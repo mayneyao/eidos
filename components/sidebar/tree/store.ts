@@ -1,14 +1,21 @@
 import { create } from "zustand"
 
 // Define the state shape
-interface FolderOpenState {
+interface FolderState {
   folders: Record<string, boolean>
   toggleFolder: (id: string) => void
   closeFolder: (id: string) => void
+  currentCut: string | null
+  setCut: (id: string | null) => void
 }
 
 // Create the Zustand store
-export const useFolderOpenStore = create<FolderOpenState>((set) => ({
+export const useFolderStore = create<FolderState>((set) => ({
+  currentCut: null,
+  setCut: (id: string | null) =>
+    set(() => ({
+      currentCut: id,
+    })),
   folders: {},
   toggleFolder: (id: string) =>
     set((state) => ({

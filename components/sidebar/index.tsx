@@ -1,27 +1,34 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   AppWindowIcon,
   BlocksIcon,
+  ClipboardPasteIcon,
   FileBoxIcon,
   ListTreeIcon,
-  PinIcon
+  PinIcon,
 } from "lucide-react"
-import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useExperimentConfigStore } from "@/app/settings/experiment/store"
-import { DatabaseSelect } from "@/components/database-select"
-import { Separator } from "@/components/ui/separator"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { useScripts } from "@/hooks/use-scripts"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { Separator } from "@/components/ui/separator"
+import { DatabaseSelect } from "@/components/database-select"
+import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
 import { Button } from "../ui/button"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "../ui/context-menu"
 import { ScrollArea } from "../ui/scroll-area"
 import { BackupStatus } from "./backup"
 import { EverydaySidebarItem } from "./everyday"
@@ -29,6 +36,8 @@ import { ImportFileDialog } from "./import-file"
 import { CurrentItemTree } from "./item-tree"
 import { TableListLoading } from "./loading"
 import { Trash } from "./trash"
+import { useTreeOperations } from "./tree/hooks"
+import { useFolderStore } from "./tree/store"
 
 export const SideBar = ({ className }: any) => {
   const { space } = useCurrentPathInfo()
@@ -37,9 +46,11 @@ export const SideBar = ({ className }: any) => {
   const allNodes = useAllNodes()
   const { spaceList } = useSpace()
   const { isShareMode } = useAppRuntimeStore()
+  const { currentCut } = useFolderStore()
   const scripts = useScripts(space)
   const apps = scripts.filter((script) => script.type === "app")
 
+  const { handlePaste } = useTreeOperations()
   useEffect(() => {
     updateNodeList().then(() => {
       setLoading(false)
@@ -108,22 +119,26 @@ export const SideBar = ({ className }: any) => {
                   />
                 </>
               )}
-              {/* <ContextMenu>
-                <ContextMenuTrigger> */}
-              <CurrentItemTree
-                title="Nodes"
-                allNodes={allNodes.filter(
-                  (node) => !node.parent_id && !node.is_deleted
-                )}
-                Icon={<ListTreeIcon className="pr-2" />}
-              />
-              {/* </ContextMenuTrigger>
+              <ContextMenu>
+                <ContextMenuTrigger>
+                  <CurrentItemTree
+                    title="Nodes"
+                    allNodes={allNodes.filter(
+                      (node) => !node.parent_id && !node.is_deleted
+                    )}
+                    Icon={<ListTreeIcon className="pr-2" />}
+                  />
+                </ContextMenuTrigger>
                 <ContextMenuContent>
-                  <ContextMenuItem>new doc</ContextMenuItem>
-                  <ContextMenuItem>new table</ContextMenuItem>
-                  <ContextMenuItem>new folder</ContextMenuItem>
+                  <ContextMenuItem
+                    onClick={() => handlePaste()}
+                    disabled={!currentCut}
+                  >
+                    <ClipboardPasteIcon className="pr-2" />
+                    Paste
+                  </ContextMenuItem>
                 </ContextMenuContent>
-              </ContextMenu> */}
+              </ContextMenu>
 
               {/* <CurrentItemTree
                 title="Drafts"

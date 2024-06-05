@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react"
+import { useKeyPress } from "ahooks"
 import update from "immutability-helper"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { cn } from "@/lib/utils"
+import { useCurrentNode } from "@/hooks/use-current-node"
 import { useNode } from "@/hooks/use-nodes"
 
 import { Card } from "./card"
+import { useFolderStore } from "./store"
 
 export interface ContainerState {
   cards: ITreeNode[]
@@ -20,14 +23,21 @@ export const NodeTreeContainer = ({
 }) => {
   {
     const [cards, setCards] = useState(nodes)
+    const { currentCut, setCut } = useFolderStore()
     useEffect(() => {
       setCards(nodes)
     }, [nodes])
+    const currentNode = useCurrentNode()
+
+    useKeyPress(["meta.x", "ctrl.x"], () => {
+      setCut(currentNode?.id || null)
+    })
 
     const [targetCard, setTargetCard] = useState<ITreeNode | null>(null)
     const { updatePosition, updateParentId } = useNode()
     const onDrop = useCallback(
       (dragId: string, index: number) => {
+        setTargetCard(null)
         if (targetCard) {
           // move into folder
           if (dragId !== targetCard.id) {
@@ -51,7 +61,6 @@ export const NodeTreeContainer = ({
           }
           updatePosition(dragId, newPosition())
         }
-        setTargetCard(null)
       },
       [cards, targetCard, updateParentId, updatePosition]
     )
@@ -92,7 +101,7 @@ export const NodeTreeContainer = ({
         return (
           <Card
             className={cn({
-              border: showBorder,
+              "border border-dashed": showBorder,
             })}
             depth={depth}
             key={node.id}

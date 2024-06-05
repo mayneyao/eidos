@@ -88,7 +88,7 @@ export const useNode = () => {
     })
   }
 
-  const updateParentId = async (id: string, parentId: string) => {
+  const updateParentId = async (id: string, parentId?: string) => {
     if (id == parentId) {
       return
     }

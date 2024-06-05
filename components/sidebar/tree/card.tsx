@@ -8,14 +8,14 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useAllNodes } from "@/hooks/use-nodes"
+import { useAllNodes, useNode } from "@/hooks/use-nodes"
 import { Button } from "@/components/ui/button"
 import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
 import { ItemIcon } from "../item-tree"
-import { NodeItem } from "../node-menu"
+import { NodeItem } from "./node-menu"
 import { NodeTreeContainer } from "./node-tree"
-import { useFolderOpenStore } from "./store"
+import { useFolderStore } from "./store"
 
 export const ItemTypes = {
   CARD: "card",
@@ -50,10 +50,11 @@ export const Card: FC<CardProps> = ({
 }) => {
   const { space: spaceName } = useCurrentPathInfo()
   const [searchParams] = useSearchParams()
+  const { updateParentId } = useNode()
   const allNodes = useAllNodes({ parent_id: node.id })
   const currentNode = useCurrentNode()
   const ref = useRef<HTMLDivElement>(null)
-  const { folders, toggleFolder, closeFolder } = useFolderOpenStore()
+  const { folders, toggleFolder, closeFolder, currentCut } = useFolderStore()
 
   const open = folders[node.id]
   const setOpen = () => {
@@ -153,10 +154,13 @@ export const Card: FC<CardProps> = ({
     : `/${spaceName}/${node.id}`
 
   return (
-    <>
+    <div
+      className={cn({
+        "opacity-50": currentCut === node.id,
+      })}
+    >
       <div
         ref={ref}
-        // style={{ opacity }}
         data-handler-id={handlerId}
         className={cn("flex flex-col gap-1")}
       >
@@ -213,6 +217,6 @@ export const Card: FC<CardProps> = ({
           />
         </div>
       )}
-    </>
+    </div>
   )
 }

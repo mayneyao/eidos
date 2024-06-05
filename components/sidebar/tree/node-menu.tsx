@@ -1,6 +1,7 @@
 import { MouseEventHandler, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
 import {
+  ClipboardPasteIcon,
   CopyIcon,
   FilePlus2Icon,
   FileSpreadsheetIcon,
@@ -9,6 +10,7 @@ import {
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
+  ScissorsIcon,
   Trash2Icon,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
@@ -34,9 +36,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import { NodeMoveInto } from "../node-menu/move-into"
-import { NodeExportContextMenu } from "../node-menu/node-export"
-import { Input } from "../ui/input"
+import { NodeMoveInto } from "../../node-menu/move-into"
+import { NodeExportContextMenu } from "../../node-menu/node-export"
+import { Input } from "../../ui/input"
+import { useTreeOperations } from "./hooks"
+import { useFolderStore } from "./store"
 
 interface INodeItemProps {
   databaseName: string
@@ -61,6 +65,8 @@ export function NodeItem({
     createFolder,
   } = useSqlite(databaseName)
   const { setNode, pin, unpin } = useNodeTree()
+  const { handleCut, handlePaste } = useTreeOperations()
+  const { currentCut } = useFolderStore()
   const [renameOpen, setRenameOpen] = useState(false)
   const [newName, setNewName] = useState(node.name)
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -138,6 +144,23 @@ export function NodeItem({
           Rename
         </ContextMenuItem>
 
+        <ContextMenuItem
+          onClick={() => handleCut(node.id)}
+          disabled={Boolean(currentCut && currentCut !== node.id)}
+        >
+          <ScissorsIcon className="pr-2" />
+          {currentCut === node.id ? "Cancel cut" : "Cut"}
+        </ContextMenuItem>
+
+        {node.type === "folder" && (
+          <ContextMenuItem
+            onClick={() => handlePaste(node)}
+            disabled={!currentCut}
+          >
+            <ClipboardPasteIcon className="pr-2" />
+            Paste
+          </ContextMenuItem>
+        )}
         {node.is_pinned ? (
           <ContextMenuItem onClick={() => unpin(node.id)}>
             <PinOffIcon className="pr-2" />
