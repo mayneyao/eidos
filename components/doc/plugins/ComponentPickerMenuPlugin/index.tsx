@@ -9,6 +9,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { $createCodeNode } from "@lexical/code"
 import {
+  $isListItemNode,
   INSERT_CHECK_LIST_COMMAND,
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
@@ -59,6 +60,7 @@ import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
 import { bgColors, fgColors } from "../const"
 import "./index.css"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
+import { getSelectedNode } from "../../utils/getSelectedNode"
 import { INSERT_BOOKMARK_COMMAND } from "../BookmarkPlugin"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
@@ -277,7 +279,21 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
 
             if ($isRangeSelection(selection)) {
               if (selection.isCollapsed()) {
-                $setBlocksType(selection, () => $createCodeNode())
+                const node = getSelectedNode(selection)
+                const parent = node.getParent()
+                if ($isListItemNode(node)) {
+                  const textContent = selection.getTextContent()
+                  const codeNode = $createCodeNode()
+                  codeNode.select().insertRawText(textContent)
+                  node.append($createParagraphNode().append(codeNode))
+                } else if ($isListItemNode(parent)) {
+                  const textContent = node.getTextContent()
+                  const codeNode = $createCodeNode()
+                  codeNode.select().insertRawText(textContent)
+                  node.replace(codeNode)
+                } else {
+                  $setBlocksType(selection, () => $createCodeNode())
+                }
               } else {
                 // Will this ever happen?
                 const textContent = selection.getTextContent()

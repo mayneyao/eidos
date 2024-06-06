@@ -5,12 +5,20 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import "./index.css"
-import * as React from "react"
+
 import { DragEvent as ReactDragEvent, useEffect, useRef, useState } from "react"
+import { $isCodeNode } from "@lexical/code"
+import {
+  $createListItemNode,
+  $createListNode,
+  $isListItemNode,
+  $isListNode,
+  ListItemNode,
+  ListNode,
+} from "@lexical/list"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { eventFiles } from "@lexical/rich-text"
-import { mergeRegister } from "@lexical/utils"
+import { $dfs, mergeRegister } from "@lexical/utils"
 import {
   $createParagraphNode,
   $getNearestNodeFromDOMNode,
@@ -24,6 +32,9 @@ import {
 } from "lexical"
 import { createPortal } from "react-dom"
 
+import "./index.css"
+import { $isBookmarkNode } from "../../nodes/BookmarkNode"
+import { $isImageNode } from "../../nodes/ImageNode/ImageNode"
 import { isHTMLElement } from "../../utils/guard"
 import { Point } from "../../utils/point"
 import { Rect } from "../../utils/rect"
@@ -55,22 +66,51 @@ function getTopLevelNodeKeys(editor: LexicalEditor): string[] {
   return editor.getEditorState().read(() => $getRoot().getChildrenKeys())
 }
 
+function getAllListItemNodeKeys(editor: LexicalEditor): string[] {
+  return editor
+    .getEditorState()
+    .read(() => $dfs().map((node) => node.node.getKey()))
+}
+
+function isBlockElement(element: HTMLElement) {
+  let closestParent = element.closest(".eidos_block")
+  if (closestParent) {
+    return closestParent
+  }
+}
+
+function getDraggableBlockElement(
+  anchorElem: HTMLElement,
+  editor: LexicalEditor,
+  event: MouseEvent
+) {
+  let blockElem: HTMLElement | null = null
+  if (event.target) {
+    const element = isBlockElement(event.target as HTMLElement)
+    if (element) {
+      blockElem = element as HTMLElement
+    }
+  }
+  return blockElem
+}
+
 function getBlockElement(
   anchorElem: HTMLElement,
   editor: LexicalEditor,
   event: MouseEvent
 ): HTMLElement | null {
   const anchorElementRect = anchorElem.getBoundingClientRect()
-  const topLevelNodeKeys = getTopLevelNodeKeys(editor)
+  // const topLevelNodeKeys = getTopLevelNodeKeys(editor)
+  const allListItemNodeKeys = getAllListItemNodeKeys(editor)
+  const allNodeKeys = allListItemNodeKeys //topLevelNodeKeys.concat(allListItemNodeKeys)
 
   let blockElem: HTMLElement | null = null
 
   editor.getEditorState().read(() => {
-    let index = getCurrentIndex(topLevelNodeKeys.length)
+    let index = getCurrentIndex(allNodeKeys.length)
     let direction = Indeterminate
-
-    while (index >= 0 && index < topLevelNodeKeys.length) {
-      const key = topLevelNodeKeys[index]
+    while (index >= 0 && index < allNodeKeys.length) {
+      const key = allNodeKeys[index]
       const elem = editor.getElementByKey(key)
       if (elem === null) {
         break
@@ -104,7 +144,7 @@ function getBlockElement(
           direction = Downward
         } else {
           // stop search block element
-          direction = Infinity
+          // direction = Infinity
         }
       }
 
@@ -134,13 +174,22 @@ function setMenuPosition(
   const targetStyle = window.getComputedStyle(targetElem)
   const floatingElemRect = floatingElem.getBoundingClientRect()
   const anchorElementRect = anchorElem.getBoundingClientRect()
+  const containerElementRect = document
+    .getElementById("eidos-editor-container")
+    ?.getBoundingClientRect()
 
   const top =
     targetRect.top +
     (parseInt(targetStyle.lineHeight, 10) - floatingElemRect.height) / 2 -
     anchorElementRect.top
 
-  const left = SPACE
+  // Calculate the new left position for the floating element
+  const left =
+    targetRect.left -
+    floatingElemRect.width -
+    SPACE -
+    (containerElementRect?.left || 0) +
+    20
 
   floatingElem.style.opacity = "1"
   floatingElem.style.transform = `translate(${left}px, ${top}px)`
@@ -173,6 +222,9 @@ function setTargetLine(
   const { top: anchorTop, width: anchorWidth } =
     anchorElem.getBoundingClientRect()
 
+  // get targetBlockElem padding left
+  const paddingLeft = parseFloat(targetStyle.paddingLeft)
+
   let lineTop = targetBlockElemTop
   // At the bottom of the target
   if (mouseY - targetBlockElemTop > targetBlockElemHeight / 2) {
@@ -182,7 +234,7 @@ function setTargetLine(
   }
 
   const top = lineTop - anchorTop - TARGET_LINE_HALF_HEIGHT
-  const left = TEXT_BOX_HORIZONTAL_PADDING - SPACE
+  const left = TEXT_BOX_HORIZONTAL_PADDING - SPACE + paddingLeft
 
   targetLineElem.style.transform = `translate(${left}px, ${top}px)`
   targetLineElem.style.width = `${
@@ -234,7 +286,11 @@ function useDraggableBlockMenu(
         return
       }
 
-      const _draggableBlockElem = getBlockElement(anchorElem, editor, event)
+      const _draggableBlockElem = getDraggableBlockElement(
+        anchorElem,
+        editor,
+        event
+      )
 
       setDraggableBlockElem(_draggableBlockElem)
     }
@@ -296,6 +352,11 @@ function useDraggableBlockMenu(
       if (!draggedNode) {
         return false
       }
+      // const dom = editor.getElementByKey(dragData)
+      // if (dom) {
+      //   dom.style.backgroundColor = "transparent"
+      // }
+
       if (!isHTMLElement(target)) {
         return false
       }
@@ -312,10 +373,44 @@ function useDraggableBlockMenu(
       }
       const { top, height } = targetBlockElem.getBoundingClientRect()
       const shouldInsertAfter = pageY - top > height / 2
+      let insertNode = draggedNode
+      if ($isListItemNode(targetNode)) {
+        if (
+          $isCodeNode(draggedNode) ||
+          $isImageNode(draggedNode) ||
+          $isBookmarkNode(draggedNode)
+        ) {
+          const newTargetNode = shouldInsertAfter
+            ? targetNode
+            : (targetNode.getPreviousSibling() as ListItemNode)
+          insertNode = $createParagraphNode().append(
+            ...newTargetNode.getChildren(),
+            draggedNode
+          )
+          if (newTargetNode) {
+            newTargetNode.append(insertNode)
+          } else {
+            targetNode.insertBefore(insertNode)
+          }
+          return true
+        } else {
+          insertNode = $createListItemNode()
+          ;(insertNode as ListItemNode).append(draggedNode)
+        }
+      }
+      if (
+        draggedNode &&
+        $isListItemNode(draggedNode) &&
+        !$isListNode(targetNode.getParent())
+      ) {
+        const listType = (draggedNode?.getParent() as ListNode)?.getListType()
+        insertNode = $createListNode(listType)
+        ;(insertNode as ListNode).append(draggedNode as ListItemNode)
+      }
       if (shouldInsertAfter) {
-        targetNode.insertAfter(draggedNode)
+        targetNode.insertAfter(insertNode)
       } else {
-        targetNode.insertBefore(draggedNode)
+        targetNode.insertBefore(insertNode)
       }
       setDraggableBlockElem(null)
 
@@ -346,6 +441,7 @@ function useDraggableBlockMenu(
       return
     }
     setDragImage(dataTransfer, draggableBlockElem)
+    // draggableBlockElem.style.backgroundColor = "rgba(0, 0, 0, 0.1)"
     let nodeKey = ""
     editor.update(() => {
       const node = $getNearestNodeFromDOMNode(draggableBlockElem)
@@ -361,6 +457,13 @@ function useDraggableBlockMenu(
     isDraggingBlockRef.current = false
     hideTargetLine(targetLineRef.current)
   }
+
+  useEffect(() => {
+    isDraggingBlockRef.current = false
+    return () => {
+      isDraggingBlockRef.current = false
+    }
+  }, [])
 
   return createPortal(
     <>
