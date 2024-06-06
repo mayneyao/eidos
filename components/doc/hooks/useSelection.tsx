@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { $dfs } from "@lexical/utils"
 import { useKeyPress } from "ahooks"
-import { $getNodeByKey, $getRoot, LexicalNode } from "lexical"
+import { $getNodeByKey, LexicalNode } from "lexical"
 
 type BoxStyle = {
   display: string
@@ -40,6 +41,7 @@ export function useMouseSelection(
   const clearSelectedKetSet = () => {
     setSelectedKeySet(new Set())
   }
+
   useKeyPress(["delete", "backspace"], (e) => {
     if (selectedKeySet.size > 0) {
       e.preventDefault()
@@ -59,9 +61,8 @@ export function useMouseSelection(
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
-        const root = $getRoot()
-        root.getChildren().forEach((child) => {
-          const key = child.getKey()
+        $dfs().forEach((child) => {
+          const key = child.node.getKey()
           const element = editor.getElementByKey(key)
           element?.setAttribute("data-key", key)
         })
@@ -138,9 +139,42 @@ export function useMouseSelection(
         height: `${height}px`,
         backgroundColor: "lightblue",
       })
-
+      // is selecting list items
+      const listItem = (e.target as HTMLElement)?.closest("li")
+      const allParentList: any[] = []
+      // get all parent(li/ul/ol) of the listItem
+      // for example  ul1=>li2=>ol3=>li4  => [ol3, li2, ul1]
+      let startListItem = listItem
+      do {
+        if (startListItem) {
+          if (
+            startListItem.parentElement?.nodeName === "OL" ||
+            startListItem.parentElement?.nodeName === "UL" ||
+            startListItem.parentElement?.nodeName === "LI"
+          ) {
+            allParentList.push(startListItem.parentElement)
+          }
+          startListItem = startListItem.parentElement! as any
+        }
+      } while (startListItem)
       const boxes = getSelectionItems()
-      Array.from(boxes ?? []).forEach((box) => {
+      const boxList = Array.from(boxes ?? []).filter((box) => {
+        if (listItem) {
+          return !allParentList.includes(box)
+        }
+        return true
+      })
+
+      // clear allParentList background color
+      allParentList.forEach((parent) => {
+        ;(parent as HTMLElement).style.backgroundColor = ""
+        const key = (parent as HTMLElement).getAttribute("data-key")
+        if (key) {
+          selectedKeySet.delete(key)
+        }
+      })
+
+      boxList.forEach((box) => {
         const rect = box.getBoundingClientRect()
         const boxLeft = rect.left + window.scrollX
         const boxRight = boxLeft + rect.width
@@ -156,11 +190,17 @@ export function useMouseSelection(
             boxRight >= left &&
             top + height >= boxTop &&
             boxBottom >= top)
+        const key = (box as HTMLElement).getAttribute("data-key")
         if (isIntersect) {
           ;(box as HTMLElement).style.backgroundColor = "rgb(173 216 230 / 27%)"
-          const key = (box as HTMLElement).getAttribute("data-key")
           if (key) {
             selectedKeySet.add(key)
+            setSelectedKeySet(new Set(selectedKeySet))
+          }
+        } else {
+          ;(box as HTMLElement).style.backgroundColor = ""
+          if (key) {
+            selectedKeySet.delete(key)
             setSelectedKeySet(new Set(selectedKeySet))
           }
         }
