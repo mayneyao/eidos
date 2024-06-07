@@ -1,7 +1,7 @@
 export interface ITreeNode {
   id: string
   name: string
-  type: "table" | "doc"
+  type: "table" | "doc" | "folder"
   position?: number
   parent_id?: string
   is_pinned?: boolean

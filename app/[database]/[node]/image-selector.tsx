@@ -88,7 +88,10 @@ export function ImageSelector(props: {
   }
 
   return (
-    <Tabs defaultValue="gallery" className="w-[550px] rounded-lg p-4 shadow">
+    <Tabs
+      defaultValue="gallery"
+      className="w-[350px] rounded-lg p-4 shadow sm:w-[550px]"
+    >
       <div className="flex w-full justify-between">
         <TabsList>
           <TabsTrigger value="gallery">Gallery</TabsTrigger>
@@ -96,7 +99,7 @@ export function ImageSelector(props: {
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
         {!props.hideRemove && (
-          <Button variant="destructive" onClick={props.onRemove}>
+          <Button size="sm" variant="destructive" onClick={props.onRemove}>
             Remove
           </Button>
         )}
@@ -166,7 +169,9 @@ export function ImageSelector(props: {
             <div className="mb-4 text-sm">
               Drag and drop your image here or click the button below.
             </div>
-            <Button onClick={handleSelectLocalFile}>Upload</Button>
+            <Button size="sm" onClick={handleSelectLocalFile}>
+              Upload
+            </Button>
           </div>
         </div>
       </TabsContent>
@@ -177,7 +182,9 @@ export function ImageSelector(props: {
             placeholder="https://example.com/image.png"
             id="web-image-url"
           />
-          <Button onClick={handleSelectWebFile}>Confirm</Button>
+          <Button size="sm" onClick={handleSelectWebFile}>
+            Confirm
+          </Button>
         </div>
       </TabsContent>
     </Tabs>

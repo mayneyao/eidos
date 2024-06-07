@@ -4,9 +4,9 @@ import { useEffect, useState } from "react"
 import {
   AppWindowIcon,
   BlocksIcon,
-  Database,
+  ClipboardPasteIcon,
   FileBoxIcon,
-  Files,
+  ListTreeIcon,
   PinIcon,
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -23,6 +23,12 @@ import { DatabaseSelect } from "@/components/database-select"
 import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
 import { Button } from "../ui/button"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "../ui/context-menu"
 import { ScrollArea } from "../ui/scroll-area"
 import { BackupStatus } from "./backup"
 import { EverydaySidebarItem } from "./everyday"
@@ -30,6 +36,8 @@ import { ImportFileDialog } from "./import-file"
 import { CurrentItemTree } from "./item-tree"
 import { TableListLoading } from "./loading"
 import { Trash } from "./trash"
+import { useTreeOperations } from "./tree/hooks"
+import { useFolderStore } from "./tree/store"
 
 export const SideBar = ({ className }: any) => {
   const { space } = useCurrentPathInfo()
@@ -38,9 +46,11 @@ export const SideBar = ({ className }: any) => {
   const allNodes = useAllNodes()
   const { spaceList } = useSpace()
   const { isShareMode } = useAppRuntimeStore()
+  const { currentCut } = useFolderStore()
   const scripts = useScripts(space)
   const apps = scripts.filter((script) => script.type === "app")
 
+  const { handlePaste } = useTreeOperations()
   useEffect(() => {
     updateNodeList().then(() => {
       setLoading(false)
@@ -53,7 +63,7 @@ export const SideBar = ({ className }: any) => {
 
   return (
     <>
-      <div className={cn("flex h-full flex-col p-4 pt-2", className)}>
+      <div className={cn("flex h-full flex-col p-2", className)}>
         <div className="flex items-center justify-between">
           {/* {!isShareMode && (
             <h2 className="relative px-6 text-lg font-semibold tracking-tight">
@@ -69,7 +79,7 @@ export const SideBar = ({ className }: any) => {
           )}
         </div>
         <div className="my-2" />
-        <ScrollArea className="flex h-full flex-col justify-between overflow-y-auto">
+        <ScrollArea className="flex h-full max-w-[300px] flex-col justify-between overflow-y-auto">
           {loading ? (
             <TableListLoading />
           ) : (
@@ -101,32 +111,43 @@ export const SideBar = ({ className }: any) => {
                       Extensions
                     </Link>
                   </Button>
-
                   <CurrentItemTree
                     title="Pins"
-                    type="table"
                     allNodes={allNodes.filter((node) => node.is_pinned)}
                     Icon={<PinIcon className="pr-2" />}
                     disableAdd
                   />
                 </>
               )}
-              <CurrentItemTree
-                title="Tables"
-                type="table"
-                allNodes={allNodes.filter(
-                  (node) => node.type === "table" && !node.parent_id
-                )}
-                Icon={<Database className="pr-2" />}
-              />
-              <CurrentItemTree
+              <ContextMenu>
+                <ContextMenuTrigger>
+                  <CurrentItemTree
+                    title="Nodes"
+                    allNodes={allNodes.filter(
+                      (node) => !node.parent_id && !node.is_deleted
+                    )}
+                    Icon={<ListTreeIcon className="pr-2" />}
+                  />
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem
+                    onClick={() => handlePaste()}
+                    disabled={!currentCut}
+                  >
+                    <ClipboardPasteIcon className="pr-2" />
+                    Paste
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+
+              {/* <CurrentItemTree
                 title="Drafts"
                 type="doc"
                 allNodes={allNodes.filter(
                   (node) => node.type === "doc" && !node.parent_id
                 )}
                 Icon={<Files className="pr-2" />}
-              />
+              /> */}
               {/* apps */}
               {apps.map((app) => (
                 <Button

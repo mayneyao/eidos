@@ -1,77 +1,114 @@
-import update from "immutability-helper"
+import { useKeyPress } from "ahooks"
 import { useCallback, useEffect, useState } from "react"
 
+import { useCurrentNode } from "@/hooks/use-current-node"
 import { useNode } from "@/hooks/use-nodes"
 import { ITreeNode } from "@/lib/store/ITreeNode"
+import { cn } from "@/lib/utils"
 
-import { Card } from "./card"
+import { Card, DragItem } from "./card"
+import { useFolderStore } from "./store"
 
 export interface ContainerState {
   cards: ITreeNode[]
 }
 
-export const NodeTreeContainer = ({ nodes }: { nodes: ITreeNode[] }) => {
-  {
-    const [cards, setCards] = useState(nodes)
-    useEffect(() => {
-      setCards(nodes)
-    }, [nodes])
+export const NodeTreeContainer = ({
+  nodes,
+  depth = 0,
+}: {
+  nodes: ITreeNode[]
+  depth?: number
+}) => {
+  const [cards, setCards] = useState(nodes)
+  const {
+    currentCut,
+    setCut,
+    targetFolderId,
+    setTargetFolderId,
+    target,
+    setTarget,
+  } = useFolderStore()
+  useEffect(() => {
+    setCards(nodes)
+  }, [nodes])
+  // console.log(cards.map((card) => card.name))
+  const currentNode = useCurrentNode()
 
-    const { updatePosition } = useNode()
-    const onDrop = useCallback(
-      (dragId: string, index: number) => {
+  useKeyPress(["meta.x", "ctrl.x"], () => {
+    setCut(currentNode?.id || null)
+  })
+
+  const { updatePosition, updateParentId } = useNode()
+  const onDrop = useCallback(
+    (dragItem: DragItem) => {
+      const { id: dragId } = dragItem
+      setTargetFolderId(null)
+      setTarget(null)
+      if (!target) return
+      // same depth
+      if (dragItem.depth === target?.depth) {
+        if (targetFolderId && dragId !== targetFolderId) {
+          updateParentId(dragId, targetFolderId)
+          return
+        }
         const dragNode = cards.find((card) => card.id === dragId)
         if (!dragNode) return
-        const prevIndex = index - 1
-        const nextIndex = index + 1
-        const prevNode = cards[prevIndex]
-        const nextNode = cards[nextIndex]
-        const newPosition = () => {
-          if (prevIndex === -1) {
-            return nextNode?.position! + 0.5
-          }
-          if (!nextNode) {
-            return prevNode?.position! / 2
-          }
-          return ((prevNode?.position! || 0) + nextNode?.position!) / 2
-        }
-
-        updatePosition(dragId, newPosition())
-      },
-      [cards, updatePosition]
-    )
-
-    const moveCard = useCallback((dragIndex: number, hoverIndex: number) => {
-      setCards((prevCards: ITreeNode[]) => {
-        return update(prevCards, {
-          $splice: [
-            [dragIndex, 1],
-            [hoverIndex, 0, prevCards[dragIndex] as ITreeNode],
-          ],
+        updateParentId(dragId, target?.parent_id, {
+          targetId: target.id,
+          targetDirection: target.direction,
         })
-      })
-    }, [])
+      } else {
+        updateParentId(dragId, target?.parent_id, {
+          targetId: target.id,
+          targetDirection: target.direction,
+        })
+      }
+    },
+    [
+      cards,
+      setTarget,
+      setTargetFolderId,
+      target,
+      targetFolderId,
+      updateParentId,
+    ]
+  )
 
-    const renderCard = useCallback(
-      (node: ITreeNode, index: number) => {
-        return (
-          <Card
-            key={node.id}
-            index={index}
-            id={node.id}
-            node={node}
-            moveCard={moveCard}
-            onDrop={onDrop}
-          />
-        )
-      },
-      [moveCard, onDrop]
-    )
+  const renderCard = useCallback(
+    (node: ITreeNode, index: number) => {
+      if (!node?.id) return null
+      const showBorder = targetFolderId === node.id
+      const showNewIndex =
+        !showBorder && target?.index === index && target.depth === depth
+      return (
+        <Card
+          className={cn({
+            "rounded-sm ring-2": showBorder,
+            "border-b border-blue-400":
+              showNewIndex && target.direction === "down",
+            "border-t border-blue-400 inset-0":
+              showNewIndex && target.direction === "up",
+          })}
+          depth={depth}
+          key={node.id}
+          index={index}
+          id={node.id}
+          node={node}
+          setTarget={setTarget}
+          setTargetFolderId={setTargetFolderId}
+          onDrop={onDrop}
+        />
+      )
+    },
+    [targetFolderId, target, depth, setTarget, setTargetFolderId, onDrop]
+  )
 
-    return (
-      <>
-        <div>{cards.map((card, i) => renderCard(card, i))}</div>
-      </>
-    )
-  }
+  return (
+    <>
+      <div className="flex flex-col">
+        {cards.map((card, i) => renderCard(card, i))}
+      </div>
+    </>
+  )
 }

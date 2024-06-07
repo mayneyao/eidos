@@ -1,12 +1,19 @@
+import { ITreeNode } from "@/lib/store/ITreeNode"
+
 import { useSqlite, useSqliteStore } from "./use-sqlite"
 
 export const useAllNodes = (opts?: {
   isDeleted?: boolean
-  type?: "table" | "doc"
+  parent_id?: string
+  type?: ITreeNode["type"] | ITreeNode["type"][]
 }) => {
   const { nodeIds, nodeMap } = useSqliteStore((state) => state.dataStore)
-  const { isDeleted = false, type } = opts || {}
-  const types = type ? [type] : ["table", "doc"]
+  const { isDeleted = false, type, parent_id } = opts || {}
+  const types = type
+    ? Array.isArray(type)
+      ? type
+      : [type]
+    : ["table", "doc", "folder"]
 
   if (isDeleted) {
     return nodeIds
@@ -15,7 +22,12 @@ export const useAllNodes = (opts?: {
   }
   return nodeIds
     .map((id) => nodeMap[id])
-    .filter((node) => types.includes(node.type) && !node.is_deleted)
+    .filter(
+      (node) =>
+        types.includes(node.type) &&
+        !node.is_deleted &&
+        (parent_id ? node.parent_id === parent_id : true)
+    )
 }
 
 export const useNode = () => {
@@ -76,10 +88,30 @@ export const useNode = () => {
     })
   }
 
+  const updateParentId = async (
+    id: string,
+    parentId?: string,
+    opts?: {
+      targetId: string
+      targetDirection: "up" | "down"
+    }
+  ) => {
+    if (id == parentId) {
+      return
+    }
+    const res = await sqlite?.nodeChangeParent(id, parentId, opts)
+    setNode({
+      id,
+      parent_id: parentId,
+      ...(res || {}),
+    })
+  }
+
   return {
     updateIcon,
     updateCover,
     updatePosition,
+    updateParentId,
     updateHideProperties,
     moveIntoTable,
   }

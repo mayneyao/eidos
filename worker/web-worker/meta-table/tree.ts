@@ -128,7 +128,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     })
   }
 
-  async list(qs: {
+  async query(qs: {
     query?: string
     withSubNode?: boolean
   }): Promise<ITreeNode[]> {
@@ -193,5 +193,86 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
       [idOrMiniId, idOrMiniId]
     )
     return res.length > 0 ? res[0] : null
+  }
+
+  public async checkLoop(id: string, parentId: string) {
+    if (id === parentId) {
+      throw new Error("Can't move into a child node")
+    } else {
+      const adjacencyList = await this.getAdjacencyList()
+      const visited = new Set<string>()
+      const hasLoop = this.dfs(adjacencyList, visited, id, parentId)
+      if (hasLoop) {
+        throw new Error("Can't move into a child node")
+      }
+      // ... continue with changing the parent
+    }
+  }
+
+  private async getAdjacencyList(): Promise<Map<string, string[]>> {
+    const res = await this.dataSpace.exec2(
+      `SELECT id, parent_id FROM ${TreeTableName}`
+    )
+    const adjacencyList = new Map<string, string[]>()
+    for (const row of res) {
+      if (!adjacencyList.has(row.parent_id)) {
+        adjacencyList.set(row.parent_id, [])
+      }
+      adjacencyList.get(row.parent_id)!.push(row.id)
+    }
+    return adjacencyList
+  }
+
+  private dfs(
+    adjacencyList: Map<string, string[]>,
+    visited: Set<string>,
+    node: string,
+    target: string
+  ): boolean {
+    if (node === target) {
+      return true
+    }
+    visited.add(node)
+    const neighbors = adjacencyList.get(node) || []
+    for (const neighbor of neighbors) {
+      if (
+        !visited.has(neighbor) &&
+        this.dfs(adjacencyList, visited, neighbor, target)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  public async getPosition(props: {
+    parentId?: string
+    targetId: string
+    targetDirection: "up" | "down"
+  }): Promise<number> {
+    const { parentId, targetId, targetDirection } = props
+    const parentChildren = await this.list(
+      { parent_id: parentId || null },
+      {
+        orderBy: "position",
+        order: "DESC",
+      }
+    )
+    const targetIndex = parentChildren.findIndex((node) => node.id === targetId)
+    const prevIndex = targetDirection === "up" ? targetIndex - 1 : targetIndex
+    const nextIndex = targetDirection === "up" ? targetIndex : targetIndex + 1
+    const prevNode = parentChildren[prevIndex]
+    const nextNode = parentChildren[nextIndex]
+
+    const newPosition = () => {
+      if (prevIndex === -1) {
+        return nextNode?.position! + 0.5
+      }
+      if (!nextNode) {
+        return prevNode?.position! / 2
+      }
+      return ((prevNode?.position! || 0) + nextNode?.position!) / 2
+    }
+    return newPosition()
   }
 }
