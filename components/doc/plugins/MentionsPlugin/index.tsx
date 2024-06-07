@@ -30,7 +30,8 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { ItemIcon } from "@/components/sidebar/item-tree"
 import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
-import { $createMentionNode } from "../../nodes/MentionNode"
+import { $createMentionNode } from "../../nodes/MentionNode/MentionNode"
+import { $createSyncBlock } from "../../nodes/SyncBlock/SyncBlock"
 
 const PUNCTUATION =
   "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;"
@@ -199,7 +200,7 @@ function MentionsTypeaheadMenuItem({
 }: {
   index: number
   isSelected: boolean
-  onClick: () => void
+  onClick: (e: React.MouseEvent) => void
   onMouseEnter: () => void
   option: MentionTypeaheadOption
 }) {
@@ -325,6 +326,16 @@ export default function NewMentionsPlugin(
   )
   const handleQueryChange = setQueryString
 
+  const createSyncBlock = (nodeId: string) => {
+    console.log("createSyncBlock")
+    editor.update(() => {
+      const selection = $getSelection()
+      const selectedNode = (selection as RangeSelection).anchor.getNode()
+      const mentionNode = $createSyncBlock(nodeId)
+      selectedNode.replace(mentionNode)
+    })
+  }
+
   return (
     <LexicalTypeaheadMenuPlugin<MentionTypeaheadOption>
       onQueryChange={handleQueryChange}
@@ -357,9 +368,13 @@ export default function NewMentionsPlugin(
                   <MentionsTypeaheadMenuItem
                     index={i}
                     isSelected={selectedIndex === i}
-                    onClick={() => {
-                      setHighlightedIndex(i)
-                      selectOptionAndCleanUp(option)
+                    onClick={(e) => {
+                      if (e.altKey) {
+                        createSyncBlock(option.id)
+                      } else {
+                        setHighlightedIndex(i)
+                        selectOptionAndCleanUp(option)
+                      }
                     }}
                     onMouseEnter={() => {
                       setHighlightedIndex(i)

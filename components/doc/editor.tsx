@@ -48,7 +48,7 @@ interface EditorProps {
   propertyComponent?: React.ReactNode
 }
 
-function InnerEditor(props: EditorProps) {
+export function InnerEditor(props: EditorProps) {
   const ref = React.useRef<HTMLDivElement>(null)
   const { isToolbarVisible, isAIToolsOpen } = useEditorStore()
   const [floatingAnchorElem, setFloatingAnchorElem] =
