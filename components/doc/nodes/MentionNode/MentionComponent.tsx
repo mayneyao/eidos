@@ -75,16 +75,15 @@ export const MentionComponent = (props: { id: string }) => {
           align="start"
           className=" max-h-[500px]  min-w-[300px] max-w-[450px] overflow-y-auto p-4"
         >
-          {node?.type === "doc" ||
-            (node?.type === "day" && (
-              <InnerEditor
-                isEditable={false}
-                docId={node.id}
-                disableSelectionPlugin
-                disableSafeBottomPaddingPlugin
-                className={"w-full max-w-full"}
-              />
-            ))}
+          {node && (node?.type === "doc" || node?.type === "day") && (
+            <InnerEditor
+              isEditable={false}
+              docId={node.id}
+              disableSelectionPlugin
+              disableSafeBottomPaddingPlugin
+              className={"w-full max-w-full"}
+            />
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
