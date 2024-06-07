@@ -1,15 +1,16 @@
-import { Menu } from "lucide-react"
 import { Suspense, lazy } from "react"
+import { motion } from "framer-motion"
+import { Menu } from "lucide-react"
 
-import { Loading } from "@/components/loading"
-import { ScriptContainer } from "@/components/script-container"
-import { SideBar } from "@/components/sidebar"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Loading } from "@/components/loading"
+import { ScriptContainer } from "@/components/script-container"
+import { SideBar } from "@/components/sidebar"
 
 import { Nav } from "../../components/nav"
 import { ExtensionPage } from "../extensions/page"
@@ -50,8 +51,13 @@ export function DatabaseLayoutBase({
       </div>
     )
   }
+  const sidebarVariants = {
+    open: { x: 0 },
+    closed: { x: "-100%", width: 0 },
+  }
+
   return (
-    <div className={cn("relative  flex h-screen ", className)}>
+    <div className={cn("relative  flex h-screen", className)}>
       {currentPreviewFile && (
         <iframe
           className="hidden h-full w-full  md:block"
@@ -60,16 +66,15 @@ export function DatabaseLayoutBase({
       )}
 
       <ScriptContainer />
-      <div className="flex h-full w-full">
-        <div
-          className={cn(
-            "h-full max-w-[300px] overflow-x-hidden transition-all duration-150 ease-in-out",
-            isSidebarOpen ? "hidden  md:block" : "w-0",
-            isSidebarOpen && "w-full"
-          )}
+      <motion.div className="flex h-full w-full">
+        <motion.div
+          className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}
+          animate={isSidebarOpen ? "open" : "closed"}
+          variants={sidebarVariants}
+          transition={{ type: "tween", duration: 0.2 }}
         >
           <SideBar />
-        </div>
+        </motion.div>
         <div className={cn("flex h-full w-auto grow flex-col lg:border-l")}>
           <div className="flex justify-between md:justify-end">
             <MobileSideBar />
@@ -92,7 +97,7 @@ export function DatabaseLayoutBase({
             <ExtensionPage />
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   )
 }
