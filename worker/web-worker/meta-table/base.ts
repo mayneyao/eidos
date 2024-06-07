@@ -96,18 +96,46 @@ export class BaseTableImpl<T = any> {
     return true
   }
 
-  public async list(query?: Record<string, any>): Promise<T[]> {
+  public async list(
+    query?: Record<string, any>,
+    opts?: {
+      limit?: number
+      offset?: number
+      orderBy?: string
+      order?: "ASC" | "DESC"
+      fields?: string[]
+    }
+  ): Promise<T[]> {
     let res: T[] = []
+    let sql = `SELECT * FROM ${this.name}`
+    let setV: any[] = []
+    if (query) {
+      const kv = Object.entries(query)
+      const setK = kv
+        .map(([k, v]) => {
+          if (v == null) {
+            return `${k} IS NULL`
+          }
+          return `${k} = ?`
+        })
+        .join(" AND ")
+      setV = kv.map(([, v]) => v)
+      sql += ` WHERE ${setK}`
+    }
+    if (opts?.orderBy) {
+      sql += ` ORDER BY ${opts.orderBy} ${opts.order || "ASC"}`
+    }
+    if (opts?.limit) {
+      sql += ` LIMIT ${opts.limit}`
+    }
+    if (opts?.offset) {
+      sql += ` OFFSET ${opts.offset}`
+    }
+    sql += ";"
+    res = await this.dataSpace.exec2(sql, setV)
     if (!query) {
       res = await this.dataSpace.exec2(`SELECT * FROM ${this.name};`)
     } else {
-      const kv = Object.entries(query)
-      const setK = kv.map(([k, v]) => `${k} = ?`).join(" AND ")
-      const setV = kv.map(([, v]) => v)
-      res = await this.dataSpace.exec2(
-        `SELECT * FROM ${this.name} WHERE ${setK};`,
-        setV
-      )
     }
     return res.map((item) => {
       return this.toJson(item)

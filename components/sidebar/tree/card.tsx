@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FC } from "react"
+import { useEffect, useMemo, useRef, type FC } from "react"
 import type { Identifier, XYCoord } from "dnd-core"
 import { useDrag, useDrop } from "react-dnd"
 import { Link, useSearchParams } from "react-router-dom"
@@ -8,14 +8,14 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useAllNodes, useNode } from "@/hooks/use-nodes"
+import { useAllNodes } from "@/hooks/use-nodes"
 import { Button } from "@/components/ui/button"
 import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
 import { ItemIcon } from "../item-tree"
 import { NodeItem } from "./node-menu"
 import { NodeTreeContainer } from "./node-tree"
-import { useFolderStore } from "./store"
+import { IHoverTarget, useFolderStore } from "./store"
 
 export const ItemTypes = {
   CARD: "card",
@@ -27,35 +27,41 @@ export interface CardProps {
   index: number
   depth: number
   className?: string
-  moveCard: (dragIndex: number, hoverIndex: number) => void
-  moveIntoCard: (dragIndex: number, hoverIndex: number) => void
-  onDrop: (dragId: string, index: number) => void
+  // moveCard: (dragIndex: number, hoverIndex: number, dragNodeId: string) => void
+  setTarget: (target: IHoverTarget | null) => void
+  setTargetFolderId: (id: string | null) => void
+  onDrop: (dragItem: DragItem) => void
 }
 
-interface DragItem {
+export interface DragItem {
   index: number
   id: string
   type: string
+  depth: number
+  parent_id?: string
 }
 
 export const Card: FC<CardProps> = ({
   id,
   node,
   index,
-  moveCard,
+  setTarget,
   onDrop,
   className,
   depth,
-  moveIntoCard,
+  setTargetFolderId,
 }) => {
   const { space: spaceName } = useCurrentPathInfo()
   const [searchParams] = useSearchParams()
-  const { updateParentId } = useNode()
   const allNodes = useAllNodes({ parent_id: node.id })
   const currentNode = useCurrentNode()
   const ref = useRef<HTMLDivElement>(null)
   const { folders, toggleFolder, closeFolder, currentCut } = useFolderStore()
 
+  const children = useMemo(
+    () => allNodes.filter((i) => !i.is_deleted),
+    [allNodes]
+  )
   const open = folders[node.id]
   const setOpen = () => {
     toggleFolder(node.id)
@@ -73,13 +79,34 @@ export const Card: FC<CardProps> = ({
       }
     },
     hover(item: DragItem, monitor) {
+      const drag = monitor.getItem()
+      // if (drag.depth !== depth && node.type !== "folder") {
+      // if (drag.depth !== depth && node.type !== "folder") {
+      //   console.log("return 1")
+      //   setTargetFolderId(null)
+      //   return
+      // }
+      // if (drag.parent_id === node.id) {
+      //   console.log("return 2")
+      //   setTargetFolderId(null)
+      //   return
+      // }
       if (!ref.current) {
+        setTargetFolderId(null)
+        setTarget(null)
         return
       }
+      if (node.type === "folder") {
+        setTargetFolderId(node.id)
+        // return
+      }
+
       const dragIndex = item.index
       const hoverIndex = index
       // Don't replace items with themselves
-      if (dragIndex === hoverIndex) {
+      if (dragIndex === hoverIndex && drag.depth === depth) {
+        setTargetFolderId(null)
+        setTarget(null)
         return
       }
 
@@ -89,7 +116,7 @@ export const Card: FC<CardProps> = ({
 
       // Get vertical middle
       const hoverMiddleY =
-        (hoverBoundingRect.bottom - hoverBoundingRect.top) / 4
+        (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2
 
       // Determine mouse position
       const clientOffset = monitor.getClientOffset()
@@ -101,33 +128,52 @@ export const Card: FC<CardProps> = ({
       // When dragging downwards, only move when the cursor is below 50%
       // When dragging upwards, only move when the cursor is above 50%
 
-      // Dragging downwards
-      if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY * 3) {
-        moveIntoCard(dragIndex, hoverIndex)
+      // // Dragging downwards
+      // if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY * 3) {
+      //   // moveIntoCard(dragIndex, hoverIndex)
+      //   // setTarget(hoverIndex, "up")
+      //   return
+      // }
+
+      // // Dragging upwards
+      // if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
+      //   // moveIntoCard(dragIndex, hoverIndex)
+      //   // setTarget(hoverIndex, "down")
+      //   return
+      // }
+
+      // if node is folder, we split the drop area into 3 parts, up: 1/4, middle: 1/2, down: 1/4
+      if (
+        node.type === "folder" &&
+        hoverClientY > hoverBoundingRect.height / 4 &&
+        hoverClientY < (hoverBoundingRect.height / 4) * 3
+      ) {
         return
       }
 
-      // Dragging upwards
-      if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
-        moveIntoCard(dragIndex, hoverIndex)
-        return
-      }
+      const direction = hoverClientY < hoverMiddleY ? "up" : "down"
+      setTarget({
+        index: hoverIndex,
+        direction,
+        depth,
+        ...node,
+      })
 
       // Time to actually perform the action
-      moveCard(dragIndex, hoverIndex)
+      // moveCard(dragIndex, hoverIndex, drag.id)
 
       // Note: we're mutating the monitor item here!
       // Generally it's better to avoid mutations,
       // but it's good here for the sake of performance
       // to avoid expensive index searches.
-      item.index = hoverIndex
+      // item.index = hoverIndex
     },
   })
 
   const [{ isDragging }, drag] = useDrag({
     type: ItemTypes.CARD,
     item: () => {
-      return { id, index }
+      return { index, depth, ...node }
     },
     collect: (monitor: any) => ({
       isDragging: monitor.isDragging(),
@@ -135,12 +181,12 @@ export const Card: FC<CardProps> = ({
     end: (item, monitor) => {
       const didDrop = monitor.didDrop()
       if (didDrop) {
-        onDrop(item.id, index)
+        onDrop(item)
       }
     },
   })
 
-  const opacity = isDragging ? 0 : 1
+  // const opacity = isDragging ? 0 : 1
   useEffect(() => {
     isDragging && closeFolder(node.id)
   }, [isDragging, node.id, closeFolder])
@@ -155,7 +201,7 @@ export const Card: FC<CardProps> = ({
 
   return (
     <div
-      className={cn({
+      className={cn("flex flex-col gap-1", {
         "opacity-50": currentCut === node.id,
       })}
     >
@@ -211,10 +257,7 @@ export const Card: FC<CardProps> = ({
       </div>
       {open && node.type === "folder" && (
         <div className="ml-3 border-l pl-1">
-          <NodeTreeContainer
-            nodes={allNodes.filter((i) => !i.is_deleted)}
-            depth={depth + 1}
-          />
+          <NodeTreeContainer nodes={children} depth={depth + 1} />
         </div>
       )}
     </div>

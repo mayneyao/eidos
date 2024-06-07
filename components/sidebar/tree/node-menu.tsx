@@ -161,17 +161,23 @@ export function NodeItem({
             Paste
           </ContextMenuItem>
         )}
-        {node.is_pinned ? (
-          <ContextMenuItem onClick={() => unpin(node.id)}>
-            <PinOffIcon className="pr-2" />
-            Unpin
-          </ContextMenuItem>
-        ) : (
-          <ContextMenuItem onClick={() => pin(node.id)}>
-            <PinIcon className="pr-2" />
-            Pin
-          </ContextMenuItem>
+
+        {node.type !== "folder" && (
+          <>
+            {node.is_pinned ? (
+              <ContextMenuItem onClick={() => unpin(node.id)}>
+                <PinOffIcon className="pr-2" />
+                Unpin
+              </ContextMenuItem>
+            ) : (
+              <ContextMenuItem onClick={() => pin(node.id)}>
+                <PinIcon className="pr-2" />
+                Pin
+              </ContextMenuItem>
+            )}
+          </>
         )}
+
         <ContextMenuSeparator />
         {node.type === "folder" && (
           <>

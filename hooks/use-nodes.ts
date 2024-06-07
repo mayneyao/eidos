@@ -88,14 +88,22 @@ export const useNode = () => {
     })
   }
 
-  const updateParentId = async (id: string, parentId?: string) => {
+  const updateParentId = async (
+    id: string,
+    parentId?: string,
+    opts?: {
+      targetId: string
+      targetDirection: "up" | "down"
+    }
+  ) => {
     if (id == parentId) {
       return
     }
-    await sqlite?.nodeChangeParent(id, parentId)
+    const res = await sqlite?.nodeChangeParent(id, parentId, opts)
     setNode({
       id,
       parent_id: parentId,
+      ...(res || {}),
     })
   }
 

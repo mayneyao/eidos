@@ -128,7 +128,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     })
   }
 
-  async list(qs: {
+  async query(qs: {
     query?: string
     withSubNode?: boolean
   }): Promise<ITreeNode[]> {
@@ -243,5 +243,36 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
       }
     }
     return false
+  }
+
+  public async getPosition(props: {
+    parentId?: string
+    targetId: string
+    targetDirection: "up" | "down"
+  }): Promise<number> {
+    const { parentId, targetId, targetDirection } = props
+    const parentChildren = await this.list(
+      { parent_id: parentId || null },
+      {
+        orderBy: "position",
+        order: "DESC",
+      }
+    )
+    const targetIndex = parentChildren.findIndex((node) => node.id === targetId)
+    const prevIndex = targetDirection === "up" ? targetIndex - 1 : targetIndex
+    const nextIndex = targetDirection === "up" ? targetIndex : targetIndex + 1
+    const prevNode = parentChildren[prevIndex]
+    const nextNode = parentChildren[nextIndex]
+
+    const newPosition = () => {
+      if (prevIndex === -1) {
+        return nextNode?.position! + 0.5
+      }
+      if (!nextNode) {
+        return prevNode?.position! / 2
+      }
+      return ((prevNode?.position! || 0) + nextNode?.position!) / 2
+    }
+    return newPosition()
   }
 }

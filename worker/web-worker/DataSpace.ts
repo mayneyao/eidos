@@ -735,7 +735,7 @@ export class DataSpace {
 
   // tree
   public async listTreeNodes(query?: string, withSubNode?: boolean) {
-    return this.tree.list({ query, withSubNode })
+    return this.tree.query({ query, withSubNode })
   }
 
   public async updateTreeNodePosition(id: string, position: number) {
@@ -817,13 +817,33 @@ export class DataSpace {
     return this.tree.moveIntoTable(id, tableId, parentId)
   }
 
-  public async nodeChangeParent(id: string, parentId?: string) {
+  public async nodeChangeParent(
+    id: string,
+    parentId?: string,
+    opts?: {
+      targetId: string
+      targetDirection: "up" | "down"
+    }
+  ) {
     if (parentId) {
       await this.tree.checkLoop(id, parentId)
     }
-    return this.tree.set(id, {
+    let data: Partial<ITreeNode> = {
       parent_id: parentId,
-    })
+    }
+    if (opts) {
+      const newPosition = await this.tree.getPosition({
+        parentId,
+        targetId: opts.targetId,
+        targetDirection: opts.targetDirection,
+      })
+      data = {
+        ...data,
+        position: newPosition,
+      }
+    }
+    await this.tree.set(id, data)
+    return data
   }
 
   public async listUiColumns(tableName: string) {
