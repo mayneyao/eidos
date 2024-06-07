@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { useParams } from "react-router-dom"
 
 import {
   DataUpdateSignalType,
@@ -14,6 +15,7 @@ import { useUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import { DocProperty } from "@/components/doc-property"
 import { Editor } from "@/components/doc/editor"
+import { FolderTree } from "@/components/folder"
 import { Table } from "@/components/table"
 
 import { DefaultColors } from "./image-selector"
@@ -21,7 +23,13 @@ import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
 import { NodeRestore } from "./node-restore"
 
-export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
+export const NodeComponent = ({
+  nodeId,
+  isRootPage,
+}: {
+  nodeId?: string
+  isRootPage?: boolean
+}) => {
   const params = useCurrentPathInfo()
   const { updateNodeName } = useSqlite(params.database)
   const { tableName } = params
@@ -57,6 +65,9 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
     }
   }, [updateUiColumns])
 
+  if (isRootPage) {
+    return <FolderTree folderId={undefined} />
+  }
   if (!nodeId) {
     return null
   }
@@ -123,10 +134,12 @@ export const NodeComponent = ({ nodeId }: { nodeId?: string }) => {
           }
         />
       )}
+      {node?.type === "folder" && <FolderTree folderId={node.id} />}
     </>
   )
 }
 export default function TablePage() {
   const node = useCurrentNode()
-  return <NodeComponent nodeId={node?.id} />
+  const { table: nodeId } = useParams()
+  return <NodeComponent nodeId={node?.id} isRootPage={nodeId === "~"} />
 }
