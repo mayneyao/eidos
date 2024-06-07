@@ -9,9 +9,10 @@ import { BookmarkNode } from "./BookmarkNode"
 import { CardNode } from "./CardNode"
 import { DatabaseTableNode } from "./DatabaseTableNode"
 import { ImageNode } from "./ImageNode/ImageNode"
-import { MentionNode } from "./MentionNode"
+import { MentionNode } from "./MentionNode/MentionNode"
 // custom node
 import { SQLNode } from "./SQLNode"
+import { SyncBlock } from "./SyncBlock/SyncBlock"
 import { TableOfContentsNode } from "./TableOfContentsNode"
 import { YouTubeNode } from "./YoutubeNode"
 
@@ -35,4 +36,6 @@ export const AllNodes = [
   CardNode,
   // custom embed node
   YouTubeNode,
+  // block
+  SyncBlock,
 ]

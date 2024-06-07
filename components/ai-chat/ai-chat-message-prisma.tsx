@@ -13,7 +13,7 @@ import {
   MarkdownRenderers,
 } from "react-marked-renderer"
 
-import { MentionComponent } from "../doc/nodes/MentionNode"
+import { MentionComponent } from "../doc/nodes/MentionNode/MentionComponent"
 import { useSpeak, useSpeakStore } from "./webspeech/hooks"
 
 export const AIMessage = ({

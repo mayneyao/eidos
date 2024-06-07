@@ -48,7 +48,7 @@ interface EditorProps {
   propertyComponent?: React.ReactNode
 }
 
-function InnerEditor(props: EditorProps) {
+export function InnerEditor(props: EditorProps) {
   const ref = React.useRef<HTMLDivElement>(null)
   const { isToolbarVisible, isAIToolsOpen } = useEditorStore()
   const [floatingAnchorElem, setFloatingAnchorElem] =
@@ -81,7 +81,11 @@ function InnerEditor(props: EditorProps) {
 
   return (
     <LexicalComposer initialConfig={initConfig}>
-      <div className="editor-container w-full" ref={ref} id="editor-container">
+      <div
+        className={cn("editor-container w-full", props.className)}
+        ref={ref}
+        id="editor-container"
+      >
         <div
           className="editor-inner relative w-full"
           id="editor-container-inner"

@@ -85,7 +85,7 @@ export default function EverydayPage() {
                   disableSafeBottomPaddingPlugin
                   disableUpdateTitle
                   disableManuallySave={currentDay !== day.id}
-                  className="ml-0"
+                  className="my-3 ml-0"
                 />
               </div>
             )

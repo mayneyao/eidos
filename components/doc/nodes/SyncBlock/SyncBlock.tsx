@@ -7,10 +7,10 @@ import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/hooks/use-query-node"
 import { nodeInfoMap } from "@/components/ai-chat/ai-input-editor"
-import { ItemIcon } from "@/components/sidebar/item-tree"
-import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
-export const MentionComponent = (props: { id: string }) => {
+import { Editor, InnerEditor } from "../../editor"
+
+export const SyncBlockComponent = (props: { id: string }) => {
   const [node, setNode] = useState<ITreeNode | null>(null)
   const { space } = useCurrentPathInfo()
   // TODO: pass from props
@@ -25,40 +25,32 @@ export const MentionComponent = (props: { id: string }) => {
       setNode(node ?? null)
     })
   }, [getNode, id])
+
   return (
-    <span
-      className=" inline-block cursor-pointer rounded-sm px-1 underline hover:bg-secondary"
-      id={id}
-      onClick={onClick}
-    >
-      {node && (
-        <NodeIconEditor
-          icon={node.icon}
-          nodeId={node.id}
-          disabled
-          size="1em"
-          customTrigger={
-            <ItemIcon
-              type={node?.type ?? ""}
-              className="mr-1 inline-block h-4 w-4"
-            />
-          }
+    <div className="rounded-sm ring-purple-300 hover:ring">
+      {node?.type === "doc" && (
+        <InnerEditor
+          isEditable={node.is_locked ? false : true}
+          docId={node.id}
+          title={node.name}
+          disableSelectionPlugin
+          disableSafeBottomPaddingPlugin
+          className={"max-w-full border"}
         />
       )}
-      {node ? node.name || "Untitled" : "loading"}
-    </span>
+    </div>
   )
 }
 
-export class MentionNode extends DecoratorNode<ReactNode> {
+export class SyncBlock extends DecoratorNode<ReactNode> {
   __id: string
 
   static getType(): string {
-    return "mention"
+    return "sync-block"
   }
 
-  static clone(node: MentionNode): MentionNode {
-    return new MentionNode(node.__id, node.__key)
+  static clone(node: SyncBlock): SyncBlock {
+    return new SyncBlock(node.__id, node.__key)
   }
 
   constructor(id: string, key?: NodeKey) {
@@ -90,23 +82,21 @@ export class MentionNode extends DecoratorNode<ReactNode> {
       focus: embedBlockTheme.focus || "",
     }
     return (
-      <div className="inline-block">
-        <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
-          <MentionComponent id={this.__id} />
-        </BlockWithAlignableContents>
-      </div>
+      <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
+        <SyncBlockComponent id={this.__id} />
+      </BlockWithAlignableContents>
     )
   }
 
-  static importJSON(data: any): MentionNode {
-    const node = $createMentionNode(data.id)
+  static importJSON(data: any): SyncBlock {
+    const node = $createSyncBlock(data.id)
     return node
   }
 
   exportJSON() {
     return {
       id: this.__id,
-      type: "mention",
+      type: "sync-block",
       version: 1,
     }
   }
@@ -120,12 +110,12 @@ export class MentionNode extends DecoratorNode<ReactNode> {
   }
 }
 
-export function $createMentionNode(id: string): MentionNode {
-  return new MentionNode(id)
+export function $createSyncBlock(id: string): SyncBlock {
+  return new SyncBlock(id)
 }
 
-export function $isMentionNode(
-  node: MentionNode | null | undefined
-): node is MentionNode {
-  return node instanceof MentionNode
+export function $isSyncBlock(
+  node: SyncBlock | null | undefined
+): node is SyncBlock {
+  return node instanceof SyncBlock
 }

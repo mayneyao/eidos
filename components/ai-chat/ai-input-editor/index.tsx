@@ -24,7 +24,7 @@ import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { useToast } from "@/components/ui/use-toast"
-import { MentionNode } from "@/components/doc/nodes/MentionNode"
+import { MentionNode } from "@/components/doc/nodes/MentionNode/MentionNode"
 import NewMentionsPlugin, {
   MentionPluginProps,
 } from "@/components/doc/plugins/MentionsPlugin"

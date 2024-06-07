@@ -35,6 +35,8 @@ export const HR: ElementTransformer = {
      * use --- to create a card node but only works in eidos-notes namespace
      */
     if (editor._config.namespace === "eidos-notes") {
+      // disable this feature for now
+      return;
       if (!isImport) {
         const container = $createCardNode()
         const root = $getRoot()
