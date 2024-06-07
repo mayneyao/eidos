@@ -56,7 +56,9 @@ export class BaseTableImpl<T = any> {
 
   transformData = (data: Partial<T>) => {
     const kv = Object.entries(data as object).map(([k, v]) => {
-      if (typeof v === "object") v = JSON.stringify(v)
+      if (typeof v === "object" && v != null) {
+        v = JSON.stringify(v)
+      }
       // if (typeof v == "boolean") v = v ? 1 : 0
       return [k, v]
     })
