@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, lazy } from "react"
+import { motion } from "framer-motion"
 import { Menu } from "lucide-react"
 
 import { efsManager } from "@/lib/storage/eidos-file-system"
@@ -52,6 +53,11 @@ export function PWALayoutBase({
       </div>
     )
   }
+
+  const sidebarVariants = {
+    open: { x: 0 },
+    closed: { x: "-100%", width: 0 },
+  }
   // when chat is open  2:7:3
   // when chat is close 2:10
   return (
@@ -67,15 +73,14 @@ export function PWALayoutBase({
       <div className="flex h-screen w-full flex-col">
         <Nav />
         <div className="flex h-screen w-full pt-8">
-          <div
-            className={cn(
-              "max-w-[300px] overflow-x-hidden transition-all duration-150 ease-in-out",
-              isSidebarOpen ? "hidden  md:block" : "w-0",
-              isSidebarOpen && "w-full"
-            )}
+          <motion.div
+            className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}
+            animate={isSidebarOpen ? "open" : "closed"}
+            variants={sidebarVariants}
+            transition={{ type: "tween", duration: 0.2 }}
           >
             <SideBar />
-          </div>
+          </motion.div>
           <div className={cn("flex h-full w-auto grow flex-col lg:border-l")}>
             <div className="flex justify-between md:justify-end">
               <MobileSideBar />
