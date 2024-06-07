@@ -25,14 +25,21 @@ import {
 import { $getSelection, $insertNodes, RangeSelection, TextNode } from "lexical"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
-import { shortenId, uuidv4 } from "@/lib/utils"
+import {
+  getToday,
+  getTomorrow,
+  getYesterday,
+  isDayPageId,
+  shortenId,
+  uuidv4,
+} from "@/lib/utils"
 import { useQueryNode } from "@/hooks/use-query-node"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { ItemIcon } from "@/components/sidebar/item-tree"
 import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
 import { $createMentionNode } from "../../nodes/MentionNode/MentionNode"
-import { $createSyncBlock } from "../../nodes/SyncBlock/SyncBlock"
+import { $createSyncBlock } from "../../nodes/SyncBlock/SyncBlockComponent"
 
 const PUNCTUATION =
   "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;"
@@ -101,7 +108,8 @@ const mentionsCache = new Map()
 
 function useMentionLookupService(
   mentionString: string | null,
-  enabledCreate: boolean
+  enabledCreate: boolean,
+  currentDocId?: string
 ) {
   const [results, setResults] = useState<Array<ITreeNode>>([])
 
@@ -117,7 +125,36 @@ function useMentionLookupService(
     }
     mentionString &&
       queryNodes(mentionString ?? "").then((newResults) => {
-        const _newResults = [...(newResults || [])] as any
+        let _newResults = [...(newResults || [])] as any[]
+        const specialDays = [
+          {
+            title: "Today",
+            get: getToday,
+          },
+          {
+            title: "Tomorrow",
+            get: getTomorrow,
+          },
+          {
+            title: "Yesterday",
+            get: getYesterday,
+          },
+        ]
+        specialDays.forEach((day) => {
+          if (
+            day.title.toLowerCase().includes(mentionString.toLowerCase().trim())
+          ) {
+            _newResults.unshift({
+              id: day.get(),
+              name: day.title,
+              type: "day",
+              mode: "node",
+            })
+          }
+        })
+        _newResults = _newResults.filter((result) => {
+          return result.id !== currentDocId
+        })
         if (enabledCreate) {
           _newResults.push({
             id: `new-${mentionString}`,
@@ -129,7 +166,7 @@ function useMentionLookupService(
         mentionsCache.set(mentionString, _newResults)
         setResults(_newResults ?? [])
       })
-  }, [enabledCreate, mentionString, queryNodes])
+  }, [currentDocId, enabledCreate, mentionString, queryNodes])
 
   return results
 }
@@ -250,7 +287,8 @@ export default function NewMentionsPlugin(
 
   const results = useMentionLookupService(
     queryString,
-    Boolean(props.currentDocId)
+    Boolean(props.currentDocId),
+    props.currentDocId
   )
   const { currentDocId } = props
   const { createDoc } = useSqlite()
@@ -300,6 +338,9 @@ export default function NewMentionsPlugin(
         docId && (nodeId = docId)
       }
       editor.update(() => {
+        if (currentDocId === nodeId) {
+          return
+        }
         const selection = $getSelection()
         const selectedNode = (selection as RangeSelection).anchor.getNode()
         const mentionNode = $createMentionNode(nodeId)
@@ -329,6 +370,9 @@ export default function NewMentionsPlugin(
 
   const createSyncBlock = (nodeId: string) => {
     if (nodeId.startsWith("new-")) {
+      return
+    }
+    if (currentDocId === nodeId) {
       return
     }
     editor.update(() => {

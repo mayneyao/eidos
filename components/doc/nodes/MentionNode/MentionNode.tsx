@@ -6,7 +6,6 @@ import { nodeInfoMap } from "@/components/ai-chat/ai-input-editor"
 
 import { MentionComponent } from "./MentionComponent"
 
-
 export class MentionNode extends DecoratorNode<ReactNode> {
   __id: string
 

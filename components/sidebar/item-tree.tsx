@@ -1,5 +1,11 @@
 import { useState } from "react"
-import { File, FileSpreadsheet, Folder, FolderOpenIcon } from "lucide-react"
+import {
+  CalendarDaysIcon,
+  File,
+  FileSpreadsheet,
+  Folder,
+  FolderOpenIcon,
+} from "lucide-react"
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
 
@@ -71,6 +77,8 @@ export const ItemIcon = ({
       return <Folder className={_className} />
     case "folder-open":
       return <FolderOpenIcon className={_className} />
+    case "day":
+      return <CalendarDaysIcon className={_className} />
     default:
       return <File className={_className} />
   }

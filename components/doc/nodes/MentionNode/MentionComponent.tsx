@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react"
+import { el } from "date-fns/locale"
 import { useNavigate } from "react-router-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
+import { isDayPageId } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/hooks/use-query-node"
 import {
@@ -23,19 +25,31 @@ export const MentionComponent = (props: { id: string }) => {
   const { id } = props
   const router = useNavigate()
   const onClick = () => {
+    if (isDayPageId(id)) {
+      return router(`/${space}/everyday/${id}`)
+    }
     router(`/${space}/${id}`)
   }
   useEffect(() => {
-    getNode(id).then((node) => {
-      setNode(node ?? null)
-    })
+    if (isDayPageId(id)) {
+      setNode({
+        id,
+        name: id,
+        type: "day" as any,
+      })
+    } else {
+      getNode(id).then((node) => {
+        setNode(node ?? null)
+      })
+    }
   }, [getNode, id])
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger>
           <span
-            className=" inline-block cursor-pointer rounded-sm px-1 underline hover:bg-secondary"
+            className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-sm px-1 underline hover:bg-secondary"
             id={id}
             onClick={onClick}
           >
@@ -61,16 +75,16 @@ export const MentionComponent = (props: { id: string }) => {
           align="start"
           className=" max-h-[500px]  min-w-[300px] max-w-[450px] overflow-y-auto p-4"
         >
-          {node?.type === "doc" && (
-            <InnerEditor
-              isEditable={false}
-              docId={node.id}
-              title={node.name}
-              disableSelectionPlugin
-              disableSafeBottomPaddingPlugin
-              className={"w-full max-w-full"}
-            />
-          )}
+          {node?.type === "doc" ||
+            (node?.type === "day" && (
+              <InnerEditor
+                isEditable={false}
+                docId={node.id}
+                disableSelectionPlugin
+                disableSafeBottomPaddingPlugin
+                className={"w-full max-w-full"}
+              />
+            ))}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

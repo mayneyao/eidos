@@ -63,7 +63,7 @@ export const NodeIconEditor = (props: {
   if (props.disabled) {
     // just show the icon
     return (
-      <div className="inline-block">
+      <>
         {icon ? (
           <div className={props.className}>
             <em-emoji native={icon} size={props.size || "2em"}></em-emoji>
@@ -71,7 +71,7 @@ export const NodeIconEditor = (props: {
         ) : (
           props.customTrigger
         )}
-      </div>
+      </>
     )
   }
   return (

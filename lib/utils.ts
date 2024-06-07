@@ -67,14 +67,20 @@ export const extractIdFromShortId = (shortId: string) => {
   )}-${shortId.slice(16, 20)}-${shortId.slice(20)}`
 }
 
-export const getToday = () => {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = (today.getMonth() + 1).toString().padStart(2, "0")
-  const day = today.getDate().toString().padStart(2, "0")
-  const date = `${year}-${month}-${day}`
-  return date
+export const getDate = (offset: number) => {
+  const date = new Date()
+  date.setDate(date.getDate() + offset)
+  const year = date.getFullYear()
+  const month = (date.getMonth() + 1).toString().padStart(2, "0")
+  const day = date.getDate().toString().padStart(2, "0")
+  return `${year}-${month}-${day}`
 }
+
+export const getToday = () => getDate(0)
+
+export const getYesterday = () => getDate(-1)
+
+export const getTomorrow = () => getDate(1)
 
 export const getLocalDate = (date: Date) => {
   const year = date.getFullYear()
