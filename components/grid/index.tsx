@@ -37,8 +37,8 @@ import { TwinkleSparkle } from "../loading"
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
-  // smoothScrollX: true,
-  // smoothScrollY: true,
+  smoothScrollX: true,
+  smoothScrollY: true,
   getCellsForSelection: true,
   width: "100%",
   rowHeight: 36,

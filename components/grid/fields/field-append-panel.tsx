@@ -22,7 +22,6 @@ import { IField } from "@/lib/store/interface"
 import { cn, generateColumnName } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
-import { useConfigStore } from "@/app/settings/store"
 
 import { useTableAppStore } from "../store"
 import {
@@ -175,7 +174,7 @@ export function FieldAppendPanel({
     <div
       ref={ref}
       className={cn(
-        "absolute right-0 top-0 z-50 h-full w-[400px] bg-white shadow-lg dark:bg-slate-950"
+        "absolute right-0 top-0 z-50 h-full w-[350px] bg-white shadow-lg dark:bg-slate-950"
       )}
     >
       {currentField ? (
@@ -194,19 +193,24 @@ export function FieldAppendPanel({
             {fieldTypes.map((field, i) => {
               const Icon = field.icon
               return (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start font-normal"
-                  key={`${field.name}-${field.value}`}
-                  onClick={(e) => {
-                    handleCreateField(field)
-                  }}
-                  disabled={field.disable}
-                >
-                  <Icon className="mr-2 h-5 w-5" />
-                  {field.name}
-                </Button>
+                <>
+                  {[FieldType.Formula, FieldType.CreatedTime].includes(
+                    field.value
+                  ) && <hr />}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start font-normal"
+                    key={`${field.name}-${field.value}`}
+                    onClick={(e) => {
+                      handleCreateField(field)
+                    }}
+                    disabled={field.disable}
+                  >
+                    <Icon className="mr-2 h-5 w-5" />
+                    {field.name}
+                  </Button>
+                </>
               )
             })}
           </div>

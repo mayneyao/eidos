@@ -1,24 +1,23 @@
-import { IScript } from "@/worker/web-worker/meta-table/script"
-import {
-  DataEditorProps,
-  GridSelection
-} from "@glideapps/glide-data-grid"
 import { useCallback, useContext, useState } from "react"
+import { IScript } from "@/worker/web-worker/meta-table/script"
+import { DataEditorProps, GridSelection } from "@glideapps/glide-data-grid"
 
+import { generateText } from "@/lib/ai/generate"
+import { IField } from "@/lib/store/interface"
+import { useAiConfig } from "@/hooks/use-ai-config"
+import { useTableOperation } from "@/hooks/use-table"
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command"
-import { useAiConfig } from "@/hooks/use-ai-config"
-import { useTableOperation } from "@/hooks/use-table"
-import { generateText } from "@/lib/ai/generate"
-import { IField } from "@/lib/store/interface"
 
 import { useUserPrompts } from "../ai-chat/hooks"
 import { TableContext } from "../table/hooks"
+import { ScrollArea } from "../ui/scroll-area"
 
 export const AITools = ({
   close,
@@ -158,7 +157,7 @@ export const AITools = ({
     )
   }
   return (
-    <Command className=" h-[300px] w-[200px] rounded-md border shadow-md">
+    <Command className=" w-[200px] rounded-md border shadow-md">
       <CommandInput
         placeholder="Search Action..."
         autoFocus
@@ -172,21 +171,26 @@ export const AITools = ({
           }
         }}
       />
-      <CommandEmpty>No Action found.</CommandEmpty>
-      <CommandGroup>
-        {prompts.map((prompt) => (
-          <CommandItem
-            key={prompt.id}
-            value={prompt.name}
-            onSelect={(currentValue) => {
-              setSelectedPrompt(prompt)
-              setStep(1)
-            }}
-          >
-            {prompt.name}
-          </CommandItem>
-        ))}
-      </CommandGroup>
+
+      <ScrollArea>
+        <CommandList className="max-h-[300px]">
+          <CommandEmpty>No Action found.</CommandEmpty>
+          <CommandGroup>
+            {prompts.map((prompt) => (
+              <CommandItem
+                key={prompt.id}
+                value={prompt.name}
+                onSelect={(currentValue) => {
+                  setSelectedPrompt(prompt)
+                  setStep(1)
+                }}
+              >
+                {prompt.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </ScrollArea>
     </Command>
   )
 }

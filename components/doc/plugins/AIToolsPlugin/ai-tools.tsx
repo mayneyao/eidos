@@ -15,7 +15,9 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { useUserPrompts } from "@/components/ai-chat/hooks"
 import { useConfigStore } from "@/app/settings/store"
 
@@ -222,7 +224,7 @@ export function AITools({
             </div>
           </div>
           {actionOpen && (
-            <Command className="mt-1 h-[300px] w-[200px] rounded-md border shadow-md">
+            <Command className="mt-1 w-[200px] rounded-md border shadow-md">
               <CommandInput
                 placeholder="Search Action..."
                 autoFocus
@@ -231,26 +233,30 @@ export function AITools({
                   setCustomPrompt(value)
                 }}
               />
-              <CommandEmpty>No Action found.</CommandEmpty>
-              <CommandGroup>
-                {Object.values(AIActionEnum).map((action) => (
-                  <CommandItem
-                    key={action}
-                    value={action}
-                    onSelect={(currentValue) => {
-                      handleAction(action)
-                    }}
-                  >
-                    {AIActionDisplay[action]}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              <ScrollArea>
+                <CommandList>
+                  <CommandEmpty>No Action found.</CommandEmpty>
+                  <CommandGroup>
+                    {Object.values(AIActionEnum).map((action) => (
+                      <CommandItem
+                        key={action}
+                        value={action}
+                        onSelect={(currentValue) => {
+                          handleAction(action)
+                        }}
+                      >
+                        {AIActionDisplay[action]}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </ScrollArea>
             </Command>
           )}
         </>
       )}
       {open && (
-        <Command className=" h-[300px] w-[200px] rounded-md border shadow-md">
+        <Command className="w-[200px] rounded-md border shadow-md">
           <CommandInput
             placeholder="Search Action..."
             autoFocus
@@ -259,20 +265,24 @@ export function AITools({
               setCustomPrompt(value)
             }}
           />
-          <CommandEmpty>No Action found.</CommandEmpty>
-          <CommandGroup>
-            {prompts.map((prompt) => (
-              <CommandItem
-                key={prompt.id}
-                value={prompt.name}
-                onSelect={(currentValue) => {
-                  runAction(prompt.code, prompt.model)
-                }}
-              >
-                {prompt.name}
-              </CommandItem>
-            ))}
-          </CommandGroup>
+          <ScrollArea>
+            <CommandList>
+              <CommandEmpty>No Action found.</CommandEmpty>
+              <CommandGroup>
+                {prompts.map((prompt) => (
+                  <CommandItem
+                    key={prompt.id}
+                    value={prompt.name}
+                    onSelect={(currentValue) => {
+                      runAction(prompt.code, prompt.model)
+                    }}
+                  >
+                    {prompt.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </ScrollArea>
         </Command>
       )}
     </div>

@@ -68,7 +68,7 @@ export const MentionComponent = (props: { id: string; title?: string }) => {
             ) : (
               <ItemIcon type={node?.type ?? ""} className="h-4 w-4" />
             )}
-            <p className="m-0 max-w-[18rem] truncate">
+            <p className="!my-0 max-w-[18rem] truncate">
               {node ? node.name || "Untitled" : props.title || "loading"}
             </p>
           </span>

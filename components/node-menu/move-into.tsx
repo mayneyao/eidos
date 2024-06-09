@@ -1,7 +1,7 @@
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { ITreeNode } from "@/lib/store/ITreeNode"
 
 import { NodeName } from "../node-name"
 import {
@@ -33,13 +33,14 @@ export const NodeMoveInto = ({ node }: { node: ITreeNode }) => {
   return (
     <Command>
       <CommandInput placeholder="Filter table..." autoFocus={true} />
-      <ScrollArea className="">
+      <ScrollArea>
         <CommandList className="max-h-[300px]">
           <CommandEmpty>No table found.</CommandEmpty>
           <CommandGroup>
-            {tableNodes.map((tableNode) => (
+            {tableNodes.map((tableNode, index) => (
               <CommandItem
                 key={tableNode.id}
+                value={`${tableNode.name || "Untitled"} ${index}`}
                 onClick={() => {}}
                 title={tableNode.name || "Untitled"}
                 className=" flex gap-1 truncate"

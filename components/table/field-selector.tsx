@@ -1,12 +1,22 @@
+import { useState } from "react"
+import { ChevronsUpDown } from "lucide-react"
+
 import { IField } from "@/lib/store/interface"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { makeHeaderIcons } from "@/components/grid/fields/header-icons"
+
+import { Button } from "../ui/button"
 
 const icons = makeHeaderIcons(18)
 
@@ -21,39 +31,60 @@ export const FieldSelector = ({
   value,
   onChange,
 }: IFieldSelectorProps) => {
-  if (!value) return null
+  const [open, setOpen] = useState(false)
+  const handleSelect = (field: IField) => {
+    onChange(field.table_column_name)
+    setOpen(false)
+  }
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
-        <SelectValue placeholder="Field" />
-      </SelectTrigger>
-      <SelectContent position="popper">
-        {fields.map((column) => {
-          const iconSvgString = icons[column.type]({
-            bgColor: "#aaa",
-            fgColor: "currentColor",
-          })
-          return (
-            <SelectItem
-              value={column.table_column_name}
-              key={column.table_column_name}
-              hidecheckicon
-              className="pl-2"
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  dangerouslySetInnerHTML={{
-                    __html: iconSvgString,
-                  }}
-                ></span>
-                <span className="max-w-[90px] truncate " title={column.name}>
-                  {column.name}
-                </span>
-              </span>
-            </SelectItem>
-          )
-        })}
-      </SelectContent>
-    </Select>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger>
+        <Button
+          variant="outline"
+          role="combobox"
+          className="w-[200px] justify-between"
+        >
+          <p className="max-w-[150px] truncate">
+            {value
+              ? fields.find((field) => field.table_column_name === value)
+                  ?.name || "Untitled Field"
+              : "Select Field"}
+          </p>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="click-outside-ignore w-[200px] p-0">
+        <Command>
+          <CommandInput placeholder="search field" />
+          <CommandEmpty>No field found.</CommandEmpty>
+          <CommandList>
+            {fields.map((field) => {
+              const iconSvgString = icons[field.type]({
+                bgColor: "#aaa",
+                fgColor: "currentColor",
+              })
+              return (
+                <CommandItem
+                  key={field.table_column_name}
+                  value={field.table_column_name}
+                  onSelect={() => handleSelect(field)}
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      dangerouslySetInnerHTML={{
+                        __html: iconSvgString,
+                      }}
+                    ></span>
+                    <p className="max-w-[150px] truncate " title={field.name}>
+                      {field.name || "Untitled Field"}
+                    </p>
+                  </span>
+                </CommandItem>
+              )
+            })}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }

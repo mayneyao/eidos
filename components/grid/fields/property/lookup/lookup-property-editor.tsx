@@ -8,13 +8,7 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { useCurrentUiColumns, useUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { FieldSelector } from "@/components/table/field-selector"
 
 interface IFieldPropertyEditorProps {
   uiColumn: IField<ILookupProperty>
@@ -25,6 +19,7 @@ interface IFieldPropertyEditorProps {
 
 export const LookupPropertyEditor = (props: IFieldPropertyEditorProps) => {
   const { uiColumns } = useCurrentUiColumns()
+
   const { sqlite } = useSqlite()
   const allLinkFields = uiColumns.filter(
     (field) => field.type === FieldType.Link
@@ -43,6 +38,17 @@ export const LookupPropertyEditor = (props: IFieldPropertyEditorProps) => {
   const { uiColumns: linkTableFields } = useUiColumns(
     linkField?.property.linkTableName
   )
+  const allowedLookupTargetFields = useMemo(() => {
+    // lookup target table is current table
+    if (linkField?.property.linkTableName === props.uiColumn.table_name) {
+      return linkTableFields.filter((field) => field.type !== FieldType.Lookup)
+    }
+    return linkTableFields
+  }, [
+    linkField?.property.linkTableName,
+    linkTableFields,
+    props.uiColumn.table_name,
+  ])
 
   const handleUpdateProperties = (key: string, value: any) => {
     setProperties((prev) => {
@@ -62,52 +68,24 @@ export const LookupPropertyEditor = (props: IFieldPropertyEditorProps) => {
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <Label>Link Field</Label>
-        <Select
+        <FieldSelector
+          fields={allLinkFields}
           value={properties.linkFieldId}
-          onValueChange={(v) => handleUpdateProperties("linkFieldId", v)}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Link Field" />
-          </SelectTrigger>
-          <SelectContent className="click-outside-ignore">
-            {allLinkFields.map((field) => {
-              return (
-                <SelectItem
-                  key={field.table_column_name}
-                  value={field.table_column_name}
-                >
-                  {field.name || "Untitled Field"}
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
+          onChange={(value) => {
+            handleUpdateProperties("linkFieldId", value)
+          }}
+        />
       </div>
 
       <div className="flex items-center justify-between">
         <Label>Lookup Field</Label>
-        <Select
+        <FieldSelector
+          fields={allowedLookupTargetFields}
           value={properties.lookupTargetFieldId}
-          onValueChange={(v) =>
-            handleUpdateProperties("lookupTargetFieldId", v)
-          }
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Lookup Field" />
-          </SelectTrigger>
-          <SelectContent className="click-outside-ignore">
-            {linkTableFields.map((field) => {
-              return (
-                <SelectItem
-                  key={field.table_column_name}
-                  value={field.table_column_name}
-                >
-                  {field.name || "Untitled Field"}
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
+          onChange={(value) => {
+            handleUpdateProperties("lookupTargetFieldId", value)
+          }}
+        />
       </div>
       {props.isCreateNew && <Button onClick={props.onSave}>Save</Button>}
     </div>
