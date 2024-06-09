@@ -21,20 +21,6 @@ import { useSpaceAppStore } from "./store"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
-const MobileSideBar = () => {
-  const { isMobileSidebarOpen, setMobileSidebarOpen } = useSpaceAppStore()
-  return (
-    <Sheet open={isMobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-      <SheetTrigger className="flex md:hidden">
-        <Menu className="h-6 w-6" />
-      </SheetTrigger>
-      <SheetContent size="content" position="left" className="w-[300px] px-1">
-        <SideBar className="p-2" />
-      </SheetContent>
-    </Sheet>
-  )
-}
-
 export function PWALayoutBase({
   children,
   className,
@@ -79,7 +65,7 @@ export function PWALayoutBase({
           })}
         >
           <motion.div
-            className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}
+            className={cn("h-full shrink-0 overflow-x-hidden")}
             animate={isSidebarOpen ? "open" : "closed"}
             variants={sidebarVariants}
             transition={{ type: "tween", duration: 0.2 }}
@@ -87,9 +73,6 @@ export function PWALayoutBase({
             <SideBar />
           </motion.div>
           <div className={cn("flex h-full w-auto grow flex-col border-l")}>
-            <div className="flex justify-between md:justify-end">
-              <MobileSideBar />
-            </div>
             <main
               id="main-content"
               className="z-[1] flex w-full grow flex-col overflow-y-auto"

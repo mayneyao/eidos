@@ -114,7 +114,7 @@ export const NodeComponent = ({
             )
           }
           topComponent={
-            <div className="flex h-[28px] cursor-pointer gap-2 opacity-0 hover:opacity-100">
+            <div className="flex h-[28px] cursor-pointer gap-2 opacity-100 hover:opacity-100 sm:opacity-0">
               {!node.icon && (
                 <Button size="xs" variant="ghost" onClick={handleAddIcon}>
                   Add Icon

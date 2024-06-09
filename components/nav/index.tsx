@@ -39,7 +39,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
           variant="ghost"
           size="xs"
           onClick={toggleSidebar}
-          className="hidden md:block"
+          // className="hidden md:block"
         >
           <Menu className="h-5 w-5" />
         </Button>
