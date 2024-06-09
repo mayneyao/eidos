@@ -268,8 +268,8 @@ export const ScriptPage = () => {
             >
               <div className="p-4">
                 <div className="flex justify-between">
-                  <h2 className="mb-2 flex items-center gap-1 text-xl font-semibold">
-                    <Icon />
+                  <h2 className="mb-2 flex items-center gap-1 truncate text-xl font-semibold">
+                    <Icon className="shrink-0" />
                     {script.name}({script.version})
                   </h2>
                   <Switch

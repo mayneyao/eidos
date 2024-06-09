@@ -43,21 +43,22 @@ export const NodeMoveInto = ({ node }: { node: ITreeNode }) => {
                 key={tableNode.id}
                 onClick={() => {}}
                 title={tableNode.name || "Untitled"}
-                className=" truncate"
+                className=" flex gap-1 truncate"
                 onSelect={(value) => {
                   moveDraftIntoTable(node.id, tableNode.id)
                 }}
               >
-                <NodeIconEditor
-                  icon={tableNode.icon}
-                  nodeId={tableNode.id}
-                  size="1em"
-                  disabled
-                  className="pr-[6px]"
-                  customTrigger={
-                    <ItemIcon type={tableNode.type} className="pr-2" />
-                  }
-                />
+                <div className="w-5">
+                  <NodeIconEditor
+                    icon={tableNode.icon}
+                    nodeId={tableNode.id}
+                    size="1em"
+                    disabled
+                    customTrigger={
+                      <ItemIcon type={tableNode.type} className="h-4 w-4" />
+                    }
+                  />
+                </div>
                 {tableNode.name || "Untitled"}
               </CommandItem>
             ))}

@@ -163,7 +163,6 @@ export class DataSpace {
             xFunc: func(globalKv.get(name)),
             deterministic: true,
           }
-          console.log(udf)
           this.db.createFunction(udf)
         } catch (error) {
           console.error(error)

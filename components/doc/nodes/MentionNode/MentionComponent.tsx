@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react"
-import { el } from "date-fns/locale"
 import { useNavigate } from "react-router-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
-import { isDayPageId } from "@/lib/utils"
+import { cn, isDayPageId } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/hooks/use-query-node"
 import {
@@ -43,32 +42,35 @@ export const MentionComponent = (props: { id: string; title?: string }) => {
       })
     }
   }, [getNode, id])
-  const needCreate = Boolean(!node && props.title)
 
   return (
     <TooltipProvider>
-      <Tooltip>
+      <Tooltip delayDuration={100}>
         <TooltipTrigger>
           <span
-            className="inline-flex cursor-pointer items-center gap-1 rounded-sm px-1 underline hover:bg-secondary"
+            className={cn(
+              "inline-flex max-w-[18rem] shrink-0 cursor-pointer gap-1 truncate ",
+              "items-center rounded-sm px-1 underline  hover:bg-secondary",
+              {
+                "text-red-400": node?.is_deleted,
+              }
+            )}
             id={id}
             onClick={onClick}
           >
-            {node && (
+            {node && node.icon ? (
               <NodeIconEditor
                 icon={node.icon}
                 nodeId={node.id}
                 disabled
-                size="1em"
-                customTrigger={
-                  <ItemIcon
-                    type={node?.type ?? ""}
-                    className="mr-1 inline-block h-4 w-4"
-                  />
-                }
+                size="1rem"
               />
+            ) : (
+              <ItemIcon type={node?.type ?? ""} className="h-4 w-4" />
             )}
-            {node ? node.name || "Untitled" : props.title || "loading"}
+            <span>
+              {node ? node.name || "Untitled" : props.title || "loading"}
+            </span>
           </span>
         </TooltipTrigger>
         <TooltipContent

@@ -61,7 +61,7 @@ export default function EverydayPage() {
           </div>
           <DayHeatMap days={_days} startDate={startDate} />
         </div>
-        <div>
+        <div className="flex flex-col gap-2">
           {days.map((day, index) => {
             return (
               <div
@@ -85,7 +85,7 @@ export default function EverydayPage() {
                   disableSafeBottomPaddingPlugin
                   disableUpdateTitle
                   disableManuallySave={currentDay !== day.id}
-                  className="my-3 ml-0"
+                  className="my-2 ml-0 !pl-0"
                 />
               </div>
             )

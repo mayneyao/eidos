@@ -8,6 +8,7 @@ import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { isMac } from "@/lib/web/helper"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Loading } from "@/components/loading"
@@ -72,7 +73,11 @@ export function PWALayoutBase({
       <ScriptContainer />
       <div className="flex h-screen w-full flex-col">
         <Nav />
-        <div className="flex h-screen w-full pt-8">
+        <div
+          className={cn("flex h-screen w-full pt-8", {
+            "!pt-[38px]": isMac(),
+          })}
+        >
           <motion.div
             className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}
             animate={isSidebarOpen ? "open" : "closed"}
@@ -81,7 +86,7 @@ export function PWALayoutBase({
           >
             <SideBar />
           </motion.div>
-          <div className={cn("flex h-full w-auto grow flex-col lg:border-l")}>
+          <div className={cn("flex h-full w-auto grow flex-col border-l")}>
             <div className="flex justify-between md:justify-end">
               <MobileSideBar />
             </div>

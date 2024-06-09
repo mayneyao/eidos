@@ -25,7 +25,7 @@ const MobileSideBar = () => {
       <SheetTrigger className="mx-2 flex items-center md:hidden">
         <Menu className="h-6 w-6" />
       </SheetTrigger>
-      <SheetContent size="content" position="left" className="w-[300px]">
+      <SheetContent size="content" position="left" className="w-[300px] px-1">
         <SideBar className="p-2" />
       </SheetContent>
     </Sheet>
@@ -75,7 +75,7 @@ export function DatabaseLayoutBase({
         >
           <SideBar />
         </motion.div>
-        <div className={cn("flex h-full w-auto grow flex-col lg:border-l")}>
+        <div className={cn("flex h-full w-auto grow flex-col border-l")}>
           <div className="flex justify-between md:justify-end">
             <MobileSideBar />
             <Nav />
