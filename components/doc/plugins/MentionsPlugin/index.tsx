@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   FloatingPortal,
+  Placement,
   flip,
   offset,
   shift,
@@ -18,267 +19,42 @@ import {
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
   LexicalTypeaheadMenuPlugin,
-  MenuOption,
-  MenuTextMatch,
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import { $getSelection, $insertNodes, RangeSelection, TextNode } from "lexical"
 
-import { ITreeNode } from "@/lib/store/ITreeNode"
-import {
-  getToday,
-  getTomorrow,
-  getYesterday,
-  isDayPageId,
-  shortenId,
-  uuidv4,
-} from "@/lib/utils"
-import { useQueryNode } from "@/hooks/use-query-node"
+import { shortenId, uuidv4 } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { ItemIcon } from "@/components/sidebar/item-tree"
-import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
 import { $createMentionNode } from "../../nodes/MentionNode/MentionNode"
 import { $createSyncBlock } from "../../nodes/SyncBlock/SyncBlockComponent"
-
-const PUNCTUATION =
-  "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;"
-const NAME = "\\b[A-Z][^\\s" + PUNCTUATION + "]"
-
-const DocumentMentionsRegex = {
-  NAME,
-  PUNCTUATION,
-}
-
-const PUNC = DocumentMentionsRegex.PUNCTUATION
-
-const TRIGGERS = ["@"].join("")
-
-// Chars we expect to see in a mention (non-space, non-punctuation).
-const VALID_CHARS = "[^" + TRIGGERS + PUNC + "\\s]"
-
-// Non-standard series of chars. Each series must be preceded and followed by
-// a valid char.
-const VALID_JOINS =
-  "(?:" +
-  "\\.[ |$]|" + // E.g. "r. " in "Mr. Smith"
-  " |" + // E.g. " " in "Josh Duck"
-  "[" +
-  PUNC +
-  "]|" + // E.g. "-' in "Salier-Hellendag"
-  ")"
-
-const LENGTH_LIMIT = 75
-
-const AtSignMentionsRegex = new RegExp(
-  "(^|\\s|\\()(" +
-    "[" +
-    TRIGGERS +
-    "]" +
-    "((?:" +
-    VALID_CHARS +
-    VALID_JOINS +
-    "){0," +
-    LENGTH_LIMIT +
-    "})" +
-    ")$"
-)
-
-// 50 is the longest alias length limit.
-const ALIAS_LENGTH_LIMIT = 50
-
-// Regex used to match alias.
-const AtSignMentionsRegexAliasRegex = new RegExp(
-  "(^|\\s|\\()(" +
-    "[" +
-    TRIGGERS +
-    "]" +
-    "((?:" +
-    VALID_CHARS +
-    "){0," +
-    ALIAS_LENGTH_LIMIT +
-    "})" +
-    ")$"
-)
+import { MentionTypeaheadOption } from "./MentionTypeaheadOption"
+import { MentionsTypeaheadMenuItem } from "./MentionsTypeaheadMenuItem"
+import { getPossibleQueryMatch } from "./helper"
+import { useMentionLookupService } from "./useMentionLookupService"
 
 // At most, 5 suggestions are shown in the popup.
 const SUGGESTION_LIST_LENGTH_LIMIT = 5
 
-const mentionsCache = new Map()
-
-function useMentionLookupService(
-  mentionString: string | null,
-  enabledCreate: boolean,
-  currentDocId?: string
-) {
-  const [results, setResults] = useState<Array<ITreeNode>>([])
-
-  const { queryNodes } = useQueryNode()
-
-  useEffect(() => {
-    const cachedResults = mentionsCache.get(mentionString)
-    if (cachedResults === null) {
-      return
-    } else if (cachedResults !== undefined) {
-      setResults(cachedResults)
-      return
-    }
-    mentionString &&
-      queryNodes(mentionString ?? "").then((newResults) => {
-        let _newResults = [...(newResults || [])] as any[]
-        const specialDays = [
-          {
-            title: "Today",
-            get: getToday,
-          },
-          {
-            title: "Tomorrow",
-            get: getTomorrow,
-          },
-          {
-            title: "Yesterday",
-            get: getYesterday,
-          },
-        ]
-        specialDays.forEach((day) => {
-          if (
-            day.title.toLowerCase().includes(mentionString.toLowerCase().trim())
-          ) {
-            _newResults.unshift({
-              id: day.get(),
-              name: day.title,
-              type: "day",
-              mode: "node",
-            })
-          }
-        })
-        _newResults = _newResults.filter((result) => {
-          return result.id !== currentDocId
-        })
-        if (enabledCreate) {
-          _newResults.push({
-            id: `new-${mentionString}`,
-            name: `New "${mentionString}" sub-doc`,
-            type: "doc",
-            mode: "node",
-          })
-        }
-        mentionsCache.set(mentionString, _newResults)
-        setResults(_newResults ?? [])
-      })
-  }, [currentDocId, enabledCreate, mentionString, queryNodes])
-
-  return results
-}
-
-function checkForAtSignMentions(
-  text: string,
-  minMatchLength: number
-): MenuTextMatch | null {
-  let match = AtSignMentionsRegex.exec(text)
-
-  if (match === null) {
-    match = AtSignMentionsRegexAliasRegex.exec(text)
-  }
-  if (match !== null) {
-    // The strategy ignores leading whitespace but we need to know it's
-    // length to add it to the leadOffset
-    const maybeLeadingWhitespace = match[1]
-
-    const matchingString = match[3]
-    if (matchingString.length >= minMatchLength) {
-      return {
-        leadOffset: match.index + maybeLeadingWhitespace.length,
-        matchingString,
-        replaceableString: match[2],
-      }
-    }
-  }
-  return null
-}
-
-function getPossibleQueryMatch(text: string): MenuTextMatch | null {
-  const match = checkForAtSignMentions(text, 0)
-  if (text.startsWith("@") && match === null) {
-    return {
-      leadOffset: 0,
-      matchingString: "",
-      replaceableString: "@",
-    }
-  }
-  return match
-}
-
-class MentionTypeaheadOption extends MenuOption {
-  name: string
-  id: string
-  picture: JSX.Element
-  rawData: ITreeNode
-
-  constructor(
-    name: string,
-    id: string,
-    rawData: ITreeNode,
-    picture: JSX.Element
-  ) {
-    super(name)
-    this.name = name
-    this.id = id
-    this.rawData = rawData
-    this.picture = picture
-  }
-}
-
-function MentionsTypeaheadMenuItem({
-  index,
-  isSelected,
-  onClick,
-  onMouseEnter,
-  option,
-}: {
-  index: number
-  isSelected: boolean
-  onClick: (e: React.MouseEvent) => void
-  onMouseEnter: () => void
-  option: MentionTypeaheadOption
-}) {
-  let className = "item"
-  if (isSelected) {
-    className += " selected"
-  }
-  return (
-    <li
-      key={option.key}
-      tabIndex={-1}
-      className={className}
-      ref={option.setRefElement}
-      role="option"
-      aria-selected={isSelected}
-      id={"typeahead-item-" + index}
-      onMouseEnter={onMouseEnter}
-      onClick={onClick}
-    >
-      {option.picture}
-      <span className="text truncate" title={option.name}>
-        {option.name || "Untitled"}
-      </span>
-    </li>
-  )
-}
-
 export interface MentionPluginProps {
   onOptionSelectCallback?: (selectedOption: MentionTypeaheadOption) => void
   currentDocId?: string
+  placement?: Placement
 }
 
 export default function NewMentionsPlugin(
   props: MentionPluginProps
 ): JSX.Element | null {
+  const placement = props.placement || "bottom-start"
+  const middleware = [flip(), shift()]
+  if (placement == "top-start") {
+    middleware.push(offset(24))
+  }
   // fix context menu position
   // https://github.com/facebook/lexical/issues/3834
-  const { x, y, refs, strategy } = useFloating({
-    placement: "top-start",
-    middleware: [offset(24), flip(), shift()],
+  const { x, y, refs, strategy, update } = useFloating({
+    placement: placement,
+    middleware: middleware,
   })
 
   const [editor] = useLexicalComposerContext()
@@ -300,29 +76,14 @@ export default function NewMentionsPlugin(
   const options = useMemo(() => {
     return results
       .map(
-        (result) =>
-          new MentionTypeaheadOption(
-            result.name,
-            result.id,
-            result,
-            (
-              <NodeIconEditor
-                icon={result.icon}
-                nodeId={result.id}
-                disabled
-                size="1em"
-                customTrigger={
-                  <ItemIcon
-                    type={result?.type ?? ""}
-                    className="mr-1 inline-block h-5 w-5"
-                  />
-                }
-              />
-            )
-          )
+        (result) => new MentionTypeaheadOption(result.name, result.id, result)
       )
       .slice(0, SUGGESTION_LIST_LENGTH_LIMIT)
   }, [results])
+
+  useEffect(() => {
+    update()
+  }, [options, update])
 
   const onSelectOption = useCallback(
     (
@@ -401,7 +162,7 @@ export default function NewMentionsPlugin(
         anchorElementRef.current && results.length ? (
           <FloatingPortal root={anchorElementRef.current}>
             <div
-              className="typeahead-popover mentions-menu min-w-[220px]"
+              className="typeahead-popover mentions-menu min-w-[220px] max-w-[300px]"
               ref={refs.setFloating}
               style={{
                 position: strategy,

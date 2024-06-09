@@ -17,7 +17,7 @@ import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 
 import { InnerEditor } from "../../editor"
 
-export const MentionComponent = (props: { id: string }) => {
+export const MentionComponent = (props: { id: string; title?: string }) => {
   const [node, setNode] = useState<ITreeNode | null>(null)
   const { space } = useCurrentPathInfo()
   // TODO: pass from props
@@ -43,13 +43,14 @@ export const MentionComponent = (props: { id: string }) => {
       })
     }
   }, [getNode, id])
+  const needCreate = Boolean(!node && props.title)
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger>
           <span
-            className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-sm px-1 underline hover:bg-secondary"
+            className="inline-flex cursor-pointer items-center gap-1 rounded-sm px-1 underline hover:bg-secondary"
             id={id}
             onClick={onClick}
           >
@@ -67,11 +68,11 @@ export const MentionComponent = (props: { id: string }) => {
                 }
               />
             )}
-            {node ? node.name || "Untitled" : "loading"}
+            {node ? node.name || "Untitled" : props.title || "loading"}
           </span>
         </TooltipTrigger>
         <TooltipContent
-          side="right"
+          side="bottom"
           align="start"
           className=" max-h-[500px]  min-w-[300px] max-w-[450px] overflow-y-auto p-4"
         >

@@ -203,7 +203,7 @@ export const AIInputEditor = ({
           ErrorBoundary={LexicalErrorBoundary}
         />
       </div>
-      <NewMentionsPlugin onOptionSelectCallback={handleNodeInsert} />
+      <NewMentionsPlugin onOptionSelectCallback={handleNodeInsert} placement="top-start"/>
       <SwitchPromptPlugin />
       <HistoryPlugin />
       <AutoFocusPlugin />

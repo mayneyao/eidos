@@ -8,23 +8,25 @@ import { MentionComponent } from "./MentionComponent"
 
 export class MentionNode extends DecoratorNode<ReactNode> {
   __id: string
+  __title?: string
 
   static getType(): string {
     return "mention"
   }
 
   static clone(node: MentionNode): MentionNode {
-    return new MentionNode(node.__id, node.__key)
+    return new MentionNode(node.__id, node.__title, node.__key)
   }
 
-  constructor(id: string, key?: NodeKey) {
+  constructor(id: string, title?: string, key?: NodeKey) {
     super(key)
     this.__id = id
+    this.__title = title
   }
 
   getTextContent(): string {
     const title = nodeInfoMap.get(this.__id)?.name ?? "Untitled"
-    return `<span data-node-id="${this.__id}">${title}</span>`
+    return `[[ ${this.__id} | ${title} ]]`
   }
 
   createDOM(): HTMLElement {
@@ -62,6 +64,7 @@ export class MentionNode extends DecoratorNode<ReactNode> {
   exportJSON() {
     return {
       id: this.__id,
+      title: this.__title,
       type: "mention",
       version: 1,
     }
@@ -76,8 +79,8 @@ export class MentionNode extends DecoratorNode<ReactNode> {
   }
 }
 
-export function $createMentionNode(id: string): MentionNode {
-  return new MentionNode(id)
+export function $createMentionNode(id: string, title?: string): MentionNode {
+  return new MentionNode(id, title)
 }
 
 export function $isMentionNode(

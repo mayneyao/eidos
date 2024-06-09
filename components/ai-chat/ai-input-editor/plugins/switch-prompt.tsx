@@ -101,7 +101,7 @@ function MentionsTypeaheadMenuItem({
 export function SwitchPromptPlugin(): JSX.Element | null {
   // fix context menu position
   // https://github.com/facebook/lexical/issues/3834
-  const { x, y, refs, strategy } = useFloating({
+  const { x, y, refs, strategy, update } = useFloating({
     placement: "top-start",
     middleware: [offset(24), flip(), shift()],
   })
@@ -124,6 +124,10 @@ export function SwitchPromptPlugin(): JSX.Element | null {
       )
       .slice(0, SUGGESTION_LIST_LENGTH_LIMIT)
   }, [results])
+
+  useEffect(() => {
+    update()
+  }, [options, update])
 
   const checkForMentionMatch = useCallback(
     (text: string) => {
