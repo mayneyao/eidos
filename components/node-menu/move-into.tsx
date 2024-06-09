@@ -1,10 +1,9 @@
-import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 
-import { ItemIcon } from "../sidebar/item-tree"
+import { NodeName } from "../node-name"
 import {
   Command,
   CommandEmpty,
@@ -48,18 +47,7 @@ export const NodeMoveInto = ({ node }: { node: ITreeNode }) => {
                   moveDraftIntoTable(node.id, tableNode.id)
                 }}
               >
-                <div className="w-5">
-                  <NodeIconEditor
-                    icon={tableNode.icon}
-                    nodeId={tableNode.id}
-                    size="1em"
-                    disabled
-                    customTrigger={
-                      <ItemIcon type={tableNode.type} className="h-4 w-4" />
-                    }
-                  />
-                </div>
-                {tableNode.name || "Untitled"}
+                <NodeName node={tableNode} />
               </CommandItem>
             ))}
           </CommandGroup>

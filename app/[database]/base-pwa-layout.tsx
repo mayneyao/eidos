@@ -28,7 +28,7 @@ const MobileSideBar = () => {
       <SheetTrigger className="flex md:hidden">
         <Menu className="h-6 w-6" />
       </SheetTrigger>
-      <SheetContent size="content" position="left" className="w-[250px]">
+      <SheetContent size="content" position="left" className="w-[300px] px-1">
         <SideBar className="p-2" />
       </SheetContent>
     </Sheet>

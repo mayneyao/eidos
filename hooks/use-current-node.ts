@@ -19,7 +19,7 @@ export const useCurrentNode = () => {
   return nodeId ? allNodesMap[nodeId] : null
 }
 
-type INodePath = ITreeNode & { path?: string }
+export type INodePath = ITreeNode & { path?: string }
 export const useCurrentNodePath = ({
   nodeId,
   parentId,

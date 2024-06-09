@@ -1,12 +1,11 @@
 import { useVirtualList } from "ahooks"
 import { useRef } from "react"
 
-import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { cn } from "@/lib/utils"
 
-import { ItemIcon } from "../sidebar/item-tree"
+import { NodeName } from "../node-name"
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
 
@@ -69,18 +68,7 @@ export const FolderComponent = ({
                 asChild
               >
                 <div>
-                  <NodeIconEditor
-                    icon={node.icon!}
-                    nodeId={node.id}
-                    size="1em"
-                    className="flex h-6 w-6 items-center justify-start"
-                    customTrigger={
-                      <ItemIcon type={node.type} className="pr-2" />
-                    }
-                  />
-                  <span className="truncate" title={node.name}>
-                    {node.name || "Untitled"}
-                  </span>
+                  <NodeName node={node} />
                 </div>
               </Button>
             </div>
