@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import useInfiniteScroll from "react-infinite-scroll-hook"
-import { Link } from "react-router-dom"
+import { Link, useParams, useSearchParams } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -15,6 +15,8 @@ export default function EverydayPage() {
   const { loading, days, hasNextPage, error, loadMore } = useAllDays(
     params.space
   )
+  let [searchParams, setSearchParams] = useSearchParams()
+
   const [sentryRef] = useInfiniteScroll({
     loading,
     hasNextPage,
@@ -33,7 +35,11 @@ export default function EverydayPage() {
   const handleClick = (day: string) => {
     setCurrentDay(day)
   }
-  const [year, setYear] = useState<number>(new Date().getFullYear())
+  const [year, setYear] = useState<number>(
+    searchParams.get("year")
+      ? parseInt(searchParams.get("year")!)
+      : new Date().getFullYear()
+  )
   const { days: _days, years } = useDays()
   const startDate = useMemo(() => {
     return new Date(year, 0, 1)
@@ -84,6 +90,7 @@ export default function EverydayPage() {
                   disableSelectionPlugin
                   disableSafeBottomPaddingPlugin
                   disableUpdateTitle
+                  isActive={currentDay === day.id}
                   disableManuallySave={currentDay !== day.id}
                   className="my-2 ml-0 !pl-0"
                 />

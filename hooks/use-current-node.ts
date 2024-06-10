@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react"
 import { useParams } from "react-router-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
-import { isDayPageId } from "@/lib/utils"
+import { getWeek, isDayPageId, isWeekNodeId } from "@/lib/utils"
 
 import { useSqliteStore } from "./use-sqlite"
 
@@ -24,7 +24,7 @@ export const useCurrentNodePath = ({
   nodeId,
   parentId,
 }: {
-  nodeId: string
+  nodeId?: string
   parentId?: string
 }) => {
   const allNodesMap = useNodeMap()
@@ -35,7 +35,7 @@ export const useCurrentNodePath = ({
         node = {
           id: nodeId,
           name: nodeId,
-          type: "doc",
+          type: "day",
           path: `everyday/${nodeId}`,
         }
       }
@@ -59,5 +59,52 @@ export const useCurrentNodePath = ({
     }
     return path
   }, [getNode, nodeId, parentId])
+  if (!nodeId) return []
+  if (isWeekNodeId(nodeId)) {
+    const week = getWeek(nodeId)
+    const year = nodeId.slice(0, 4)
+    const formattedWeek = week.toString().padStart(2, "0")
+    return [
+      {
+        id: year,
+        name: `Year ${year}`,
+        path: `everyday?year=${year}`,
+        type: null,
+      },
+      {
+        id: week.toString(),
+        name: `Week ${week}`,
+        type: null,
+        path: `everyday/${year}-w${formattedWeek}`,
+      },
+    ]
+  }
+  if (isDayPageId(nodeId)) {
+    const week = getWeek(nodeId)
+    const year = nodeId.slice(0, 4)
+    const formattedWeek = week.toString().padStart(2, "0")
+
+    return [
+      {
+        id: year,
+        name: `Year ${year}`,
+        path: `everyday?year=${year}`,
+        type: null,
+      },
+      {
+        id: week.toString(),
+        name: `Week ${week}`,
+        type: null,
+        path: `everyday/${year}-w${formattedWeek}`,
+      },
+      {
+        id: nodeId,
+        name: nodeId,
+        type: "day",
+        path: `everyday/${nodeId}`,
+      },
+    ]
+  }
+
   return parentNodePath
 }

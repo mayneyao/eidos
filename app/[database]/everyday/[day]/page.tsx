@@ -2,7 +2,7 @@ import { useState } from "react"
 import { CalendarIcon } from "@radix-ui/react-icons"
 import { useNavigate, useParams } from "react-router-dom"
 
-import { getLocalDate } from "@/lib/utils"
+import { getLocalDate, isWeekNodeId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -12,11 +12,13 @@ import {
 } from "@/components/ui/popover"
 import { Editor } from "@/components/doc/editor"
 
+import { WeekPage } from "../[week]/page"
 import { useDays } from "../hooks"
 
 export default function EverydayPage() {
   const [open, setOpen] = useState(false)
   const { day, database } = useParams()
+  const isWeekPage = isWeekNodeId(day)
   const [month, setMonth] = useState<Date>(new Date(day as string))
   const router = useNavigate()
   const { days } = useDays()
@@ -25,6 +27,9 @@ export default function EverydayPage() {
     setMonth(date)
     router(`/${database}/everyday/${day}`)
     closePopover && setOpen(false)
+  }
+  if (isWeekPage) {
+    return <WeekPage />
   }
 
   return (

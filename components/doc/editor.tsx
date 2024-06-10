@@ -29,6 +29,7 @@ import defaultTheme from "./themes/default"
 interface EditorProps {
   docId?: string
   isEditable: boolean
+  isActive?: boolean
   namespace?: string
   placeholder?: string
   autoFocus?: boolean
@@ -107,7 +108,9 @@ export function InnerEditor(props: EditorProps) {
             ErrorBoundary={LexicalErrorBoundary}
           />
 
-          {isAIToolsOpen && <div id="ai-content-placeholder" />}
+          {isAIToolsOpen && props.isActive && (
+            <div id="ai-content-placeholder" />
+          )}
 
           <AIEditorPlugin />
           <AllPlugins />

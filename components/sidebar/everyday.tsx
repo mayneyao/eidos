@@ -2,6 +2,7 @@ import { useState } from "react"
 import { CalendarDays } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
+import { getToday } from "@/lib/utils"
 import { useDocEditor } from "@/hooks/use-doc-editor"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
@@ -22,7 +23,6 @@ import {
 import { Button } from "../ui/button"
 import { Progress } from "../ui/progress"
 
-// convertMarkdown2State
 export const EverydaySidebarItem = ({ space }: { space: string }) => {
   const { sqlite } = useSqlite(space)
   const { convertMarkdown2State } = useDocEditor(sqlite)
@@ -30,6 +30,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
   const [importing, setImporting] = useState(false)
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  const today = getToday()
   const getDir = async () => {
     if (!sqlite) return
     const dirHandle = await (window as any).showDirectoryPicker()
@@ -79,9 +80,9 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
             className="w-full justify-start font-normal"
             asChild
           >
-            <Link to={`/${space}/everyday`}>
+            <Link to={`/${space}/everyday/${today}`}>
               <CalendarDays className="pr-2" />
-              Everyday
+              Today
             </Link>
           </Button>
         </ContextMenuTrigger>

@@ -63,13 +63,8 @@ export const SideBar = ({ className }: any) => {
 
   return (
     <>
-      <div className={cn("flex h-full flex-col p-2", className)}>
+      <div className={cn("flex h-full flex-col gap-2 p-2", className)}>
         <div className="flex items-center justify-between">
-          {/* {!isShareMode && (
-            <h2 className="relative px-6 text-lg font-semibold tracking-tight">
-              <Link to={databaseHomeLink}>Eidos</Link>
-            </h2>
-          )} */}
           {isShareMode ? (
             "ShareMode"
           ) : (
@@ -78,7 +73,6 @@ export const SideBar = ({ className }: any) => {
             </>
           )}
         </div>
-        <div className="my-2" />
         <ScrollArea className="flex h-full max-w-[300px] flex-col justify-between overflow-y-auto">
           {loading ? (
             <TableListLoading />
@@ -139,16 +133,6 @@ export const SideBar = ({ className }: any) => {
                   </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
-
-              {/* <CurrentItemTree
-                title="Drafts"
-                type="doc"
-                allNodes={allNodes.filter(
-                  (node) => node.type === "doc" && !node.parent_id
-                )}
-                Icon={<Files className="pr-2" />}
-              /> */}
-              {/* apps */}
               {apps.map((app) => (
                 <Button
                   variant={"ghost"}

@@ -1,14 +1,6 @@
 import * as React from "react"
-import { Link } from "react-router-dom"
+import { Link, useParams } from "react-router-dom"
 
-import {
-  INodePath,
-  useCurrentNode,
-  useCurrentNodePath,
-} from "@/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useLink } from "@/hooks/use-goto"
-import { useMediaQuery } from "@/hooks/use-media-query"
 import {
   Breadcrumb,
   BreadcrumbEllipsis,
@@ -35,6 +27,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  INodePath,
+  useCurrentNode,
+  useCurrentNodePath,
+} from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useLink } from "@/hooks/use-goto"
+import { useMediaQuery } from "@/hooks/use-media-query"
 
 import { NodeName } from "../node-name"
 
@@ -43,9 +43,10 @@ const ITEMS_TO_DISPLAY = 3
 export function BreadCrumb() {
   const [open, setOpen] = React.useState(false)
   const isDesktop = useMediaQuery("(min-width: 768px)")
+  const { day } = useParams()
   const node = useCurrentNode()
   const paths = useCurrentNodePath({
-    nodeId: node?.id!,
+    nodeId: node?.id || day,
     parentId: node?.parent_id,
   })
 

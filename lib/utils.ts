@@ -82,6 +82,51 @@ export const getYesterday = () => getDate(-1)
 
 export const getTomorrow = () => getDate(1)
 
+/**
+ *
+ * @param str yyyy-w[week]
+ */
+export const isWeekNodeId = (str?: string) => {
+  if (!str) return false
+  return /^\d{4}-w\d{1,2}$/g.test(str)
+}
+
+/**
+ * get week of the year
+ * @param day  yyyy-mm-dd || yyyy-w[week]
+ * @returns
+ */
+export const getWeek = (day: string) => {
+  if (isWeekNodeId(day)) {
+    return parseInt(day.split("-w")[1])
+  }
+  const date = new Date(day)
+  const onejan = new Date(date.getFullYear(), 0, 1)
+  return Math.ceil(
+    ((date.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7
+  )
+}
+
+/**
+ *
+ * @param weekNodeId yyyy-w[week]
+ * @returns
+ */
+export const getDaysByYearWeek = (weekNodeId: string) => {
+  const year = parseInt(weekNodeId.slice(0, 4))
+  const week = parseInt(weekNodeId.slice(6))
+  const d = new Date(year, 0, 1)
+  const w = d.getDay()
+  const target = w > 4 ? 1 : 0
+  const day = d.getDate() + (w <= 4 ? 1 : 8) - w
+  const days = []
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(year, 0, day + (week - 1) * 7 + i + target)
+    days.push(getLocalDate(date))
+  }
+  return days
+}
+
 export const getLocalDate = (date: Date) => {
   const year = date.getFullYear()
   const month = (date.getMonth() + 1).toString().padStart(2, "0")
