@@ -63,7 +63,7 @@ export const SelectEditor = ({
           )}
         </div>
       </PopoverTrigger>
-      <PopoverContent className="mt-[-42px] w-[300px] p-0" align="start">
+      <PopoverContent className="w-[300px] p-0" align="start" sideOffset={-24}>
         <Command>
           <CommandInput
             placeholder="Search Option..."

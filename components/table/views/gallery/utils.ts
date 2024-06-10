@@ -1,4 +1,6 @@
+import { FieldType } from "@/lib/fields/const"
 import { getColumnsFromQuery } from "@/lib/sqlite/sql-parser"
+import { IField } from "@/lib/store/interface"
 
 const PADDING_RIGHT = 20
 
@@ -51,5 +53,14 @@ export const getColumnWidthAndCount = (
 export const computeCardHeight = (query: string, allColumnSize: number) => {
   const columns = getColumnsFromQuery(query)
   const columnCount = allColumnSize || columns?.length || 1
-  return columnCount * 40 + 200 + 32
+  return columnCount * 32 + 200 + 32
+}
+
+export const shouldShowField = (value: any, field: IField) => {
+  switch (field.type) {
+    case FieldType.Checkbox:
+      return true
+    default:
+      return Boolean(value)
+  }
 }

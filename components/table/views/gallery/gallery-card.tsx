@@ -13,6 +13,12 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { useRowDataOperation } from "@/components/doc-property/hook"
 import { InnerEditor } from "@/components/doc/editor"
 import { ScriptContextMenu } from "@/components/grid/script-context-menu"
@@ -139,7 +145,7 @@ export const GalleryCard = ({
                 </div>
               )}
             </div>
-            <div className="p-2">
+            <div className="prose p-2 dark:prose-invert">
               <div
                 className="h-[36px] truncate font-medium"
                 title={item?.title}
@@ -155,34 +161,36 @@ export const GalleryCard = ({
                     return null
                   }
                   const value = item[k]
+                  if (!value) return null
                   return (
-                    <div
-                      key={`${item._id}:${k}`}
-                      className="flex w-full items-center gap-2"
-                    >
-                      {!hiddenField && (
-                        <div
-                          className="flex h-10 min-w-[150px] cursor-pointer select-none items-center gap-2 truncate rounded-sm p-1"
-                          title={fieldName}
-                        >
-                          {!hiddenFieldIcon && (
-                            <FieldIcon type={uiColumn.type} />
-                          )}
-                          {fieldName}
-                        </div>
-                      )}
-                      <CellEditor
-                        field={uiColumn}
-                        value={value}
-                        onChange={(_value) => {
-                          if (value != _value) {
-                            handleChange(uiColumn.table_column_name, _value)
-                          }
-                        }}
-                        className="flex h-10 w-full min-w-[100px] cursor-pointer items-center rounded-sm px-1 hover:bg-none"
-                        disableTextBaseEditor
-                      />
-                    </div>
+                    <TooltipProvider>
+                      <Tooltip delayDuration={200}>
+                        <TooltipTrigger asChild>
+                          <div
+                            key={`${item._id}:${k}`}
+                            className="flex w-full items-center gap-2"
+                          >
+                            <CellEditor
+                              field={uiColumn}
+                              value={value}
+                              onChange={(_value) => {
+                                if (value != _value) {
+                                  handleChange(
+                                    uiColumn.table_column_name,
+                                    _value
+                                  )
+                                }
+                              }}
+                              className="flex h-8 w-full min-w-[100px] cursor-pointer items-center rounded-sm px-1 hover:bg-none"
+                              disableTextBaseEditor
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" sideOffset={8} className="">
+                          {uiColumn.name}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )
                 })}
             </div>

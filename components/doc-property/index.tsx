@@ -1,8 +1,8 @@
 import { useMemo } from "react"
 import { useParams } from "react-router-dom"
 
-import { useUiColumns } from "@/hooks/use-ui-columns"
 import { getRawTableNameById, nonNullable } from "@/lib/utils"
+import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { makeHeaderIcons } from "../grid/fields/header-icons"
 import { CellEditor } from "../table/cell-editor"
@@ -51,20 +51,20 @@ export const DocProperty = (props: IDocPropertyProps) => {
     })
   }
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-1">
       {fields.map(({ uiColumn, iconSvgString, name, value }) => {
         return (
           <div key={uiColumn.name} className="flex w-full items-center gap-2">
             <div
               title={name}
-              className="flex h-10 w-[200px] cursor-pointer select-none items-center gap-2 truncate rounded-sm p-1 hover:bg-secondary"
+              className="flex h-8 w-[150px] shrink-0 cursor-pointer select-none items-center gap-2 truncate rounded-sm p-1 opacity-70 hover:bg-secondary"
             >
               <span
                 dangerouslySetInnerHTML={{
                   __html: iconSvgString,
                 }}
               ></span>
-              {name}
+              <p className=" max-w-[130px] truncate">{name}</p>
             </div>
             <CellEditor
               field={uiColumn}
@@ -74,7 +74,7 @@ export const DocProperty = (props: IDocPropertyProps) => {
                   handlePropertyChange(uiColumn.table_column_name, _value)
                 }
               }}
-              className="flex h-10 w-full min-w-[200px] cursor-pointer items-center rounded-sm px-1"
+              className="flex h-8 cursor-pointer items-center rounded-sm px-1"
             />
           </div>
         )

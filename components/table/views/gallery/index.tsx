@@ -4,12 +4,17 @@ import { VariableSizeGrid as Grid } from "react-window"
 
 import { IView } from "@/lib/store/IView"
 import { getTableIdByRawTableName } from "@/lib/utils"
+import { useSqliteStore } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { useShowColumns } from "../../hooks"
 import { GalleryCard } from "./gallery-card"
 import { useGalleryViewData } from "./hooks"
-import { computeCardHeight, getColumnWidthAndCount } from "./utils"
+import {
+  computeCardHeight,
+  getColumnWidthAndCount,
+  shouldShowField,
+} from "./utils"
 
 interface IGalleryViewProps {
   space: string
@@ -24,6 +29,7 @@ export default function GalleryView({
 }: IGalleryViewProps) {
   const [size, setSize] = useState<any>()
   const { data } = useGalleryViewData(view)
+  const { getRowById } = useSqliteStore()
   const ref = useRef<Grid>(null)
   const { uiColumns, uiColumnMap, rawIdNameMap } = useUiColumns(
     tableName,
@@ -36,15 +42,26 @@ export default function GalleryView({
   )
   const tableId = getTableIdByRawTableName(tableName)
 
-  const cardHeight = computeCardHeight(
-    view.query,
-    rawIdNameMap.size - (view.hidden_fields?.length || 0)
-  )
   useEffect(() => {
     if (ref.current) {
       ref.current.resetAfterRowIndex(0)
     }
-  }, [cardHeight])
+  }, [showFields.length])
+
+  const getRowHeight = (row: number) => {
+    const thisRowCardShowFieldCounts = data
+      .slice(row * columnCount, (row + 1) * columnCount)
+      .map((rowId) => {
+        const rowData = getRowById(tableId, rowId)
+        return showFields.filter((field) => {
+          const value = rowData?.[field.table_column_name]
+          return shouldShowField(value, field)
+        }).length
+      })
+    const maxShowFieldCount = Math.max(...thisRowCardShowFieldCounts)
+    const cardHeight = computeCardHeight(view.query, maxShowFieldCount)
+    return cardHeight
+  }
 
   return (
     <AutoSizer onResize={setSize}>
@@ -55,7 +72,7 @@ export default function GalleryView({
           columnWidth={() => cardWidth}
           height={height}
           rowCount={Math.ceil(data.length / columnCount)}
-          rowHeight={() => cardHeight}
+          rowHeight={getRowHeight}
           width={width}
           itemData={{
             items: data,
