@@ -52,7 +52,7 @@ export function DatabaseLayoutBase({
       <ScriptContainer />
       <motion.div className="flex h-full w-full">
         <motion.div
-          className={cn("h-full shrink-0 overflow-x-hidden")}
+          className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}
           animate={isSidebarOpen ? "open" : "closed"}
           variants={sidebarVariants}
           transition={{ type: "tween", duration: 0.2 }}
