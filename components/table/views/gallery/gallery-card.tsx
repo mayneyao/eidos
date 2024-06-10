@@ -14,7 +14,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 import { useRowDataOperation } from "@/components/doc-property/hook"
-import { Editor } from "@/components/doc/editor"
+import { InnerEditor } from "@/components/doc/editor"
 import { ScriptContextMenu } from "@/components/grid/script-context-menu"
 
 import { CellEditor } from "../../cell-editor"
@@ -125,7 +125,7 @@ export const GalleryCard = ({
                 />
               ) : (
                 <div className="h-[200px] w-full overflow-hidden object-cover">
-                  <Editor
+                  <InnerEditor
                     docId={shortenId(item._id)}
                     namespace="eidos-notes-home-page"
                     isEditable={false}
@@ -134,7 +134,7 @@ export const GalleryCard = ({
                     disableSafeBottomPaddingPlugin
                     disableUpdateTitle
                     disableManuallySave
-                    className="prose-sm ml-0  !h-[200px] bg-gray-50 dark:bg-gray-700"
+                    className="prose-sm ml-0  !h-[200px] bg-gray-50 p-2 dark:bg-gray-700"
                   />
                 </div>
               )}

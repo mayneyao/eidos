@@ -84,7 +84,7 @@ export const MentionComponent = (props: { id: string; title?: string }) => {
               docId={node.id}
               disableSelectionPlugin
               disableSafeBottomPaddingPlugin
-              className={"w-full max-w-full"}
+              className={"prose w-full max-w-full dark:prose-invert"}
             />
           )}
         </TooltipContent>

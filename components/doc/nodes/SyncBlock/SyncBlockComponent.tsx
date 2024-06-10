@@ -45,7 +45,7 @@ export const SyncBlockComponent = (props: { id: string }) => {
             docId={node.id}
             disableSelectionPlugin
             disableSafeBottomPaddingPlugin
-            className={"max-w-full"}
+            className={"prose max-w-full dark:prose-invert"}
           />
         ))}
     </div>
