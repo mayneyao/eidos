@@ -4,6 +4,7 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "cSpell.words": [
     "dataspace",
-    "Opfs"
+    "Opfs",
+    "revalidator"
   ]
 }

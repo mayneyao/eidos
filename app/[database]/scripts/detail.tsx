@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react"
+import { Suspense, lazy, useCallback, useRef } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom"
@@ -23,12 +23,14 @@ export const ScriptDetailPage = () => {
   const { deleteScript, enableScript, disableScript, updateScript } =
     useScript()
   const router = useNavigate()
+  const editorRef = useRef<{ save: () => void }>(null)
   const revalidator = useRevalidator()
-  const [code, setCode] = useState(script.code)
-
-  useEffect(() => {
-    setCode(script.code)
-  }, [script.code])
+  const language =
+    script.type === "prompt"
+      ? "markdown"
+      : script.ts_code
+      ? "typescript"
+      : "javascript"
 
   useMount(() => {
     revalidator.revalidate()
@@ -54,18 +56,20 @@ export const ScriptDetailPage = () => {
 
   const { toast } = useToast()
   const onSubmit = useCallback(
-    async (code: string) => {
-      if (code !== script.code) {
+    async (code: string, ts_code?: string) => {
+      if (code !== script.code || ts_code !== script.ts_code) {
         await updateScript({
           ...script,
           code,
+          ts_code,
         })
+        revalidator.revalidate()
         toast({
           title: "Code Updated Successfully",
         })
       }
     },
-    [script, toast, updateScript]
+    [revalidator, script, toast, updateScript]
   )
 
   const { space } = useCurrentPathInfo()
@@ -74,6 +78,9 @@ export const ScriptDetailPage = () => {
     router(`/${space}/extensions`)
   }
 
+  const manualSave = () => {
+    editorRef.current?.save()
+  }
   const handleToggleEnabled = async (id: string, checked: boolean) => {
     if (checked) {
       await enableScript(id)
@@ -119,11 +126,7 @@ export const ScriptDetailPage = () => {
                   >
                     Delete
                   </Button>
-                  <Button
-                    type="submit"
-                    onClick={() => onSubmit(code)}
-                    size="sm"
-                  >
+                  <Button type="submit" onClick={manualSave} size="sm">
                     Update
                   </Button>
                 </div>
@@ -137,12 +140,10 @@ export const ScriptDetailPage = () => {
                   }
                 >
                   <CodeEditor
-                    value={code}
-                    onChange={setCode}
+                    ref={editorRef}
+                    value={script.ts_code || script.code}
                     onSave={onSubmit}
-                    language={
-                      script.type === "prompt" ? "markdown" : "javascript"
-                    }
+                    language={language}
                   />
                 </Suspense>
               </div>

@@ -78,11 +78,13 @@ export function AIModelSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-[300px] justify-between", className)}
+          className={cn("w-[240px] justify-between ", className)}
         >
-          {value
-            ? allModels.find((model) => model === value)
-            : "Select model..."}
+          <p className="w-[200px] truncate">
+            {value
+              ? allModels.find((model) => model === value)
+              : "Select model..."}
+          </p>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>

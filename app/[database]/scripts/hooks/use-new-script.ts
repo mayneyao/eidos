@@ -22,6 +22,11 @@ export const useNewScript = () => {
       type: "script",
       description: "Script Description",
       version: "0.0.1",
+      ts_code: `export default async function (input:Input, context:Context) {
+    eidos.currentSpace.notify({
+        title: "hello eidos"
+    })
+}`,
       code: `export default async function (input, context) {
     eidos.currentSpace.notify({
         title: "hello eidos"

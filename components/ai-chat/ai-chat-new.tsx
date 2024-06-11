@@ -80,9 +80,20 @@ export default function Chat() {
   )
 
   const { reload: reloadModel } = useReloadModel()
-
   const { aiModel, setAIModel } = useAppStore()
   const { speak } = useSpeak()
+
+  useEffect(() => {
+    const prompt = prompts.find((item) => item.id === currentSysPrompt)
+    if (prompt) {
+      const model = prompt.model ?? prompt.prompt_config?.model
+      model && setAIModel(model)
+    }
+  }, [currentSysPrompt, prompts, setAIModel, systemPrompt])
+
+  const promptName =
+    prompts.find((item) => item.id === currentSysPrompt)?.name ||
+    currentSysPrompt
 
   useEffect(() => {
     const isLocal = localModels.includes(aiModel)
@@ -162,7 +173,7 @@ export default function Chat() {
 
   return (
     <div
-      className="relative flex h-full w-[24%] min-w-[400px] max-w-[700px] flex-col overflow-auto border-l border-l-slate-400 p-2"
+      className="relative flex h-full w-[400px] shrink-0 flex-col overflow-auto border-l border-l-slate-400 p-2"
       ref={divRef}
     >
       <div className="flex grow flex-col gap-2 pb-[100px]">
@@ -171,8 +182,10 @@ export default function Chat() {
             onValueChange={setCurrentSysPrompt as any}
             value={currentSysPrompt}
           >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Prompt" />
+            <SelectTrigger className="w-[80px]">
+              <SelectValue placeholder="Prompt">
+                <p className="w-[60px] truncate">{promptName}</p>
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {promptKeys.map((key) => {

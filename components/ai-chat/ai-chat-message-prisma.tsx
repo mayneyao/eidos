@@ -136,12 +136,6 @@ export const AIMessage = ({
     },
   }
 
-  const insertIntoDoc = () => {
-    const event = new CustomEvent("AIComplete", {
-      detail: message,
-    })
-    document.dispatchEvent(event)
-  }
   return (
     <div
       className="ai-chat-msg group prose relative grow dark:prose-invert"
@@ -164,13 +158,6 @@ export const AIMessage = ({
           <PauseIcon />
         </div>
       )}
-      <div
-        className=" absolute bottom-0 left-0 hidden cursor-pointer group-hover:block"
-        onClick={insertIntoDoc}
-        title="Insert into document"
-      >
-        <ArrowBigLeftIcon />
-      </div>
     </div>
   )
 }

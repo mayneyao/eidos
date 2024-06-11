@@ -1,10 +1,21 @@
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
+type IScriptInput = Record<string, any>
+
+interface IScriptContext {
+  tables: any
+  env: Record<string, any>
+  currentNodeId?: string | null
+  currentRowId?: string | null
+  currentViewId?: string | null
+  callFromTableAction?: boolean
+}
+
 export const useScriptFunction = () => {
   const { scriptContainerRef } = useAppRuntimeStore()
   const callFunction = async (props: {
-    input: any
-    context: any
+    input: IScriptInput
+    context: IScriptContext
     code: string
     command: string
     id: string

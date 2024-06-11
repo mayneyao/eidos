@@ -14,6 +14,11 @@ export interface ICommand {
   asTableAction?: boolean
 }
 
+export interface IPromptConfig {
+  model?: string
+  actions?: string[]
+}
+
 export interface IScript {
   id: string
   name: string
@@ -21,9 +26,11 @@ export interface IScript {
   description: string
   version: string
   code: string
+  ts_code?: string
   enabled?: boolean
   // for prompt
   model?: string
+  prompt_config?: IPromptConfig
   // for script
   commands: ICommand[]
   tables?: {
@@ -65,7 +72,9 @@ export class ScriptTable
         type TEXT DEFAULT 'script',
         version TEXT,
         code TEXT,
+        ts_code TEXT,
         model TEXT,
+        prompt_config TEXT,
         commands TEXT,
         tables TEXT,
         envs TEXT,
@@ -77,7 +86,14 @@ export class ScriptTable
     );
 `
 
-  JSONFields: string[] = ["commands", "tables", "envs", "env_map", "fields_map"]
+  JSONFields: string[] = [
+    "commands",
+    "tables",
+    "envs",
+    "env_map",
+    "fields_map",
+    "prompt_config",
+  ]
 
   del(id: string): Promise<boolean> {
     this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])

@@ -1,19 +1,17 @@
 "use client"
 
-import { Suspense, lazy } from "react"
 import { motion } from "framer-motion"
-import { Menu } from "lucide-react"
+import { Suspense, lazy } from "react"
 
+import { Loading } from "@/components/loading"
+import { ScriptContainer } from "@/components/script-container"
+import { SideBar } from "@/components/sidebar"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/web/helper"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Loading } from "@/components/loading"
-import { ScriptContainer } from "@/components/script-container"
-import { SideBar } from "@/components/sidebar"
 
 import { Nav } from "../../components/nav"
 import { ExtensionPage } from "../extensions/page"
@@ -86,7 +84,7 @@ export function PWALayoutBase({
             </Suspense>
           )}
           {isExtAppOpen && (
-            <div className="relative flex h-full w-[24%] min-w-[475px] max-w-[500px] grow flex-col overflow-auto border-l border-l-slate-400 p-2">
+            <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto border-l border-l-slate-400 p-2">
               <ExtensionPage />
             </div>
           )}

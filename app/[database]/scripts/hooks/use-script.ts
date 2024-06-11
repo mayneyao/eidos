@@ -4,13 +4,15 @@ import { IScript } from "@/worker/web-worker/meta-table/script"
 import { stringify } from "@/lib/sqlite/helper"
 import { useSqlite } from "@/hooks/use-sqlite"
 
+import { checkPromptEnable } from "../helper"
+
 export const useScript = () => {
   const { sqlite } = useSqlite()
   const [installLoading, setInstallLoading] = useState(false)
 
   const addScript = async (script: IScript) => {
     if (!sqlite) return
-    await sqlite.addScript(stringify(script))
+    await sqlite.addScript(script)
     console.log("addScript", script)
   }
   const deleteScript = async (id: string) => {
@@ -20,7 +22,7 @@ export const useScript = () => {
   }
   const updateScript = async (script: IScript) => {
     if (!sqlite) return
-    await sqlite.script.set(script.id, stringify(script))
+    await sqlite.script.set(script.id, script)
     console.log("updateScript", script)
   }
   const installScript = async (script: IScript) => {
@@ -30,6 +32,10 @@ export const useScript = () => {
   }
   const enableScript = async (id: string) => {
     if (!sqlite) return
+    const data = await sqlite.script.get(id)
+    if (data?.type === "prompt") {
+      checkPromptEnable(data)
+    }
     await sqlite.enableScript(id)
     console.log("enableScript", id)
   }

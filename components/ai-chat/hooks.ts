@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
-import { IScript } from "@/worker/web-worker/meta-table/script"
+import { ICommand, IScript } from "@/worker/web-worker/meta-table/script"
 import { create } from "zustand"
 
 import { getPrompt } from "@/lib/ai/openai"
@@ -10,6 +10,8 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 import { useTablesUiColumns } from "@/app/[database]/scripts/hooks/use-all-table-fields"
+
+import { useScriptFunction } from "../script-container/hook"
 
 export const sysPrompts = {
   base: ``,
@@ -172,3 +174,37 @@ export const useAIChatStore = create<Store>((set) => ({
   currentSysPrompt: "base",
   setCurrentSysPrompt: (value) => set(() => ({ currentSysPrompt: value })),
 }))
+
+export const usePrompt = (scriptId: string) => {
+  const [script, setScript] = useState<IScript | null>()
+  const { sqlite } = useSqlite()
+  useEffect(() => {
+    sqlite?.script.get(scriptId).then((res) => {
+      setScript(res)
+    })
+  }, [scriptId, sqlite])
+  return script
+}
+
+export const useScriptCall = () => {
+  const { callFunction } = useScriptFunction()
+
+  const handleScriptActionCall = async (
+    action: IScript,
+    input: any,
+    command?: ICommand
+  ) => {
+    await callFunction({
+      input,
+      command: command?.name || "default",
+      context: {
+        tables: action.fields_map,
+        env: action.env_map || {},
+      },
+      code: action.code,
+      id: action.id,
+    })
+  }
+
+  return { handleScriptActionCall }
+}
