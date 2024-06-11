@@ -122,7 +122,7 @@ export const GalleryCard = ({
       <ContextMenuTrigger>
         <div style={style} className="p-2">
           <div className="h-full rounded-md border-t shadow-md dark:border-gray-800 dark:bg-gray-800 ">
-            <div className="flex h-[200px] w-full items-center">
+            <div className="flex h-[200px] w-full items-center border-b">
               {coverUrl ? (
                 <img
                   src={coverUrl}

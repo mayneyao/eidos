@@ -38,9 +38,9 @@ export function DocListView(props: IDocListViewProps) {
   })
 
   return (
-    <div className="flex h-full gap-4 p-2">
+    <div className="flex h-full shrink-0 gap-4 p-2">
       <ScrollArea
-        className={cn(" h-full  w-[350px] overflow-y-auto border-r")}
+        className={cn(" h-full  w-[300px] overflow-y-auto border-r")}
         ref={containerRef}
       >
         <div className="w-full p-2">
@@ -51,7 +51,7 @@ export function DocListView(props: IDocListViewProps) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <div ref={wrapperRef} className="h-full w-[350px] p-2">
+        <div ref={wrapperRef} className="h-full w-[300px] p-2">
           {list.map((item, index) => (
             <Button
               key={item.data._id}
@@ -62,7 +62,7 @@ export function DocListView(props: IDocListViewProps) {
               onClick={() => setNodeId(shortenId(item.data._id))}
             >
               <p
-                className="w-[330px] truncate text-start font-normal"
+                className="w-[270px] truncate text-start font-normal"
                 title={item.data.title || "Untitled"}
               >
                 {item.data.title || "Untitled"}

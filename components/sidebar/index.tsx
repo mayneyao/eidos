@@ -106,7 +106,7 @@ export const SideBar = ({ className }: any) => {
                     </Link>
                   </Button>
                   <CurrentItemTree
-                    title="Pins"
+                    title="Pinned"
                     allNodes={allNodes.filter((node) => node.is_pinned)}
                     Icon={<PinIcon className="pr-2" />}
                     disableAdd

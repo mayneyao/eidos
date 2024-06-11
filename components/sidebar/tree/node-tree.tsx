@@ -1,7 +1,5 @@
-import { useKeyPress } from "ahooks"
 import { useCallback, useEffect, useState } from "react"
 
-import { useCurrentNode } from "@/hooks/use-current-node"
 import { useNode } from "@/hooks/use-nodes"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { cn } from "@/lib/utils"
@@ -33,11 +31,11 @@ export const NodeTreeContainer = ({
     setCards(nodes)
   }, [nodes])
   // console.log(cards.map((card) => card.name))
-  const currentNode = useCurrentNode()
+  // const currentNode = useCurrentNode()
 
-  useKeyPress(["meta.x", "ctrl.x"], () => {
-    setCut(currentNode?.id || null)
-  })
+  // useKeyPress(["meta.x", "ctrl.x"], () => {
+  //   setCut(currentNode?.id || null)
+  // })
 
   const { updatePosition, updateParentId } = useNode()
   const onDrop = useCallback(

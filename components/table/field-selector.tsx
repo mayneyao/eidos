@@ -66,7 +66,7 @@ export const FieldSelector = ({
               return (
                 <CommandItem
                   key={field.table_column_name}
-                  value={field.table_column_name}
+                  value={field.name}
                   onSelect={() => handleSelect(field)}
                 >
                   <span className="flex items-center gap-2">
