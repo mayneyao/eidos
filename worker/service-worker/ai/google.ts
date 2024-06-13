@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { GoogleGenerativeAIStream, Message, StreamingTextResponse } from "ai"
 
+import { IData } from "./interface"
+
 // convert messages from the Vercel AI SDK Format to the format
 // that is expected by the Google GenAI SDK
 const buildGoogleGenAIPrompt = (messages: Message[]) => {
@@ -19,14 +21,15 @@ const buildGoogleGenAIPrompt = (messages: Message[]) => {
   }
 }
 
-export async function handleGoogleAI(req: any) {
+export async function handleGoogleAI(data: IData) {
   const {
     messages,
     systemPrompt,
     model: modelAndProvider,
-    GOOGLE_API_KEY,
-  } = req
-  const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY || "")
+    apiKey,
+    // GOOGLE_API_KEY,
+  } = data
+  const genAI = new GoogleGenerativeAI(apiKey || "")
 
   const model = modelAndProvider.split("@")[0]
   const sysPrompt = {
@@ -36,7 +39,7 @@ export async function handleGoogleAI(req: any) {
   let newMsgs = [sysPrompt, ...messages]
   const geminiStream = await genAI
     .getGenerativeModel({ model })
-    .generateContentStream(buildGoogleGenAIPrompt(newMsgs))
+    .generateContentStream(buildGoogleGenAIPrompt(newMsgs as any))
 
   // Convert the response into a friendly text-stream
   const stream = GoogleGenerativeAIStream(geminiStream)

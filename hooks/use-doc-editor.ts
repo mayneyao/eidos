@@ -37,10 +37,15 @@ export const _getDocMarkdown = async (
     }
     editor.setEditorState(state)
     return new Promise((resolve) => {
-      editor.update(() => {
-        const markdown = $convertToMarkdownString(allTransformers)
-        resolve(markdown)
-      })
+      editor.update(
+        () => {
+          const markdown = $convertToMarkdownString(allTransformers)
+          resolve(markdown)
+        },
+        {
+          discrete: true,
+        }
+      )
     })
   } catch (error) {
     console.warn(`parse doc error`, error)

@@ -29,6 +29,7 @@ import NewMentionsPlugin, {
   MentionPluginProps,
 } from "@/components/doc/plugins/MentionsPlugin"
 import { allTransformers } from "@/components/doc/plugins/const"
+import { useAIConfigStore } from "@/app/settings/ai/store"
 import { useConfigStore } from "@/app/settings/store"
 
 import { SwitchPromptPlugin } from "./plugins/switch-prompt"
@@ -110,7 +111,7 @@ export const AIInputEditor = ({
   }, [])
 
   const { toast } = useToast()
-  const { aiConfig } = useConfigStore()
+  const { aiConfig } = useAIConfigStore()
   const { isEmbeddingModeLoaded } = useAppRuntimeStore()
   const [tryToLoadEmbeddingModel, setTryToLoadEmbeddingModel] =
     React.useState(false)
@@ -203,7 +204,10 @@ export const AIInputEditor = ({
           ErrorBoundary={LexicalErrorBoundary}
         />
       </div>
-      <NewMentionsPlugin onOptionSelectCallback={handleNodeInsert} placement="top-start"/>
+      <NewMentionsPlugin
+        onOptionSelectCallback={handleNodeInsert}
+        placement="top-start"
+      />
       <SwitchPromptPlugin />
       <HistoryPlugin />
       <AutoFocusPlugin />

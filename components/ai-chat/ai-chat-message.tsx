@@ -37,7 +37,7 @@ export const AIChatMessage = ({
       {message.role === "assistant" && (
         <>
           <Bot className="h-4 w-4 shrink-0" />
-          <div className="group flex flex-col items-end">
+          <div className="group flex w-full flex-col">
             <AIMessage
               msgId={message.id}
               message={message.content}
@@ -45,7 +45,7 @@ export const AIChatMessage = ({
               onRun={handleRunCode}
               msgIndex={msgIndex}
             />
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100">
               <Button
                 variant="ghost"
                 size="xs"

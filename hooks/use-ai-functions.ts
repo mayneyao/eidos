@@ -5,16 +5,16 @@ import { getCodeFromMarkdown } from "@/lib/markdown"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { getUuid, uuidv4 } from "@/lib/utils"
 import { startRecorder, stopRecorder } from "@/lib/web/recorder"
-import { useConfigStore } from "@/app/settings/store"
 
 import { useCurrentPathInfo } from "./use-current-pathinfo"
 import { useSqlite } from "./use-sqlite"
 import { useTableOperation } from "./use-table"
 
+const autoRunScope = ["SQL.SELECT"]
+
 export const useAIFunctions = () => {
   const { space: database, tableName: table } = useCurrentPathInfo()
   const { handleSql, sqlite } = useSqlite(database)
-  const { aiConfig } = useConfigStore()
   // FIXME: now ai-chat is global, maybe not in table page
   const { runQuery } = useTableOperation(table ?? "", database)
 
@@ -73,7 +73,6 @@ export const useAIFunctions = () => {
       width?: number
     }
   }) => {
-    const { autoRunScope } = aiConfig
     const { width = 300, msgIndex = -1 } = props.context || {}
     const { code, lang, isAuto = false } = props
     switch (lang) {
@@ -93,7 +92,7 @@ export const useAIFunctions = () => {
           return await handleRunSql(code)
         }
         break
-        // throw new Error(`lang ${lang} not supported auto run`)
+      // throw new Error(`lang ${lang} not supported auto run`)
     }
   }
 
@@ -102,7 +101,6 @@ export const useAIFunctions = () => {
     parameters: any,
     isAuto: boolean = true
   ) => {
-    const { autoRunScope } = aiConfig
     switch (name) {
       case "sqlQuery":
         const { sql } = parameters

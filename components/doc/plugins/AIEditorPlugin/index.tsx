@@ -65,9 +65,9 @@ export const AIEditorPlugin = (props: any) => {
 
       editor.update(() => {
         editor.focus()
-        const paragraphNode = $createParagraphNode()
-        $convertFromMarkdownString(text, __allTransformers, paragraphNode)
         if (selection) {
+          const paragraphNode = $createParagraphNode()
+          $convertFromMarkdownString(text, __allTransformers, paragraphNode)
           const newSelection = selection.clone()
           let node
           try {
@@ -77,11 +77,11 @@ export const AIEditorPlugin = (props: any) => {
             node.insertAfter(paragraphNode)
           } else {
             const root = $getRoot()
-            root.append(paragraphNode)
+            $convertFromMarkdownString(text, __allTransformers, root)
           }
         } else {
           const root = $getRoot()
-          root.append(paragraphNode)
+          $convertFromMarkdownString(text, __allTransformers, root)
         }
       })
     }

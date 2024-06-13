@@ -1,21 +1,19 @@
 import { handleGoogleAI } from "./google"
+import { IData } from "./interface"
 import { handleOpenAI } from "./openai"
 import { handleWebLLM } from "./webllm"
 
 export const pathname = "/api/chat"
 export default async function handle(event: FetchEvent) {
-  const req = await event.request.json()
-  const { model: modelAndProvider } = req
-  const [_model, provider] = modelAndProvider.split("@")
-  switch (provider) {
+  const data = (await event.request.json()) as IData
+  const { type } = data
+  switch (type) {
     case "google":
-      return handleGoogleAI(req)
+      return handleGoogleAI(data)
     case "openai":
-      return handleOpenAI(req)
-    case "groq":
-      return handleOpenAI(req, { useFunctions: false })
+      return handleOpenAI(data, { useFunctions: false })
     default:
       // local model
-      return handleWebLLM(req)
+      return handleWebLLM(data)
   }
 }

@@ -5,9 +5,11 @@ import { useClickAway, useKeyPress } from "ahooks"
 import { useChat } from "ai/react"
 import { $createParagraphNode, $getRoot, RangeSelection } from "lexical"
 import { PauseIcon, RefreshCcwIcon } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import { uuidv4 } from "@/lib/utils"
 import { useAiConfig } from "@/hooks/use-ai-config"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -19,7 +21,6 @@ import {
 } from "@/components/ui/command"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useUserPrompts } from "@/components/ai-chat/hooks"
-import { useConfigStore } from "@/app/settings/store"
 
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { $transformExtCodeBlock } from "../../utils/helper"
@@ -50,10 +51,10 @@ export function AITools({
   content: string
 }) {
   const { prompts } = useUserPrompts()
+  const { space } = useCurrentPathInfo()
   const [editor] = useLexicalComposerContext()
   const selectionRef = useRef<RangeSelection | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
-  const { aiConfig } = useConfigStore()
   const [currentModel, setCurrentModel] = useState<string>("")
   const extBlocks = useExtBlocks()
   const __allTransformers = useMemo(() => {
@@ -65,7 +66,7 @@ export function AITools({
   const [open, setOpen] = useState(true)
   const [actionOpen, setActionOpen] = useState(false)
   const [aiResult, setAiResult] = useState<string>("")
-  const { getConfigByModel } = useAiConfig()
+  const { getConfigByModel, findFirstAvailableModel } = useAiConfig()
   const { messages, setMessages, reload, isLoading, stop } = useChat({
     onFinish(message) {
       setAiResult(message.content)
@@ -73,7 +74,6 @@ export function AITools({
     },
     body: {
       ...getConfigByModel(currentModel),
-      GOOGLE_API_KEY: aiConfig.GOOGLE_API_KEY,
       model: currentModel,
     },
   })
@@ -123,17 +123,13 @@ export function AITools({
             const paragraphNode = $createParagraphNode()
             $convertFromMarkdownString(text, __allTransformers, paragraphNode)
             if (selection) {
-              const newSelection = selection.clone()
-              let node
-              try {
-                node = newSelection.getNodes()[0]
-              } catch (error) {}
-              if (node) {
-                node.replace(paragraphNode)
-                paragraphNode.select()
+              const [start, end] = selection.getStartEndPoints() || []
+              const isOneLine = start?.key === end?.key
+              if (isOneLine) {
+                selection.insertText(text)
               } else {
-                const root = $getRoot()
-                root.append(paragraphNode)
+                // FIXME: remove selected nodes and replace with new nodes
+                selection.insertText(text)
               }
             } else {
               const root = $getRoot()
@@ -150,27 +146,53 @@ export function AITools({
     [__allTransformers, aiResult, cancelAIAction, editor, extBlocks, reload]
   )
 
-  const runAction = (prompt: string, model?: string) => {
+  const runAction = (
+    prompt: string,
+    model?: string,
+    isCustomPrompt?: boolean
+  ) => {
     if (model) {
       setIsFinished(false)
       setCurrentModel(model)
       setTimeout(() => {
-        setMessages([
-          {
-            id: uuidv4(),
-            content: prompt,
-            role: "system",
-          },
-          {
-            id: uuidv4(),
-            content: content,
-            role: "user",
-          },
-        ])
+        if (isCustomPrompt) {
+          setMessages([
+            {
+              id: uuidv4(),
+              content: `You serve as an assistant, tasked with transforming user inputs, and the current directive is *${prompt}*，user's input will
+be between <content-begin> and <content-end>. you just output the transformed content without any other information.`,
+              role: "system",
+            },
+            {
+              id: uuidv4(),
+              content: `<content-begin>\n${content}\n<content-end>`,
+              role: "user",
+            },
+          ])
+        } else {
+          setMessages([
+            {
+              id: uuidv4(),
+              content: prompt,
+              role: "system",
+            },
+            {
+              id: uuidv4(),
+              content: content,
+              role: "user",
+            },
+          ])
+        }
+
         reload()
         setOpen(false)
       }, 100)
     }
+  }
+
+  const runCustomAction = (prompt: string) => {
+    const model = findFirstAvailableModel()
+    runAction(prompt, model, true)
   }
 
   useKeyPress("esc", () => {
@@ -225,14 +247,7 @@ export function AITools({
           </div>
           {actionOpen && (
             <Command className="mt-1 w-[200px] rounded-md border shadow-md">
-              <CommandInput
-                placeholder="Search Action..."
-                autoFocus
-                value={customPrompt}
-                onValueChange={(value) => {
-                  setCustomPrompt(value)
-                }}
-              />
+              <CommandInput placeholder="Search Action..." autoFocus />
               <ScrollArea>
                 <CommandList>
                   <CommandEmpty>No Action found.</CommandEmpty>
@@ -256,18 +271,36 @@ export function AITools({
         </>
       )}
       {open && (
-        <Command className="w-[200px] rounded-md border shadow-md">
+        <Command className="w-[300px] rounded-md border shadow-md">
           <CommandInput
-            placeholder="Search Action..."
+            placeholder="Search prompt or enter custom ..."
             autoFocus
             value={customPrompt}
             onValueChange={(value) => {
               setCustomPrompt(value)
             }}
+            onKeyUp={(e) => {
+              if (e.key === "Enter") {
+                // not found available prompt
+                const shouldRunCustomAction = !prompts.find((prompt) =>
+                  prompt.name.includes(customPrompt)
+                )
+                if (shouldRunCustomAction) {
+                  runCustomAction(customPrompt)
+                }
+              }
+            }}
           />
           <ScrollArea>
             <CommandList>
-              <CommandEmpty>No Action found.</CommandEmpty>
+              <CommandEmpty>
+                {" "}
+                No Prompt found.
+                <br />
+                <Link to={`/${space}/extensions`} className="text-blue-500">
+                  New Prompt
+                </Link>
+              </CommandEmpty>
               <CommandGroup>
                 {prompts.map((prompt) => (
                   <CommandItem

@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { mergeRegister } from "@lexical/utils"
 import { useCompletion } from "ai/react"
@@ -14,10 +15,10 @@ import {
   TextNode,
   type NodeKey,
 } from "lexical"
-import { useCallback, useEffect, useState } from "react"
 
-import { useConfigStore } from "@/app/settings/store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useAIConfigStore } from "@/app/settings/ai/store"
+import { useConfigStore } from "@/app/settings/store"
 
 import { addSwipeRightListener } from "../../utils/swipe"
 import { AI_COMPLETE_COMMAND } from "./cmd"
@@ -39,7 +40,7 @@ output: nt to go outside
 
 export default function AutocompletePlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext()
-  const { aiConfig } = useConfigStore()
+  const { aiConfig } = useAIConfigStore()
   const { disableDocAIComplete, setCompleteLoading } = useAppRuntimeStore()
 
   const [completionNodeKey, setCompletionNodeKey] = useState<NodeKey | null>(
@@ -51,8 +52,8 @@ export default function AutocompletePlugin(): JSX.Element | null {
   const { complete, isLoading, stop } = useCompletion({
     api: "/api/completion",
     body: {
-      token: aiConfig.token,
-      baseUrl: aiConfig.baseUrl,
+      // token: aiConfig.token,
+      // baseUrl: aiConfig.baseUrl,
       systemPrompt:
         defaultSysPrompt || localStorage.getItem("completeSystemPrompt") || "",
     },

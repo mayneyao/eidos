@@ -21,6 +21,7 @@ import { useSqliteMetaTableSubscribe } from "@/hooks/use-sqlite-meta-table-subsc
 import { useWorker } from "@/hooks/use-worker"
 import { useCurrentUser } from "@/hooks/user-current-user"
 
+import { useAIConfigStore } from "../settings/ai/store"
 import { useConfigStore } from "../settings/store"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
@@ -76,7 +77,7 @@ export const useLayoutInit = () => {
   useKeyPress(["ctrl.backslash", "meta.backslash"], () => {
     setSidebarOpen(!isSidebarOpen)
   })
-  const { aiConfig } = useConfigStore()
+  const { aiConfig } = useAIConfigStore()
   useEffect(() => {
     if (aiConfig.autoLoadEmbeddingModel) {
       embeddingTexts(["hi"])

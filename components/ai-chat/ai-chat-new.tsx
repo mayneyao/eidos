@@ -35,9 +35,11 @@ import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAiConfig } from "@/hooks/use-ai-config"
+import { useAIConfigStore } from "@/app/settings/ai/store"
 import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
 import { Label } from "../ui/label"
+import { ScrollArea } from "../ui/scroll-area"
 import { Switch } from "../ui/switch"
 import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
@@ -61,9 +63,8 @@ export default function Chat() {
   const { autoSpeak } = useAIChatSettingsStore()
   const divRef = useRef<HTMLDivElement>(null)
   const { currentSysPrompt, setCurrentSysPrompt } = useAIChatStore()
-  const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const currentNode = useCurrentNode()
-  const { aiConfig } = useConfigStore()
+  const { aiConfig } = useAIConfigStore()
   const { sqlite } = useSqlite()
   const { progress } = useLoadingStore()
 
@@ -111,10 +112,8 @@ export default function Chat() {
     },
     body: {
       ...getConfigByModel(aiModel),
-      GOOGLE_API_KEY: aiConfig.GOOGLE_API_KEY,
       systemPrompt,
-      model: aiModel,
-      currentPreviewFile,
+      model: aiModel, // model@provider
     },
   })
 
@@ -173,84 +172,86 @@ export default function Chat() {
 
   return (
     <div
-      className="relative flex h-full w-[400px] shrink-0 flex-col overflow-auto border-l border-l-slate-400 p-2"
+      className="relative flex h-full w-[400px] shrink-0 flex-col gap-2 overflow-auto border-l border-l-slate-400 p-2"
       ref={divRef}
     >
-      <div className="flex grow flex-col gap-2 pb-[100px]">
-        <div className="flex items-center gap-2">
-          <Select
-            onValueChange={setCurrentSysPrompt as any}
-            value={currentSysPrompt}
-          >
-            <SelectTrigger className="w-[80px]">
-              <SelectValue placeholder="Prompt">
-                <p className="w-[60px] truncate">{promptName}</p>
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {promptKeys.map((key) => {
-                return (
-                  <SelectItem key={key} value={key}>
-                    {key}
-                  </SelectItem>
-                )
-              })}
-              <hr />
-              {prompts.map((prompt) => {
-                return (
-                  <SelectItem key={prompt.id} value={prompt.id}>
-                    {prompt.name}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-          <AIModelSelect
-            onValueChange={setAIModel as any}
-            value={aiModel}
-            localModels={aiConfig.localModels}
-          />
-          <AIChatSettings />
-        </div>
-        {!hasAvailableModels && (
-          <p className="p-2">
-            you need to set up LLMs in{" "}
-            <span>
-              <Link to="/settings/ai" className="text-cyan-500">
-                settings
-              </Link>
-            </span>{" "}
-            first
-          </p>
-        )}
-        {messages.map((message, i) => {
-          const m = message
-          if (
-            (m.role === "user" || m.role == "assistant") &&
-            m.content &&
-            !(m as any).hidden
-          ) {
-            return (
-              <AIChatMessage
-                key={i}
-                msgIndex={i}
-                message={message}
-                messages={messages}
-                handleRunCode={handleManualRun}
-              />
-            )
-          }
-        })}
-        <div>{progress?.text}</div>
-        <div className="flex w-full justify-center">
-          {isLoading && (
-            <div ref={loadingRef}>
-              <Loader2 className="h-5 w-5 animate-spin" />
-            </div>
-          )}
-        </div>
+      <div className="flex items-center gap-2">
+        <Select
+          onValueChange={setCurrentSysPrompt as any}
+          value={currentSysPrompt}
+        >
+          <SelectTrigger className="w-[80px]">
+            <SelectValue placeholder="Prompt">
+              <p className="w-[60px] truncate">{promptName}</p>
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {promptKeys.map((key) => {
+              return (
+                <SelectItem key={key} value={key}>
+                  {key}
+                </SelectItem>
+              )
+            })}
+            <hr />
+            {prompts.map((prompt) => {
+              return (
+                <SelectItem key={prompt.id} value={prompt.id}>
+                  {prompt.name}
+                </SelectItem>
+              )
+            })}
+          </SelectContent>
+        </Select>
+        <AIModelSelect
+          onValueChange={setAIModel as any}
+          value={aiModel}
+          localModels={aiConfig.localModels}
+        />
+        <AIChatSettings />
       </div>
-      <div className="sticky bottom-0">
+      <ScrollArea className="grow border-t">
+        <div className="flex grow flex-col gap-2 p-3 pb-[100px]">
+          {!hasAvailableModels && (
+            <p className="p-2">
+              you need to set up LLMs in{" "}
+              <span>
+                <Link to="/settings/ai" className="text-cyan-500">
+                  settings
+                </Link>
+              </span>{" "}
+              first
+            </p>
+          )}
+          {messages.map((message, i) => {
+            const m = message
+            if (
+              (m.role === "user" || m.role == "assistant") &&
+              m.content &&
+              !(m as any).hidden
+            ) {
+              return (
+                <AIChatMessage
+                  key={i}
+                  msgIndex={i}
+                  message={message}
+                  messages={messages}
+                  handleRunCode={handleManualRun}
+                />
+              )
+            }
+          })}
+          <div>{progress?.text}</div>
+          <div className="flex w-full justify-center">
+            {isLoading && (
+              <div ref={loadingRef}>
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            )}
+          </div>
+        </div>
+      </ScrollArea>
+      <div className="shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex min-w-[200px]  gap-2">
             <Switch

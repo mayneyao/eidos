@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -17,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useConfigStore } from "@/app/settings/store"
+import { useAIConfigStore } from "@/app/settings/ai/store"
 
 import { ScrollArea } from "../ui/scroll-area"
 import { WEB_LLM_MODELS } from "./webllm/models"
@@ -25,19 +26,17 @@ import { WEB_LLM_MODELS } from "./webllm/models"
 const allLocalModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
 const useModels = () => {
-  const { aiConfig } = useConfigStore()
+  const { aiConfig } = useAIConfigStore()
   const [models, setModels] = React.useState<string[]>([])
   React.useEffect(() => {
-    const openaiModels = aiConfig.OPENAI_MODELS.split(",").map(
-      (item: string) => item.trim() + "@openai"
-    )
-    const groqModels = aiConfig.GROQ_MODELS.split(",").map(
-      (item: string) => item.trim() + "@groq"
-    )
-    const googleModels = aiConfig.GOOGLE_MODELS.split(",").map(
-      (item: string) => item.trim() + "@google"
-    )
-    setModels([...openaiModels, ...groqModels, ...googleModels])
+    const allModels = aiConfig.llmProviders
+      .map((item) => {
+        return item.models.split(",").map((model) => {
+          return `${model.trim()}@${item.name}`
+        })
+      })
+      .flat()
+    setModels(allModels)
   }, [aiConfig])
 
   return {
@@ -111,12 +110,23 @@ export function AIModelSelect({
                           value === model ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      {model}
+                      <p className="max-w-[250px] truncate">{model}</p>{" "}
                     </CommandItem>
                   ))}
                 </CommandGroup>
               )}
               <CommandGroup heading="Local LLM">
+                {Boolean(!_localModels?.length) && (
+                  <p className="ml-8 text-sm text-gray-500">
+                    No local model found.
+                    <br />
+                    Add some models in the{" "}
+                    <Link to="/settings/ai" className=" text-blue-500">
+                      settings
+                    </Link>{" "}
+                    page.
+                  </p>
+                )}
                 {_localModels.map((model) => (
                   <CommandItem
                     key={model}
@@ -132,7 +142,7 @@ export function AIModelSelect({
                         value === model ? "opacity-100" : "opacity-0"
                       )}
                     />
-                    {model}
+                    <p className="max-w-[250px] truncate">{model}</p>
                   </CommandItem>
                 ))}
               </CommandGroup>

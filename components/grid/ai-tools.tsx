@@ -74,8 +74,6 @@ export const AITools = ({
           const highlightRegions = getAIHighlightRegions(selectedField)
           setAIHighlightRegions(highlightRegions)
           const { model, code } = selectedPrompt
-          const needFixMessage =
-            model?.includes("deepseek") || !model?.includes("@")
           const field = getFieldByIndex(selection.current.range.x)
           const startIndex = selection.current.range.y
           const endIndex = startIndex + selection.current.range.height
@@ -83,13 +81,14 @@ export const AITools = ({
             const row = getRowByIndex(i)
             const input = row[field.table_column_name]
             const config = getConfigByModel(model!)
+            const needFixMessage = config.baseUrl?.includes("deepseek")
             if (!input) return
             const res = await generateText({
               systemPrompt: code,
               prompt: input,
               config: {
-                apiKey: config.token!,
-                baseURL: needFixMessage ? "/" : config.baseUrl,
+                apiKey: config.apiKey!,
+                baseURL: needFixMessage ? "/" : config.baseUrl!,
               },
               modelId: needFixMessage ? model! : config.modelId,
             })
@@ -174,7 +173,11 @@ export const AITools = ({
 
       <ScrollArea>
         <CommandList className="max-h-[300px]">
-          <CommandEmpty>No Action found.</CommandEmpty>
+          <CommandEmpty>
+            No Action found.
+            <br />
+            Press <kbd>ESC</kbd> to close.
+          </CommandEmpty>
           <CommandGroup>
             {prompts.map((prompt) => (
               <CommandItem

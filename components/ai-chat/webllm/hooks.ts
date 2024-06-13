@@ -8,6 +8,7 @@ import {
 import { create } from "zustand"
 
 import { getLocalModelList } from "@/lib/ai/helper"
+import { useAIConfigStore } from "@/app/settings/ai/store"
 import { useConfigStore } from "@/app/settings/store"
 
 type LoadingState = {
@@ -70,7 +71,7 @@ export const useInitWebLLMWorker = () => {
     })
   }, [currentModel])
 
-  const { aiConfig } = useConfigStore()
+  const { aiConfig } = useAIConfigStore()
   const localModels = aiConfig.localModels
 
   useEffect(() => {

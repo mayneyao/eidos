@@ -1,30 +1,33 @@
 import { useCallback, useMemo } from "react"
 
-import { useConfigStore } from "@/app/settings/store"
+import { useAIConfigStore } from "@/app/settings/ai/store"
 
 export const useAiConfig = () => {
-  const { aiConfig } = useConfigStore()
+  const { aiConfig } = useAIConfigStore()
+
+  const findFirstAvailableModel = useCallback(() => {
+    const provider = aiConfig.llmProviders[0]
+    const model = provider?.models.split(",")[0]
+    return `${model}@${provider.name}`
+  }, [aiConfig])
+
   const getConfigByModel = useCallback(
     (model: string) => {
-      const { baseUrl, token, GROQ_BASE_URL, GROQ_API_KEY } = aiConfig
       const [modelId, provider] = model.split("@")
-      if (model.endsWith("groq")) {
+      const llmProvider = aiConfig.llmProviders.find(
+        (item) => item.name === provider
+      )
+      if (llmProvider) {
         return {
-          baseUrl: GROQ_BASE_URL,
-          token: GROQ_API_KEY,
+          baseUrl: llmProvider.baseUrl,
+          apiKey: llmProvider.apiKey,
           modelId,
-        }
-      }
-      if (provider === "openai") {
-        return {
-          baseUrl,
-          token,
-          modelId,
+          type: llmProvider.type,
         }
       }
       return {
         baseUrl: "/",
-        token: "",
+        apiKey: "",
         modelId,
       }
     },
@@ -32,14 +35,12 @@ export const useAiConfig = () => {
   )
 
   const hasAvailableModels = useMemo(() => {
-    const { token, GROQ_API_KEY, GOOGLE_API_KEY, localModels } = aiConfig
-    return [token, GROQ_API_KEY, GOOGLE_API_KEY, localModels].some(
-      (item) => item?.length ?? 0 > 0
-    )
+    return aiConfig.llmProviders.length > 0
   }, [aiConfig])
 
   return {
     getConfigByModel,
     hasAvailableModels,
+    findFirstAvailableModel,
   }
 }

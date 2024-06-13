@@ -14,6 +14,7 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { AIModelSelect } from "@/components/ai-chat/ai-chat-model-select"
 import { AppendList } from "@/components/eui/append-list"
+import { useAIConfigStore } from "@/app/settings/ai/store"
 import { useConfigStore } from "@/app/settings/store"
 
 import { useAllScripts } from "../hooks/use-all-scripts"
@@ -38,7 +39,7 @@ export const PromptConfig = () => {
   const revalidator = useRevalidator()
   const { toast } = useToast()
   const allScripts = useAllScripts()
-  const { aiConfig } = useConfigStore()
+  const { aiConfig } = useAIConfigStore()
   const handleSave = async (model: string) => {
     await updateScript({
       ...script,

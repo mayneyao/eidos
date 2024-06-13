@@ -1,26 +1,24 @@
-import OpenAI from "openai"
 
-import { LLMOpenAI } from "@/lib/ai/llm_vendors/openai"
-import { efsManager } from "@/lib/storage/eidos-file-system"
-import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useFileSystem } from "@/hooks/use-files"
-import { useHnsw } from "@/hooks/use-hnsw"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { useAIConfigStore } from "@/app/settings/ai/store"
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { useConfigStore } from "@/app/settings/store"
+import { useFileSystem } from "@/hooks/use-files"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { efsManager } from "@/lib/storage/eidos-file-system"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 export function FileItemContextMenu({ children }: any) {
   const { selectedEntries, deleteFiles, getFileUrlPath } = useFileSystem()
   const { setCurrentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { createEmbedding } = useHnsw()
-  const { aiConfig } = useConfigStore()
+  const { aiConfig } = useAIConfigStore()
   const { sqlite } = useSqlite()
 
   const moreThenOneSelected = selectedEntries.size > 1
@@ -90,18 +88,19 @@ export function FileItemContextMenu({ children }: any) {
   }
 
   const handleCreateEmbedding = async () => {
-    if (name.endsWith(".pdf")) {
-      const path = "spaces" + getFileUrlPath(name)
-      const file = await sqlite?.getFileByPath(path)
-      if (file && !file.is_vectorized && aiConfig.token?.length) {
-        await createEmbedding({
-          id: file.id,
-          type: "file",
-          model: "text-embedding-ada-002",
-          provider: new LLMOpenAI(new OpenAI({ apiKey: aiConfig.token })),
-        })
-      }
-    }
+    // TODO: use the embedding service
+    // if (name.endsWith(".pdf")) {
+    //   const path = "spaces" + getFileUrlPath(name)
+    //   const file = await sqlite?.getFileByPath(path)
+    //   if (file && !file.is_vectorized && aiConfig.token?.length) {
+    //     await createEmbedding({
+    //       id: file.id,
+    //       type: "file",
+    //       model: "text-embedding-ada-002",
+    //       provider: new LLMOpenAI(new OpenAI({ apiKey: aiConfig.token })),
+    //     })
+    //   }
+    // }
   }
 
   return (

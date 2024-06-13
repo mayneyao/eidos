@@ -95,6 +95,7 @@ export const NodeComponent = ({
       )}
       {node?.type === "doc" && (
         <Editor
+          isActive
           isEditable={node.is_locked ? false : true}
           docId={node.id}
           title={node.name}

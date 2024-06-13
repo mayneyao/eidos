@@ -3,6 +3,7 @@ import { TOGGLE_LINK_COMMAND } from "@lexical/link"
 import { mergeRegister } from "@lexical/utils"
 import { useKeyPress } from "ahooks"
 import {
+  $getRoot,
   $getSelection,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
@@ -33,6 +34,7 @@ import {
 import { Toggle } from "@/components/ui/toggle"
 
 import { getDOMRangeRect } from "../../utils/getDOMRangeRect"
+import { getMarkdownFromSelection } from "../../utils/selection"
 import { setFloatingElemPosition } from "../../utils/setFloatingElemPosition"
 import { INSERT_AI_COMMAND } from "../AIToolsPlugin"
 import { ColorPicker } from "./color-picker"

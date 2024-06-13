@@ -1,7 +1,5 @@
 import { useCallback, useState } from "react"
 
-import { getHnswIndex } from "@/lib/ai/vec_search"
-import { getSqliteProxy } from "@/lib/sqlite/proxy"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -13,13 +11,15 @@ import {
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
+import { getHnswIndex } from "@/lib/ai/vec_search"
+import { getSqliteProxy } from "@/lib/sqlite/proxy"
 
-import { useConfigStore } from "../store"
+import { useAIConfigStore } from "../ai/store"
 import { saveTransformerCache } from "./helper"
 import { SpaceSelect } from "./space-select"
 
 export function DevtoolsPage() {
-  const { aiConfig, setAiConfig } = useConfigStore()
+  const { aiConfig, setAiConfig } = useAIConfigStore()
   const { toast } = useToast()
   const [space, setSpace] = useState<string>("")
   const clearAllEmbeddings = useCallback(async () => {

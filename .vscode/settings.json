@@ -4,7 +4,10 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "cSpell.words": [
     "dataspace",
+    "indexeddb",
+    "openai",
     "Opfs",
-    "revalidator"
+    "revalidator",
+    "zustand"
   ]
 }
