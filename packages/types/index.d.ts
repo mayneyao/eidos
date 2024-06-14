@@ -14,6 +14,8 @@ declare module "lib/const" {
         WebSocketConnected = "WebSocketConnected",
         WebSocketDisconnected = "WebSocketDisconnected",
         ConvertMarkdown2State = "ConvertMarkdown2State",
+        ConvertHtml2State = "ConvertHtml2State",
+        ConvertEmail2State = "ConvertEmail2State",
         GetDocMarkdown = "GetDocMarkdown"
     }
     export enum MainServiceWorkerMsgType {
@@ -45,6 +47,14 @@ declare module "lib/const" {
     }
     export const EidosDataEventChannelName = "eidos-data-event";
     export const EidosSharedEnvChannelName = "eidos-shared-env";
+    export const DOMAINS: {
+        IMAGE_PROXY: string;
+        LINK_PREVIEW: string;
+        WIKI: string;
+        ACTIVATION_SERVER: string;
+        EXTENSION_SERVER: string;
+        API_AGENT_SERVER: string;
+    };
 }
 declare module "lib/fields/const" {
     export enum FieldType {
@@ -164,12 +174,14 @@ declare module "lib/store/ITreeNode" {
     export interface ITreeNode {
         id: string;
         name: string;
-        type: "table" | "doc";
+        type: "table" | "doc" | "folder" | string;
         position?: number;
         parent_id?: string;
         is_pinned?: boolean;
         is_full_width?: boolean;
+        is_locked?: boolean;
         is_deleted?: boolean;
+        hide_properties?: boolean;
         icon?: string;
         cover?: string;
         created_at?: string;
@@ -195,7 +207,8 @@ declare module "lib/store/IView" {
     import { FilterValueType } from "components/table/view-filter-editor/interface";
     export enum ViewTypeEnum {
         Grid = "grid",
-        Gallery = "gallery"
+        Gallery = "gallery",
+        DocList = "doc_list"
     }
     export interface IView<T = any> {
         id: string;
@@ -270,15 +283,37 @@ declare module "lib/utils" {
     export const getRawDocNameById: (id: string) => string;
     export const shortenId: (id: string) => string;
     export const extractIdFromShortId: (shortId: string) => string;
+    export const getDate: (offset: number) => string;
     export const getToday: () => string;
+    export const getYesterday: () => string;
+    export const getTomorrow: () => string;
+    /**
+     *
+     * @param str yyyy-w[week]
+     */
+    export const isWeekNodeId: (str?: string) => boolean;
+    /**
+     * get week of the year
+     * @param day  yyyy-mm-dd || yyyy-w[week]
+     * @returns
+     */
+    export const getWeek: (day: string) => number;
+    /**
+     *
+     * @param weekNodeId yyyy-w[week]
+     * @returns
+     */
+    export const getDaysByYearWeek: (weekNodeId: string) => any[];
     export const getLocalDate: (date: Date) => string;
     export const getUuid: () => string;
     export const generateId: () => string;
     export const isDayPageId: (id: string) => boolean;
     export function timeAgo(date: Date): string;
+    export const proxyImageURL: (url?: string) => string;
 }
 declare module "lib/sqlite/sql-formula-parser" {
     import { IField } from "lib/store/interface";
+    export const getTableNameFromSql: (sql: string) => string;
     /**
      * example:
      * sql: select * from table1
@@ -297,8 +332,11 @@ declare module "lib/sqlite/sql-formula-parser" {
     export const transformQueryWithFormulaFields2Sql: (query: string, fields: IField[]) => string;
 }
 declare module "lib/storage/indexeddb" {
+    import { StateStorage } from "zustand/middleware";
+    export const indexedDBStorage: StateStorage;
+    export const getConfig: <T = Record<string, any>>(name: string) => Promise<T>;
     export const DATABASE_NAME = "eidos";
-    export function getIndexedDBValue(tableName: string, key: string): Promise<any>;
+    export function getIndexedDBValue<T = any>(tableName: string, key: string): Promise<T>;
 }
 declare module "lib/storage/eidos-file-system" {
     export enum FileSystemType {
@@ -353,7 +391,8 @@ declare module "lib/storage/eidos-file-system" {
         getFileByPath: (path: string) => Promise<File>;
         listDir: (_paths: string[]) => Promise<FileSystemFileHandle[]>;
         updateOrCreateDocFile: (_paths: string[], content: string) => Promise<void>;
-        getFile: (_paths: string[]) => Promise<File>;
+        checkFileExists: (_paths: string[]) => Promise<boolean>;
+        getFile: (_paths: string[], options?: FileSystemGetFileOptions) => Promise<File>;
         getDocContent: (_paths: string[]) => Promise<string>;
         addDir: (_paths: string[], dirName: string) => Promise<void>;
         addFile: (_paths: string[], file: File, fileId?: string) => Promise<string[]>;
@@ -601,7 +640,13 @@ declare module "worker/web-worker/meta-table/base" {
         };
         add(data: T, db?: import("@sqlite.org/sqlite-wasm").Database): Promise<T>;
         set(id: string, data: Partial<T>): Promise<boolean>;
-        list(query?: Record<string, any>): Promise<T[]>;
+        list(query?: Record<string, any>, opts?: {
+            limit?: number;
+            offset?: number;
+            orderBy?: string;
+            order?: "ASC" | "DESC";
+            fields?: string[];
+        }): Promise<T[]>;
     }
 }
 declare module "worker/web-worker/meta-table/file" {
@@ -619,6 +664,13 @@ declare module "worker/web-worker/meta-table/file" {
     export class FileTable extends BaseTableImpl implements BaseTable<IFile> {
         name: string;
         createTableSql: string;
+        /**
+         * save file to efs
+         * @param url a url of file
+         * @param subDir sub directory of file, default is [], which means save file to spaces/\<space\>/files/, if subDir is ["a","b"], then save file to spaces/\<space\>/files/a/b/
+         * @param _name file name, default is null, which means use the file name in url
+         * @returns
+         */
         saveFile2EFS(url: string, subDir: string[], _name?: string): Promise<IFile | null>;
         add(data: IFile): Promise<IFile>;
         getFileByPath(path: string): Promise<IFile | null>;
@@ -650,6 +702,8 @@ declare module "lib/store/runtime-store" {
         setCmdkOpen: (isCmdkOpen: boolean) => void;
         isShareMode: boolean;
         setShareMode: (isShareMode: boolean) => void;
+        isEmbeddingModeLoaded: boolean;
+        setEmbeddingModeLoaded: (isEmbeddingModeLoaded: boolean) => void;
         currentPreviewFile: IFile | null;
         setCurrentPreviewFile: (currentPreviewFile: IFile) => void;
         isWebsocketConnected: boolean;
@@ -715,7 +769,7 @@ declare module "app/[database]/[node]/image-selector" {
         height?: number;
     }): import("react/jsx-runtime").JSX.Element;
 }
-declare module "components/doc/nodes/ImageResizer" {
+declare module "components/doc/nodes/ImageNode/ImageResizer" {
     import type { LexicalEditor } from "lexical";
     export default function ImageResizer({ onResizeStart, onResizeEnd, buttonRef, imageRef, maxWidth, editor, showCaption, setShowCaption, captionsEnabled, }: {
         editor: LexicalEditor;
@@ -733,7 +787,7 @@ declare module "components/doc/nodes/ImageResizer" {
         captionsEnabled: boolean;
     }): JSX.Element;
 }
-declare module "components/doc/nodes/ImageComponent" {
+declare module "components/doc/nodes/ImageNode/ImageComponent" {
     import { type LexicalEditor, type NodeKey } from "lexical";
     import "./ImageNode.css";
     export default function ImageComponent({ src, altText, nodeKey, width, height, maxWidth, resizable, showCaption, caption, captionsEnabled, }: {
@@ -749,7 +803,7 @@ declare module "components/doc/nodes/ImageComponent" {
         captionsEnabled: boolean;
     }): JSX.Element;
 }
-declare module "components/doc/nodes/ImageNode" {
+declare module "components/doc/nodes/ImageNode/ImageNode" {
     import { TextMatchTransformer } from "@lexical/markdown";
     import { DecoratorNode, type DOMConversionMap, type DOMExportOutput, type EditorConfig, type LexicalEditor, type LexicalNode, type NodeKey, type SerializedEditor, type SerializedLexicalNode, type Spread } from "lexical";
     export interface ImagePayload {
@@ -801,6 +855,18 @@ declare module "components/doc/nodes/ImageNode" {
     export function $isImageNode(node: LexicalNode | null | undefined): node is ImageNode;
     export const IMAGE: TextMatchTransformer;
 }
+declare module "components/ui/table" {
+    import * as React from "react";
+    const Table: React.ForwardRefExoticComponent<React.HTMLAttributes<HTMLTableElement> & React.RefAttributes<HTMLTableElement>>;
+    const TableHeader: React.ForwardRefExoticComponent<React.HTMLAttributes<HTMLTableSectionElement> & React.RefAttributes<HTMLTableSectionElement>>;
+    const TableBody: React.ForwardRefExoticComponent<React.HTMLAttributes<HTMLTableSectionElement> & React.RefAttributes<HTMLTableSectionElement>>;
+    const TableFooter: React.ForwardRefExoticComponent<React.HTMLAttributes<HTMLTableSectionElement> & React.RefAttributes<HTMLTableSectionElement>>;
+    const TableRow: React.ForwardRefExoticComponent<React.HTMLAttributes<HTMLTableRowElement> & React.RefAttributes<HTMLTableRowElement>>;
+    const TableHead: React.ForwardRefExoticComponent<React.ThHTMLAttributes<HTMLTableCellElement> & React.RefAttributes<HTMLTableCellElement>>;
+    const TableCell: React.ForwardRefExoticComponent<React.TdHTMLAttributes<HTMLTableCellElement> & React.RefAttributes<HTMLTableCellElement>>;
+    const TableCaption: React.ForwardRefExoticComponent<React.HTMLAttributes<HTMLTableCaptionElement> & React.RefAttributes<HTMLTableCaptionElement>>;
+    export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption, };
+}
 declare module "components/ui/dialog" {
     import * as React from "react";
     import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -843,7 +909,30 @@ declare module "components/doc/plugins/SQLPlugin/SqlQueryDialog" {
 declare module "components/doc/utils/sql" {
     export const getQueryResultText: (data: any) => any;
 }
-declare module "components/doc/nodes/SQL" {
+declare module "components/doc/nodes/SQLNode/helper" {
+    /**
+     * [{count:0}] => TEXT
+     * [{count:0, name: 'a'}] => CARD
+     * [{count:0}, {count:1}] => LIST
+     * [{count:0, name: 'a'}, {count:1, name: 'b'}] => TABLE
+     * @param data
+     */
+    export enum QueryResultType {
+        TEXT = "TEXT",
+        CARD = "CARD",
+        LIST = "LIST",
+        TABLE = "TABLE"
+    }
+    export const getQueryResultType: (data: object[]) => QueryResultType;
+}
+declare module "components/doc/nodes/SQLNode/component" {
+    type SQLProps = Readonly<{
+        sql: string;
+        nodeKey: string;
+    }>;
+    export function SQLComponent({ sql, nodeKey }: SQLProps): import("react/jsx-runtime").JSX.Element;
+}
+declare module "components/doc/nodes/SQLNode/index" {
     import { ElementTransformer } from "@lexical/markdown";
     import { DecoratorNode, type LexicalNode, type NodeKey } from "lexical";
     import { ReactNode } from "react";
@@ -854,6 +943,7 @@ declare module "components/doc/nodes/SQL" {
         static importJSON(serializedNode: any): SQLNode;
         exportJSON(): any;
         constructor(sql: string, key?: NodeKey);
+        getTextContent(): string;
         setSQL(sql: string): void;
         updateDOM(): false;
         createDOM(): HTMLElement;
@@ -866,11 +956,87 @@ declare module "components/doc/nodes/SQL" {
     export function $isSQLNode(node: SQLNode | LexicalNode | null | undefined): node is SQLNode;
     export const SQL_NODE_TRANSFORMER: ElementTransformer;
 }
+declare module "components/loading" {
+    export const Loading: () => import("react/jsx-runtime").JSX.Element;
+    export const TwinkleSparkle: () => import("react/jsx-runtime").JSX.Element;
+}
+declare module "components/doc/nodes/BookmarkNode/BookmarkComponent" {
+    import { NodeKey } from "lexical";
+    import { BookmarkPayload } from "components/doc/nodes/BookmarkNode/index";
+    import "./style.css";
+    export const BookmarkComponent: (props: BookmarkPayload & {
+        nodeKey: NodeKey;
+    }) => import("react/jsx-runtime").JSX.Element;
+}
+declare module "components/doc/nodes/BookmarkNode/index" {
+    import { ReactNode } from "react";
+    import { TextMatchTransformer } from "@lexical/markdown";
+    import { DecoratorNode, EditorConfig, LexicalEditor, LexicalNode, NodeKey } from "lexical";
+    export interface BookmarkPayload {
+        url: string;
+        title?: string;
+        description?: string;
+        image?: string;
+        fetched?: boolean;
+        key?: NodeKey;
+    }
+    export class BookmarkNode extends DecoratorNode<ReactNode> {
+        __url: string;
+        __title?: string;
+        __description?: string;
+        __image?: string;
+        __fetched?: boolean;
+        isKeyboardSelectable(): boolean;
+        static getType(): string;
+        static clone(node: BookmarkNode): BookmarkNode;
+        getTextContent(): string;
+        constructor(payload: BookmarkPayload);
+        getFetched(): boolean;
+        getUrl(): string;
+        createDOM(): HTMLElement;
+        updateDOM(): false;
+        decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode;
+        static importJSON(data: any): BookmarkNode;
+        setAll(payload: BookmarkPayload): void;
+        exportJSON(): {
+            url: string;
+            title: string;
+            description: string;
+            image: string;
+            fetched: boolean;
+            type: string;
+            version: number;
+        };
+    }
+    export function $createBookmarkNode(payload: BookmarkPayload): BookmarkNode;
+    export function $isBookmarkNode(node: LexicalNode | null | undefined): node is BookmarkNode;
+    export function $getUrlMetaData(url: string): Promise<BookmarkPayload & {
+        error?: string;
+    }>;
+    export const BOOKMARK: TextMatchTransformer;
+}
+declare module "components/doc/nodes/CardNode/index" {
+    import { ElementNode, LexicalNode, SerializedElementNode, SerializedLexicalNode } from "lexical";
+    export class CardNode extends ElementNode {
+        static getType(): string;
+        static clone(node: CardNode): CardNode;
+        exportJSON(): SerializedElementNode<SerializedLexicalNode>;
+        static importJSON(json: SerializedElementNode<SerializedLexicalNode>): CardNode;
+        createDOM(): HTMLElement;
+        updateDOM(prevNode: CardNode, dom: HTMLElement): boolean;
+        canInsertTextBefore(): boolean;
+        canInsertTextAfter(): boolean;
+        canIndent(): false;
+    }
+    export function $createCardNode(): CardNode;
+    export function $isCardNode(node: LexicalNode | null | undefined): node is CardNode;
+}
 declare module "components/doc/plugins/MarkdownTransformers" {
     import { ElementTransformer } from "@lexical/markdown";
     export const HR: ElementTransformer;
 }
 declare module "components/doc/plugins/const" {
+    import { BookmarkPayload } from "components/doc/nodes/BookmarkNode/index";
     export const allTransformers: import("@lexical/markdown").Transformer[];
     export const fgColors: {
         name: string;
@@ -880,11 +1046,13 @@ declare module "components/doc/plugins/const" {
         name: string;
         value: string;
     }[];
+    export const markdownLinkInfoMap: Map<string, BookmarkPayload>;
 }
 declare module "components/doc/plugins/AutoSavePlugin/index" {
     interface AutoSavePluginProps {
         docId: string;
         disableManuallySave?: boolean;
+        isEditable?: boolean;
     }
     export const DefaultState: {
         root: {
@@ -975,14 +1143,21 @@ declare module "components/grid/helper" {
     export const createTemplateTableColumnsSql: () => string;
 }
 declare module "hooks/use-nodes" {
+    import { ITreeNode } from "lib/store/ITreeNode";
     export const useAllNodes: (opts?: {
         isDeleted?: boolean;
-        type?: "table" | "doc";
-    }) => import("@/lib/store/ITreeNode").ITreeNode[];
+        parent_id?: string;
+        type?: ITreeNode["type"] | ITreeNode["type"][];
+    }) => ITreeNode[];
     export const useNode: () => {
         updateIcon: (id: string, icon: string) => Promise<void>;
         updateCover: (id: string, cover: string) => Promise<void>;
         updatePosition: (id: string, position: number) => Promise<void>;
+        updateParentId: (id: string, parentId?: string, opts?: {
+            targetId: string;
+            targetDirection: "up" | "down";
+        }) => Promise<void>;
+        updateHideProperties: (id: string, hideProperties: boolean) => Promise<void>;
         moveIntoTable: (nodeId: string, tableId: string, parentId?: string) => Promise<void>;
     };
 }
@@ -1021,8 +1196,9 @@ declare module "hooks/use-sqlite" {
     export const useSqliteStore: import("zustand").UseBoundStore<import("zustand").StoreApi<SqliteState>>;
     export const useSqlite: (dbName?: string) => {
         sqlite: DataSpace;
-        createTable: (tableName: string) => Promise<string>;
+        createTable: (tableName: string, parent_id?: string) => Promise<string>;
         deleteTable: (tableId: string) => Promise<void>;
+        createFolder: (parent_id?: string) => Promise<string>;
         duplicateTable: (oldTableName: string, newTableName: string) => Promise<void>;
         queryAllTables: () => Promise<ITreeNode[]>;
         updateNodeList: () => Promise<void>;
@@ -1038,14 +1214,14 @@ declare module "hooks/use-sqlite" {
         handleSql: (sql: string) => Promise<boolean>;
         undo: () => Promise<void>;
         redo: () => Promise<void>;
-        withTransaction: (callback: () => Promise<void>) => Promise<void>;
-        createDoc: (docName: string, parent_id?: string) => Promise<string>;
+        createDoc: (docName: string, parent_id?: string, nodeId?: string) => Promise<string>;
         updateDoc: (docId: string, content: string, markdown: string) => Promise<void>;
         renameNode: (nodeId: string, newName: string) => Promise<void>;
         getDoc: (docId: string) => Promise<any>;
         deleteNode: (node: ITreeNode) => Promise<void>;
         restoreNode: (node: ITreeNode) => Promise<void>;
         toggleNodeFullWidth: (node: ITreeNode) => Promise<void>;
+        toggleNodeLock: (node: ITreeNode) => Promise<void>;
         permanentlyDeleteNode: (node: ITreeNode) => Promise<void>;
         getOrCreateTableSubDoc: (data: {
             docId: string;
@@ -1061,11 +1237,11 @@ declare module "hooks/use-current-node" {
         [nodeId: string]: ITreeNode;
     };
     export const useCurrentNode: () => ITreeNode;
-    type INodePath = ITreeNode & {
+    export type INodePath = ITreeNode & {
         path?: string;
     };
     export const useCurrentNodePath: ({ nodeId, parentId, }: {
-        nodeId: string;
+        nodeId?: string;
         parentId?: string;
     }) => INodePath[];
 }
@@ -1468,15 +1644,16 @@ declare module "lib/fields/lookup" {
     }
 }
 declare module "components/grid/cells/select-cell" {
-    import { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid";
+    import { CustomCell, CustomRenderer, ProvideEditorCallback } from "@glideapps/glide-data-grid";
     import { SelectOption } from "lib/fields/select";
     interface SelectCellProps {
         readonly kind: "select-cell";
-        readonly value: string;
+        readonly value: string | null;
         readonly allowedValues: readonly SelectOption[];
         readonly readonly?: boolean;
     }
     export type SelectCell = CustomCell<SelectCellProps>;
+    export const Editor: ReturnType<ProvideEditorCallback<SelectCell>>;
     const renderer: CustomRenderer<SelectCell>;
     export default renderer;
 }
@@ -1496,12 +1673,21 @@ declare module "lib/fields/select" {
     export class SelectField extends BaseField<SelectCell, SelectProperty> {
         static type: FieldType;
         static colors: {
-            name: string;
-            value: string;
-        }[];
+            light: {
+                name: string;
+                value: string;
+            }[];
+            dark: {
+                name: string;
+                value: string;
+            }[];
+        };
         static defaultColor: string;
-        static colorNameValueMap: Record<string, string>;
-        static getColorValue(colorName: string): string;
+        static colorNameValueMap: {
+            light: Record<string, string>;
+            dark: Record<string, string>;
+        };
+        static getColorValue(colorName: string, theme?: "light" | "dark"): string;
         get compareOperators(): CompareOperator[];
         get options(): SelectOption[];
         rawData2JSON(rawData: any): string;
@@ -1525,23 +1711,27 @@ declare module "lib/fields/select" {
         changeOptionColor(id: string, newColor: string): void;
         addOption(name: string): SelectOption[];
         deleteOption(id: string): void;
-        /**
-         * @param text tag1
-         * return tag1id
-         */
-        text2RawData(text: string | undefined): string;
     }
 }
+declare module "components/table/cell-editor/common" {
+    import { SelectOption } from "lib/fields/select";
+    export const EmptyValue: () => import("react/jsx-runtime").JSX.Element;
+    export const SelectOptionItem: ({ option, theme, }: {
+        option: SelectOption;
+        theme?: string;
+    }) => import("react/jsx-runtime").JSX.Element;
+}
 declare module "components/grid/cells/multi-select-cell" {
-    import { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid";
+    import { CustomCell, CustomRenderer, ProvideEditorCallback } from "@glideapps/glide-data-grid";
     import { SelectOption } from "lib/fields/select";
     interface MultiSelectCellProps {
         readonly kind: "multi-select-cell";
-        readonly values: readonly string[];
+        readonly values: readonly string[] | null;
         readonly readonly?: boolean;
         readonly allowedValues: readonly SelectOption[];
     }
     export type MultiSelectCell = CustomCell<MultiSelectCellProps>;
+    export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>>;
     const renderer: CustomRenderer<MultiSelectCell>;
     export default renderer;
 }
@@ -1569,8 +1759,10 @@ declare module "lib/fields/multi-select" {
          * @param text tag1,tag2
          * return tag1id,tag2id
          */
-        text2RawData(text: string): string;
         cellData2RawData(cell: MultiSelectCell): {
+            rawData: any;
+            shouldUpdateColumnProperty?: undefined;
+        } | {
             rawData: string;
             shouldUpdateColumnProperty: boolean;
         };
@@ -1707,6 +1899,7 @@ declare module "worker/web-worker/sdk/rows" {
             fieldRawColumnNameFieldMap: Record<string, IField>;
             fieldNameRawColumnNameMap: Record<string, string>;
         };
+        tableManager: TableManager;
         constructor(table: TableManager);
         static getReadableRows(rows: Record<string, any>[], fields: IField[]): Record<string, any>[];
         getFieldMap(): Promise<{
@@ -1743,9 +1936,11 @@ declare module "worker/web-worker/sdk/rows" {
             limit?: number;
             offset?: number;
             raw?: boolean;
+            select?: string[];
         }): Promise<Record<string, any>[]>;
         getCreateData(data: Record<string, any>): Record<string, any>;
         getUpdateData(data: Record<string, any>): {
+            _last_edited_time: string;
             _last_edited_by: string;
         };
         /**
@@ -1765,9 +1960,11 @@ declare module "worker/web-worker/sdk/rows" {
             useFieldId?: boolean;
         }): Promise<Record<string, any>>;
         delete(id: string): Promise<boolean>;
+        private updateCellSideEffect;
         update(id: string, data: Record<string, any>, options?: {
             useFieldId?: boolean;
         }): Promise<{
+            _last_edited_time: string;
             _last_edited_by: string;
             id: string;
         }>;
@@ -1902,6 +2099,7 @@ declare module "worker/web-worker/sdk/service/multi-select" {
         private table;
         dataSpace: DataSpace;
         constructor(table: TableManager);
+        updateFieldPropertyIfNeed: (field: IField<SelectProperty>, value: string) => Promise<void>;
         updateSelectOptionName: (field: IField<SelectProperty>, update: {
             from: string;
             to: string;
@@ -1918,6 +2116,7 @@ declare module "worker/web-worker/sdk/service/select" {
         private table;
         dataSpace: DataSpace;
         constructor(table: TableManager);
+        updateFieldPropertyIfNeed: (field: IField<SelectProperty>, value: string) => Promise<void>;
         updateSelectOptionName: (field: IField<SelectProperty>, update: {
             from: string;
             to: string;
@@ -2034,7 +2233,7 @@ declare module "worker/web-worker/data-pipeline/LinkRelationUpdater" {
         addCell: (tableName: string, tableColumnName: string, rowId: string) => void;
     }
 }
-declare module "worker/web-worker/data-pipeline/sql_undo_redo_v2" {
+declare module "worker/web-worker/data-pipeline/UndoRedo" {
     import { DataSpace } from "worker/web-worker/DataSpace";
     interface StackEntry {
         begin: number;
@@ -2052,6 +2251,7 @@ declare module "worker/web-worker/data-pipeline/sql_undo_redo_v2" {
     export class SQLiteUndoRedo {
         undo: UndoRedoState;
         db: DataSpace;
+        triggerNames: string[];
         constructor(db: DataSpace);
         activate(tables: string[]): void;
         deactivate(): void;
@@ -2169,6 +2369,7 @@ declare module "worker/web-worker/meta-table/column" {
     }
 }
 declare module "worker/web-worker/meta-table/doc" {
+    import { Email } from "postal-mime";
     import { BaseTable, BaseTableImpl } from "worker/web-worker/meta-table/base";
     export interface IDoc {
         id: string;
@@ -2197,6 +2398,30 @@ declare module "worker/web-worker/meta-table/doc" {
             result: string;
         }[]>;
         createOrUpdateWithMarkdown(id: string, mdStr: string): Promise<{
+            id: string;
+            success: boolean;
+            msg?: undefined;
+        } | {
+            id: string;
+            success: boolean;
+            msg: string;
+        }>;
+        createOrUpdate(data: {
+            id: string;
+            text: string | Email;
+            type: "html" | "markdown" | "email";
+            mode?: "replace" | "append";
+        }): Promise<{
+            id: string;
+            success: boolean;
+            msg?: undefined;
+        } | {
+            id: string;
+            success: boolean;
+            msg: string;
+        }>;
+        static mergeState: (oldState: string, newState: string) => string;
+        _createOrUpdate(id: string, content: string, markdown: string, mode?: "replace" | "append"): Promise<{
             id: string;
             success: boolean;
             msg?: undefined;
@@ -2263,15 +2488,21 @@ declare module "worker/web-worker/meta-table/script" {
         outputJSONSchema?: JsonSchema7ObjectType;
         asTableAction?: boolean;
     }
+    export interface IPromptConfig {
+        model?: string;
+        actions?: string[];
+    }
     export interface IScript {
         id: string;
         name: string;
-        type: "script" | "udf" | "prompt";
+        type: "script" | "udf" | "prompt" | "block" | "app";
         description: string;
         version: string;
         code: string;
+        ts_code?: string;
         enabled?: boolean;
         model?: string;
+        prompt_config?: IPromptConfig;
         commands: ICommand[];
         tables?: {
             name: string;
@@ -2323,11 +2554,25 @@ declare module "worker/web-worker/meta-table/tree" {
         pin(id: string, is_pinned: boolean): Promise<boolean>;
         del(id: string, db?: import("@sqlite.org/sqlite-wasm").Database): Promise<boolean>;
         makeProxyRow(row: any): ITreeNode;
-        list(qs: {
+        query(qs: {
             query?: string;
             withSubNode?: boolean;
         }): Promise<ITreeNode[]>;
         moveIntoTable(id: string, tableId: string, parentId?: string): Promise<boolean>;
+        /**
+         * id: uuid without '-'
+         * miniId: last 8 char of id. most of time, it's enough to identify a node
+         * @param idOrMiniId
+         */
+        getNode(idOrMiniId: string): Promise<ITreeNode | null>;
+        checkLoop(id: string, parentId: string): Promise<void>;
+        private getAdjacencyList;
+        private dfs;
+        getPosition(props: {
+            parentId?: string;
+            targetId: string;
+            targetDirection: "up" | "down";
+        }): Promise<number>;
     }
 }
 declare module "lib/sqlite/sql-parser" {
@@ -2374,7 +2619,7 @@ declare module "worker/web-worker/DataSpace" {
     import { DataChangeEventHandler } from "worker/web-worker/data-pipeline/DataChangeEventHandler";
     import { DataChangeTrigger } from "worker/web-worker/data-pipeline/DataChangeTrigger";
     import { LinkRelationUpdater } from "worker/web-worker/data-pipeline/LinkRelationUpdater";
-    import { SQLiteUndoRedo } from "worker/web-worker/data-pipeline/sql_undo_redo_v2";
+    import { SQLiteUndoRedo } from "worker/web-worker/data-pipeline/UndoRedo";
     import { ActionTable } from "worker/web-worker/meta-table/action";
     import { BaseTable } from "worker/web-worker/meta-table/base";
     import { ColumnTable } from "worker/web-worker/meta-table/column";
@@ -2424,6 +2669,7 @@ declare module "worker/web-worker/DataSpace" {
             to: string;
         }) => Promise<void>;
         setRow(tableId: string, rowId: string, data: any): Promise<{
+            _last_edited_time: string;
             _last_edited_by: string;
             id: string;
         }>;
@@ -2432,10 +2678,7 @@ declare module "worker/web-worker/DataSpace" {
             rowId: string;
             fieldId: string;
             value: any;
-        }): Promise<{
-            _last_edited_by: string;
-            id: string;
-        }>;
+        }): Promise<void>;
         getRow(tableId: string, rowId: string): Promise<Record<string, any>>;
         deleteRowsByRange(range: {
             startIndex: number;
@@ -2495,13 +2738,37 @@ declare module "worker/web-worker/DataSpace" {
          * @param parent_id
          * @returns
          */
-        createOrUpdateDocWithMarkdown(docId: string, mdStr: string, parent_id?: string, title?: string): Promise<any>;
+        createOrUpdateDocWithMarkdown(docId: string, mdStr: string, parent_id?: string, title?: string): Promise<{
+            id: string;
+            success: boolean;
+            msg?: undefined;
+        } | {
+            id: string;
+            success: boolean;
+            msg: string;
+        }>;
+        createOrUpdateDoc(data: {
+            docId: string;
+            content: string;
+            type: "html" | "markdown" | "email";
+            parent_id?: string;
+            title?: string;
+            mode?: "replace" | "append";
+        }): Promise<{
+            id: string;
+            success: boolean;
+            msg?: undefined;
+        } | {
+            id: string;
+            success: boolean;
+            msg: string;
+        }>;
         deleteDoc(docId: string): Promise<void>;
         fullTextSearch(query: string): Promise<{
             id: string;
             result: string;
         }[]>;
-        createTable(id: string, name: string, tableSchema: string): Promise<void>;
+        createTable(id: string, name: string, tableSchema: string, parent_id?: string): Promise<void>;
         importCsv(file: File): Promise<string>;
         exportCsv(tableId: string): Promise<File>;
         importMarkdown(file: File): Promise<string>;
@@ -2526,11 +2793,16 @@ declare module "worker/web-worker/DataSpace" {
         updateTreeNodePosition(id: string, position: number): Promise<boolean>;
         pinNode(id: string, isPinned: boolean): Promise<boolean>;
         toggleNodeFullWidth(id: string, isFullWidth: boolean): Promise<boolean>;
-        updateTreeNodeName(id: string, name: string): Promise<any>;
+        toggleNodeLock(id: string, isLocked: boolean): Promise<boolean>;
+        updateTreeNodeName(id: string, name: string): Promise<void>;
         addTreeNode(data: ITreeNode): Promise<ITreeNode>;
         getOrCreateTreeNode(data: ITreeNode): Promise<ITreeNode>;
         getTreeNode(id: string): Promise<ITreeNode>;
         moveDraftIntoTable(id: string, tableId: string, parentId?: string): Promise<boolean>;
+        nodeChangeParent(id: string, parentId?: string, opts?: {
+            targetId: string;
+            targetDirection: "up" | "down";
+        }): Promise<Partial<ITreeNode>>;
         listUiColumns(tableName: string): Promise<IField[]>;
         /**
          * this will return all ui columns in this space
@@ -2540,7 +2812,7 @@ declare module "worker/web-worker/DataSpace" {
         listAllUiColumns(): Promise<any[]>;
         undo(): void;
         redo(): void;
-        private activeAllTablesUndoRedo;
+        private activeTablesUndoRedo;
         execute(sql: string, bind?: any[]): {
             fetchone: () => any;
             fetchall: () => any[];
@@ -2573,7 +2845,6 @@ declare module "worker/web-worker/DataSpace" {
         sql4mainThread(sql: string, bind?: any[], rowMode?: "object" | "array"): Promise<any[]>;
         sql4mainThread2(sql: string, bind?: any[]): Promise<any[]>;
         onUpdate(): void;
-        withTransaction(fn: Function): Promise<any>;
         notify(msg: {
             title: string;
             description: string;
