@@ -251,7 +251,7 @@ export default function Chat() {
           </div>
         </div>
       </ScrollArea>
-      <div className="shrink-0">
+      <div className="relative shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex min-w-[200px]  gap-2">
             <Switch
@@ -290,10 +290,9 @@ export default function Chat() {
             </Button>
           </div>
         </div>
-
         <div
           id="circle"
-          className=" absolute right-0 z-10 ml-0 h-1 rounded-sm bg-green-300 opacity-50"
+          className=" absolute right-0 top-0 z-10 ml-0 h-1 rounded-sm bg-green-300 opacity-50"
         ></div>
         <AIInputEditor
           enableRAG={withSpaceData}
