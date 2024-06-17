@@ -65,7 +65,7 @@ export const BuildYourOwn = () => {
   return (
     <>
       <div className=" text-2xl">
-        Building your own{" "}
+        Build your own{" "}
         <Typewriter
           texts={texts}
           colors={colors}

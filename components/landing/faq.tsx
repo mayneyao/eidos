@@ -7,6 +7,17 @@ import {
 
 const items = [
   {
+    question: "What browsers are supported?",
+    answer: (
+      <p>
+        Eidos uses many next-generation web APIs to provide a better UX & DX. To
+        get the best experience, use the latest {`version(> 122)`} of
+        chromium-based browsers. Safari, Firefox, and other browsers are not
+        tested yet.
+      </p>
+    ),
+  },
+  {
     question: "Where is the data stored?",
     answer: (
       <p>
@@ -39,6 +50,31 @@ const items = [
             , requires chromium-based browser. {`version > 122`}
           </li>
         </ol>
+      </p>
+    ),
+  },
+  {
+    question: "How does offline AI work?",
+    answer: (
+      <p>
+        Eidos uses{" "}
+        <a
+          href="https://webllm.mlc.ai/"
+          className="text-blue-500"
+          target="_blank"
+        >
+          WebLLM
+        </a>{" "}
+        and{" "}
+        <a
+          href="https://huggingface.co/docs/transformers.js/index"
+          className="text-blue-500"
+          target="_blank"
+        >
+          transformers.js
+        </a>{" "}
+        to provide offline AI capabilities. The model is downloaded once and
+        stored locally.
       </p>
     ),
   },
