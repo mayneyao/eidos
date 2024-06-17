@@ -7,7 +7,7 @@ export default function SettingsGeneralPage() {
       <div>
         <h3 className="text-lg font-medium">General</h3>
         <p className="text-sm text-muted-foreground">
-          This is how others will see you when collaborating.
+          How others will see you when collaborating.
         </p>
       </div>
       <Separator />

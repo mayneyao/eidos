@@ -34,6 +34,16 @@ const sidebarNavItems = [
     href: "/settings/backup",
   },
   {
+    title: "Sync",
+    href: "/settings/sync",
+    disabled: true,
+  },
+  {
+    title: "Security",
+    href: "/settings/security",
+    disabled: true,
+  },
+  {
     title: "Experiment",
     href: "/settings/experiment",
   },

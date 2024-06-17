@@ -4,6 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { ControllerRenderProps, useForm } from "react-hook-form"
 import * as z from "zod"
 
+import { efsManager } from "@/lib/storage/eidos-file-system"
+import { useActivationCodeStore } from "@/hooks/use-activation"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { toast } from "@/components/ui/use-toast"
 import {
   Form,
   FormControl,
@@ -12,12 +18,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { toast } from "@/components/ui/use-toast"
-import { useActivationCodeStore } from "@/hooks/use-activation"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 
 import { useConfigStore } from "./store"
 
@@ -89,7 +89,7 @@ export function ProfileForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <div className="flex items-start gap-4">
+        <div className="flex items-center gap-4">
           <FormField
             control={form.control}
             name="avatar"
@@ -99,7 +99,7 @@ export function ProfileForm() {
                   className="h-[64px] w-[64px]"
                   onClick={() => handleChangeAvatar(field)}
                 >
-                  <AvatarImage src={field.value} className=" object-cover"/>
+                  <AvatarImage src={field.value} className=" object-cover" />
                   <AvatarFallback>
                     {form.getValues("username")?.[0]?.toUpperCase() ?? "E"}
                   </AvatarFallback>
@@ -124,7 +124,7 @@ export function ProfileForm() {
             )}
           />
         </div>
-        <FormItem className="flex items-center gap-2">
+        <FormItem className="flex items-baseline gap-2">
           <FormLabel className="  whitespace-nowrap">Client ID</FormLabel>
           <FormControl>
             <Input disabled value={clientId} />

@@ -1,7 +1,6 @@
 "use client"
 
-import { Link,useLocation  } from "react-router-dom";
-
+import { Link, useLocation } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
@@ -10,6 +9,7 @@ interface SidebarNavProps extends React.HTMLAttributes<HTMLElement> {
   items: {
     href: string
     title: string
+    disabled?: boolean
   }[]
 }
 
@@ -35,7 +35,12 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
             pathname === item.href
               ? "bg-muted hover:bg-muted"
               : "hover:bg-transparent hover:underline",
-            "justify-start"
+            "justify-start",
+            {
+              "cursor-not-allowed": item.disabled,
+              "pointer-events-none": item.disabled,
+              "opacity-50": item.disabled,
+            }
           )}
         >
           {item.title}
