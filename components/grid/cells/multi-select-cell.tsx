@@ -1,3 +1,4 @@
+import * as React from "react"
 import {
   CustomCell,
   CustomRenderer,
@@ -8,9 +9,9 @@ import {
   measureTextCached,
 } from "@glideapps/glide-data-grid"
 import { XIcon } from "lucide-react"
-import * as React from "react"
 
-import { SelectOptionItem } from "@/components/table/cell-editor/common"
+import { SelectField, SelectOption } from "@/lib/fields/select"
+import { cn } from "@/lib/utils"
 import {
   Command,
   CommandEmpty,
@@ -23,8 +24,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { SelectField, SelectOption } from "@/lib/fields/select"
-import { cn } from "@/lib/utils"
+import { SelectOptionItem } from "@/components/table/cell-editor/common"
 
 import { roundedRect } from "./helper"
 
@@ -127,12 +127,13 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
         handleSelect(currentOptionId)
         setInputValue("")
       } else {
+        if (!inputValue?.length) return
         // is creating new option
-        handleSelect(currentSelect)
+        handleSelect(inputValue)
         setInputValue("")
         setNewOptions([
           ...newOptions,
-          { id: currentSelect, name: currentSelect, color: "default" },
+          { id: inputValue, name: inputValue, color: "default" },
         ])
       }
     }

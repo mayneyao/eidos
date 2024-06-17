@@ -94,14 +94,15 @@ export const MultiSelectEditor = ({
         handleSelect(currentOptionId)
         setInputValue("")
       } else {
+        if (!inputValue?.length) return
         // is creating new option
-        handleSelect(currentSelect)
+        handleSelect(inputValue)
         setInputValue("")
         setOldOptionsMap({
           ...optionsMap,
-          [currentSelect]: {
-            id: currentSelect,
-            name: currentSelect,
+          [inputValue]: {
+            id: inputValue,
+            name: inputValue,
             color: "default",
           },
         })
@@ -182,7 +183,8 @@ export const MultiSelectEditor = ({
                 </CommandItem>
               ))}
               {Boolean(inputValue.length) &&
-                allOptions.findIndex((item) => item.name == inputValue) == -1 && (
+                allOptions.findIndex((item) => item.name == inputValue) ==
+                  -1 && (
                   <CommandItem
                     autoFocus
                     key={inputValue}
