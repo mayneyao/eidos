@@ -3,11 +3,11 @@ import { Link } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { TextAnimate } from "@/components/ui/text-animate"
-import { Typewriter } from "@/components/ui/typewriter"
 import { EidosIcon } from "@/components/icons/eidos"
 
 import { Activation } from "./activation"
 import { BuildYourOwn } from "./build-your-own"
+import { FAQ } from "./faq"
 import { Features } from "./features"
 
 export const Landing = () => {
@@ -30,12 +30,18 @@ export const Landing = () => {
         </Link>
         <div className="h-full grow" id="drag-region" />
         <nav className="ml-auto flex gap-4 sm:gap-6">
-          {/* <Link
+          <a
             className="text-sm font-medium underline-offset-4 hover:underline"
-            to="#features"
+            href="#features"
           >
             Features
-          </Link> */}
+          </a>
+          <a
+            className="text-sm font-medium underline-offset-4 hover:underline"
+            href="#faq"
+          >
+            FAQ
+          </a>
           {/* <Link
             className="text-sm font-medium underline-offset-4 hover:underline"
             to="https://wiki.eidos.space"
@@ -83,8 +89,10 @@ export const Landing = () => {
                 />
                 <p className="mx-auto max-w-[700px] text-gray-500 dark:text-gray-400 md:text-xl">
                   A basic framework tool <br />
-                  for recording and managing your personal data throughout your
-                  lifetime in one place.
+                  for managing your{" "}
+                  <span className=" text-purple-500">personal data</span>{" "}
+                  throughout your lifetime in{" "}
+                  <span className=" text-purple-500">one place</span>.
                 </p>
                 <BuildYourOwn />
               </div>
@@ -134,9 +142,9 @@ export const Landing = () => {
               <div className="grid gap-1">
                 <h3 className="text-lg font-bold">AI Features </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Eidos AI helps you communicate with your data, including
-                  documents, tables, files, and more. Explore a wide range of AI
-                  features.
+                  Deeply integrated with LLM, it makes your life easier with AI.
+                  You can translate, summarize, talk to your data, and more -
+                  all within Eidos.
                   <br />
                   AI can also work{" "}
                   <span className=" text-purple-500">offline</span>.
@@ -156,6 +164,13 @@ export const Landing = () => {
                   <span className=" text-purple-500"> open-source</span>{" "}
                   project, and this ensures that code doesn't lie, which is
                   essential for software freedom.
+                </p>
+              </div>
+              <div className="grid gap-1">
+                <h3 className="text-lg font-bold">Open Format</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Eidos uses open formats to store data, which means you can
+                  access your data with other software.
                 </p>
               </div>
             </div>
@@ -187,8 +202,16 @@ export const Landing = () => {
           </div>
         </section> */}
         <section
+          id="faq"
+          className="w-full  bg-gray-100 py-6 dark:bg-gray-800 md:py-24 lg:py-32"
+        >
+          <div className="mx-auto grid max-w-sm items-start gap-12 sm:max-w-xl lg:max-w-2xl">
+            <FAQ />
+          </div>
+        </section>
+        <section
           id="#join"
-          className="w-full bg-gray-100 py-12 dark:bg-gray-800 md:py-24 lg:py-32"
+          className="w-full py-12 md:py-24 lg:py-32"
           tabIndex={-1}
         >
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">

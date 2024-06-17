@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx"
+import { times } from "lodash"
 import { twMerge } from "tailwind-merge"
 import { v4 as uuidv4 } from "uuid"
 
@@ -148,6 +149,11 @@ export const isDayPageId = (id: string) => {
   return /^\d{4}-\d{2}-\d{2}$/g.test(id)
 }
 
+/**
+ * Returns a string representing the time elapsed since the given date.
+ * @param date - The date to calculate the time elapsed from.
+ * @returns A string representing the time elapsed in a human-readable format.
+ */
 export function timeAgo(date: Date) {
   const now = new Date().getTime()
   const diffInSeconds = Math.floor((now - date.getTime()) / 1000)

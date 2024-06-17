@@ -89,7 +89,7 @@ export function ProfileForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           <FormField
             control={form.control}
             name="avatar"
@@ -99,7 +99,7 @@ export function ProfileForm() {
                   className="h-[64px] w-[64px]"
                   onClick={() => handleChangeAvatar(field)}
                 >
-                  <AvatarImage src={field.value} />
+                  <AvatarImage src={field.value} className=" object-cover"/>
                   <AvatarFallback>
                     {form.getValues("username")?.[0]?.toUpperCase() ?? "E"}
                   </AvatarFallback>

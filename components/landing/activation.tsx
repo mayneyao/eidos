@@ -1,10 +1,9 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
+import { useActivation } from "@/hooks/use-activation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useActivation } from "@/hooks/use-activation"
-
 
 export const Activation = () => {
   const { active, isActivated } = useActivation()
@@ -18,7 +17,7 @@ export const Activation = () => {
   }
   if (isActivated) {
     return (
-      <div>
+      <div id="active-selection">
         🎉You have already activated Eidos.
         <Button size="xs" variant="ghost" onClick={() => nav("/")}>
           Open App
@@ -27,7 +26,10 @@ export const Activation = () => {
     )
   }
   return (
-    <div className="flex w-full flex-col items-center justify-center">
+    <div
+      className="flex w-full flex-col items-center justify-center"
+      id="active-selection"
+    >
       <div className="flex gap-2">
         <Input
           // autoFocus
