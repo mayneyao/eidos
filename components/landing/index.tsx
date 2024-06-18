@@ -78,16 +78,16 @@ export const Landing = () => {
               : "rgba(155, 1, 221, 0.5)"
           }
         /> */}
-        <section className="w-full overflow-hidden py-12 md:py-24 lg:py-32 xl:py-48">
+        <section className="w-full overflow-hidden py-12 !pt-3  md:py-24 lg:py-32 xl:py-48">
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center space-y-4 text-center">
-              <div className="space-y-2">
+              <div className="w-full space-y-2 md:w-[80%]">
                 <TextAnimate
                   text="Everyone's eidos space"
                   type="rollIn"
                   className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl/none"
                 />
-                <p className="mx-auto max-w-[700px] text-gray-500 dark:text-gray-400 md:text-xl">
+                <p className="mx-auto text-gray-500 dark:text-gray-400  md:text-xl ">
                   A basic framework tool <br />
                   for managing your{" "}
                   <span className=" text-purple-500">personal data</span>{" "}
@@ -117,26 +117,28 @@ export const Landing = () => {
                 </h2>
                 <p className="max-w-[900px] text-gray-500 dark:text-gray-400 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                   Get your data back from cloud providers and merge it into one
-                  place, <br /> which makes linking your data easier. <br />
+                  place.
+                  <br />
                   You truly own your data, with complete control!
                 </p>
               </div>
             </div>
             <div className="mx-auto grid max-w-sm items-start gap-8 sm:max-w-4xl sm:grid-cols-2 md:gap-12 lg:max-w-5xl lg:grid-cols-3">
               <div className="grid gap-1">
-                <h3 className="text-lg font-bold">Web First</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Eidos is a web application with no web server.
-                  <br />
-                  Everything runs inside your browser.
-                </p>
-              </div>
-              <div className="grid gap-1">
                 <h3 className="text-lg font-bold">Offline Support</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   You can access your data without an internet connection, Data
                   is stored on your local device. It's{" "}
                   <span className=" text-purple-500"> blazing fast</span> <br />
+                </p>
+              </div>
+
+              <div className="grid gap-1">
+                <h3 className="text-lg font-bold">Web is all you need</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Eidos is a web application with no web server.
+                  <br />
+                  Everything runs inside your browser.
                 </p>
               </div>
               <div className="grid gap-1">
@@ -151,19 +153,20 @@ export const Landing = () => {
                 </p>
               </div>
               <div className="grid gap-1">
-                <h3 className="text-lg font-bold">Extension First</h3>
+                <h3 className="text-lg font-bold">Extendable</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Build your own unique Eidos with a customizable extension
-                  system. It's easy to extend and customize.
+                  Eidos has a highly customizable{" "}
+                  <span className=" text-purple-500">extension system</span>.
+                  You can build your own unique Eidos. It's easy to extend and
+                  customize.
                 </p>
               </div>
               <div className="grid gap-1">
                 <h3 className="text-lg font-bold">Open Source</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Eidos is an{" "}
-                  <span className=" text-purple-500"> open-source</span>{" "}
-                  project, and this ensures that code doesn't lie, which is
-                  essential for software freedom.
+                  Eidos is an open-source project, ensuring that the code is
+                  transparent, which is essential for{" "}
+                  <span className=" text-purple-500">software freedom</span>
                 </p>
               </div>
               <div className="grid gap-1">

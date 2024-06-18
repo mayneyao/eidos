@@ -1,3 +1,5 @@
+import AnimatedGradientText from "@/components/magicui/animated-gradient-text"
+
 import { FeatureCard, IFeatureCard } from "./card"
 
 const features: IFeatureCard[] = [
@@ -52,8 +54,17 @@ const features: IFeatureCard[] = [
 const extendFeatures: IFeatureCard[] = [
   {
     title: "Prompt",
-    description:
-      "Code knowledge is not required. You can use the Prompt extension to speed up your workflow, and what you SAY is what you get.",
+    description: (
+      <p>
+        Code knowledge is not required.
+        <br />
+        You can use the Prompt extension to speed up your workflow. Just like
+        magic,{" "}
+        <span className="animate-gradient inline bg-gradient-to-r from-[#ffaa40] via-[#9c40ff] to-[#ffaa40] bg-[length:var(--bg-size)_100%] bg-clip-text text-transparent">
+          what you SAY is what you get.
+        </span>
+      </p>
+    ),
     lightImageUrl: "/show/custom-ai-prompt.webp",
     imgCls: "bg-indigo-100",
   },

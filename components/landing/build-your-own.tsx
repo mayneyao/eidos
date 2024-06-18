@@ -8,6 +8,7 @@ import { Typewriter } from "../ui/typewriter"
 const texts = [
   "📚 bookmark",
   "📖 reading list",
+  "🧠 AI-powered second brain",
   "🍳 recipes",
   "🎮 game collection",
   // "📷 photo album",
@@ -19,13 +20,14 @@ const colors = [
   "text-blue-400",
   "text-pink-400",
   "text-yellow-400",
-  "text-green-400",
+  // "text-green-400",
   "text-red-400",
 ]
 
 const images = [
   "/show/bookmark.webp",
   "/show/reading-list.webp",
+  "/show/ai-powered-second-brain.webp",
   "/show/recipes.webp",
   "/show/games.webp",
   // "/show/photos.webp",
@@ -51,7 +53,7 @@ export const BuildYourOwn = () => {
       x: "0",
       opacity: 1,
       transition: {
-        duration: 1.5,
+        duration: 2,
       },
     },
     exit: {
