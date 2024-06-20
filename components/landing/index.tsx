@@ -66,33 +66,24 @@ export const Landing = () => {
         </nav>
       </header>
       <main>
-        {/* <SparklesCore
-          background="transparent"
-          minSize={0.4}
-          maxSize={1}
-          particleDensity={20}
-          className="pointer-events-none absolute inset-0 z-0 h-screen w-screen"
-          particleColor={
-            theme === "dark"
-              ? "rgba(255,255,255,0.5)"
-              : "rgba(155, 1, 221, 0.5)"
-          }
-        /> */}
-        <section className="w-full overflow-hidden py-12 !pt-3  md:py-24 lg:py-32 xl:py-48">
+        <section className="w-full overflow-hidden py-12 !pt-12  md:py-24 lg:py-32 xl:py-48">
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center space-y-4 text-center">
               <div className="w-full space-y-2 md:w-[80%]">
                 <TextAnimate
-                  text="Everyone's eidos space"
+                  text="Offline alternative to Notion"
                   type="rollIn"
                   className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl/none"
                 />
                 <p className="mx-auto text-gray-500 dark:text-gray-400  md:text-xl ">
-                  A basic framework tool <br />
+                  Eidos is an {"  "}
+                  <span className=" text-purple-500">
+                    extensible
+                  </span> framework <br />
                   for managing your{" "}
                   <span className=" text-purple-500">personal data</span>{" "}
-                  throughout your lifetime in{" "}
-                  <span className=" text-purple-500">one place</span>.
+                  throughout your lifetime in
+                  <span className=" text-purple-500"> one place</span>
                 </p>
                 <BuildYourOwn />
               </div>
@@ -116,8 +107,8 @@ export const Landing = () => {
                   Privacy-first. Local-first.
                 </h2>
                 <p className="max-w-[900px] text-gray-500 dark:text-gray-400 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  Get your data back from cloud providers and merge it into one
-                  place.
+                  Get your data back from cloud providers and merge them into
+                  one place.
                   <br />
                   You truly own your data, with complete control!
                 </p>
@@ -153,7 +144,7 @@ export const Landing = () => {
                 </p>
               </div>
               <div className="grid gap-1">
-                <h3 className="text-lg font-bold">Extendable</h3>
+                <h3 className="text-lg font-bold">Extensible</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Eidos has a highly customizable{" "}
                   <span className=" text-purple-500">extension system</span>.
@@ -208,7 +199,7 @@ export const Landing = () => {
           id="faq"
           className="w-full  bg-gray-100 py-6 dark:bg-gray-800 md:py-24 lg:py-32"
         >
-          <div className="mx-auto grid max-w-sm items-start gap-12 sm:max-w-xl lg:max-w-2xl">
+          <div className="mx-auto grid max-w-sm items-start gap-12 sm:max-w-xl lg:max-w-3xl">
             <FAQ />
           </div>
         </section>

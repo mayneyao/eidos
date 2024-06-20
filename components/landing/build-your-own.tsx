@@ -81,7 +81,7 @@ export const BuildYourOwn = () => {
           target="_blank"
           to="https://store.eidos.space/buy/2397216c-4322-40fa-b425-681d455e6702"
         >
-          Get Early Access
+          Get Early Access Free
         </Link>
         <a
           href="#active-selection"
