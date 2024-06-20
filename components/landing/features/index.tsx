@@ -1,4 +1,3 @@
-import AnimatedGradientText from "@/components/magicui/animated-gradient-text"
 
 import { FeatureCard, IFeatureCard } from "./card"
 
@@ -73,6 +72,13 @@ const extendFeatures: IFeatureCard[] = [
     description: "Use JavaScript to customize your Formula function.",
     lightImageUrl: "/show/ext-udf-light.webp",
     imgCls: "p-2 bg-yellow-100",
+  },
+  {
+    title: "Script",
+    description:
+      "You can build your own data processing logic with TypeScript/JavaScript, which is really powerful.",
+    lightImageUrl: "/show/script.webp",
+    imgCls: "p-2 bg-pink-100",
   },
 ]
 
