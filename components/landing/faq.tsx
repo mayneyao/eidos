@@ -24,8 +24,8 @@ const items = [
         Eidos is a web application that stores data in your browser by default.
         However, you can choose to store data in a folder on your computer
         instead, and only need to give permission once. After that, Eidos will
-        remember this permission, so you won't need to authorized it every time
-        you use the app. just like a native app.
+        remember this permission, so you won't need to authorize it every time
+        you use the app. Just like a native app.
         <br />
         <br />
         <ol className="list-inside list-decimal">

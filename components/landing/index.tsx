@@ -10,6 +10,14 @@ import { BuildYourOwn } from "./build-your-own"
 import { FAQ } from "./faq"
 import { Features } from "./features"
 
+const ColorfulText = ({
+  children,
+  color = "bg-purple-200",
+}: {
+  children: React.ReactNode
+  color?: string
+}) => <span>{children}</span>
+
 export const Landing = () => {
   return (
     <div className="h-full w-full">
@@ -24,9 +32,15 @@ export const Landing = () => {
         )}
         id="title-bar"
       >
-        <Link className="mt-2 flex items-center justify-center gap-2" to="#">
+        <Link
+          className={cn("flex items-center justify-center gap-2", {
+            "mt-2": window.matchMedia("(display-mode: window-controls-overlay)")
+              .matches,
+          })}
+          to="#"
+        >
           <EidosIcon className="h-6 w-6" />{" "}
-          <span className=" text-2xl font-semibold">Eidos</span>
+          <span className=" text-xl font-semibold md:text-2xl">Eidos</span>
         </Link>
         <div className="h-full grow" id="drag-region" />
         <nav className="ml-auto flex gap-4 sm:gap-6">
@@ -77,13 +91,16 @@ export const Landing = () => {
                 />
                 <p className="mx-auto text-gray-500 dark:text-gray-400  md:text-xl ">
                   Eidos is an {"  "}
-                  <span className=" text-purple-500">
+                  <ColorfulText color="bg-red-400">
                     extensible
-                  </span> framework <br />
+                  </ColorfulText>{" "}
+                  framework <br />
                   for managing your{" "}
-                  <span className=" text-purple-500">personal data</span>{" "}
+                  <ColorfulText color="bg-purple-400">
+                    personal data
+                  </ColorfulText>{" "}
                   throughout your lifetime in
-                  <span className=" text-purple-500"> one place</span>
+                  <ColorfulText color="bg-blue-400"> one place</ColorfulText>
                 </p>
                 <BuildYourOwn />
               </div>
@@ -95,7 +112,7 @@ export const Landing = () => {
           className="w-full bg-gray-100 py-12 dark:bg-gray-800 md:py-24 lg:py-32"
           id="features"
         >
-          <div className="container space-y-12 px-4 xs:px-0 md:px-6">
+          <div className="container space-y-12 px-4 xs:px-4 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
                 <div className="inline-block rounded-lg bg-gray-100 px-3 py-1 text-sm dark:bg-gray-800">
@@ -103,8 +120,9 @@ export const Landing = () => {
                     <SparkleIcon className=" text-purple-500" /> Features
                   </span>
                 </div>
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">
-                  Privacy-first. Local-first.
+                <h2 className="flex  justify-center gap-4 text-3xl font-bold tracking-tighter sm:text-5xl">
+                  <span>Privacy-first.</span>
+                  <span>Local-first.</span>
                 </h2>
                 <p className="max-w-[900px] text-gray-500 dark:text-gray-400 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                   Get your data back from cloud providers and merge them into
@@ -120,7 +138,8 @@ export const Landing = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   You can access your data without an internet connection, Data
                   is stored on your local device. It's{" "}
-                  <span className=" text-purple-500"> blazing fast</span> <br />
+                  <span className=" text-purple-500"> blazing fast.</span>{" "}
+                  <br />
                 </p>
               </div>
 
@@ -157,7 +176,7 @@ export const Landing = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Eidos is an open-source project, ensuring that the code is
                   transparent, which is essential for{" "}
-                  <span className=" text-purple-500">software freedom</span>
+                  <span className=" text-purple-500">software freedom.</span>
                 </p>
               </div>
               <div className="grid gap-1">
@@ -174,30 +193,13 @@ export const Landing = () => {
           className="w-full py-12 md:py-24 lg:py-32"
           // id="features"
         >
-          <div className="container space-y-12 px-4 xs:px-0 md:px-6">
+          <div className="container space-y-12 px-4 md:px-6">
             <Features />
           </div>
         </section>
-        {/* <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48">
-          <div className="flex flex-col items-center justify-center space-y-4 text-center">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">
-                Building on modern web technologies
-              </h2>
-              <p className="max-w-[900px] text-gray-500 dark:text-gray-400 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                Eidos use many next-generation web api to provide a better user
-                experience.
-                <br />
-                <details>
-                  <summary>check out your browser compatibility</summary>
-                </details>
-              </p>
-            </div>
-          </div>
-        </section> */}
         <section
           id="faq"
-          className="w-full  bg-gray-100 py-6 dark:bg-gray-800 md:py-24 lg:py-32"
+          className="w-full  bg-gray-100 px-4 py-6 dark:bg-gray-800 md:py-24 lg:py-32"
         >
           <div className="mx-auto grid max-w-sm items-start gap-12 sm:max-w-xl lg:max-w-3xl">
             <FAQ />
@@ -205,7 +207,7 @@ export const Landing = () => {
         </section>
         <section
           id="#join"
-          className="w-full py-12 md:py-24 lg:py-32"
+          className="w-full py-12 xs:px-4 md:py-24 lg:py-32"
           tabIndex={-1}
         >
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
