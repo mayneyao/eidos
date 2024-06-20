@@ -45,7 +45,7 @@ const items = [
               className="text-blue-500"
               target="_blank"
             >
-              Native File System
+              Native File System(recommended)
             </a>
             , requires chromium-based browser. {`version > 122`}
           </li>

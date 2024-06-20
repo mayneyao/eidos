@@ -119,9 +119,9 @@ export const NavStatus = () => {
       <Button size="xs" variant="ghost" onClick={toggleAi}>
         <Bot className="h-5 w-5" />
       </Button>
-      <Button size="xs" variant="ghost" onClick={toggleExtApp}>
+      {/* <Button size="xs" variant="ghost" onClick={toggleExtApp}>
         <PanelRightIcon className="h-5 w-5" />
-      </Button>
+      </Button> */}
     </>
   )
 }
