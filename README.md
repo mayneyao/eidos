@@ -46,6 +46,7 @@ Eidos based on the following open-source projects:
 - [glide-data-grid](https://github.com/glideapps/glide-data-grid) - High performance table
 - [lexical](https://github.com/facebook/lexical) - Document editor
 - [web-llm](https://github.com/mlc-ai/web-llm) - Run LLM in the browser
+- [teable](https://github.com/teableio/teable) & [apitable](https://github.com/apitable/apitable) - Teach me how to build an Airtable-like table.
 
 ## License
 

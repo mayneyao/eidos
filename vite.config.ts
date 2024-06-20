@@ -27,19 +27,21 @@ const config = defineConfig({
       manifest: {
         name: "Eidos",
         short_name: "Eidos",
-        description: "an all-in-one workspace for everyone",
+        description:
+          "An extensible framework for managing your personal data throughout your lifetime in one place",
         theme_color: "#ffffff",
         icons: iconJson.icons,
         display_override: ["window-controls-overlay"],
         display: "standalone",
         // display: "standalone",
         file_handlers: [
-          {
-            action: "/editor/doc",
-            accept: {
-              "text/markdown": [".md", ".markdown"],
-            },
-          },
+          // not ready yet
+          // {
+          //   action: "/editor/doc",
+          //   accept: {
+          //     "text/markdown": [".md", ".markdown"],
+          //   },
+          // },
         ],
       },
       registerType: "prompt",

@@ -14,14 +14,22 @@ export interface ITypewriterProps {
 }
 
 function visibleLength(str: string) {
-  return [...new Intl.Segmenter().segment(str)].length
+  try {
+    return [...new Intl.Segmenter().segment(str)].length
+  } catch (error) {
+    return str.length
+  }
 }
 
 function sliceText(str: string, length: number) {
-  return [...new Intl.Segmenter().segment(str)]
-    .slice(0, length)
-    .map((s) => s.segment)
-    .join("")
+  try {
+    return [...new Intl.Segmenter().segment(str)]
+      .slice(0, length)
+      .map((s) => s.segment)
+      .join("")
+  } catch (error) {
+    return str.slice(0, length)
+  }
 }
 
 export function Typewriter({
