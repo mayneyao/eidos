@@ -48,6 +48,12 @@ export default function GalleryView({
     }
   }, [showFields.length])
 
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.resetAfterColumnIndex(0)
+    }
+  }, [columnCount, cardWidth])
+
   const getRowHeight = (row: number) => {
     const thisRowCardShowFieldCounts = data
       .slice(row * columnCount, (row + 1) * columnCount)
