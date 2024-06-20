@@ -1,37 +1,51 @@
 # Eidos
 
-a personal digital space for everyone that runs entirely in the browser, Notion-like but local/offline-first
+[Eidos](https://eidos.space/?home=1) is an extensible framework for managing your personal data throughout your lifetime in one place.
 
-Record and manage all of your personal data within a single sqlite file, take control of your own data and avoid cloud vendor lock-in.
+![eidos](/public/show/table-and-doc.webp)
 
 ## Features
 
-- 💻 Runs on web browsers without any installation required. PWA support.
-- 🔒 100% local-first, You own your data.
-- 🚀 lightning-fast without any server.
-- 🤖 Deeply integrated with AI to converse with your data in the most natural way.
-- 🚀 Easily extensible, you can expand field types, document blocks, and AI functions to create your own unique workspace.
+- Everything runs inside your browser: Your data is stored locally. PWA support.
+- Offline Support: Access your data without an internet connection. Data is stored locally for blazing-fast performance.
+- AI Features: Deeply integrated with LLM for AI-powered capabilities. Translate, summarize, and interact with your data within Eidos. AI works even offline.
+- Extensible: Customize Eidos to suit your needs.
 
-## Roadmap
+  - Prompt: Speed up your workflow with the Prompt extension. No coding required.
+  - UDF: Use JavaScript to customize Formula functions.
+  - Script: Create powerful data processing logic with TypeScript/JavaScript.
+  - App: Build your own app using any preferred framework.
+  - Block: Extend documents with custom blocks.
+  - Field: Extend tables with custom fields.
 
-see [Eidos Project](https://github.com/users/mayneyao/projects/5)
+- Developer Friendly:
+
+  - API & SDK
+  - Sqlite Standardization: Every table in Eidos is a SQLite table.
 
 ## How to develop
 
 1. Clone the repository `git clone git@github.com:mayneyao/eidos.git`
-2. Run `pnpm install`
-3. Run `pnpm dev`
-4. You can now access the app in your browser at http://localhost:5173
+2. Run `pnpm install` to install dependencies
+3. Run `pnpm build` (only needed once)
+4. Run `pnpm dev`
+5. You can now access the app in your browser at http://localhost:5173
 
-### generate sdk types
+### Generate sdk types
 
 ```shell
 pnpm gen-types
 ```
 
-## Contributions
+## Credits
 
-Contributions are welcome! Please submit a pull request on GitHub if you'd like to suggest any changes or additions to the project.
+Eidos based on the following open-source projects:
+
+- [sqlite-wasm](https://github.com/sqlite/sqlite-wasm) - Run SQLite in the browser
+- [shadcn-ui](https://github.com/shadcn-ui/ui) - UI components
+- [glide-data-grid](https://github.com/glideapps/glide-data-grid) - High performance table
+- [lexical](https://github.com/facebook/lexical) - Document editor
+- [web-llm](https://github.com/mlc-ai/web-llm) - Run LLM in the browser
 
 ## License
 

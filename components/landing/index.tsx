@@ -85,7 +85,7 @@ export const Landing = () => {
             <div className="flex flex-col items-center space-y-4 text-center">
               <div className="w-full space-y-2 md:w-[80%]">
                 <TextAnimate
-                  text="Offline alternative to Notion"
+                  text="Offline Alternative to Notion"
                   type="rollIn"
                   className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl/none"
                 />
