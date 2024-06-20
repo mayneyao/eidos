@@ -91,6 +91,8 @@ class ComponentPickerOption extends MenuOption {
   keywords: Array<string>
   // TBD
   keyboardShortcut?: string
+  //
+  disabled?: boolean
   // What happens when you select this option?
   onSelect: (queryString: string) => void
 
@@ -99,6 +101,7 @@ class ComponentPickerOption extends MenuOption {
     options: {
       icon?: JSX.Element
       keywords?: Array<string>
+      disabled?: boolean
       keyboardShortcut?: string
       onSelect: (queryString: string) => void
     }
@@ -108,6 +111,7 @@ class ComponentPickerOption extends MenuOption {
     this.keywords = options.keywords || []
     this.icon = options.icon
     this.keyboardShortcut = options.keyboardShortcut
+    this.disabled = options.disabled
     this.onSelect = options.onSelect.bind(this)
   }
 }
@@ -133,7 +137,7 @@ function ComponentPickerMenuItem({
     <li
       key={option.key}
       tabIndex={-1}
-      className={cn(className, "flex gap-2")}
+      className={cn(className, "flex gap-2", option.disabled && "disabled")}
       ref={option.setRefElement}
       role="option"
       aria-selected={isSelected}
@@ -332,13 +336,17 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
       new ComponentPickerOption("DatabaseTable", {
         icon: IconMap["database"],
         keywords: ["database", "table"],
-        onSelect: () =>
+        disabled: true,
+        onSelect: () => {
+          // disable for now
+          return
           showModal("Insert Database Table", (onClose) => (
             <SelectDatabaseTableDialog
               activeEditor={editor}
               onClose={onClose}
             />
-          )),
+          ))
+        },
       }),
       // ...["left", "center", "right", "justify"].map(
       //   (alignment) =>

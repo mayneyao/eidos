@@ -177,7 +177,12 @@ export function Editor(props: EditorProps) {
       >
         {props.topComponent}
         {props.showTitle && (
-          <div className="mb-4 flex w-full items-baseline gap-2">
+          <div
+            className={cn(
+              "mb-4 flex w-full items-baseline gap-2",
+              props.className
+            )}
+          >
             {props.beforeTitle && <div>{props.beforeTitle}</div>}
             <input
               id="doc-title"

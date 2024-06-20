@@ -114,10 +114,10 @@ export function CommandDialogDemo() {
             <Clock3Icon className="mr-2 h-4 w-4" />
             <span>Today</span>
           </CommandItem>
-          <CommandItem onSelect={goEveryday} value="everyday">
+          {/* <CommandItem onSelect={goEveryday} value="everyday">
             <CalendarDays className="mr-2 h-4 w-4" />
             <span>Everyday</span>
-          </CommandItem>
+          </CommandItem> */}
           <CommandItem onSelect={createNewDoc} value="new draft doc">
             <FilePlus2Icon className="mr-2 h-4 w-4" />
             <span>New Draft Doc</span>

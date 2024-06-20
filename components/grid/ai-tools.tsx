@@ -158,7 +158,7 @@ export const AITools = ({
   return (
     <Command className=" w-[200px] rounded-md border shadow-md">
       <CommandInput
-        placeholder="Search Action..."
+        placeholder="Search prompt..."
         autoFocus
         value={customPrompt}
         onValueChange={(value) => {
@@ -174,7 +174,7 @@ export const AITools = ({
       <ScrollArea>
         <CommandList className="max-h-[300px]">
           <CommandEmpty>
-            No Action found.
+            No Prompt found.
             <br />
             Press <kbd>ESC</kbd> to close.
           </CommandEmpty>

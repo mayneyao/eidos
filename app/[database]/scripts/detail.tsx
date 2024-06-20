@@ -131,7 +131,9 @@ export const ScriptDetailPage = () => {
                   </Button>
                 </div>
               </div>
-              <p ref={descRef}>{script.description}</p>
+              <p ref={descRef} className=" w-full">
+                {script.description}
+              </p>
               <Separator />
               <div className="mb-2 flex grow flex-col">
                 <Suspense

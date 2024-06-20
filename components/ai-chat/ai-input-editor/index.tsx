@@ -197,8 +197,8 @@ export const AIInputEditor = ({
             />
           }
           placeholder={
-            <div className=" pointer-events-none absolute left-3 top-2">
-              Type your message here.
+            <div className=" pointer-events-none absolute left-3 top-2 opacity-50">
+              Type your message here. Press / to switch prompt.
             </div>
           }
           ErrorBoundary={LexicalErrorBoundary}
