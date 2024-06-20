@@ -34,6 +34,7 @@ import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
 import { TwinkleSparkle } from "../loading"
+import { getScrollbarWidth } from "./helper"
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -54,7 +55,6 @@ const defaultConfig: Partial<DataEditorProps> = {
   onPaste: true,
   headerIcons: headerIcons,
   experimental: {
-    paddingBottom: 0,
     kineticScrollPerfHack: true,
   },
 }
@@ -175,12 +175,14 @@ export default function GridView(props: IGridProps) {
       ...defaultConfig,
       freezeColumns,
     }
+    const sw = getScrollbarWidth()
     if (!hasScroll) {
       conf = {
         ...conf,
         experimental: {
           ...conf.experimental,
-          paddingBottom: 14,
+          scrollbarWidthOverride: sw,
+          paddingBottom: sw || 0,
         },
       }
     }
