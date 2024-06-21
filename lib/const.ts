@@ -66,4 +66,5 @@ export const DOMAINS = {
   ACTIVATION_SERVER: "https://active.eidos.space",
   EXTENSION_SERVER: "https://ext.eidos.space",
   API_AGENT_SERVER: "https://api.eidos.space",
+  DISCORD_INVITE: "https://discord.gg/bsGMPDR23b",
 }

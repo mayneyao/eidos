@@ -9,6 +9,7 @@ import { Activation } from "./activation"
 import { BuildYourOwn } from "./build-your-own"
 import { FAQ } from "./faq"
 import { Features } from "./features"
+import { DOMAINS } from "@/lib/const"
 
 const ColorfulText = ({
   children,
@@ -72,7 +73,7 @@ export const Landing = () => {
           </Link>
           <Link
             className="text-sm font-medium underline-offset-4 hover:underline"
-            to="https://discord.gg/KAeDX8VEpK"
+            to={DOMAINS.DISCORD_INVITE}
             target="_blank"
           >
             Discord

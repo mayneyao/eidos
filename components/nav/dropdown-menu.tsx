@@ -15,6 +15,7 @@ import {
 import { Link, useNavigate } from "react-router-dom"
 
 import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
+import { DOMAINS } from "@/lib/const"
 import { EIDOS_VERSION } from "@/lib/log"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useCurrentNode } from "@/hooks/use-current-node"
@@ -161,7 +162,7 @@ export function NavDropdownMenu() {
                 <span>GitHub</span>
               </DropdownMenuItem>
             </Link>
-            <Link to="https://discord.gg/KAeDX8VEpK" target="_blank">
+            <Link to={DOMAINS.DISCORD_INVITE} target="_blank">
               <DropdownMenuItem>
                 <DiscordIcon className="mr-2 h-4 w-4" />
                 <span>Discord</span>

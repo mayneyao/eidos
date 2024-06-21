@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
+import { DOMAINS } from "@/lib/const"
 import { useActivation } from "@/hooks/use-activation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,7 +52,7 @@ export const Activation = () => {
       <div className="mt-2 p-2 text-sm">
         Eidos is currently in development; join our{" "}
         <Link
-          to="https://discord.gg/KAeDX8VEpK"
+          to={DOMAINS.DISCORD_INVITE}
           target="_blank"
           className="text-blue-500"
         >
