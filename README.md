@@ -1,12 +1,16 @@
-# Eidos
-
-[Eidos](https://eidos.space/?home=1) is an extensible framework for managing your personal data throughout your lifetime in one place.
-
 ![eidos](/public/show/table-and-doc.webp)
+
+<div align="center">
+    <a href="https://eidos.space?home=1">Home Page</a> |
+    <a href="https://discord.gg/bsGMPDR23b">Discord</a>
+    <p>
+    Eidos is an extensible framework for managing your personal data throughout your lifetime in one place.
+    </p>
+</div>
 
 ## Features
 
-- Everything runs inside your browser: Your data is stored locally. PWA support.
+- Everything runs inside your browser. PWA support.
 - Offline Support: Access your data without an internet connection. Data is stored locally for blazing-fast performance.
 - AI Features: Deeply integrated with LLM for AI-powered capabilities. Translate, summarize, and interact with your data within Eidos. AI works even offline.
 - Extensible: Customize Eidos to suit your needs.
