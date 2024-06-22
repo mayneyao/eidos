@@ -1,8 +1,15 @@
-import { useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { useVirtualList } from "ahooks"
 
 import { IView } from "@/lib/store/IView"
-import { cn, shortenId } from "@/lib/utils"
+import {
+  cn,
+  extractIdFromShortId,
+  getTableIdByRawTableName,
+  shortenId,
+} from "@/lib/utils"
+import { useNodeMap } from "@/hooks/use-current-node"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -22,6 +29,8 @@ export function DocListView(props: IDocListViewProps) {
   const { list: originalList } = useGalleryViewData(props.view)
   const containerRef = useRef(null)
   const wrapperRef = useRef(null)
+  const nodeMap = useNodeMap()
+  const { getOrCreateTableSubDoc } = useSqlite()
 
   const filteredList = useMemo(() => {
     if (!query) return originalList
@@ -36,6 +45,20 @@ export function DocListView(props: IDocListViewProps) {
     itemHeight: 36,
     overscan: 10,
   })
+
+  const createNewSubDoc = useCallback(async () => {
+    if (!nodeId) return
+    const tableId = getTableIdByRawTableName(props.tableName)
+    const rowId = extractIdFromShortId(nodeId)
+    const title = originalList.find((item) => item._id === rowId)?.title
+    getOrCreateTableSubDoc({
+      docId: nodeId,
+      tableId,
+      title: title || "",
+    })
+  }, [getOrCreateTableSubDoc, originalList, props.tableName, nodeId])
+
+  const isNodeExist = nodeId && nodeMap[nodeId]
 
   return (
     <div className="flex h-full shrink-0 gap-4 p-2">
@@ -73,7 +96,16 @@ export function DocListView(props: IDocListViewProps) {
       </ScrollArea>
       <ScrollArea className="h-full grow overflow-y-auto">
         {nodeId ? (
-          <NodeComponent nodeId={nodeId} />
+          isNodeExist ? (
+            <NodeComponent nodeId={nodeId} />
+          ) : (
+            <h1 className=" mt-32 text-center">
+              sub-doc not found{" "}
+              <Button size="xs" onClick={createNewSubDoc} variant="outline">
+                create one?
+              </Button>
+            </h1>
+          )
         ) : (
           <h1 className=" mt-32 text-center">Select a document</h1>
         )}
