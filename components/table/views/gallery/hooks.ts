@@ -14,6 +14,11 @@ import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 import { useViewSort } from "@/hooks/use-view-sort"
 
+type RowData = Record<string, any> & {
+  _id: string
+  title?: string
+}
+
 export const useGalleryViewData = (view: IView) => {
   const { table_id: tableId, query } = view
   const tableName = getRawTableNameById(tableId)
@@ -21,7 +26,7 @@ export const useGalleryViewData = (view: IView) => {
   const { setRows } = useSqliteStore()
   const { getViewSortedRows } = useViewSort(query)
   const [data, setData] = useState<string[]>([])
-  const [list, setList] = useState<any[]>([])
+  const [list, setList] = useState<RowData[]>([])
   const [loading, setLoading] = useState(false)
   const { space } = useCurrentPathInfo()
   const { nameRawIdMap, uiColumnMap } = useUiColumns(tableName, space)
