@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "../ui/button"
 import { CreateNodeTrigger } from "./tree/create-node-trigger"
 import { NodeTreeContainer } from "./tree/node-tree"
+import { useLocalStorageState } from "ahooks"
 
 export const CurrentItemTree = ({
   allNodes,
@@ -27,7 +28,9 @@ export const CurrentItemTree = ({
   Icon: React.ReactNode
   disableAdd?: boolean
 }) => {
-  const [showNodes, setShowNodes] = useState(false)
+  const [showNodes, setShowNodes] = useLocalStorageState('root-node-tree-show-toggle', {
+    defaultValue: true,
+  })
 
   const handleToggleShowNodes = () => {
     setShowNodes(!showNodes)
@@ -39,7 +42,7 @@ export const CurrentItemTree = ({
           variant={"ghost"}
           size="sm"
           onClick={handleToggleShowNodes}
-          className="flex w-full justify-start font-normal"
+          className="flex justify-start w-full font-normal"
           asChild
         >
           <span className="cursor-pointer select-none">
