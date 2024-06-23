@@ -37,7 +37,7 @@ const items = [
             >
               OFPS
             </a>
-            (default), requires chromium-based browser. {`version > 86`}
+            (default), requires chromium-based browser. {`version > 108`}
           </li>
           <li>
             <a
