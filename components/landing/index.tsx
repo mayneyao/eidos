@@ -1,6 +1,7 @@
 import { SparkleIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
+import { DOMAINS } from "@/lib/const"
 import { cn } from "@/lib/utils"
 import { TextAnimate } from "@/components/ui/text-animate"
 import { EidosIcon } from "@/components/icons/eidos"
@@ -9,7 +10,6 @@ import { Activation } from "./activation"
 import { BuildYourOwn } from "./build-your-own"
 import { FAQ } from "./faq"
 import { Features } from "./features"
-import { DOMAINS } from "@/lib/const"
 
 const ColorfulText = ({
   children,
@@ -145,14 +145,6 @@ export const Landing = () => {
               </div>
 
               <div className="grid gap-1">
-                <h3 className="text-lg font-bold">Web is all you need</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Eidos is a web application with no web server.
-                  <br />
-                  Everything runs inside your browser.
-                </p>
-              </div>
-              <div className="grid gap-1">
                 <h3 className="text-lg font-bold">AI Features </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Deeply integrated with LLM, it makes your life easier with AI.
@@ -161,8 +153,22 @@ export const Landing = () => {
                   <br />
                   AI can also work{" "}
                   <span className=" text-purple-500">offline</span>.
+                  <br />
+                  <br />
+                  Note: Eidos does not provide any LLM service. You need to
+                  configure the LLM provider by yourself.
                 </p>
               </div>
+
+              <div className="grid gap-1">
+                <h3 className="text-lg font-bold">Web is all you need</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Eidos is a web application with no web server.
+                  <br />
+                  Everything runs inside your browser.
+                </p>
+              </div>
+
               <div className="grid gap-1">
                 <h3 className="text-lg font-bold">Extensible</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -218,7 +224,7 @@ export const Landing = () => {
       </main>
       <footer className="flex w-full shrink-0 flex-col items-center gap-2 border-t px-4 py-6 sm:flex-row md:px-6">
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          © {new Date().getFullYear()} Eidos Space. All rights reserved.
+          © {new Date().getFullYear()} Eidos Space. All rights reserved?
         </p>
         <nav className="flex gap-4 sm:ml-auto sm:gap-6">
           <Link className="text-xs underline-offset-4 hover:underline" to="#">
