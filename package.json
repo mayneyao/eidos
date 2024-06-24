@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "pnpm recursive run build && tsc && vite build",
+    "build:self-host": "pnpm recursive run build && tsc && vite build --mode self-host",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -154,6 +155,7 @@
     "@vitejs/plugin-react": "^4.0.3",
     "autoprefixer": "^10.4.14",
     "clsx": "^1.2.1",
+    "cross-env": "^7.0.3",
     "eslint": "^8.44.0",
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-react": "^7.32.2",
