@@ -267,17 +267,26 @@ export const ScriptPage = () => {
               className="overflow-hidden rounded-lg border shadow-md transition-shadow duration-200 hover:shadow-lg"
             >
               <div className="p-4">
-                <div className="flex justify-between">
+                <div className="flex  items-baseline justify-between">
                   <h2 className="mb-2 flex items-center gap-1 truncate text-xl font-semibold">
                     <Icon className="shrink-0" />
                     {script.name}({script.version})
                   </h2>
-                  <Switch
-                    checked={script.enabled}
-                    onCheckedChange={(checked) =>
-                      handleToggleEnabled(script, checked)
-                    }
-                  ></Switch>
+                  {script.type !== "app" && (
+                    <Switch
+                      checked={script.enabled}
+                      onCheckedChange={(checked) =>
+                        handleToggleEnabled(script, checked)
+                      }
+                    ></Switch>
+                  )}
+                  {/* {script.type === "app" && (
+                    <Link to={`/${space}/apps/${script.id}`}>
+                      <Button size="sm" variant="outline">
+                        Open
+                      </Button>
+                    </Link>
+                  )} */}
                 </div>
                 <p className="h-[50px]">{script.description}</p>
 
@@ -321,7 +330,6 @@ export const ScriptPage = () => {
                       </AlertDialogContent>
                     </AlertDialog>
                   </div>
-
                   {Boolean(dirHandle) && scriptId === script.id && (
                     <Button
                       onClick={handleReload}

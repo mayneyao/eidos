@@ -1,8 +1,15 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
+import { EventEmitter } from "ahooks/lib/useEventEmitter"
 
 import { ExtensionSourceType, useExtMsg } from "./hooks/use-ext-msg"
 
-export function ExtensionContainer({ ext }: { ext: string }) {
+export function ExtensionContainer({
+  ext,
+  reload$,
+}: {
+  ext: string
+  reload$?: EventEmitter<void>
+}) {
   const containerRef = useRef<HTMLIFrameElement>(null)
   const { handleMsg } = useExtMsg(ExtensionSourceType.App)
 
@@ -13,7 +20,16 @@ export function ExtensionContainer({ ext }: { ext: string }) {
     }
   }, [handleMsg])
 
-  if (!ext.length) {
+  const reloadIframe = () => {
+    if (containerRef.current) {
+      containerRef.current.src = ""
+      containerRef.current.src = `https://${ext}.ext.eidos.space`
+    }
+  }
+
+  reload$?.useSubscription(reloadIframe)
+
+  if (!ext?.length) {
     return null
   }
   return (

@@ -1,7 +1,12 @@
+import { dir } from "console"
 import { useCallback, useEffect } from "react"
 import { create } from "zustand"
 
 import { efsManager } from "@/lib/storage/eidos-file-system"
+import {
+  getPackageJsonFromZipFile,
+  unZipFileToDir,
+} from "@/lib/storage/zip-file"
 import { nonNullable } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
 
@@ -54,6 +59,7 @@ export const useExtensions = () => {
     const extensionDirs = await efsManager.listDir(["extensions", "apps"])
     const allExtensions = await Promise.all(
       extensionDirs
+        .filter((dir) => !dir.name.startsWith("."))
         .map(async (dir) => {
           const packageJson = await efsManager.getFile([
             "extensions",
@@ -72,6 +78,25 @@ export const useExtensions = () => {
   useEffect(() => {
     getAllExtensions()
   }, [getAllExtensions])
+
+  const loadExtensionFromZipFileHandler = async (
+    fileHandler: FileSystemFileHandle
+  ) => {
+    const file = await fileHandler.getFile()
+    return loadExtensionFromZipFile(file)
+  }
+
+  const loadExtensionFromZipFile = async (file: File) => {
+    const packageJson = await getPackageJsonFromZipFile(file)
+    if (!packageJson) {
+      toast({
+        title: "Invalid extension package.json",
+      })
+      return
+    }
+    await unZipFileToDir(file, ["extensions", "apps", packageJson.name])
+    return packageJson.name
+  }
 
   const uploadExtension = async (
     dirHandle: FileSystemDirectoryHandle,
@@ -115,6 +140,8 @@ export const useExtensions = () => {
     removeExtension,
     uploadExtension,
     getAllExtensions,
+    loadExtensionFromZipFileHandler,
+    loadExtensionFromZipFile,
     getExtensionIndex,
   }
 }

@@ -1,7 +1,6 @@
-import { useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
+import { useState } from "react"
 
-import { stringify } from "@/lib/sqlite/helper"
 import { useSqlite } from "@/hooks/use-sqlite"
 
 import { checkPromptEnable } from "../helper"
