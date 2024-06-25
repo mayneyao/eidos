@@ -65,9 +65,9 @@ export const InstallScript = () => {
           <DropdownMenuItem onClick={() => setOpen(true)}>
             From Github
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleInstallFromLocal}>
+          {/* <DropdownMenuItem onClick={handleInstallFromLocal}>
             From Local
-          </DropdownMenuItem>
+          </DropdownMenuItem> */}
         </DropdownMenuContent>
       </DropdownMenu>
 

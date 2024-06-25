@@ -40,9 +40,29 @@ const isDbFilePaths = (paths: string[]) => {
   )
 }
 
+export async function getPackageJsonFromZipFile(file: File) {
+  const zip = await JSZip.loadAsync(file)
+  return getPackageJsonFromZip(zip)
+}
+
+export async function unZipFileToDir(file: File, rootPaths: string[]) {
+  const zip = await JSZip.loadAsync(file)
+  return importZipFileIntoDir(rootPaths, zip)
+}
+
+async function getPackageJsonFromZip(zip: JSZip) {
+  const packageJson = zip.files["package.json"]
+  if (!packageJson) {
+    return null
+  }
+  const content = await packageJson.async("text")
+  return JSON.parse(content)
+}
+
 export async function importZipFileIntoDir(rootPaths: string[], zip: JSZip) {
   for (let path in zip.files) {
     const entry = zip.files[path]
+    console.log("import zip file", entry)
     if (entry.dir) {
       const paths = entry.name.split("/").filter((i) => i)
       const dirName = paths[paths.length - 1]

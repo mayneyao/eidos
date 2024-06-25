@@ -1,5 +1,6 @@
 import * as React from "react"
-import { Check, ChevronsUpDown, PlusIcon } from "lucide-react"
+import { useEventEmitter } from "ahooks"
+import { Check, ChevronsUpDown, PlusIcon, RefreshCcwIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useIndexedDB } from "@/hooks/use-indexed-db"
@@ -21,36 +22,62 @@ import { ExtensionContainer } from "./container"
 import { useExtensions } from "./hooks/use-extensions"
 
 export function ExtensionPage() {
-  const { extensions, uploadExtension, getAllExtensions } = useExtensions()
+  const { extensions, getAllExtensions, loadExtensionFromZipFileHandler } =
+    useExtensions()
+  const [value, setValue] = useIndexedDB("kv", "lastOpenedApp", "")
+  const event$ = useEventEmitter()
 
   const handleUploadExtension = async () => {
-    const dirHandle: FileSystemDirectoryHandle = await (
-      window as any
-    ).showDirectoryPicker()
-    await uploadExtension(dirHandle)
+    const [zipFileHandler] = await (window as any).showOpenFilePicker({
+      types: [
+        {
+          description: "Extension Zip File",
+          accept: {
+            "application/zip": [".zip"],
+          },
+        },
+      ],
+      excludeAcceptAllOption: true,
+      multiple: false,
+    })
+    const appName = await loadExtensionFromZipFileHandler(zipFileHandler)
+    setOpen(false)
     await getAllExtensions()
+    setValue(appName)
+    event$.emit()
   }
 
   const [open, setOpen] = React.useState(false)
-  const [value, setValue] = useIndexedDB("kv", "lastOpenedApp", "")
+  const currentApp = extensions.find((app) => app.name === value)
 
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="flex justify-between">
+      <div className="flex">
         <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
+          <div className="flex items-center justify-center gap-1">
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                size="xs"
+                className="justify-between"
+              >
+                {value && currentApp ? currentApp?.name : "Select app..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
             <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={open}
-              className="w-[300px] justify-between"
+              size="xs"
+              variant="ghost"
+              onClick={async () => {
+                event$.emit()
+              }}
             >
-              {value
-                ? extensions.find((app) => app.name === value)?.name
-                : "Select app..."}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <RefreshCcwIcon className=" h-4 w-4 opacity-50" />
             </Button>
-          </PopoverTrigger>
+          </div>
+
           <PopoverContent className="w-[300px] p-0">
             <Command>
               <CommandInput placeholder="Search app..." />
@@ -74,18 +101,21 @@ export function ExtensionPage() {
                     {extension.name}
                   </CommandItem>
                 ))}
+                <hr />
+                <CommandItem
+                  onSelect={handleUploadExtension}
+                  className="flex gap-1"
+                >
+                  <PlusIcon className="h-5 w-5 opacity-60"></PlusIcon>
+                  Load app
+                </CommandItem>
               </CommandGroup>
               <hr />
             </Command>
           </PopoverContent>
         </Popover>
-        <div className="flex gap-1">
-          <Button variant="ghost" onClick={handleUploadExtension}>
-            <PlusIcon></PlusIcon>
-          </Button>
-        </div>
       </div>
-      <ExtensionContainer ext={value} />
+      <ExtensionContainer ext={value} reload$={event$} />
     </div>
   )
 }

@@ -5,24 +5,44 @@ import { getRawUrl } from "./use-github-script"
 
 const storeRepoURL = "https://github.com/mayneyao/eidos-store"
 
-interface IStoreScriptItem {
+export enum ExtensionTypeEnum {
+  Script = "script",
+  App = "app",
+}
+
+export interface IStoreExtItem {
   id: string
   name: string
   description: string
   version: string
   author: string
   repo: string
+  type: ExtensionTypeEnum
 }
 
-const getScripts = async () => {
+type IStore = {
+  scripts: IStoreExtItem[]
+  apps: IStoreExtItem[]
+}
+
+const getExts = async () => {
   const eidosUrl = getRawUrl(storeRepoURL) + "/scripts.json"
   const response = await fetch(eidosUrl)
-  const store = await response.json()
-  return store.scripts
+  const store = (await response.json()) as IStore
+  return [
+    ...store.scripts.map((script) => ({
+      ...script,
+      type: ExtensionTypeEnum.Script,
+    })),
+    ...store.apps.map((app) => ({
+      ...app,
+      type: ExtensionTypeEnum.App,
+    })),
+  ]
 }
 
 export const useGithubStore = () => {
-  const [scripts, setScripts] = useLocalStorageState<IStoreScriptItem[]>(
+  const [exts, setExts] = useLocalStorageState<IStoreExtItem[]>(
     "eidos-store",
     {
       defaultValue: [],
@@ -30,10 +50,10 @@ export const useGithubStore = () => {
   )
 
   useEffect(() => {
-    getScripts().then(setScripts)
-  }, [setScripts])
+    getExts().then(setExts)
+  }, [setExts])
 
   return {
-    scripts,
+    exts,
   }
 }

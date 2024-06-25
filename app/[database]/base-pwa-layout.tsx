@@ -83,11 +83,11 @@ export function PWALayoutBase({
               <AIChat />
             </Suspense>
           )}
-          {/* {isExtAppOpen && (
+          {isExtAppOpen && (
             <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto border-l border-l-slate-400 p-2">
               <ExtensionPage />
             </div>
-          )} */}
+          )}
         </div>
       </div>
     </div>
