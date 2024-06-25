@@ -10,7 +10,7 @@
 
 ## Features
 
-- Everything runs inside your browser. It's a pure PWA with no web server. 
+- Everything runs inside your browser. It's a pure PWA with no web server.
 - Offline Support: Access your data without an internet connection. Data is stored locally for blazing-fast performance.
 - AI Features: Deeply integrated with LLM for AI-powered capabilities. Translate, summarize, and interact with your data within Eidos. AI works even offline.
 - Extensible: Customize Eidos to suit your needs.
@@ -55,6 +55,11 @@ Storing data in a local folder is a good practice to ensure better data security
 ```shell
 pnpm gen-types
 ```
+
+## Roadmap
+
+- [ ] Publish Service: Publish your data to the web.
+- [ ] P2p sync based on CRDT: local-first, not local-only. Sync your data across devices.
 
 ## Credits
 
