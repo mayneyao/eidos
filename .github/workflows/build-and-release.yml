@@ -22,7 +22,7 @@ jobs:
           pnpm install
 
       - name: Build
-        run: pnpm run build
+        run: pnpm run build:self-host
 
       - name: Archive Production Artifact
         run: |

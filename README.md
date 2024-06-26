@@ -56,6 +56,19 @@ Storing data in a local folder is a good practice to ensure better data security
 pnpm gen-types
 ```
 
+## How to deploy your own
+
+### Serverless
+
+Fork this repository and deploy it to your favorite serverless provider. Cloudflare Pages, Vercel, and Netlify are all good choices.
+
+Use `build:self-host` to build the app; this will skip the activation.
+
+### Docker
+
+1. Run `docker build -t eidos .` to build the docker image
+2. Run `docker run -p 8080:80 eidos` to start the container, change the port if needed
+
 ## Roadmap
 
 - [ ] Publish Service: Publish your data to the web.
