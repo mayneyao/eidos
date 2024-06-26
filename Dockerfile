@@ -1,21 +1,34 @@
+FROM node:alpine as builder
+
+RUN apk add --no-cache python3 make g++ && ln -sf python3 /usr/bin/python
+
+RUN npm install -g pnpm
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+
+RUN pnpm install
+
+COPY . .
+
+RUN pnpm run build:self-host
+
 FROM nginx:alpine
 
-# Create a custom Nginx configuration file
 RUN echo 'server { \
     listen       80; \
     server_name  localhost; \
     root   /usr/share/nginx/html; \
     index  index.html; \
-    # Handle all locations
     location / { \
         try_files $uri $uri/ /index.html; \
-        # Add security headers
         add_header Cross-Origin-Embedder-Policy "require-corp"; \
         add_header Cross-Origin-Opener-Policy "same-origin"; \
     } \
 }' > /etc/nginx/conf.d/default.conf
 
-COPY ./dist /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 

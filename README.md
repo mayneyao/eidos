@@ -66,9 +66,8 @@ Use `build:self-host` to build the app; this will skip the activation.
 
 ### Docker
 
-1. Run `pnpm build:self-host` to build the app
-2. Run `docker build -t eidos .` to build the docker image
-3. Run `docker run -p 8080:80 eidos` to start the container, change the port if needed
+1. Run `docker build -t eidos .` to build the docker image
+2. Run `docker run -p 8080:80 eidos` to start the container, change the port if needed
 
 ## Roadmap
 
