@@ -95,7 +95,7 @@ export function ImageSelector(props: {
       <div className="flex w-full justify-between">
         <TabsList>
           <TabsTrigger value="gallery">Gallery</TabsTrigger>
-          <TabsTrigger value="upload">Upload</TabsTrigger>
+          <TabsTrigger value="upload">Load</TabsTrigger>
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
         {!props.hideRemove && (
@@ -165,12 +165,12 @@ export function ImageSelector(props: {
           )}
         >
           <div className="text-center">
-            <div className="mb-4 text-lg font-semibold">Upload Image</div>
+            <div className="mb-4 text-lg font-semibold">Load local image</div>
             <div className="mb-4 text-sm">
               Drag and drop your image here or click the button below.
             </div>
             <Button size="sm" onClick={handleSelectLocalFile}>
-              Upload
+              Load
             </Button>
           </div>
         </div>
