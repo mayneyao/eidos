@@ -54,6 +54,7 @@ declare module "lib/const" {
         ACTIVATION_SERVER: string;
         EXTENSION_SERVER: string;
         API_AGENT_SERVER: string;
+        DISCORD_INVITE: string;
     };
 }
 declare module "lib/fields/const" {
@@ -114,8 +115,9 @@ declare module "lib/fields/const" {
 }
 declare module "lib/log" {
     export const logger: Console;
-    export const EIDOS_VERSION = "0.4.3";
+    export const EIDOS_VERSION = "0.4.8";
     export const isDevMode: boolean;
+    export const isSelfHosted: boolean;
 }
 declare module "lib/sqlite/const" {
     /**
@@ -308,6 +310,11 @@ declare module "lib/utils" {
     export const getUuid: () => string;
     export const generateId: () => string;
     export const isDayPageId: (id: string) => boolean;
+    /**
+     * Returns a string representing the time elapsed since the given date.
+     * @param date - The date to calculate the time elapsed from.
+     * @returns A string representing the time elapsed in a human-readable format.
+     */
     export function timeAgo(date: Date): string;
     export const proxyImageURL: (url?: string) => string;
 }
@@ -1141,6 +1148,7 @@ declare module "components/grid/helper" {
     export const guessCellKind: (value: any) => GridCellKind.Uri | GridCellKind.Text | GridCellKind.Number | GridCellKind.Boolean;
     export const createTemplateTableSql: (tableName: string) => string;
     export const createTemplateTableColumnsSql: () => string;
+    export const getScrollbarWidth: () => number;
 }
 declare module "hooks/use-nodes" {
     import { ITreeNode } from "lib/store/ITreeNode";
@@ -1643,6 +1651,14 @@ declare module "lib/fields/lookup" {
         };
     }
 }
+declare module "components/table/cell-editor/common" {
+    import { SelectOption } from "lib/fields/select";
+    export const EmptyValue: () => import("react/jsx-runtime").JSX.Element;
+    export const SelectOptionItem: ({ option, theme, }: {
+        option: SelectOption;
+        theme?: string;
+    }) => import("react/jsx-runtime").JSX.Element;
+}
 declare module "components/grid/cells/select-cell" {
     import { CustomCell, CustomRenderer, ProvideEditorCallback } from "@glideapps/glide-data-grid";
     import { SelectOption } from "lib/fields/select";
@@ -1712,14 +1728,6 @@ declare module "lib/fields/select" {
         addOption(name: string): SelectOption[];
         deleteOption(id: string): void;
     }
-}
-declare module "components/table/cell-editor/common" {
-    import { SelectOption } from "lib/fields/select";
-    export const EmptyValue: () => import("react/jsx-runtime").JSX.Element;
-    export const SelectOptionItem: ({ option, theme, }: {
-        option: SelectOption;
-        theme?: string;
-    }) => import("react/jsx-runtime").JSX.Element;
 }
 declare module "components/grid/cells/multi-select-cell" {
     import { CustomCell, CustomRenderer, ProvideEditorCallback } from "@glideapps/glide-data-grid";

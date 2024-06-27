@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
     "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
-    "gen-types": "tsc -p tsconfig.typings.json && tsx fix-types.ts",
+    "gen-types": "tsc -p tsconfig.typings.json && tsx scripts/fix-types.ts",
+    "patch": "node scripts/patch.cjs",
     "test": "jest"
   },
   "dependencies": {
@@ -167,6 +168,7 @@
     "postcss": "^8.4.25",
     "prettier": "^2.8.8",
     "rollup-plugin-visualizer": "^5.9.2",
+    "semver": "^7.6.2",
     "shx": "^0.3.4",
     "tailwind-merge": "^1.13.2",
     "tailwindcss": "^3.4.3",
