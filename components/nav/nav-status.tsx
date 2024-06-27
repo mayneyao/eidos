@@ -14,6 +14,12 @@ import { useCurrentNode } from "@/hooks/use-current-node"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { usePeer } from "@/hooks/use-peer"
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { AvatarList } from "@/components/avatar-list"
 
 import { useSpaceAppStore } from "../../app/[database]/store"
@@ -23,12 +29,6 @@ export const NavStatus = () => {
     useSpaceAppStore()
   const { connected } = useAPIAgent()
 
-  const {
-    disableDocAIComplete,
-    setDisableDocAIComplete,
-    isCompleteLoading,
-    isShareMode,
-  } = useAppRuntimeStore()
   const { currentCollaborators } = usePeer()
   const nameList = currentCollaborators.map((c) => c.name)
   const currentNode = useCurrentNode()
@@ -44,28 +44,6 @@ export const NavStatus = () => {
   return (
     <>
       <AvatarList nameList={nameList} />
-      {/* {enableAICompletionInDoc && (
-        <div
-          className="cursor-pointer p-2"
-          title={
-            isCompleteLoading
-              ? "AI is working hard, please wait a moment"
-              : disableDocAIComplete
-              ? "Enable AI Complete"
-              : "Disable AI Complete"
-          }
-          onClick={toggleDocAIComplete}
-        >
-          <SparklesIcon
-            className={cn(
-              "h-5 w-5",
-              disableDocAIComplete ? "text-gray-400" : "text-green-500",
-              // when loading, blink the icon with purple color
-              isCompleteLoading && "animate-pulse text-purple-500"
-            )}
-          />
-        </div>
-      )} */}
       {Boolean(currentNode?.is_locked) && (
         <Button
           size="xs"
@@ -116,12 +94,36 @@ export const NavStatus = () => {
         </>
       )}
       {/* {!isShareMode && <ShareDialog />} */}
-      <Button size="xs" variant="ghost" onClick={toggleAi}>
-        <Bot className="h-5 w-5" />
-      </Button>
-      <Button size="xs" variant="ghost" onClick={toggleExtApp}>
-        <PanelRightIcon className="h-5 w-5" />
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <Button size="xs" variant="ghost" onClick={toggleAi}>
+              <Bot className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>
+              Chat with AI <br />
+              <span className={"ml-auto text-xs tracking-widest opacity-60"}>
+                ctrl/cmd + /
+              </span>
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <Button size="xs" variant="ghost" onClick={toggleExtApp}>
+              <PanelRightIcon className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>App Side Panel</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </>
   )
 }
