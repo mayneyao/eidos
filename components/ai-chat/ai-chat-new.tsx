@@ -1,11 +1,19 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { getFunctionCallHandler } from "@/lib/ai/openai"
 import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useAIFunctions } from "@/hooks/use-ai-functions"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useDocEditor } from "@/hooks/use-doc-editor"
@@ -18,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useConfigStore } from "@/app/settings/store"
 
 import { Loading } from "../loading"
 import { AIChatMessage } from "./ai-chat-message"
@@ -31,8 +38,6 @@ import {
   useUserPrompts,
 } from "./hooks"
 import "./index.css"
-import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
-
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAiConfig } from "@/hooks/use-ai-config"
 import { useAIConfigStore } from "@/app/settings/ai/store"
@@ -41,6 +46,7 @@ import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 import { Label } from "../ui/label"
 import { ScrollArea } from "../ui/scroll-area"
 import { Switch } from "../ui/switch"
+import { AIChatPromptSelect } from "./ai-chat-prompt-select"
 import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore, useReloadModel } from "./webllm/hooks"
@@ -49,7 +55,7 @@ import { useSpeak } from "./webspeech/hooks"
 
 const Whisper = lazy(() => import("./whisper"))
 
-const promptKeys = Object.keys(sysPrompts).slice(0, 2)
+const promptKeys = Object.keys(sysPrompts).slice(0, 1)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
 export default function Chat() {
@@ -84,6 +90,14 @@ export default function Chat() {
   const { aiModel, setAIModel } = useAppStore()
   const { speak } = useSpeak()
 
+  const disableInput = useMemo(
+    () =>
+      (progress && progress?.progress < 1) ||
+      !aiModel?.length ||
+      !systemPrompt?.length,
+    [progress, aiModel, systemPrompt]
+  )
+
   useEffect(() => {
     const prompt = prompts.find((item) => item.id === currentSysPrompt)
     if (prompt) {
@@ -91,10 +105,6 @@ export default function Chat() {
       model && setAIModel(model)
     }
   }, [currentSysPrompt, prompts, setAIModel, systemPrompt])
-
-  const promptName =
-    prompts.find((item) => item.id === currentSysPrompt)?.name ||
-    currentSysPrompt
 
   useEffect(() => {
     const isLocal = localModels.includes(aiModel)
@@ -175,37 +185,17 @@ export default function Chat() {
       className="relative flex h-full w-[400px] shrink-0 flex-col gap-2 overflow-auto border-l border-l-slate-400 p-2"
       ref={divRef}
     >
-      <div className="flex items-center gap-2">
-        <Select
-          onValueChange={setCurrentSysPrompt as any}
+      <div className="flex items-center justify-center gap-2">
+        <AIChatPromptSelect
           value={currentSysPrompt}
-        >
-          <SelectTrigger className="w-[80px]">
-            <SelectValue placeholder="Prompt">
-              <p className="w-[60px] truncate">{promptName}</p>
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {promptKeys.map((key) => {
-              return (
-                <SelectItem key={key} value={key}>
-                  {key}
-                </SelectItem>
-              )
-            })}
-            <hr />
-            {prompts.map((prompt) => {
-              return (
-                <SelectItem key={prompt.id} value={prompt.id}>
-                  {prompt.name}
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
+          onValueChange={setCurrentSysPrompt}
+          promptKeys={promptKeys}
+          prompts={prompts}
+        />
         <AIModelSelect
           onValueChange={setAIModel as any}
           value={aiModel}
+          size="xs"
           localModels={aiConfig.localModels}
         />
         <AIChatSettings />
@@ -253,20 +243,21 @@ export default function Chat() {
       </ScrollArea>
       <div className="relative shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex min-w-[200px]  gap-2">
-            <Switch
-              id="ai-chat-use-space-data"
-              checked={withSpaceData}
-              onCheckedChange={setWithSpaceData}
-            ></Switch>
-            <Label
-              htmlFor="ai-chat-use-space-data"
-              className=" text-sm opacity-80"
-            >
-              use space data
-            </Label>
-          </div>
-
+          {experiment.enableRAG && (
+            <div className="flex min-w-[200px]  gap-2">
+              <Switch
+                id="ai-chat-use-space-data"
+                checked={withSpaceData}
+                onCheckedChange={setWithSpaceData}
+              ></Switch>
+              <Label
+                htmlFor="ai-chat-use-space-data"
+                className=" text-sm opacity-80"
+              >
+                use space data
+              </Label>
+            </div>
+          )}
           <div className="flex  w-full items-center justify-end">
             {isLoading && (
               <Button onClick={stop} variant="ghost" size="sm">
@@ -288,6 +279,9 @@ export default function Chat() {
             <Button variant="ghost" onClick={cleanMessages} size="sm">
               <Paintbrush className="h-5 w-5" />
             </Button>
+            {/* <Button variant="ghost" size="sm">
+              <SendIcon className="h-5 w-5 opacity-60"></SendIcon>
+            </Button> */}
           </div>
         </div>
         <div
@@ -296,7 +290,7 @@ export default function Chat() {
         ></div>
         <AIInputEditor
           enableRAG={withSpaceData}
-          disabled={progress && (progress?.progress || 0) < 1}
+          disabled={disableInput}
           setContextNodes={setContextNodes}
           setContextEmbeddings={setContextEmbeddings}
           append={append}

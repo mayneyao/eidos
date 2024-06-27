@@ -15,7 +15,7 @@ export const useAiConfig = () => {
     (model: string) => {
       const [modelId, provider] = model.split("@")
       const llmProvider = aiConfig.llmProviders.find(
-        (item) => item.name === provider
+        (item) => item.name.toLowerCase() === provider?.toLowerCase()
       )
       if (llmProvider) {
         return {

@@ -5,6 +5,12 @@ import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/web/helper"
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 import { BreadCrumb } from "./breadcrumb"
 import { NavDropdownMenu } from "./dropdown-menu"
@@ -35,14 +41,29 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
       )}
     >
       {showMenu && (
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={toggleSidebar}
-          // className="hidden md:block"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger>
+              {" "}
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={toggleSidebar}
+                // className="hidden md:block"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                {isSidebarOpen ? "Close Sidebar" : "Open Sidebar"} <br />
+                <span className={"ml-auto text-xs tracking-widest opacity-60"}>
+                  ctrl/cmd + \
+                </span>
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
 
       <div className="hidden md:block">

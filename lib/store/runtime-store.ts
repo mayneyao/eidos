@@ -9,6 +9,9 @@ interface AppRuntimeState {
   isCmdkOpen: boolean
   setCmdkOpen: (isCmdkOpen: boolean) => void
 
+  isKeyboardShortcutsOpen: boolean
+  setKeyboardShortcutsOpen: (isKeyboardShortcutsOpen: boolean) => void
+
   isShareMode: boolean
   setShareMode: (isShareMode: boolean) => void
 
@@ -40,6 +43,10 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
   isEmbeddingModeLoaded: false,
   setEmbeddingModeLoaded: (isEmbeddingModeLoaded) =>
     set({ isEmbeddingModeLoaded }),
+
+  isKeyboardShortcutsOpen: false,
+  setKeyboardShortcutsOpen: (isKeyboardShortcutsOpen) =>
+    set({ isKeyboardShortcutsOpen }),
 
   blockUIMsg: null,
   setBlockUIMsg: (blockUIMsg) => set({ blockUIMsg }),

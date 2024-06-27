@@ -29,10 +29,11 @@ const sidebarNavItems = [
     title: "Storage",
     href: "/settings/storage",
   },
-  {
-    title: "Backup",
-    href: "/settings/backup",
-  },
+  // {
+  //   title: "Backup(deprecated)",
+  //   href: "/settings/backup",
+  //   disabled: true,
+  // },
   {
     title: "Sync",
     href: "/settings/sync",

@@ -48,12 +48,14 @@ export function AIModelSelect({
   value,
   onValueChange: setValue,
   onlyLocal,
+  size = "default",
   className,
   excludeLocalModels,
   localModels,
 }: {
   onValueChange: (value: string) => void
   value: string
+  size?: "xs" | "sm" | "lg" | "default" | null | undefined
   onlyLocal?: boolean
   className?: string
   excludeLocalModels?: string[]
@@ -70,6 +72,9 @@ export function AIModelSelect({
     ? _allLocalModels.filter((model) => !excludeLocalModels.includes(model))
     : _allLocalModels
 
+  const currentModel = allModels.find(
+    (model) => model.toLowerCase() === value.toLowerCase()
+  )
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -77,12 +82,11 @@ export function AIModelSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-[240px] justify-between ", className)}
+          size={size}
+          className={cn("grow justify-between ", className)}
         >
           <p className="w-[200px] truncate">
-            {value
-              ? allModels.find((model) => model === value)
-              : "Select model..."}
+            {value ? currentModel : "Select model..."}
           </p>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -99,15 +103,21 @@ export function AIModelSelect({
                     <CommandItem
                       key={model}
                       value={model}
-                      onSelect={(currentValue) => {
-                        setValue(currentValue === value ? "" : currentValue)
+                      onSelect={(model) => {
+                        setValue(
+                          model.toLowerCase() === value.toLowerCase()
+                            ? ""
+                            : model
+                        )
                         setOpen(false)
                       }}
                     >
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          value === model ? "opacity-100" : "opacity-0"
+                          value.toLowerCase() === model.toLowerCase()
+                            ? "opacity-100"
+                            : "opacity-0"
                         )}
                       />
                       <p className="max-w-[250px] truncate">{model}</p>{" "}
@@ -117,7 +127,7 @@ export function AIModelSelect({
               )}
               <CommandGroup heading="Local LLM">
                 {Boolean(!_localModels?.length) && (
-                  <p className="ml-8 text-sm text-gray-500">
+                  <p className="ml-8 text-xs text-gray-500">
                     No local model found.
                     <br />
                     Add some models in the{" "}

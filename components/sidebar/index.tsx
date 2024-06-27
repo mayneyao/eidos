@@ -30,7 +30,7 @@ import {
   ContextMenuTrigger,
 } from "../ui/context-menu"
 import { ScrollArea } from "../ui/scroll-area"
-import { BackupStatus } from "./backup"
+// import { BackupStatus } from "./backup"
 import { EverydaySidebarItem } from "./everyday"
 import { ImportFileDialog } from "./import-file"
 import { CurrentItemTree } from "./item-tree"
@@ -153,8 +153,8 @@ export const SideBar = ({ className }: any) => {
         <div>
           <Trash />
           <ImportFileDialog />
-          <Separator />
-          <BackupStatus />
+          {/* <Separator /> */}
+          {/* <BackupStatus /> */}
         </div>
       </div>
     </>
