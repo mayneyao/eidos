@@ -101,7 +101,7 @@ export function CommandDialogDemo() {
   return (
     <CommandDialog open={isCmdkOpen} onOpenChange={setCmdkOpen}>
       <CommandInput
-        placeholder="Type a command or search..."
+        placeholder="Type a command or search... (type / for scripts)"
         value={input}
         onValueChange={setInput}
       />

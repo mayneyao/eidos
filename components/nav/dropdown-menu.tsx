@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { DiscordIcon } from "@/components/icons/discord"
 import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
+import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"
@@ -75,6 +76,7 @@ export function NavDropdownMenu() {
   const { toast } = useToast()
 
   const { createEmbedding } = useHnsw()
+  const { experiment } = useExperimentConfigStore()
   const { space } = useCurrentPathInfo()
   const toggleCMDK = () => {
     setCmdkOpen(!isCmdkOpen)
@@ -238,17 +240,19 @@ export function NavDropdownMenu() {
                       <DropdownMenuSubContent className="w-48">
                         <NodeMoveInto node={node} />
                       </DropdownMenuSubContent>
-                      <DropdownMenuItem
-                        onClick={handleCreateDocEmbedding}
-                        disabled={!isEmbeddingModeLoaded}
-                      >
-                        <div className="flex w-full items-center justify-between pr-1">
-                          <div className="flex items-center">
-                            <ScanTextIcon className="mr-2 h-4 w-4"></ScanTextIcon>
-                            Embedding(Beta)
+                      {experiment.enableRAG && (
+                        <DropdownMenuItem
+                          onClick={handleCreateDocEmbedding}
+                          disabled={!isEmbeddingModeLoaded}
+                        >
+                          <div className="flex w-full items-center justify-between pr-1">
+                            <div className="flex items-center">
+                              <ScanTextIcon className="mr-2 h-4 w-4"></ScanTextIcon>
+                              Embedding(Beta)
+                            </div>
                           </div>
-                        </div>
-                      </DropdownMenuItem>
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuSub>
                   </>
                 )}

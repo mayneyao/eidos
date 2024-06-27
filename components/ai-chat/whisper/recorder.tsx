@@ -1,5 +1,4 @@
 import { useRef, useState } from "react"
-import { useKeyPress } from "ahooks"
 import { MicRecorder } from "whisper-turbo"
 
 import { Button } from "@/components/ui/button"
@@ -83,11 +82,11 @@ export const MicButton = (props: MicButtonProps) => {
     draw()
   }
 
-  useKeyPress("s", (e) => {
-    if (e.shiftKey) {
-      handleClick()
-    }
-  })
+  // useKeyPress("s", (e) => {
+  //   if (e.shiftKey) {
+  //     handleClick()
+  //   }
+  // })
   const handleClick = async () => {
     if (recordingRef.current) {
       await handleStop()
