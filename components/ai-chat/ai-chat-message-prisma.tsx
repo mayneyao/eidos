@@ -118,19 +118,21 @@ export const AIMessage = ({
               __html: codeHtml,
             }}
           ></code>
-          <Button
-            className=" absolute right-0 top-0 text-gray-300"
-            variant="ghost"
-            onClick={() =>
-              onRun({
-                code: text,
-                lang,
-                isAuto: false,
-              })
-            }
-          >
-            <Play className="h-4 w-4" />
-          </Button>
+          {lang.toLowerCase() === "sql" && (
+            <Button
+              className=" absolute right-0 top-0 text-gray-300"
+              variant="ghost"
+              onClick={() =>
+                onRun({
+                  code: text,
+                  lang,
+                  isAuto: false,
+                })
+              }
+            >
+              <Play className="h-4 w-4" />
+            </Button>
+          )}
         </pre>
       )
     },
