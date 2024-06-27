@@ -1,16 +1,16 @@
-FROM node:alpine as builder
+FROM node:19-slim as builder
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
-RUN apk add --no-cache python3 make g++ && ln -sf python3 /usr/bin/python
 
-RUN npm install -g pnpm
+RUN apt-get update && apt-get install -y python3 make g++ && ln -s /usr/bin/python3 /usr/bin/python
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
-
-RUN pnpm install
-
 COPY . .
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 RUN pnpm run build:self-host
 

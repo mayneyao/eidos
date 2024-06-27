@@ -69,6 +69,12 @@ Use `build:self-host` to build the app; this will skip the activation.
 1. Run `docker build -t eidos .` to build the docker image
 2. Run `docker run -p 8080:80 eidos` to start the container, change the port if needed
 
+or use the pre-built image:
+
+```shell
+docker run -d  -p 8080:80 ghcr.io/mayneyao/eidos
+```
+
 ## Roadmap
 
 - [ ] Publish Service: Publish your data to the web.
