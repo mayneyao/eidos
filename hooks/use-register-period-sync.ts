@@ -86,7 +86,7 @@ export const _registerSpaceDatabaseSync = async () => {
 
 export const useRegisterPeriodicSync = () => {
   useEffect(() => {
-    registerPeriodicSync()
+    // registerPeriodicSync()
     // registerSpaceDatabaseSync()
     // use setInterval instead of periodic background sync for now, it's more reliable to keep the data safe
     let timer: NodeJS.Timeout | null = null
