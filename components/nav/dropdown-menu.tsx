@@ -2,6 +2,7 @@ import { useState } from "react"
 import {
   BookOpenIcon,
   CogIcon,
+  CommandIcon,
   Github,
   HomeIcon,
   Keyboard,
@@ -60,6 +61,13 @@ export function NavDropdownMenu() {
   const [open, setOpen] = useState(false)
 
   const { deleteNode, toggleNodeFullWidth, toggleNodeLock } = useSqlite()
+  const { isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
+    useAppRuntimeStore()
+
+  const toggleKeyboardShortcuts = () => {
+    setKeyboardShortcutsOpen(!isKeyboardShortcutsOpen)
+  }
+
   const { setCmdkOpen, isCmdkOpen, isEmbeddingModeLoaded } =
     useAppRuntimeStore()
   const { getEmail, enabled } = useVCardEmail()
@@ -139,20 +147,17 @@ export function NavDropdownMenu() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onSelect={toggleCMDK}>
-                <Keyboard className="mr-2 h-4 w-4" />
+                <CommandIcon className="mr-2 h-4 w-4" />
                 <span>Command Palette</span>
                 <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
               </DropdownMenuItem>
-              {/* <Link to="/extensions">
-            <DropdownMenuItem>
-              <BlocksIcon className="mr-2 h-4 w-4" />
-              <span>Extensions</span>
-            </DropdownMenuItem>
-          </Link> */}
+              <DropdownMenuItem onSelect={toggleKeyboardShortcuts}>
+                <Keyboard className="mr-2 h-4 w-4" />
+                <span>Keyboard Shortcuts</span>
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={goSettings}>
                 <CogIcon className="mr-2 h-4 w-4" />
                 <span>Settings</span>
-                {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
