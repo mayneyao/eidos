@@ -7,6 +7,11 @@ export const isBrowserSupported = () => {
   return userAgent.includes("chrome") || userAgent.includes("chromium")
 }
 
+export const isMobile = () => {
+  const userAgent = window.navigator.userAgent.toLowerCase()
+  return userAgent.includes("mobi")
+}
+
 export const getBrowserVersion = () => {
   const userAgent = window.navigator.userAgent.toLowerCase()
   const version = userAgent.match(/(chrome|chromium)\/(\d+)/)

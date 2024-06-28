@@ -12,6 +12,7 @@ const BrowserChecker = () => {
     isBrowserSupported,
     isCoreWebApisSupported,
     isOPFSupported,
+    isMobile,
     version,
   } = useBrowserCheck()
   if (isBrowserSupported && isCoreWebApisSupported && isOPFSupported) {
@@ -36,12 +37,18 @@ const BrowserChecker = () => {
         <div className="text-red-500">
           Eidos requires some new Web APIs to work properly. Please update your
           browser to the latest. <br />
-          {isBrowserSupported && (
-            <div>
-              Your browser version: {version} <br />
-              Recommended version: 122+
-            </div>
-          )}
+          {isBrowserSupported &&
+            (isMobile ? (
+              <div>
+                It seems like you are using a mobile browser. It works, but with
+                some limitations. Use a desktop browser for the best experience.
+              </div>
+            ) : (
+              <div>
+                Your browser version: {version} <br />
+                Recommended version: 122+
+              </div>
+            ))}
         </div>
       )}
     </>
