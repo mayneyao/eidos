@@ -34,6 +34,7 @@ import { ScriptStorePage } from "./app/[database]/scripts/store"
 import { SpaceSetting } from "./app/[database]/settings/page"
 import { DocEditor } from "./app/eidtor/doc"
 import { LabPage } from "./app/lab"
+import { LicenseManagePage } from "./app/license-manage/page"
 import { DevtoolsPage } from "./app/settings/dev/page"
 import { spaceFileSystem } from "./lib/storage/space"
 
@@ -49,6 +50,10 @@ const router = createBrowserRouter([
       {
         path: "404",
         element: <NotFound />,
+      },
+      {
+        path: "my-licenses",
+        element: <LicenseManagePage />,
       },
       {
         path: "lab",
