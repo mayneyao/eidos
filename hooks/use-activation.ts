@@ -72,7 +72,8 @@ export const useActivation = () => {
     checkLicense()
   }, [clientId, code, license, setIsActivated])
 
-  const active = async (key: string) => {
+  const active = async (_key: string) => {
+    const key = _key.trim()
     const res = await fetch(
       `https://active.eidos.space/active?code=${key}&client=${clientId}`,
       {

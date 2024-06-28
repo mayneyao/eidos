@@ -3,8 +3,57 @@ import { Link, useNavigate } from "react-router-dom"
 
 import { DOMAINS } from "@/lib/const"
 import { useActivation } from "@/hooks/use-activation"
+import { useBrowserCheck } from "@/hooks/use-browser-check"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+
+const BrowserChecker = () => {
+  const {
+    isBrowserSupported,
+    isCoreWebApisSupported,
+    isOPFSupported,
+    isMobile,
+    version,
+  } = useBrowserCheck()
+  if (isBrowserSupported && isCoreWebApisSupported && isOPFSupported) {
+    return (
+      <div>
+        <h1 className="text-green-500">Your browser is supported</h1>
+      </div>
+    )
+  }
+  return (
+    <>
+      {!isBrowserSupported && (
+        <div className="text-red-500">
+          It seems like you are not using a Chromium-based browser.
+          <br />
+          Eidos is not tested on other browsers yet.
+          <br />
+          Recommended browsers are Chrome, Edge, Arc, Brave, etc.
+        </div>
+      )}
+      {!isCoreWebApisSupported && (
+        <div className="text-red-500">
+          Eidos requires some new Web APIs to work properly. Please update your
+          browser to the latest. <br />
+          {isBrowserSupported &&
+            (isMobile ? (
+              <div>
+                It seems like you are using a mobile browser. It works, but with
+                some limitations. Use a desktop browser for the best experience.
+              </div>
+            ) : (
+              <div>
+                Your browser version: {version} <br />
+                Recommended version: 122+
+              </div>
+            ))}
+        </div>
+      )}
+    </>
+  )
+}
 
 export const Activation = () => {
   const { active, isActivated } = useActivation()
@@ -16,26 +65,40 @@ export const Activation = () => {
     await active(code)
     setLoading(false)
   }
+
   if (isActivated) {
     return (
-      <div id="active-selection">
-        🎉You have already activated Eidos.
-        <Button size="xs" variant="ghost" onClick={() => nav("/")}>
-          Open App
-        </Button>
+      <div
+        id="active-selection"
+        className="flex w-full flex-col items-center justify-center gap-4"
+      >
+        <h2 className="text-center text-3xl font-bold tracking-tighter sm:text-5xl">
+          Activation
+        </h2>
+        <div>
+          🎉You have already activated Eidos.
+          <Button size="xs" variant="ghost" onClick={() => nav("/")}>
+            Open App
+          </Button>
+        </div>
       </div>
     )
   }
+
   return (
     <div
-      className="flex w-full flex-col items-center justify-center"
+      className="flex w-full flex-col items-center justify-center gap-4"
       id="active-selection"
     >
+      <h2 className="text-center text-3xl font-bold tracking-tighter sm:text-5xl">
+        Activation
+      </h2>
+      <BrowserChecker />
       <div className="flex gap-2">
         <Input
           // autoFocus
-          className="w-[300px]"
-          placeholder="Enter Code"
+          className="w-[300px] ring"
+          placeholder="Enter Key"
           value={code}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

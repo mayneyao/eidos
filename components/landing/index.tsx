@@ -123,7 +123,13 @@ export const Landing = () => {
                 </div>
                 <h2 className="flex  justify-center gap-4 text-3xl font-bold tracking-tighter sm:text-5xl">
                   <span>Privacy-first.</span>
-                  <span>Local-first.</span>
+                  <a
+                    href="https://www.inkandswitch.com/local-first/"
+                    target="_blank"
+                    className=" font-bold text-purple-500 underline decoration-wavy"
+                  >
+                    Local-first.
+                  </a>
                 </h2>
                 <p className="max-w-[900px] text-gray-500 dark:text-gray-400 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                   Get your data back from cloud providers and merge them into
