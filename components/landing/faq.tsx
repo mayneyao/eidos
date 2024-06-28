@@ -78,6 +78,48 @@ const items = [
       </p>
     ),
   },
+  {
+    question: "How to sync data between devices?",
+    answer: (
+      <p>
+        There is no sync service yet. You can export your data and import it on
+        another device. <br />A P2p sync service based on CRDT is on the
+        roadmap.
+      </p>
+    ),
+  },
+  {
+    question: "Is there a native/mobile app?",
+    answer: (
+      <p>
+        There is no native/mobile app yet. You can install Eidos as a PWA which
+        has the same experience as a native app.
+        <br />
+        PWA works on Android, but not on iOS yet.
+      </p>
+    ),
+  },
+  {
+    question: "What is the license key used for?",
+    answer: (
+      <p>
+        Eidos respects everyone's privacy. There is no account system, just like
+        old-school software. The license key is used to verify access to the
+        add-on service provided by eidos.space. such as Link Preview, Image
+        Proxy(CORS), API Agent, Email Integration, Sync Service, etc.
+        <br />
+        <br />
+        If you don't want to use the add-on service, you can{" "}
+        <a
+          href="https://github.com/mayneyao/eidos?tab=readme-ov-file#how-to-deploy-your-own"
+          className="text-blue-500 underline"
+        >
+          deploy your own
+        </a>{" "}
+        Eidos instance.
+      </p>
+    ),
+  },
 ]
 
 export function FAQ() {
