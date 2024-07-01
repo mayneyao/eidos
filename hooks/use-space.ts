@@ -36,21 +36,28 @@ export const useSpace = () => {
   const createSpace = useCallback(async (spaceName: string) => {
     const msgId = uuidv4()
     const worker = getWorker()
-    worker.postMessage({
-      type: MsgType.CreateSpace,
-      data: {
-        spaceName,
+
+    const channel = new MessageChannel()
+    worker.postMessage(
+      {
+        type: MsgType.CreateSpace,
+        data: {
+          spaceName,
+        },
+        id: msgId,
       },
-      id: msgId,
-    })
+      [channel.port2]
+    )
+
     await spaceFileSystem.create(spaceName)
     return new Promise((resolve) => {
-      worker.addEventListener("message", (e) => {
-        const { id: returnId, data } = e.data
-        if (returnId === msgId) {
-          resolve(data)
+      channel.port1.onmessage = (e) => {
+        if (e.data.id === msgId) {
+          resolve(e.data.data)
         }
-      })
+        // close the channel
+        channel.port1.close()
+      }
     })
   }, [])
 
