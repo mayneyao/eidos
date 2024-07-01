@@ -4,12 +4,13 @@ import { MsgType } from "@/lib/const"
 import { getWorker } from "@/lib/sqlite/worker"
 import { spaceFileSystem } from "@/lib/storage/space"
 import { uuidv4 } from "@/lib/utils"
+import { useLastOpened } from "@/app/[database]/hook"
 
 import { useSqliteStore } from "./use-sqlite"
 
 export const useSpace = () => {
   const { setSpaceList, spaceList } = useSqliteStore()
-
+  const { setLastOpenedDatabase } = useLastOpened()
   const updateSpaceList = useCallback(async () => {
     const spaceNames = await spaceFileSystem.list()
     setSpaceList(spaceNames)
@@ -18,6 +19,19 @@ export const useSpace = () => {
   useEffect(() => {
     updateSpaceList()
   }, [setSpaceList, updateSpaceList])
+
+  const exportSpace = useCallback(async (spaceName: string) => {
+    await spaceFileSystem.export(spaceName)
+  }, [])
+
+  const deleteSpace = useCallback(
+    async (spaceName: string) => {
+      await spaceFileSystem.remove(spaceName)
+      setLastOpenedDatabase("")
+      await updateSpaceList()
+    },
+    [setLastOpenedDatabase, updateSpaceList]
+  )
 
   const createSpace = useCallback(async (spaceName: string) => {
     const msgId = uuidv4()
@@ -43,5 +57,7 @@ export const useSpace = () => {
     spaceList,
     updateSpaceList,
     createSpace,
+    exportSpace,
+    deleteSpace,
   }
 }
