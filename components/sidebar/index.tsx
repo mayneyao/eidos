@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator"
 import { DatabaseSelect } from "@/components/database-select"
 import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
+import { SpaceSettings } from "../space-settings"
 import { Button } from "../ui/button"
 import {
   ContextMenu,
@@ -153,6 +154,7 @@ export const SideBar = ({ className }: any) => {
         <div>
           <Trash />
           <ImportFileDialog />
+          <SpaceSettings />
           {/* <Separator /> */}
           {/* <BackupStatus /> */}
         </div>

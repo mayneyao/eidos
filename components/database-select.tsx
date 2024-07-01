@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { kebabCase } from "lodash"
-import { Check, ChevronsUpDown, PlusCircle, Wrench } from "lucide-react"
+import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { spaceFileSystem } from "@/lib/storage/space"
@@ -45,24 +45,54 @@ interface IDatabaseSelectorProps {
 
 export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [open, setOpen] = React.useState(false)
-  const [file, setFile] = React.useState(null)
-  const handleFileChange = (e: any) => {
-    e.target.files[0] && setFile(e.target.files[0])
-  }
+  const [file, setFile] = React.useState<File | null>(null)
+  const { spaceList } = useSpace()
+
   const { lastOpenedDatabase, setLastOpenedDatabase } = useAppStore()
   const { space } = useCurrentPathInfo()
 
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [databaseName, setDatabaseName] = React.useState("")
+  const [spaceNameFromFile, setSpaceNameFromFile] = React.useState("")
+
+  const reset = () => {
+    setDatabaseName("")
+    setFile(null)
+    setSpaceNameFromFile("")
+  }
   const slugifyDatabaseName = React.useMemo(() => {
-    if (/^[a-zA-Z0-9_-]+$/.test(databaseName)) {
+    if (/^[a-zA-Z0-9-]+$/.test(databaseName)) {
       return databaseName
     }
     return kebabCase(databaseName)
   }, [databaseName])
+
+  const isExistingSpace = spaceList.includes(databaseName.trim())
+
+  const handleFileChange = (e: any) => {
+    const importFile = e.target.files[0]
+    importFile && setFile(importFile)
+    if (importFile.name.startsWith("eidos-export-")) {
+      // eidos-export-<space-name>.zip -> <space-name>
+      // eidos-export-<space-name> (1).zip -> <space-name>
+      const spaceName = importFile.name
+        .replace("eidos-export-", "")
+        .replace(".zip", "")
+        .replace(/\(\d+\)/, "")
+        .trim()
+      setSpaceNameFromFile(spaceName)
+      setDatabaseName(spaceName)
+    }
+  }
+
+  const regex = new RegExp(
+    `^eidos-export-${databaseName}(\\s*\\(\\d+\\))?\\.zip$`
+  )
+  const isOverwrite =
+    spaceList.includes(databaseName) && file && regex.test(file.name)
+
   const goto = useGoto()
-  const router = useNavigate()
   const { createSpace } = useSpace()
   const [loading, setLoading] = React.useState(false)
   const { updateSpaceList } = useSpace()
@@ -88,6 +118,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
       goto(databaseName)
       updateSpaceList()
     }
+    reset()
   }
   return (
     <Dialog open={showNewTeamDialog} onOpenChange={setShowNewTeamDialog}>
@@ -178,18 +209,34 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
                 }}
               />
               <span className="px-3 text-sm">{slugifyDatabaseName}</span>
+              <span>
+                {isExistingSpace && !isOverwrite && (
+                  <span className="text-sm text-red-500">
+                    this space already exists, choose another name
+                  </span>
+                )}
+              </span>
             </div>
           </div>
           <div className="space-y-4 py-2 pb-4">
             <div className="space-y-2">
               <Label htmlFor="importFromFile">Import from file</Label>
+              <div className="text-sm text-muted-foreground">
+                if you export space as a zip file, you can import it here
+              </div>
               <Input
                 type="file"
                 id="importFromFile"
                 onChange={handleFileChange}
-                className="w-[200px]"
+                className="max-w-max"
                 accept=".zip"
               />
+              {isOverwrite && (
+                <span className="text-sm text-red-500">
+                  it seems you are trying to overwrite an existing space. please
+                  be careful, this will overwrite data in the existing space.
+                </span>
+              )}
             </div>
           </div>
         </div>
