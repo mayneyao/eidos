@@ -8,6 +8,9 @@
     </p>
 </div>
 
+> [!IMPORTANT]
+> Eidos sets a big goal in mind, but it is still in its early stages, and there is a lot of work to be done. You can give it a try, but I do not recommend using it for production purposes. If you're interested in this project, I recommend staying updated on its development. If you have an Early Access key, you'll receive an email notification when Eidos is officially released.
+
 ## Features
 
 - Everything runs inside your browser. It's a pure PWA with no web server.
