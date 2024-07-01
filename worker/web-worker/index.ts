@@ -136,7 +136,7 @@ onmessage = async (e) => {
        */
       await loadDatabase(data.spaceName)
       logger.info(`create database[${data.spaceName}]`)
-      postMessage({
+      e.ports[0].postMessage({
         id,
         data: {
           msg: "createSpace success",

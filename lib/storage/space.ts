@@ -1,7 +1,6 @@
 import JSZip from "jszip"
 
 import { getDirHandle } from "./eidos-file-system"
-
 import { importZipFileIntoDir, zipDirectory } from "./zip-file"
 
 export class SpaceFileSystem {
@@ -20,6 +19,12 @@ export class SpaceFileSystem {
     const zip = await JSZip.loadAsync(file)
     console.log("import space", file)
     await importZipFileIntoDir(["spaces", space], zip)
+  }
+
+  async create(space: string) {
+    const dir = ["spaces", space]
+    const dirHandle = await getDirHandle(dir)
+    return dirHandle
   }
 
   async export(space: string) {
@@ -42,10 +47,7 @@ export class SpaceFileSystem {
    * @returns list of spaces
    */
   async list() {
-    const opfsRoot = await navigator.storage.getDirectory()
-    const spacesDirHandle = await opfsRoot.getDirectoryHandle("spaces", {
-      create: true,
-    })
+    const spacesDirHandle = await getDirHandle(["spaces"])
     const spaces = []
     for await (let name of (spacesDirHandle as any).keys()) {
       spaces.push(name)
