@@ -43,6 +43,7 @@ export const useSpace = () => {
       },
       id: msgId,
     })
+    await spaceFileSystem.create(spaceName)
     return new Promise((resolve) => {
       worker.addEventListener("message", (e) => {
         const { id: returnId, data } = e.data
