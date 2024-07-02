@@ -37,13 +37,16 @@ export class CsvImportAndExport extends BaseImportAndExport {
     _last_edited_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     _created_by TEXT DEFAULT 'unknown',
     _last_edited_by TEXT DEFAULT 'unknown',
-    ${rawColumns.join(" TEXT  NULL,\n") + " VARCHAR(100)  NULL"}
+    ${rawColumns.join(" TEXT  NULL,\n") + " TEXT  NULL"}
   );
-  INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('title', 'title', '${rawTableName}', 'title');
   `
           columns.forEach((column, index) => {
-            const rawColumn = rawColumns[index]
-            createTableSql += `INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('${column}', 'text', '${rawTableName}', '${rawColumn}');`
+            const isFirstColumn = index === 0
+            const fieldType = isFirstColumn ? "title" : "text"
+            const rawColumn = isFirstColumn ? "title" : rawColumns[index]
+            // column maybe include injected code, so we need to escape it, the best way is use bind parameter
+            const _column = column.replace(/'/g, "''")
+            createTableSql += `INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('${_column}', '${fieldType}', '${rawTableName}', '${rawColumn}');`
           })
 
           dataSpace.blockUIMsg("Creating table...")
@@ -58,7 +61,7 @@ export class CsvImportAndExport extends BaseImportAndExport {
 
     await sleep(1000)
     const fieldMap = await tm.rows.getFieldMap()
-    console.log("fieldMap", fieldMap)
+    // console.log("fieldMap", fieldMap)
     dataSpace.blockUIMsg("Importing data...")
     // for high performance, turn off foreign key constraints
     // dataSpace.db.exec("PRAGMA foreign_keys = OFF;")
