@@ -545,7 +545,7 @@ declare module "lib/fields/created-by" {
         get compareOperators(): CompareOperator[];
         getCellContent(rawData: string | undefined, context?: UserFieldContext): UserProfileCell;
         cellData2RawData(cell: UserProfileCell): {
-            rawData: import("@/components/grid/cells/user-profile-cell").UserProfileCellProps;
+            rawData: import("@/components/table/views/grid/cells/user-profile-cell").UserProfileCellProps;
         };
     }
 }
@@ -1582,7 +1582,7 @@ declare module "lib/fields/last-edited-by" {
         get compareOperators(): CompareOperator[];
         getCellContent(rawData: string | undefined, context?: UserFieldContext): UserProfileCell;
         cellData2RawData(cell: UserProfileCell): {
-            rawData: import("@/components/grid/cells/user-profile-cell").UserProfileCellProps;
+            rawData: import("@/components/table/views/grid/cells/user-profile-cell").UserProfileCellProps;
         };
     }
 }

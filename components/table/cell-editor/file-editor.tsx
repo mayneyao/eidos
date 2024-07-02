@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import {
   FileCell,
   FileCellEditor,
-} from "@/components/grid/cells/file/file-cell"
+} from "@/components/table/views/grid/cells/file/file-cell"
 import {
   Popover,
   PopoverContent,

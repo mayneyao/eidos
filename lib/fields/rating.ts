@@ -1,4 +1,4 @@
-import type { RatingCell } from "@/components/grid/cells/rating-cell"
+import type { RatingCell } from "@/components/table/views/grid/cells/rating-cell"
 
 import { BaseField } from "./base"
 import {

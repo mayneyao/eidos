@@ -3,8 +3,8 @@ import { useClickAway } from "ahooks"
 
 import { IField } from "@/lib/store/interface"
 
-import { cellRenderMap } from "../grid/cells"
-import { lightTheme } from "../grid/theme"
+import { cellRenderMap } from "../table/views/grid/cells"
+import { lightTheme } from "../table/views/grid/theme"
 
 export const StandaloneCellRender = (props: {
   column: IField

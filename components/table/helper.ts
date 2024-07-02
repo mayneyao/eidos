@@ -25,3 +25,20 @@ export const getShowColumns = (
 }
 
 export const TABLE_CONTENT_ELEMENT_ID = "table-content-area"
+
+const ONE_K = 1000
+
+export enum DataLevel {
+  L1 = ONE_K * 10, // 0 - 10,000
+  L2 = ONE_K * 100, // 10,000 - 100,000
+  L3 = ONE_K * 1000, // 100,000 - 1,000,000
+}
+
+export const getDataLevel = (count: number) => {
+  if (count < DataLevel.L1) {
+    return DataLevel.L1
+  } else if (count < DataLevel.L2) {
+    return DataLevel.L2
+  }
+  return DataLevel.L3
+}

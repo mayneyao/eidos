@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { makeHeaderIcons } from "@/components/grid/fields/header-icons"
+import { makeHeaderIcons } from "@/components/table/views/grid/fields/header-icons"
 
 import { Button } from "../ui/button"
 

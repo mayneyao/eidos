@@ -11,7 +11,7 @@ import {
   ContextMenuSubTrigger,
 } from "@/components/ui/context-menu"
 
-import { useScriptFunction } from "../script-container/hook"
+import { useScriptFunction } from "../../../script-container/hook"
 
 export const ScriptContextMenu = ({
   getRows,

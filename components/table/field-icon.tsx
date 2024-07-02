@@ -1,6 +1,6 @@
 import { FieldType } from "@/lib/fields/const"
 
-import { makeHeaderIcons } from "../grid/fields/header-icons"
+import { makeHeaderIcons } from "./views/grid/fields/header-icons"
 
 const icons = makeHeaderIcons(18)
 

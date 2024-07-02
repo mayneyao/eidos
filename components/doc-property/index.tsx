@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom"
 import { getRawTableNameById, nonNullable } from "@/lib/utils"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
-import { makeHeaderIcons } from "../grid/fields/header-icons"
+import { makeHeaderIcons } from "../table/views/grid/fields/header-icons"
 import { CellEditor } from "../table/cell-editor"
 import { useDocProperty } from "./hook"
 

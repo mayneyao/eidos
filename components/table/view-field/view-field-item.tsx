@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 
 import "./index.css"
 import { IField } from "@/lib/store/interface"
-import { useTableAppStore } from "@/components/grid/store"
+import { useTableAppStore } from "@/components/table/views/grid/store"
 
 export const ItemTypes = {
   CARD: "card",

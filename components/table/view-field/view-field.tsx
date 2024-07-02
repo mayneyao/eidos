@@ -16,7 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { CommonMenuItem } from "@/components/common-menu-item"
-import { useTableAppStore } from "@/components/grid/store"
+import { useTableAppStore } from "@/components/table/views/grid/store"
 
 import { useViewOperation } from "../hooks"
 import { FieldItemCard } from "./view-field-item"

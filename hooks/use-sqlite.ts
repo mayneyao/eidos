@@ -11,7 +11,7 @@ import { IView } from "@/lib/store/IView"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { getRawTableNameById, uuidv4 } from "@/lib/utils"
 import { DefaultState } from "@/components/doc/plugins/AutoSavePlugin"
-import { createTemplateTableSql } from "@/components/grid/helper"
+import { createTemplateTableSql } from "@/components/table/views/grid/helper"
 
 import { IDataStore, IField } from "../lib/store/interface"
 import { useAllNodes } from "./use-nodes"

@@ -1,4 +1,4 @@
-import type { SelectCell } from "@/components/grid/cells/select-cell"
+import type { SelectCell } from "@/components/table/views/grid/cells/select-cell"
 
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"

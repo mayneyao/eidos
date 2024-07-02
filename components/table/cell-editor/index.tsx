@@ -7,7 +7,7 @@ import { FileField } from "@/lib/fields/file"
 import { SelectProperty } from "@/lib/fields/select"
 import { IField } from "@/lib/store/interface"
 import { cn } from "@/lib/utils"
-import { FileCell } from "@/components/grid/cells/file/file-cell"
+import { FileCell } from "@/components/table/views/grid/cells/file/file-cell"
 
 import { CheckboxEditor } from "./checkbox-editor"
 import { DateEditor } from "./date-editor"

@@ -1,8 +1,8 @@
 import { ViewTypeEnum } from "@/lib/store/IView"
 import { useSqliteTableSubscribe } from "@/hooks/use-sqlite-table-subscribe"
 
-import GridView from "../grid"
-import { FieldEditor } from "../grid/fields"
+import GridView from "./views/grid"
+import { FieldEditor } from "./views/grid/fields"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 import { TableContext, useCurrentView } from "./hooks"
 import { ViewToolbar } from "./view-toolbar"
