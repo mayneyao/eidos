@@ -241,6 +241,9 @@ export class DataSpace {
       to: string
     }
   ) => {
+    if (update.from == update.to) {
+      return
+    }
     const tableId = getTableIdByRawTableName(field.table_name)
     const tableManager = this.table(tableId)
     if (field.type === FieldType.Select) {
@@ -624,9 +627,11 @@ export class DataSpace {
     parent_id?: string
   ) {
     // FIXME: should use db transaction to execute multiple sql
-    this.db.transaction(async () => {
+    this.db.transaction(async (db) => {
       await this.addTreeNode({ id, name, type: "table", parent_id })
-      await this.sql`${tableSchema}`
+      db.exec({
+        sql: tableSchema,
+      })
       // create view for table
       await this.createDefaultView(id)
     })
@@ -1004,6 +1009,14 @@ export class DataSpace {
 
   // return object array
   public async sql4mainThread2(sql: string, bind: any[] = []) {
+    logger.debug(
+      "[%cSQLQuery:%cCallViaRawSql]",
+      "color:indigo",
+      "color:red",
+      sql,
+      bind,
+      "object"
+    )
     return this.execSqlWithBind(sql, bind, "object")
   }
 

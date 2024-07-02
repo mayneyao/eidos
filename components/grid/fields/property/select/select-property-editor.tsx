@@ -1,18 +1,12 @@
-import React, { useCallback, useMemo } from "react"
 import { Plus } from "lucide-react"
+import React, { useCallback, useMemo } from "react"
 
-import { SelectField } from "@/lib/fields/select"
-import { IField } from "@/lib/store/interface"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
-import {
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { SelectField } from "@/lib/fields/select"
+import { IField } from "@/lib/store/interface"
 
 import { SelectOption } from "./select-option"
 
@@ -31,6 +25,9 @@ const useFieldChange = (
   const handleOptionNameChange = useCallback(
     (optionId: string, name: string) => {
       const oldOptionName = field.options.find((o) => o.id === optionId)?.name
+      if (oldOptionName == name) {
+        return
+      }
       field.changeOptionName(optionId, name)
       onPropertyChange(field.column.property)
       if (sqlite) {
