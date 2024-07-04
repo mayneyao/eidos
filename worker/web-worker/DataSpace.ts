@@ -28,6 +28,7 @@ import { DataChangeTrigger } from "./data-pipeline/DataChangeTrigger"
 import { LinkRelationUpdater } from "./data-pipeline/LinkRelationUpdater"
 import { SQLiteUndoRedo } from "./data-pipeline/UndoRedo"
 import { DbMigrator } from "./db-migrator/DbMigrator"
+import { timeit } from "./helper"
 import { CsvImportAndExport } from "./import-and-export/csv"
 import { MarkdownImportAndExport } from "./import-and-export/markdown"
 import { ActionTable } from "./meta-table/action"
@@ -203,6 +204,22 @@ export class DataSpace {
   // table
   public table(id: string) {
     return new TableManager(id, this)
+  }
+
+  // index
+  public createTableIndex(tableId: string, column: string) {
+    this.table(tableId).index.createIndex(
+      column,
+      () => {
+        this.blockUIMsg(
+          "You are operating on a large table; auto indexing, please wait."
+        )
+      },
+      () => {
+        this.blockUIMsg(null)
+      }
+    )
+    return
   }
 
   public async getLookupContext(tableName: string, columnName: string) {
@@ -420,6 +437,7 @@ export class DataSpace {
     rowId: string,
     query: string
   ) {
+    console.log("isRowExistInQuery", tableId, rowId, query)
     return await this.view.isRowExistInQuery(tableId, rowId, query)
   }
 
@@ -456,12 +474,17 @@ export class DataSpace {
     return await this.column.updateProperty(data)
   }
 
-  public async addRow(tableName: string, data: Record<string, any>) {
+  @timeit(100)
+  public async addRow(
+    tableName: string,
+    data: Record<string, any>
+  ): Promise<Record<string, any>> {
     const tableId = getTableIdByRawTableName(tableName)
     const tm = new TableManager(tableId, this)
     const res = await tm.rows.create(data)
     // this.undoRedoManager.event()
-    return res
+    const row = await tm.rows.get(res._id, { raw: true, withRowId: true })
+    return row
   }
 
   // actions
@@ -508,6 +531,7 @@ export class DataSpace {
     await this.doc.rebuildIndex(refillNullMarkdown)
   }
 
+  @timeit(100)
   public async addDoc(
     docId: string,
     content: string,
@@ -620,6 +644,7 @@ export class DataSpace {
     return this.doc.search(query)
   }
 
+  @timeit(100)
   public async createTable(
     id: string,
     name: string,
@@ -699,15 +724,16 @@ export class DataSpace {
     return await this.doc.listAllDayPages()
   }
 
+  @timeit(100)
   public syncExec2(sql: string, bind: any[] = [], db = this.db) {
     const res: any[] = []
-    console.debug(
-      "[%cSQLQuery:%cCallViaMethod]",
-      "color:indigo",
-      "color:green",
-      sql,
-      bind
-    )
+    // console.debug(
+    //   "[%cSQLQuery:%cCallViaMethod]",
+    //   "color:indigo",
+    //   "color:green",
+    //   sql,
+    //   bind
+    // )
     db.exec({
       sql,
       bind,
@@ -885,6 +911,7 @@ export class DataSpace {
     this.undoRedoManager.activate(tables)
   }
 
+  @timeit(100)
   public execute(sql: string, bind: any[] = []) {
     const res: any[] = []
     this.db.exec({
@@ -902,6 +929,7 @@ export class DataSpace {
   }
 
   // just execute, no return
+  @timeit(100)
   public exec(sql: string, bind: any[] = []) {
     console.debug(sql, bind)
     this.db.exec({
@@ -913,6 +941,7 @@ export class DataSpace {
     })
   }
 
+  @timeit(100)
   private execSqlWithBind(
     sql: string,
     bind: any[] = [],
@@ -932,7 +961,7 @@ export class DataSpace {
       })
     } catch (error: any) {
       logger.error(error)
-      logger.info({ sql, bind })
+      logger.error({ sql, bind })
       postMessage({
         type: MsgType.Error,
         data: {
@@ -985,19 +1014,20 @@ export class DataSpace {
    * @param bind
    * @returns
    */
+  @timeit(100)
   public async sql4mainThread(
     sql: string,
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
-    logger.debug(
-      "[%cSQLQuery:%cCallViaRawSql]",
-      "color:indigo",
-      "color:red",
-      sql,
-      bind,
-      rowMode
-    )
+    // logger.debug(
+    //   "[%cSQLQuery:%cCallViaRawSql]",
+    //   "color:indigo",
+    //   "color:red",
+    //   sql,
+    //   bind,
+    //   rowMode
+    // )
     const res = this.execSqlWithBind(sql, bind, rowMode)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
@@ -1009,14 +1039,14 @@ export class DataSpace {
 
   // return object array
   public async sql4mainThread2(sql: string, bind: any[] = []) {
-    logger.debug(
-      "[%cSQLQuery:%cCallViaRawSql]",
-      "color:indigo",
-      "color:red",
-      sql,
-      bind,
-      "object"
-    )
+    // logger.debug(
+    //   "[%cSQLQuery:%cCallViaRawSql]",
+    //   "color:indigo",
+    //   "color:red",
+    //   sql,
+    //   bind,
+    //   "object"
+    // )
     return this.execSqlWithBind(sql, bind, "object")
   }
 

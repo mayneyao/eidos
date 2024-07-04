@@ -1,6 +1,6 @@
 import { MultiSelectCell } from "@/components/table/views/grid/cells/multi-select-cell"
 
-import { uuidv4 } from "../utils"
+import { uuidv7 } from "../utils"
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
 import { SelectField, SelectProperty } from "./select"

@@ -68,3 +68,8 @@ export const DOMAINS = {
   API_AGENT_SERVER: "https://api.eidos.space",
   DISCORD_INVITE: "https://discord.gg/bsGMPDR23b",
 }
+
+// custom Event, dispatch via window
+export enum CustomEventType {
+  UpdateColumn = "eidos-update-column",
+}

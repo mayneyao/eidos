@@ -4,7 +4,7 @@ import { useKeyPress } from "ahooks"
 
 import { ActionExecutor } from "@/lib/action/action"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { uuidv4 } from "@/lib/utils"
+import { uuidv7 } from "@/lib/utils"
 import { useActions } from "@/hooks/use-actions"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
@@ -24,7 +24,7 @@ const useFunctionCall = (space: string) => {
   const { sqlite } = useSqlite(space)
   const addRow = ({ tableName, data }: { tableName: string; data: any }) => {
     const keys = ["_id", ...Object.keys(data)].join(",")
-    const values = [uuidv4(), ...Object.values(data)]
+    const values = [uuidv7(), ...Object.values(data)]
     const _values = Array(values.length).fill("?").join(",")
     if (!sqlite) return
     sqlite.sql4mainThread(

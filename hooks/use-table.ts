@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from "react"
-import { v4 as uuidv4 } from "uuid"
 
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
@@ -13,6 +12,7 @@ import {
   generateColumnName,
   getTableIdByRawTableName,
   shortenId,
+  uuidv7,
 } from "@/lib/utils"
 import { RowRange } from "@/components/table/views/grid/hooks/use-async-data"
 import { useSpaceAppStore } from "@/app/[database]/store"
@@ -40,7 +40,6 @@ export const useTableFields = (
   const fields = useMemo(() => {
     return Object.values(fieldMap ?? {})
   }, [fieldMap])
-
   return {
     fields,
     fieldMap,
@@ -164,8 +163,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
 
   const addRow = async (_uuid?: string) => {
     if (sqlite) {
-      const { _id } = await sqlite.addRow(tableId, { _id: _uuid || uuidv4() })
-      return _id
+      return await sqlite.addRow(tableId, { _id: _uuid || uuidv7() })
     }
   }
 
@@ -218,6 +216,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     },
     [setRows, sqlite, tableId, tableName, uiColumnMap]
   )
+
   const getRowDataById = useCallback(
     (rowId: string) => {
       return rowMap[rowId]

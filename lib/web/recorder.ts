@@ -1,4 +1,4 @@
-import { uuidv4 } from "../utils"
+import { uuidv7 } from "../utils"
 
 export const recorderMap = new Map<string, Recorder>()
 
@@ -7,7 +7,7 @@ export class Recorder {
   id: string
   mediaRecorder: MediaRecorder
   constructor() {
-    this.id = uuidv4()
+    this.id = uuidv7()
     this.chunks = []
     this.mediaRecorder = null as any
     recorderMap.set(this.id, this)

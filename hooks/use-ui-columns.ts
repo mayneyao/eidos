@@ -25,12 +25,15 @@ export const useUiColumns = (
   const updateUiColumns = useCallback(
     async (_tableName = tableName) => {
       if (!sqlite || !_tableName) return
+      console.time("updateUiColumns")
       const res = await sqlite.listUiColumns(_tableName)
       // order by created_at
       res.sort((a, b) => {
         return (a.created_at || 0) > (b.created_at || 0) ? 1 : -1
       })
       setUiColumns(getTableIdByRawTableName(_tableName || ""), res)
+      console.timeEnd("updateUiColumns")
+      console.log(getTableIdByRawTableName(_tableName || ""), res)
     },
     [setUiColumns, sqlite, tableName]
   )

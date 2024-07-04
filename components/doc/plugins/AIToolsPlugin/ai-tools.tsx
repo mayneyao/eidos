@@ -7,7 +7,7 @@ import { $createParagraphNode, $getRoot, RangeSelection } from "lexical"
 import { PauseIcon, RefreshCcwIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
-import { uuidv4 } from "@/lib/utils"
+import { uuidv7 } from "@/lib/utils"
 import { useAiConfig } from "@/hooks/use-ai-config"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
@@ -158,13 +158,13 @@ export function AITools({
         if (isCustomPrompt) {
           setMessages([
             {
-              id: uuidv4(),
+              id: uuidv7(),
               content: `You serve as an assistant, tasked with transforming user inputs, and the current directive is *${prompt}*，user's input will
 be between <content-begin> and <content-end>. you just output the transformed content without any other information.`,
               role: "system",
             },
             {
-              id: uuidv4(),
+              id: uuidv7(),
               content: `<content-begin>\n${content}\n<content-end>`,
               role: "user",
             },
@@ -172,12 +172,12 @@ be between <content-begin> and <content-end>. you just output the transformed co
         } else {
           setMessages([
             {
-              id: uuidv4(),
+              id: uuidv7(),
               content: prompt,
               role: "system",
             },
             {
-              id: uuidv4(),
+              id: uuidv7(),
               content: content,
               role: "user",
             },

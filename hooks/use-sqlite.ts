@@ -9,7 +9,7 @@ import { TreeTableName } from "@/lib/sqlite/const"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { IView } from "@/lib/store/IView"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { getRawTableNameById, uuidv4 } from "@/lib/utils"
+import { getRawTableNameById, uuidv7 } from "@/lib/utils"
 import { DefaultState } from "@/components/doc/plugins/AutoSavePlugin"
 import { createTemplateTableSql } from "@/components/table/views/grid/helper"
 
@@ -97,7 +97,10 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
         acc[cur.name] = cur
         return acc
       }, {} as Record<string, IField>)
-      return { dataStore: { ...state.dataStore, tableMap } }
+      console.log("setFields", tableMap[tableId].fieldMap)
+      const res =  { dataStore: { ...state.dataStore, tableMap } }
+      console.log("setFields", res)
+      return res;
     })
   },
 
@@ -278,7 +281,7 @@ export const useSqlite = (dbName?: string) => {
 
   const createFolder = async (parent_id?: string) => {
     if (!sqlWorker) return
-    const folderId = uuidv4().split("-").join("")
+    const folderId = uuidv7().split("-").join("")
     const node = await sqlWorker.addTreeNode({
       id: folderId,
       name: "New Folder",
@@ -291,7 +294,7 @@ export const useSqlite = (dbName?: string) => {
   // create table with default template
   const createTable = async (tableName: string, parent_id?: string) => {
     if (!sqlWorker) return
-    const tableId = uuidv4().split("-").join("")
+    const tableId = uuidv7().split("-").join("")
     const _tableName = getRawTableNameById(tableId)
     const sql = createTemplateTableSql(_tableName)
     //
@@ -312,7 +315,7 @@ export const useSqlite = (dbName?: string) => {
     nodeId?: string
   ) => {
     if (!sqlWorker) return
-    const docId = nodeId || uuidv4().split("-").join("")
+    const docId = nodeId || uuidv7().split("-").join("")
     const node = await sqlWorker.addTreeNode({
       id: docId,
       name: docName,

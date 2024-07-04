@@ -11,7 +11,7 @@ import { getSqliteProxy } from "@/lib/sqlite/proxy"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { uuidv4 } from "@/lib/utils"
+import { uuidv7 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useIndexedDB } from "@/hooks/use-indexed-db"
 import { usePeer } from "@/hooks/use-peer"
@@ -95,7 +95,7 @@ export const useLayoutInit = () => {
   useEffect(() => {
     if (database && sqlite) {
       if (lastOpenedDatabase === database) return
-      const switchDdMsgId = uuidv4()
+      const switchDdMsgId = uuidv7()
       const worker = getWorker()
       worker.postMessage({
         type: MsgType.SwitchDatabase,

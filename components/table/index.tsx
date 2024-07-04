@@ -1,9 +1,9 @@
 import { useEffect } from "react"
 
+import { ViewTypeEnum } from "@/lib/store/IView"
 import { useSqliteTableSubscribe } from "@/hooks/use-sqlite-table-subscribe"
 import { useTableFields } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import { ViewTypeEnum } from "@/lib/store/IView"
 
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 import { TableContext, useCurrentView } from "./hooks"
@@ -35,14 +35,11 @@ export const Table = ({
     tableName,
     viewId,
   })
-  const { fields } = useTableFields(tableName, space)
   const { updateUiColumns } = useUiColumns(tableName, space)
 
   useEffect(() => {
-    if (fields.length === 0) {
-      updateUiColumns()
-    }
-  }, [updateUiColumns, tableName, fields.length])
+    updateUiColumns(tableName)
+  }, [updateUiColumns, tableName])
 
   useSqliteTableSubscribe(tableName)
   return (

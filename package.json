@@ -126,6 +126,7 @@
     "tailwindcss-animate": "^1.0.6",
     "utf-8-validate": "^6.0.3",
     "uuid": "^9.0.0",
+    "uuidv7": "^1.0.1",
     "vaul": "^0.8.0",
     "whisper-turbo": "workspace:*",
     "workbox-precaching": "^7.0.0",

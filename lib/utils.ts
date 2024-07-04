@@ -1,9 +1,9 @@
 import { clsx, type ClassValue } from "clsx"
-import { times } from "lodash"
 import { twMerge } from "tailwind-merge"
-import { v4 as uuidv4 } from "uuid"
+import { uuidv7 } from "uuidv7"
 
-export { v4 as uuidv4 } from "uuid"
+export { uuidv7 } from "uuidv7"
+// export { v4 as uuidv7 } from "uuid"
 
 export function nonNullable<T>(value: T): value is NonNullable<T> {
   return value != null
@@ -56,7 +56,7 @@ export const getRawDocNameById = (id: string) => {
   return `doc_${id}`
 }
 
-// uuidv4 remove - and _ to make it shorter
+// uuidv7 remove - and _ to make it shorter
 export const shortenId = (id: string) => {
   return id.replace(/-/g, "").replace(/_/g, "")
 }
@@ -137,7 +137,7 @@ export const getLocalDate = (date: Date) => {
 }
 
 export const getUuid = () => {
-  return shortenId(uuidv4())
+  return shortenId(uuidv7())
 }
 
 // generate a random id with 8 characters

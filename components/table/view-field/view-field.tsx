@@ -154,7 +154,7 @@ export const ViewField = (props: { view?: IView }) => {
         </div>
         <hr className="my-1" />
         <DndProvider backend={HTML5Backend} context={window}>
-          <div className="w-[300px]">
+          <div className="max-h-[420px] w-[300px] overflow-y-auto">
             {cards.map((card, i) => renderCard(card, i))}
           </div>
         </DndProvider>

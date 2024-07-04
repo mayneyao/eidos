@@ -1,4 +1,6 @@
-import { replaceQueryTableName } from "./sql-parser"
+import { parseFirst } from "pgsql-ast-parser"
+
+import { replaceQueryTableName, replaceWithFindIndexQuery } from "./sql-parser"
 
 describe("replaceQueryTableName", () => {
   test("should replace table name in the query", () => {
@@ -9,5 +11,13 @@ describe("replaceQueryTableName", () => {
     })
     const expected = replaceQueryTableName("SELECT * FROM raw_tb_a", {})
     expect(result).toBe(expected)
+  })
+  test("demo", () => {
+    const q = `SELECT id,
+       name,
+       score
+FROM students order by rowid DESC;`
+    const parse = replaceWithFindIndexQuery(q, "1")
+    console.log(parse)
   })
 })

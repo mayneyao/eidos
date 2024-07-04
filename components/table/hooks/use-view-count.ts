@@ -19,10 +19,12 @@ const countExpr = {
 
 export const useViewCount = (view?: IView) => {
   const [count, setCount] = useState(0)
+  const [loading, setLoading] = useState(false)
   const { sqlite } = useSqlite()
 
   useEffect(() => {
     if (view?.query.length) {
+      setLoading(true)
       const parsedSql = parseFirst(view?.query ?? "") as SelectFromStatement
       parsedSql.columns = [
         {
@@ -35,6 +37,7 @@ export const useViewCount = (view?: IView) => {
       const countSql = toSql.statement(parsedSql)
       sqlite?.sql4mainThread(countSql).then((res) => {
         setCount(res[0][0])
+        setLoading(false)
       })
     }
   }, [sqlite, view?.query])
@@ -42,5 +45,6 @@ export const useViewCount = (view?: IView) => {
   return {
     count,
     setCount,
+    loading,
   }
 }

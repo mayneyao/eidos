@@ -1,5 +1,8 @@
 import { ViewTableName } from "@/lib/sqlite/const"
-import { replaceQueryTableName } from "@/lib/sqlite/sql-parser"
+import {
+  replaceQueryTableName,
+  replaceWithFindIndexQuery,
+} from "@/lib/sqlite/sql-parser"
 import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { getUuid } from "@/lib/utils"
 
@@ -93,6 +96,27 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       await this.dataSpace.exec2(`DROP TABLE ${tmpTableName}`)
     }
     return isExist
+  }
+
+  public async findRowIndexInQuery(
+    table_id: string,
+    rowId: string,
+    query: string
+  ): Promise<number> {
+    const tableName = `tb_${table_id}`
+    console.log("findRowIndexInQuery", tableName, rowId, query)
+    try {
+      // Check if the row exists in the temporary table
+      const newQuery = replaceWithFindIndexQuery(query, rowId)
+      const result = await this.dataSpace.exec2(newQuery)
+      console.log("result", query, result)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      // Drop the temporary table
+      // await this.dataSpace.exec2(`DROP TABLE ${tmpTableName}`)
+    }
+    return 1
   }
 
   // after entity field changed, the formula field may be changed, so we need to recompute the formula field

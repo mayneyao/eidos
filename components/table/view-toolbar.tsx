@@ -155,14 +155,16 @@ export const ViewToolbar = (props: {
   const { subPageId, setSubPage, clearSubPage } = useCurrentSubPage()
 
   const handleAddRow = async () => {
-    const uuid = await addRow()
-    if (uuid) {
-      const shortId = shortenId(uuid)
+    const res = await addRow()
+    if (res) {
+      const shortId = shortenId(res._id)
+      console.time("getOrCreateTableSubDoc")
       await getOrCreateTableSubDoc({
         docId: shortId,
         title: "",
         tableId: tableId,
       })
+      console.timeEnd("getOrCreateTableSubDoc")
       setSubPage(shortId)
     }
   }

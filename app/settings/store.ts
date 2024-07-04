@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-import { uuidv4 } from "@/lib/utils"
+import { uuidv7 } from "@/lib/utils"
 import { BackupServerFormValues } from "@/app/settings/backup/page"
 
 import { ProfileFormValues } from "./profile-form"
@@ -19,7 +19,7 @@ export const useConfigStore = create<ConfigState>()(
     (set) => ({
       profile: {
         username: "",
-        userId: uuidv4(),
+        userId: uuidv7(),
       },
       backupServer: {
         Github__repo: "",
@@ -33,7 +33,7 @@ export const useConfigStore = create<ConfigState>()(
       setProfile: (profile) =>
         set((state) => {
           if (!state.profile.userId) {
-            profile.userId = uuidv4()
+            profile.userId = uuidv7()
           }
           return { ...state, profile }
         }),
