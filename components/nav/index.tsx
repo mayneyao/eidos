@@ -43,8 +43,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
       {showMenu && (
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger>
-              {" "}
+            <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="xs"

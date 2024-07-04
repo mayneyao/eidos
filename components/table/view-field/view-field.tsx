@@ -138,7 +138,7 @@ export const ViewField = (props: { view?: IView }) => {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={"rounded-md"}>
+      <PopoverTrigger className={"rounded-md"} asChild>
         <Button size="xs" variant="ghost">
           <SlidersHorizontalIcon className="h-4 w-4 opacity-60"></SlidersHorizontalIcon>
         </Button>
