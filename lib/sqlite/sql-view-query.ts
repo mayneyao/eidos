@@ -9,6 +9,5 @@ const getQueryFields = (query: string) => {
 
 export const isFieldsInQuery = (query: string, fields: string[]) => {
   const queryFields = getQueryFields(query)
-  console.log("queryFields", queryFields, fields)
   return fields.some((f) => queryFields?.includes(f))
 }

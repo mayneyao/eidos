@@ -6,13 +6,15 @@ import {
   Item,
   Rectangle,
 } from "@glideapps/glide-data-grid"
+import { useThrottleFn } from "ahooks"
 import { IView } from "lib/store/IView"
 
 import { isFieldsInQuery } from "@/lib/sqlite/sql-view-query"
-import { getTableIdByRawTableName, uuidv7 } from "@/lib/utils"
+import { getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
+import { useViewSort } from "@/hooks/use-view-sort"
 import { TableContext } from "@/components/table/hooks"
 import { useTableRowEvent } from "@/components/table/hooks/use-table-row-event"
 import { useViewCount } from "@/components/table/hooks/use-view-count"
@@ -26,7 +28,7 @@ interface IUseDataMutationProps {
   dataRef: MutableRefObject<string[]>
   rowIdsRef: MutableRefObject<string[]>
   getRowDataByIndex: (index: number) => any
-  getViewSortedRows: () => Promise<any[]>
+
   view: IView
 }
 
@@ -37,22 +39,26 @@ export const useDataMutation = ({
   rowIdsRef,
   visiblePagesRef,
   getRowDataByIndex,
-  getViewSortedRows,
 }: IUseDataMutationProps) => {
   const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableAppStore()
   const { setSubPage } = useCurrentSubPage()
   const { tableName, space } = useContext(TableContext)
+  const { getViewSortedRows: _getViewSortedRows } = useViewSort(view.query)
+  const { run: getViewSortedRows } = useThrottleFn(_getViewSortedRows, {
+    wait: 1000,
+  })
 
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const { increaseCount, reduceCount, setCount } = useViewCount(view)
 
   //   const { getViewSortedRows } = useViewSort()
-  const { query: qs, table_id } = view
+  const { query: qs } = view
   const { sqlite } = useSqlite()
   const { toCell, onEdited } = useDataSource(tableName, space)
 
   const { deleteRowsByRange, getRowData, getRowDataById, addRow } =
     useTableOperation(tableName, space)
+  const tableId = view.table_id
 
   const refreshCurrentVisible = useCallback(() => {
     const vr = visiblePagesRef.current
@@ -98,6 +104,7 @@ export const useDataMutation = ({
   const handleDelRows = async (
     ranges: { startIndex: number; endIndex: number }[]
   ) => {
+    let oldCount = rowIdsRef.current.length
     const _ranges = [...ranges]
     for (const { startIndex, endIndex } of ranges.reverse()) {
       rowIdsRef.current.splice(startIndex, endIndex - startIndex)
@@ -106,7 +113,14 @@ export const useDataMutation = ({
     if (!qs) {
       throw new Error("query is empty")
     }
-    await deleteRowsByRange(_ranges, tableName, qs)
+    try {
+      setCount(rowIdsRef.current.length)
+      refreshCurrentVisible()
+      await deleteRowsByRange(_ranges, tableName, qs)
+    } catch (error) {
+      // fallback
+      setCount(oldCount)
+    }
   }
 
   const handleAddRow = useCallback(async () => {
@@ -117,46 +131,54 @@ export const useDataMutation = ({
       addAddedRowId(uuid)
       await addRow(uuid)
       rowIdsRef.current.push(uuid)
-      dataRef.current.push(uuid)
-      return rowIdsRef.current.length - 1
-      // if (rawData) {
-      //   // await getViewSortedSqliteRowIds()
-      //   return rowIdsRef.current.length + 1
-      //   // return getRowIndexById(rawData._id)
-      // }
+      const index = rowIdsRef.current.length - 1
+      dataRef.current[index] = uuid
+      return index
     } catch (error) {
       // fallback
       setCount(rowIdsRef.current.length)
     }
   }, [addAddedRowId, addRow, dataRef, increaseCount, rowIdsRef, setCount])
 
+  const updateView = async (rowId?: string) => {
+    const rows = await getViewSortedRows()
+    if (!rows) return
+    const rowIds = rows.map((r) => r._id)
+    if (rowId) {
+      // handle row index change after sort
+      const oldIndex = rowIdsRef.current.findIndex((id) => id === rowId)
+      const newIndex = rowIds.findIndex((id) => id === rowId)
+      if (oldIndex !== newIndex) {
+        // TODO: tips for user
+      }
+    }
+    rowIdsRef.current = rowIds
+    dataRef.current = [...rowIds]
+    setCount(rowIds.length)
+    refreshCurrentVisible()
+  }
+
   useTableRowEvent({
     tableName,
     onInsert: (row) => {
-      // checkRowExistInQuery(row._id, async (isExist) => {
-      //   if (isExist) {
-      //     getViewSortedRows().then((rows) => {
-      //       const rowIds = rows.map((r) => r._id)
-      //       rowIdsRef.current = rowIds
-      //       dataRef.current = rowIds
-      //       setCount(rowIds.length)
-      //       refreshCurrentVisible()
-      //     })
-      //   } else {
-      //     if (addedRowIds.has(row._id)) {
-      //       const shortId = shortenId(row._id)
-      //       console.time("getOrCreateTableSubDoc")
-      //       if (!tableId) return
-      //       await getOrCreateTableSubDoc({
-      //         docId: shortId,
-      //         title: "",
-      //         tableId: tableId,
-      //       })
-      //       console.timeEnd("getOrCreateTableSubDoc")
-      //       setSubPage(shortId)
-      //     }
-      //   }
-      // })
+      checkRowExistInQuery(row._id, async (isExist) => {
+        if (isExist) {
+          updateView()
+        } else {
+          if (addedRowIds.has(row._id)) {
+            const shortId = shortenId(row._id)
+            console.time("getOrCreateTableSubDoc")
+            if (!tableId) return
+            await getOrCreateTableSubDoc({
+              docId: shortId,
+              title: "",
+              tableId: tableId,
+            })
+            console.timeEnd("getOrCreateTableSubDoc")
+            setSubPage(shortId)
+          }
+        }
+      })
       if (addedRowIds.has(row._id)) {
         clearAddedRowIds()
         refreshCurrentVisible()
@@ -172,25 +194,14 @@ export const useDataMutation = ({
           return
         }
         if (isExist) {
-          getViewSortedRows().then((rows) => {
-            const rowIds = rows.map((r) => r._id)
-            setCount(rowIds.length)
-            refreshCurrentVisible()
-          })
+          updateView()
         } else {
-          getViewSortedRows().then((rows) => {
-            const rowIds = rows.map((r) => r._id)
-            setCount(rowIds.length)
-            refreshCurrentVisible()
-          })
+          rowIdsRef.current = rowIdsRef.current.filter((id) => id !== _new._id)
+          dataRef.current = dataRef.current.filter((id) => id !== _new._id)
+          setCount(rowIdsRef.current.length)
+          refreshCurrentVisible()
         }
       })
-    },
-    onDelete(row) {
-      rowIdsRef.current = rowIdsRef.current.filter((id) => id !== row.row_id)
-      dataRef.current = rowIdsRef.current
-      reduceCount()
-      refreshCurrentVisible()
     },
   })
 

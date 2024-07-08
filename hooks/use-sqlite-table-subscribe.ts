@@ -41,22 +41,11 @@ export const useSqliteTableSubscribe = (tableName: string) => {
             if (!isComputedField(_new?.type)) {
               break
             }
-            // new a custom event
-            const event = new CustomEvent(CustomEventType.UpdateColumn, {
-              detail: {
-                tableId,
-                tableColumn: _new,
-              },
-            })
-            console.log("dispatchEvent", event)
-            // dispatch the event
-            window.dispatchEvent(event)
-
             // FIXME: update too many rows
             // if a generated column is updated, we need to recompute all rows in memory
-            // recompute(tableId, getRowIds(tableId)).then((rows) => {
-            //   setRows(tableId, rows)
-            // })
+            recompute(tableId, getRowIds(tableId)).then((rows) => {
+              setRows(tableId, rows)
+            })
             break
           case DataUpdateSignalType.Update:
             recompute(tableId, [_new._id]).then((rows) => {

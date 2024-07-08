@@ -21,17 +21,14 @@ import { chunk, range } from "lodash"
 import {
   rewriteQuery2getSortedSqliteRowIds,
   rewriteQueryWithOffsetAndLimit,
+  rewriteQueryWithSortedQuery,
 } from "@/lib/sqlite/sql-sort-parser"
 import { IView } from "@/lib/store/IView"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { useViewSort } from "@/hooks/use-view-sort"
 import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
 import { useViewCount } from "@/components/table/hooks/use-view-count"
 import { useViewLoadingStore } from "@/components/table/hooks/use-view-loading"
 
-import { useTableAppStore } from "../store"
 import { useDataMutation } from "./use-data-mutation"
 
 export type RowRange = readonly [number, number]
@@ -75,13 +72,8 @@ export function useAsyncData<TRowType>(data: {
     maxConcurrency,
     view,
   } = data
-  const { space } = useCurrentPathInfo()
   const tableId = view.table_id
   const qs = view.query
-  const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableAppStore()
-  const { setSubPage } = useCurrentSubPage()
-  const { getOrCreateTableSubDoc } = useSqlite(space)
-  const { getViewSortedRows } = useViewSort(qs || "")
   const { sqlite } = useSqlite()
   const pageSize = Math.min(_pageSize, 50)
   const loadingRef = useRef(CompactSelection.empty())
@@ -89,7 +81,7 @@ export function useAsyncData<TRowType>(data: {
   // rowIdsRef and dataRef are same thing, the diff is rowIdsRef has all row ids, dataRef has only part of row ids
   const dataRef = useRef<string[]>([])
   const rowIdsRef = useRef<string[]>([])
-  const { increaseCount, reduceCount, setCount } = useViewCount(view)
+  const { setCount } = useViewCount(view)
 
   const [visiblePages, setVisiblePages] = useState<Rectangle>({
     x: 0,
@@ -147,16 +139,13 @@ export function useAsyncData<TRowType>(data: {
 
   const loadPage = useCallback(
     async (page: number, _pageSize: number = pageSize) => {
-      console.time("load page 0")
       if (!sqlite || !tableId) return
       const startIndex = page * _pageSize
-      const d = await sqlite.sql4mainThread2(
-        rewriteQueryWithOffsetAndLimit(qs || "", startIndex, _pageSize)
-      )
+      let sql = rewriteQueryWithOffsetAndLimit(qs || "", startIndex, _pageSize)
+      const d = await sqlite.sql4mainThread2(sql)
       setRows(tableId, d)
       const vr = visiblePagesRef.current
-      rowIdsRef.current = d.map((r) => r.rowid)
-      console.timeEnd("load page 0")
+      rowIdsRef.current = d.map((r) => r._id)
       const data = dataRef.current
       const damageList: { cell: [number, number] }[] = []
       for (const [i, element] of d.entries()) {
@@ -184,7 +173,7 @@ export function useAsyncData<TRowType>(data: {
           ),
           maxConcurrency
         )) {
-          // await Promise.allSettled(pageChunk.map(loadPage))
+          await Promise.allSettled(pageChunk.map(loadPage))
         }
         const result: GridCell[][] = []
 
@@ -199,7 +188,7 @@ export function useAsyncData<TRowType>(data: {
         return result
       }
     },
-    [getCellContent, maxConcurrency, pageSize]
+    [getCellContent, loadPage, maxConcurrency, pageSize]
   )
 
   const refreshData = () => {
@@ -216,13 +205,11 @@ export function useAsyncData<TRowType>(data: {
   }, [tableName, qs, loadPage])
 
   const getViewSortedSqliteRowIds = useCallback(async () => {
-    console.time("get sorted row ids")
     if (!qs || !sqlite) return
     setLoading(qs, true)
     const _qs = rewriteQuery2getSortedSqliteRowIds(qs)
     const res = await sqlite.sql4mainThread(_qs)
     const rowIds = res.map((r) => r[0])
-    console.timeEnd("get sorted row ids")
     setLoading(qs, false)
     rowIdsRef.current = rowIds
     setCount(rowIdsRef.current.length)
@@ -234,20 +221,19 @@ export function useAsyncData<TRowType>(data: {
 
   const loadData = useCallback(
     async (loadRowIds: string[], startIndex: number) => {
-      if (!sqlite || !tableName || !tableId) return
+      if (!sqlite || !tableName || !tableId || !qs) return
       if (loadRowIds.length > 0) {
         _loadingRef.current.push(startIndex)
       } else {
         console.log("loadRowIds is empty")
+        return
       }
-      console.time(`load data ${startIndex}`)
-      const d = await sqlite?.sql4mainThread2(
-        `select * from ${tableName} where _id in (${loadRowIds
-          .map((id) => `'${id}'`)
-          .join(",")})`
-      )
+      let sql = `select * from ${tableName} where _id in (${loadRowIds
+        .map((id) => `'${id}'`)
+        .join(",")})`
+      sql = rewriteQueryWithSortedQuery(sql, qs)
+      const d = await sqlite?.sql4mainThread2(sql)
       setRows(tableId, d)
-      console.timeEnd(`load data ${startIndex}`)
       const rowIds = d.map((r) => r._id)
       const vr = visiblePagesRef.current
       const damageList: { cell: [number, number] }[] = []
@@ -262,7 +248,7 @@ export function useAsyncData<TRowType>(data: {
       }
       gridRef.current?.updateCells(damageList)
     },
-    [gridRef, setRows, sqlite, tableId, tableName]
+    [gridRef, qs, setRows, sqlite, tableId, tableName]
   )
 
   useEffect(() => {
@@ -294,7 +280,6 @@ export function useAsyncData<TRowType>(data: {
       dataRef,
       rowIdsRef,
       getRowDataByIndex,
-      getViewSortedRows,
     })
 
   return {

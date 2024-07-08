@@ -4,7 +4,7 @@ import {
   SelectFromStatement,
   astMapper,
   parseFirst,
-  toSql
+  toSql,
 } from "pgsql-ast-parser"
 
 import { OrderByItem } from "@/components/table/view-sort-editor"
@@ -87,19 +87,22 @@ export const rewriteQuery2getSortedSqliteRowIds = (query: string) => {
   return toSql.statement(modified)
 }
 
+export const rewriteQueryWithSortedQuery = (
+  query: string,
+  sortedQuery: string
+) => {
+  const ast = parseFirst(query) as SelectFromStatement
+  const sortedAst = parseFirst(sortedQuery) as SelectFromStatement
+  ast.orderBy = sortedAst.orderBy
+  return toSql.statement(ast)
+}
+
 export const rewriteQueryWithOffsetAndLimit = (
   query: string,
   offset: number,
   limit: number
 ) => {
   const ast = parseFirst(query) as SelectFromStatement
-  // add rowid to select list
-  ast.columns?.push({
-    expr: {
-      type: "ref",
-      name: "_id",
-    },
-  })
 
   if (!ast.orderBy) {
     ast.orderBy = [
