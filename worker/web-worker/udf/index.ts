@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { ScalarFunctionOptions, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 import { v4 } from "uuid"
+import { uuidv7 as v7 } from "uuidv7"
 
 import {
   DataUpdateSignalType,
@@ -49,6 +50,13 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     name: "uuidv4",
     xFunc: function (pCx) {
       return v4()
+    },
+    deterministic: false,
+  }
+  const uuidv7 = {
+    name: "uuidv7",
+    xFunc: function (pCx) {
+      return v7()
     },
     deterministic: false,
   }
@@ -168,6 +176,7 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     props,
     today,
     uuidv4,
+    uuidv7,
     // filterAll,
     eidos_data_event_update,
     eidos_data_event_insert,

@@ -61,7 +61,7 @@ export const guessCellKind = (value: any) => {
 export const createTemplateTableSql = (tableName: string) => {
   const templateTableSql = `
 CREATE TABLE ${tableName} (
-  _id TEXT PRIMARY KEY NOT NULL DEFAULT (uuidv4()),
+  _id TEXT PRIMARY KEY NOT NULL DEFAULT (uuidv7()),
   _created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   _last_edited_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   _created_by TEXT DEFAULT 'unknown',

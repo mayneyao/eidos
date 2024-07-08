@@ -103,20 +103,6 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
             db
           )
           break
-        case FieldType.CreatedTime:
-          this.dataSpace.syncExec2(
-            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_created_time);`,
-            [],
-            db
-          )
-          break
-        case FieldType.LastEditedTime:
-          this.dataSpace.syncExec2(
-            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_last_edited_time);`,
-            [],
-            db
-          )
-          break
         case FieldType.Link:
           const tm = new TableManager(tableId, this.dataSpace)
           await tm.fields.link.addField(data, db)

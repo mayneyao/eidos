@@ -331,7 +331,7 @@ export class DataSpace {
     // we need to delete rows from startIndex to endIndex
     if ("order by" !== query.toLowerCase().match(/order by/g)?.[0]) {
       // when query has no order by, we need to add order by to make sure delete from start to end
-      query += " ORDER BY rowid"
+      query += " ORDER BY _id"
     }
     const sql = `DELETE FROM ${tableName} WHERE _id in (SELECT _id FROM (${query}) LIMIT ? OFFSET ?)`
     await this.db.transaction(async (db) => {
@@ -437,7 +437,6 @@ export class DataSpace {
     rowId: string,
     query: string
   ) {
-    console.log("isRowExistInQuery", tableId, rowId, query)
     return await this.view.isRowExistInQuery(tableId, rowId, query)
   }
 
