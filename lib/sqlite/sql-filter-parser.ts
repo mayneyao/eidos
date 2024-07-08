@@ -278,7 +278,6 @@ export const getFilterColumns = (query: string) => {
   const visitor = astVisitor((v) => ({
     ref: (r) => {
       if (r.type === "ref") {
-        console.log("ref: ", r)
         columns.push(r.name)
       }
       v.super().ref(r)

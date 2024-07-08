@@ -91,23 +91,17 @@ export default function GridView(props: IGridProps) {
     tableName,
     viewId: props.view?.id,
   })
-  const { count: viewCount, setCount } = useViewCount(currentView)
-  const {
-    tableSchema,
-    // deleteFieldByColIndex,
-    // addField,
-    deleteRowsByRange,
-    getRowData,
-    getRowDataById,
-    addRow,
-  } = useTableOperation(tableName, databaseName)
-  const { toCell, onEdited } = useDataSource(tableName, databaseName)
+  const { count: viewCount } = useViewCount(currentView)
+  const { tableSchema, getRowData, getRowDataById } = useTableOperation(
+    tableName,
+    databaseName
+  )
+  const { toCell } = useDataSource(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
   const { onColumnResize, columns, showColumns, onColumnMoved } = useColumns(
     uiColumns,
     currentView
   )
-  const qs = useTransformSqlQuery(props.view?.query ?? "", uiColumns)
 
   const getFieldByIndex = useCallback(
     (index: number) => {
@@ -120,6 +114,7 @@ export default function GridView(props: IGridProps) {
     getCellContent,
     onVisibleRegionChanged,
     onCellEdited,
+    onCellsEdited,
     getCellsForSelection,
     handleAddRow,
     handleDelRows,
@@ -131,12 +126,7 @@ export default function GridView(props: IGridProps) {
     getRowData,
     getRowDataById,
     toCell,
-    onEdited,
     gridRef: glideDataGridRef,
-    addRow,
-    deleteRowsByRange,
-    setCount,
-    qs,
     viewCount,
     view: currentView,
   })
@@ -325,6 +315,7 @@ export default function GridView(props: IGridProps) {
                 fill: true,
               }}
               onCellEdited={onCellEdited}
+              onCellsEdited={onCellsEdited}
               onRowAppended={handleAddRow}
             />
           )}

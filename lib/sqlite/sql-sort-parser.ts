@@ -3,10 +3,8 @@ import {
   OrderByStatement,
   SelectFromStatement,
   astMapper,
-  astVisitor,
-  parse,
   parseFirst,
-  toSql,
+  toSql
 } from "pgsql-ast-parser"
 
 import { OrderByItem } from "@/components/table/view-sort-editor"

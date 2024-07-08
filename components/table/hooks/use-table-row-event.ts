@@ -6,11 +6,13 @@ import {
   EidosDataEventChannelMsgType,
 } from "@/lib/const"
 
+type Row = EidosDataEventChannelMsg["payload"]["_new"]
+
 interface UseTableDataEventProps {
   tableName: string
-  onInsert?: (row: EidosDataEventChannelMsg["payload"]["_new"]) => void
-  onUpdate?: (row: EidosDataEventChannelMsg["payload"]["_new"]) => void
-  onDelete?: (row: EidosDataEventChannelMsg["payload"]["_old"]) => void
+  onInsert?: (row: Row) => void
+  onUpdate?: (_new: Row, _old: Row) => void
+  onDelete?: (row: Row) => void
 }
 
 export const useTableRowEvent = ({
@@ -30,7 +32,7 @@ export const useTableRowEvent = ({
             if (onInsert) onInsert(_new)
             break
           case DataUpdateSignalType.Update:
-            if (onUpdate) onUpdate(_new)
+            if (onUpdate) onUpdate(_new, _old)
             break
           case DataUpdateSignalType.Delete:
             if (onDelete) onDelete(_old)

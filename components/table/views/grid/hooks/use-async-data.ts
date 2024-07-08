@@ -16,7 +16,6 @@ import {
   Item,
   Rectangle,
 } from "@glideapps/glide-data-grid"
-import { useMap } from "ahooks"
 import { chunk, range } from "lodash"
 
 import {
@@ -24,16 +23,16 @@ import {
   rewriteQueryWithOffsetAndLimit,
 } from "@/lib/sqlite/sql-sort-parser"
 import { IView } from "@/lib/store/IView"
-import { getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useViewSort } from "@/hooks/use-view-sort"
 import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
-import { useTableRowEvent } from "@/components/table/hooks/use-table-row-event"
+import { useViewCount } from "@/components/table/hooks/use-view-count"
 import { useViewLoadingStore } from "@/components/table/hooks/use-view-loading"
 
 import { useTableAppStore } from "../store"
+import { useDataMutation } from "./use-data-mutation"
 
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
@@ -52,23 +51,15 @@ export function useAsyncData<TRowType>(data: {
   getRowData: RowCallback<string>
   getRowDataById: (id: string) => TRowType
   toCell: RowToCell<TRowType>
-  onEdited: RowEditedCallback<TRowType>
   gridRef: MutableRefObject<DataEditorRef | null>
-  addRow: (uuid?: string) => Promise<Record<string, any> | undefined>
-  deleteRowsByRange: (
-    range: { startIndex: number; endIndex: number }[],
-    tableName: string,
-    query: string
-  ) => Promise<void>
-  setCount: React.Dispatch<React.SetStateAction<number>>
   viewCount: number
-  qs?: string
   view: IView
 }): Pick<
   DataEditorProps,
   | "getCellContent"
   | "onVisibleRegionChanged"
   | "onCellEdited"
+  | "onCellsEdited"
   | "getCellsForSelection"
 > & {
   handleAddRow: () => void
@@ -77,30 +68,29 @@ export function useAsyncData<TRowType>(data: {
 } {
   const {
     tableName,
-    qs,
     pageSize: _pageSize,
     getRowDataById,
     toCell,
-    onEdited,
     gridRef,
-    addRow,
-    deleteRowsByRange,
-    setCount,
     maxConcurrency,
     view,
   } = data
-
+  const { space } = useCurrentPathInfo()
+  const tableId = view.table_id
+  const qs = view.query
   const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableAppStore()
   const { setSubPage } = useCurrentSubPage()
-  const { space, tableId } = useCurrentPathInfo()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const { getViewSortedRows } = useViewSort(qs || "")
   const { sqlite } = useSqlite()
   const pageSize = Math.min(_pageSize, 50)
   const loadingRef = useRef(CompactSelection.empty())
   const _loadingRef = useRef<number[]>([])
+  // rowIdsRef and dataRef are same thing, the diff is rowIdsRef has all row ids, dataRef has only part of row ids
   const dataRef = useRef<string[]>([])
   const rowIdsRef = useRef<string[]>([])
+  const { increaseCount, reduceCount, setCount } = useViewCount(view)
+
   const [visiblePages, setVisiblePages] = useState<Rectangle>({
     x: 0,
     y: 0,
@@ -211,16 +201,6 @@ export function useAsyncData<TRowType>(data: {
     },
     [getCellContent, maxConcurrency, pageSize]
   )
-  // check a record whether exist in a view after insert/update
-  const checkRowExistInQuery = useCallback(
-    async (rowId: string, callback: (isExist: boolean) => void) => {
-      if (!sqlite || !qs) return
-      const tableId = getTableIdByRawTableName(tableName)
-      const isExist = await sqlite.isRowExistInQuery(tableId, rowId, qs)
-      callback(Boolean(isExist))
-    },
-    [sqlite, qs, tableName]
-  )
 
   const refreshData = () => {
     loadingRef.current = CompactSelection.empty()
@@ -284,19 +264,6 @@ export function useAsyncData<TRowType>(data: {
     },
     [gridRef, setRows, sqlite, tableId, tableName]
   )
-  const refreshCurrentVisible = useCallback(() => {
-    const vr = visiblePagesRef.current
-    const damageList: { cell: [number, number] }[] = []
-    const height = vr.height
-    for (let row = vr.y; row < vr.y + height; row++) {
-      for (let col = vr.x; col < vr.x + vr.width; col++) {
-        damageList.push({
-          cell: [col, row],
-        })
-      }
-    }
-    gridRef.current?.updateCells(damageList)
-  }, [gridRef])
 
   useEffect(() => {
     if (!sqlite || !tableName || !tableId) return
@@ -319,116 +286,25 @@ export function useAsyncData<TRowType>(data: {
     gridRef.current?.scrollTo(0, 0)
   }, [gridRef, view.query])
 
-  const onCellEdited = useCallback(
-    (cell: Item, newVal: EditableGridCell) => {
-      const [, row] = cell
-      const rowData = getRowDataByIndex(row)
-      rowData && onEdited(cell, newVal, rowData)
-    },
-    [getRowDataByIndex, onEdited]
-  )
-
-  const getRowIndexById = (rowId: string) => {
-    const rowIndex = rowIdsRef.current.findIndex((id) => id === rowId)
-    return rowIndex
-  }
-
-  const handleDelRows = async (
-    ranges: { startIndex: number; endIndex: number }[]
-  ) => {
-    const _ranges = [...ranges]
-    for (const { startIndex, endIndex } of ranges.reverse()) {
-      rowIdsRef.current.splice(startIndex, endIndex - startIndex)
-    }
-    if (!qs) {
-      throw new Error("query is empty")
-    }
-    await deleteRowsByRange(_ranges, tableName, qs)
-  }
-
-  const handleAddRow = useCallback(async () => {
-    setCount(rowIdsRef.current.length + 1)
-    try {
-      const uuid = uuidv7()
-      addAddedRowId(uuid)
-      const rawData = await addRow(uuid)
-      if (rawData) {
-        await getViewSortedSqliteRowIds()
-        return getRowIndexById(rawData._id)
-      }
-    } catch (error) {
-      setCount(rowIdsRef.current.length)
-    }
-  }, [addAddedRowId, addRow, getViewSortedSqliteRowIds, setCount])
-
-  useTableRowEvent({
-    tableName,
-    onInsert: (row) => {
-      checkRowExistInQuery(row._id, async (isExist) => {
-        if (isExist) {
-          setCount((prev) => prev + 1)
-          getViewSortedRows().then((rows) => {
-            const rowIds = rows.map((r) => r._id)
-            rowIdsRef.current = rowIds
-            dataRef.current = rowIds
-            setCount(rowIds.length)
-            refreshCurrentVisible()
-          })
-        } else {
-          if (addedRowIds.has(row._id)) {
-            const shortId = shortenId(row._id)
-            console.time("getOrCreateTableSubDoc")
-            if (!tableId) return
-            await getOrCreateTableSubDoc({
-              docId: shortId,
-              title: "",
-              tableId: tableId,
-            })
-            console.timeEnd("getOrCreateTableSubDoc")
-            setSubPage(shortId)
-          }
-        }
-      })
-      if (addedRowIds.has(row._id)) {
-        clearAddedRowIds()
-        refreshCurrentVisible()
-        return
-      }
-    },
-    onUpdate(row) {
-      checkRowExistInQuery(row._id, async (isExist) => {
-        if (isExist) {
-          getViewSortedRows().then((rows) => {
-            const rowIds = rows.map((r) => r._id)
-            setCount(rowIds.length)
-            refreshCurrentVisible()
-          })
-        } else {
-          getViewSortedRows().then((rows) => {
-            const rowIds = rows.map((r) => r._id)
-            setCount(rowIds.length)
-            refreshCurrentVisible()
-          })
-        }
-      })
-    },
-    onDelete(row) {
-      rowIdsRef.current = rowIdsRef.current.filter((id) => id !== row.row_id)
-      dataRef.current = rowIdsRef.current
-      setCount((prev) => {
-        return prev - 1
-      })
-      refreshCurrentVisible()
-    },
-  })
+  const { handleAddRow, handleDelRows, onCellEdited, onCellsEdited } =
+    useDataMutation({
+      view,
+      gridRef,
+      visiblePagesRef,
+      dataRef,
+      rowIdsRef,
+      getRowDataByIndex,
+      getViewSortedRows,
+    })
 
   return {
     getCellContent,
-    onVisibleRegionChanged,
-    onCellEdited,
-    getCellsForSelection,
     handleAddRow,
     handleDelRows,
+    onCellEdited,
+    onCellsEdited,
+    onVisibleRegionChanged,
+    getCellsForSelection,
     getRowByIndex: getRowDataByIndex,
   }
 }
