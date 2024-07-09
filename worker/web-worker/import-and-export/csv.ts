@@ -1,6 +1,7 @@
 import * as Papa from "papaparse"
 import { v4 as uuidv4 } from "uuid"
 
+import { FieldType } from "@/lib/fields/const"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { generateColumnName, getRawTableNameById } from "@/lib/utils"
 
@@ -11,6 +12,56 @@ import { BaseImportAndExport } from "./base"
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export class CsvImportAndExport extends BaseImportAndExport {
+  async guessColumnType(file: File): Promise<{
+    [name: string]: "String" | "Number" | "Date"
+  }> {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => {
+          const records = result.data
+          const sampledRecords: any[] = []
+          for (let i = 0; i < 10; i++) {
+            const randomIndex = Math.floor(Math.random() * records.length)
+            sampledRecords.push(records[randomIndex])
+          }
+          const columnTypes: {
+            [name: string]: "String" | "Number" | "Date"
+          } = {}
+          for (
+            let columnIndex = 0;
+            columnIndex < Object.keys(sampledRecords[0]).length;
+            columnIndex++
+          ) {
+            const columnName = Object.keys(sampledRecords[0])[columnIndex]
+            let columnType: "String" | "Number" | "Date" = "String"
+            const columnDataList = sampledRecords
+              .map((record) => record[columnName])
+              .filter((value) => value !== null && value !== undefined)
+            if (columnDataList.length === 0) {
+              columnTypes[columnName] = columnType
+              continue
+            }
+            const _isNumber = columnDataList.every((value) => {
+              return !isNaN(Number(value))
+            })
+            if (_isNumber) {
+              columnType = "Number"
+            }
+            // const _isDate = columnDataList.every((value) => {
+            //   return !isNaN(Date.parse(value))
+            // })
+            // if (_isDate) {
+            //   columnType = "Date"
+            // }
+            columnTypes[columnName] = columnType
+          }
+          resolve(columnTypes)
+        },
+      })
+    })
+  }
   async import(file: File, dataSpace: DataSpace): Promise<string> {
     // name without extension
     const nodeName = file.name.replace(/\.[^/.]+$/, "")
@@ -20,6 +71,8 @@ export class CsvImportAndExport extends BaseImportAndExport {
     const batchSize = 10000
     const start = performance.now()
     console.log("importing csv file", file)
+    dataSpace.blockUIMsg("Analyzing file...")
+    const types = await this.guessColumnType(file)
     await new Promise((resolve, reject) => {
       Papa.parse(file, {
         header: true,
@@ -27,7 +80,12 @@ export class CsvImportAndExport extends BaseImportAndExport {
         preview: 1,
         step: (results: any, parser: any) => {
           const rawTableName = getRawTableNameById(tableId)
-          const columns = Object.keys(results.data)
+          let columns = Object.keys(results.data)
+          columns.forEach((column, index) => {
+            if (column.length === 0) {
+              column = "unknown" + index
+            }
+          })
           const rawColumns = columns.map((column) => generateColumnName())
           let createTableSql = `
   CREATE TABLE ${rawTableName} (
@@ -37,12 +95,28 @@ export class CsvImportAndExport extends BaseImportAndExport {
     _last_edited_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     _created_by TEXT DEFAULT 'unknown',
     _last_edited_by TEXT DEFAULT 'unknown',
-    ${rawColumns.join(" TEXT  NULL,\n") + " TEXT  NULL"}
-  );
+    
   `
+          rawColumns.forEach((column, index) => {
+            const type = types[columns[index]]
+            const isLastColumn = index === rawColumns.length - 1
+            createTableSql +=
+              `${column} ${type === "Number" ? "REAL" : "TEXT"} NULL` +
+              (isLastColumn ? "\n" : ",\n")
+          })
+          createTableSql += `);`
+
+          const typeFieldMap = {
+            String: FieldType.Text,
+            Number: FieldType.Number,
+            Date: FieldType.Date,
+          }
           columns.forEach((column, index) => {
+            const type = types[column]
             const isFirstColumn = index === 0
-            const fieldType = isFirstColumn ? "title" : "text"
+            const fieldType = isFirstColumn
+              ? "title"
+              : typeFieldMap[type] || FieldType.Text
             const rawColumn = isFirstColumn ? "title" : rawColumns[index]
             // column maybe include injected code, so we need to escape it, the best way is use bind parameter
             const _column = column.replace(/'/g, "''")
