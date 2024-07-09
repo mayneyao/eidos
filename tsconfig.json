@@ -37,7 +37,7 @@
     "prettier.config.cjs",
     "jest.config.cjs",
     "app/rag.jsx",
-    "scripts/patch.cjs"
+    "scripts/version.cjs"
   ],
   "exclude": ["node_modules", "dist", "dev-dist"],
   "references": [{ "path": "./tsconfig.node.json" }]
