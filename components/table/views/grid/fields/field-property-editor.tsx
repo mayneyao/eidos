@@ -39,7 +39,7 @@ export const NotImplementEditor = () => {
 
 interface IFieldPropertyEditorProps {
   updateFieldProperty: (fieldName: IField, property: any) => void
-  changeFieldType: (rawFieldName: string, type: FieldType) => void
+  changeFieldType: (field: IField, type: FieldType) => void
   tableName: string
   databaseName: string
   deleteField: (fieldId: string) => void
@@ -79,7 +79,7 @@ export const FieldPropertyEditor = ({
     currentField && updateFieldProperty(currentField, property)
   }
   const handleChangeFieldType = (type: FieldType) => {
-    currentField && changeFieldType(currentField.table_column_name, type)
+    currentField && changeFieldType(currentField, type)
   }
 
   const Editor =

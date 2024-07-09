@@ -7,6 +7,7 @@ import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { getUuid } from "@/lib/utils"
 
 import { BaseTable, BaseTableImpl } from "./base"
+import { timeit } from "../helper"
 
 export class ViewTable extends BaseTableImpl implements BaseTable<IView> {
   name = ViewTableName
@@ -120,6 +121,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   }
 
   // after entity field changed, the formula field may be changed, so we need to recompute the formula field
+  @timeit(100)
   public async recompute(table_id: string, rowIds: string[]) {
     const tableName = `tb_${table_id}`
     const placeholders = rowIds.map(() => "?").join(",")

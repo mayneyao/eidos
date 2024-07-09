@@ -39,6 +39,8 @@ interface SqliteState {
   getRowById: (tableId: string, rowId: string) => Record<string, any> | null
   getRowIds: (tableId: string) => string[]
 
+  cleanFieldData: (tableId: string, fieldId: string) => void
+
   selectedTable: string
   setSelectedTable: (table: string) => void
 
@@ -62,6 +64,23 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
     tableMap: {},
   },
 
+  cleanFieldData: (tableId: string, fieldId: string) => {
+    set((state) => {
+      const { tableMap } = state.dataStore
+      if (!tableMap[tableId]) {
+        tableMap[tableId] = {
+          rowMap: {},
+          fieldMap: {},
+          viewIds: [],
+          viewMap: {},
+        }
+      }
+      for (const rowId in tableMap[tableId].rowMap) {
+        delete tableMap[tableId].rowMap[rowId][fieldId]
+      }
+      return { dataStore: { ...state.dataStore, tableMap } }
+    })
+  },
   setViews: (tableId: string, views: IView[]) => {
     set((state) => {
       const { tableMap } = state.dataStore
@@ -97,10 +116,8 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
         acc[cur.name] = cur
         return acc
       }, {} as Record<string, IField>)
-      console.log("setFields", tableMap[tableId].fieldMap)
-      const res =  { dataStore: { ...state.dataStore, tableMap } }
-      console.log("setFields", res)
-      return res;
+      const res = { dataStore: { ...state.dataStore, tableMap } }
+      return res
     })
   },
 

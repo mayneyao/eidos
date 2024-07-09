@@ -291,7 +291,6 @@ export class DataSpace {
     const tableManager = this.table(data.tableId)
     const row = await tableManager.rows.get(data.rowId, { raw: true })
     const oldValue = row?.[data.fieldId]
-
     if (oldValue !== data.value) {
       await this.table(data.tableId).rows.update(
         data.rowId,

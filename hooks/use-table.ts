@@ -115,13 +115,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
 
   const changeFieldType = async (field: IField, newType: FieldType) => {
     if (!sqlite) return
-    // if
     const tableColumnName = field.table_column_name
-    if (ColumnTable.isColumnTypeChanged(field.type, newType)) {
-      // clear data in store, avoid data inconsistency
-      console.log("clear data in store, avoid data inconsistency")
-      cleanFieldData(tableId, tableColumnName)
-    }
     await sqlite.changeColumnType(tableName, tableColumnName, newType)
     await updateUiColumns()
   }

@@ -48,6 +48,10 @@ export const useDataSource = (tableName: string, databaseName: string) => {
           displayData: "",
           allowOverlay: true,
         }
+      const errorCell: GridCell = {
+        kind: GridCellKind.Loading,
+        allowOverlay: true,
+      }
       const cv = rowData[field.table_column_name]
       const emptyCell: GridCell = {
         kind: GridCellKind.Text,
@@ -58,19 +62,24 @@ export const useDataSource = (tableName: string, databaseName: string) => {
       if (!field) {
         return emptyCell
       }
-      let colHandle = columnsHandleMap[field.type]
-      if (!colHandle) {
-        const fieldInstance = getFieldInstance(field, getFieldContext(field))
-        if (fieldInstance) {
-          return fieldInstance.getCellContent(cv as never, {
-            userMap,
-            row: rowData,
-          })
-        } else {
-          throw new Error(`field type ${field.type} not found`)
+      try {
+        let colHandle = columnsHandleMap[field.type]
+        if (!colHandle) {
+          const fieldInstance = getFieldInstance(field, getFieldContext(field))
+          if (fieldInstance) {
+            return fieldInstance.getCellContent(cv as never, {
+              userMap,
+              row: rowData,
+            })
+          } else {
+            throw new Error(`field type ${field.type} not found`)
+          }
         }
+        return colHandle.getContent(cv)
+      } catch (error) {
+        console.error("render cell error", error)
+        return errorCell
       }
-      return colHandle.getContent(cv)
     },
     [getFieldContext, showColumns, userMap]
   )

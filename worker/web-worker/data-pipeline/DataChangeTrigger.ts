@@ -32,6 +32,11 @@ export class DataChangeTrigger {
     this.triggerMap.set(key, trigger)
   }
 
+  async unRegisterTrigger(space: string, tableName: string) {
+    const key = `${space}::${tableName}`
+    this.triggerMap.delete(key)
+  }
+
   isTriggerChanged(
     space: string,
     tableName: string,
@@ -65,7 +70,6 @@ export class DataChangeTrigger {
     // console.log("create trigger for table", db.dbName, tableName)
     const new_json_object = this.getRowJSONObj(_collist, "new")
     const old_json_object = this.getRowJSONObj(_collist, "old")
-
 
     // UPDATE ${tableName} SET _last_edited_time = CURRENT_TIMESTAMP WHERE _id = NEW._id;
     const updateSql = `CREATE TEMP TRIGGER data_update_trigger_${tableName}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react"
+import { ColumnTable } from "@/worker/web-worker/meta-table/column"
 
 import {
-  CustomEventType,
   DataUpdateSignalType,
   EidosDataEventChannelMsg,
   EidosDataEventChannelMsgType,
@@ -38,7 +38,9 @@ export const useSqliteTableSubscribe = (tableName: string) => {
         switch (payload.type) {
           case DataUpdateSignalType.AddColumn:
           case DataUpdateSignalType.UpdateColumn:
-            if (!isComputedField(_new?.type)) {
+            if (_old && ColumnTable.isColumnTypeChanged(_new.type, _old.type)) {
+              // pass
+            } else if (!isComputedField(_new?.type)) {
               break
             }
             // FIXME: update too many rows

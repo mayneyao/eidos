@@ -44,12 +44,12 @@ export const FieldSelector = ({
           role="combobox"
           className="w-[200px] justify-between"
         >
-          <p className="max-w-[150px] truncate">
+          <div className="max-w-[150px] truncate">
             {value
               ? fields.find((field) => field.table_column_name === value)
                   ?.name || "Untitled Field"
               : "Select Field"}
-          </p>
+          </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>

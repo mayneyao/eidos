@@ -1,17 +1,15 @@
-import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
 import {
-  ArrowDownNarrowWideIcon,
+  ArrowDownWideNarrowIcon,
   ArrowUpNarrowWideIcon,
   Settings2,
-  Trash2,
+  Trash2
 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { useLayer } from "react-laag"
 
-import { FieldType } from "@/lib/fields/const"
-import { IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
-import { useTableFields } from "@/hooks/use-table"
+import { CommonMenuItem } from "@/components/common-menu-item"
+import { useCurrentView, useViewOperation } from "@/components/table/hooks"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,8 +20,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { CommonMenuItem } from "@/components/common-menu-item"
-import { useCurrentView, useViewOperation } from "@/components/table/hooks"
+import { useTableFields } from "@/hooks/use-table"
+import { FieldType } from "@/lib/fields/const"
+import { IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 
 import { useColumns } from "../hooks/use-col"
 import { useTableAppStore } from "../store"
@@ -174,7 +174,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 Sort Ascending
               </CommonMenuItem>
               <CommonMenuItem className="pl-4" onClick={addDESCSort}>
-                <ArrowDownNarrowWideIcon className="mr-2 h-4 w-4" />
+                <ArrowDownWideNarrowIcon className="mr-2 h-4 w-4" />
                 Sort Descending
               </CommonMenuItem>
               {currentUiColumn?.type !== "title" && (

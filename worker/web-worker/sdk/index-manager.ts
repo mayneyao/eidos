@@ -1,3 +1,5 @@
+import { getColumnIndexName } from "@/lib/utils"
+
 import { DataSpace } from "../DataSpace"
 import { TableManager } from "./table"
 
@@ -12,7 +14,7 @@ export class IndexManager {
   }
 
   createIndex(column: string, onStart?: () => void, onEnd?: () => void) {
-    const indexName = `idx__${this.table.rawTableName}__${column}`
+    const indexName = getColumnIndexName(this.table.rawTableName, column)
 
     // Query to check if the index already exists
     const checkIndexExistsQuery = `

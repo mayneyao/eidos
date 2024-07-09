@@ -139,7 +139,8 @@ const renderer: CustomRenderer<SelectCell> = {
   draw: (args, cell) => {
     const { ctx, theme, rect } = args
     const { value, allowedValues } = cell.data
-    const displayValue = allowedValues.find((t) => t.id === value)?.name ?? ""
+    const displayValue =
+      allowedValues.find((t) => t.id === value)?.name ?? value ?? ""
     // if (!value || !displayValue) {
     // if has value but no displayValue, it's means the value is not in allowedValues, we will display a blank box, we don't delete the value, let user to delete it
     if (!value) {

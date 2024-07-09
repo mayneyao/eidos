@@ -78,7 +78,6 @@ export class BaseTableImpl<T = any> {
   }
 
   async add(data: T, db = this.dataSpace.db): Promise<T> {
-    console.log(data)
     const { insertKPlaceholder, insertVPlaceholder, values } =
       this.transformData(data)
     this.dataSpace.syncExec2(

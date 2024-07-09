@@ -5,6 +5,11 @@ import { uuidv7 } from "uuidv7"
 export { uuidv7 } from "uuidv7"
 // export { v4 as uuidv7 } from "uuid"
 
+export const isUuidv4 = (id: string) => {
+  // for performance, we only check the 15th character which is the version number
+  return id[14] === "4"
+}
+
 export function nonNullable<T>(value: T): value is NonNullable<T> {
   return value != null
 }
@@ -45,6 +50,10 @@ export const getRawTableNameById = (id: string) => {
 
 export const getTableIdByRawTableName = (rawTableName: string) => {
   return rawTableName.replace("tb_", "")
+}
+
+export const getColumnIndexName = (tableName: string, columnName: string) => {
+  return `idx__${tableName}__${columnName}`
 }
 
 export const generateColumnName = () => {
