@@ -330,6 +330,19 @@ export class RowsManager {
     }
   }
 
+  async batchDelete(ids: string[]) {
+    try {
+      const sql = `DELETE FROM ${this.table.rawTableName} WHERE _id IN (${ids
+        .map(() => "?")
+        .join(",")})`
+      console.log(sql)
+      await this.dataSpace.exec2(sql, ids)
+      return true
+    } catch (error) {
+      return false
+    }
+  }
+
   private updateCellSideEffect = async (
     field: IField<any>,
     rowId: string,

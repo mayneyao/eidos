@@ -10,7 +10,12 @@ import { useThrottleFn } from "ahooks"
 import { IView } from "lib/store/IView"
 
 import { isFieldsInQuery } from "@/lib/sqlite/sql-view-query"
-import { getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
+import {
+  getTableIdByRawTableName,
+  isUuidv4,
+  shortenId,
+  uuidv7,
+} from "@/lib/utils"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
@@ -56,8 +61,10 @@ export const useDataMutation = ({
   const { sqlite } = useSqlite()
   const { toCell, onEdited } = useDataSource(tableName, space)
 
-  const { deleteRowsByRange, getRowData, getRowDataById, addRow } =
-    useTableOperation(tableName, space)
+  const { deleteRowsByRange, deleteRowsByIds, addRow } = useTableOperation(
+    tableName,
+    space
+  )
   const tableId = view.table_id
 
   const refreshCurrentVisible = useCallback(() => {
@@ -106,17 +113,26 @@ export const useDataMutation = ({
   ) => {
     let oldCount = rowIdsRef.current.length
     const _ranges = [...ranges]
+    const toDeleteIds = []
     for (const { startIndex, endIndex } of ranges.reverse()) {
-      rowIdsRef.current.splice(startIndex, endIndex - startIndex)
+      const ids = rowIdsRef.current.splice(startIndex, endIndex - startIndex)
+      toDeleteIds.push(...ids)
       dataRef.current.splice(startIndex, endIndex - startIndex)
     }
     if (!qs) {
       throw new Error("query is empty")
     }
+
     try {
       setCount(rowIdsRef.current.length)
       refreshCurrentVisible()
-      await deleteRowsByRange(_ranges, tableName, qs)
+      // old version of uuid
+      if (toDeleteIds.some((id) => isUuidv4(id))) {
+        console.log("deleteRowsByIds")
+        await deleteRowsByIds(toDeleteIds, tableName)
+      } else {
+        await deleteRowsByRange(_ranges, tableName, qs)
+      }
     } catch (error) {
       // fallback
       setCount(oldCount)

@@ -321,6 +321,20 @@ export class DataSpace {
     return row[0]
   }
 
+  /**
+   * Starting from v0.5.0, we switched to using uuidv7 as the _id, and the logic of deleteRowsByRange changed from sorting by rowid to sorting by _id.
+   * This function is suitable for old versions of tables where _id of row is uuidv4, and data cannot be deleted by selection, but by a list of _id values.
+   * There are some limitations, such as the maximum number of records that can be deleted at once is limited by the sqlite bind parameter.
+   * @param rowIds
+   * @param tableId
+   */
+  public async deleteRowsByIds(ids: string[], tableName: string) {
+    const tableId = getTableIdByRawTableName(tableName)
+    const tableManager = this.table(tableId)
+    await tableManager.rows.batchDelete(ids)
+    this.undoRedoManager.event()
+  }
+
   public async deleteRowsByRange(
     range: { startIndex: number; endIndex: number }[],
     tableName: string,
@@ -449,7 +463,10 @@ export class DataSpace {
     return await this.column.add(data)
   }
   public async deleteField(tableName: string, tableColumnName: string) {
-    return await this.column.deleteField(tableName, tableColumnName)
+    this.blockUIMsg("Deleting column, please wait.")
+    const res = await this.column.deleteField(tableName, tableColumnName)
+    this.blockUIMsg(null)
+    return res
   }
 
   public async changeColumnType(

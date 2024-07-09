@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react"
+import { ColumnTable } from "@/worker/web-worker/meta-table/column"
 
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
@@ -58,7 +59,7 @@ export const useTableViews = (tableId: string, databaseName: string) => {
 
 export const useTableOperation = (tableName: string, databaseName: string) => {
   const sqlite = useSqlWorker()
-  const { setViews, setNode, setRows } = useSqliteStore()
+  const { setViews, setNode, setRows, cleanFieldData } = useSqliteStore()
   const tableId = getTableIdByRawTableName(tableName)
   const rowMap = useSqliteStore(
     (state) => state.dataStore.tableMap?.[tableId]?.rowMap || {}
@@ -112,11 +113,15 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
-  const changeFieldType = async (
-    tableColumnName: string,
-    newType: FieldType
-  ) => {
+  const changeFieldType = async (field: IField, newType: FieldType) => {
     if (!sqlite) return
+    // if
+    const tableColumnName = field.table_column_name
+    if (ColumnTable.isColumnTypeChanged(field.type, newType)) {
+      // clear data in store, avoid data inconsistency
+      console.log("clear data in store, avoid data inconsistency")
+      cleanFieldData(tableId, tableColumnName)
+    }
     await sqlite.changeColumnType(tableName, tableColumnName, newType)
     await updateUiColumns()
   }
@@ -177,6 +182,12 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     }
   }
 
+  const deleteRowsByIds = async (ids: string[], tableName: string) => {
+    if (sqlite) {
+      await sqlite.deleteRowsByIds(ids, tableName)
+    }
+  }
+
   const runQuery = useCallback(
     async (querySql: string, _tableName = tableName) => {
       if (sqlite) {
@@ -225,6 +236,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
   )
 
   return {
+    deleteRowsByIds,
     getRowData,
     getRowDataById,
     updateCell,
