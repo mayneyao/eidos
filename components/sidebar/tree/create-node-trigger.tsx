@@ -48,7 +48,7 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
   }
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>
         <Button className="opacity-50" variant="ghost" size="sm">
           <Plus className="h-4 w-4" />
         </Button>

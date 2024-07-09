@@ -1,4 +1,4 @@
-import type { FileCell } from "@/components/grid/cells/file/file-cell"
+import type { FileCell } from "@/components/table/views/grid/cells/file/file-cell"
 
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"

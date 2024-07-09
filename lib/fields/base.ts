@@ -97,7 +97,7 @@ export abstract class BaseField<CD, P, R = string, RC = any, FC = any>
     return {}
   }
 
-  text2RawData(text: string) {
-    return text || null
+  text2RawData(text: string | number) {
+    return text ?? null
   }
 }

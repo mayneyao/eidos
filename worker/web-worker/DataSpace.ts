@@ -28,6 +28,7 @@ import { DataChangeTrigger } from "./data-pipeline/DataChangeTrigger"
 import { LinkRelationUpdater } from "./data-pipeline/LinkRelationUpdater"
 import { SQLiteUndoRedo } from "./data-pipeline/UndoRedo"
 import { DbMigrator } from "./db-migrator/DbMigrator"
+import { timeit } from "./helper"
 import { CsvImportAndExport } from "./import-and-export/csv"
 import { MarkdownImportAndExport } from "./import-and-export/markdown"
 import { ActionTable } from "./meta-table/action"
@@ -205,6 +206,22 @@ export class DataSpace {
     return new TableManager(id, this)
   }
 
+  // index
+  public createTableIndex(tableId: string, column: string) {
+    this.table(tableId).index.createIndex(
+      column,
+      () => {
+        this.blockUIMsg(
+          "You are operating on a large table; auto indexing, please wait."
+        )
+      },
+      () => {
+        this.blockUIMsg(null)
+      }
+    )
+    return
+  }
+
   public async getLookupContext(tableName: string, columnName: string) {
     const tableId = getTableIdByRawTableName(tableName)
     const tableManager = this.table(tableId)
@@ -241,6 +258,9 @@ export class DataSpace {
       to: string
     }
   ) => {
+    if (update.from == update.to) {
+      return
+    }
     const tableId = getTableIdByRawTableName(field.table_name)
     const tableManager = this.table(tableId)
     if (field.type === FieldType.Select) {
@@ -271,7 +291,6 @@ export class DataSpace {
     const tableManager = this.table(data.tableId)
     const row = await tableManager.rows.get(data.rowId, { raw: true })
     const oldValue = row?.[data.fieldId]
-
     if (oldValue !== data.value) {
       await this.table(data.tableId).rows.update(
         data.rowId,
@@ -301,6 +320,20 @@ export class DataSpace {
     return row[0]
   }
 
+  /**
+   * Starting from v0.5.0, we switched to using uuidv7 as the _id, and the logic of deleteRowsByRange changed from sorting by rowid to sorting by _id.
+   * This function is suitable for old versions of tables where _id of row is uuidv4, and data cannot be deleted by selection, but by a list of _id values.
+   * There are some limitations, such as the maximum number of records that can be deleted at once is limited by the sqlite bind parameter.
+   * @param rowIds
+   * @param tableId
+   */
+  public async deleteRowsByIds(ids: string[], tableName: string) {
+    const tableId = getTableIdByRawTableName(tableName)
+    const tableManager = this.table(tableId)
+    await tableManager.rows.batchDelete(ids)
+    this.undoRedoManager.event()
+  }
+
   public async deleteRowsByRange(
     range: { startIndex: number; endIndex: number }[],
     tableName: string,
@@ -311,7 +344,7 @@ export class DataSpace {
     // we need to delete rows from startIndex to endIndex
     if ("order by" !== query.toLowerCase().match(/order by/g)?.[0]) {
       // when query has no order by, we need to add order by to make sure delete from start to end
-      query += " ORDER BY rowid"
+      query += " ORDER BY _id"
     }
     const sql = `DELETE FROM ${tableName} WHERE _id in (SELECT _id FROM (${query}) LIMIT ? OFFSET ?)`
     await this.db.transaction(async (db) => {
@@ -429,7 +462,10 @@ export class DataSpace {
     return await this.column.add(data)
   }
   public async deleteField(tableName: string, tableColumnName: string) {
-    return await this.column.deleteField(tableName, tableColumnName)
+    this.blockUIMsg("Deleting column, please wait.")
+    const res = await this.column.deleteField(tableName, tableColumnName)
+    this.blockUIMsg(null)
+    return res
   }
 
   public async changeColumnType(
@@ -453,12 +489,17 @@ export class DataSpace {
     return await this.column.updateProperty(data)
   }
 
-  public async addRow(tableName: string, data: Record<string, any>) {
+  @timeit(100)
+  public async addRow(
+    tableName: string,
+    data: Record<string, any>
+  ): Promise<Record<string, any>> {
     const tableId = getTableIdByRawTableName(tableName)
     const tm = new TableManager(tableId, this)
     const res = await tm.rows.create(data)
     // this.undoRedoManager.event()
-    return res
+    const row = await tm.rows.get(res._id, { raw: true, withRowId: true })
+    return row
   }
 
   // actions
@@ -505,6 +546,7 @@ export class DataSpace {
     await this.doc.rebuildIndex(refillNullMarkdown)
   }
 
+  @timeit(100)
   public async addDoc(
     docId: string,
     content: string,
@@ -617,6 +659,7 @@ export class DataSpace {
     return this.doc.search(query)
   }
 
+  @timeit(100)
   public async createTable(
     id: string,
     name: string,
@@ -624,9 +667,11 @@ export class DataSpace {
     parent_id?: string
   ) {
     // FIXME: should use db transaction to execute multiple sql
-    this.db.transaction(async () => {
+    this.db.transaction(async (db) => {
       await this.addTreeNode({ id, name, type: "table", parent_id })
-      await this.sql`${tableSchema}`
+      db.exec({
+        sql: tableSchema,
+      })
       // create view for table
       await this.createDefaultView(id)
     })
@@ -694,15 +739,16 @@ export class DataSpace {
     return await this.doc.listAllDayPages()
   }
 
+  @timeit(100)
   public syncExec2(sql: string, bind: any[] = [], db = this.db) {
     const res: any[] = []
-    console.debug(
-      "[%cSQLQuery:%cCallViaMethod]",
-      "color:indigo",
-      "color:green",
-      sql,
-      bind
-    )
+    // console.debug(
+    //   "[%cSQLQuery:%cCallViaMethod]",
+    //   "color:indigo",
+    //   "color:green",
+    //   sql,
+    //   bind
+    // )
     db.exec({
       sql,
       bind,
@@ -880,6 +926,7 @@ export class DataSpace {
     this.undoRedoManager.activate(tables)
   }
 
+  @timeit(100)
   public execute(sql: string, bind: any[] = []) {
     const res: any[] = []
     this.db.exec({
@@ -897,6 +944,7 @@ export class DataSpace {
   }
 
   // just execute, no return
+  @timeit(100)
   public exec(sql: string, bind: any[] = []) {
     console.debug(sql, bind)
     this.db.exec({
@@ -908,6 +956,7 @@ export class DataSpace {
     })
   }
 
+  @timeit(100)
   private execSqlWithBind(
     sql: string,
     bind: any[] = [],
@@ -927,7 +976,7 @@ export class DataSpace {
       })
     } catch (error: any) {
       logger.error(error)
-      logger.info({ sql, bind })
+      logger.error({ sql, bind })
       postMessage({
         type: MsgType.Error,
         data: {
@@ -980,19 +1029,20 @@ export class DataSpace {
    * @param bind
    * @returns
    */
+  @timeit(100)
   public async sql4mainThread(
     sql: string,
     bind: any[] = [],
     rowMode: "object" | "array" = "array"
   ) {
-    logger.debug(
-      "[%cSQLQuery:%cCallViaRawSql]",
-      "color:indigo",
-      "color:red",
-      sql,
-      bind,
-      rowMode
-    )
+    // logger.debug(
+    //   "[%cSQLQuery:%cCallViaRawSql]",
+    //   "color:indigo",
+    //   "color:red",
+    //   sql,
+    //   bind,
+    //   rowMode
+    // )
     const res = this.execSqlWithBind(sql, bind, rowMode)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
@@ -1004,6 +1054,14 @@ export class DataSpace {
 
   // return object array
   public async sql4mainThread2(sql: string, bind: any[] = []) {
+    // logger.debug(
+    //   "[%cSQLQuery:%cCallViaRawSql]",
+    //   "color:indigo",
+    //   "color:red",
+    //   sql,
+    //   bind,
+    //   "object"
+    // )
     return this.execSqlWithBind(sql, bind, "object")
   }
 

@@ -15,9 +15,9 @@ import {
   CommandList,
 } from "@/components/ui/command"
 
-import { useUserPrompts } from "../ai-chat/hooks"
-import { TableContext } from "../table/hooks"
-import { ScrollArea } from "../ui/scroll-area"
+import { useUserPrompts } from "../../../ai-chat/hooks"
+import { TableContext } from "../../hooks"
+import { ScrollArea } from "../../../ui/scroll-area"
 
 export const AITools = ({
   close,

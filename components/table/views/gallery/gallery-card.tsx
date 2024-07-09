@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/tooltip"
 import { useRowDataOperation } from "@/components/doc-property/hook"
 import { InnerEditor } from "@/components/doc/editor"
-import { ScriptContextMenu } from "@/components/grid/script-context-menu"
+import { ScriptContextMenu } from "@/components/table/views/grid/script-context-menu"
 
 import { CellEditor } from "../../cell-editor"
 import { FieldIcon } from "../../field-icon"

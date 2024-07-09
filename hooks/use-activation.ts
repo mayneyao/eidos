@@ -3,7 +3,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
 import { isDevMode, isSelfHosted } from "@/lib/log"
-import { uuidv4 } from "@/lib/utils"
+import { uuidv7 } from "@/lib/utils"
 import { verifyMessage } from "@/lib/web/crypto"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -50,7 +50,7 @@ export const useActivation = () => {
   const { toast } = useToast()
   useEffect(() => {
     if (!clientId) {
-      const id = uuidv4()
+      const id = uuidv7()
       setClientId(id)
     }
   }, [clientId, setClientId])

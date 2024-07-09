@@ -9,7 +9,7 @@ import {
   IMsgQueryResp,
 } from "../collaboration/interface"
 import { EidosDataEventChannelName, MsgType } from "../const"
-import { uuidv4 } from "../utils"
+import { uuidv7 } from "../utils"
 import { buildSql } from "./helper"
 import { IQuery } from "./interface"
 import { getWorker } from "./worker"
@@ -164,7 +164,7 @@ export const getSqliteProxy = (
                 return new Proxy<DataSpace>({} as any, {
                   get(target, method) {
                     return function (params: any) {
-                      const thisCallId = uuidv4()
+                      const thisCallId = uuidv7()
                       const [_params, ...rest] = arguments
                       sqlite.send({
                         type: MsgType.CallFunction,
@@ -183,7 +183,7 @@ export const getSqliteProxy = (
                 })
               }
               return function (params: any) {
-                const thisCallId = uuidv4()
+                const thisCallId = uuidv7()
                 const [_params, ...rest] = arguments
                 sqlite.send({
                   type: MsgType.CallFunction,
@@ -217,7 +217,7 @@ export const getSqliteProxy = (
         return new Proxy<EidosTable>({} as any, {
           get(target, subMethod) {
             return function (params: any) {
-              const thisCallId = uuidv4()
+              const thisCallId = uuidv7()
               const [_params, ...rest] = arguments
               sqlite.send({
                 type: MsgType.CallFunction,
@@ -235,7 +235,7 @@ export const getSqliteProxy = (
         })
       }
       return function (params: any) {
-        const thisCallId = uuidv4()
+        const thisCallId = uuidv7()
         const [_params, ...rest] = arguments
 
         if (["sql", "sql2"].includes(method as string)) {

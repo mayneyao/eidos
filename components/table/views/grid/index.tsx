@@ -19,9 +19,9 @@ import { useTableOperation } from "@/hooks/use-table"
 import { useTransformSqlQuery } from "@/hooks/use-transform-sql-query"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
-import { useCurrentView } from "../table/hooks"
-import { useViewCount } from "../table/hooks/use-view-count"
-import { Button } from "../ui/button"
+import { Button } from "../../../ui/button"
+import { useCurrentView } from "../../hooks"
+import { useViewCount } from "../../hooks/use-view-count"
 import { AITools } from "./ai-tools"
 import { customCells } from "./cells"
 import { headerIcons } from "./fields/header-icons"
@@ -33,7 +33,7 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
-import { TwinkleSparkle } from "../loading"
+import { TwinkleSparkle } from "../../../loading"
 import { getScrollbarWidth } from "./helper"
 import { darkTheme, lightTheme } from "./theme"
 
@@ -91,23 +91,17 @@ export default function GridView(props: IGridProps) {
     tableName,
     viewId: props.view?.id,
   })
-  const { count: viewCount, setCount } = useViewCount(currentView)
-  const {
-    tableSchema,
-    // deleteFieldByColIndex,
-    // addField,
-    deleteRowsByRange,
-    getRowData,
-    getRowDataById,
-    addRow,
-  } = useTableOperation(tableName, databaseName)
-  const { toCell, onEdited } = useDataSource(tableName, databaseName)
+  const { count: viewCount } = useViewCount(currentView)
+  const { tableSchema, getRowData, getRowDataById } = useTableOperation(
+    tableName,
+    databaseName
+  )
+  const { toCell } = useDataSource(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
   const { onColumnResize, columns, showColumns, onColumnMoved } = useColumns(
     uiColumns,
     currentView
   )
-  const qs = useTransformSqlQuery(props.view?.query ?? "", uiColumns)
 
   const getFieldByIndex = useCallback(
     (index: number) => {
@@ -120,24 +114,22 @@ export default function GridView(props: IGridProps) {
     getCellContent,
     onVisibleRegionChanged,
     onCellEdited,
+    onCellsEdited,
     getCellsForSelection,
     handleAddRow,
     handleDelRows,
     getRowByIndex,
-  } = useAsyncData<any>(
+  } = useAsyncData<any>({
     tableName,
-    50,
-    5,
+    pageSize: 100,
+    maxConcurrency: 5,
     getRowData,
     getRowDataById,
     toCell,
-    onEdited,
-    glideDataGridRef,
-    addRow,
-    deleteRowsByRange,
-    setCount,
-    qs
-  )
+    gridRef: glideDataGridRef,
+    viewCount,
+    view: currentView,
+  })
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
     useTableAppStore()
@@ -323,6 +315,7 @@ export default function GridView(props: IGridProps) {
                 fill: true,
               }}
               onCellEdited={onCellEdited}
+              onCellsEdited={onCellsEdited}
               onRowAppended={handleAddRow}
             />
           )}

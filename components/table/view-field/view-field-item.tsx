@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils"
 
 import "./index.css"
 import { IField } from "@/lib/store/interface"
-import { useTableAppStore } from "@/components/grid/store"
+import { useTableAppStore } from "@/components/table/views/grid/store"
+
+import { makeHeaderIcons } from "../views/grid/fields/header-icons"
 
 export const ItemTypes = {
   CARD: "card",
@@ -28,6 +30,8 @@ interface DragItem {
   id: string
   type: string
 }
+
+const icons = makeHeaderIcons(18)
 
 export const FieldItemCard: FC<CardProps> = ({
   id,
@@ -124,6 +128,11 @@ export const FieldItemCard: FC<CardProps> = ({
     setCurrentUiColumn(field)
   }
 
+  const iconSvgString = icons[field.type]({
+    bgColor: "#aaa",
+    fgColor: "currentColor",
+  })
+
   return (
     <div
       ref={ref}
@@ -141,7 +150,14 @@ export const FieldItemCard: FC<CardProps> = ({
         className="flex w-full justify-between pr-2"
         onClick={handleFieldClick}
       >
-        {text}
+        <div className="flex items-center gap-2">
+          <span
+            dangerouslySetInnerHTML={{
+              __html: iconSvgString,
+            }}
+          ></span>
+          {text}
+        </div>
         <span
           onClick={(e) => handleToggleHidden(e, id)}
           className={cn("cursor-pointer", {

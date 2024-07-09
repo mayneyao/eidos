@@ -18,7 +18,6 @@ export const ImportDoc = ({
     if (docId) {
       setOpen(false)
       goto(space, docId)
-      window.location.reload()
     }
   }
 

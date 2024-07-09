@@ -3,7 +3,7 @@ import { useCallback, useEffect } from "react"
 import { MsgType } from "@/lib/const"
 import { getWorker } from "@/lib/sqlite/worker"
 import { spaceFileSystem } from "@/lib/storage/space"
-import { uuidv4 } from "@/lib/utils"
+import { uuidv7 } from "@/lib/utils"
 import { useLastOpened } from "@/app/[database]/hook"
 
 import { useSqliteStore } from "./use-sqlite"
@@ -34,7 +34,7 @@ export const useSpace = () => {
   )
 
   const createSpace = useCallback(async (spaceName: string) => {
-    const msgId = uuidv4()
+    const msgId = uuidv7()
     const worker = getWorker()
 
     const channel = new MessageChannel()

@@ -23,7 +23,7 @@ import {
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import { $getSelection, $insertNodes, RangeSelection, TextNode } from "lexical"
 
-import { shortenId, uuidv4 } from "@/lib/utils"
+import { shortenId, uuidv7 } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 
 import { $createMentionNode } from "../../nodes/MentionNode/MentionNode"
@@ -94,7 +94,7 @@ export default function NewMentionsPlugin(
       let nodeId = selectedOption.id
       if (nodeId.startsWith("new-")) {
         const docTitle = nodeId.slice(4)
-        const docId = shortenId(uuidv4())
+        const docId = shortenId(uuidv7())
         createDoc(docTitle, currentDocId, docId)
         docId && (nodeId = docId)
       }

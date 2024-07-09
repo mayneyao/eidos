@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.4.7",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,9 @@
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
     "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
     "gen-types": "tsc -p tsconfig.typings.json && tsx scripts/fix-types.ts",
-    "patch": "node scripts/patch.cjs",
+    "patch": "node scripts/version.cjs patch",
+    "minor": "node scripts/version.cjs minor",
+    "major": "node scripts/version.cjs major",
     "test": "jest"
   },
   "dependencies": {
@@ -126,6 +128,7 @@
     "tailwindcss-animate": "^1.0.6",
     "utf-8-validate": "^6.0.3",
     "uuid": "^9.0.0",
+    "uuidv7": "^1.0.1",
     "vaul": "^0.8.0",
     "whisper-turbo": "workspace:*",
     "workbox-precaching": "^7.0.0",

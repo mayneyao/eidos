@@ -1,17 +1,15 @@
-import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
 import {
-  ArrowDownNarrowWideIcon,
+  ArrowDownWideNarrowIcon,
   ArrowUpNarrowWideIcon,
   Settings2,
-  Trash2,
+  Trash2
 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { useLayer } from "react-laag"
 
-import { FieldType } from "@/lib/fields/const"
-import { IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
-import { useUiColumns } from "@/hooks/use-ui-columns"
+import { CommonMenuItem } from "@/components/common-menu-item"
+import { useCurrentView, useViewOperation } from "@/components/table/hooks"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,8 +20,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { CommonMenuItem } from "@/components/common-menu-item"
-import { useCurrentView, useViewOperation } from "@/components/table/hooks"
+import { useTableFields } from "@/hooks/use-table"
+import { FieldType } from "@/lib/fields/const"
+import { IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 
 import { useColumns } from "../hooks/use-col"
 import { useTableAppStore } from "../store"
@@ -58,13 +58,13 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   })
   const { addSort } = useViewOperation()
   const inputRef = useRef<HTMLInputElement>(null)
-  const { uiColumns } = useUiColumns(tableName, databaseName)
-  const { showColumns } = useColumns(uiColumns, props.view)
+  const { fields } = useTableFields(tableName, databaseName)
+  const { showColumns } = useColumns(fields, props.view)
 
   useEffect(() => {
     const currentField = showColumns[currentColIndex!]
     setCurrentUiColumn(currentField)
-  }, [currentColIndex, setCurrentUiColumn, showColumns])
+  }, [currentColIndex, setCurrentUiColumn, showColumns, fields])
 
   useEffect(() => {
     if (menu) {
@@ -116,12 +116,15 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   }
 
   const addASCSort = () => {
+    console.log("addASCSort", currentUiColumn)
     if (currentUiColumn) {
       addSort(currentView!, currentUiColumn.table_column_name, "ASC")
     }
     setMenu(undefined)
   }
   const addDESCSort = () => {
+    console.log("addDESCSort", currentUiColumn)
+
     if (currentUiColumn) {
       addSort(currentView!, currentUiColumn.table_column_name, "DESC")
     }
@@ -171,7 +174,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 Sort Ascending
               </CommonMenuItem>
               <CommonMenuItem className="pl-4" onClick={addDESCSort}>
-                <ArrowDownNarrowWideIcon className="mr-2 h-4 w-4" />
+                <ArrowDownWideNarrowIcon className="mr-2 h-4 w-4" />
                 Sort Descending
               </CommonMenuItem>
               {currentUiColumn?.type !== "title" && (

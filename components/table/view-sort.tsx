@@ -55,6 +55,7 @@ export const ViewSort = ({ view }: { view?: IView }) => {
         className={cn("rounded-md", {
           "bg-secondary": hasOrderBy,
         })}
+        asChild
       >
         <Button size="xs" variant="ghost">
           <ArrowDownUpIcon className="h-4 w-4 opacity-60"></ArrowDownUpIcon>

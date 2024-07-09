@@ -4,7 +4,7 @@ import { rewriteQuery2getSortedRowIds } from "@/lib/sqlite/sql-sort-parser"
 
 import { useSqlite } from "./use-sqlite"
 
-export const useViewSort = (query: string) => {
+export const useViewSort = (query: string, useTempTable?: boolean) => {
   const { sqlite } = useSqlite()
   const getViewSortedRows = useCallback(async () => {
     if (!sqlite || !query) return []

@@ -1,6 +1,6 @@
 import { zip } from "lodash"
 
-import { LinkCell } from "@/components/grid/cells/link/link-cell"
+import { LinkCell } from "@/components/table/views/grid/cells/link/link-cell"
 
 import { BaseField } from "./base"
 import { FieldType, GridCellKind } from "./const"

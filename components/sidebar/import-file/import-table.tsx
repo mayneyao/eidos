@@ -1,7 +1,7 @@
-import { Input } from "@/components/ui/input"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { Input } from "@/components/ui/input"
 
 export const ImportTable = ({
   setOpen,
@@ -18,14 +18,16 @@ export const ImportTable = ({
     if (tableId) {
       setOpen(false)
       goto(space, tableId)
-      window.location.reload()
     }
   }
 
   return (
     <>
       <div className="flex items-center gap-2">
-        <label htmlFor="csv" className="w-full cursor-pointer border p-2 text-center hover:bg-secondary">
+        <label
+          htmlFor="csv"
+          className="w-full cursor-pointer border p-2 text-center hover:bg-secondary"
+        >
           CSV
         </label>
         <Input

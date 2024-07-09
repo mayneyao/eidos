@@ -22,6 +22,7 @@ import {
 
 import { Button } from "../ui/button"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
+import { useViewLoadingStore } from "./hooks/use-view-loading"
 import { ViewEditor } from "./view-editor"
 
 interface IViewItemProps {
@@ -46,6 +47,8 @@ export const ViewItem = ({
   disabledDelete,
 }: IViewItemProps) => {
   const [open, setOpen] = useState(false)
+  const { getLoading } = useViewLoadingStore()
+  const loading = getLoading(view.query)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
@@ -72,7 +75,8 @@ export const ViewItem = ({
               size="sm"
               className={cn("pl-0", {
                 "opacity-60": !isActive,
-                " border-b-2 border-primary  rounded-b-none": isActive,
+                "border-b-2 border-primary  rounded-b-none": isActive,
+                "animate-border-flicker": loading,
               })}
             >
               <div className="flex items-center gap-1">

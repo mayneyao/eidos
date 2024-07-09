@@ -193,7 +193,7 @@ export function FieldAppendPanel({
             {fieldTypes.map((field, i) => {
               const Icon = field.icon
               return (
-                <>
+                <React.Fragment key={`${field.name}-${field.value}`}>
                   {[FieldType.Formula, FieldType.CreatedTime].includes(
                     field.value
                   ) && <hr />}
@@ -201,7 +201,6 @@ export function FieldAppendPanel({
                     variant="ghost"
                     size="sm"
                     className="w-full justify-start font-normal"
-                    key={`${field.name}-${field.value}`}
                     onClick={(e) => {
                       handleCreateField(field)
                     }}
@@ -210,7 +209,7 @@ export function FieldAppendPanel({
                     <Icon className="mr-2 h-5 w-5" />
                     {field.name}
                   </Button>
-                </>
+                </React.Fragment>
               )
             })}
           </div>

@@ -5,6 +5,7 @@ import { IView } from "@/lib/store/IView"
 import { getRawTableNameById } from "@/lib/utils"
 
 import { DataSpace } from "../DataSpace"
+import { IndexManager } from "./index-manager"
 import { RowsManager } from "./rows"
 import { FieldsManager } from "./service"
 import { ComputeService } from "./service/compute"
@@ -37,6 +38,10 @@ export class TableManager {
   }
   get fields() {
     return new FieldsManager(this)
+  }
+
+  get index() {
+    return new IndexManager(this)
   }
 
   async isExist(id: string): Promise<boolean> {

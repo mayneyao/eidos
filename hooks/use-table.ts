@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react"
-import { v4 as uuidv4 } from "uuid"
+import { ColumnTable } from "@/worker/web-worker/meta-table/column"
 
 import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
@@ -13,8 +13,9 @@ import {
   generateColumnName,
   getTableIdByRawTableName,
   shortenId,
+  uuidv7,
 } from "@/lib/utils"
-import { RowRange } from "@/components/grid/hooks/use-async-data"
+import { RowRange } from "@/components/table/views/grid/hooks/use-async-data"
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { IField } from "../lib/store/interface"
@@ -29,7 +30,6 @@ export const useTableFields = (
   const {
     dataStore: { tableMap },
   } = useSqliteStore()
-  // console.log({ tableId })
   const nodeId = useMemo(() => {
     if (tableIdOrName?.startsWith("tb_")) {
       return tableIdOrName?.replace("tb_", "")
@@ -41,7 +41,6 @@ export const useTableFields = (
   const fields = useMemo(() => {
     return Object.values(fieldMap ?? {})
   }, [fieldMap])
-
   return {
     fields,
     fieldMap,
@@ -60,7 +59,7 @@ export const useTableViews = (tableId: string, databaseName: string) => {
 
 export const useTableOperation = (tableName: string, databaseName: string) => {
   const sqlite = useSqlWorker()
-  const { setViews, setNode, setRows } = useSqliteStore()
+  const { setViews, setNode, setRows, cleanFieldData } = useSqliteStore()
   const tableId = getTableIdByRawTableName(tableName)
   const rowMap = useSqliteStore(
     (state) => state.dataStore.tableMap?.[tableId]?.rowMap || {}
@@ -114,11 +113,9 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     await updateUiColumns()
   }
 
-  const changeFieldType = async (
-    tableColumnName: string,
-    newType: FieldType
-  ) => {
+  const changeFieldType = async (field: IField, newType: FieldType) => {
     if (!sqlite) return
+    const tableColumnName = field.table_column_name
     await sqlite.changeColumnType(tableName, tableColumnName, newType)
     await updateUiColumns()
   }
@@ -165,8 +162,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
 
   const addRow = async (_uuid?: string) => {
     if (sqlite) {
-      const { _id } = await sqlite.addRow(tableId, { _id: _uuid || uuidv4() })
-      return _id
+      return await sqlite.addRow(tableId, { _id: _uuid || uuidv7() })
     }
   }
 
@@ -177,6 +173,12 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
   ) => {
     if (sqlite) {
       await sqlite.deleteRowsByRange(range, tableName, query)
+    }
+  }
+
+  const deleteRowsByIds = async (ids: string[], tableName: string) => {
+    if (sqlite) {
+      await sqlite.deleteRowsByIds(ids, tableName)
     }
   }
 
@@ -219,6 +221,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     },
     [setRows, sqlite, tableId, tableName, uiColumnMap]
   )
+
   const getRowDataById = useCallback(
     (rowId: string) => {
       return rowMap[rowId]
@@ -227,6 +230,7 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
   )
 
   return {
+    deleteRowsByIds,
     getRowData,
     getRowDataById,
     updateCell,

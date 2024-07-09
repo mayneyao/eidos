@@ -7,8 +7,6 @@ import {
   toSql,
 } from "pgsql-ast-parser"
 
-
-
 export const getColumnsFromQuery = (sql?: string) => {
   if (!sql) return []
   // parse multiple statements
@@ -29,6 +27,42 @@ export const replaceQueryTableName = (
     }
   })
   return toSql.statement(selectStatement)
+}
+
+export const replaceWithFindIndexQuery = (
+  query: string,
+  rowId: string
+): string => {
+  const ast: Statement = parseFirst(query)
+  const selectStatement = ast as SelectFromStatement
+  // add a index column
+  selectStatement.columns?.length &&
+    selectStatement.columns.push({
+      expr: {
+        type: "call",
+        function: {
+          name: "row_number",
+        },
+        args: [],
+        over: {
+          orderBy: selectStatement.orderBy,
+        },
+      },
+      alias: {
+        name: "_index_in_view",
+      },
+    })
+  let querySql = toSql.statement(selectStatement)
+  querySql = `WITH RankedResults AS (
+${querySql}
+)
+SELECT
+  _index_in_view
+FROM
+  RankedResults
+WHERE
+  _id = '${rowId}';`
+  return querySql
 }
 
 /**

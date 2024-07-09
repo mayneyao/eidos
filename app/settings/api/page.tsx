@@ -4,7 +4,7 @@ import { CopyIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
 
 import { DOMAINS } from "@/lib/const"
-import { shortenId, uuidv4 } from "@/lib/utils"
+import { shortenId, uuidv7 } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -53,7 +53,7 @@ export function APIAgentForm() {
   const regen = (e: React.MouseEvent) => {
     e.preventDefault()
     const url = new URL(DOMAINS.API_AGENT_SERVER)
-    url.pathname = `/websocket/${uuidv4()}`
+    url.pathname = `/websocket/${uuidv7()}`
     url.protocol = "wss:"
     form.setValue("url", url.toString())
     form.trigger("url")

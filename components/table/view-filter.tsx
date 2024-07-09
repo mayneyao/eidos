@@ -57,6 +57,7 @@ export const ViewFilter = (props: { view: IView }) => {
         className={cn("rounded-md", {
           "bg-secondary": hasFilter,
         })}
+        asChild
       >
         <Button size="xs" variant="ghost">
           <FilterIcon className="h-4 w-4 opacity-60"></FilterIcon>

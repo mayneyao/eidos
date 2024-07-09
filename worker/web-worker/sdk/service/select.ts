@@ -1,3 +1,4 @@
+import { MsgType } from "@/lib/const"
 import { SelectField, SelectProperty } from "@/lib/fields/select"
 import { IField } from "@/lib/store/interface"
 import { nonNullable } from "@/lib/utils"
@@ -10,6 +11,8 @@ export class SelectFieldService {
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
   }
+
+  static MAX_SELECT_OPTIONS = 300
 
   updateFieldPropertyIfNeed = async (
     field: IField<SelectProperty>,
@@ -53,15 +56,29 @@ export class SelectFieldService {
     )
   }
 
-  beforeConvert = async (field: IField<any>) => {
+  beforeConvert = async (field: IField<any>, db = this.dataSpace.db) => {
     // get all select options
     const { table_column_name, table_name } = field
     const textList = this.dataSpace.syncExec2(
-      `SELECT DISTINCT ${table_column_name} FROM ${table_name}`
+      `SELECT DISTINCT ${table_column_name} FROM ${table_name}`,
+      [],
+      db
     )
     const textList2 = textList
       .map((item: any) => item[table_column_name])
       .filter(nonNullable)
+    if (textList2.length > SelectFieldService.MAX_SELECT_OPTIONS) {
+      const error = new Error(
+        `The select field 「${field.name}」 in table ${table_name} has more than ${SelectFieldService.MAX_SELECT_OPTIONS} options(${textList2.length}), please reduce the options first.`
+      )
+      postMessage({
+        type: MsgType.Error,
+        data: {
+          message: error.message,
+        },
+      })
+      throw error
+    }
     const options = SelectField.generateOptionsByNames(textList2)
     return options
   }

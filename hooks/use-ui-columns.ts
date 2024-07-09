@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useMemo } from "react"
 
 import { getTableIdByRawTableName } from "@/lib/utils"
 
@@ -34,13 +34,6 @@ export const useUiColumns = (
     },
     [setUiColumns, sqlite, tableName]
   )
-
-  useEffect(() => {
-    // updateUiColumns()
-    if (uiColumns.length === 0) {
-      updateUiColumns()
-    }
-  }, [updateUiColumns, tableName, uiColumns.length])
 
   const uiColumnMap = useMemo(() => {
     const map = new Map<string, IField>()

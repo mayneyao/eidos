@@ -66,11 +66,11 @@ export const useNode = () => {
   }
 
   const updateHideProperties = async (id: string, hideProperties: boolean) => {
-    await sqlite?.tree.set(id, {
-      hide_properties: hideProperties,
-    })
     setNode({
       id,
+      hide_properties: hideProperties,
+    })
+    await sqlite?.tree.set(id, {
       hide_properties: hideProperties,
     })
   }

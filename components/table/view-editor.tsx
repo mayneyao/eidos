@@ -1,12 +1,9 @@
-import { startTransition, useRef } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useClickAway } from "ahooks"
-import { LayoutGridIcon, LayoutListIcon, Table2Icon } from "lucide-react"
+import { startTransition, useRef } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
-import { IView, ViewTypeEnum } from "@/lib/store/IView"
-import { Input } from "@/components/ui/input"
 import {
   Form,
   FormControl,
@@ -16,9 +13,12 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
+import { Input } from "@/components/ui/input"
+import { IView, ViewTypeEnum } from "@/lib/store/IView"
 
 import { Button } from "../ui/button"
 import { useViewOperation } from "./hooks"
+import { useViewCount } from "./hooks/use-view-count"
 import { ViewIconMap } from "./view-item"
 
 const formSchema = z.object({
@@ -36,11 +36,13 @@ const ViewLayout = (props: {
   icon: React.FC
   title: string
   isActive?: boolean
+  disabled?: boolean
   onClick?: () => void
 }) => {
   const { icon: Icon } = props
   return (
     <Button
+      disabled={Boolean(props.disabled)}
       onClick={props.onClick}
       className="flex w-full justify-start gap-2"
       variant={props.isActive ? "secondary" : "outline"}
@@ -53,9 +55,14 @@ const ViewLayout = (props: {
   )
 }
 
+const LIMIT_ROWS_FOR_OPTIMIZE_VIEW = 88888
+
 export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
   const ref = useRef<HTMLDivElement>(null)
   const { updateView } = useViewOperation()
+  const { count, loading } = useViewCount(view)
+
+  const disabled = loading || count > LIMIT_ROWS_FOR_OPTIMIZE_VIEW
 
   useClickAway(
     (e) => {
@@ -133,6 +140,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                         field.onChange("gallery")
                         handleChangeViewType(ViewTypeEnum.Gallery)
                       }}
+                      disabled={disabled}
                       isActive={field.value === "gallery"}
                       title="Gallery"
                       icon={ViewIconMap[ViewTypeEnum.Gallery]}
@@ -142,10 +150,16 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                         field.onChange("doc_list")
                         handleChangeViewType(ViewTypeEnum.DocList)
                       }}
+                      disabled={disabled}
                       isActive={field.value === "doc_list"}
                       title="Doc list (beta)"
                       icon={ViewIconMap[ViewTypeEnum.DocList]}
                     ></ViewLayout>
+                    {disabled && (
+                      <p className="text-sm  text-muted-foreground">
+                        The disabled view types are not ready for large data
+                      </p>
+                    )}
                   </div>
                 </FormControl>
 

@@ -4,7 +4,7 @@ import { MsgType } from "@/lib/const"
 import { LocalSqlite } from "@/lib/sqlite/proxy"
 import { getWorker } from "@/lib/sqlite/worker"
 import { efsManager } from "@/lib/storage/eidos-file-system"
-import { uuidv4 } from "@/lib/utils"
+import { uuidv7 } from "@/lib/utils"
 
 import { useExtensions } from "./use-extensions"
 
@@ -91,7 +91,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
         case ExtMsgType.rpcCall:
           const { method, params, space } = event.data.data
           console.log("receive rpc call", method, params, space)
-          const thisCallId = uuidv4()
+          const thisCallId = uuidv7()
           sqlite.send({
             type: MsgType.CallFunction,
             data: {

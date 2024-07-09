@@ -3,7 +3,7 @@ import { v4 as uuidV4 } from "uuid"
 
 import { getCodeFromMarkdown } from "@/lib/markdown"
 import { efsManager } from "@/lib/storage/eidos-file-system"
-import { getUuid, uuidv4 } from "@/lib/utils"
+import { getUuid, uuidv7 } from "@/lib/utils"
 import { startRecorder, stopRecorder } from "@/lib/web/recorder"
 
 import { useCurrentPathInfo } from "./use-current-pathinfo"
@@ -113,7 +113,7 @@ export const useAIFunctions = () => {
         const { name, params, nodes } = parameters
         try {
           await sqlite?.addAction({
-            id: uuidv4(),
+            id: uuidv7(),
             name,
             params,
             nodes,

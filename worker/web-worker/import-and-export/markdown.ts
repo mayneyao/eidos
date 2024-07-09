@@ -1,11 +1,11 @@
-import { uuidv4 } from "@/lib/utils"
+import { uuidv7 } from "@/lib/utils"
 
 import { DataSpace } from "../DataSpace"
 import { BaseImportAndExport } from "./base"
 
 export class MarkdownImportAndExport extends BaseImportAndExport {
   async import(file: File, dataSpace: DataSpace): Promise<string> {
-    const nodeId = uuidv4().split("-").join("")
+    const nodeId = uuidv7().split("-").join("")
     const content = await file.text()
     const nodeName = file.name.replace(/\.[^/.]+$/, "")
     await dataSpace.createOrUpdateDocWithMarkdown(

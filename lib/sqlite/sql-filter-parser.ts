@@ -5,6 +5,7 @@ import {
   ExprString,
   ExprUnary,
   SelectFromStatement,
+  astVisitor,
   parseFirst,
   toSql,
 } from "pgsql-ast-parser"
@@ -269,4 +270,21 @@ export const transformFilterItems2SqlString = (
   const expr = transformFilterItems2SqlExpr(filterItems)
   parsedSql.where = expr
   return toSql.statement(parsedSql)
+}
+
+export const getFilterColumns = (query: string) => {
+  const ast = parseFirst(query) as SelectFromStatement
+  const columns: string[] = []
+  const visitor = astVisitor((v) => ({
+    ref: (r) => {
+      if (r.type === "ref") {
+        columns.push(r.name)
+      }
+      v.super().ref(r)
+    },
+  }))
+  if (ast.where) {
+    visitor.expr(ast.where)
+  }
+  return columns
 }

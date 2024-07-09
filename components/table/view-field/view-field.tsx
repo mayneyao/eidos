@@ -16,7 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { CommonMenuItem } from "@/components/common-menu-item"
-import { useTableAppStore } from "@/components/grid/store"
+import { useTableAppStore } from "@/components/table/views/grid/store"
 
 import { useViewOperation } from "../hooks"
 import { FieldItemCard } from "./view-field-item"
@@ -138,7 +138,7 @@ export const ViewField = (props: { view?: IView }) => {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={"rounded-md"}>
+      <PopoverTrigger className={"rounded-md"} asChild>
         <Button size="xs" variant="ghost">
           <SlidersHorizontalIcon className="h-4 w-4 opacity-60"></SlidersHorizontalIcon>
         </Button>
@@ -154,7 +154,7 @@ export const ViewField = (props: { view?: IView }) => {
         </div>
         <hr className="my-1" />
         <DndProvider backend={HTML5Backend} context={window}>
-          <div className="w-[300px]">
+          <div className="max-h-[420px] w-[300px] overflow-y-auto">
             {cards.map((card, i) => renderCard(card, i))}
           </div>
         </DndProvider>

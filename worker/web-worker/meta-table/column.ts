@@ -7,15 +7,23 @@ import { allFieldTypesMap } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { ILinkProperty } from "@/lib/fields/link"
 import { ColumnTableName } from "@/lib/sqlite/const"
+import { alterColumnType } from "@/lib/sqlite/sql-alter-column-type"
 import { transformFormula2VirtualGeneratedField } from "@/lib/sqlite/sql-formula-parser"
 import { IField } from "@/lib/store/interface"
-import { getTableIdByRawTableName } from "@/lib/utils"
+import { getColumnIndexName, getTableIdByRawTableName } from "@/lib/utils"
 
 import { TableManager } from "../sdk/table"
 import { BaseTable, BaseTableImpl } from "./base"
 
 const bc = new BroadcastChannel(EidosDataEventChannelName)
 
+/**
+ * define
+ * 1. column: a real column in table
+ * 2. field: a wrapper of column, with some additional properties which control the UI behavior
+ *
+ * this table is used to manage the mapping between column and field
+ */
 export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   name = ColumnTableName
   createTableSql = `
@@ -46,14 +54,18 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
 `
   JSONFields: string[] = ["property"]
 
-  async add(data: IField): Promise<IField> {
-    const { name, type, table_name, table_column_name, property } = data
+  static getColumnTypeByFieldType(type: FieldType) {
     const typeMap: any = {
       [FieldType.Checkbox]: "BOOLEAN",
       [FieldType.Number]: "REAL",
       [FieldType.Rating]: "INT",
     }
     const columnType = typeMap[type] ?? "TEXT"
+    return columnType
+  }
+  async add(data: IField): Promise<IField> {
+    const { name, type, table_name, table_column_name, property } = data
+    const columnType = ColumnTable.getColumnTypeByFieldType(type)
     const tableId = getTableIdByRawTableName(table_name)
     await this.dataSpace.db.transaction(async (db) => {
       let _property = property
@@ -99,20 +111,6 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         case FieldType.Formula:
           this.dataSpace.syncExec2(
             `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (upper(title));`,
-            [],
-            db
-          )
-          break
-        case FieldType.CreatedTime:
-          this.dataSpace.syncExec2(
-            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_created_time);`,
-            [],
-            db
-          )
-          break
-        case FieldType.LastEditedTime:
-          this.dataSpace.syncExec2(
-            `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (_last_edited_time);`,
             [],
             db
           )
@@ -288,6 +286,12 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     return res.filter((col) => !col.name.startsWith("_"))
   }
 
+  static isColumnTypeChanged(oldType: FieldType, newType: FieldType) {
+    return (
+      ColumnTable.getColumnTypeByFieldType(oldType) !==
+      ColumnTable.getColumnTypeByFieldType(newType)
+    )
+  }
   async changeType(
     tableName: string,
     tableColumnName: string,
@@ -296,30 +300,74 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     const defaultFieldProperty =
       allFieldTypesMap[newType].getDefaultFieldProperty()
     let newProperty = defaultFieldProperty
-    switch (newType) {
-      case FieldType.MultiSelect:
-      case FieldType.Select:
-        const field = await this.getColumn<ILinkProperty>(
+    const field = await this.getColumn<ILinkProperty>(
+      tableName,
+      tableColumnName
+    )
+    if (!field) return
+
+    const oldColumnType = ColumnTable.getColumnTypeByFieldType(field.type)
+    const newColumnType = ColumnTable.getColumnTypeByFieldType(newType)
+    const isColumnTypeChanged = oldColumnType !== newColumnType
+
+    await this.dataSpace.db.transaction(async (db) => {
+      if (isColumnTypeChanged) {
+        this.dataSpace.blockUIMsg("Changing column type")
+        // unRegisterTrigger first
+        await this.dataSpace.dataChangeTrigger.unRegisterTrigger(
+          this.dataSpace.dbName,
+          tableName
+        )
+        if (this.dataSpace.activeUndoManager) {
+          this.dataSpace.undoRedoManager.deactivate()
+        }
+
+        // drop trigger
+        let sql = `DROP TRIGGER IF EXISTS data_update_trigger_${tableName};
+        DROP TRIGGER IF EXISTS data_insert_trigger_${tableName};
+        DROP TRIGGER IF EXISTS data_delete_trigger_${tableName};`
+
+        // drop related index
+        sql += `DROP INDEX IF EXISTS ${getColumnIndexName(
           tableName,
           tableColumnName
-        )
-        if (!field) return
-        const tm = new TableManager(
-          getTableIdByRawTableName(tableName),
-          this.dataSpace
-        )
-        const options = await tm.fields.select.beforeConvert(field)
-        newProperty = {
-          ...defaultFieldProperty,
-          options,
-        }
-        break
-      default:
-        break
+        )};`
+
+        sql += alterColumnType(tableName, tableColumnName, newColumnType)
+        this.dataSpace.syncExec2(sql, [], db)
+      }
+
+      switch (newType) {
+        case FieldType.MultiSelect:
+        case FieldType.Select:
+          const tm = new TableManager(
+            getTableIdByRawTableName(tableName),
+            this.dataSpace
+          )
+          const options = await tm.fields.select.beforeConvert(field, db)
+          newProperty = {
+            ...defaultFieldProperty,
+            options,
+          }
+          break
+        default:
+          break
+      }
+      this.dataSpace.syncExec2(
+        `UPDATE ${ColumnTableName} SET type = ?, property = ? WHERE table_column_name = ? AND table_name = ?;`,
+        [newType, JSON.stringify(newProperty), tableColumnName, tableName],
+        db
+      )
+    })
+    this.dataSpace.blockUIMsg(null)
+    if (isColumnTypeChanged) {
+      // re-create trigger
+      const collist = await this.dataSpace.listRawColumns(tableName)
+      await this.dataSpace.dataChangeTrigger.setTrigger(
+        this.dataSpace,
+        tableName,
+        collist
+      )
     }
-    this.dataSpace.syncExec2(
-      `UPDATE ${ColumnTableName} SET type = ?, property = ? WHERE table_column_name = ? AND table_name = ?;`,
-      [newType, JSON.stringify(newProperty), tableColumnName, tableName]
-    )
   }
 }

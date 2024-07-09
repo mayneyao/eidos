@@ -1,8 +1,9 @@
+import { uuidv7 } from "uuidv7"
+
 import { getFieldInstance } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { IView } from "@/lib/store/IView"
 import type { IField } from "@/lib/store/interface"
-import { uuidv4 } from "@/lib/utils"
 
 import { DataSpace } from "../DataSpace"
 import { workerStore } from "../store"
@@ -141,9 +142,12 @@ export class RowsManager {
    * @param id
    * @returns
    */
-  async get(id: string, options?: { raw?: boolean }) {
+  async get(id: string, options?: { raw?: boolean; withRowId?: boolean }) {
     const { fieldRawColumnNameFieldMap } = await this.getFieldMap()
-    const sql = `SELECT * FROM ${this.table.rawTableName} WHERE _id = ?`
+    let sql = `SELECT * FROM ${this.table.rawTableName} WHERE _id = ?`
+    if (options?.withRowId) {
+      sql = `SELECT rowid, * FROM ${this.table.rawTableName} WHERE _id = ?`
+    }
     const rows = await this.dataSpace.exec2(sql, [id])
     if (rows.length === 0) {
       return null
@@ -209,7 +213,7 @@ export class RowsManager {
 
   getCreateData(data: Record<string, any>): Record<string, any> {
     return {
-      _id: uuidv4(),
+      _id: uuidv7(),
       _created_by: workerStore.currentCallUserId,
       _last_edited_by: workerStore.currentCallUserId,
       ...data,
@@ -320,6 +324,19 @@ export class RowsManager {
         `DELETE FROM ${this.table.rawTableName} WHERE _id = ?`,
         [id]
       )
+      return true
+    } catch (error) {
+      return false
+    }
+  }
+
+  async batchDelete(ids: string[]) {
+    try {
+      const sql = `DELETE FROM ${this.table.rawTableName} WHERE _id IN (${ids
+        .map(() => "?")
+        .join(",")})`
+      console.log(sql)
+      await this.dataSpace.exec2(sql, ids)
       return true
     } catch (error) {
       return false
