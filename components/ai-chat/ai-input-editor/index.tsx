@@ -1,3 +1,4 @@
+import React, { useEffect, useImperativeHandle, useRef } from "react"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
@@ -16,21 +17,21 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { Message } from "ai/react"
 import { $getRoot } from "lexical"
-import React, { useEffect, useImperativeHandle, useRef } from "react"
 
-import { useAIConfigStore } from "@/app/settings/ai/store"
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
+import { embeddingTexts } from "@/lib/embedding/worker"
+import { ITreeNode } from "@/lib/store/ITreeNode"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useToast } from "@/components/ui/use-toast"
 import { MentionNode } from "@/components/doc/nodes/MentionNode/MentionNode"
 import NewMentionsPlugin, {
   MentionPluginProps,
 } from "@/components/doc/plugins/MentionsPlugin"
 import { allTransformers } from "@/components/doc/plugins/const"
-import { useToast } from "@/components/ui/use-toast"
-import { useHnsw } from "@/hooks/use-hnsw"
-import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
-import { embeddingTexts } from "@/lib/embedding/worker"
-import { ITreeNode } from "@/lib/store/ITreeNode"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useAIConfigStore } from "@/app/settings/ai/store"
 
+import { AutoEditable } from "./plugins/auto-editable"
 import { SwitchPromptPlugin } from "./plugins/switch-prompt"
 
 const theme = {
@@ -213,6 +214,7 @@ export const AIInputEditor = ({
       <HistoryPlugin />
       <AutoFocusPlugin />
       <AIInputEditorDataPlugin ref={dataPluginRef} />
+      <AutoEditable editable={Boolean(initialConfig.editable)} />
     </LexicalComposer>
   )
 }
