@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { ICommand, IScript } from "@/worker/web-worker/meta-table/script"
+import { useMap } from "ahooks"
 import { create } from "zustand"
 
 import { getPrompt } from "@/lib/ai/openai"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { getRawTableNameById } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useDocEditor } from "@/hooks/use-doc-editor"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 import { useTablesUiColumns } from "@/app/[database]/scripts/hooks/use-all-table-fields"
@@ -107,7 +109,11 @@ export const useSystemPrompt = (
   contextNodes: ITreeNode[] = [],
   contextEmbeddings: IEmbedding[] = []
 ) => {
-  const { context, setCurrentDocMarkdown } = usePromptContext()
+  const { context } = usePromptContext()
+  const [_map, { set, reset, get }] = useMap<string, string>()
+  const { sqlite } = useSqlite()
+  const { getDocMarkdown } = useDocEditor(sqlite)
+
   const tables = useMemo(
     () =>
       contextNodes
@@ -115,6 +121,23 @@ export const useSystemPrompt = (
         .map((node) => getRawTableNameById(node.id)),
     [contextNodes]
   )
+
+  const docs = useMemo(
+    () =>
+      contextNodes.filter((node) => node.type === "doc").map((node) => node.id),
+    [contextNodes]
+  )
+
+  useEffect(() => {
+    async function loadDocs() {
+      for (const docId of docs) {
+        const markdown = await getDocMarkdown(docId)
+        set(docId, markdown)
+      }
+    }
+    loadDocs()
+  }, [docs, getDocMarkdown, set])
+
   const { uiColumnsMap } = useTablesUiColumns(tables)
   const { prompts } = useUserPrompts()
   return useMemo(() => {
@@ -137,6 +160,9 @@ export const useSystemPrompt = (
             )}`
           })
           .join("\n")
+      _map.forEach((value, key) => {
+        systemPrompt += `\n--------------- \n <doc-content id=${key}> \n${value} \n </doc-content>`
+      })
       if (contextEmbeddings.length > 0) {
         systemPrompt += `\n--------------- \nhere are some context: \n${contextEmbeddings
           .map((r) => r.raw_content)
@@ -145,22 +171,20 @@ export const useSystemPrompt = (
 
       return {
         systemPrompt,
-        setCurrentDocMarkdown,
       }
     } else {
       const currentPrompt = prompts.find((p) => p.id === currentSysPrompt)
       return {
         systemPrompt: currentPrompt?.code,
-        setCurrentDocMarkdown,
       }
     }
   }, [
+    _map,
     context,
     contextEmbeddings,
     contextNodes,
     currentSysPrompt,
     prompts,
-    setCurrentDocMarkdown,
     uiColumnsMap,
   ])
 }

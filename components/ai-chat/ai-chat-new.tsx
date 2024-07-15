@@ -13,19 +13,16 @@ import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { getFunctionCallHandler } from "@/lib/ai/openai"
+import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAppStore } from "@/lib/store/app-store"
+import { useAiConfig } from "@/hooks/use-ai-config"
 import { useAIFunctions } from "@/hooks/use-ai-functions"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useDocEditor } from "@/hooks/use-doc-editor"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { useAIConfigStore } from "@/app/settings/ai/store"
+import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
 import { Loading } from "../loading"
 import { AIChatMessage } from "./ai-chat-message"
@@ -38,11 +35,6 @@ import {
   useUserPrompts,
 } from "./hooks"
 import "./index.css"
-import { ITreeNode } from "@/lib/store/ITreeNode"
-import { useAiConfig } from "@/hooks/use-ai-config"
-import { useAIConfigStore } from "@/app/settings/ai/store"
-import { useExperimentConfigStore } from "@/app/settings/experiment/store"
-
 import { Label } from "../ui/label"
 import { ScrollArea } from "../ui/scroll-area"
 import { Switch } from "../ui/switch"
@@ -69,18 +61,15 @@ export default function Chat() {
   const { autoSpeak } = useAIChatSettingsStore()
   const divRef = useRef<HTMLDivElement>(null)
   const { currentSysPrompt, setCurrentSysPrompt } = useAIChatStore()
-  const currentNode = useCurrentNode()
   const { aiConfig } = useAIConfigStore()
-  const { sqlite } = useSqlite()
   const { progress } = useLoadingStore()
 
-  const { getDocMarkdown } = useDocEditor(sqlite)
   const { handleFunctionCall, handleRunCode } = useAIFunctions()
   const functionCallHandler = getFunctionCallHandler(handleFunctionCall)
 
   const [contextNodes, setContextNodes] = useState<ITreeNode[]>([])
   const [contextEmbeddings, setContextEmbeddings] = useState<IEmbedding[]>([])
-  const { systemPrompt, setCurrentDocMarkdown } = useSystemPrompt(
+  const { systemPrompt } = useSystemPrompt(
     currentSysPrompt,
     contextNodes,
     contextEmbeddings
@@ -132,16 +121,6 @@ export default function Chat() {
       loadingRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [isLoading])
-  useEffect(() => {
-    if (currentNode?.type === "doc") {
-      console.log("fetching doc markdown")
-      getDocMarkdown(currentNode.id).then((res) => {
-        setCurrentDocMarkdown(res)
-      })
-    } else {
-      setCurrentDocMarkdown("")
-    }
-  }, [currentNode, getDocMarkdown, setCurrentDocMarkdown])
 
   const handleManualRun = async (data: any) => {
     const res = await handleRunCode(data)
