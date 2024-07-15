@@ -25,6 +25,7 @@ export const AIEditorPlugin = (props: any) => {
 
   useEffect(() => {
     return mergeRegister(() => {
+      // FIXME: is this only works in dev mode? fuck lexical fuck fuck fuck!!!!!!!!!
       editor.registerCommand(
         SELECTION_CHANGE_COMMAND,
         () => {
@@ -65,9 +66,10 @@ export const AIEditorPlugin = (props: any) => {
 
       editor.update(() => {
         editor.focus()
+        const paragraphNode = $createParagraphNode()
+        $convertFromMarkdownString(text, __allTransformers, paragraphNode)
+        // FIXME: the selection is always null in production mode, append the paragraph node to the end of the root node yet
         if (selection) {
-          const paragraphNode = $createParagraphNode()
-          $convertFromMarkdownString(text, __allTransformers, paragraphNode)
           const newSelection = selection.clone()
           let node
           try {
@@ -77,11 +79,11 @@ export const AIEditorPlugin = (props: any) => {
             node.insertAfter(paragraphNode)
           } else {
             const root = $getRoot()
-            $convertFromMarkdownString(text, __allTransformers, root)
+            root.append(paragraphNode)
           }
         } else {
           const root = $getRoot()
-          $convertFromMarkdownString(text, __allTransformers, root)
+          root.append(paragraphNode)
         }
       })
     }

@@ -29,6 +29,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
+import { useLastOpened } from "@/app/[database]/hook"
 import { useSpaceAppStore } from "@/app/[database]/store"
 
 import { ActionList } from "./action"
@@ -67,7 +68,7 @@ export function CommandDialogDemo() {
   }, [input, run, space])
 
   const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
-  const { lastOpenedDatabase } = useAppStore()
+  const { lastOpenedDatabase } = useLastOpened()
 
   const { createDoc } = useSqlite()
   const goto = useCMDKGoto()
