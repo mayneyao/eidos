@@ -139,7 +139,7 @@ export function StorageForm() {
   }
 
   // get current fsType
-  const currentFsType = form.getValues("fsType")
+  const currentFsType = form.watch("fsType")
 
   return (
     <Form {...form}>
@@ -225,7 +225,7 @@ export function StorageForm() {
                       </Button>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="destructive"
                         onClick={clearLocalPath}
                       >
                         Clear
@@ -240,7 +240,7 @@ export function StorageForm() {
                         Permission granted.
                       </span>
                     ) : (
-                      <div className=" inline-flex gap-2">
+                      <div className=" inline-flex items-center gap-2">
                         <span className="text-red-500">
                           {" "}
                           Permission denied.

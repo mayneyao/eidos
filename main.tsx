@@ -33,6 +33,7 @@ import { ScriptPage } from "./app/[database]/scripts/page"
 import { ScriptStorePage } from "./app/[database]/scripts/store"
 import { SpaceSetting } from "./app/[database]/settings/page"
 import { DocEditor } from "./app/eidtor/doc"
+import { ErrorBoundary } from "./app/error"
 import { LabPage } from "./app/lab"
 import { LicenseManagePage } from "./app/license-manage/page"
 import { DevtoolsPage } from "./app/settings/dev/page"
@@ -42,6 +43,7 @@ const router = createBrowserRouter([
   {
     path: "/",
     element: <RootLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         path: "/",
