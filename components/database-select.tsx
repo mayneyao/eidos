@@ -1,9 +1,15 @@
 "use client"
 
+import * as React from "react"
 import { kebabCase } from "lodash"
 import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
-import * as React from "react"
 
+import { spaceFileSystem } from "@/lib/storage/space"
+import { useAppStore } from "@/lib/store/app-store"
+import { cn } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useGoto } from "@/hooks/use-goto"
+import { useSpace } from "@/hooks/use-space"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -28,12 +34,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useGoto } from "@/hooks/use-goto"
-import { useSpace } from "@/hooks/use-space"
-import { spaceFileSystem } from "@/lib/storage/space"
-import { useAppStore } from "@/lib/store/app-store"
-import { cn } from "@/lib/utils"
+import { useLastOpened } from "@/app/[database]/hook"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -47,7 +48,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [file, setFile] = React.useState<File | null>(null)
   const { spaceList } = useSpace()
 
-  const { lastOpenedDatabase, setLastOpenedDatabase } = useAppStore()
+  const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
   const { space } = useCurrentPathInfo()
 
   const [searchValue, setSearchValue] = React.useState("")

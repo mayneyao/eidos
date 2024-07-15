@@ -69,6 +69,11 @@ export function StorageForm() {
     resolver: zodResolver(storageFormSchema),
   })
 
+  const clearLocalPath = () => {
+    setLocalPath(null)
+    setIsGranted(false)
+  }
+
   useEffect(() => {
     if (localPath) {
       const checkPermission = async () => {
@@ -211,15 +216,21 @@ export function StorageForm() {
                 <FormItem className="flex flex-col">
                   <FormLabel>Local Path</FormLabel>
                   <div className="flex gap-1">
-                    <Input
-                      autoComplete="off"
-                      type="text"
-                      disabled
-                      value={localPath?.name}
-                    />{" "}
-                    <Button type="button" onClick={handleSelectLocalPath}>
-                      Select
-                    </Button>
+                    <div className="flex w-full items-center rounded-sm border p-1 px-3">
+                      {localPath?.name}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" onClick={handleSelectLocalPath}>
+                        Select
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={clearLocalPath}
+                      >
+                        Clear
+                      </Button>
+                    </div>
                   </div>
                   <FormDescription>
                     the local path where your files will be stored.
@@ -229,7 +240,26 @@ export function StorageForm() {
                         Permission granted.
                       </span>
                     ) : (
-                      <span className="text-red-500"> Permission denied.</span>
+                      <div className=" inline-flex gap-2">
+                        <span className="text-red-500">
+                          {" "}
+                          Permission denied.
+                        </span>
+                        {localPath && (
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              localPath?.requestPermission({
+                                mode: "readwrite",
+                              })
+                            }}
+                          >
+                            Grant Permission
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </FormDescription>
                   <FormMessage />
