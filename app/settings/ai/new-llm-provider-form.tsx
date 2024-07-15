@@ -1,7 +1,17 @@
-import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
+import OpenAI from "openai"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/react-hook-form/form"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -19,15 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/react-hook-form/form"
+import { useToast } from "@/components/ui/use-toast"
 
 import { LLMProvider, llmProviderSchema } from "./store"
 
@@ -107,6 +109,7 @@ export const LLMProviderForm = ({
       models: "",
     },
   })
+  const toast = useToast()
 
   function onSubmit(data: LLMProvider) {
     onChange ? onChange(data) : onAdd?.(data)
@@ -115,6 +118,39 @@ export const LLMProviderForm = ({
   function handleSubmit() {
     const data = form.getValues()
     onSubmit(data)
+  }
+
+  async function getModelList(
+    e: React.MouseEvent<HTMLButtonElement, MouseEvent>
+  ) {
+    e.preventDefault()
+    const baseUrl = form.getValues("baseUrl")
+    if (!baseUrl) {
+      toast.toast({
+        title: "Error",
+        description: "Base URL is required to fetch model list.",
+      })
+      return
+    }
+    const openai = new OpenAI({
+      apiKey: form.getValues("apiKey"),
+      baseURL: baseUrl,
+      dangerouslyAllowBrowser: true,
+    })
+    try {
+      const resp = await openai.models.list()
+      const modelIds = resp.data.map((model) => model.id).join(", ")
+      form.setValue("models", modelIds)
+      // focus on models input
+      form.setFocus("models")
+    } catch (error) {
+      console.error(error)
+      toast.toast({
+        title: "Error",
+        description:
+          "Failed to fetch model list! Mostly due to CORS, please check the console for more info. ",
+      })
+    }
   }
 
   const mode = onChange ? "Update" : "Add"
@@ -203,7 +239,19 @@ export const LLMProviderForm = ({
           name="models"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Models</FormLabel>
+              <div className="flex items-center justify-between">
+                <FormLabel>Models</FormLabel>
+                {form.watch("type") === "openai" && (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={getModelList}
+                    title="fetch model list"
+                  >
+                    fetch
+                  </Button>
+                )}
+              </div>
               <FormControl>
                 <Input
                   {...field}
