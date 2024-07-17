@@ -66,7 +66,9 @@ div.editor-image {
 .editor-image img.focused.draggable:active {
   cursor: grabbing;
 }
-
+.editor-image .image-caption-container {
+  position: relative;
+}
 .editor-image .image-caption-container .tree-view-output {
   margin: 0;
   border-radius: 0;
