@@ -3,6 +3,7 @@ import type { Identifier, XYCoord } from "dnd-core"
 import { MoreHorizontal } from "lucide-react"
 import { useDrag, useDrop } from "react-dnd"
 
+import { getFileType } from "@/lib/mime/mime"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -28,13 +29,58 @@ export interface CardProps {
   index: number
   moveCard: (dragIndex: number, hoverIndex: number) => void
   setCurrentPreviewIndex: (i: number) => void
-  deleteByUrl: (url: string) => void
+  deleteByUrl: (index: number) => void
 }
 
 interface DragItem {
   index: number
   id: string
   type: string
+}
+
+const FileRender = ({
+  url,
+  originalUrl,
+}: {
+  url: string
+  originalUrl: string
+}) => {
+  const fileType = getFileType(originalUrl)
+  switch (fileType) {
+    case "image":
+      return (
+        <img
+          src={url}
+          alt=""
+          className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
+        />
+      )
+    case "audio":
+      return (
+        <audio
+          src={originalUrl}
+          className="max-w-[80%] cursor-pointer object-contain"
+          controls
+        />
+      )
+    case "video":
+      return (
+        <video
+          src={originalUrl}
+          className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
+          controls
+        />
+      )
+    default:
+      return (
+        <Button
+          className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
+          size="sm"
+        >
+          {url}
+        </Button>
+      )
+  }
 }
 
 export const Card: FC<CardProps> = ({
@@ -132,12 +178,9 @@ export const Card: FC<CardProps> = ({
       data-handler-id={handlerId}
       className="space-between flex items-start justify-between hover:bg-secondary"
     >
-      <img
-        src={text}
-        alt=""
-        onClick={() => setCurrentPreviewIndex(index)}
-        className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
-      />
+      <div onClick={() => setCurrentPreviewIndex(index)} className="w-full">
+        <FileRender url={text} originalUrl={originalUrl} />
+      </div>
       <DropdownMenu>
         <DropdownMenuTrigger className="click-outside-ignore h-[32px]">
           <MoreHorizontal className="m-1 h-4 w-4" />
@@ -150,7 +193,7 @@ export const Card: FC<CardProps> = ({
           <DropdownMenuItem onClick={handleClickViewOriginal}>
             View Original
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => deleteByUrl(text)}>
+          <DropdownMenuItem onClick={() => deleteByUrl(index)}>
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>

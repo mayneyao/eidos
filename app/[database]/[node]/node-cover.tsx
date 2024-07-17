@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import { ImageSelector } from "./image-selector"
+import { FileSelector } from "./file-selector"
 
 export const NodeCover = (props: { node: ITreeNode }) => {
   const { node } = props
@@ -34,7 +34,7 @@ export const NodeCover = (props: { node: ITreeNode }) => {
           </div>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">
-          <ImageSelector onSelected={handleSelect} onRemove={handleRemove} />
+          <FileSelector onSelected={handleSelect} onRemove={handleRemove} onlyImage />
         </PopoverContent>
       </Popover>
       {isColor ? (

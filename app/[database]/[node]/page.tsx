@@ -18,7 +18,7 @@ import { Editor } from "@/components/doc/editor"
 import { FolderTree } from "@/components/folder"
 import { Table } from "@/components/table"
 
-import { DefaultColors } from "./image-selector"
+import { DefaultColors } from "./file-selector"
 import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
 import { NodeRestore } from "./node-restore"

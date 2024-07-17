@@ -3,9 +3,11 @@ import { createPortal } from "react-dom"
 
 export const FilePreview = ({
   url,
+  type,
   onClose,
 }: {
   url: string
+  type: string
   onClose: () => void
 }) => {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
@@ -41,12 +43,30 @@ export const FilePreview = ({
         zIndex: 9999,
       }}
     >
-      <img
-        src={url}
-        alt="preview"
-        onClick={(e) => e.stopPropagation()} // Add this line
-        style={{ maxWidth: "80%", maxHeight: "80%" }}
-      />
+      {type === "image" && (
+        <img
+          src={url}
+          alt="preview"
+          onClick={(e) => e.stopPropagation()} // Add this line
+          style={{ maxWidth: "80%", maxHeight: "80%" }}
+        />
+      )}
+      {type === "audio" && (
+        <audio
+          src={url}
+          controls
+          onClick={(e) => e.stopPropagation()} // Add this line
+          style={{ maxWidth: "80%" }}
+        />
+      )}
+      {type === "video" && (
+        <video
+          src={url}
+          controls
+          onClick={(e) => e.stopPropagation()} // Add this line
+          style={{ maxWidth: "80%", maxHeight: "80%" }}
+        />
+      )}
     </div>,
     container
   )

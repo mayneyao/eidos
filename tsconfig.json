@@ -26,7 +26,12 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "types": ["vite-plugin-pwa/react", "node", "jest"]
+    "types": [
+      "vite-plugin-pwa/react",
+      "node",
+      "jest",
+      "@types/wicg-file-system-access"
+    ]
   },
   "include": [
     "**/*.wasm",
