@@ -124,7 +124,7 @@ export const FileCellEditor: ReturnType<
     (v: string, originalUrl: string, i: number) => {
       return (
         <Card
-          key={v}
+          key={originalUrl}
           id={v}
           text={v}
           originalUrl={originalUrl}
@@ -176,7 +176,12 @@ export const FileCellEditor: ReturnType<
   // }
 
   return (
-    <div className={cn("rounded-md border-none outline-none", className)}>
+    <div
+      className={cn(
+        "max-w-[300px] rounded-md border-none outline-none",
+        className
+      )}
+    >
       <DndProvider backend={HTML5Backend} context={window}>
         {cell.data.displayData.map((v, i) => {
           const originalUrl = cell.data.data[i]

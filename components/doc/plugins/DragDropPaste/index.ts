@@ -9,12 +9,18 @@
 import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { DRAG_DROP_PASTE } from "@lexical/rich-text"
-import { isMimeType } from "@lexical/utils"
-import { COMMAND_PRIORITY_LOW } from "lexical"
+import { isMimeType, mergeRegister } from "@lexical/utils"
+import {
+  COMMAND_PRIORITY_EDITOR,
+  COMMAND_PRIORITY_HIGH,
+  COMMAND_PRIORITY_LOW,
+  DROP_COMMAND,
+} from "lexical"
 import zip from "lodash/zip"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useFileSystem } from "@/hooks/use-files"
+import { getDragFileUrl } from "@/components/file-manager/helper"
 
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 
@@ -32,28 +38,57 @@ export default function DragDropPaste(): null {
   const { space } = useCurrentPathInfo()
   const { addFiles } = useFileSystem()
   useEffect(() => {
-    return editor.registerCommand(
-      DRAG_DROP_PASTE,
-      (files) => {
-        ;(async () => {
-          const _files = await addFiles(files)
-          const fileZip = zip(_files, files)
-          for (const [meta, file] of fileZip) {
-            const paths = meta!.path.split("/")
-            // skip spaces
-            const path = "/" + paths.slice(1).join("/")
-            if (isMimeType(file!, ACCEPTABLE_IMAGE_TYPES)) {
-              editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-                altText: file!.name,
-                src: path,
-              })
+    const removeListener = mergeRegister(
+      editor.registerCommand(
+        DRAG_DROP_PASTE,
+        (files) => {
+          console.log("files", files)
+          ;(async () => {
+            const _files = await addFiles(files)
+            const fileZip = zip(_files, files)
+            for (const [meta, file] of fileZip) {
+              const paths = meta!.path.split("/")
+              // skip spaces
+              const path = "/" + paths.slice(1).join("/")
+              if (isMimeType(file!, ACCEPTABLE_IMAGE_TYPES)) {
+                editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
+                  altText: file!.name,
+                  src: path,
+                })
+              }
             }
+          })()
+          return true
+        },
+        COMMAND_PRIORITY_LOW
+      ),
+      editor.registerCommand<DragEvent>(
+        DROP_COMMAND,
+        (event) => {
+          if (
+            event.dataTransfer?.files &&
+            event.dataTransfer?.files.length > 0
+          ) {
+            return false
+          } else {
+            const file = getDragFileUrl(event.dataTransfer)
+            file &&
+              file.type === "image" &&
+              editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
+                altText: file.url,
+                src: file.url,
+              })
+            event.preventDefault()
+            return true
           }
-        })()
-        return true
-      },
-      COMMAND_PRIORITY_LOW
+        },
+        COMMAND_PRIORITY_HIGH
+      )
     )
+
+    return () => {
+      removeListener()
+    }
   }, [addFiles, editor, space])
   return null
 }

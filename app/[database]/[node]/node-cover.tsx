@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { useDrop } from "ahooks"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { cn } from "@/lib/utils"
@@ -9,12 +10,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { getDragFileInfo } from "@/components/file-manager/helper"
 
 import { FileSelector } from "./file-selector"
 
 export const NodeCover = (props: { node: ITreeNode }) => {
   const { node } = props
   const [open, setOpen] = useState(false)
+  const [isHovering, setIsHovering] = useState(false)
+
+  const dropRef = useRef(null)
+
   const { updateCover } = useNode()
   const handleSelect = async (url: string, close = false) => {
     await updateCover(node?.id!, url)
@@ -25,8 +31,24 @@ export const NodeCover = (props: { node: ITreeNode }) => {
   }
   const isColor = node.cover?.startsWith("color://")
 
+  useDrop(dropRef, {
+    onText: (text, e) => {
+      const file = getDragFileInfo(text)
+      if (file && file.type === "image") {
+        handleSelect(file.url)
+      }
+      setIsHovering(false)
+    },
+    onDragEnter: () => setIsHovering(true),
+    onDragLeave: () => setIsHovering(false),
+  })
   return (
-    <div className="group relative">
+    <div
+      className={cn("group relative", {
+        ring: isHovering,
+      })}
+      ref={dropRef}
+    >
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <div className="absolute right-[24%] opacity-0 group-hover:opacity-100">
@@ -34,7 +56,11 @@ export const NodeCover = (props: { node: ITreeNode }) => {
           </div>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">
-          <FileSelector onSelected={handleSelect} onRemove={handleRemove} onlyImage />
+          <FileSelector
+            onSelected={handleSelect}
+            onRemove={handleRemove}
+            onlyImage
+          />
         </PopoverContent>
       </Popover>
       {isColor ? (

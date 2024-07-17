@@ -7,6 +7,7 @@ import {
 } from "@glideapps/glide-data-grid"
 
 import { useFileSystem } from "@/hooks/use-files"
+import { getDragFileUrl } from "@/components/file-manager/helper"
 
 import { FileCell } from "../cells/file/file-cell"
 
@@ -39,11 +40,11 @@ export const useDrop = (props: IProps) => {
         return
       }
 
-      const data = dataTransfer.getData("text/plain")
+      const data = getDragFileUrl(dataTransfer)
       if (data) {
         console.log("data", data)
         const oldCell = getCellContent(cell) as FileCell
-        const newValues = [...(oldCell.data?.data || []), data] as string[]
+        const newValues = [...(oldCell.data?.data || []), data.url] as string[]
         setCellValue(cell[0], cell[1], {
           kind: GridCellKind.Custom,
           data: {

@@ -1,5 +1,4 @@
-import { extension } from "mime-types"
-
+import { extension } from "../mime/mime"
 import { getIndexedDBValue } from "./indexeddb"
 
 export enum FileSystemType {

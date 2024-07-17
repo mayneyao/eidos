@@ -4,6 +4,8 @@ import { FileIcon } from "lucide-react"
 import { getFileType } from "@/lib/mime/mime"
 import { useFileSystem } from "@/hooks/use-files"
 
+import { makeDataTransferData } from "./helper"
+
 export const FileEntry = ({
   name,
   entry,
@@ -16,7 +18,10 @@ export const FileEntry = ({
   const fileType = getFileType(url)
   const dragRef = useRef<HTMLDivElement>(null)
   const handleDragStart = async (event: React.DragEvent<HTMLDivElement>) => {
-    event.dataTransfer.setData("text/plain", url)
+    event.dataTransfer.setData("text/plain", makeDataTransferData(url))
+    const file = await entry.getFile()
+    // event.dataTransfer.setData("file", file.name)
+    event.dataTransfer.items.add(file)
     event.dataTransfer.effectAllowed = "move"
   }
   return (

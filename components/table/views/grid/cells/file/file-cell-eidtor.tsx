@@ -1,10 +1,9 @@
 import { useRef, type FC } from "react"
 import type { Identifier, XYCoord } from "dnd-core"
-import { MoreHorizontal } from "lucide-react"
+import { FileIcon, MoreHorizontal } from "lucide-react"
 import { useDrag, useDrop } from "react-dnd"
 
 import { getFileType } from "@/lib/mime/mime"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,14 +51,14 @@ const FileRender = ({
         <img
           src={url}
           alt=""
-          className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
+          className="max-h-[160px] cursor-pointer object-contain"
         />
       )
     case "audio":
       return (
         <audio
           src={originalUrl}
-          className="max-w-[80%] cursor-pointer object-contain"
+          className="cursor-pointer object-contain"
           controls
         />
       )
@@ -67,18 +66,19 @@ const FileRender = ({
       return (
         <video
           src={originalUrl}
-          className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
+          className="max-h-[160px] cursor-pointer object-contain"
           controls
         />
       )
     default:
       return (
-        <Button
-          className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
-          size="sm"
+        <div
+          className="flex h-10 cursor-pointer items-center gap-2"
+          title={originalUrl}
         >
-          {url}
-        </Button>
+          <FileIcon className="h-5 w-5 shrink-0"/>
+          <p className="truncate">{originalUrl}</p>
+        </div>
       )
   }
 }
@@ -178,7 +178,10 @@ export const Card: FC<CardProps> = ({
       data-handler-id={handlerId}
       className="space-between flex items-start justify-between hover:bg-secondary"
     >
-      <div onClick={() => setCurrentPreviewIndex(index)} className="w-full">
+      <div
+        onClick={() => setCurrentPreviewIndex(index)}
+        className="max-w-[80%]"
+      >
         <FileRender url={text} originalUrl={originalUrl} />
       </div>
       <DropdownMenu>

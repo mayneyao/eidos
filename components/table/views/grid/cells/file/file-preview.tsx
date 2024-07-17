@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 
+const PREVIEW_TYPES = ["image", "audio", "video"]
 export const FilePreview = ({
   url,
   type,
@@ -66,6 +67,9 @@ export const FilePreview = ({
           onClick={(e) => e.stopPropagation()} // Add this line
           style={{ maxWidth: "80%", maxHeight: "80%" }}
         />
+      )}
+      {!PREVIEW_TYPES.includes(type) && (
+        <p className="text-4xl text-red-600">not support preview</p>
       )}
     </div>,
     container

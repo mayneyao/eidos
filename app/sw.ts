@@ -1,8 +1,7 @@
 import {
-  autoBackup,
   backUpPullOnce,
   backUpPushOnce,
-  backupAllSpaceData,
+  backupAllSpaceData
 } from "@/worker/service-worker/backup"
 import { routes } from "@/worker/service-worker/routes"
 import { precacheAndRoute } from "workbox-precaching"

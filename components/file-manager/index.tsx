@@ -1,11 +1,12 @@
 import { useRef, useState } from "react"
 import { useDrop } from "ahooks"
-import { ArrowLeftIcon, FolderIcon, HomeIcon } from "lucide-react"
+import { ArrowLeftIcon, FolderIcon } from "lucide-react"
 
 import { useAppStore } from "@/lib/store/app-store"
 import { useFileSystem } from "@/hooks/use-files"
 import { Separator } from "@/components/ui/separator"
 
+import { EntrySelector } from "./entry-selector"
 import { FileEntry } from "./file-entry"
 
 export const FileManager = () => {
@@ -30,17 +31,17 @@ export const FileManager = () => {
   const backToSidebar = () => {
     setFileManagerOpen(false)
   }
-  // useDrop(dropRef, {
-  //   onFiles: (files, e) => {
-  //     // when drop files into opfs via file manager, we don't use uuid as file name, keep the original name
-  //     addFiles(files, false)
-  //   },
-  //   onDom: (content: string, e) => {
-  //     alert(`custom: ${content} dropped`)
-  //   },
-  //   onDragEnter: () => setIsHovering(true),
-  //   onDragLeave: () => setIsHovering(false),
-  // })
+  useDrop(dropRef, {
+    onFiles: (files, e) => {
+      // when drop files into opfs via file manager, we don't use uuid as file name, keep the original name
+      addFiles(files, false)
+    },
+    onDom: (content: string, e) => {
+      alert(`custom: ${content} dropped`)
+    },
+    onDragEnter: () => setIsHovering(true),
+    onDragLeave: () => setIsHovering(false),
+  })
 
   const handleEnterDir = (name: string) => {
     enterDir(name)
@@ -51,18 +52,7 @@ export const FileManager = () => {
       <div className="h-full w-full p-2">
         <div className="flex justify-between">
           <div className="flex gap-1">
-            <HomeIcon className="h-5 w-5 cursor-pointer" onClick={goRootDir} />
-            {currentPath.map((item, index) => {
-              return (
-                <div
-                  key={index}
-                  className="cursor-pointer"
-                  onClick={() => enterPathByIndex(index)}
-                >
-                  / {item}
-                </div>
-              )
-            })}
+            <EntrySelector />
           </div>
           <ArrowLeftIcon
             className="h-5 w-5 cursor-pointer"
@@ -87,13 +77,18 @@ export const FileManager = () => {
                   <FileEntry name={name} entry={entry} />
                 ) : (
                   <div
-                    className="flex cursor-pointer"
+                    className="flex cursor-pointer items-center justify-center rounded-sm p-2 hover:bg-secondary"
                     onDoubleClick={() => handleEnterDir(name)}
                   >
-                    <FolderIcon className="mt-1 h-5 w-5" />
-                    <div className="w-[350px] truncate pl-2" title={name}>
+                    <div className="flex h-8 w-8 items-center justify-center">
+                      <FolderIcon className="mt-1 h-5 w-5" />
+                    </div>{" "}
+                    <p
+                      className="w-[220px] truncate pl-2  text-sm"
+                      title={name}
+                    >
                       {name}
-                    </div>
+                    </p>
                   </div>
                 )}
               </li>
