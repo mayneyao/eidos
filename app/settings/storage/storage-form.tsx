@@ -49,7 +49,8 @@ const storageFormSchema = z.object({
 type StorageFormValues = z.infer<typeof storageFormSchema>
 
 export function StorageForm() {
-  const [localPath, setLocalPath] = useIndexedDB("kv", "localPath", null)
+  const [localPath, setLocalPath] =
+    useIndexedDB<FileSystemDirectoryHandle | null>("kv", "localPath", null)
   const [fsType, setFsType] = useIndexedDB("kv", "fs", FileSystemType.OPFS)
   const [autoBackupGap, setAutoBackupGap] = useIndexedDB(
     "kv",
@@ -99,9 +100,9 @@ export function StorageForm() {
   }, [form, autoBackupGap])
 
   const handleSelectLocalPath = async () => {
-    const dirHandle = await (window as any).showDirectoryPicker()
+    const dirHandle = await window.showDirectoryPicker()
     // store this dirHandle to indexedDB
-    setLocalPath(dirHandle as FileSystemDirectoryHandle)
+    setLocalPath(dirHandle)
     if (dirHandle) {
       await dirHandle.requestPermission({
         mode: "readwrite",
