@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { Link } from "react-router-dom"
 
+import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -18,10 +19,10 @@ import { useAllNodes } from "@/hooks/use-nodes"
 import { useScripts } from "@/hooks/use-scripts"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { Separator } from "@/components/ui/separator"
 import { DatabaseSelect } from "@/components/database-select"
 import { useExperimentConfigStore } from "@/app/settings/experiment/store"
 
+import { FileManager } from "../file-manager"
 import { SpaceSettings } from "../space-settings"
 import { Button } from "../ui/button"
 import {
@@ -51,6 +52,12 @@ export const SideBar = ({ className }: any) => {
   const scripts = useScripts(space)
   const apps = scripts.filter((script) => script.type === "app")
 
+  const { isFileManagerOpen, setFileManagerOpen, setSidebarOpen } =
+    useAppStore()
+
+  const toggleFileManager = () => {
+    setFileManagerOpen(!isFileManagerOpen)
+  }
   const { handlePaste } = useTreeOperations()
   useEffect(() => {
     updateNodeList().then(() => {
@@ -61,6 +68,9 @@ export const SideBar = ({ className }: any) => {
   const {
     experiment: { enableFileManager },
   } = useExperimentConfigStore()
+  if (isFileManagerOpen) {
+    return <FileManager />
+  }
 
   return (
     <>
@@ -86,13 +96,11 @@ export const SideBar = ({ className }: any) => {
                     <Button
                       variant={"ghost"}
                       size="sm"
+                      onClick={toggleFileManager}
                       className="w-full justify-start font-normal"
-                      asChild
                     >
-                      <Link to={`/${space}/opfs`}>
-                        <FileBoxIcon className="pr-2" />
-                        Files
-                      </Link>
+                      <FileBoxIcon className="pr-2" />
+                      Files
                     </Button>
                   )}
                   <Button

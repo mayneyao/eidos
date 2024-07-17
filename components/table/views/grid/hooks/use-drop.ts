@@ -1,10 +1,10 @@
+import React from "react"
 import {
   DataEditorProps,
   GridCell,
   GridCellKind,
-  Item
+  Item,
 } from "@glideapps/glide-data-grid"
-import React from "react"
 
 import { useFileSystem } from "@/hooks/use-files"
 
@@ -38,20 +38,12 @@ export const useDrop = (props: IProps) => {
       if (dataTransfer === null) {
         return
       }
-      const { files } = dataTransfer
-      const [file] = files
-      if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
-        return
-      }
-      addFiles(Array.from(files)).then((fileInfos) => {
-        const newFileUrls = fileInfos.map(
-          (fileInfo) => "/" + fileInfo.path.split("/").slice(1).join("/")
-        )
+
+      const data = dataTransfer.getData("text/plain")
+      if (data) {
+        console.log("data", data)
         const oldCell = getCellContent(cell) as FileCell
-        const newValues = [
-          ...newFileUrls,
-          ...(oldCell.data?.data || []),
-        ] as string[]
+        const newValues = [...(oldCell.data?.data || []), data] as string[]
         setCellValue(cell[0], cell[1], {
           kind: GridCellKind.Custom,
           data: {
@@ -63,8 +55,31 @@ export const useDrop = (props: IProps) => {
           copyData: newValues.join(","),
           allowOverlay: true,
         } as FileCell)
-      })
+      } else {
+        const { files } = dataTransfer
 
+        addFiles(Array.from(files)).then((fileInfos) => {
+          const newFileUrls = fileInfos.map(
+            (fileInfo) => "/" + fileInfo.path.split("/").slice(1).join("/")
+          )
+          const oldCell = getCellContent(cell) as FileCell
+          const newValues = [
+            ...(oldCell.data?.data || []),
+            ...newFileUrls,
+          ] as string[]
+          setCellValue(cell[0], cell[1], {
+            kind: GridCellKind.Custom,
+            data: {
+              kind: "file-cell",
+              data: newValues,
+              displayData: newValues,
+              allowAdd: true,
+            },
+            copyData: newValues.join(","),
+            allowOverlay: true,
+          } as FileCell)
+        })
+      }
       // upload multiple files, it's works but have some bugs
       // if (
       //   !Array.from(files).every((file) => SUPPORTED_IMAGE_TYPES.has(file.type))
@@ -84,7 +99,10 @@ export const useDrop = (props: IProps) => {
       }
       const { items } = dataTransfer
       const [item] = items
-      if (!SUPPORTED_IMAGE_TYPES.has(item.type)) {
+      console.log("item", dataTransfer)
+      const data = "text/uri-list"
+      if (data) {
+      } else if (!SUPPORTED_IMAGE_TYPES.has(item.type)) {
         return
       }
 

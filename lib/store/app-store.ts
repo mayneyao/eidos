@@ -15,6 +15,9 @@ interface AppState {
 
   isSidebarOpen: boolean
   setSidebarOpen: (isSidebarOpen: boolean) => void
+
+  isFileManagerOpen: boolean
+  setFileManagerOpen: (isOpen: boolean) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -22,6 +25,9 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       isSidebarOpen: true,
       setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
+
+      isFileManagerOpen: false,
+      setFileManagerOpen: (isFileManagerOpen) => set({ isFileManagerOpen }),
 
       lastOpenedTable: "",
       setLastOpenedTable: (table) => set({ lastOpenedTable: table }),
