@@ -53,6 +53,20 @@ Storing data in a local folder is a good practice to ensure better data security
 4. Run `pnpm dev`
 5. You can now access the app in your browser at http://localhost:5173
 
+## Troubleshooting
+### Error:`ModuleNotFoundError: No module named 'distutils'`
+Because python has moved some packages out of the core library, you need to install them separately, you can try
+```shell
+brew install python-setuptools
+
+#or
+pip install setuptools
+
+#or
+pip3 install setuptools
+```
+See more in [this link](https://stackoverflow.com/questions/69919970/no-module-named-distutils-but-distutils-installed)
+
 ### Generate sdk types
 
 ```shell
