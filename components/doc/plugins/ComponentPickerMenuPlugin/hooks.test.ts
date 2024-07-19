@@ -6,6 +6,32 @@ import {useBasicTypeaheadTriggerMatch} from "./hook.ts";
 describe('useBasicTypeaheadTriggerMatch', () => {
   const editor:LexicalEditor = {} as LexicalEditor;
 
+  it('should match when triggered by a Chinese slashes (、)', () => {
+    const { result } = renderHook(() =>
+      useBasicTypeaheadTriggerMatch('、', { minLength: 0 })
+    );
+    const triggerFn = result.current;
+    const matchResult = triggerFn('、',editor);
+    expect(matchResult).toEqual({
+      leadOffset: 0,
+      matchingString: '',
+      replaceableString: '、',
+    });
+  });
+
+  it('should match when triggered by a English slashes (/)', () => {
+    const { result } = renderHook(() =>
+      useBasicTypeaheadTriggerMatch('/', { minLength: 0 })
+    );
+    const triggerFn = result.current;
+    const matchResult = triggerFn('/',editor);
+    expect(matchResult).toEqual({
+      leadOffset: 0,
+      matchingString: '',
+      replaceableString: '/',
+    });
+  });
+
   it('should match when the trigger is at the start of the text', () => {
     const { result } = renderHook(() =>
       useBasicTypeaheadTriggerMatch('@', { minLength: 1 })
