@@ -16,7 +16,7 @@
     "patch": "node scripts/version.cjs patch",
     "minor": "node scripts/version.cjs minor",
     "major": "node scripts/version.cjs major",
-    "test": "jest"
+    "test": "vitest"
   },
   "dependencies": {
     "@ai-sdk/openai": "^0.0.13",
@@ -140,10 +140,8 @@
   },
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "^3.7.2",
-    "@jest/globals": "^29.6.1",
     "@tailwindcss/typography": "^0.5.9",
     "@types/d3": "^7.4.0",
-    "@types/jest": "^29.5.2",
     "@types/lodash": "^4.14.195",
     "@types/mime-types": "^2.1.4",
     "@types/node": "^20.4.1",
@@ -167,7 +165,6 @@
     "eslint-plugin-react-refresh": "^0.4.3",
     "eslint-plugin-tailwindcss": "^3.13.0",
     "framer-motion": "^11.2.10",
-    "jest": "^29.6.1",
     "postcss": "^8.4.25",
     "prettier": "^2.8.8",
     "rollup-plugin-visualizer": "^5.9.2",
@@ -175,12 +172,12 @@
     "shx": "^0.3.4",
     "tailwind-merge": "^1.13.2",
     "tailwindcss": "^3.4.3",
-    "ts-jest": "^29.1.1",
     "ts-node": "^10.9.1",
     "tsx": "^3.12.7",
     "typescript": "^5.3.3",
     "vite": "^5.0.11",
     "vite-plugin-pwa": "^0.17.4",
+    "vitest": "^2.0.3",
     "workbox-window": "^7.0.0"
   },
   "pnpm": {
