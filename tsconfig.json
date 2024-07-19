@@ -29,7 +29,7 @@
     "types": [
       "vite-plugin-pwa/react",
       "node",
-      "jest",
+      "vitest/globals",
       "@types/wicg-file-system-access"
     ]
   },
@@ -40,7 +40,6 @@
     "**/*.js",
     ".eslintrc.cjs",
     "prettier.config.cjs",
-    "jest.config.cjs",
     "app/rag.jsx",
     "scripts/version.cjs"
   ],
