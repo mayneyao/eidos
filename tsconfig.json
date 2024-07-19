@@ -26,7 +26,7 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "types": ["vite-plugin-pwa/react", "node", "jest"]
+    "types": ["vite-plugin-pwa/react", "node",]
   },
   "include": [
     "**/*.wasm",
@@ -35,7 +35,6 @@
     "**/*.js",
     ".eslintrc.cjs",
     "prettier.config.cjs",
-    "jest.config.cjs",
     "app/rag.jsx",
     "scripts/version.cjs"
   ],
