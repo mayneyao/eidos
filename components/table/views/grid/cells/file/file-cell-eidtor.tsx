@@ -76,7 +76,7 @@ const FileRender = ({
           className="flex h-10 cursor-pointer items-center gap-2"
           title={originalUrl}
         >
-          <FileIcon className="h-5 w-5 shrink-0"/>
+          <FileIcon className="h-5 w-5 shrink-0" />
           <p className="truncate">{originalUrl}</p>
         </div>
       )

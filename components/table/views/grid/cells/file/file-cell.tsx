@@ -178,7 +178,7 @@ export const FileCellEditor: ReturnType<
   return (
     <div
       className={cn(
-        "max-w-[300px] rounded-md border-none outline-none",
+        "min-w-[300px] rounded-md border-none outline-none",
         className
       )}
     >

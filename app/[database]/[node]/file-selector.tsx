@@ -36,11 +36,9 @@ export function FileSelector(props: {
   const { files } = useFiles()
   const { database } = useParams()
   const images = useMemo(() => {
-    if (props.onlyImage) {
-      return files.filter((file) => file.mime.startsWith("image/"))
-    }
-    return files
-  }, [files, props.onlyImage])
+    return files.filter((file) => file.mime.startsWith("image/"))
+  }, [files])
+
   const dropRef = useRef(null)
   const [isHovering, setIsHovering] = useState(false)
   const { addFiles } = useFileSystem()
