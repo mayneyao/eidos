@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react-hooks';
-import {PUNCTUATION, useBasicTypeaheadTriggerMatch} from '@lexical/react/LexicalTypeaheadMenuPlugin';
+import {PUNCTUATION} from '@lexical/react/LexicalTypeaheadMenuPlugin';
 import {LexicalEditor} from "lexical";
+import {useBasicTypeaheadTriggerMatch} from "./hook.ts";
 
 describe('useBasicTypeaheadTriggerMatch', () => {
   const editor:LexicalEditor = {} as LexicalEditor;

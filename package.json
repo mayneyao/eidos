@@ -166,6 +166,7 @@
     "eslint-plugin-react-refresh": "^0.4.3",
     "eslint-plugin-tailwindcss": "^3.13.0",
     "framer-motion": "^11.2.10",
+    "jsdom": "^24.1.0",
     "postcss": "^8.4.25",
     "prettier": "^2.8.8",
     "rollup-plugin-visualizer": "^5.9.2",
