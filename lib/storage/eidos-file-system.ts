@@ -21,6 +21,15 @@ export const getFsRootHandle = async (fsType: FileSystemType) => {
   return dirHandle
 }
 
+export const getExternalFolderHandle = async (name: string) => {
+  const externalFolders = await getIndexedDBValue<FileSystemDirectoryHandle[]>(
+    "kv",
+    "externalFolders"
+  )
+  const dirHandle = externalFolders.find((dir) => dir.name === name)
+  return dirHandle
+}
+
 /**
  * get DirHandle for a given path list
  * we read config from indexeddb to decide which file system to use
@@ -316,3 +325,12 @@ export class EidosFileSystemManager {
 
 // deprecated
 export const efsManager = new EidosFileSystemManager()
+
+export const getExternalFolderManager = async (name: string) => {
+  const dirHandler = await getExternalFolderHandle(name)
+  if (!dirHandler) {
+    throw new Error("external folder not found")
+  }
+  const efsManager = new EidosFileSystemManager(dirHandler)
+  return efsManager
+}

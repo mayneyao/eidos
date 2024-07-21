@@ -11,8 +11,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { getDragFileInfo } from "@/components/file-manager/helper"
-
-import { FileSelector } from "./file-selector"
+import { FileSelector } from "@/components/file-selector"
 
 export const NodeCover = (props: { node: ITreeNode }) => {
   const { node } = props

@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
-import { FileSelector } from "@/app/[database]/[node]/file-selector"
+import { FileSelector } from "@/components/file-selector"
 
 import { useTableAppStore } from "../../store"
 import { drawImage } from "../helper"

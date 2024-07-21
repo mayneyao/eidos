@@ -40,7 +40,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { FileSelector } from "@/app/[database]/[node]/file-selector"
+import { FileSelector } from "@/components/file-selector"
 
 import "./ImageNode.css"
 import { DOMAINS } from "@/lib/const"

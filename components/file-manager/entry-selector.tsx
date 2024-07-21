@@ -1,11 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { CaretSortIcon, CheckIcon } from "@radix-ui/react-icons"
+import { CaretSortIcon } from "@radix-ui/react-icons"
+import { FolderPlusIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useFileSystem } from "@/hooks/use-files"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -20,17 +18,19 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import { useExternalFolder } from "./hooks"
+import { useCurrentRootDir } from "./hooks/use-current-root-dir"
+import { useExternalFolder } from "./hooks/use-external-folder"
+import { useSpaceDir } from "./hooks/use-space-dir"
 
 export function EntrySelector() {
-  const [rootDir, setRootDir] = React.useState<FileSystemDirectoryHandle>()
-  const { currentPath } = useFileSystem(rootDir)
+  const { setRootDir, rootDir } = useCurrentRootDir()
   const [open, setOpen] = React.useState(false)
-  const { space } = useCurrentPathInfo()
-  const [value, setValue] = React.useState(
-    `/spaces/${space}/files/` + currentPath.join("/")
-  )
   const { externalFolders, handleSelectExternalFolder } = useExternalFolder()
+  const spaceRootDir = useSpaceDir()
+  const [isCurrentSpaceDir, setIsCurrentSpaceDir] = React.useState(false)
+  React.useEffect(() => {
+    rootDir && spaceRootDir?.isSameEntry(rootDir).then(setIsCurrentSpaceDir)
+  }, [rootDir, spaceRootDir])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -40,9 +40,9 @@ export function EntrySelector() {
           role="combobox"
           size="xs"
           aria-expanded={open}
-          className="w-[200px] justify-between"
+          className="w-full justify-between"
         >
-          {value}
+          {isCurrentSpaceDir ? "Current Space" : rootDir?.name}
           <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -51,31 +51,37 @@ export function EntrySelector() {
           <CommandInput placeholder="Search folder..." className="h-9" />
           <CommandEmpty>No folder found.</CommandEmpty>
           <CommandGroup heading="Default">
-            <CommandItem> Current Space</CommandItem>
+            <CommandItem
+              key={"Current Space"}
+              value={"Current Space"}
+              onSelect={(currentValue) => {
+                setRootDir(spaceRootDir)
+                setOpen(false)
+              }}
+            >
+              Current Space
+            </CommandItem>
           </CommandGroup>
-          <CommandGroup heading="External Folders">
+          <CommandGroup heading="External Folders" className="border-t">
             {externalFolders.map((dirHandler) => (
               <CommandItem
                 key={dirHandler.name}
                 value={dirHandler.name}
                 onSelect={(currentValue) => {
-                  setValue(currentValue === value ? "" : currentValue)
                   setRootDir(dirHandler)
                   setOpen(false)
                 }}
               >
                 {dirHandler.name}
-                <CheckIcon
-                  className={cn(
-                    "ml-auto h-4 w-4",
-                    value === dirHandler.name ? "opacity-100" : "opacity-0"
-                  )}
-                />
               </CommandItem>
             ))}
           </CommandGroup>
-          <CommandItem onSelect={handleSelectExternalFolder}>
-            Mount Folder
+          <CommandItem
+            onSelect={handleSelectExternalFolder}
+            className="flex gap-2 rounded-none border-t px-3"
+          >
+            <FolderPlusIcon className="h-5 w-5 opacity-60" />
+            Mount New Folder
           </CommandItem>
         </Command>
       </PopoverContent>

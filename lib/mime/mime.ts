@@ -89,7 +89,7 @@ export const extension = (type: string): boolean | string => {
   const match = /^\s*([^;\s]*)(?:;|\s|$)/.exec(type)
 
   // get extensions
-  const exts = match && db[match[1].toLowerCase()].extensions
+  const exts = match && db[match[1].toLowerCase()]?.extensions
 
   if (!exts || !exts.length) {
     return false

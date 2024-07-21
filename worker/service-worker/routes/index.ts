@@ -3,6 +3,7 @@ import { backUpPullOnce, backUpPushOnce } from "../backup"
 import aiCompletionHandle, {
   pathname as aiCompletionHandlePathname,
 } from "./ai_completion"
+import extFileHandle, { pathname as extFileHandlePathname } from "./ext-file"
 import { extHandle, pathname as extHandlePathname } from "./extensions"
 import fileHandle, { pathname as fileHandlePathname } from "./file"
 import staticFileHandle, {
@@ -14,10 +15,11 @@ export const routes = [
     pathname,
     handle: aiHandle,
   },
-  // {
-  //   pathname: "/chat/completions",
-  //   handle: webllmHandle,
-  // },
+  {
+    pathname: extFileHandlePathname,
+    handle: extFileHandle,
+  },
+
   {
     pathname: fileHandlePathname,
     handle: fileHandle,
