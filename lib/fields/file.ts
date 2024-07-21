@@ -43,7 +43,14 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
         return d
       })
     }
-    return data.filter(Boolean)
+    return data.filter(Boolean).map((d) => {
+      const fileType = getFileType(d)
+      // show only image
+      if (fileType !== "image") {
+        return getFilePreviewImage(d)
+      }
+      return d
+    })
   }
 
   getCellContent(rawData: string): FileCell {
