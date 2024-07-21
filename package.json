@@ -143,6 +143,7 @@
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "^3.7.2",
     "@tailwindcss/typography": "^0.5.9",
+    "@testing-library/react-hooks": "^8.0.1",
     "@types/d3": "^7.4.0",
     "@types/lodash": "^4.14.195",
     "@types/mime-db": "^1.43.5",
@@ -169,6 +170,7 @@
     "eslint-plugin-react-refresh": "^0.4.3",
     "eslint-plugin-tailwindcss": "^3.13.0",
     "framer-motion": "^11.2.10",
+    "jsdom": "^24.1.0",
     "postcss": "^8.4.25",
     "prettier": "^2.8.8",
     "rollup-plugin-visualizer": "^5.9.2",

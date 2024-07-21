@@ -157,7 +157,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
   const [queryString, setQueryString] = useState<string | null>(null)
   const extBlocks = useExtBlocks()
 
-  const checkForTriggerMatch = useBasicTypeaheadTriggerMatch("/", {
+  const checkForTriggerMatch = useBasicTypeaheadTriggerMatch("/、", {
     minLength: 0,
   })
 
