@@ -12,6 +12,7 @@ import { EntrySelector } from "./entry-selector"
 import { FileEntry } from "./file-entry"
 import { useCurrentRootDir } from "./hooks/use-current-root-dir"
 import { useFileManager } from "./hooks/use-file-manager"
+import { FileManagerSettings } from "./settings"
 
 export const FileManager = () => {
   const { search, setSearch } = useCurrentRootDir()
@@ -67,7 +68,10 @@ export const FileManager = () => {
           </ul>
         </ScrollArea>
       </div>
-      <EntrySelector />
+      <div className="flex gap-2">
+        <EntrySelector />
+        {/* <FileManagerSettings /> */}
+      </div>
     </div>
   )
 }

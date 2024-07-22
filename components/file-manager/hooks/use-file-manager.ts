@@ -89,12 +89,16 @@ export function useFileManager(search?: string) {
   }, [paths, setSearch])
 
   const entries = useMemo(() => {
-    return _entries.filter((entry) => {
+    const res = _entries.filter((entry) => {
       if (!search) {
         return true
       }
       return entry.name.includes(search)
     })
+    // split files and directories
+    const files = res.filter((entry) => entry.kind === "file")
+    const dirs = res.filter((entry) => entry.kind === "directory")
+    return [...dirs, ...files]
   }, [_entries, search])
 
   const navigateToDir = async (dirName: string) => {
