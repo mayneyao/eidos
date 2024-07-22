@@ -1,5 +1,4 @@
-import { extension } from "mime-types"
-
+import { extension } from "../mime/mime"
 import { getIndexedDBValue } from "./indexeddb"
 
 export enum FileSystemType {
@@ -19,6 +18,15 @@ export const getFsRootHandle = async (fsType: FileSystemType) => {
       dirHandle = await navigator.storage.getDirectory()
       break
   }
+  return dirHandle
+}
+
+export const getExternalFolderHandle = async (name: string) => {
+  const externalFolders = await getIndexedDBValue<FileSystemDirectoryHandle[]>(
+    "kv",
+    "externalFolders"
+  )
+  const dirHandle = externalFolders.find((dir) => dir.name === name)
   return dirHandle
 }
 
@@ -317,3 +325,12 @@ export class EidosFileSystemManager {
 
 // deprecated
 export const efsManager = new EidosFileSystemManager()
+
+export const getExternalFolderManager = async (name: string) => {
+  const dirHandler = await getExternalFolderHandle(name)
+  if (!dirHandler) {
+    throw new Error("external folder not found")
+  }
+  const efsManager = new EidosFileSystemManager(dirHandler)
+  return efsManager
+}

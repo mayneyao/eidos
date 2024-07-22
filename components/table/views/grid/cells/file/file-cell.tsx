@@ -10,8 +10,8 @@ import update from "immutability-helper"
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
 
+import { getFileType } from "@/lib/mime/mime"
 import { cn } from "@/lib/utils"
-import { useFileSystem } from "@/hooks/use-files"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
-import { ImageSelector } from "@/app/[database]/[node]/image-selector"
+import { FileSelector } from "@/components/file-selector"
 
 import { useTableAppStore } from "../../store"
 import { drawImage } from "../helper"
@@ -95,13 +95,19 @@ export const FileCellEditor: ReturnType<
       )
     }
   })
-  const { addFiles } = useFileSystem()
 
-  const currentPreview = cell.data.displayData[currentPreviewIndex]
+  const originalUrl = cell.data.data[currentPreviewIndex]
+  const fileType = getFileType(originalUrl)
+
+  const currentPreview =
+    fileType === "image"
+      ? cell.data.displayData[currentPreviewIndex]
+      : originalUrl
+
   const deleteByUrl = useCallback(
-    (url: string) => {
-      const newData = cell.data.data.filter((v) => v !== url)
-      const newDisplayData = cell.data.displayData.filter((v) => v !== url)
+    (index: number) => {
+      const newData = cell.data.data.filter((v, i) => i !== index)
+      const newDisplayData = cell.data.displayData.filter((v, i) => i !== index)
       onChange({
         ...cell,
         data: {
@@ -118,7 +124,7 @@ export const FileCellEditor: ReturnType<
     (v: string, originalUrl: string, i: number) => {
       return (
         <Card
-          key={v}
+          key={originalUrl}
           id={v}
           text={v}
           originalUrl={originalUrl}
@@ -144,6 +150,8 @@ export const FileCellEditor: ReturnType<
       },
     })
   }
+
+  const container = document.getElementById("portal") || document.body
   // const showUploadFilePicker = async () => {
   //   const pickerOpts = {
   //     types: [
@@ -168,7 +176,12 @@ export const FileCellEditor: ReturnType<
   // }
 
   return (
-    <div className={cn("rounded-md border-none outline-none", className)}>
+    <div
+      className={cn(
+        "min-w-[300px] rounded-md border-none outline-none",
+        className
+      )}
+    >
       <DndProvider backend={HTML5Backend} context={window}>
         {cell.data.displayData.map((v, i) => {
           const originalUrl = cell.data.data[i]
@@ -186,8 +199,11 @@ export const FileCellEditor: ReturnType<
             add new
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="click-outside-ignore w-auto p-0">
-          <ImageSelector
+        <PopoverContent
+          className="click-outside-ignore w-auto p-0"
+          container={container}
+        >
+          <FileSelector
             onSelected={(url) => {
               addUrls([url])
               setOpen(false)
@@ -196,13 +212,14 @@ export const FileCellEditor: ReturnType<
             disableColor
             hideRemove
             height={300}
-          ></ImageSelector>
+          ></FileSelector>
         </PopoverContent>
       </Popover>
 
       {currentPreviewIndex > -1 && (
         <FilePreview
           url={currentPreview}
+          type={fileType as string}
           onClose={() => setCurrentPreviewIndex(-1)}
         />
       )}

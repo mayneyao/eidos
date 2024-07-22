@@ -28,7 +28,7 @@ export class FormulaField extends BaseField<TextCell, FormulaProperty> {
     const content = fieldInstance.getCellContent(rawData)
     return {
       ...content,
-      allowOverlay: false,
+      allowOverlay: true,
       readonly: true,
     }
   }

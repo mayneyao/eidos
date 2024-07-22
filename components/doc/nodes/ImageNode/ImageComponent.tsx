@@ -40,7 +40,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ImageSelector } from "@/app/[database]/[node]/image-selector"
+import { FileSelector } from "@/components/file-selector"
 
 import "./ImageNode.css"
 import { DOMAINS } from "@/lib/const"
@@ -88,11 +88,12 @@ function ImagePlaceholder(props: { nodeKey: string }) {
         </div>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
-        <ImageSelector
+        <FileSelector
           onSelected={handleSelect}
           onRemove={() => {}}
           disableColor
           hideRemove
+          onlyImage
           height={300}
         />
       </PopoverContent>

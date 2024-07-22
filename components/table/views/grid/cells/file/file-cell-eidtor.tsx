@@ -1,9 +1,9 @@
 import { useRef, type FC } from "react"
 import type { Identifier, XYCoord } from "dnd-core"
-import { MoreHorizontal } from "lucide-react"
+import { FileIcon, MoreHorizontal } from "lucide-react"
 import { useDrag, useDrop } from "react-dnd"
 
-import { Button } from "@/components/ui/button"
+import { getFileType } from "@/lib/mime/mime"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,13 +28,59 @@ export interface CardProps {
   index: number
   moveCard: (dragIndex: number, hoverIndex: number) => void
   setCurrentPreviewIndex: (i: number) => void
-  deleteByUrl: (url: string) => void
+  deleteByUrl: (index: number) => void
 }
 
 interface DragItem {
   index: number
   id: string
   type: string
+}
+
+const FileRender = ({
+  url,
+  originalUrl,
+}: {
+  url: string
+  originalUrl: string
+}) => {
+  const fileType = getFileType(originalUrl)
+  switch (fileType) {
+    case "image":
+      return (
+        <img
+          src={url}
+          alt=""
+          className="max-h-[160px] cursor-pointer object-contain"
+        />
+      )
+    case "audio":
+      return (
+        <audio
+          src={originalUrl}
+          className="cursor-pointer object-contain"
+          controls
+        />
+      )
+    case "video":
+      return (
+        <video
+          src={originalUrl}
+          className="max-h-[160px] cursor-pointer object-contain"
+          controls
+        />
+      )
+    default:
+      return (
+        <div
+          className="flex h-10 cursor-pointer items-center gap-2"
+          title={originalUrl}
+        >
+          <FileIcon className="h-5 w-5 shrink-0" />
+          <p className="truncate">{originalUrl}</p>
+        </div>
+      )
+  }
 }
 
 export const Card: FC<CardProps> = ({
@@ -132,12 +178,12 @@ export const Card: FC<CardProps> = ({
       data-handler-id={handlerId}
       className="space-between flex items-start justify-between hover:bg-secondary"
     >
-      <img
-        src={text}
-        alt=""
+      <div
         onClick={() => setCurrentPreviewIndex(index)}
-        className="max-h-[160px] max-w-[80%] cursor-pointer object-contain"
-      />
+        className="max-w-[80%]"
+      >
+        <FileRender url={text} originalUrl={originalUrl} />
+      </div>
       <DropdownMenu>
         <DropdownMenuTrigger className="click-outside-ignore h-[32px]">
           <MoreHorizontal className="m-1 h-4 w-4" />
@@ -150,7 +196,7 @@ export const Card: FC<CardProps> = ({
           <DropdownMenuItem onClick={handleClickViewOriginal}>
             View Original
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => deleteByUrl(text)}>
+          <DropdownMenuItem onClick={() => deleteByUrl(index)}>
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>

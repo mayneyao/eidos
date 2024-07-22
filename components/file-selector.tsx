@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react"
 import { useDrop } from "ahooks"
 import { useParams } from "react-router-dom"
 
+import { getFilePreviewImage } from "@/lib/mime/mime"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { cn, proxyImageURL } from "@/lib/utils"
 import { useFileSystem, useFiles } from "@/hooks/use-files"
@@ -24,18 +25,20 @@ export const DefaultColors = [
   "bg-gray-700",
   "bg-gradient-to-br from-blue-200 to-red-200",
 ]
-export function ImageSelector(props: {
+export function FileSelector(props: {
   onSelected: (url: string, close?: boolean) => void
   onRemove: () => void
   disableColor?: boolean
   hideRemove?: boolean
   height?: number
+  onlyImage?: boolean
 }) {
   const { files } = useFiles()
   const { database } = useParams()
   const images = useMemo(() => {
     return files.filter((file) => file.mime.startsWith("image/"))
   }, [files])
+
   const dropRef = useRef(null)
   const [isHovering, setIsHovering] = useState(false)
   const { addFiles } = useFileSystem()
@@ -69,18 +72,30 @@ export function ImageSelector(props: {
   })
 
   const handleSelectLocalFile = async () => {
-    const [fileHandle] = await (window as any).showOpenFilePicker({
-      types: [
+    const opts: OpenFilePickerOptions = {
+      excludeAcceptAllOption: true,
+      multiple: false,
+    }
+    if (props.onlyImage) {
+      opts.types = [
         {
           description: "Images",
           accept: {
             "image/*": [".png", ".gif", ".jpeg", ".jpg"],
           },
         },
-      ],
-      excludeAcceptAllOption: true,
-      multiple: false,
-    })
+      ]
+    } else {
+      opts.types = [
+        {
+          description: "All Files",
+          accept: {
+            "*/*": [],
+          },
+        },
+      ]
+    }
+    const [fileHandle] = await window.showOpenFilePicker(opts)
     const file = await fileHandle.getFile()
     const res = await addFiles([file], false)
     const cover = res[0]
@@ -140,13 +155,14 @@ export function ImageSelector(props: {
             <div className="grid grid-cols-4 gap-4">
               {images.map((image) => {
                 const url = efsManager.getFileUrlByPath(image.path, database)
+                const _url = getFilePreviewImage(url)
                 return (
                   <img
                     onClick={() => props.onSelected(url)}
                     key={image.id}
-                    alt="Space image"
+                    alt={image.name}
                     className="aspect-video cursor-pointer rounded-lg object-cover"
-                    src={url}
+                    src={_url}
                   />
                 )
               })}
@@ -165,9 +181,12 @@ export function ImageSelector(props: {
           )}
         >
           <div className="text-center">
-            <div className="mb-4 text-lg font-semibold">Load local image</div>
+            <div className="mb-4 text-lg font-semibold">
+              {props.onlyImage ? "Load local image" : "Load local file"}
+            </div>
             <div className="mb-4 text-sm">
-              Drag and drop your image here or click the button below.
+              Drag and drop your {props.onlyImage ? "image" : "file"} here or
+              click the button below.
             </div>
             <Button size="sm" onClick={handleSelectLocalFile}>
               Load
