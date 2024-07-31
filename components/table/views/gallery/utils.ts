@@ -50,10 +50,21 @@ export const getColumnWidthAndCount = (
   }
 }
 
-export const computeCardHeight = (query: string, allColumnSize: number) => {
-  const columns = getColumnsFromQuery(query)
-  const columnCount = allColumnSize || columns?.length || 1
-  return columnCount * 32 + 200 + 32
+const OUT_PADDING = 8
+const CONTENT_PADDING = 8
+const TITLE_HEIGHT = 36
+const COVER_HEIGHT = 200
+const FIELD_HEIGHT = 32
+
+export const computeCardHeight = (allColumnSize: number) => {
+  const columnCount = allColumnSize || 0
+  return (
+    OUT_PADDING * 2 +
+    CONTENT_PADDING * 2 +
+    TITLE_HEIGHT +
+    COVER_HEIGHT +
+    FIELD_HEIGHT * columnCount
+  )
 }
 
 export const shouldShowField = (value: any, field: IField) => {

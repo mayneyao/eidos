@@ -20,7 +20,7 @@ export const useUiColumns = (
   const databaseName = _databaseName || space
   const { sqlite } = useSqlite(databaseName)
   const { setFields: setUiColumns } = useSqliteStore()
-  const { fields: uiColumns } = useTableFields(tableName, databaseName)
+  const { fields: uiColumns } = useTableFields(tableName)
 
   const updateUiColumns = useCallback(
     async (_tableName = tableName) => {

@@ -2,24 +2,24 @@ import { useEffect, useRef, useState } from "react"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { VariableSizeGrid as Grid } from "react-window"
 
-import { IView } from "@/lib/store/IView"
-import { getTableIdByRawTableName } from "@/lib/utils"
 import { useSqliteStore } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
+import { IView } from "@/lib/store/IView"
+import { getTableIdByRawTableName } from "@/lib/utils"
 
 import { useShowColumns } from "../../hooks"
 import { GalleryCard } from "./gallery-card"
 import { useGalleryViewData } from "./hooks"
+import { IGalleryViewProperties } from "./properties"
 import {
   computeCardHeight,
-  getColumnWidthAndCount,
-  shouldShowField,
+  getColumnWidthAndCount
 } from "./utils"
 
 interface IGalleryViewProps {
   space: string
   tableName: string
-  view: IView
+  view: IView<IGalleryViewProperties>
 }
 
 export default function GalleryView({
@@ -46,7 +46,7 @@ export default function GalleryView({
     if (ref.current) {
       ref.current.resetAfterRowIndex(0)
     }
-  }, [showFields.length])
+  }, [showFields.length, view?.properties?.hideEmptyFields])
 
   useEffect(() => {
     if (ref.current) {
@@ -61,11 +61,12 @@ export default function GalleryView({
         const rowData = getRowById(tableId, rowId)
         return showFields.filter((field) => {
           const value = rowData?.[field.table_column_name]
-          return shouldShowField(value, field)
+          if (!value && view?.properties?.hideEmptyFields) return false
+          return true
         }).length
       })
     const maxShowFieldCount = Math.max(...thisRowCardShowFieldCounts)
-    const cardHeight = computeCardHeight(view.query, maxShowFieldCount)
+    const cardHeight = computeCardHeight(maxShowFieldCount)
     return cardHeight
   }
 
@@ -81,6 +82,7 @@ export default function GalleryView({
           rowHeight={getRowHeight}
           width={width}
           itemData={{
+            properties: view.properties,
             items: data,
             columnCount,
             uiColumns,

@@ -9,11 +9,12 @@ import {
 import { SelectFromStatement, parseFirst, toSql } from "pgsql-ast-parser"
 import { useSearchParams } from "react-router-dom"
 
+import { FieldType } from "@/lib/fields/const"
 import { IView } from "@/lib/store/IView"
 import { IField } from "@/lib/store/interface"
 import { getTableIdByRawTableName } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { useTableOperation } from "@/hooks/use-table"
+import { useTableFields, useTableOperation } from "@/hooks/use-table"
 
 import { getShowColumns } from "./helper"
 
@@ -147,6 +148,24 @@ export const useShowColumns = (uiColumns: IField[], view: IView) => {
     return getShowColumns(uiColumns, {
       orderMap: view?.order_map,
       hiddenFields: view?.hidden_fields,
-    })
+    }).filter((field) => field.table_column_name !== "title")
   }, [uiColumns, view?.hidden_fields, view?.order_map])
+}
+
+export const useView = <T = any>(viewId: string) => {
+  const { tableName, space } = useContext(TableContext)
+  const { views } = useTableOperation(tableName!, space)
+  const view = useMemo(() => {
+    return views.find((v) => v.id === viewId)
+  }, [views, viewId])
+
+  return view as IView<T>
+}
+
+export const useFileFields = () => {
+  const { tableName } = useContext(TableContext)
+  const { fields } = useTableFields(tableName)
+  return useMemo(() => {
+    return fields.filter((field) => field.type === FieldType.File)
+  }, [fields])
 }

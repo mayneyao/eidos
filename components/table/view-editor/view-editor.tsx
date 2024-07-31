@@ -1,9 +1,11 @@
+import { startTransition, useRef } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useClickAway } from "ahooks"
-import { startTransition, useRef } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
+import { IView, ViewTypeEnum } from "@/lib/store/IView"
+import { Input } from "@/components/ui/input"
 import {
   Form,
   FormControl,
@@ -13,13 +15,12 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
-import { Input } from "@/components/ui/input"
-import { IView, ViewTypeEnum } from "@/lib/store/IView"
 
-import { Button } from "../ui/button"
-import { useViewOperation } from "./hooks"
-import { useViewCount } from "./hooks/use-view-count"
-import { ViewIconMap } from "./view-item"
+import { Button } from "../../ui/button"
+import { useViewOperation } from "../hooks"
+import { useViewCount } from "../hooks/use-view-count"
+import { ViewIconMap } from "../view-item"
+import { ViewLayout } from "./view-layout"
 
 const formSchema = z.object({
   name: z.string(),
@@ -30,29 +31,6 @@ const formSchema = z.object({
 interface IViewEditorProps {
   setEditDialogOpen: (open: boolean) => void
   view: IView
-}
-
-const ViewLayout = (props: {
-  icon: React.FC
-  title: string
-  isActive?: boolean
-  disabled?: boolean
-  onClick?: () => void
-}) => {
-  const { icon: Icon } = props
-  return (
-    <Button
-      disabled={Boolean(props.disabled)}
-      onClick={props.onClick}
-      className="flex w-full justify-start gap-2"
-      variant={props.isActive ? "secondary" : "outline"}
-    >
-      <>
-        <Icon />
-        {props.title}
-      </>
-    </Button>
-  )
 }
 
 const LIMIT_ROWS_FOR_OPTIMIZE_VIEW = 88888
@@ -66,7 +44,6 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
 
   useClickAway(
     (e) => {
-      console.log(e.target)
       setEditDialogOpen(false)
     },
     [ref],
@@ -97,6 +74,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
     <div
       className="absolute right-0 top-0 z-10 h-full w-[400px] overflow-hidden bg-white p-3 shadow-lg dark:bg-slate-950"
       ref={ref}
+      id="view-editor"
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
@@ -131,8 +109,10 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                         field.onChange("grid")
                         handleChangeViewType(ViewTypeEnum.Grid)
                       }}
+                      viewId={view.id}
                       isActive={field.value === "grid"}
                       title="Grid"
+                      viewType={ViewTypeEnum.Grid}
                       icon={ViewIconMap[ViewTypeEnum.Grid]}
                     ></ViewLayout>
                     <ViewLayout
@@ -141,11 +121,14 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                         handleChangeViewType(ViewTypeEnum.Gallery)
                       }}
                       disabled={disabled}
+                      viewId={view.id}
                       isActive={field.value === "gallery"}
                       title="Gallery"
+                      viewType={ViewTypeEnum.Gallery}
                       icon={ViewIconMap[ViewTypeEnum.Gallery]}
                     ></ViewLayout>
                     <ViewLayout
+                      viewId={view.id}
                       onClick={() => {
                         field.onChange("doc_list")
                         handleChangeViewType(ViewTypeEnum.DocList)
@@ -153,6 +136,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                       disabled={disabled}
                       isActive={field.value === "doc_list"}
                       title="Doc list (beta)"
+                      viewType={ViewTypeEnum.DocList}
                       icon={ViewIconMap[ViewTypeEnum.DocList]}
                     ></ViewLayout>
                     {disabled && (
