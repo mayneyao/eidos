@@ -1,6 +1,5 @@
 import { MoveDiagonalIcon, MoveUpRightIcon, Trash2Icon } from "lucide-react"
 
-import { FieldType } from "@/lib/fields/const"
 import { FileField } from "@/lib/fields/file"
 import { IField } from "@/lib/store/interface"
 import { shortenId } from "@/lib/utils"
@@ -24,7 +23,7 @@ import { InnerEditor } from "@/components/doc/editor"
 import { ScriptContextMenu } from "@/components/table/views/grid/script-context-menu"
 
 import { CellEditor } from "../../cell-editor"
-import { FieldIcon } from "../../field-icon"
+import { IGalleryViewProperties } from "./properties"
 
 interface ICardProps<T> {
   columnIndex: number
@@ -41,6 +40,7 @@ const getCoverUrl = (row: any, coverField?: IField) => {
 }
 
 export interface IGalleryCardProps {
+  properties?: IGalleryViewProperties
   items: string[]
   columnCount: number
   uiColumns: IField[]
@@ -72,15 +72,18 @@ export const GalleryCard = ({
     hiddenFieldIcon,
     hiddenField,
     hiddenFields,
+    properties,
   } = data
   const rowId = items[rowIndex * columnCount + columnIndex]
   const { setProperty } = useRowDataOperation()
   const { getOrCreateTableSubDoc } = useSqlite()
   const { getRowById } = useSqliteStore()
   const item = getRowById(tableId, rowId)
-  const coverField = (uiColumns as IField[]).find(
-    (c) => c.type == FieldType.File
-  )
+  const coverField = properties?.coverPreview?.startsWith("cl_")
+    ? (uiColumns as IField[]).find(
+        (c) => c.table_column_name === properties?.coverPreview
+      )
+    : undefined
   const goto = useGoto()
   const { setSubPage } = useCurrentSubPage()
 
@@ -117,19 +120,24 @@ export const GalleryCard = ({
       (k) => k.table_column_name != "_id" && k.table_column_name != "title"
     )
     .map((k) => k.table_column_name)
+
+  const showContent =
+    properties?.coverPreview == undefined ||
+    properties?.coverPreview === "content"
   return (
     <ContextMenu>
       <ContextMenuTrigger>
-        <div style={style} className="p-2">
+        <div style={style} className="p-[8px]">
           <div className="h-full rounded-md border-t shadow-md dark:border-gray-800 dark:bg-gray-800 ">
             <div className="flex h-[200px] w-full items-center border-b">
-              {coverUrl ? (
+              {properties?.coverPreview?.startsWith("cl_") && (
                 <img
                   src={coverUrl}
                   alt=""
                   className="h-[200px] w-full object-cover"
                 />
-              ) : (
+              )}
+              {showContent && (
                 <div className="h-[200px] w-full overflow-hidden object-cover">
                   <InnerEditor
                     docId={shortenId(item._id)}
@@ -145,7 +153,7 @@ export const GalleryCard = ({
                 </div>
               )}
             </div>
-            <div className="prose p-2 dark:prose-invert">
+            <div className="prose p-[8px] dark:prose-invert">
               <div
                 className="h-[36px] truncate font-medium"
                 title={item?.title}
@@ -161,7 +169,7 @@ export const GalleryCard = ({
                     return null
                   }
                   const value = item[k]
-                  if (!value) return null
+                  if (!value && properties?.hideEmptyFields) return null
                   return (
                     <TooltipProvider>
                       <Tooltip delayDuration={200}>

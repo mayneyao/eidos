@@ -23,7 +23,7 @@ import {
 import { Button } from "../ui/button"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 import { useViewLoadingStore } from "./hooks/use-view-loading"
-import { ViewEditor } from "./view-editor"
+import { ViewEditor } from "./view-editor/view-editor"
 
 interface IViewItemProps {
   view: IView
@@ -73,7 +73,7 @@ export const ViewItem = ({
               variant="ghost"
               onClick={() => jump2View(view.id)}
               size="sm"
-              className={cn("pl-0", {
+              className={cn({
                 "opacity-60": !isActive,
                 "border-b-2 border-primary  rounded-b-none": isActive,
                 "animate-border-flicker": loading,

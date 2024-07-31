@@ -23,10 +23,7 @@ import { useSqlWorker } from "./use-sql-worker"
 import { useSqliteStore } from "./use-sqlite"
 import { useUiColumns } from "./use-ui-columns"
 
-export const useTableFields = (
-  tableIdOrName: string | undefined,
-  databaseName: string
-) => {
+export const useTableFields = (tableIdOrName: string | undefined) => {
   const {
     dataStore: { tableMap },
   } = useSqliteStore()

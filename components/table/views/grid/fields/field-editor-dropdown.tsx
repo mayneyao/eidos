@@ -1,15 +1,17 @@
+import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "ahooks"
 import {
   ArrowDownWideNarrowIcon,
   ArrowUpNarrowWideIcon,
   Settings2,
-  Trash2
+  Trash2,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
 import { useLayer } from "react-laag"
 
-import { CommonMenuItem } from "@/components/common-menu-item"
-import { useCurrentView, useViewOperation } from "@/components/table/hooks"
+import { FieldType } from "@/lib/fields/const"
+import { IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
+import { useTableFields } from "@/hooks/use-table"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,10 +22,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useTableFields } from "@/hooks/use-table"
-import { FieldType } from "@/lib/fields/const"
-import { IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
+import { CommonMenuItem } from "@/components/common-menu-item"
+import { useCurrentView, useViewOperation } from "@/components/table/hooks"
 
 import { useColumns } from "../hooks/use-col"
 import { useTableAppStore } from "../store"
@@ -58,7 +58,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   })
   const { addSort } = useViewOperation()
   const inputRef = useRef<HTMLInputElement>(null)
-  const { fields } = useTableFields(tableName, databaseName)
+  const { fields } = useTableFields(tableName)
   const { showColumns } = useColumns(fields, props.view)
 
   useEffect(() => {
