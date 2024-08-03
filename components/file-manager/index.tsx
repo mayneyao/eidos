@@ -3,6 +3,7 @@ import { useVirtualList } from "ahooks"
 import { ArrowLeftIcon } from "lucide-react"
 
 import { useAppStore } from "@/lib/store/app-store"
+import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 
 import { Button } from "../ui/button"
@@ -12,7 +13,6 @@ import { EntrySelector } from "./entry-selector"
 import { FileEntry } from "./file-entry"
 import { useCurrentRootDir } from "./hooks/use-current-root-dir"
 import { useFileManager } from "./hooks/use-file-manager"
-import { FileManagerSettings } from "./settings"
 
 export const FileManager = () => {
   const { search, setSearch } = useCurrentRootDir()
@@ -49,7 +49,14 @@ export const FileManager = () => {
           </div>
         </div>
         <Separator className="my-2" />
-        <ScrollArea className="h-[calc(100vh-90px)]" ref={containerRef}>
+        <ScrollArea
+          className={cn("h-[calc(100vh-90px)]", {
+            "h-[calc(100vh-122px)]": window.matchMedia(
+              "(display-mode: window-controls-overlay)"
+            ).matches,
+          })}
+          ref={containerRef}
+        >
           <ul className="flex max-w-[300px] flex-col" ref={wrapperRef}>
             {entries.map((item) => {
               const entry = item.data
