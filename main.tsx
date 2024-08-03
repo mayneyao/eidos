@@ -105,7 +105,7 @@ const router = createBrowserRouter([
         loader: async ({ params }) => {
           // check the space is exist
           const spaceNames = await spaceFileSystem.list()
-          if (!spaceNames.includes(params.database)) {
+          if (params.database && !spaceNames.includes(params.database)) {
             return redirect("/404")
           }
           return null

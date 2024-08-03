@@ -49,8 +49,10 @@ export class SpaceFileSystem {
   async list() {
     const spacesDirHandle = await getDirHandle(["spaces"])
     const spaces = []
-    for await (let name of (spacesDirHandle as any).keys()) {
-      spaces.push(name)
+    for await (let name of spacesDirHandle.keys()) {
+      if (!name.startsWith(".")) {
+        spaces.push(name)
+      }
     }
     return spaces
   }
