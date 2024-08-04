@@ -1,5 +1,6 @@
 import { uuidv7 } from "uuidv7"
 
+import { MsgType } from "@/lib/const"
 import { getFieldInstance } from "@/lib/fields"
 import { FieldType } from "@/lib/fields/const"
 import { IView } from "@/lib/store/IView"
@@ -421,5 +422,19 @@ export class RowsManager {
       id,
       ...updateData,
     }
+  }
+
+  /**
+   * highlight the row if it is in the current view
+   * @param id row id
+   */
+  async highlight(id: string) {
+    postMessage({
+      type: MsgType.HighlightRow,
+      payload: {
+        tableId: this.table.id,
+        rowId: id,
+      },
+    })
   }
 }

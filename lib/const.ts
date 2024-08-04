@@ -20,6 +20,9 @@ export enum MsgType {
   ConvertEmail2State = "ConvertEmail2State",
 
   GetDocMarkdown = "GetDocMarkdown",
+
+  // table related msg
+  HighlightRow = "HighlightRow",
 }
 
 export enum MainServiceWorkerMsgType {

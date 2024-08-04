@@ -13,10 +13,9 @@ import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { IGridViewProperties, IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
+import { cn, getRawTableNameById } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
-import { useTransformSqlQuery } from "@/hooks/use-transform-sql-query"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { Button } from "../../../ui/button"
@@ -33,6 +32,9 @@ import { useDrop } from "./hooks/use-drop"
 import { useHover } from "./hooks/use-hover"
 import { useTableAppStore } from "./store"
 import "./styles.css"
+import { MsgType } from "@/lib/const"
+import { getWorker } from "@/lib/sqlite/worker"
+
 import { TwinkleSparkle } from "../../../loading"
 import { getScrollbarWidth } from "./helper"
 import { darkTheme, lightTheme } from "./theme"
@@ -83,6 +85,10 @@ export default function GridView(props: IGridProps) {
     DataEditorProps["highlightRegions"]
   >([])
 
+  const [customHighlightRegions, setCustomHighlightRegions] = React.useState<
+    DataEditorProps["highlightRegions"]
+  >([])
+
   const r = containerRef.current?.querySelector(".dvn-scroll-inner")
   const hasScroll = r && r?.scrollWidth > r?.clientWidth
 
@@ -119,6 +125,7 @@ export default function GridView(props: IGridProps) {
     handleAddRow,
     handleDelRows,
     getRowByIndex,
+    getIndexByRowId,
   } = useAsyncData<any>({
     tableName,
     pageSize: 100,
@@ -134,6 +141,39 @@ export default function GridView(props: IGridProps) {
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
     useTableAppStore()
   const [isAItoolsOpen, setIsAItoolsOpen] = React.useState(false)
+
+  useEffect(() => {
+    const worker = getWorker()
+    function subscribeHighlightRow(e: MessageEvent<any>) {
+      const { type, payload } = e.data
+      if (type === MsgType.HighlightRow) {
+        const { tableId, rowId, fieldName } = payload
+        if (tableName !== getRawTableNameById(tableId)) return
+        const index = getIndexByRowId(rowId)
+        // highlight row
+        if (fieldName) {
+          const colIndex = showColumns.findIndex((c) => c.name === fieldName)
+          if (colIndex > -1) {
+            setCustomHighlightRegions([
+              {
+                color: "rgba(0, 0, 255, 0.1)",
+                range: { x: colIndex, y: index, width: 1, height: 1 },
+              },
+            ])
+          }
+        } else {
+          setCustomHighlightRegions([
+            {
+              color: "rgba(0, 0, 255, 0.1)",
+              range: { x: 0, y: index, width: showColumns.length, height: 1 },
+            },
+          ])
+        }
+      }
+    }
+    worker.addEventListener("message", subscribeHighlightRow)
+    return () => worker.removeEventListener("message", subscribeHighlightRow)
+  }, [getIndexByRowId, showColumns, tableName])
 
   // handle undo redo
   useKeyPress(["ctrl.z", "meta.z"], (e) => {
@@ -220,8 +260,12 @@ export default function GridView(props: IGridProps) {
     glideDataGridRef.current?.focus()
   }
   const highlightRegions = useMemo(() => {
-    return [...(highlights ?? []), ...(aiHighlightRegions ?? [])]
-  }, [highlights, aiHighlightRegions])
+    return [
+      ...(highlights ?? []),
+      ...(aiHighlightRegions ?? []),
+      ...(customHighlightRegions ?? []),
+    ]
+  }, [highlights, aiHighlightRegions, customHighlightRegions])
 
   const { showAILoading, positionStyle } = useMemo(() => {
     if (aiHighlightRegions?.length) {
