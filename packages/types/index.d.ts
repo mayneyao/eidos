@@ -16,7 +16,8 @@ declare module "lib/const" {
         ConvertMarkdown2State = "ConvertMarkdown2State",
         ConvertHtml2State = "ConvertHtml2State",
         ConvertEmail2State = "ConvertEmail2State",
-        GetDocMarkdown = "GetDocMarkdown"
+        GetDocMarkdown = "GetDocMarkdown",
+        HighlightRow = "HighlightRow"
     }
     export enum MainServiceWorkerMsgType {
         SetData = "SetData"
@@ -56,6 +57,9 @@ declare module "lib/const" {
         API_AGENT_SERVER: string;
         DISCORD_INVITE: string;
     };
+    export enum CustomEventType {
+        UpdateColumn = "eidos-update-column"
+    }
 }
 declare module "lib/fields/const" {
     export enum FieldType {
@@ -115,7 +119,7 @@ declare module "lib/fields/const" {
 }
 declare module "lib/log" {
     export const logger: Console;
-    export const EIDOS_VERSION = "0.4.8";
+    export const EIDOS_VERSION = "0.5.4";
     export const isDevMode: boolean;
     export const isSelfHosted: boolean;
 }
@@ -265,7 +269,8 @@ declare module "lib/store/interface" {
 }
 declare module "lib/utils" {
     import { type ClassValue } from "clsx";
-    export { v4 as uuidv4 } from "uuid";
+    export { uuidv7 } from "uuidv7";
+    export const isUuidv4: (id: string) => boolean;
     export function nonNullable<T>(value: T): value is NonNullable<T>;
     export function cn(...inputs: ClassValue[]): string;
     export const hashText: (text: string) => number;
@@ -281,6 +286,7 @@ declare module "lib/utils" {
      */
     export const getRawTableNameById: (id: string) => string;
     export const getTableIdByRawTableName: (rawTableName: string) => string;
+    export const getColumnIndexName: (tableName: string, columnName: string) => string;
     export const generateColumnName: () => string;
     export const getRawDocNameById: (id: string) => string;
     export const shortenId: (id: string) => string;
@@ -338,6 +344,56 @@ declare module "lib/sqlite/sql-formula-parser" {
     export const transformFormula2VirtualGeneratedField: (columnName: string, fields: IField[]) => string;
     export const transformQueryWithFormulaFields2Sql: (query: string, fields: IField[]) => string;
 }
+declare module "lib/mime/mime" {
+    /**
+     * source: https://github.com/jshttp/mime-types/blob/master/index.js
+     * refactored to typescript via copilot
+     * js => ts
+     * path => path-browserify
+     */
+    /*!
+     * mime-types
+     * Copyright(c) 2014 Jonathan Ong
+     * Copyright(c) 2015 Douglas Christopher Wilson
+     * MIT Licensed
+     */
+    /**
+     * Get the default charset for a MIME type.
+     *
+     * @param {string} type
+     * @return {boolean|string}
+     */
+    export const charset: (type: string) => boolean | string;
+    /**
+     * Create a full Content-Type header given a MIME type or extension.
+     *
+     * @param {string} str
+     * @return {boolean|string}
+     */
+    export const contentType: (str: string) => boolean | string;
+    /**
+     * Get the default extension for a MIME type.
+     *
+     * @param {string} type
+     * @return {boolean|string}
+     */
+    export const extension: (type: string) => boolean | string;
+    /**
+     * Lookup the MIME type for a file path/extension.
+     *
+     * @param {string} path
+     * @return {boolean|string}
+     */
+    export const lookup: (path: string) => boolean | string;
+    export const extensions: {
+        [key: string]: string[];
+    };
+    export const types: {
+        [key: string]: string;
+    };
+    export const getFileType: (url: string) => boolean | string | "image" | "audio" | "video";
+    export const getFilePreviewImage: (url: string) => string;
+}
 declare module "lib/storage/indexeddb" {
     import { StateStorage } from "zustand/middleware";
     export const indexedDBStorage: StateStorage;
@@ -351,6 +407,7 @@ declare module "lib/storage/eidos-file-system" {
         NFS = "nfs"
     }
     export const getFsRootHandle: (fsType: FileSystemType) => Promise<FileSystemDirectoryHandle>;
+    export const getExternalFolderHandle: (name: string) => Promise<FileSystemDirectoryHandle>;
     /**
      * get DirHandle for a given path list
      * we read config from indexeddb to decide which file system to use
@@ -407,6 +464,7 @@ declare module "lib/storage/eidos-file-system" {
         renameFile: (_paths: string[], newName: string) => Promise<void>;
     }
     export const efsManager: EidosFileSystemManager;
+    export const getExternalFolderManager: (name: string) => Promise<EidosFileSystemManager>;
 }
 declare module "lib/sqlite/sql-merge-table-with-new-columns" {
     /**
@@ -423,6 +481,17 @@ declare module "lib/sqlite/sql-merge-table-with-new-columns" {
         newTmpTableSql: string;
         sql: string;
     };
+}
+declare module "worker/web-worker/sdk/index-manager" {
+    import { DataSpace } from "worker/web-worker/DataSpace";
+    import { TableManager } from "worker/web-worker/sdk/table";
+    export class IndexManager {
+        private table;
+        dataSpace: DataSpace;
+        tableManager: TableManager;
+        constructor(table: TableManager);
+        createIndex(column: string, onStart?: () => void, onEnd?: () => void): void;
+    }
 }
 declare module "lib/fields/base" {
     import { IField } from "lib/store/interface";
@@ -494,7 +563,7 @@ declare module "lib/fields/base" {
          * @returns
          */
         static getDefaultFieldProperty(): {};
-        text2RawData(text: string): string;
+        text2RawData(text: string | number): string | number;
     }
 }
 declare module "lib/fields/checkbox" {
@@ -513,7 +582,7 @@ declare module "lib/fields/checkbox" {
         };
     }
 }
-declare module "components/grid/cells/user-profile-cell" {
+declare module "components/table/views/grid/cells/user-profile-cell" {
     import { type CustomCell, type CustomRenderer } from "@glideapps/glide-data-grid";
     export interface UserProfileCellProps {
         readonly kind: "user-profile-cell";
@@ -527,7 +596,7 @@ declare module "components/grid/cells/user-profile-cell" {
     export default renderer;
 }
 declare module "lib/fields/created-by" {
-    import type { UserProfileCell } from "components/grid/cells/user-profile-cell";
+    import type { UserProfileCell } from "components/table/views/grid/cells/user-profile-cell";
     import { BaseField } from "lib/fields/base";
     import { CompareOperator, FieldType } from "lib/fields/const";
     type CreatedByProperty = {};
@@ -587,7 +656,7 @@ declare module "components/ui/calendar" {
     }
     export { Calendar };
 }
-declare module "components/grid/cells/date-picker-cell" {
+declare module "components/table/views/grid/cells/date-picker-cell" {
     import { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid";
     interface DatePickerCellProps {
         readonly kind: "date-picker-cell";
@@ -600,7 +669,7 @@ declare module "components/grid/cells/date-picker-cell" {
     export default renderer;
 }
 declare module "lib/fields/date" {
-    import type { DatePickerCell } from "components/grid/cells/date-picker-cell";
+    import type { DatePickerCell } from "components/table/views/grid/cells/date-picker-cell";
     import { BaseField } from "lib/fields/base";
     import { CompareOperator, FieldType } from "lib/fields/const";
     type DateProperty = {};
@@ -614,6 +683,22 @@ declare module "lib/fields/date" {
             rawData: string;
         };
     }
+}
+declare module "components/ui/popover" {
+    import * as React from "react";
+    import * as PopoverPrimitive from "@radix-ui/react-popover";
+    const Popover: React.FC<PopoverPrimitive.PopoverProps>;
+    const PopoverTrigger: React.ForwardRefExoticComponent<PopoverPrimitive.PopoverTriggerProps & React.RefAttributes<HTMLButtonElement>>;
+    const PopoverContent: React.ForwardRefExoticComponent<Omit<PopoverPrimitive.PopoverContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
+        container?: HTMLElement;
+    } & React.RefAttributes<HTMLDivElement>>;
+    export { Popover, PopoverTrigger, PopoverContent };
+}
+declare module "components/ui/separator" {
+    import * as React from "react";
+    import * as SeparatorPrimitive from "@radix-ui/react-separator";
+    const Separator: React.ForwardRefExoticComponent<Omit<SeparatorPrimitive.SeparatorProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    export { Separator };
 }
 declare module "worker/web-worker/meta-table/base" {
     import { DataSpace } from "worker/web-worker/DataSpace";
@@ -707,6 +792,8 @@ declare module "lib/store/runtime-store" {
     interface AppRuntimeState {
         isCmdkOpen: boolean;
         setCmdkOpen: (isCmdkOpen: boolean) => void;
+        isKeyboardShortcutsOpen: boolean;
+        setKeyboardShortcutsOpen: (isKeyboardShortcutsOpen: boolean) => void;
         isShareMode: boolean;
         setShareMode: (isShareMode: boolean) => void;
         isEmbeddingModeLoaded: boolean;
@@ -727,54 +814,6 @@ declare module "lib/store/runtime-store" {
         setBlockUIData: (blockUIData: Record<string, any>) => void;
     }
     export const useAppRuntimeStore: import("zustand").UseBoundStore<import("zustand").StoreApi<AppRuntimeState>>;
-}
-declare module "components/ui/popover" {
-    import * as React from "react";
-    import * as PopoverPrimitive from "@radix-ui/react-popover";
-    const Popover: React.FC<PopoverPrimitive.PopoverProps>;
-    const PopoverTrigger: React.ForwardRefExoticComponent<PopoverPrimitive.PopoverTriggerProps & React.RefAttributes<HTMLButtonElement>>;
-    const PopoverContent: React.ForwardRefExoticComponent<Omit<PopoverPrimitive.PopoverContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
-        container?: HTMLElement;
-    } & React.RefAttributes<HTMLDivElement>>;
-    export { Popover, PopoverTrigger, PopoverContent };
-}
-declare module "components/ui/aspect-ratio" {
-    import * as AspectRatioPrimitive from "@radix-ui/react-aspect-ratio";
-    const AspectRatio: import("react").ForwardRefExoticComponent<AspectRatioPrimitive.AspectRatioProps & import("react").RefAttributes<HTMLDivElement>>;
-    export { AspectRatio };
-}
-declare module "components/ui/input" {
-    import * as React from "react";
-    export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-    }
-    const Input: React.ForwardRefExoticComponent<InputProps & React.RefAttributes<HTMLInputElement>>;
-    export { Input };
-}
-declare module "components/ui/scroll-area" {
-    import * as React from "react";
-    import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
-    const ScrollArea: React.ForwardRefExoticComponent<Omit<ScrollAreaPrimitive.ScrollAreaProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    const ScrollBar: React.ForwardRefExoticComponent<Omit<ScrollAreaPrimitive.ScrollAreaScrollbarProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    export { ScrollArea, ScrollBar };
-}
-declare module "components/ui/tabs" {
-    import * as React from "react";
-    import * as TabsPrimitive from "@radix-ui/react-tabs";
-    const Tabs: React.ForwardRefExoticComponent<TabsPrimitive.TabsProps & React.RefAttributes<HTMLDivElement>>;
-    const TabsList: React.ForwardRefExoticComponent<Omit<TabsPrimitive.TabsListProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    const TabsTrigger: React.ForwardRefExoticComponent<Omit<TabsPrimitive.TabsTriggerProps & React.RefAttributes<HTMLButtonElement>, "ref"> & React.RefAttributes<HTMLButtonElement>>;
-    const TabsContent: React.ForwardRefExoticComponent<Omit<TabsPrimitive.TabsContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    export { Tabs, TabsList, TabsTrigger, TabsContent };
-}
-declare module "app/[database]/[node]/image-selector" {
-    export const DefaultColors: string[];
-    export function ImageSelector(props: {
-        onSelected: (url: string, close?: boolean) => void;
-        onRemove: () => void;
-        disableColor?: boolean;
-        hideRemove?: boolean;
-        height?: number;
-    }): import("react/jsx-runtime").JSX.Element;
 }
 declare module "components/doc/nodes/ImageNode/ImageResizer" {
     import type { LexicalEditor } from "lexical";
@@ -879,7 +918,9 @@ declare module "components/ui/dialog" {
     import * as DialogPrimitive from "@radix-ui/react-dialog";
     const Dialog: React.FC<DialogPrimitive.DialogProps>;
     const DialogTrigger: React.ForwardRefExoticComponent<DialogPrimitive.DialogTriggerProps & React.RefAttributes<HTMLButtonElement>>;
-    const DialogContent: React.ForwardRefExoticComponent<Omit<DialogPrimitive.DialogContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    const DialogContent: React.ForwardRefExoticComponent<Omit<DialogPrimitive.DialogContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
+        hideCloseButton?: boolean;
+    } & React.RefAttributes<HTMLDivElement>>;
     const DialogHeader: {
         ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>): import("react/jsx-runtime").JSX.Element;
         displayName: string;
@@ -891,6 +932,13 @@ declare module "components/ui/dialog" {
     const DialogTitle: React.ForwardRefExoticComponent<Omit<DialogPrimitive.DialogTitleProps & React.RefAttributes<HTMLHeadingElement>, "ref"> & React.RefAttributes<HTMLHeadingElement>>;
     const DialogDescription: React.ForwardRefExoticComponent<Omit<DialogPrimitive.DialogDescriptionProps & React.RefAttributes<HTMLParagraphElement>, "ref"> & React.RefAttributes<HTMLParagraphElement>>;
     export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, };
+}
+declare module "components/ui/input" {
+    import * as React from "react";
+    export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+    }
+    const Input: React.ForwardRefExoticComponent<InputProps & React.RefAttributes<HTMLInputElement>>;
+    export { Input };
 }
 declare module "components/doc/hooks/useModal" {
     export function useModal(): [
@@ -1080,7 +1128,7 @@ declare module "components/doc/plugins/AutoSavePlugin/index" {
     };
     export function EidosAutoSavePlugin(props: AutoSavePluginProps): any;
 }
-declare module "components/grid/fields/colums" {
+declare module "components/table/views/grid/fields/colums" {
     import { GridCellKind, GridColumnIcon } from "@glideapps/glide-data-grid";
     export const defaultAllColumnsHandle: ({
         title: string;
@@ -1105,10 +1153,10 @@ declare module "components/grid/fields/colums" {
         };
     })[];
 }
-declare module "components/grid/helper" {
+declare module "components/table/views/grid/helper" {
     import { GridCellKind } from "@glideapps/glide-data-grid";
     import { IField } from "lib/store/interface";
-    import { defaultAllColumnsHandle } from "components/grid/fields/colums";
+    import { defaultAllColumnsHandle } from "components/table/views/grid/fields/colums";
     export function getColumnsHandleMap(): {
         [kind: string]: Omit<(typeof defaultAllColumnsHandle)[0], "getContent"> & {
             getContent: (data: any) => any;
@@ -1194,6 +1242,7 @@ declare module "hooks/use-sqlite" {
         delRows: (tableId: string, rowIds: string[]) => void;
         getRowById: (tableId: string, rowId: string) => Record<string, any> | null;
         getRowIds: (tableId: string) => string[];
+        cleanFieldData: (tableId: string, fieldId: string) => void;
         selectedTable: string;
         setSelectedTable: (table: string) => void;
         spaceList: string[];
@@ -1277,7 +1326,7 @@ declare module "hooks/use-files" {
      * so we expose this hook to handle file upload\delete\update
      * every mutation about file must be done via this hook.
      */
-    export const useFileSystem: () => {
+    export const useFileSystem: (rootDir?: FileSystemDirectoryHandle) => {
         isRootDir: boolean;
         entries: FileSystemFileHandle[];
         refresh: () => Promise<void>;
@@ -1305,13 +1354,39 @@ declare module "hooks/use-files" {
         files: IFile[];
     };
 }
-declare module "components/ui/separator" {
-    import * as React from "react";
-    import * as SeparatorPrimitive from "@radix-ui/react-separator";
-    const Separator: React.ForwardRefExoticComponent<Omit<SeparatorPrimitive.SeparatorProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    export { Separator };
+declare module "components/ui/aspect-ratio" {
+    import * as AspectRatioPrimitive from "@radix-ui/react-aspect-ratio";
+    const AspectRatio: import("react").ForwardRefExoticComponent<AspectRatioPrimitive.AspectRatioProps & import("react").RefAttributes<HTMLDivElement>>;
+    export { AspectRatio };
 }
-declare module "components/grid/store" {
+declare module "components/ui/scroll-area" {
+    import * as React from "react";
+    import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
+    const ScrollArea: React.ForwardRefExoticComponent<Omit<ScrollAreaPrimitive.ScrollAreaProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    const ScrollBar: React.ForwardRefExoticComponent<Omit<ScrollAreaPrimitive.ScrollAreaScrollbarProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    export { ScrollArea, ScrollBar };
+}
+declare module "components/ui/tabs" {
+    import * as React from "react";
+    import * as TabsPrimitive from "@radix-ui/react-tabs";
+    const Tabs: React.ForwardRefExoticComponent<TabsPrimitive.TabsProps & React.RefAttributes<HTMLDivElement>>;
+    const TabsList: React.ForwardRefExoticComponent<Omit<TabsPrimitive.TabsListProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    const TabsTrigger: React.ForwardRefExoticComponent<Omit<TabsPrimitive.TabsTriggerProps & React.RefAttributes<HTMLButtonElement>, "ref"> & React.RefAttributes<HTMLButtonElement>>;
+    const TabsContent: React.ForwardRefExoticComponent<Omit<TabsPrimitive.TabsContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    export { Tabs, TabsList, TabsTrigger, TabsContent };
+}
+declare module "components/file-selector" {
+    export const DefaultColors: string[];
+    export function FileSelector(props: {
+        onSelected: (url: string, close?: boolean) => void;
+        onRemove: () => void;
+        disableColor?: boolean;
+        hideRemove?: boolean;
+        height?: number;
+        onlyImage?: boolean;
+    }): import("react/jsx-runtime").JSX.Element;
+}
+declare module "components/table/views/grid/store" {
     import { GridSelection, Rectangle } from "@glideapps/glide-data-grid";
     import { IField } from "lib/store/interface";
     interface IMenu {
@@ -1400,7 +1475,7 @@ declare module "components/ui/command" {
     };
     export { Command, CommandDialog, CommandInput, CommandInput2, CommandInput3, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandShortcut, CommandSeparator, };
 }
-declare module "components/grid/cells/link/link-cell-editor" {
+declare module "components/table/views/grid/cells/link/link-cell-editor" {
     import { LinkCellData } from "lib/fields/link";
     interface IGridProps {
         tableName: string;
@@ -1410,7 +1485,7 @@ declare module "components/grid/cells/link/link-cell-editor" {
     }
     export function LinkCellEditor(props: IGridProps): import("react/jsx-runtime").JSX.Element;
 }
-declare module "components/grid/cells/link/link-cell" {
+declare module "components/table/views/grid/cells/link/link-cell" {
     import { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid";
     import { LinkCellData } from "lib/fields/link";
     interface LinkCellProps {
@@ -1423,7 +1498,7 @@ declare module "components/grid/cells/link/link-cell" {
     export default linkCellRenderer;
 }
 declare module "lib/fields/link" {
-    import { LinkCell } from "components/grid/cells/link/link-cell";
+    import { LinkCell } from "components/table/views/grid/cells/link/link-cell";
     import { BaseField } from "lib/fields/base";
     import { FieldType } from "lib/fields/const";
     export type ILinkProperty = {
@@ -1447,7 +1522,7 @@ declare module "lib/fields/link" {
         };
     }
 }
-declare module "components/grid/cells/helper" {
+declare module "components/table/views/grid/cells/helper" {
     import { BaseDrawArgs, BaseGridCell, Theme } from "@glideapps/glide-data-grid";
     import { LinkCellData } from "lib/fields/link";
     interface CornerRadius {
@@ -1494,7 +1569,7 @@ declare module "components/ui/dropdown-menu" {
     };
     export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuGroup, DropdownMenuPortal, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuRadioGroup, };
 }
-declare module "components/grid/cells/file/file-cell-eidtor" {
+declare module "components/table/views/grid/cells/file/file-cell-eidtor" {
     import { type FC } from "react";
     export interface CardProps {
         id: any;
@@ -1503,17 +1578,18 @@ declare module "components/grid/cells/file/file-cell-eidtor" {
         index: number;
         moveCard: (dragIndex: number, hoverIndex: number) => void;
         setCurrentPreviewIndex: (i: number) => void;
-        deleteByUrl: (url: string) => void;
+        deleteByUrl: (index: number) => void;
     }
     export const Card: FC<CardProps>;
 }
-declare module "components/grid/cells/file/file-preview" {
-    export const FilePreview: ({ url, onClose, }: {
+declare module "components/table/views/grid/cells/file/file-preview" {
+    export const FilePreview: ({ url, type, onClose, }: {
         url: string;
+        type: string;
         onClose: () => void;
     }) => import("react").ReactPortal;
 }
-declare module "components/grid/cells/file/file-cell" {
+declare module "components/table/views/grid/cells/file/file-cell" {
     import { CustomCell, CustomRenderer, ProvideEditorCallback } from "@glideapps/glide-data-grid";
     interface FileCellDataProps {
         readonly kind: "file-cell";
@@ -1529,7 +1605,7 @@ declare module "components/grid/cells/file/file-cell" {
     export const FileCellRenderer: CustomRenderer<FileCell>;
 }
 declare module "lib/fields/file" {
-    import type { FileCell } from "components/grid/cells/file/file-cell";
+    import type { FileCell } from "components/table/views/grid/cells/file/file-cell";
     import { BaseField } from "lib/fields/base";
     import { CompareOperator, FieldType } from "lib/fields/const";
     export type FileProperty = {
@@ -1571,7 +1647,7 @@ declare module "lib/fields/formula" {
     }
 }
 declare module "lib/fields/last-edited-by" {
-    import { UserProfileCell } from "components/grid/cells/user-profile-cell";
+    import { UserProfileCell } from "components/table/views/grid/cells/user-profile-cell";
     import { BaseField } from "lib/fields/base";
     import { CompareOperator, FieldType } from "lib/fields/const";
     import { UserFieldContext } from "lib/fields/created-by";
@@ -1659,7 +1735,7 @@ declare module "components/table/cell-editor/common" {
         theme?: string;
     }) => import("react/jsx-runtime").JSX.Element;
 }
-declare module "components/grid/cells/select-cell" {
+declare module "components/table/views/grid/cells/select-cell" {
     import { CustomCell, CustomRenderer, ProvideEditorCallback } from "@glideapps/glide-data-grid";
     import { SelectOption } from "lib/fields/select";
     interface SelectCellProps {
@@ -1674,7 +1750,7 @@ declare module "components/grid/cells/select-cell" {
     export default renderer;
 }
 declare module "lib/fields/select" {
-    import type { SelectCell } from "components/grid/cells/select-cell";
+    import type { SelectCell } from "components/table/views/grid/cells/select-cell";
     import { BaseField } from "lib/fields/base";
     import { CompareOperator, FieldType } from "lib/fields/const";
     export type SelectOption = {
@@ -1729,7 +1805,7 @@ declare module "lib/fields/select" {
         deleteOption(id: string): void;
     }
 }
-declare module "components/grid/cells/multi-select-cell" {
+declare module "components/table/views/grid/cells/multi-select-cell" {
     import { CustomCell, CustomRenderer, ProvideEditorCallback } from "@glideapps/glide-data-grid";
     import { SelectOption } from "lib/fields/select";
     interface MultiSelectCellProps {
@@ -1744,7 +1820,7 @@ declare module "components/grid/cells/multi-select-cell" {
     export default renderer;
 }
 declare module "lib/fields/multi-select" {
-    import { MultiSelectCell } from "components/grid/cells/multi-select-cell";
+    import { MultiSelectCell } from "components/table/views/grid/cells/multi-select-cell";
     import { BaseField } from "lib/fields/base";
     import { CompareOperator, FieldType } from "lib/fields/const";
     import { SelectProperty } from "lib/fields/select";
@@ -1794,7 +1870,7 @@ declare module "lib/fields/number" {
         };
     }
 }
-declare module "components/grid/cells/rating-cell" {
+declare module "components/table/views/grid/cells/rating-cell" {
     import { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid";
     interface RatingCellProps {
         readonly kind: "rating-cell";
@@ -1805,7 +1881,7 @@ declare module "components/grid/cells/rating-cell" {
     export default renderer;
 }
 declare module "lib/fields/rating" {
-    import type { RatingCell } from "components/grid/cells/rating-cell";
+    import type { RatingCell } from "components/table/views/grid/cells/rating-cell";
     import { BaseField } from "lib/fields/base";
     import { CompareOperator, FieldType } from "lib/fields/const";
     type RatingProperty = {};
@@ -1933,6 +2009,7 @@ declare module "worker/web-worker/sdk/rows" {
          */
         get(id: string, options?: {
             raw?: boolean;
+            withRowId?: boolean;
         }): Promise<any>;
         /**
          * @param filter a filter object, the key is field name, the value is field value
@@ -1968,6 +2045,7 @@ declare module "worker/web-worker/sdk/rows" {
             useFieldId?: boolean;
         }): Promise<Record<string, any>>;
         delete(id: string): Promise<boolean>;
+        batchDelete(ids: string[]): Promise<boolean>;
         private updateCellSideEffect;
         update(id: string, data: Record<string, any>, options?: {
             useFieldId?: boolean;
@@ -1976,6 +2054,11 @@ declare module "worker/web-worker/sdk/rows" {
             _last_edited_by: string;
             id: string;
         }>;
+        /**
+         * highlight the row if it is in the current view
+         * @param id row id
+         */
+        highlight(id: string): Promise<void>;
     }
 }
 declare module "worker/web-worker/sdk/service/link" {
@@ -2124,13 +2207,14 @@ declare module "worker/web-worker/sdk/service/select" {
         private table;
         dataSpace: DataSpace;
         constructor(table: TableManager);
+        static MAX_SELECT_OPTIONS: number;
         updateFieldPropertyIfNeed: (field: IField<SelectProperty>, value: string) => Promise<void>;
         updateSelectOptionName: (field: IField<SelectProperty>, update: {
             from: string;
             to: string;
         }) => Promise<void>;
         deleteSelectOption: (field: IField<SelectProperty>, option: string) => Promise<void>;
-        beforeConvert: (field: IField<any>) => Promise<{
+        beforeConvert: (field: IField<any>, db?: import("@sqlite.org/sqlite-wasm").Database) => Promise<{
             id: string;
             name: string;
             color: string;
@@ -2174,6 +2258,7 @@ declare module "worker/web-worker/sdk/table" {
     import { Database } from "@sqlite.org/sqlite-wasm";
     import { IView } from "lib/store/IView";
     import { DataSpace } from "worker/web-worker/DataSpace";
+    import { IndexManager } from "worker/web-worker/sdk/index-manager";
     import { RowsManager } from "worker/web-worker/sdk/rows";
     import { FieldsManager } from "worker/web-worker/sdk/service/index";
     import { ComputeService } from "worker/web-worker/sdk/service/compute";
@@ -2192,6 +2277,7 @@ declare module "worker/web-worker/sdk/table" {
         get compute(): ComputeService;
         get rows(): RowsManager;
         get fields(): FieldsManager;
+        get index(): IndexManager;
         isExist(id: string): Promise<boolean>;
         get(id: string): Promise<ITable | null>;
         del(id: string): Promise<boolean>;
@@ -2227,6 +2313,7 @@ declare module "worker/web-worker/data-pipeline/DataChangeTrigger" {
         constructor();
         private getRowJSONObj;
         registerTrigger(space: string, tableName: string, trigger: IRegisterTrigger): Promise<void>;
+        unRegisterTrigger(space: string, tableName: string): Promise<void>;
         isTriggerChanged(space: string, tableName: string, trigger: IRegisterTrigger): boolean;
         setTrigger(db: DataSpace, tableName: string, collist: any[], toDeleteColumns?: string[]): Promise<void>;
     }
@@ -2296,6 +2383,9 @@ declare module "worker/web-worker/db-migrator/DbMigrator" {
         private cleanDraftDb;
     }
 }
+declare module "worker/web-worker/helper" {
+    export function timeit(threshold: number): (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor;
+}
 declare module "worker/web-worker/import-and-export/base" {
     import { DataSpace } from "worker/web-worker/DataSpace";
     export abstract class BaseImportAndExport {
@@ -2307,6 +2397,9 @@ declare module "worker/web-worker/import-and-export/csv" {
     import { DataSpace } from "worker/web-worker/DataSpace";
     import { BaseImportAndExport } from "worker/web-worker/import-and-export/base";
     export class CsvImportAndExport extends BaseImportAndExport {
+        guessColumnType(file: File): Promise<{
+            [name: string]: "String" | "Number" | "Date";
+        }>;
         import(file: File, dataSpace: DataSpace): Promise<string>;
         export(nodeId: string, dataSpace: DataSpace): Promise<File>;
     }
@@ -2347,14 +2440,35 @@ declare module "worker/web-worker/meta-table/action" {
         del(id: string): Promise<boolean>;
     }
 }
+declare module "lib/sqlite/sql-alter-column-type" {
+    /**
+     * 1. add new column with new type
+     * 2. copy data from old column to new column
+     * 3. rename old column to old column + "_old"
+     * 4. rename new column to old column
+     * 5. drop old column
+     * @param tableName
+     * @param columnName
+     * @param newType
+     */
+    export const alterColumnType: (tableName: string, columnName: string, newType: "TEXT" | "REAL" | "INT") => string;
+}
 declare module "worker/web-worker/meta-table/column" {
     import { FieldType } from "lib/fields/const";
     import { IField } from "lib/store/interface";
     import { BaseTable, BaseTableImpl } from "worker/web-worker/meta-table/base";
+    /**
+     * define
+     * 1. column: a real column in table
+     * 2. field: a wrapper of column, with some additional properties which control the UI behavior
+     *
+     * this table is used to manage the mapping between column and field
+     */
     export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         name: string;
         createTableSql: string;
         JSONFields: string[];
+        static getColumnTypeByFieldType(type: FieldType): any;
         add(data: IField): Promise<IField>;
         getColumn<T = any>(tableName: string, tableColumnName: string): Promise<IField<T> | null>;
         set(id: string, data: Partial<IField>): Promise<boolean>;
@@ -2373,6 +2487,7 @@ declare module "worker/web-worker/meta-table/column" {
         list(q: {
             table_name: string;
         }): Promise<IField[]>;
+        static isColumnTypeChanged(oldType: FieldType, newType: FieldType): boolean;
         changeType(tableName: string, tableColumnName: string, newType: FieldType): Promise<void>;
     }
 }
@@ -2586,6 +2701,7 @@ declare module "worker/web-worker/meta-table/tree" {
 declare module "lib/sqlite/sql-parser" {
     export const getColumnsFromQuery: (sql?: string) => import("pgsql-ast-parser").SelectedColumn[];
     export const replaceQueryTableName: (query: string, tableNameMap: Record<string, string>) => string;
+    export const replaceWithFindIndexQuery: (query: string, rowId: string) => string;
     /**
      * transform sql query replace column name with columnNameMap
      * @param sql
@@ -2607,6 +2723,7 @@ declare module "worker/web-worker/meta-table/view" {
         updateQuery(id: string, query: string): Promise<void>;
         createDefaultView(table_id: string): Promise<IView<any>>;
         isRowExistInQuery(table_id: string, rowId: string, query: string): Promise<boolean>;
+        findRowIndexInQuery(table_id: string, rowId: string, query: string): Promise<number>;
         recompute(table_id: string, rowIds: string[]): Promise<any[]>;
     }
 }
@@ -2669,6 +2786,7 @@ declare module "worker/web-worker/DataSpace" {
         onTableChange(space: string, tableName: string, toDeleteColumns?: string[]): Promise<void>;
         addEmbedding(embedding: IEmbedding): Promise<IEmbedding>;
         table(id: string): TableManager;
+        createTableIndex(tableId: string, column: string): void;
         getLookupContext(tableName: string, columnName: string): Promise<import("@/lib/fields/lookup").ILookupContext>;
         updateLookupColumn(tableName: string, columnName: string): Promise<void>;
         deleteSelectOption: (field: IField, option: string) => Promise<void>;
@@ -2688,6 +2806,14 @@ declare module "worker/web-worker/DataSpace" {
             value: any;
         }): Promise<void>;
         getRow(tableId: string, rowId: string): Promise<Record<string, any>>;
+        /**
+         * Starting from v0.5.0, we switched to using uuidv7 as the _id, and the logic of deleteRowsByRange changed from sorting by rowid to sorting by _id.
+         * This function is suitable for old versions of tables where _id of row is uuidv4, and data cannot be deleted by selection, but by a list of _id values.
+         * There are some limitations, such as the maximum number of records that can be deleted at once is limited by the sqlite bind parameter.
+         * @param rowIds
+         * @param tableId
+         */
+        deleteRowsByIds(ids: string[], tableName: string): Promise<void>;
         deleteRowsByRange(range: {
             startIndex: number;
             endIndex: number;
