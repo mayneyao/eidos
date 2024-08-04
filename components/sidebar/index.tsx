@@ -16,7 +16,7 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
-import { useScripts } from "@/hooks/use-scripts"
+import { useAllExtensions } from "@/hooks/use-all-extensions"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { DatabaseSelect } from "@/components/database-select"
@@ -49,7 +49,7 @@ export const SideBar = ({ className }: any) => {
   const { spaceList } = useSpace()
   const { isShareMode } = useAppRuntimeStore()
   const { currentCut } = useFolderStore()
-  const scripts = useScripts(space)
+  const scripts = useAllExtensions(space)
   const apps = scripts.filter((script) => script.type === "app")
 
   const { isFileManagerOpen, setFileManagerOpen, setSidebarOpen } =
