@@ -27,7 +27,7 @@ export const ScriptList = () => {
   const { callFunction } = useScriptFunction()
   const [currentAction, setCurrentAction] = useState<IScript>()
   const [currentCommand, setCurrentCommand] = useState<ICommand>()
-  const { space } = useCurrentPathInfo()
+  const { space, tableId, viewId } = useCurrentPathInfo()
   const currentNode = useCurrentNode()
   const scripts = useScripts(space)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -70,6 +70,7 @@ export const ScriptList = () => {
           tables: currentAction.fields_map,
           env: currentAction.env_map || {},
           currentNodeId: currentNode?.id,
+          currentViewId: viewId,
         },
         code: currentAction.code,
         id: currentAction.id,
