@@ -3,7 +3,7 @@ import { IScript } from "@/worker/web-worker/meta-table/script"
 
 import { useSqlite } from "./use-sqlite"
 
-export const useScripts = (space: string) => {
+export const useAllExtensions = (space: string) => {
   const [scripts, setScripts] = useState<IScript[]>([])
   const { sqlite } = useSqlite(space)
 

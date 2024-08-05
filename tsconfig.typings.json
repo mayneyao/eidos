@@ -4,6 +4,7 @@
     "emitDeclarationOnly": true,
     "outFile": "packages/types/index.d.ts",
     "removeComments": false,
+    "experimentalDecorators": true,
     "target": "es6",
     "module": "esnext",
     "skipLibCheck": true,
@@ -19,9 +20,6 @@
       "react": ["./node_modules/react/index.d.ts"]
     }
   },
-  "include": [
-    "lib/types/global.d.ts",
-    "worker/web-worker/sdk/index.ts"
-  ],
+  "include": ["lib/types/global.d.ts", "worker/web-worker/sdk/index.ts"],
   "exclude": ["node_modules"]
 }

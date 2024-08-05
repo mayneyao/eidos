@@ -3,6 +3,7 @@ import {
   EidosFileSystemManager,
   FileSystemType,
   efsManager,
+  getExternalFolderManager,
   getFsRootHandle,
 } from "@/lib/storage/eidos-file-system"
 import { getUuid } from "@/lib/utils"
@@ -155,7 +156,16 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   }
 
   async getBlobByPath(path: string) {
-    const f = await efsManager.getFileByPath(path)
+    let fileManager = efsManager
+    let f: File | null = null
+    if (path.startsWith("/@/")) {
+      const extFolderName = path.split("/")[2]
+      fileManager = await getExternalFolderManager(extFolderName)
+      const paths = decodeURIComponent(path).split("/").filter(Boolean).slice(2)
+      f = await fileManager.getFile(paths)
+    } else {
+      f = await fileManager.getFileByPath(path)
+    }
     const blob = new Blob([f], { type: f.type })
     return blob
   }

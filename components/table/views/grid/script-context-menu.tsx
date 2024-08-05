@@ -2,7 +2,7 @@ import { ICommand, IScript } from "@/worker/web-worker/meta-table/script"
 import { RowsManager } from "@/worker/web-worker/sdk/rows"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useScripts } from "@/hooks/use-scripts"
+import { useAllExtensions } from "@/hooks/use-all-extensions"
 import { useCurrentUiColumns } from "@/hooks/use-ui-columns"
 import {
   ContextMenuItem,
@@ -19,7 +19,7 @@ export const ScriptContextMenu = ({
   getRows: () => any[] | undefined
 }) => {
   const { space, tableId, viewId } = useCurrentPathInfo()
-  const scripts = useScripts(space)
+  const scripts = useAllExtensions(space)
   const { callFunction } = useScriptFunction()
   const { fieldRawColumnNameFieldMap } = useCurrentUiColumns()
   const handleScriptActionCall = async (action: IScript, command: ICommand) => {

@@ -1,4 +1,11 @@
 import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
+import {
   CellArray,
   CompactSelection,
   DataEditorProps,
@@ -10,24 +17,17 @@ import {
   Rectangle,
 } from "@glideapps/glide-data-grid"
 import { chunk, range } from "lodash"
-import {
-  MutableRefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
 
-import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
-import { useViewCount } from "@/components/table/hooks/use-view-count"
-import { useViewLoadingStore } from "@/components/table/hooks/use-view-loading"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import {
   rewriteQuery2getSortedSqliteRowIds,
   rewriteQueryWithOffsetAndLimit,
   rewriteQueryWithSortedQuery,
 } from "@/lib/sqlite/sql-sort-parser"
 import { IView } from "@/lib/store/IView"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
+import { useViewCount } from "@/components/table/hooks/use-view-count"
+import { useViewLoadingStore } from "@/components/table/hooks/use-view-loading"
 
 import { useDataMutation } from "./use-data-mutation"
 
@@ -62,6 +62,7 @@ export function useAsyncData<TRowType>(data: {
   handleAddRow: () => void
   handleDelRows: (range: { startIndex: number; endIndex: number }[]) => void
   getRowByIndex: (index: number) => TRowType | undefined
+  getIndexByRowId: (rowId: string) => number
 } {
   const {
     tableName,
@@ -271,6 +272,13 @@ export function useAsyncData<TRowType>(data: {
     gridRef.current?.scrollTo(0, 0)
   }, [gridRef, view.query])
 
+  const getIndexByRowId = useCallback(
+    (rowId: string) => {
+      return rowIdsRef.current.findIndex((r) => r === rowId)
+    },
+    [rowIdsRef]
+  )
+
   const { handleAddRow, handleDelRows, onCellEdited, onCellsEdited } =
     useDataMutation({
       view,
@@ -290,5 +298,6 @@ export function useAsyncData<TRowType>(data: {
     onVisibleRegionChanged,
     getCellsForSelection,
     getRowByIndex: getRowDataByIndex,
+    getIndexByRowId,
   }
 }

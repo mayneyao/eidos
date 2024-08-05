@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { ICommand, IScript } from "@/worker/web-worker/meta-table/script"
 import { useKeyPress } from "ahooks"
 
@@ -6,7 +6,7 @@ import { ActionExecutor } from "@/lib/action/action"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useScripts } from "@/hooks/use-scripts"
+import { useAllExtensions } from "@/hooks/use-all-extensions"
 
 import { CommandDialogDemo } from "."
 import { useScriptFunction } from "../script-container/hook"
@@ -27,9 +27,16 @@ export const ScriptList = () => {
   const { callFunction } = useScriptFunction()
   const [currentAction, setCurrentAction] = useState<IScript>()
   const [currentCommand, setCurrentCommand] = useState<ICommand>()
-  const { space } = useCurrentPathInfo()
+  const { space, tableId, viewId } = useCurrentPathInfo()
   const currentNode = useCurrentNode()
-  const scripts = useScripts(space)
+  const _scripts = useAllExtensions(space)
+
+  const scripts = useMemo(() => {
+    return _scripts.filter((script) => {
+      return script.type === "script"
+    })
+  }, [_scripts])
+
   const inputRef = useRef<HTMLInputElement>(null)
   const onItemSelect = (action: IScript, subCommand?: ICommand) => () => {
     const paramsString = Object.keys(
@@ -70,6 +77,7 @@ export const ScriptList = () => {
           tables: currentAction.fields_map,
           env: currentAction.env_map || {},
           currentNodeId: currentNode?.id,
+          currentViewId: viewId,
         },
         code: currentAction.code,
         id: currentAction.id,
