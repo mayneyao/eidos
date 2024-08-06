@@ -30,6 +30,7 @@ import {
   TextNode,
 } from "lexical"
 import {
+  AudioLinesIcon,
   BaselineIcon,
   BookMarkedIcon,
   CaseSensitiveIcon,
@@ -60,6 +61,7 @@ import { bgColors, fgColors } from "../const"
 import "./index.css"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { INSERT_BOOKMARK_COMMAND } from "../BookmarkPlugin"
+import { INSERT_AUDIO_FILE_COMMAND } from "../FilePlugin"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
@@ -75,6 +77,7 @@ const IconMap: Record<string, JSX.Element> = {
   quote: <QuoteIcon className="h-5 w-5" />,
   code: <CodeIcon className="h-5 w-5" />,
   image: <ImageIcon className="h-5 w-5" />,
+  audio: <AudioLinesIcon className="h-5 w-5" />,
   database: <SheetIcon className="h-5 w-5" />,
   text: <CaseSensitiveIcon className="h-5 w-5" />,
   hr: <MinusSquareIcon className="h-5 w-5" />,
@@ -307,6 +310,12 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
             src: "",
             altText: "",
           }),
+      }),
+
+      new ComponentPickerOption("Audio", {
+        icon: IconMap["audio"],
+        keywords: ["audio", "mp3"],
+        onSelect: () => editor.dispatchCommand(INSERT_AUDIO_FILE_COMMAND, ""),
       }),
 
       new ComponentPickerOption("Bookmark", {
