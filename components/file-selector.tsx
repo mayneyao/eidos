@@ -32,6 +32,7 @@ export function FileSelector(props: {
   hideRemove?: boolean
   height?: number
   onlyImage?: boolean
+  hideGallery?: boolean
 }) {
   const { files } = useFiles()
   const { database } = useParams()
@@ -104,12 +105,15 @@ export function FileSelector(props: {
 
   return (
     <Tabs
-      defaultValue="gallery"
+      defaultValue={props.hideGallery ? "upload" : "gallery"}
       className="w-[350px] rounded-lg p-4 shadow sm:w-[550px]"
     >
       <div className="flex w-full justify-between">
         <TabsList>
-          <TabsTrigger value="gallery">Gallery</TabsTrigger>
+          {!props.hideGallery && (
+            <TabsTrigger value="gallery">Gallery</TabsTrigger>
+          )}
+
           <TabsTrigger value="upload">Load</TabsTrigger>
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
@@ -119,57 +123,59 @@ export function FileSelector(props: {
           </Button>
         )}
       </div>
-      <TabsContent value="gallery">
-        <ScrollArea
-          className={cn({
-            "h-[600px]": !props.height,
-            [`h-[${props.height}px]`]: props.height,
-          })}
-        >
-          {!props.disableColor && (
-            <div className="mb-6">
-              <h2 className="mb-3 text-lg font-semibold">Color & Gradient</h2>
-              <div className="grid grid-cols-4 gap-4">
-                {DefaultColors.map((color) => {
-                  return (
-                    <AspectRatio
-                      ratio={16 / 9}
-                      key={color}
-                      onClick={() => handleSelectColor(color)}
-                    >
-                      <div
-                        className={cn(
-                          "aspect-video cursor-pointer rounded-lg",
-                          color
-                        )}
+      {!props.hideGallery && (
+        <TabsContent value="gallery">
+          <ScrollArea
+            className={cn({
+              "h-[600px]": !props.height,
+              [`h-[${props.height}px]`]: props.height,
+            })}
+          >
+            {!props.disableColor && (
+              <div className="mb-6">
+                <h2 className="mb-3 text-lg font-semibold">Color & Gradient</h2>
+                <div className="grid grid-cols-4 gap-4">
+                  {DefaultColors.map((color) => {
+                    return (
+                      <AspectRatio
+                        ratio={16 / 9}
                         key={color}
-                      />
-                    </AspectRatio>
+                        onClick={() => handleSelectColor(color)}
+                      >
+                        <div
+                          className={cn(
+                            "aspect-video cursor-pointer rounded-lg",
+                            color
+                          )}
+                          key={color}
+                        />
+                      </AspectRatio>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="mb-6">
+              <h2 className="mb-3 text-lg font-semibold">Space Images</h2>
+              <div className="grid grid-cols-4 gap-4">
+                {images.map((image) => {
+                  const url = efsManager.getFileUrlByPath(image.path, database)
+                  const _url = getFilePreviewImage(url)
+                  return (
+                    <img
+                      onClick={() => props.onSelected(url)}
+                      key={image.id}
+                      alt={image.name}
+                      className="aspect-video cursor-pointer rounded-lg object-cover"
+                      src={_url}
+                    />
                   )
                 })}
               </div>
             </div>
-          )}
-          <div className="mb-6">
-            <h2 className="mb-3 text-lg font-semibold">Space Images</h2>
-            <div className="grid grid-cols-4 gap-4">
-              {images.map((image) => {
-                const url = efsManager.getFileUrlByPath(image.path, database)
-                const _url = getFilePreviewImage(url)
-                return (
-                  <img
-                    onClick={() => props.onSelected(url)}
-                    key={image.id}
-                    alt={image.name}
-                    className="aspect-video cursor-pointer rounded-lg object-cover"
-                    src={_url}
-                  />
-                )
-              })}
-            </div>
-          </div>
-        </ScrollArea>
-      </TabsContent>
+          </ScrollArea>
+        </TabsContent>
+      )}
       <TabsContent value="upload" ref={dropRef}>
         <div
           className={cn(
