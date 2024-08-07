@@ -6,6 +6,7 @@
  *
  */
 
+import { DragEvent as ReactDragEvent, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { eventFiles } from "@lexical/rich-text"
 import { mergeRegister } from "@lexical/utils"
@@ -20,21 +21,21 @@ import {
   DRAGOVER_COMMAND,
   DROP_COMMAND,
   LexicalEditor,
-  NodeKey
+  LexicalNode,
+  NodeKey,
 } from "lexical"
-import { DragEvent as ReactDragEvent, useEffect, useRef, useState } from "react"
+import { Trash2Icon } from "lucide-react"
 import { createPortal } from "react-dom"
 
-import { Trash2Icon } from "lucide-react"
 import "./index.css"
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+import { AudioMenu } from "../../nodes/AudioNode/AudioMenu"
 import { isHTMLElement } from "../../utils/guard"
 import { Point } from "../../utils/point"
 import { Rect } from "../../utils/rect"
@@ -400,6 +401,17 @@ function useDraggableBlockMenu(
     setCurrentNodeKey(nodeKey)
   }
 
+  // const [currentNode, setCurrentNode] = useState<LexicalNode | null>(null)
+
+  // useEffect(() => {
+  //   editor.update(() => {
+  //     if (currentNodeKey) {
+  //       const node = $getNodeByKey(currentNodeKey)
+  //       setCurrentNode(node)
+  //     }
+  //   })
+  // }, [currentNodeKey, editor])
+
   return createPortal(
     <>
       <div ref={menuRef} className="draggable-block-menu flex gap-1">
@@ -437,6 +449,9 @@ function useDraggableBlockMenu(
               <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
               <span>Delete</span>
             </DropdownMenuItem>
+            {/* {currentNode?.__type == "audio" && (
+              <AudioMenu nodeKey={currentNodeKey} editor={editor} />
+            )} */}
             <TurnIntoMenu editor={editor} currentNodeKey={currentNodeKey} />
           </DropdownMenuContent>
         </DropdownMenu>
