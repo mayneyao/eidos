@@ -22,6 +22,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useFileSystem } from "@/hooks/use-files"
 import { getDragFileUrl } from "@/components/file-manager/helper"
 
+import { INSERT_AUDIO_FILE_COMMAND } from "../FilePlugin"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 
 const ACCEPTABLE_IMAGE_TYPES = [
@@ -72,14 +73,24 @@ export default function DragDropPaste(): null {
             return false
           } else {
             const file = getDragFileUrl(event.dataTransfer)
-            file &&
-              file.type === "image" &&
-              editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-                altText: file.url,
-                src: file.url,
-              })
-            event.preventDefault()
-            return true
+            if (file) {
+              switch (file.type) {
+                case "image":
+                  editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
+                    altText: file.url,
+                    src: file.url,
+                  })
+                  break
+                case "audio":
+                  editor.dispatchCommand(INSERT_AUDIO_FILE_COMMAND, file.url)
+                  break
+                default:
+                  break
+              }
+              event.preventDefault()
+              return true
+            }
+            return false
           }
         },
         COMMAND_PRIORITY_HIGH

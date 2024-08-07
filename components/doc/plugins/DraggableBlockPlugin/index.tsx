@@ -5,14 +5,14 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import "./index.css"
-import * as React from "react"
+
 import { DragEvent as ReactDragEvent, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { eventFiles } from "@lexical/rich-text"
 import { mergeRegister } from "@lexical/utils"
 import {
   $createParagraphNode,
+  $createTextNode,
   $getNearestNodeFromDOMNode,
   $getNodeByKey,
   $getRoot,
@@ -21,12 +21,25 @@ import {
   DRAGOVER_COMMAND,
   DROP_COMMAND,
   LexicalEditor,
+  LexicalNode,
+  NodeKey,
 } from "lexical"
+import { Trash2Icon } from "lucide-react"
 import { createPortal } from "react-dom"
 
+import "./index.css"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
+import { AudioMenu } from "../../nodes/AudioNode/AudioMenu"
 import { isHTMLElement } from "../../utils/guard"
 import { Point } from "../../utils/point"
 import { Rect } from "../../utils/rect"
+import { TurnIntoMenu } from "./turn-into-menu"
 
 const SPACE = 4
 const TARGET_LINE_HALF_HEIGHT = 2
@@ -208,6 +221,8 @@ function useDraggableBlockMenu(
   const menuRef = useRef<HTMLDivElement>(null)
   const targetLineRef = useRef<HTMLDivElement>(null)
   const isDraggingBlockRef = useRef<boolean>(false)
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+  const [currentNodeKey, setCurrentNodeKey] = useState<NodeKey | null>(null)
   const [draggableBlockElem, setDraggableBlockElem] =
     useState<HTMLElement | null>(null)
 
@@ -217,6 +232,8 @@ function useDraggableBlockMenu(
         draggableBlockElem && $getNearestNodeFromDOMNode(draggableBlockElem)
       if (node) {
         const newLine = $createParagraphNode()
+        const textNode = $createTextNode("/")
+        newLine.append(textNode)
         node.insertAfter(newLine)
         newLine.select()
       }
@@ -224,6 +241,9 @@ function useDraggableBlockMenu(
   }
   useEffect(() => {
     function onMouseMove(event: MouseEvent) {
+      // if (isContextMenuOpen) {
+      //   return
+      // }
       const target = event.target
       if (!isHTMLElement(target)) {
         setDraggableBlockElem(null)
@@ -240,6 +260,9 @@ function useDraggableBlockMenu(
     }
 
     function onMouseLeave() {
+      if (isContextMenuOpen) {
+        return
+      }
       setDraggableBlockElem(null)
     }
 
@@ -250,7 +273,7 @@ function useDraggableBlockMenu(
       scrollerElem?.removeEventListener("mousemove", onMouseMove)
       scrollerElem?.removeEventListener("mouseleave", onMouseLeave)
     }
-  }, [scrollerElem, anchorElem, editor])
+  }, [scrollerElem, anchorElem, editor, isContextMenuOpen])
 
   useEffect(() => {
     if (menuRef.current) {
@@ -362,17 +385,76 @@ function useDraggableBlockMenu(
     hideTargetLine(targetLineRef.current)
   }
 
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation()
+    setIsContextMenuOpen(true)
+    if (!draggableBlockElem) {
+      return
+    }
+    let nodeKey = null
+    editor.update(() => {
+      const node = $getNearestNodeFromDOMNode(draggableBlockElem)
+      if (node) {
+        nodeKey = node.getKey()
+      }
+    })
+    setCurrentNodeKey(nodeKey)
+  }
+
+  // const [currentNode, setCurrentNode] = useState<LexicalNode | null>(null)
+
+  // useEffect(() => {
+  //   editor.update(() => {
+  //     if (currentNodeKey) {
+  //       const node = $getNodeByKey(currentNodeKey)
+  //       setCurrentNode(node)
+  //     }
+  //   })
+  // }, [currentNodeKey, editor])
+
   return createPortal(
     <>
-      <div
-        ref={menuRef}
-        className="draggable-block-menu flex gap-1"
-        draggable={true}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-      >
+      <div ref={menuRef} className="draggable-block-menu flex gap-1">
         <div className={isEditable ? "add-icon" : ""} onClick={addNodeBelow} />
-        <div className={isEditable ? "icon" : ""} />
+        <DropdownMenu
+          open={isContextMenuOpen}
+          onOpenChange={setIsContextMenuOpen}
+        >
+          <DropdownMenuTrigger asChild>
+            <div></div>
+          </DropdownMenuTrigger>
+          <div
+            className={isEditable ? "icon" : ""}
+            draggable={true}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            onClick={handleClick}
+          />
+          <DropdownMenuContent
+            align="center"
+            side="left"
+            className="min-w-[200px]"
+          >
+            <DropdownMenuItem
+              onSelect={() => {
+                editor.update(() => {
+                  if (!currentNodeKey) return
+                  const node = $getNodeByKey(currentNodeKey)
+                  if (node) {
+                    node.remove()
+                  }
+                })
+              }}
+            >
+              <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
+              <span>Delete</span>
+            </DropdownMenuItem>
+            {/* {currentNode?.__type == "audio" && (
+              <AudioMenu nodeKey={currentNodeKey} editor={editor} />
+            )} */}
+            <TurnIntoMenu editor={editor} currentNodeKey={currentNodeKey} />
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div className="draggable-block-target-line" ref={targetLineRef} />
     </>,
