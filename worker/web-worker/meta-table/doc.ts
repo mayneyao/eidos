@@ -115,7 +115,7 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     const res = await this.dataSpace.exec2(
       `SELECT * FROM ${this.name} WHERE is_day_page = 1 ORDER BY id DESC`
     )
-    return res.map((item) => ({
+    return res.map((item: any) => ({
       id: item.id,
       content: item.content,
     }))
@@ -127,7 +127,7 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
       `SELECT id FROM ${this.name} WHERE is_day_page = 1 ORDER BY id DESC LIMIT ?,?`,
       [page * pageSize, pageSize]
     )
-    return res.map((item) => ({
+    return res.map((item: any) => ({
       id: item.id,
     }))
   }

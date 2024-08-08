@@ -159,11 +159,11 @@ export const useDataMutation = ({
   const updateView = async (rowId?: string) => {
     const rows = await getViewSortedRows()
     if (!rows) return
-    const rowIds = rows.map((r) => r._id)
+    const rowIds = rows.map((r: any) => r._id)
     if (rowId) {
       // handle row index change after sort
       const oldIndex = rowIdsRef.current.findIndex((id) => id === rowId)
-      const newIndex = rowIds.findIndex((id) => id === rowId)
+      const newIndex = rowIds.findIndex((id: any) => id === rowId)
       if (oldIndex !== newIndex) {
         // TODO: tips for user
       }

@@ -13,7 +13,7 @@ export class IndexManager {
     this.tableManager = table
   }
 
-  createIndex(column: string, onStart?: () => void, onEnd?: () => void) {
+  async createIndex(column: string, onStart?: () => void, onEnd?: () => void) {
     const indexName = getColumnIndexName(this.table.rawTableName, column)
 
     // Query to check if the index already exists
@@ -22,7 +22,7 @@ export class IndexManager {
       WHERE type='index' AND name='${indexName}'`
 
     try {
-      const indexExists = this.dataSpace.syncExec2(checkIndexExistsQuery)
+      const indexExists = await this.dataSpace.syncExec2(checkIndexExistsQuery)
 
       // If the index does not exist, create it
       if (indexExists.length === 0) {

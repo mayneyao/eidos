@@ -41,7 +41,8 @@
     ".eslintrc.cjs",
     "prettier.config.cjs",
     "app/rag.jsx",
-    "scripts/version.cjs"
+    "scripts/version.cjs",
+    "scripts/build-cf-worker.cjs"
   ],
   "exclude": ["node_modules", "dist", "dev-dist"],
   "references": [{ "path": "./tsconfig.node.json" }]

@@ -11,7 +11,7 @@ const error = logger.error
 
 export class Sqlite {
   sqlite3?: Sqlite3Static
-  constructor() {}
+  constructor() { }
 
   getSQLite3 = async function (): Promise<Sqlite3Static> {
     log("Loading and initializing SQLite3 module...")
@@ -43,7 +43,15 @@ export class Sqlite {
       throw new Error("sqlite3 not initialized")
     }
     const db = new this.sqlite3.oo1.DB(":memory:", "c")
-    return new DataSpace(db, false, "draft", this.sqlite3)
+    return new DataSpace({
+      db,
+      activeUndoManager: false,
+      dbName: "draft",
+      sqlite3: this.sqlite3,
+      context: {
+        setInterval: setInterval,
+      },
+    })
   }
 
   async db(props: {
@@ -66,12 +74,15 @@ export class Sqlite {
       "config-experiment"
     )
     // console.log("config.experiment.undoRedo", config.experiment.undoRedo)
-    return new DataSpace(
+    return new DataSpace({
       db,
-      Boolean(draftDb && config.experiment.undoRedo),
-      name,
-      this.sqlite3,
-      draftDb
-    )
+      activeUndoManager: Boolean(draftDb && config.experiment.undoRedo),
+      dbName: name,
+      sqlite3: this.sqlite3,
+      draftDb,
+      context: {
+        setInterval: setInterval,
+      },
+    })
   }
 }

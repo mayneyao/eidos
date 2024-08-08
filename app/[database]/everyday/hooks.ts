@@ -14,7 +14,7 @@ export const useDays = () => {
   const [days, setDays] = useState<Date[]>([])
   useEffect(() => {
     sqlite?.listAllDays().then((days) => {
-      setDays(days.map((d) => new Date(d.id)))
+      setDays(days.map((d: any) => new Date(d.id)))
     })
   }, [sqlite])
   useEffect(() => {
@@ -65,7 +65,7 @@ export const useAllDays = (spaceName: string) => {
   useEffect(() => {
     const today = getToday()
     sqlite?.listDays(0).then(async (days) => {
-      const existDays = days.map((d) => d.id)
+      const existDays = days.map((d: any) => d.id)
       const todayIndex = existDays.indexOf(today)
       let _days: IDay[] = days
       if (todayIndex == -1) {

@@ -39,8 +39,8 @@ export const useGalleryViewData = (view: IView) => {
       const sql = transformSql(q, tableName, nameRawIdMap)
       sqlite.sql2`${sql}`.then((data) => {
         setRows(tableId, data)
-        setData(data.map((d) => d._id))
-        setList(data)
+        setData(data.map((d: any) => d._id))
+        setList(data as any[])
         setLoading(false)
       })
     }
@@ -70,7 +70,7 @@ export const useGalleryViewData = (view: IView) => {
           case DataUpdateSignalType.Update:
           case DataUpdateSignalType.Delete:
             getViewSortedRows().then((rows) => {
-              const rowIds = rows.map((r) => r._id)
+              const rowIds = rows.map((r: any) => r._id)
               setData(rowIds)
             })
             break

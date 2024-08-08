@@ -1,3 +1,4 @@
+import { ServerDatabase } from "@/apps/publish/lib/ServerDatabase"
 import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
@@ -13,6 +14,8 @@ import {
   EidosFileSystemManager,
   FileSystemType,
 } from "@/lib/storage/eidos-file-system"
+import { ITreeNode } from "@/lib/store/ITreeNode"
+import { IView } from "@/lib/store/IView"
 import { IField } from "@/lib/store/interface"
 import {
   extractIdFromShortId,
@@ -21,8 +24,6 @@ import {
   isDayPageId,
 } from "@/lib/utils"
 
-import { ITreeNode } from "../../lib/store/ITreeNode"
-import { IView } from "../../lib/store/IView"
 import { DataChangeEventHandler } from "./data-pipeline/DataChangeEventHandler"
 import { DataChangeTrigger } from "./data-pipeline/DataChangeTrigger"
 import { LinkRelationUpdater } from "./data-pipeline/LinkRelationUpdater"
@@ -58,7 +59,7 @@ export type EidosTable =
 export class DataSpace {
   db: Database
   draftDb: DataSpace | undefined
-  sqlite3: Sqlite3Static
+  sqlite3: Sqlite3Static | undefined
   undoRedoManager: SQLiteUndoRedo
   activeUndoManager: boolean
   dbName: string
@@ -81,13 +82,17 @@ export class DataSpace {
 
   // for auto migration
   hasMigrated = false
-  constructor(
-    db: Database,
-    activeUndoManager: boolean,
-    dbName: string,
-    sqlite3: Sqlite3Static,
+  constructor(config: {
+    db: Database
+    activeUndoManager: boolean
+    dbName: string
+    context: {
+      setInterval?: typeof setInterval
+    }
+    sqlite3?: Sqlite3Static
     draftDb?: DataSpace
-  ) {
+  }) {
+    const { db, activeUndoManager, dbName, sqlite3, draftDb, context } = config
     this.db = db
     this.sqlite3 = sqlite3
     this.draftDb = draftDb
@@ -95,7 +100,10 @@ export class DataSpace {
     this.initUDF()
     this.eventHandler = new DataChangeEventHandler(this)
     this.dataChangeTrigger = new DataChangeTrigger()
-    this.linkRelationUpdater = new LinkRelationUpdater(this)
+    this.linkRelationUpdater = new LinkRelationUpdater(
+      this,
+      context.setInterval
+    )
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
     this.script = new ScriptTable(this)
@@ -127,7 +135,9 @@ export class DataSpace {
       // })
     }
     this.initMetaTable()
-    this.initUDF2()
+    if (this.sqlite3) {
+      this.initUDF2()
+    }
 
     // other
     this.undoRedoManager = new SQLiteUndoRedo(this)
@@ -140,6 +150,9 @@ export class DataSpace {
   }
 
   private initUDF() {
+    if (!this.sqlite3) {
+      return
+    }
     const allUfs = withSqlite3AllUDF(this.sqlite3)
     // system functions
     allUfs.forEach((udf) => {
@@ -157,17 +170,17 @@ export class DataSpace {
       .forEach((script) => {
         const { code, name } = script
         globalKv.set(name, new Map())
-        try {
-          const func = new Function("kv", ("return " + code) as string)
-          const udf = {
-            name: name as string,
-            xFunc: func(globalKv.get(name)),
-            deterministic: true,
-          }
-          this.db.createFunction(udf)
-        } catch (error) {
-          console.error(error)
-        }
+        // try {
+        //   const func = new Function("kv", ("return " + code) as string)
+        //   const udf = {
+        //     name: name as string,
+        //     xFunc: func(globalKv.get(name)),
+        //     deterministic: true,
+        //   }
+        //   this.db.createFunction(udf)
+        // } catch (error) {
+        //   console.error(error)
+        // }
       })
   }
 
@@ -740,7 +753,7 @@ export class DataSpace {
   }
 
   @timeit(100)
-  public syncExec2(sql: string, bind: any[] = [], db = this.db) {
+  public syncExec2(sql: string, bind: any[] = [], db = this.db): any {
     const res: any[] = []
     // console.debug(
     //   "[%cSQLQuery:%cCallViaMethod]",
@@ -749,6 +762,14 @@ export class DataSpace {
     //   sql,
     //   bind
     // )
+    if (this.db instanceof ServerDatabase) {
+      return this.db.exec({
+        sql,
+        bind,
+        returnValue: "resultRows",
+        rowMode: "object",
+      })
+    }
     db.exec({
       sql,
       bind,
@@ -964,6 +985,14 @@ export class DataSpace {
   ) {
     // console.debug(sql, bind)
     const res: any[] = []
+    if (this.db instanceof ServerDatabase) {
+      return this.db.exec({
+        sql,
+        bind,
+        returnValue: "resultRows",
+        rowMode,
+      })
+    }
     try {
       this.db.exec({
         sql,
@@ -1043,7 +1072,7 @@ export class DataSpace {
     //   bind,
     //   rowMode
     // )
-    const res = this.execSqlWithBind(sql, bind, rowMode)
+    const res = await this.execSqlWithBind(sql, bind, rowMode)
     // when sql will update database, call event
     if (!isReadOnlySql(sql)) {
       // delay trigger event

@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 
 import { MsgType } from "@/lib/const"
-import { LocalSqlite } from "@/lib/sqlite/proxy"
+import { LocalSqlite } from "@/lib/sqlite/channel/local"
 import { getWorker } from "@/lib/sqlite/worker"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { uuidv7 } from "@/lib/utils"

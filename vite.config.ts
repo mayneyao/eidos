@@ -1,18 +1,40 @@
+import react from "@vitejs/plugin-react"
 import fs from "fs"
 import path from "path"
-import react from "@vitejs/plugin-react"
 import { visualizer } from "rollup-plugin-visualizer"
-import { PluginOption, defineConfig } from "vite"
+import { Plugin, PluginOption, defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
+
+const serviceMode = process.env.EIDOS_SERVICE_MODE
+
+const isInkServiceMode = serviceMode === "ink"
 
 const iconPath = path.resolve(__dirname, "icons.json")
 const iconJson = JSON.parse(fs.readFileSync(iconPath, "utf-8"))
 
+const htmlPlugin = (): Plugin => {
+  return {
+    name: "html-transform",
+    enforce: "pre",
+    transformIndexHtml: {
+      order: "pre",
+      handler() {
+        const src = isInkServiceMode ? "/apps/publish/index.tsx" : "/main.tsx"
+        return [
+          {
+            tag: "script",
+            attrs: { type: "module", src },
+            injectTo: "body",
+          },
+        ]
+      },
+    },
+  }
+}
+
 const config = defineConfig({
-  // define: {
-  //   global: {},
-  // },
   plugins: [
+    htmlPlugin(),
     react(),
     VitePWA({
       srcDir: "app",
@@ -72,6 +94,9 @@ const config = defineConfig({
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp",
+    },
+    proxy: {
+      "/server/api": "http://localhost:8788",
     },
   },
   optimizeDeps: {

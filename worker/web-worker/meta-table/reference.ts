@@ -1,4 +1,5 @@
 import { ColumnTableName, ReferenceTableName } from "@/lib/sqlite/const"
+import { IField } from "@/lib/store/interface"
 
 import { BaseTable, BaseTableImpl } from "./base"
 
@@ -48,21 +49,24 @@ export class ReferenceTable
     FOREIGN KEY (self_table_name, self_table_column_name) REFERENCES ${ColumnTableName}(table_name, table_column_name) ON DELETE CASCADE
   );
 `
-  getEffectedFields = async (table_name: string, table_column_name: string) => {
+  getEffectedFields = async (
+    table_name: string,
+    table_column_name: string
+  ): Promise<IField[]> => {
     const sql = `
       SELECT * FROM ${this.name} WHERE (
         (ref_table_name = ? AND ref_table_column_name = ?) OR (link_table_name = ? AND link_table_column_name = ?)
       )
     `
-    const result = this.dataSpace.syncExec2(sql, [
+    const result = await this.dataSpace.syncExec2(sql, [
       table_name,
       table_column_name,
       table_name,
       table_column_name,
     ])
-    return result.map((r) => ({
+    return result.map((r: any) => ({
       table_name: r.self_table_name,
       table_column_name: r.self_table_column_name,
-    }))
+    })) as IField[]
   }
 }

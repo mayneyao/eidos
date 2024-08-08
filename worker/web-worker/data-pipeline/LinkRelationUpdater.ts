@@ -5,12 +5,16 @@ import { TableManager } from "../sdk/table"
 
 export class LinkRelationUpdater {
   needUpdateCell: Record<string, Record<string, Set<string>>>
-  constructor(private dataSpace: DataSpace) {
+  constructor(
+    private dataSpace: DataSpace,
+    setInterval?: typeof global.setInterval
+  ) {
     this.needUpdateCell = {}
     // every 1s, check if there is any cell need to be updated
-    setInterval(() => {
-      this.updateCells()
-    }, 100)
+    setInterval &&
+      setInterval(() => {
+        this.updateCells()
+      }, 100)
   }
 
   updateCells = async () => {
@@ -22,11 +26,7 @@ export class LinkRelationUpdater {
         const rowIds = Array.from(
           this.needUpdateCell[tableName][tableColumnName]
         )
-        await tm.fields.link.updateLinkCell(
-          tableName,
-          tableColumnName,
-          rowIds
-        )
+        await tm.fields.link.updateLinkCell(tableName, tableColumnName, rowIds)
       }
     }
     this.needUpdateCell = {}

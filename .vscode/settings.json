@@ -11,5 +11,8 @@
     "revalidator",
     "zustand",
     "uuidv"
-  ]
+  ],
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  }
 }

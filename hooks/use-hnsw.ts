@@ -34,7 +34,7 @@ class EmbeddingManager {
 
     const embeddingIndexMap = new Map<number, IEmbedding>()
     const embeddings: number[][] = []
-    res.forEach((row, index) => {
+    res.forEach((row: any, index: number) => {
       const embedding = JSON.parse(row.embedding)
       embeddingIndexMap.set(index, row)
       embeddings.push(embedding)
@@ -50,7 +50,7 @@ class EmbeddingManager {
       .sql2`SELECT id, raw_content,source,source_type FROM ${Symbol(
       EmbeddingTableName
     )} WHERE id IN ${ids}`
-    const resMap = res.reduce((acc, row) => {
+    const resMap = res.reduce((acc: any, row: any) => {
       acc[row.id] = row
       return acc
     }, {} as Record<string, IEmbedding>)
@@ -67,7 +67,7 @@ class EmbeddingManager {
       model,
       this.spaceName
     )
-    const ids = res.map((row) => parseInt(row.id))
+    const ids = res.map((row: any) => parseInt(row.id))
     if (exists) {
       vectorHnswIndex.markDeleteItems(ids)
     }
