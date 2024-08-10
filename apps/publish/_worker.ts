@@ -45,12 +45,26 @@ export default {
       for (const header of request.headers) {
         result += "header: " + header + "\n"
       }
-      const res = await handleFunctionCall(req.data as any, dataSpace)
-      return new Response(JSON.stringify(res), {
-        headers: {
-          "content-type": "application/json",
-        },
-      })
+      try {
+        const res = await handleFunctionCall(req.data as any, dataSpace)
+        return new Response(JSON.stringify({
+          status: "success",
+          result: res,
+        }), {
+          headers: {
+            "content-type": "application/json",
+          },
+        })
+      } catch (error) {
+        return new Response(JSON.stringify({
+          status: "error",
+          result: error instanceof Error ? error.message : "未知错误",
+        }), {
+          headers: {
+            "content-type": "application/json",
+          },
+        })
+      }
     }
     // Otherwise, serve the static assets.
     // Without this, the Worker will error and no assets will be served.
