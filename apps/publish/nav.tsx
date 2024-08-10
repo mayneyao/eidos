@@ -1,5 +1,6 @@
 import { Menu } from "lucide-react"
 import { useTheme } from "next-themes"
+import { Link } from "react-router-dom"
 
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
@@ -67,9 +68,11 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
       </div>
       <div className="h-full grow" id="drag-region" />
       <div className="mr-3 flex items-center justify-between gap-2">
-        <Button size="xs" variant="outline">
-          Try Eidos
-        </Button>
+        <Link to="https://eidos.space?home=1" target="_blank">
+          <Button size="xs" variant="outline">
+            Try Eidos
+          </Button>
+        </Link>
       </div>
     </div>
   )

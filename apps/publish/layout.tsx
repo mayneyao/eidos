@@ -3,13 +3,13 @@ import { Outlet } from "react-router-dom"
 
 import { Toaster } from "@/components/ui/toaster"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
+import { ReloadPrompt } from "@/components/reload-prompt"
 import { ShortCuts } from "@/components/shortcuts"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeUpdater } from "@/components/theme-updater"
 
 export default function RootLayout() {
-  console.log("RootLayout")
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <>
@@ -23,6 +23,7 @@ export default function RootLayout() {
         <ShortCuts />
       </>
       <TailwindIndicator />
+      <ReloadPrompt />
       <Toaster />
       <BlockUIDialog />
       <ThemeUpdater />
