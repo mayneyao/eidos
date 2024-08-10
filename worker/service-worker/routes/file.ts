@@ -1,7 +1,12 @@
-import { isInkServiceMode } from "@/lib/log"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 
-declare var self: ServiceWorkerGlobalScope
+declare const self: ServiceWorkerGlobalScope
+
+const isInkServiceMode =
+  import.meta.env?.VITE_EIDOS_SERVICE_MODE === "ink"
+
+console.log("isInkServiceMode", isInkServiceMode)
+
 
 export const pathname = (url: URL) => {
   // pathname: /<space>/files/<filename>
