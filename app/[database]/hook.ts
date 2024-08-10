@@ -1,6 +1,14 @@
-import { useEffect, useState } from "react"
 import { useKeyPress } from "ahooks"
+import { useEffect, useState } from "react"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useIndexedDB } from "@/hooks/use-indexed-db"
+import { usePeer } from "@/hooks/use-peer"
+import { useRegisterPeriodicSync } from "@/hooks/use-register-period-sync"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { useSqliteMetaTableSubscribe } from "@/hooks/use-sqlite-meta-table-subscribe"
+import { useWorker } from "@/hooks/use-worker"
+import { useCurrentUser } from "@/hooks/user-current-user"
 import {
   EidosSharedEnvChannelName,
   MainServiceWorkerMsgType,
@@ -12,17 +20,9 @@ import { getWorker } from "@/lib/sqlite/worker"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv7 } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useIndexedDB } from "@/hooks/use-indexed-db"
-import { usePeer } from "@/hooks/use-peer"
-import { useRegisterPeriodicSync } from "@/hooks/use-register-period-sync"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { useSqliteMetaTableSubscribe } from "@/hooks/use-sqlite-meta-table-subscribe"
-import { useWorker } from "@/hooks/use-worker"
-import { useCurrentUser } from "@/hooks/user-current-user"
 
+import { isInkServiceMode } from "@/lib/log"
 import { useAIConfigStore } from "../settings/ai/store"
-import { useConfigStore } from "../settings/store"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
@@ -46,7 +46,7 @@ export const useLastOpened = () => {
   const { database, tableId: table } = useCurrentPathInfo()
   const { lastOpenedTable, setLastOpenedTable } = useAppStore()
 
-  useEffect(() => {}, [isShareMode, setLastOpenedTable, table])
+  useEffect(() => { }, [isShareMode, setLastOpenedTable, table])
   useEffect(() => {
     if (!isShareMode && database) {
       setLastOpenedDatabase(database)
@@ -93,7 +93,7 @@ export const useLayoutInit = () => {
   }, [initEmbeddingWorker])
 
   useEffect(() => {
-    if (database && sqlite) {
+    if (!isInkServiceMode && database && sqlite) {
       if (lastOpenedDatabase === database) return
       const switchDdMsgId = uuidv7()
       const worker = getWorker()
@@ -115,7 +115,7 @@ export const useLayoutInit = () => {
 
   const { id: userId } = useCurrentUser()
   useEffect(() => {
-    let clearFunc: () => void = () => {}
+    let clearFunc: () => void = () => { }
     if (!isInitialized) {
       clearFunc = initWorker()
     }
