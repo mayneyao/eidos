@@ -43,7 +43,7 @@ const config = defineConfig({
       injectManifest: {
         // 7MB
         maximumFileSizeToCacheInBytes: 7 * 1024 * 1024,
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
+        globPatterns: isInkServiceMode ? [] : ["**/*.{js,css,html,ico,png,svg,wasm}"],
       },
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
       manifest: {
@@ -52,7 +52,7 @@ const config = defineConfig({
         description:
           "An extensible framework for managing your personal data throughout your lifetime in one place",
         theme_color: "#ffffff",
-        icons: iconJson.icons,
+        icons: isInkServiceMode ? [] : iconJson.icons,
         display_override: ["window-controls-overlay"],
         display: "standalone",
         // display: "standalone",
