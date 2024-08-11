@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { Outlet, useSearchParams } from "react-router-dom"
 
-import { getSqliteProxy } from "@/lib/sqlite/proxy"
+import { getSqliteProxy } from "@/lib/sqlite/channel"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"

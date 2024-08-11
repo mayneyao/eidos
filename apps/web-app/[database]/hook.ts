@@ -15,7 +15,7 @@ import {
   MsgType,
 } from "@/lib/const"
 import { embeddingTexts } from "@/lib/embedding/worker"
-import { getSqliteProxy } from "@/lib/sqlite/proxy"
+import { getSqliteProxy } from "@/lib/sqlite/channel"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"

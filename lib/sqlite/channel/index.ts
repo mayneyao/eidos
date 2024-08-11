@@ -1,15 +1,15 @@
 import { DataSpace, EidosTable } from "@/worker/web-worker/DataSpace"
 import { DataConnection } from "peerjs"
 
-import { MsgType } from "../const"
-import { isInkServiceMode } from "../log"
-import { uuidv7 } from "../utils"
-import { HttpSqlite } from "./channel/http"
-import { ILocalSendData, LocalSqlite } from "./channel/local"
-import { buildSql } from "./helper"
-import { IQuery, ISqlite } from "./interface"
-import { getWorker } from "./worker"
-import { RemoteSqlite } from "./channel/webrtc"
+import { MsgType } from "../../const"
+import { isInkServiceMode } from "../../log"
+import { uuidv7 } from "../../utils"
+import { HttpSqlite } from "./http"
+import { ILocalSendData, LocalSqlite } from "./local"
+import { buildSql } from "../helper"
+import { IQuery, ISqlite } from "../interface"
+import { getWorker } from "../worker"
+import { RemoteSqlite } from "./webrtc"
 
 export const getSqliteProxy = (
   dbName: string,

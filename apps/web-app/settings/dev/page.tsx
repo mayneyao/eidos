@@ -12,7 +12,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
 import { getHnswIndex } from "@/lib/ai/vec_search"
-import { getSqliteProxy } from "@/lib/sqlite/proxy"
+import { getSqliteProxy } from "@/lib/sqlite/channel"
 
 import { useAIConfigStore } from "../ai/store"
 import { saveTransformerCache } from "./helper"
