@@ -2,11 +2,6 @@ import { efsManager } from "@/lib/storage/eidos-file-system"
 
 declare const self: ServiceWorkerGlobalScope
 
-const isInkServiceMode =
-  import.meta.env?.VITE_EIDOS_SERVICE_MODE === "ink"
-
-console.log("isInkServiceMode", isInkServiceMode)
-
 
 export const pathname = (url: URL) => {
   // pathname: /<space>/files/<filename>
@@ -16,13 +11,6 @@ export const pathname = (url: URL) => {
 
 export default async function handle(event: FetchEvent) {
   const url = new URL(event.request.url)
-  if (isInkServiceMode) {
-    // /<space-name>/files/<filename> => /files/<filename>
-    const newPathname = '/files' + url.pathname.split('/files')[1];
-    const newUrl = new URL(newPathname, url.origin)
-    console.log("new url", newUrl.toString())
-    return fetch(newUrl.toString())
-  }
   return readFileFromOpfs(url.pathname).then((file) => {
     const headers = new Headers()
     headers.append("Content-Type", file.type || getContentType(url.pathname))

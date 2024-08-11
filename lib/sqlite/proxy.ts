@@ -5,10 +5,11 @@ import { MsgType } from "../const"
 import { isInkServiceMode } from "../log"
 import { uuidv7 } from "../utils"
 import { HttpSqlite } from "./channel/http"
-import { ILocalSendData, LocalSqlite, RemoteSqlite } from "./channel/local"
+import { ILocalSendData, LocalSqlite } from "./channel/local"
 import { buildSql } from "./helper"
 import { IQuery, ISqlite } from "./interface"
 import { getWorker } from "./worker"
+import { RemoteSqlite } from "./channel/webrtc"
 
 export const getSqliteProxy = (
   dbName: string,

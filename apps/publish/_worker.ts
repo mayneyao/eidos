@@ -26,10 +26,11 @@ export default {
   async fetch(request: Request, env: Env): Promise<any> {
     const url = new URL(request.url)
     const subdomain = url.hostname.split(".")[0]
-
+    const pathnameRegex = /^\/([^\/]+)\/files\/(.*)$/
     // handle files
-    if (url.pathname.startsWith("/files")) {
-      const objectName = `${subdomain}${url.pathname}`
+    if (pathnameRegex.test(url.pathname)) {
+      const newPathname = '/files' + url.pathname.split('/files')[1];
+      const objectName = `${subdomain}${newPathname}`
       if (request.method === 'GET') {
         const object = await env.FILES.get(objectName, {
           range: request.headers,

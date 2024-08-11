@@ -36,47 +36,48 @@ const config = defineConfig({
   plugins: [
     htmlPlugin(),
     react(),
-    VitePWA({
-      srcDir: "app",
-      filename: "sw.ts",
-      strategies: "injectManifest",
-      injectManifest: {
-        // 7MB
-        maximumFileSizeToCacheInBytes: 7 * 1024 * 1024,
-        globPatterns: isInkServiceMode ? [] : ["**/*.{js,css,html,ico,png,svg,wasm}"],
-      },
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
-      manifest: {
-        name: "Eidos",
-        short_name: "Eidos",
-        description:
-          "An extensible framework for managing your personal data throughout your lifetime in one place",
-        theme_color: "#ffffff",
-        icons: isInkServiceMode ? [] : iconJson.icons,
-        display_override: ["window-controls-overlay"],
-        display: "standalone",
-        // display: "standalone",
-        file_handlers: [
-          // not ready yet
-          // {
-          //   action: "/editor/doc",
-          //   accept: {
-          //     "text/markdown": [".md", ".markdown"],
-          //   },
-          // },
-        ],
-      },
-      registerType: "prompt",
-      workbox: {
-        // globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
-        clientsClaim: true,
-        skipWaiting: true,
-      },
-      devOptions: {
-        enabled: true,
-        type: "module",
-      },
-    }),
+    isInkServiceMode ? null :
+      VitePWA({
+        srcDir: "app",
+        filename: "sw.ts",
+        strategies: "injectManifest",
+        injectManifest: {
+          // 7MB
+          maximumFileSizeToCacheInBytes: 7 * 1024 * 1024,
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
+        },
+        includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
+        manifest: {
+          name: "Eidos",
+          short_name: "Eidos",
+          description:
+            "An extensible framework for managing your personal data throughout your lifetime in one place",
+          theme_color: "#ffffff",
+          icons: iconJson.icons,
+          display_override: ["window-controls-overlay"],
+          display: "standalone",
+          // display: "standalone",
+          file_handlers: [
+            // not ready yet
+            // {
+            //   action: "/editor/doc",
+            //   accept: {
+            //     "text/markdown": [".md", ".markdown"],
+            //   },
+            // },
+          ],
+        },
+        registerType: "prompt",
+        workbox: {
+          // globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
+          clientsClaim: true,
+          skipWaiting: true,
+        },
+        devOptions: {
+          enabled: true,
+          type: "module",
+        },
+      }),
     visualizer({
       gzipSize: true,
       brotliSize: true,
