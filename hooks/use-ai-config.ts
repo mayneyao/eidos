@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react"
 
-import { useAIConfigStore } from "@/app/settings/ai/store"
+import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
 
 export const useAiConfig = () => {
   const { aiConfig } = useAIConfigStore()

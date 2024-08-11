@@ -3,7 +3,7 @@ import { Outlet } from "react-router-dom"
 
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
-import { useLayoutInit } from "@/app/[database]/hook"
+import { useLayoutInit } from "@/apps/web-app/[database]/hook"
 
 import { DatabaseLayoutBase } from "./base-layout"
 

@@ -2,7 +2,7 @@ import sqlite3InitModule, { Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { logger } from "@/lib/log"
 import { getConfig } from "@/lib/storage/indexeddb"
-import { ExperimentFormValues } from "@/app/settings/experiment/store"
+import { ExperimentFormValues } from "@/apps/web-app/settings/experiment/store"
 
 import { DataSpace } from "./DataSpace"
 

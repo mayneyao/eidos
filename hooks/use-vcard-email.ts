@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react"
 
 import { DOMAINS } from "@/lib/const"
-import { useAPIConfigStore } from "@/app/settings/api/store"
+import { useAPIConfigStore } from "@/apps/web-app/settings/api/store"
 
 export const useVCardEmail = () => {
   const { apiAgentConfig } = useAPIConfigStore()

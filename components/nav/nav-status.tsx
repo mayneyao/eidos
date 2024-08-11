@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/tooltip"
 import { AvatarList } from "@/components/avatar-list"
 
-import { useSpaceAppStore } from "../../app/[database]/store"
+import { useSpaceAppStore } from "../../apps/web-app/[database]/store"
 
 export const NavStatus = () => {
   const { isAiOpen, setIsAiOpen, isExtAppOpen, setIsExtAppOpen } =

@@ -5,7 +5,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import {
   ExtensionSourceType,
   useExtMsg,
-} from "@/app/extensions/hooks/use-ext-msg"
+} from "@/apps/web-app/extensions/hooks/use-ext-msg"
 
 import iframeHTML from "./iframe.html?raw"
 

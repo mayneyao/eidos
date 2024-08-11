@@ -13,7 +13,7 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { NodeComponent } from "@/app/[database]/[node]/page"
+import { NodeComponent } from "@/apps/web-app/[database]/[node]/page"
 
 import { useGalleryViewData } from "../gallery/hooks"
 

@@ -19,7 +19,7 @@ const htmlPlugin = (): Plugin => {
     transformIndexHtml: {
       order: "pre",
       handler() {
-        const src = isInkServiceMode ? "/apps/publish/index.tsx" : "/main.tsx"
+        const src = isInkServiceMode ? "/apps/publish/index.tsx" : "/apps/web-app/index.tsx"
         return [
           {
             tag: "script",
@@ -38,7 +38,7 @@ const config = defineConfig({
     react(),
     isInkServiceMode ? null :
       VitePWA({
-        srcDir: "app",
+        srcDir: "apps/web-app",
         filename: "sw.ts",
         strategies: "injectManifest",
         injectManifest: {

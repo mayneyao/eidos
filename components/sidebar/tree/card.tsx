@@ -10,7 +10,7 @@ import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { Button } from "@/components/ui/button"
-import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
+import { NodeIconEditor } from "@/apps/web-app/[database]/[node]/node-icon"
 
 import { ItemIcon } from "../item-tree"
 import { NodeItem } from "./node-menu"

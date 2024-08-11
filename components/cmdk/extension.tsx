@@ -1,6 +1,6 @@
 import { Database } from "lucide-react"
 
-import { useExtensions } from "@/app/extensions/hooks/use-extensions"
+import { useExtensions } from "@/apps/web-app/extensions/hooks/use-extensions"
 
 import {
   CommandGroup,

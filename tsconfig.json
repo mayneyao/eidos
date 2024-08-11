@@ -40,7 +40,7 @@
     "**/*.js",
     ".eslintrc.cjs",
     "prettier.config.cjs",
-    "app/rag.jsx",
+    "apps/web-app/rag.jsx",
     "scripts/version.cjs",
     "scripts/build-cf-worker.cjs"
   ],

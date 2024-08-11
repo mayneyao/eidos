@@ -20,7 +20,7 @@ import { useAllExtensions } from "@/hooks/use-all-extensions"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { DatabaseSelect } from "@/components/database-select"
-import { useExperimentConfigStore } from "@/app/settings/experiment/store"
+import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
 
 import { FileManager } from "../file-manager"
 import { SpaceSettings } from "../space-settings"

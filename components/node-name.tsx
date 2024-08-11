@@ -1,5 +1,5 @@
 import { ITreeNode } from "@/lib/store/ITreeNode"
-import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
+import { NodeIconEditor } from "@/apps/web-app/[database]/[node]/node-icon"
 
 import { ItemIcon } from "./sidebar/item-tree"
 

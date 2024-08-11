@@ -1,6 +1,6 @@
 import { Bot, User } from "lucide-react"
 
-import { useAllScripts } from "@/app/[database]/scripts/hooks/use-all-scripts"
+import { useAllScripts } from "@/apps/web-app/[database]/scripts/hooks/use-all-scripts"
 
 import { Button } from "../ui/button"
 import { AIMessage } from "./ai-chat-message-prisma"

@@ -18,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useAIConfigStore } from "@/app/settings/ai/store"
+import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
 
 import { ScrollArea } from "../ui/scroll-area"
 import { WEB_LLM_MODELS } from "./webllm/models"

@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useCurrentDomain } from "@/app/[database]/hook"
+import { useCurrentDomain } from "@/apps/web-app/[database]/hook"
 
 import { Input } from "./ui/input"
 import { toast } from "./ui/use-toast"

@@ -20,7 +20,7 @@ const overrideProse = {
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
-  content: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
+  content: ["apps/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
   theme: {
     screens: {
       xs: "350px",
