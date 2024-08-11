@@ -1,4 +1,4 @@
-import sqlite3InitModule, { Sqlite3Static } from "@sqlite.org/sqlite-wasm"
+import sqlite3InitModule, { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { logger } from "@/lib/log"
 import { getConfig } from "@/lib/storage/indexeddb"
@@ -54,6 +54,7 @@ export class Sqlite {
     })
   }
 
+
   async db(props: {
     path: string
     flags: string
@@ -73,6 +74,29 @@ export class Sqlite {
     const config = await getConfig<{ experiment: ExperimentFormValues }>(
       "config-experiment"
     )
+
+    function createUDF(db: Database) {
+      const globalKv = new Map()
+      // udf
+      db.selectObjects(
+        `SELECT DISTINCT name, code FROM eidos__scripts WHERE type = 'udf' AND enabled = 1`
+      ).forEach((script) => {
+        const { code, name } = script
+        globalKv.set(name, new Map())
+        try {
+          const func = new Function("kv", ("return " + code) as string)
+          const udf = {
+            name: name as string,
+            xFunc: func(globalKv.get(name)),
+            deterministic: true,
+          }
+          db.createFunction(udf)
+        } catch (error) {
+          console.error(error)
+        }
+      })
+    }
+
     // console.log("config.experiment.undoRedo", config.experiment.undoRedo)
     return new DataSpace({
       db,
@@ -80,6 +104,7 @@ export class Sqlite {
       dbName: name,
       sqlite3: this.sqlite3,
       draftDb,
+      createUDF,
       context: {
         setInterval: setInterval,
       },

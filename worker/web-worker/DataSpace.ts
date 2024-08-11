@@ -89,10 +89,11 @@ export class DataSpace {
     context: {
       setInterval?: typeof setInterval
     }
+    createUDF?: (db: Database) => void,
     sqlite3?: Sqlite3Static
     draftDb?: DataSpace
   }) {
-    const { db, activeUndoManager, dbName, sqlite3, draftDb, context } = config
+    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF } = config
     this.db = db
     this.sqlite3 = sqlite3
     this.draftDb = draftDb
@@ -135,8 +136,8 @@ export class DataSpace {
       // })
     }
     this.initMetaTable()
-    if (this.sqlite3) {
-      this.initUDF2()
+    if (createUDF) {
+      createUDF(this.db)
     }
 
     // other
@@ -158,30 +159,6 @@ export class DataSpace {
     allUfs.forEach((udf) => {
       this.db.createFunction(udf as any)
     })
-  }
-
-  private initUDF2() {
-    const globalKv = new Map()
-    // udf
-    this.db
-      .selectObjects(
-        `SELECT DISTINCT name, code FROM eidos__scripts WHERE type = 'udf' AND enabled = 1`
-      )
-      .forEach((script) => {
-        const { code, name } = script
-        globalKv.set(name, new Map())
-        // try {
-        //   const func = new Function("kv", ("return " + code) as string)
-        //   const udf = {
-        //     name: name as string,
-        //     xFunc: func(globalKv.get(name)),
-        //     deterministic: true,
-        //   }
-        //   this.db.createFunction(udf)
-        // } catch (error) {
-        //   console.error(error)
-        // }
-      })
   }
 
   private initMetaTable() {
