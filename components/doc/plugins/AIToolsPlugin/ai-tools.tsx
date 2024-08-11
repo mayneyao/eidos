@@ -22,6 +22,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useUserPrompts } from "@/components/ai-chat/hooks"
 
+import { useAllDocBlocks } from "../../hooks/use-all-doc-blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { $transformExtCodeBlock } from "../../utils/helper"
 import { allTransformers } from "../const"
@@ -57,6 +58,7 @@ export function AITools({
   const boxRef = useRef<HTMLDivElement>(null)
   const [currentModel, setCurrentModel] = useState<string>("")
   const extBlocks = useExtBlocks()
+  const allBlocks = useAllDocBlocks()
   const __allTransformers = useMemo(() => {
     return [...extBlocks.map((block) => block.transform), ...allTransformers]
   }, [extBlocks])
@@ -111,7 +113,7 @@ export function AITools({
               const root = $getRoot()
               root.append(paragraphNode)
             }
-            $transformExtCodeBlock(extBlocks)
+            $transformExtCodeBlock(allBlocks)
           })
           setIsFinished(true)
           break
