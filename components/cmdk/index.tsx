@@ -29,8 +29,8 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
-import { useLastOpened } from "@/app/[database]/hook"
-import { useSpaceAppStore } from "@/app/[database]/store"
+import { useLastOpened } from "@/apps/web-app/[database]/hook"
+import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
 
 import { ActionList } from "./action"
 // import { ExtensionCommandItems } from "./extension"

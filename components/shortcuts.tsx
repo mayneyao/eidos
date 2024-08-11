@@ -4,7 +4,7 @@ import { useKeyPress } from "ahooks"
 import { useTheme } from "next-themes"
 import { useNavigate } from "react-router-dom"
 
-import { useSpaceAppStore } from "@/app/[database]/store"
+import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
 
 /**
  * global shortcuts, register here

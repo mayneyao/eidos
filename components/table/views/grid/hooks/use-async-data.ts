@@ -146,7 +146,7 @@ export function useAsyncData<TRowType>(data: {
       const d = await sqlite.sql4mainThread2(sql)
       setRows(tableId, d)
       const vr = visiblePagesRef.current
-      rowIdsRef.current = d.map((r) => r._id)
+      rowIdsRef.current = d.map((r: any) => r._id)
       const data = dataRef.current
       const damageList: { cell: [number, number] }[] = []
       for (const [i, element] of d.entries()) {
@@ -210,7 +210,7 @@ export function useAsyncData<TRowType>(data: {
     setLoading(qs, true)
     const _qs = rewriteQuery2getSortedSqliteRowIds(qs)
     const res = await sqlite.sql4mainThread(_qs)
-    const rowIds = res.map((r) => r[0])
+    const rowIds = res.map((r: any) => r[0])
     setLoading(qs, false)
     rowIdsRef.current = rowIds
     setCount(rowIdsRef.current.length)
@@ -234,7 +234,7 @@ export function useAsyncData<TRowType>(data: {
       sql = rewriteQueryWithSortedQuery(sql, qs)
       const d = await sqlite?.sql4mainThread2(sql)
       setRows(tableId, d)
-      const rowIds = d.map((r) => r._id)
+      const rowIds = d.map((r: any) => r._id)
       const vr = visiblePagesRef.current
       const damageList: { cell: [number, number] }[] = []
       const data = dataRef.current

@@ -29,7 +29,7 @@ import NewMentionsPlugin, {
   MentionPluginProps,
 } from "@/components/doc/plugins/MentionsPlugin"
 import { allTransformers } from "@/components/doc/plugins/const"
-import { useAIConfigStore } from "@/app/settings/ai/store"
+import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
 
 import { AutoEditable } from "./plugins/auto-editable"
 import { SwitchPromptPlugin } from "./plugins/switch-prompt"

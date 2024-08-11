@@ -14,7 +14,7 @@ import { $getRoot, $insertNodes } from "lexical"
 import zip from "lodash/zip"
 
 import { getAllLinks } from "@/lib/markdown"
-import { getSqliteProxy } from "@/lib/sqlite/proxy"
+import { getSqliteProxy } from "@/lib/sqlite/channel"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { AllNodes } from "@/components/doc/nodes"
 import { $getUrlMetaData } from "@/components/doc/nodes/BookmarkNode"

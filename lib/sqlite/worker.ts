@@ -1,4 +1,3 @@
-import { logger } from "../log"
 
 // global singleton
 let worker: Worker

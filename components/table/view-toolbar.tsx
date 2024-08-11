@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { NodeComponent } from "@/app/[database]/[node]/page"
+import { NodeComponent } from "@/apps/web-app/[database]/[node]/page"
 
 import { Button } from "../ui/button"
 import { TableContext, useCurrentView, useViewOperation } from "./hooks"

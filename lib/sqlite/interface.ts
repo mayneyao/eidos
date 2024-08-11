@@ -24,3 +24,9 @@ export type ITreeItem = {
   name: string
   type: "table" | "doc"
 }
+
+export interface ISqlite<T, D> {
+  connector: T
+  send: (data: D) => void
+  onCallBack: (thisCallId: string) => Promise<any>
+}

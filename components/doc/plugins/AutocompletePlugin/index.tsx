@@ -17,8 +17,8 @@ import {
 } from "lexical"
 
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useAIConfigStore } from "@/app/settings/ai/store"
-import { useConfigStore } from "@/app/settings/store"
+import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
+import { useConfigStore } from "@/apps/web-app/settings/store"
 
 import { addSwipeRightListener } from "../../utils/swipe"
 import { AI_COMPLETE_COMMAND } from "./cmd"

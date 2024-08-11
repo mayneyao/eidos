@@ -119,9 +119,10 @@ declare module "lib/fields/const" {
 }
 declare module "lib/log" {
     export const logger: Console;
-    export const EIDOS_VERSION = "0.5.4";
+    export const EIDOS_VERSION = "0.5.5";
     export const isDevMode: boolean;
     export const isSelfHosted: boolean;
+    export const isInkServiceMode: boolean;
 }
 declare module "lib/sqlite/const" {
     /**
@@ -490,7 +491,7 @@ declare module "worker/web-worker/sdk/index-manager" {
         dataSpace: DataSpace;
         tableManager: TableManager;
         constructor(table: TableManager);
-        createIndex(column: string, onStart?: () => void, onEnd?: () => void): void;
+        createIndex(column: string, onStart?: () => void, onEnd?: () => void): Promise<void>;
     }
 }
 declare module "lib/fields/base" {
@@ -1384,6 +1385,7 @@ declare module "components/file-selector" {
         hideRemove?: boolean;
         height?: number;
         onlyImage?: boolean;
+        hideGallery?: boolean;
     }): import("react/jsx-runtime").JSX.Element;
 }
 declare module "components/table/views/grid/store" {
@@ -2281,7 +2283,7 @@ declare module "worker/web-worker/sdk/table" {
         isExist(id: string): Promise<boolean>;
         get(id: string): Promise<ITable | null>;
         del(id: string): Promise<boolean>;
-        hasSystemColumn(tableId: string, column: string): Promise<boolean>;
+        hasSystemColumn(tableId: string, column: string): Promise<any>;
         fixTable(tableId: string): Promise<void>;
     }
 }
@@ -2506,13 +2508,8 @@ declare module "worker/web-worker/meta-table/doc" {
         name: string;
         createTableSql: string;
         rebuildIndex(refillNullMarkdown?: boolean): Promise<void>;
-        listAllDayPages(): Promise<{
-            id: any;
-            content: any;
-        }[]>;
-        listDayPage(page?: number): Promise<{
-            id: any;
-        }[]>;
+        listAllDayPages(): Promise<any>;
+        listDayPage(page?: number): Promise<any>;
         del(id: string): Promise<boolean>;
         getMarkdown(id: string): Promise<string>;
         getBaseInfo(id: string): Promise<Partial<IDoc>>;
@@ -2575,6 +2572,7 @@ declare module "worker/web-worker/meta-table/embedding" {
     }
 }
 declare module "worker/web-worker/meta-table/reference" {
+    import { IField } from "lib/store/interface";
     import { BaseTable, BaseTableImpl } from "worker/web-worker/meta-table/base";
     export interface IReference {
         self: string;
@@ -2594,10 +2592,7 @@ declare module "worker/web-worker/meta-table/reference" {
         del(id: string): Promise<boolean>;
         name: string;
         createTableSql: string;
-        getEffectedFields: (table_name: string, table_column_name: string) => Promise<{
-            table_name: any;
-            table_column_name: any;
-        }[]>;
+        getEffectedFields: (table_name: string, table_column_name: string) => Promise<IField[]>;
     }
 }
 declare module "worker/web-worker/meta-table/script" {
@@ -2724,7 +2719,7 @@ declare module "worker/web-worker/meta-table/view" {
         createDefaultView(table_id: string): Promise<IView<any>>;
         isRowExistInQuery(table_id: string, rowId: string, query: string): Promise<boolean>;
         findRowIndexInQuery(table_id: string, rowId: string, query: string): Promise<number>;
-        recompute(table_id: string, rowIds: string[]): Promise<any[]>;
+        recompute(table_id: string, rowIds: string[]): Promise<any>;
     }
 }
 declare module "worker/web-worker/udf/index" {
@@ -2738,9 +2733,9 @@ declare module "worker/web-worker/DataSpace" {
     import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm";
     import { FieldType } from "lib/fields/const";
     import { FileSystemType } from "lib/storage/eidos-file-system";
-    import { IField } from "lib/store/interface";
     import { ITreeNode } from "lib/store/ITreeNode";
     import { IView } from "lib/store/IView";
+    import { IField } from "lib/store/interface";
     import { DataChangeEventHandler } from "worker/web-worker/data-pipeline/DataChangeEventHandler";
     import { DataChangeTrigger } from "worker/web-worker/data-pipeline/DataChangeTrigger";
     import { LinkRelationUpdater } from "worker/web-worker/data-pipeline/LinkRelationUpdater";
@@ -2760,7 +2755,7 @@ declare module "worker/web-worker/DataSpace" {
     export class DataSpace {
         db: Database;
         draftDb: DataSpace | undefined;
-        sqlite3: Sqlite3Static;
+        sqlite3: Sqlite3Static | undefined;
         undoRedoManager: SQLiteUndoRedo;
         activeUndoManager: boolean;
         dbName: string;
@@ -2778,7 +2773,7 @@ declare module "worker/web-worker/DataSpace" {
         allTables: BaseTable<any>[];
         eventHandler: DataChangeEventHandler;
         hasMigrated: boolean;
-        constructor(db: Database, activeUndoManager: boolean, dbName: string, sqlite3: Sqlite3Static, draftDb?: DataSpace);
+        constructor(db: Database, activeUndoManager: boolean, dbName: string, sqlite3?: Sqlite3Static, draftDb?: DataSpace);
         closeDb(): void;
         private initUDF;
         private initUDF2;
@@ -2836,7 +2831,7 @@ declare module "worker/web-worker/DataSpace" {
         updateView(viewId: string, view: Partial<IView>): Promise<boolean>;
         createDefaultView(tableId: string): Promise<IView<any>>;
         isRowExistInQuery(tableId: string, rowId: string, query: string): Promise<boolean>;
-        getRecomputeRows(tableId: string, rowIds: string[]): Promise<any[]>;
+        getRecomputeRows(tableId: string, rowIds: string[]): Promise<any>;
         addColumn(data: IField): Promise<IField>;
         deleteField(tableName: string, tableColumnName: string): Promise<string[]>;
         changeColumnType(tableName: string, columnName: string, type: FieldType): Promise<void>;
@@ -2908,20 +2903,15 @@ declare module "worker/web-worker/DataSpace" {
         importMarkdown(file: File): Promise<string>;
         exportMarkdown(nodeId: string): Promise<File>;
         fixTable(tableId: string): Promise<void>;
-        hasSystemColumn(tableId: string, column: string): Promise<boolean>;
+        hasSystemColumn(tableId: string, column: string): Promise<any>;
         restoreNode(id: string): Promise<void>;
         deleteNode(id: string): Promise<void>;
         isTableExist(id: string): Promise<boolean>;
         deleteTable(id: string): Promise<void>;
-        listDays(page: number): Promise<{
-            id: any;
-        }[]>;
-        listAllDays(): Promise<{
-            id: any;
-            content: any;
-        }[]>;
-        syncExec2(sql: string, bind?: any[], db?: Database): any[];
-        exec2(sql: string, bind?: any[]): Promise<any[]>;
+        listDays(page: number): Promise<any>;
+        listAllDays(): Promise<any>;
+        syncExec2(sql: string, bind?: any[], db?: Database): any;
+        exec2(sql: string, bind?: any[]): Promise<any>;
         runAIgeneratedSQL(sql: string, tableName: string): Promise<Record<string, any>[]>;
         listTreeNodes(query?: string, withSubNode?: boolean): Promise<ITreeNode[]>;
         updateTreeNodePosition(id: string, position: number): Promise<boolean>;
@@ -2943,7 +2933,7 @@ declare module "worker/web-worker/DataSpace" {
          * @param tableName
          * @returns
          */
-        listAllUiColumns(): Promise<any[]>;
+        listAllUiColumns(): Promise<any>;
         undo(): void;
         redo(): void;
         private activeTablesUndoRedo;
@@ -2965,9 +2955,9 @@ declare module "worker/web-worker/DataSpace" {
          * @param values
          * @returns
          */
-        sql(strings: TemplateStringsArray, ...values: any[]): Promise<any[]>;
-        sql2: (strings: TemplateStringsArray, ...values: any[]) => Promise<any[]>;
-        sqlQuery: (sql: string, bind?: any[], rowMode?: "object" | "array") => Promise<any[]>;
+        sql(strings: TemplateStringsArray, ...values: any[]): Promise<any[] | import("@libsql/client/web").Row[]>;
+        sql2: (strings: TemplateStringsArray, ...values: any[]) => Promise<any[] | import("@libsql/client/web").Row[]>;
+        sqlQuery: (sql: string, bind?: any[], rowMode?: "object" | "array") => Promise<any[] | import("@libsql/client/web").Row[]>;
         /**
          * Symbol can't be transformed between main thread and worker thread.
          * so we need to parse sql in main thread, then call this function. it will equal to call `sql` function in worker thread
@@ -2976,8 +2966,8 @@ declare module "worker/web-worker/DataSpace" {
          * @param bind
          * @returns
          */
-        sql4mainThread(sql: string, bind?: any[], rowMode?: "object" | "array"): Promise<any[]>;
-        sql4mainThread2(sql: string, bind?: any[]): Promise<any[]>;
+        sql4mainThread(sql: string, bind?: any[], rowMode?: "object" | "array"): Promise<any[] | import("@libsql/client/web").Row[]>;
+        sql4mainThread2(sql: string, bind?: any[]): Promise<any[] | import("@libsql/client/web").Row[]>;
         onUpdate(): void;
         notify(msg: {
             title: string;
@@ -2986,15 +2976,26 @@ declare module "worker/web-worker/DataSpace" {
         blockUIMsg(msg: string | null, data?: Record<string, any>): void;
     }
 }
-declare module "@eidos.space/types" {
-    import { DataSpace } from "worker/web-worker/DataSpace";
-    export interface Eidos {
-        space(spaceName: string): DataSpace;
-        currentSpace: DataSpace;
+declare module "apps/publish/_worker" {
+    import { Request, Response } from "node_modules/.pnpm/@cloudflare+workers-types@4.20240806.0/node_modules/@cloudflare/workers-types/index";
+    import { Client } from "@libsql/client/web";
+    export const turso: Client;
+    export class ServerDatabase {
+        db: Client;
+        filename: string;
+        constructor(db: Client);
+        prepare(): any;
+        close(): void;
+        selectObjects(sql: string): Promise<{
+            [columnName: string]: any;
+        }[]>;
+        transaction(): void;
+        exec(opts: any): Promise<import("@libsql/client/web").Row[]>;
+        createFunction(): void;
     }
-    export interface EidosTable<T = Record<string, string>> {
-        id: string;
-        name: string;
-        fieldsMap: T;
-    }
+    export const serverDb: ServerDatabase;
+    const _default: {
+        fetch(request: Request, env: any): Promise<Response>;
+    };
+    export default _default;
 }

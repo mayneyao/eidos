@@ -34,7 +34,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useLastOpened } from "@/app/[database]/hook"
+import { useLastOpened } from "@/apps/web-app/[database]/hook"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"

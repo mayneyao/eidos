@@ -4,7 +4,7 @@ import DataEditor, {
   HeaderClickedEventArgs,
 } from "@glideapps/glide-data-grid"
 
-import { useSpaceAppStore } from "@/app/[database]/store"
+import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
 import React, { useCallback, useEffect, useMemo, useRef } from "react"

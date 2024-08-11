@@ -35,7 +35,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
     if (!sqlite) return
     const dirHandle = await (window as any).showDirectoryPicker()
     const oldDays = await sqlite.listAllDays()
-    const oldDayFileNameSet = new Set(oldDays.map((d) => d.id))
+    const oldDayFileNameSet = new Set(oldDays.map((d: any) => d.id))
     const allDays = []
     for await (let [name, handle] of dirHandle.entries()) {
       allDays.push(name)

@@ -33,7 +33,7 @@ export class LinkFieldService {
       .replace("lk_", "")
       .split("__", 2)
     // self + link_field_id will update
-    const res1 = this.dataSpace.syncExec2(
+    const res1 = await this.dataSpace.syncExec2(
       `SELECT * FROM ${relationTableName} WHERE self = ? AND link_field_id = ?`,
       [relation.self, relation.link_field_id],
       db
@@ -169,7 +169,7 @@ export class LinkFieldService {
       acc[item._id] = item.title
       return acc
     }, {})
-    return rows.map((item) => idTitleMap[item._id]).join(",")
+    return rows.map((item: any) => idTitleMap[item._id]).join(",")
   }
 
   private getLinkCellValue = async (
@@ -182,16 +182,19 @@ export class LinkFieldService {
       .map(() => "?")
       .join(",")}) ORDER BY rowid ASC`
     const bind = [field.table_column_name, ...rowIds]
-    const res = this.dataSpace.syncExec2(sql, bind, db)
+    const res = await this.dataSpace.syncExec2(sql, bind, db)
     // group by self
-    const groupBySelf = res.reduce((acc: Record<string, string[]>, item) => {
-      const self = item.self
-      if (!acc[self]) {
-        acc[self] = []
-      }
-      acc[self].push(item.ref)
-      return acc
-    }, {})
+    const groupBySelf = res.reduce(
+      (acc: Record<string, string[]>, item: any) => {
+        const self = item.self
+        if (!acc[self]) {
+          acc[self] = []
+        }
+        acc[self].push(item.ref)
+        return acc
+      },
+      {}
+    )
     return groupBySelf
   }
 

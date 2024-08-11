@@ -59,7 +59,7 @@ export class SelectFieldService {
   beforeConvert = async (field: IField<any>, db = this.dataSpace.db) => {
     // get all select options
     const { table_column_name, table_name } = field
-    const textList = this.dataSpace.syncExec2(
+    const textList = await this.dataSpace.syncExec2(
       `SELECT DISTINCT ${table_column_name} FROM ${table_name}`,
       [],
       db

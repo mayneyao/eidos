@@ -1,7 +1,7 @@
 import { MsgType } from "@/lib/const"
 import { EIDOS_VERSION, logger } from "@/lib/log"
 import { getConfig } from "@/lib/storage/indexeddb"
-import { APIAgentFormValues } from "@/app/settings/api/store"
+import { APIAgentFormValues } from "@/apps/web-app/settings/api/store"
 
 import { DataSpace } from "./DataSpace"
 import { initWs } from "./api-agent/ws"

@@ -4,7 +4,7 @@ import {
   efsManager,
 } from "@/lib/storage/eidos-file-system"
 import { getIndexedDBValue } from "@/lib/storage/indexeddb"
-import { BackupServerFormValues } from "@/app/settings/backup/page"
+import { BackupServerFormValues } from "@/apps/web-app/settings/backup/page"
 
 import { GithubBackupServer } from "./provider/github"
 

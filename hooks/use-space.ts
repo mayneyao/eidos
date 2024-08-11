@@ -4,7 +4,7 @@ import { MsgType } from "@/lib/const"
 import { getWorker } from "@/lib/sqlite/worker"
 import { spaceFileSystem } from "@/lib/storage/space"
 import { uuidv7 } from "@/lib/utils"
-import { useLastOpened } from "@/app/[database]/hook"
+import { useLastOpened } from "@/apps/web-app/[database]/hook"
 
 import { useSqliteStore } from "./use-sqlite"
 

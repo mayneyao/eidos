@@ -11,7 +11,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useDocEditor } from "@/hooks/use-doc-editor"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
-import { useTablesUiColumns } from "@/app/[database]/scripts/hooks/use-all-table-fields"
+import { useTablesUiColumns } from "@/apps/web-app/[database]/scripts/hooks/use-all-table-fields"
 
 import { useScriptFunction } from "../script-container/hook"
 

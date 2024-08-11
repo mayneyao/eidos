@@ -144,7 +144,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     sql += ` ORDER BY position DESC;`
     const bind = query ? [`%${query}%`] : undefined
     const res = await this.dataSpace.exec2(sql, bind)
-    return res.map((row) => row)
+    return res.map((row: any) => row)
   }
 
   async moveIntoTable(

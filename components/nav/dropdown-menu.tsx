@@ -47,8 +47,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DiscordIcon } from "@/components/icons/discord"
-import { NodeUpdateTime } from "@/app/[database]/[node]/node-update-time"
-import { useExperimentConfigStore } from "@/app/settings/experiment/store"
+import { NodeUpdateTime } from "@/apps/web-app/[database]/[node]/node-update-time"
+import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"

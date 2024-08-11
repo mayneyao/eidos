@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { ItemIcon } from "@/components/sidebar/item-tree"
-import { NodeIconEditor } from "@/app/[database]/[node]/node-icon"
+import { NodeIconEditor } from "@/apps/web-app/[database]/[node]/node-icon"
 
 import { InnerEditor } from "../../editor"
 

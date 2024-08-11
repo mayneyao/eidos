@@ -1,6 +1,7 @@
 import { efsManager } from "@/lib/storage/eidos-file-system"
 
-declare var self: ServiceWorkerGlobalScope
+declare const self: ServiceWorkerGlobalScope
+
 
 export const pathname = (url: URL) => {
   // pathname: /<space>/files/<filename>

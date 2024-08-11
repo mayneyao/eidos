@@ -15,11 +15,12 @@ import {
 } from "./use-doc-editor"
 import { useSqliteStore } from "./use-sqlite"
 import { useCurrentUser } from "./user-current-user"
+import { isInkServiceMode } from "@/lib/log"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
   const { id: userId } = useCurrentUser()
-  const {} = useSqlite
+  const { } = useSqlite
   const {
     setWebsocketConnected,
     setBlockUIMsg,
@@ -29,6 +30,10 @@ export const useWorker = () => {
 
   const { toast } = useToast()
   const initWorker = useCallback(() => {
+    if (isInkServiceMode) {
+      setInitialized(true)
+      return () => { }
+    }
     const worker = getWorker()
 
     const handle = async (event: MessageEvent) => {
