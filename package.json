@@ -22,7 +22,7 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^0.0.13",
+    "@ai-sdk/openai": "^0.0.45",
     "@aws-crypto/sha256-browser": "^5.2.0",
     "@eidos.space/types": "workspace:*",
     "@emoji-mart/data": "^1.1.2",
@@ -82,7 +82,7 @@
     "@uiw/react-heat-map": "^2.2.1",
     "@xenova/transformers": "^2.17.1",
     "ahooks": "^3.7.8",
-    "ai": "^3.1.9",
+    "ai": "^3.3.6",
     "aws-sdk": "^2.1526.0",
     "aws4fetch": "^1.0.17",
     "bufferutil": "^4.0.7",
