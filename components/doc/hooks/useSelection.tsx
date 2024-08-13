@@ -140,6 +140,8 @@ export function useMouseSelection(
       })
 
       const boxes = getSelectionItems()
+      const newSelectedKeySet = new Set<string>()
+
       Array.from(boxes ?? []).forEach((box) => {
         const rect = box.getBoundingClientRect()
         const boxLeft = rect.left + window.scrollX
@@ -157,14 +159,18 @@ export function useMouseSelection(
             top + height >= boxTop &&
             boxBottom >= top)
         if (isIntersect) {
-          ;(box as HTMLElement).style.backgroundColor = "rgb(173 216 230 / 27%)"
+          ;(box as HTMLElement).style.backgroundColor =
+            "rgba(173, 216, 230, 0.5)"
           const key = (box as HTMLElement).getAttribute("data-key")
           if (key) {
-            selectedKeySet.add(key)
-            setSelectedKeySet(new Set(selectedKeySet))
+            newSelectedKeySet.add(key)
           }
+        } else {
+          ;(box as HTMLElement).style.backgroundColor = ""
         }
       })
+
+      setSelectedKeySet(newSelectedKeySet)
     }
 
     function handleMouseUp(e: MouseEvent) {
