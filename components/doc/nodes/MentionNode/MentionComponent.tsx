@@ -49,8 +49,8 @@ export const MentionComponent = (props: { id: string; title?: string }) => {
         <TooltipTrigger>
           <span
             className={cn(
-              "inline-flex shrink-0 cursor-pointer gap-1",
-              "items-center rounded-sm px-1 underline  hover:bg-secondary",
+              "inline-flex shrink-0 cursor-pointer",
+              "items-baseline rounded-sm px-1 underline hover:bg-secondary",
               {
                 "text-red-400": node?.is_deleted,
               }
@@ -58,19 +58,24 @@ export const MentionComponent = (props: { id: string; title?: string }) => {
             id={id}
             onClick={onClick}
           >
-            {node && node.icon ? (
-              <NodeIconEditor
-                icon={node.icon}
-                nodeId={node.id}
-                disabled
-                size="1rem"
-              />
-            ) : (
-              <ItemIcon type={node?.type ?? ""} className="h-4 w-4" />
-            )}
-            <p className="!my-0 max-w-[18rem] truncate">
+            <span className="inline-flex items-center mr-1">
+              {node && node.icon ? (
+                <NodeIconEditor
+                  icon={node.icon}
+                  nodeId={node.id}
+                  disabled
+                  size="1rem"
+                />
+              ) : (
+                <ItemIcon
+                  type={node?.type ?? ""}
+                  className="h-4 w-4 translate-y-[0.1em]"
+                />
+              )}
+            </span>
+            <span className="!my-0 max-w-[18rem] truncate">
               {node ? node.name || "Untitled" : props.title || "loading"}
-            </p>
+            </span>
           </span>
         </TooltipTrigger>
         <TooltipContent
