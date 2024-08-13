@@ -196,6 +196,10 @@
     "vitest": "^2.0.3",
     "workbox-window": "^7.0.0"
   },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.5.0"
+  },
   "pnpm": {
     "peerDependencyRules": {
       "ignoreMissing": [
