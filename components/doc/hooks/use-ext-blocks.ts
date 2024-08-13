@@ -1,6 +1,6 @@
 import { FunctionComponent, useEffect, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
-import { ElementTransformer } from "@lexical/markdown"
+import { ElementTransformer, TextMatchTransformer } from "@lexical/markdown"
 import { LexicalCommand } from "lexical"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -13,7 +13,7 @@ export interface ExtBlock {
   plugin: FunctionComponent
   onSelect: (editor: any) => void
   keywords: string[]
-  transform: ElementTransformer
+  transform: ElementTransformer | TextMatchTransformer
   command: {
     create: LexicalCommand<any>
   }

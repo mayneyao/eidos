@@ -8,6 +8,7 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin"
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 
+import { BuiltInBlocks } from "../blocks"
 import { useExtBlocks } from "../hooks/use-ext-blocks"
 import { AIToolsPlugin } from "./AIToolsPlugin"
 // import { AIToolsPlugin } from "./AIToolsPlugin"
@@ -31,6 +32,7 @@ export const AllPlugins = () => {
   const __allTransformers = [
     ...allTransformers,
     ...extBlocks.map((block) => block.transform),
+    ...BuiltInBlocks.map((block) => block.transform),
   ]
   return (
     <>
@@ -59,6 +61,9 @@ export const AllPlugins = () => {
       <MarkdownShortcutPlugin transformers={__allTransformers} />
       <FloatingLinkEditorPlugin />
       <BookmarkPlugin />
+      {BuiltInBlocks.map((block) => (
+        <block.plugin key={block.name} />
+      ))}
       {extBlocks.map((block) => (
         <block.plugin key={block.name} />
       ))}

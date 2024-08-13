@@ -16,6 +16,7 @@ import { SQLNode } from "./SQLNode"
 import { SyncBlock } from "./SyncBlock/SyncBlock"
 import { TableOfContentsNode } from "./TableOfContentsNode"
 import { YouTubeNode } from "./YoutubeNode"
+import { BuiltInBlocks } from "../blocks"
 
 export const AllNodes = [
   HorizontalRuleNode,
@@ -41,4 +42,5 @@ export const AllNodes = [
   YouTubeNode,
   // block
   SyncBlock,
+  ...BuiltInBlocks.map(block => block.node)
 ]
