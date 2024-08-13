@@ -63,7 +63,7 @@ export function DocListView(props: IDocListViewProps) {
   return (
     <div className="flex h-full shrink-0 gap-4 p-2">
       <ScrollArea
-        className={cn(" h-full  w-[300px] overflow-y-auto border-r")}
+        className={cn(" h-full  w-[300px] overflow-y-auto border-r shrink-0")}
         ref={containerRef}
       >
         <div className="w-full p-2">

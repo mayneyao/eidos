@@ -283,7 +283,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
 
   async list(q: { table_name: string }): Promise<IField[]> {
     const res = await super.list(q)
-    return res.filter((col) => !col.name.startsWith("_"))
+    return res.filter((col) => !col.table_column_name.startsWith("_"))
   }
 
   static isColumnTypeChanged(oldType: FieldType, newType: FieldType) {

@@ -71,8 +71,9 @@ export const TableKeyboardShortcuts = [
   },
   {
     key: "Ctrl/Cmd + F",
-    description: "Opens the search interface.",
+    description: "Opens the search interface.(disabled for now)",
     flag: "search",
+    disabled: true,
   },
   {
     key: "Ctrl/Cmd + Home/End",
