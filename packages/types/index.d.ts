@@ -1,4 +1,20 @@
 /// <reference types="react" resolution-mode="require"/>
+declare module "apps/publish/lib/ServerDatabase" {
+    import { Client } from "@libsql/client/web";
+    export class ServerDatabase {
+        db: Client;
+        filename: string;
+        constructor(url: string, token: string);
+        prepare(): any;
+        close(): void;
+        selectObjects(sql: string): Promise<{
+            [columnName: string]: any;
+        }[]>;
+        transaction(): void;
+        exec(opts: any): Promise<import("@libsql/client/web").Row[]>;
+        createFunction(): void;
+    }
+}
 declare module "lib/const" {
     export enum MsgType {
         SetConfig = "SetConfig",
@@ -2325,7 +2341,7 @@ declare module "worker/web-worker/data-pipeline/LinkRelationUpdater" {
     export class LinkRelationUpdater {
         private dataSpace;
         needUpdateCell: Record<string, Record<string, Set<string>>>;
-        constructor(dataSpace: DataSpace);
+        constructor(dataSpace: DataSpace, setInterval?: typeof global.setInterval);
         updateCells: () => Promise<void>;
         addCell: (tableName: string, tableColumnName: string, rowId: string) => void;
     }
@@ -2773,10 +2789,19 @@ declare module "worker/web-worker/DataSpace" {
         allTables: BaseTable<any>[];
         eventHandler: DataChangeEventHandler;
         hasMigrated: boolean;
-        constructor(db: Database, activeUndoManager: boolean, dbName: string, sqlite3?: Sqlite3Static, draftDb?: DataSpace);
+        constructor(config: {
+            db: Database;
+            activeUndoManager: boolean;
+            dbName: string;
+            context: {
+                setInterval?: typeof setInterval;
+            };
+            createUDF?: (db: Database) => void;
+            sqlite3?: Sqlite3Static;
+            draftDb?: DataSpace;
+        });
         closeDb(): void;
         private initUDF;
-        private initUDF2;
         private initMetaTable;
         onTableChange(space: string, tableName: string, toDeleteColumns?: string[]): Promise<void>;
         addEmbedding(embedding: IEmbedding): Promise<IEmbedding>;
@@ -2976,26 +3001,15 @@ declare module "worker/web-worker/DataSpace" {
         blockUIMsg(msg: string | null, data?: Record<string, any>): void;
     }
 }
-declare module "apps/publish/_worker" {
-    import { Request, Response } from "node_modules/.pnpm/@cloudflare+workers-types@4.20240806.0/node_modules/@cloudflare/workers-types/index";
-    import { Client } from "@libsql/client/web";
-    export const turso: Client;
-    export class ServerDatabase {
-        db: Client;
-        filename: string;
-        constructor(db: Client);
-        prepare(): any;
-        close(): void;
-        selectObjects(sql: string): Promise<{
-            [columnName: string]: any;
-        }[]>;
-        transaction(): void;
-        exec(opts: any): Promise<import("@libsql/client/web").Row[]>;
-        createFunction(): void;
+declare module "@eidos.space/types" {
+    import { DataSpace } from "worker/web-worker/DataSpace";
+    export interface Eidos {
+        space(spaceName: string): DataSpace;
+        currentSpace: DataSpace;
     }
-    export const serverDb: ServerDatabase;
-    const _default: {
-        fetch(request: Request, env: any): Promise<Response>;
-    };
-    export default _default;
+    export interface EidosTable<T = Record<string, string>> {
+        id: string;
+        name: string;
+        fieldsMap: T;
+    }
 }
