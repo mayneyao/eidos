@@ -4,6 +4,7 @@ import { $convertFromMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getRoot, $nodesOfType } from "lexical"
 
+import { BuiltInBlocks } from "../../blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { allTransformers } from "../const"
 
@@ -18,11 +19,11 @@ export const MarkdownLoaderPlugin = ({ markdown }: { markdown: string }) => {
         for (const code of $nodesOfType(CodeNode)) {
           const lang = code.getLanguage()
           if (lang) {
-            const extBlock = extBlocks.find(
+            const builtInBlock = BuiltInBlocks.find(
               (extBlock) => extBlock.markdownLanguage === lang
             )
-            if (extBlock) {
-              const node = extBlock.createNode(code.getTextContent())
+            if (builtInBlock) {
+              const node = builtInBlock.createNode(code.getTextContent())
               code.replace(node)
             }
           }

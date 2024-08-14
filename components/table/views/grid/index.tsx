@@ -327,7 +327,7 @@ export default function GridView(props: IGridProps) {
               onDrop={onDrop}
               onDragOverCell={onDragOverCell}
               highlightRegions={highlightRegions}
-              showSearch={showSearch}
+              // showSearch={showSearch}
               gridSelection={selection}
               onItemHovered={onItemHovered}
               // getRowThemeOverride={getRowThemeOverride}

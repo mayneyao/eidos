@@ -59,6 +59,7 @@ import { SelectDatabaseTableDialog } from "../DatabasePlugin/SelectDatabaseTable
 import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
 import { bgColors, fgColors } from "../const"
 import "./index.css"
+import { BuiltInBlocks } from "../../blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { INSERT_BOOKMARK_COMMAND } from "../BookmarkPlugin"
 import { INSERT_AUDIO_FILE_COMMAND } from "../FilePlugin"
@@ -356,6 +357,15 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
             />
           ))
         },
+      }),
+      ...BuiltInBlocks.map((block) => {
+        const iconName = block.icon
+        const BlockIcon = (icons as any)[iconName]
+        return new ComponentPickerOption(block.name, {
+          icon: <BlockIcon className="h-5 w-5" />,
+          keywords: block.keywords,
+          onSelect: () => block.onSelect(editor),
+        })
       }),
       // ...["left", "center", "right", "justify"].map(
       //   (alignment) =>

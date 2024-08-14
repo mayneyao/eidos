@@ -13,6 +13,39 @@ import {
   RangeSelection,
 } from "lexical"
 
+
+
+export const useBuiltInPrompts = () => {
+  return [
+    {
+      id: 'mermaid',
+      name: 'Mermaid',
+      content: `Generate a mermaid diagram from the given text. You are a mermaid converter responsible for transforming user input into appropriate mermaid expressions. Follow these rules:
+1. Return only the mermaid content without any additional explanations.
+2. Return the content in markdown format, enclosed in a code block with the language specified as mermaid.
+3. Ensure that the generated mermaid syntax is correct and valid.`,
+    },
+    {
+      id: 'translate',
+      name: 'Translate',
+      content: `Translate the given text to {{languages}}. You are a professional translator. Follow these rules:
+1. Translate the text accurately while maintaining the original meaning and tone.
+3. Return only the translated text without any additional explanations or comments.
+4. Preserve any formatting or special characters present in the original text.`,
+      parameters: [
+        {
+          name: 'Target languages',
+          key: 'languages',
+          value: ['English', 'French', 'Spanish', 'German', 'Italian', 'Portuguese', 'Russian', 'Japanese', 'Chinese', 'Korean'],
+          type: 'select',
+          description: 'The target language to translate to.',
+          required: true,
+        }
+      ]
+    },
+  ]
+}
+
 export const useUpdateLocation = (
   editor: LexicalEditor,
   selectionRef: React.MutableRefObject<RangeSelection | null>,
@@ -51,11 +84,10 @@ export const useUpdateLocation = (
             correctedLeft = 10
           }
           boxElem.style.left = `${left}px`
-          boxElem.style.top = `${
-            bottom +
+          boxElem.style.top = `${bottom +
             8 +
             (window.pageYOffset || document.documentElement.scrollTop)
-          }px`
+            }px`
 
           document
             .querySelector("#ai-content-placeholder")
@@ -74,14 +106,11 @@ export const useUpdateLocation = (
               container.appendChild(elem)
             }
             const color = "255, 212, 0"
-            const style = `position:absolute;top:${
-              selectionRect.top +
+            const style = `position:absolute;top:${selectionRect.top +
               (window.pageYOffset || document.documentElement.scrollTop)
-            }px;left:${selectionRect.left}px;height:${
-              selectionRect.height
-            }px;width:${
-              selectionRect.width
-            }px;background-color:rgba(${color}, 0.3);pointer-events:none;z-index:5;`
+              }px;left:${selectionRect.left}px;height:${selectionRect.height
+              }px;width:${selectionRect.width
+              }px;background-color:rgba(${color}, 0.3);pointer-events:none;z-index:5;`
             elem.style.cssText = style
           }
           for (let i = elementsLength - 1; i >= selectionRectsLength; i--) {

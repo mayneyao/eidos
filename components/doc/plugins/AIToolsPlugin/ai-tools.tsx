@@ -4,8 +4,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { useClickAway, useKeyPress } from "ahooks"
 import { useChat } from "ai/react"
 import { $createParagraphNode, $getRoot, RangeSelection } from "lexical"
-import { PauseIcon, RefreshCcwIcon } from "lucide-react"
-import { Link } from "react-router-dom"
+import { ChevronRightIcon, PauseIcon, RefreshCcwIcon } from "lucide-react"
 
 import { uuidv7 } from "@/lib/utils"
 import { useAiConfig } from "@/hooks/use-ai-config"
@@ -19,14 +18,24 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { toast } from "@/components/ui/use-toast"
 import { useUserPrompts } from "@/components/ai-chat/hooks"
 
+import { useAllDocBlocks } from "../../hooks/use-all-doc-blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { $transformExtCodeBlock } from "../../utils/helper"
 import { allTransformers } from "../const"
 import { AIContentEditor } from "./ai-msg-editor"
-import { useUpdateLocation } from "./hooks"
+import { useBuiltInPrompts, useUpdateLocation } from "./hooks"
 
 enum AIActionEnum {
   INSERT_BELOW = "insert_below",
@@ -51,12 +60,13 @@ export function AITools({
   content: string
 }) {
   const { prompts } = useUserPrompts()
-  const { space } = useCurrentPathInfo()
+  const builtInPrompts = useBuiltInPrompts()
   const [editor] = useLexicalComposerContext()
   const selectionRef = useRef<RangeSelection | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   const [currentModel, setCurrentModel] = useState<string>("")
   const extBlocks = useExtBlocks()
+  const allBlocks = useAllDocBlocks()
   const __allTransformers = useMemo(() => {
     return [...extBlocks.map((block) => block.transform), ...allTransformers]
   }, [extBlocks])
@@ -111,7 +121,7 @@ export function AITools({
               const root = $getRoot()
               root.append(paragraphNode)
             }
-            $transformExtCodeBlock(extBlocks)
+            $transformExtCodeBlock(allBlocks)
           })
           setIsFinished(true)
           break
@@ -151,6 +161,13 @@ export function AITools({
     model?: string,
     isCustomPrompt?: boolean
   ) => {
+    if (!model) {
+      toast({
+        title: "No model available",
+        description: "Please config a model",
+      })
+      return
+    }
     if (model) {
       setIsFinished(false)
       setCurrentModel(model)
@@ -218,6 +235,10 @@ be between <content-begin> and <content-end>. you just output the transformed co
 
   const { editorWidth } = useUpdateLocation(editor, selectionRef, boxRef)
 
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null)
+
+  const commandGroupRef = useRef<HTMLDivElement>(null)
+
   return (
     <div className=" fixed z-50" ref={boxRef}>
       {!isFinished && (
@@ -271,7 +292,7 @@ be between <content-begin> and <content-end>. you just output the transformed co
         </>
       )}
       {open && (
-        <Command className="w-[300px] rounded-md border shadow-md">
+        <Command className="w-[300px] rounded-lg border shadow-md">
           <CommandInput
             placeholder="Search prompt or enter custom ..."
             autoFocus
@@ -293,24 +314,81 @@ be between <content-begin> and <content-end>. you just output the transformed co
           />
           <ScrollArea>
             <CommandList>
-              <CommandEmpty>
-                {" "}
-                No Prompt found.
-                <br />
-                <Link to={`/${space}/extensions`} className="text-blue-500">
-                  New Prompt
-                </Link>
-              </CommandEmpty>
-              <CommandGroup>
+              <CommandEmpty>No Prompt found.</CommandEmpty>
+              <CommandGroup heading="Built-in Prompts" ref={commandGroupRef}>
+                {builtInPrompts.map((prompt) => {
+                  if (prompt.parameters) {
+                    const { name, key, value, type, description, required } =
+                      prompt.parameters[0]
+                    return (
+                      <DropdownMenu
+                        key={prompt.name}
+                        open={openDropdownId === prompt.name}
+                        onOpenChange={(open) => {
+                          setOpenDropdownId(open ? prompt.name : null)
+                        }}
+                      >
+                        <DropdownMenuTrigger asChild>
+                          <CommandItem
+                            className="flex items-center justify-between"
+                            onSelect={() => setOpenDropdownId(prompt.name)}
+                          >
+                            <span>{prompt.name}</span>
+                            <ChevronRightIcon className="h-5 w-5" />
+                          </CommandItem>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          side="right"
+                          container={commandGroupRef.current!}
+                        >
+                          <DropdownMenuLabel>{name}</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {value.map((item) => {
+                            return (
+                              <DropdownMenuItem
+                                key={item}
+                                onClick={(e) => {
+                                  console.log(e)
+                                  e.preventDefault()
+                                  const renderedPrompt = prompt.content.replace(
+                                    `{{${key}}}`,
+                                    item
+                                  )
+                                  console.log(renderedPrompt)
+                                  runAction(
+                                    renderedPrompt,
+                                    findFirstAvailableModel()
+                                  )
+                                }}
+                              >
+                                {item}
+                              </DropdownMenuItem>
+                            )
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )
+                  }
+                  return (
+                    <CommandItem
+                      key={prompt.name}
+                      onSelect={() =>
+                        runAction(prompt.content, findFirstAvailableModel())
+                      }
+                    >
+                      <span>{prompt.name}</span>
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+              <CommandGroup heading="Custom Prompts">
                 {prompts.map((prompt) => (
                   <CommandItem
                     key={prompt.id}
-                    value={prompt.name}
-                    onSelect={(currentValue) => {
-                      runAction(prompt.code, prompt.model)
-                    }}
+                    onSelect={() => runAction(prompt.code, prompt.model)}
                   >
-                    {prompt.name}
+                    <span>{prompt.name}</span>
                   </CommandItem>
                 ))}
               </CommandGroup>

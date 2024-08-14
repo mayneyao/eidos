@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table"
 
 interface ShortcutTableProps {
-  shortcuts: { key: string; description: string }[]
+  shortcuts: { key: string; description: string; disabled?: boolean }[]
   title?: string
 }
 export const ShortcutTable = ({ shortcuts, title }: ShortcutTableProps) => {
@@ -38,7 +38,11 @@ export const ShortcutTable = ({ shortcuts, title }: ShortcutTableProps) => {
                   ))}
                 </div>
               </TableCell>
-              <TableCell className="p-[6px] text-muted-foreground">
+              <TableCell
+                className={`p-[6px] ${
+                  shortcut.disabled ? "text-gray-400" : "text-muted-foreground"
+                }`}
+              >
                 {shortcut.description}
               </TableCell>
             </TableRow>

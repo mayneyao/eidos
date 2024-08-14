@@ -12,6 +12,7 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from "lexical"
 
+import { INSERT_MERMAID_COMMAND } from "../../blocks/mermaid/plugin"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { allTransformers } from "../const"
 
@@ -43,12 +44,8 @@ export const AIEditorPlugin = (props: any) => {
   useEffect(() => {
     const aiComplete = (event: Event) => {
       const text = (event as CustomEvent).detail
-      const mermaidBlock = extBlocks.find(
-        (block) => block.name === "Mermaid Block"
-      )
       editor.update(() => {
-        mermaidBlock &&
-          editor.dispatchCommand(mermaidBlock.command.create, text)
+        editor.dispatchCommand(INSERT_MERMAID_COMMAND, text)
       })
     }
     document.addEventListener("createMermaidChart", aiComplete)

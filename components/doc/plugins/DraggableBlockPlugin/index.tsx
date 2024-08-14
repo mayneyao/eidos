@@ -21,13 +21,11 @@ import {
   DRAGOVER_COMMAND,
   DROP_COMMAND,
   LexicalEditor,
-  LexicalNode,
   NodeKey,
 } from "lexical"
 import { Trash2Icon } from "lucide-react"
 import { createPortal } from "react-dom"
 
-import "./index.css"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +33,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-import { AudioMenu } from "../../nodes/AudioNode/AudioMenu"
+import "./index.css"
+import { useAppStore } from "@/lib/store/app-store"
+
 import { isHTMLElement } from "../../utils/guard"
 import { Point } from "../../utils/point"
 import { Rect } from "../../utils/rect"
@@ -217,7 +217,8 @@ function useDraggableBlockMenu(
   isEditable: boolean
 ): JSX.Element {
   const scrollerElem = anchorElem?.parentElement
-
+  // don't remove next line, otherwise the drag will not work, idk why (
+  const { isFileManagerOpen } = useAppStore()
   const menuRef = useRef<HTMLDivElement>(null)
   const targetLineRef = useRef<HTMLDivElement>(null)
   const isDraggingBlockRef = useRef<boolean>(false)
@@ -369,6 +370,7 @@ function useDraggableBlockMenu(
       return
     }
     setDragImage(dataTransfer, draggableBlockElem)
+    console.log("onDragStart setDragImage", draggableBlockElem)
     let nodeKey = ""
     editor.update(() => {
       const node = $getNearestNodeFromDOMNode(draggableBlockElem)
