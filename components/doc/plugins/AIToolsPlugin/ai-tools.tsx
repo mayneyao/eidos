@@ -1,12 +1,13 @@
+import { useCallback, useMemo, useRef, useState } from "react"
 import { $convertFromMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useClickAway, useKeyPress } from "ahooks"
 import { useChat } from "ai/react"
 import { $createParagraphNode, $getRoot, RangeSelection } from "lexical"
 import { ChevronRightIcon, PauseIcon, RefreshCcwIcon } from "lucide-react"
-import { useCallback, useMemo, useRef, useState } from "react"
 
-import { useUserPrompts } from "@/components/ai-chat/hooks"
+import { uuidv7 } from "@/lib/utils"
+import { useAiConfig } from "@/hooks/use-ai-config"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -26,8 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "@/components/ui/use-toast"
-import { useAiConfig } from "@/hooks/use-ai-config"
-import { uuidv7 } from "@/lib/utils"
+import { useUserPrompts } from "@/components/ai-chat/hooks"
 
 import { useAllDocBlocks } from "../../hooks/use-all-doc-blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
@@ -313,7 +313,7 @@ be between <content-begin> and <content-end>. you just output the transformed co
             }}
           />
           <ScrollArea>
-            <CommandList>
+            <CommandList className="max-h-[20rem]">
               <CommandEmpty>No Prompt found.</CommandEmpty>
               <CommandGroup heading="Built-in Prompts" ref={commandGroupRef}>
                 {builtInPrompts.map((prompt) => {
@@ -355,13 +355,9 @@ be between <content-begin> and <content-end>. you just output the transformed co
                                     `{{${key}}}`,
                                     item
                                   )
-                                  console.log(
-                                    renderedPrompt,
-                                    findAvailableModel(prompt.id)
-                                  )
                                   runAction(
                                     renderedPrompt,
-                                    findAvailableModel(prompt.id)
+                                    findAvailableModel(prompt.type)
                                   )
                                 }}
                               >

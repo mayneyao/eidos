@@ -1,10 +1,7 @@
 import { useEffect } from "react"
-import { createOpenAI } from "@ai-sdk/openai"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { embedMany } from "ai"
 import { useForm } from "react-hook-form"
 
-import { useAiConfig } from "@/hooks/use-ai-config"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -25,7 +22,7 @@ import {
   FormMessage,
 } from "@/components/react-hook-form/form"
 
-import { TestModelType, useModelTest } from "./hooks"
+import { TaskType, useModelTest } from "./hooks"
 import { LLMProviderManage } from "./llm-provider-manage"
 import { LocalLLMManage } from "./local-llm-manage"
 import { AIFormValues, aiFormSchema, useAIConfigStore } from "./store"
@@ -112,13 +109,14 @@ export function AIConfigForm() {
                         <AIModelSelect
                           value={field.value ?? ""}
                           onValueChange={field.onChange}
+                          localModels={aiConfig.localModels}
                         />
                       </FormControl>
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() =>
-                          testModel(TestModelType.Embedding, field.value)
+                          testModel(TaskType.Embedding, field.value)
                         }
                       >
                         Test
@@ -145,13 +143,14 @@ export function AIConfigForm() {
                           value={field.value ?? ""}
                           onValueChange={field.onChange}
                           onlyLocal={false}
+                          localModels={aiConfig.localModels}
                         />
                       </FormControl>
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() =>
-                          testModel(TestModelType.Translation, field.value)
+                          testModel(TaskType.Translation, field.value)
                         }
                       >
                         Test
@@ -160,6 +159,40 @@ export function AIConfigForm() {
                   </div>
                   <FormDescription>
                     Select your preferred model for translation tasks
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="codingModel"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex justify-between items-center">
+                    <FormLabel className="w-1/3">Coding Model</FormLabel>
+                    <div className="w-2/3 flex space-x-2">
+                      <FormControl className="flex-grow">
+                        <AIModelSelect
+                          value={field.value ?? ""}
+                          onValueChange={field.onChange}
+                          onlyLocal={false}
+                          localModels={aiConfig.localModels}
+                        />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          testModel(TaskType.Coding, field.value)
+                        }
+                      >
+                        Test
+                      </Button>
+                    </div>
+                  </div>
+                  <FormDescription>
+                    Select your preferred model for coding tasks
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
