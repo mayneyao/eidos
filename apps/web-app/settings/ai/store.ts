@@ -20,6 +20,10 @@ export const aiFormSchema = z.object({
   llmProviders: z.array(llmProviderSchema).default([]),
   // runtime
   autoLoadEmbeddingModel: z.boolean().default(false),
+  // task model
+  embeddingModel: z.string().optional(),
+  translationModel: z.string().optional(),
+  codingModel: z.string().optional(),
 })
 
 export type AIFormValues = z.infer<typeof aiFormSchema>

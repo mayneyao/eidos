@@ -175,16 +175,6 @@ export default function GridView(props: IGridProps) {
     return () => worker.removeEventListener("message", subscribeHighlightRow)
   }, [getIndexByRowId, showColumns, tableName])
 
-  // handle undo redo
-  useKeyPress(["ctrl.z", "meta.z"], (e) => {
-    e.preventDefault()
-    if (e.shiftKey) {
-      redo()
-    } else {
-      undo()
-    }
-  })
-
   useEffect(() => {
     if (!selection.current) {
       closeAItools()
@@ -224,11 +214,6 @@ export default function GridView(props: IGridProps) {
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
   }, [setCurrentTableSchema, tableSchema])
-
-  useKeyPress(["ctrl.f", "meta.f"], (e) => {
-    e.preventDefault()
-    setShowSearch(!showSearch)
-  })
 
   useEffect(() => {
     clearSelection()
@@ -289,17 +274,31 @@ export default function GridView(props: IGridProps) {
     }
   }, [aiHighlightRegions])
 
+  useKeyPress(["ctrl.f", "meta.f"], (e) => {
+    e.preventDefault()
+    setShowSearch(!showSearch)
+  })
+
+  useKeyPress("alt.i", (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsAItoolsOpen((prev) => !prev)
+  })
+
+  // handle undo redo
+  useKeyPress(["ctrl.z", "meta.z"], (e) => {
+    e.preventDefault()
+    if (e.shiftKey) {
+      redo()
+    } else {
+      undo()
+    }
+  })
+
   return (
     <div
       className={cn("h-full w-full p-2 pt-0", props.className)}
       ref={containerRef}
-      onKeyDownCapture={(e) => {
-        if (e.altKey && e.key === "i") {
-          e.preventDefault()
-          e.stopPropagation()
-          setIsAItoolsOpen(!isAItoolsOpen)
-        }
-      }}
     >
       <div
         className={cn(

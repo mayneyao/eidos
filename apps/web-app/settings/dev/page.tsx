@@ -1,5 +1,8 @@
 import { useCallback, useState } from "react"
 
+import { getHnswIndex } from "@/lib/ai/vec_search"
+import { getSqliteProxy } from "@/lib/sqlite/channel"
+import { useHnsw } from "@/hooks/use-hnsw"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -11,17 +14,19 @@ import {
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
-import { getHnswIndex } from "@/lib/ai/vec_search"
-import { getSqliteProxy } from "@/lib/sqlite/channel"
 
 import { useAIConfigStore } from "../ai/store"
-import { saveTransformerCache } from "./helper"
+import { saveTransformerCache, useEmbedSpace } from "./helper"
 import { SpaceSelect } from "./space-select"
+
+// Assuming this function is added in helper.ts
 
 export function DevtoolsPage() {
   const { aiConfig, setAiConfig } = useAIConfigStore()
   const { toast } = useToast()
   const [space, setSpace] = useState<string>("")
+  const [embeddingProgress, setEmbeddingProgress] = useState(0)
+  const { embedSpace } = useEmbedSpace()
   const clearAllEmbeddings = useCallback(async () => {
     if (!space) {
       throw new Error("Please select a space")
@@ -58,6 +63,15 @@ export function DevtoolsPage() {
       localModels: [],
     })
   }
+
+  const handleEmbedSpace = useCallback(async () => {
+    if (!space) {
+      throw new Error("Please select a space")
+    }
+    await embedSpace(space, (progress) => setEmbeddingProgress(progress))
+    setEmbeddingProgress(0) // Reset progress
+  }, [space])
+
   return (
     <div className="space-y-6">
       <div>
@@ -123,6 +137,32 @@ export function DevtoolsPage() {
               onClick={handleAction(clearAllEmbeddings)}
             >
               Clear
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Embed Space</CardTitle>
+            <CardDescription>
+              Generate embeddings for all documents in the selected space
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SpaceSelect onSelect={setSpace} />
+            {embeddingProgress > 0 && (
+              <div className="mt-2">
+                Progress: {embeddingProgress.toFixed(2)}%
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="border-t px-6 py-4">
+            <Button
+              className="xs:w-full"
+              onClick={handleAction(handleEmbedSpace)}
+              disabled={!space || embeddingProgress > 0}
+            >
+              Generate Embeddings
             </Button>
           </CardFooter>
         </Card>
