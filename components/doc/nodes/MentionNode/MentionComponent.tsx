@@ -16,7 +16,7 @@ import { NodeIconEditor } from "@/apps/web-app/[database]/[node]/node-icon"
 
 import { InnerEditor } from "../../editor"
 
-export const MentionComponent = (props: { id: string; title?: string }) => {
+export const MentionComponent = (props: { id: string; title?: string; disablePreview?: boolean }) => {
   const [node, setNode] = useState<ITreeNode | null>(null)
   const { space } = useCurrentPathInfo()
   // TODO: pass from props
@@ -45,7 +45,7 @@ export const MentionComponent = (props: { id: string; title?: string }) => {
 
   return (
     <TooltipProvider>
-      <Tooltip delayDuration={100}>
+      <Tooltip delayDuration={100} {...(props.disablePreview && { open: false })}>
         <TooltipTrigger>
           <span
             className={cn(
@@ -78,21 +78,23 @@ export const MentionComponent = (props: { id: string; title?: string }) => {
             </span>
           </span>
         </TooltipTrigger>
-        <TooltipContent
-          side="bottom"
-          align="start"
-          className=" max-h-[500px]  min-w-[300px] max-w-[450px] overflow-y-auto p-4"
-        >
-          {node && (node?.type === "doc" || node?.type === "day") && (
-            <InnerEditor
-              isEditable={false}
-              docId={node.id}
-              disableSelectionPlugin
-              disableSafeBottomPaddingPlugin
-              className={"prose w-full max-w-full dark:prose-invert"}
-            />
-          )}
-        </TooltipContent>
+        {!props.disablePreview && (
+          <TooltipContent
+            side="bottom"
+            align="start"
+            className=" max-h-[500px]  min-w-[300px] max-w-[450px] overflow-y-auto p-4"
+          >
+            {node && (node?.type === "doc" || node?.type === "day") && (
+              <InnerEditor
+                isEditable={false}
+                docId={node.id}
+                disableSelectionPlugin
+                disableSafeBottomPaddingPlugin
+                className={"prose w-full max-w-full dark:prose-invert"}
+              />
+            )}
+          </TooltipContent>
+        )}
       </Tooltip>
     </TooltipProvider>
   )

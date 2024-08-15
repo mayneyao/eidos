@@ -8,7 +8,6 @@ import { ChevronRightIcon, PauseIcon, RefreshCcwIcon } from "lucide-react"
 
 import { uuidv7 } from "@/lib/utils"
 import { useAiConfig } from "@/hooks/use-ai-config"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -76,7 +75,8 @@ export function AITools({
   const [open, setOpen] = useState(true)
   const [actionOpen, setActionOpen] = useState(false)
   const [aiResult, setAiResult] = useState<string>("")
-  const { getConfigByModel, findFirstAvailableModel } = useAiConfig()
+  const { getConfigByModel, findFirstAvailableModel, findAvailableModel } =
+    useAiConfig()
   const { messages, setMessages, reload, isLoading, stop } = useChat({
     onFinish(message) {
       setAiResult(message.content)
@@ -313,7 +313,7 @@ be between <content-begin> and <content-end>. you just output the transformed co
             }}
           />
           <ScrollArea>
-            <CommandList>
+            <CommandList className="max-h-[20rem]">
               <CommandEmpty>No Prompt found.</CommandEmpty>
               <CommandGroup heading="Built-in Prompts" ref={commandGroupRef}>
                 {builtInPrompts.map((prompt) => {
@@ -355,10 +355,9 @@ be between <content-begin> and <content-end>. you just output the transformed co
                                     `{{${key}}}`,
                                     item
                                   )
-                                  console.log(renderedPrompt)
                                   runAction(
                                     renderedPrompt,
-                                    findFirstAvailableModel()
+                                    findAvailableModel(prompt.type)
                                   )
                                 }}
                               >

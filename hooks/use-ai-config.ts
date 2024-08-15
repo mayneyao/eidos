@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react"
 
 import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
+import { TaskType } from "@/apps/web-app/settings/ai/hooks"
 
 export const useAiConfig = () => {
   const { aiConfig } = useAIConfigStore()
@@ -38,9 +39,21 @@ export const useAiConfig = () => {
     return aiConfig.llmProviders.length > 0
   }, [aiConfig])
 
+  const findAvailableModel = useCallback((task: TaskType) => {
+    switch (task) {
+      case TaskType.Translation:
+        return aiConfig.translationModel || findFirstAvailableModel()
+      case TaskType.Coding:
+        return aiConfig.codingModel || findFirstAvailableModel()
+      default:
+        return findFirstAvailableModel()
+    }
+  }, [aiConfig])
+
   return {
     getConfigByModel,
     hasAvailableModels,
     findFirstAvailableModel,
+    findAvailableModel
   }
 }

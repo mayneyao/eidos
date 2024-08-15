@@ -1,6 +1,4 @@
-import { useState } from "react"
 import {
-  BookOpenIcon,
   CogIcon,
   CommandIcon,
   Github,
@@ -9,21 +7,15 @@ import {
   MailIcon,
   MoreHorizontal,
   PackageIcon,
-  QrCodeIcon,
   ScanTextIcon,
-  Trash2Icon,
+  Trash2Icon
 } from "lucide-react"
+import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
-import { DOMAINS } from "@/lib/const"
-import { EIDOS_VERSION } from "@/lib/log"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useHnsw } from "@/hooks/use-hnsw"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { useVCardEmail } from "@/hooks/use-vcard-email"
+import { NodeUpdateTime } from "@/apps/web-app/[database]/[node]/node-update-time"
+import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
+import { DiscordIcon } from "@/components/icons/discord"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -46,9 +38,16 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DiscordIcon } from "@/components/icons/discord"
-import { NodeUpdateTime } from "@/apps/web-app/[database]/[node]/node-update-time"
-import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useEmbedding } from "@/hooks/use-embedding"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { useVCardEmail } from "@/hooks/use-vcard-email"
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
+import { DOMAINS } from "@/lib/const"
+import { EIDOS_VERSION } from "@/lib/log"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"
@@ -60,6 +59,7 @@ import { VCardQrCode } from "../vcard-qr-code"
 export function NavDropdownMenu() {
   const router = useNavigate()
   const [open, setOpen] = useState(false)
+  const { hasEmbeddingModel, embeddingTexts } = useEmbedding()
 
   const { deleteNode, toggleNodeFullWidth, toggleNodeLock } = useSqlite()
   const { isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
@@ -101,7 +101,7 @@ export function NavDropdownMenu() {
         id: node.id,
         type: "doc",
         model: "bge-m3",
-        provider: new BGEM3(),
+        provider: new BGEM3(embeddingTexts),
       })
       toast({
         title: "Embedding Created",
@@ -243,7 +243,7 @@ export function NavDropdownMenu() {
                       {experiment.enableRAG && (
                         <DropdownMenuItem
                           onClick={handleCreateDocEmbedding}
-                          disabled={!isEmbeddingModeLoaded}
+                          disabled={!hasEmbeddingModel}
                         >
                           <div className="flex w-full items-center justify-between pr-1">
                             <div className="flex items-center">

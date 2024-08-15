@@ -233,7 +233,7 @@ export default function Chat() {
                 htmlFor="ai-chat-use-space-data"
                 className=" text-sm opacity-80"
               >
-                use space data
+                talk to space data
               </Label>
             </div>
           )}

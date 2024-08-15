@@ -1,4 +1,4 @@
-import { AreaChart, ArrowBigLeftIcon, PauseIcon, Play } from "lucide-react"
+import { AreaChart, PauseIcon, Play } from "lucide-react"
 import Prism from "prismjs"
 
 import { Button } from "@/components/ui/button"
@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import "prismjs/components/prism-sql"
 import "prismjs/themes/prism-tomorrow.css"
 import { useEffect, useRef } from "react"
-import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import {
   DEFAULT_MARKDOWN_RENDERERS,
   Markdown,
@@ -145,11 +144,11 @@ export const AIMessage = ({
     >
       {message && <Markdown markdown={message} renderers={renderers} />}
       {hasRef && (
-        <div className="mb-8">
-          <div className=" m-2 h-[1px] border border-purple-300" />
-          <div className="flex flex-col">
+        <div className="mb-4">
+          <div className="m-1 border-b border-purple-300" />
+          <div className="flex flex-col items-start">
             {prevMessage?.references.map((source: string) => (
-              <MentionComponent id={source} key={source} />
+              <MentionComponent id={source} key={source} disablePreview />
             ))}
           </div>
         </div>

@@ -22,6 +22,7 @@ import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { embeddingTexts } from "@/lib/embedding/worker"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useEmbedding } from "@/hooks/use-embedding"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { useToast } from "@/components/ui/use-toast"
 import { MentionNode } from "@/components/doc/nodes/MentionNode/MentionNode"
@@ -98,6 +99,8 @@ export const AIInputEditor = ({
     ],
   }
 
+  const { hasEmbeddingModel, embeddingTexts } = useEmbedding()
+
   const { queryEmbedding } = useHnsw()
   const dataPluginRef = useRef<{
     getData: () => string
@@ -112,16 +115,16 @@ export const AIInputEditor = ({
 
   const { toast } = useToast()
   const { aiConfig } = useAIConfigStore()
-  const { isEmbeddingModeLoaded } = useAppRuntimeStore()
-  const [tryToLoadEmbeddingModel, setTryToLoadEmbeddingModel] =
-    React.useState(false)
-  useEffect(() => {
-    isEmbeddingModeLoaded &&
-      tryToLoadEmbeddingModel &&
-      toast({
-        title: "Embedding Mode is loaded.",
-      })
-  }, [isEmbeddingModeLoaded, toast, tryToLoadEmbeddingModel])
+  // const { isEmbeddingModeLoaded } = useAppRuntimeStore()
+  // const [tryToLoadEmbeddingModel, setTryToLoadEmbeddingModel] =
+  //   React.useState(false)
+  // useEffect(() => {
+  //   isEmbeddingModeLoaded &&
+  //     tryToLoadEmbeddingModel &&
+  //     toast({
+  //       title: "Embedding Mode is loaded.",
+  //     })
+  // }, [isEmbeddingModeLoaded, toast, tryToLoadEmbeddingModel])
 
   const handleEnterPress = async (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter") {
@@ -137,26 +140,26 @@ export const AIInputEditor = ({
       }
       const markdown = dataPluginRef.current?.getData()
       if (markdown) {
-        if (enableRAG) {
-          if (!isEmbeddingModeLoaded) {
-            toast({
-              title: "Embedding Mode is not loaded yet. this may take a while.",
-            })
-            if (!aiConfig.autoLoadEmbeddingModel) {
-              embeddingTexts(["hi"])
-            }
-            setTryToLoadEmbeddingModel(true)
-            return
-          }
+        if (enableRAG && hasEmbeddingModel) {
+          // if (!isEmbeddingModeLoaded) {
+          //   toast({
+          //     title: "Embedding Mode is not loaded yet. this may take a while.",
+          //   })
+          //   if (!aiConfig.autoLoadEmbeddingModel) {
+          //     embeddingTexts(["hi"])
+          //   }
+          //   setTryToLoadEmbeddingModel(true)
+          //   return
+          // }
           const res = await queryEmbedding({
             query: markdown,
             model: "bge-m3",
-            provider: new BGEM3(),
+            provider: new BGEM3(embeddingTexts),
           })
           res?.forEach((embedding) => {
             appendedEmbeddingMap.set(embedding.id, embedding)
           })
-          setContextEmbeddings?.([...appendedEmbeddingMap.values()])
+          setContextEmbeddings?.(res ?? [])
           appendHiddenMessage({
             id: crypto.randomUUID(),
             role: "user",

@@ -645,6 +645,14 @@ export class DataSpace {
     await this.doc.del(docId)
   }
 
+  public async listAllDocIds() {
+    const res = await this.doc.list({
+    }, {
+      fields: ["id"]
+    })
+    return res.map((doc) => doc.id)
+  }
+
   public async fullTextSearch(query: string) {
     return this.doc.search(query)
   }
