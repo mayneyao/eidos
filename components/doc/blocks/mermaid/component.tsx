@@ -34,9 +34,7 @@ export interface MermaidProps {
   text: string
   nodeKey: NodeKey
 }
-mermaid.initialize({
-  theme: "default",
-})
+
 export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
   const [mermaidText, setMermaidText] = useState<string>(text)
   const [svg, setSvg] = useState<string>("")
@@ -45,26 +43,39 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
   const { theme } = useTheme()
   const mermaidRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
+  const [isMermaidInitialized, setIsMermaidInitialized] = useState(false)
 
   useEffect(() => {
-    setMermaidText(text)
-    mermaid.initialize({
-      theme: theme === "dark" ? "dark" : "default",
-    })
-    renderMermaid()
-  }, [text, theme])
+    const initializeMermaid = () => {
+      try {
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: theme === "dark" ? "dark" : "default",
+        })
+      } catch (error) {
+        // Mermaid is already initialized, ignore the error
+      }
+      setIsMermaidInitialized(true)
+    }
 
-  const [editor] = useLexicalComposerContext()
+    initializeMermaid()
+  }, [theme])
+
   const toggleMode = () => {
     setMode(mode === "preview" ? "edit" : "preview")
   }
   useEffect(() => {
     mermaid.contentLoaded()
   }, [])
+  const [editor] = useLexicalComposerContext()
 
   const renderMermaid = useCallback(async () => {
+    if (!isMermaidInitialized) return
+
     try {
-      const mermaidId = `mermaid-${nodeKey}`
+      const mermaidId = `mermaid-${nodeKey}-${Math.random()
+        .toString(36)
+        .substr(2, 9)}`
       const isValid = await mermaid.parse(mermaidText)
       if (isValid) {
         editor.update(() => {
@@ -84,11 +95,13 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
       setSvg("")
       setError("Invalid Mermaid text")
     }
-  }, [mermaidText, text])
+  }, [mermaidText, text, nodeKey, editor, isMermaidInitialized])
 
   useEffect(() => {
-    renderMermaid()
-  }, [mermaidText])
+    if (isMermaidInitialized) {
+      renderMermaid()
+    }
+  }, [renderMermaid, isMermaidInitialized])
 
   const { toast } = useToast()
 
