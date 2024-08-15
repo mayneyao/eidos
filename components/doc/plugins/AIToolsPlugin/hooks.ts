@@ -39,9 +39,9 @@ export const useBuiltInPrompts = () => {
 4. Preserve any formatting or special characters present in the original text.`,
       parameters: [
         {
-          name: 'Target languages',
+          name: 'Target language',
           key: 'languages',
-          value: ['English', 'French', 'Spanish', 'German', 'Italian', 'Portuguese', 'Russian', 'Japanese', 'Chinese', 'Korean'],
+          value: ['English', 'Chinese', 'Spanish', 'Arabic', 'Hindi', 'French', 'Russian', 'Portuguese', 'German', 'Japanese', 'Korean'],
           type: 'select',
           description: 'The target language to translate to.',
           required: true,
