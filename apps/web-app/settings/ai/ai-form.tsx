@@ -1,7 +1,10 @@
 import { useEffect } from "react"
+import { createOpenAI } from "@ai-sdk/openai"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { embedMany } from "ai"
 import { useForm } from "react-hook-form"
 
+import { useAiConfig } from "@/hooks/use-ai-config"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -10,8 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/use-toast"
+import { AIModelSelect } from "@/components/ai-chat/ai-chat-model-select"
 import {
   Form,
   FormControl,
@@ -22,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/react-hook-form/form"
 
+import { TestModelType, useModelTest } from "./hooks"
 import { LLMProviderManage } from "./llm-provider-manage"
 import { LocalLLMManage } from "./local-llm-manage"
 import { AIFormValues, aiFormSchema, useAIConfigStore } from "./store"
@@ -33,6 +37,7 @@ export function AIConfigForm() {
     defaultValues: aiConfig,
   })
   const { reset } = form
+  const { testModel } = useModelTest()
 
   useEffect(() => {
     reset(aiConfig)
@@ -89,6 +94,81 @@ export function AIConfigForm() {
         </Card>
         <Card>
           <CardHeader>
+            <CardTitle>Model Preferences</CardTitle>
+            <CardDescription>
+              Select preferred models for different tasks
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <FormField
+              control={form.control}
+              name="embeddingModel"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex justify-between items-center">
+                    <FormLabel className="w-1/3">Embedding Model</FormLabel>
+                    <div className="w-2/3 flex space-x-2">
+                      <FormControl className="flex-grow">
+                        <AIModelSelect
+                          value={field.value ?? ""}
+                          onValueChange={field.onChange}
+                        />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          testModel(TestModelType.Embedding, field.value)
+                        }
+                      >
+                        Test
+                      </Button>
+                    </div>
+                  </div>
+                  <FormDescription>
+                    Select your preferred model for embedding tasks
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="translationModel"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex justify-between items-center">
+                    <FormLabel className="w-1/3">Translation Model</FormLabel>
+                    <div className="w-2/3 flex space-x-2">
+                      <FormControl className="flex-grow">
+                        <AIModelSelect
+                          value={field.value ?? ""}
+                          onValueChange={field.onChange}
+                          onlyLocal={false}
+                        />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          testModel(TestModelType.Translation, field.value)
+                        }
+                      >
+                        Test
+                      </Button>
+                    </div>
+                  </div>
+                  <FormDescription>
+                    Select your preferred model for translation tasks
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+        </Card>
+        {/* <Card>
+          <CardHeader>
             <CardTitle>Runtime</CardTitle>
             <CardDescription></CardDescription>
           </CardHeader>
@@ -116,7 +196,7 @@ export function AIConfigForm() {
               )}
             />
           </CardContent>
-        </Card>
+        </Card> */}
         <Button type="submit">Update</Button>
       </form>
     </Form>

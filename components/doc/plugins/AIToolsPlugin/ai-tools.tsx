@@ -1,14 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from "react"
 import { $convertFromMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useClickAway, useKeyPress } from "ahooks"
 import { useChat } from "ai/react"
 import { $createParagraphNode, $getRoot, RangeSelection } from "lexical"
 import { ChevronRightIcon, PauseIcon, RefreshCcwIcon } from "lucide-react"
+import { useCallback, useMemo, useRef, useState } from "react"
 
-import { uuidv7 } from "@/lib/utils"
-import { useAiConfig } from "@/hooks/use-ai-config"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useUserPrompts } from "@/components/ai-chat/hooks"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -28,7 +26,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "@/components/ui/use-toast"
-import { useUserPrompts } from "@/components/ai-chat/hooks"
+import { useAiConfig } from "@/hooks/use-ai-config"
+import { uuidv7 } from "@/lib/utils"
 
 import { useAllDocBlocks } from "../../hooks/use-all-doc-blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
@@ -76,7 +75,8 @@ export function AITools({
   const [open, setOpen] = useState(true)
   const [actionOpen, setActionOpen] = useState(false)
   const [aiResult, setAiResult] = useState<string>("")
-  const { getConfigByModel, findFirstAvailableModel } = useAiConfig()
+  const { getConfigByModel, findFirstAvailableModel, findAvailableModel } =
+    useAiConfig()
   const { messages, setMessages, reload, isLoading, stop } = useChat({
     onFinish(message) {
       setAiResult(message.content)
@@ -355,10 +355,13 @@ be between <content-begin> and <content-end>. you just output the transformed co
                                     `{{${key}}}`,
                                     item
                                   )
-                                  console.log(renderedPrompt)
+                                  console.log(
+                                    renderedPrompt,
+                                    findAvailableModel(prompt.id)
+                                  )
                                   runAction(
                                     renderedPrompt,
-                                    findFirstAvailableModel()
+                                    findAvailableModel(prompt.id)
                                   )
                                 }}
                               >

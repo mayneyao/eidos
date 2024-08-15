@@ -38,9 +38,17 @@ export const useAiConfig = () => {
     return aiConfig.llmProviders.length > 0
   }, [aiConfig])
 
+  const findAvailableModel = useCallback((task: string) => {
+    if (task === "translate") {
+      return aiConfig.translationModel || findFirstAvailableModel()
+    }
+    return findFirstAvailableModel()
+  }, [aiConfig])
+
   return {
     getConfigByModel,
     hasAvailableModels,
     findFirstAvailableModel,
+    findAvailableModel
   }
 }
