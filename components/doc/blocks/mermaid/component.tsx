@@ -5,7 +5,6 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin"
-import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 import html2canvas from "html2canvas"
 import {
   $createParagraphNode,
@@ -162,6 +161,10 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
     e.stopPropagation()
   }, [])
 
+  const handleEditorKeyDown = useCallback((e: React.KeyboardEvent) => {
+    e.stopPropagation()
+  }, [])
+
   const ref = useRef<HTMLDivElement>(null)
 
   return (
@@ -197,11 +200,14 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
         </DropdownMenu>
       </div>
       {mode === "edit" && (
-        <div onClick={handleEditorClick}>
+        <div onClick={handleEditorClick} onKeyDown={handleEditorKeyDown}>
           <LexicalComposer initialConfig={initialConfig}>
             <PlainTextPlugin
               contentEditable={
-                <ContentEditable className="prose dark:prose-invert w-full p-2 h-full border-b outline-none" />
+                <ContentEditable
+                  className="prose dark:prose-invert w-full p-2 h-full border-b outline-none"
+                  autoFocus={false}
+                />
               }
               placeholder={
                 <div className="text-muted">
@@ -212,7 +218,6 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
             />
             <HistoryPlugin />
             <OnChangePlugin onChange={onChange} />
-            <TabIndentationPlugin />
           </LexicalComposer>
         </div>
       )}
