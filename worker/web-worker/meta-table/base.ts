@@ -16,7 +16,7 @@ export interface BaseTable<T> extends MetaTable<T> {
 export class BaseTableImpl<T = any> {
   name = ""
   JSONFields: string[] = []
-  constructor(protected dataSpace: DataSpace) {}
+  constructor(protected dataSpace: DataSpace) { }
 
   initTable(createTableSql: string) {
     this.dataSpace.exec(createTableSql)
@@ -25,7 +25,7 @@ export class BaseTableImpl<T = any> {
   public toJson = (data: T) => {
     Object.entries(data as any).forEach(([key, value]) => {
       if (this.JSONFields.includes(key) && value) {
-        ;(data as any)[key] = JSON.parse(value as string)
+        ; (data as any)[key] = JSON.parse(value as string)
       }
     })
     return data
@@ -108,9 +108,9 @@ export class BaseTableImpl<T = any> {
     }
   ): Promise<T[]> {
     let res: T[] = []
-    let sql = `SELECT * FROM ${this.name}`
+    let sql = `SELECT ${opts?.fields?.join(', ') || '*'} FROM ${this.name}`
     let setV: any[] = []
-    if (query) {
+    if (query && Object.keys(query).length > 0) {
       const kv = Object.entries(query)
       const setK = kv
         .map(([k, v]) => {
@@ -134,10 +134,6 @@ export class BaseTableImpl<T = any> {
     }
     sql += ";"
     res = await this.dataSpace.exec2(sql, setV)
-    if (!query) {
-      res = await this.dataSpace.exec2(`SELECT * FROM ${this.name};`)
-    } else {
-    }
     return res.map((item) => {
       return this.toJson(item)
     })

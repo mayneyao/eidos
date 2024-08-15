@@ -159,7 +159,7 @@ export const AIInputEditor = ({
           res?.forEach((embedding) => {
             appendedEmbeddingMap.set(embedding.id, embedding)
           })
-          setContextEmbeddings?.([...appendedEmbeddingMap.values()])
+          setContextEmbeddings?.(res ?? [])
           appendHiddenMessage({
             id: crypto.randomUUID(),
             role: "user",

@@ -1,3 +1,8 @@
+import { useEmbedding } from "@/hooks/use-embedding"
+import { EmbeddingManager, useHnsw } from "@/hooks/use-hnsw"
+import { LLMBaseVendor } from "@/lib/ai/llm_vendors/base"
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
+import { getSqliteProxy } from "@/lib/sqlite/channel"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 
 const needRemovedPaths = ["resolve", "main"]
@@ -23,4 +28,26 @@ export const saveTransformerCache = async () => {
       }
     }
   }
+}
+
+
+export const useEmbedSpace = () => {
+  const { embeddingTexts } = useEmbedding()
+  const embedSpace = async (space: string, onProgress: (progress: number) => void) => {
+    // get all documents in the space
+    const sqlWorker = getSqliteProxy(space, "devtools")
+    const em = new EmbeddingManager(sqlWorker, space)
+    const docIds = await sqlWorker.listAllDocIds()
+    console.log("docIds", docIds)
+    const total = docIds.length
+    let progress = 0
+    for (const docId of docIds) {
+      console.log("docId", docId)
+      await em.createEmbedding(docId, "doc", "bge-m3", new BGEM3(embeddingTexts))
+      console.log("embeded", docId)
+      progress++
+      onProgress(progress / total * 100)
+    }
+  }
+  return { embedSpace }
 }
