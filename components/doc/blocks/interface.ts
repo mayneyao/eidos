@@ -1,4 +1,4 @@
-import { ElementTransformer, TextMatchTransformer } from "@lexical/markdown"
+import { Transformer } from "@lexical/markdown"
 import { LexicalCommand } from "lexical"
 import { FunctionComponent } from "react"
 
@@ -9,7 +9,7 @@ export interface DocBlock {
     plugin: FunctionComponent
     onSelect: (editor: any) => void
     keywords: string[]
-    transform: ElementTransformer | TextMatchTransformer
+    transform?: Transformer
     command: {
         create: LexicalCommand<any>
     }

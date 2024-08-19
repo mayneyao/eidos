@@ -1,7 +1,7 @@
 import { LexicalEditor } from "lexical";
+import { DocBlock } from "../interface";
 import { $createMermaidNode, MERMAID_NODE_TRANSFORMER, MermaidNode } from "./node";
 import { INSERT_MERMAID_COMMAND, MermaidPlugin } from "./plugin";
-import { ExtBlock } from "../../hooks/use-ext-blocks";
 
 const text = `graph TD;
     A-->B;
@@ -22,4 +22,4 @@ export default {
     createNode: $createMermaidNode,
     transform: MERMAID_NODE_TRANSFORMER,
     markdownLanguage: "mermaid",
-} as ExtBlock;
+} as DocBlock;

@@ -1,3 +1,4 @@
+import { Transformer } from "@lexical/markdown"
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin"
 import LexicalClickableLinkPlugin from "@lexical/react/LexicalClickableLinkPlugin"
 import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin"
@@ -32,8 +33,8 @@ export const AllPlugins = () => {
   const __allTransformers = [
     ...allTransformers,
     ...extBlocks.map((block) => block.transform),
-    ...BuiltInBlocks.map((block) => block.transform),
-  ]
+    ...BuiltInBlocks.map((block) => block.transform).filter(Boolean),
+  ] as Transformer[]
   return (
     <>
       <HorizontalRulePlugin />

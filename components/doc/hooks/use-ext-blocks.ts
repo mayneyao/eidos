@@ -1,25 +1,11 @@
-import { FunctionComponent, useEffect, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
-import { ElementTransformer, TextMatchTransformer } from "@lexical/markdown"
-import { LexicalCommand } from "lexical"
+import { useEffect, useState } from "react"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { DocBlock } from "../blocks/interface"
 
-export interface ExtBlock {
-  name: string
-  icon: string
-  node: any
-  plugin: FunctionComponent
-  onSelect: (editor: any) => void
-  keywords: string[]
-  transform: ElementTransformer | TextMatchTransformer
-  command: {
-    create: LexicalCommand<any>
-  }
-  createNode: (args: any) => any
-  markdownLanguage?: string
-}
+export type ExtBlock = DocBlock
 export const useExtBlocks = () => {
   const [extBlocks, setExtBlocks] = useState<ExtBlock[]>([])
 
