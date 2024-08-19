@@ -25,6 +25,7 @@ import { getDragFileUrl } from "@/components/file-manager/helper"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { INSERT_AUDIO_FILE_COMMAND } from "../../blocks/audio/plugin"
 import { INSERT_VIDEO_FILE_COMMAND } from "../../blocks/video/plugin"
+import { INSERT_FILE_COMMAND } from "../../blocks/file/plugin"
 
 const ACCEPTABLE_IMAGE_TYPES = [
   "image/",
@@ -89,6 +90,10 @@ export default function DragDropPaste(): null {
                   editor.dispatchCommand(INSERT_VIDEO_FILE_COMMAND, file.url)
                   break
                 default:
+                  editor.dispatchCommand(INSERT_FILE_COMMAND, {
+                    src: file.url,
+                    fileName: file.url.split("/").pop() ?? "",
+                  })
                   break
               }
               event.preventDefault()

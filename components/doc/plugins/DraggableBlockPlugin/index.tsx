@@ -21,6 +21,7 @@ import {
   DRAGOVER_COMMAND,
   DROP_COMMAND,
   LexicalEditor,
+  LexicalNode,
   NodeKey,
 } from "lexical"
 import { Trash2Icon } from "lucide-react"
@@ -36,6 +37,7 @@ import {
 import "./index.css"
 import { useAppStore } from "@/lib/store/app-store"
 
+import { FileMenu } from "../../blocks/file/menu"
 import { isHTMLElement } from "../../utils/guard"
 import { Point } from "../../utils/point"
 import { Rect } from "../../utils/rect"
@@ -403,16 +405,16 @@ function useDraggableBlockMenu(
     setCurrentNodeKey(nodeKey)
   }
 
-  // const [currentNode, setCurrentNode] = useState<LexicalNode | null>(null)
+  const [currentNode, setCurrentNode] = useState<LexicalNode | null>(null)
 
-  // useEffect(() => {
-  //   editor.update(() => {
-  //     if (currentNodeKey) {
-  //       const node = $getNodeByKey(currentNodeKey)
-  //       setCurrentNode(node)
-  //     }
-  //   })
-  // }, [currentNodeKey, editor])
+  useEffect(() => {
+    editor.update(() => {
+      if (currentNodeKey) {
+        const node = $getNodeByKey(currentNodeKey)
+        setCurrentNode(node)
+      }
+    })
+  }, [currentNodeKey, editor])
 
   return createPortal(
     <>
@@ -454,6 +456,9 @@ function useDraggableBlockMenu(
             {/* {currentNode?.__type == "audio" && (
               <AudioMenu nodeKey={currentNodeKey} editor={editor} />
             )} */}
+            {currentNode?.__type == "file" && (
+              <FileMenu nodeKey={currentNodeKey} editor={editor} />
+            )}
             <TurnIntoMenu editor={editor} currentNodeKey={currentNodeKey} />
           </DropdownMenuContent>
         </DropdownMenu>
