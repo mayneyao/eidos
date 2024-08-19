@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { $convertFromMarkdownString } from "@lexical/markdown"
+import { $convertFromMarkdownString, Transformer } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { mergeRegister } from "@lexical/utils"
 import {
@@ -22,7 +22,7 @@ export const AIEditorPlugin = (props: any) => {
   const extBlocks = useExtBlocks()
   const __allTransformers = useMemo(() => {
     return [...extBlocks.map((block) => block.transform), ...allTransformers]
-  }, [extBlocks])
+  }, [extBlocks]) as Transformer[]
 
   useEffect(() => {
     return mergeRegister(() => {

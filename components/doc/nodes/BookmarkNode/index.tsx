@@ -103,6 +103,7 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
 
   exportJSON() {
     return {
+      key: this.getKey(),
       url: this.__url,
       title: this.__title,
       description: this.__description,
