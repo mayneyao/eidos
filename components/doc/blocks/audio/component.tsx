@@ -10,8 +10,7 @@ import {
 import { FileSelector } from "@/components/file-selector"
 import { Loading } from "@/components/loading"
 
-import { $isAudioNode } from "./AudioNode"
-import { AudioPlayer } from "./AudioPlayer"
+import { $isAudioNode } from "./node"
 
 function AudioPlaceholder(props: { nodeKey: string }) {
   const { nodeKey } = props
@@ -58,5 +57,7 @@ export const AudioComponent = (props: { url: string; nodeKey: NodeKey }) => {
   if (!props.url.length) {
     return <AudioPlaceholder nodeKey={props.nodeKey} />
   }
-  return <AudioPlayer url={props.url} />
+  return (
+    <audio className="w-full" controls preload="none" src={props.url}></audio>
+  )
 }

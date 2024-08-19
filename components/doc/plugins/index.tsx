@@ -19,7 +19,6 @@ import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import { DatabasePlugin } from "./DatabasePlugin"
 import DragDropPaste from "./DragDropPaste"
-import { FilePlugin } from "./FilePlugin"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ImagesPlugin from "./ImagesPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
@@ -55,7 +54,6 @@ export const AllPlugins = () => {
       <ShortcutPlugin />
       <AutoLinkPlugin />
       <ImagesPlugin />
-      <FilePlugin />
       <DragDropPaste />
       <LexicalClickableLinkPlugin />
       <ComponentPickerMenuPlugin />

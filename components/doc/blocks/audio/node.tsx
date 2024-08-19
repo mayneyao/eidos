@@ -10,7 +10,7 @@ import {
   Spread,
 } from "lexical"
 
-import { AudioComponent } from "./AudioComponent"
+import { AudioComponent } from "./component"
 
 export type SerializedAudioNode = Spread<
   {

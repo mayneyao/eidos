@@ -62,7 +62,6 @@ import "./index.css"
 import { BuiltInBlocks } from "../../blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { INSERT_BOOKMARK_COMMAND } from "../BookmarkPlugin"
-import { INSERT_AUDIO_FILE_COMMAND } from "../FilePlugin"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
@@ -313,10 +312,14 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
           }),
       }),
 
-      new ComponentPickerOption("Audio", {
-        icon: IconMap["audio"],
-        keywords: ["audio", "mp3"],
-        onSelect: () => editor.dispatchCommand(INSERT_AUDIO_FILE_COMMAND, ""),
+      ...BuiltInBlocks.map((block) => {
+        const iconName = block.icon
+        const BlockIcon = (icons as any)[iconName]
+        return new ComponentPickerOption(block.name, {
+          icon: <BlockIcon className="h-5 w-5" />,
+          keywords: block.keywords,
+          onSelect: () => block.onSelect(editor),
+        })
       }),
 
       new ComponentPickerOption("Bookmark", {
@@ -358,15 +361,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
           ))
         },
       }),
-      ...BuiltInBlocks.map((block) => {
-        const iconName = block.icon
-        const BlockIcon = (icons as any)[iconName]
-        return new ComponentPickerOption(block.name, {
-          icon: <BlockIcon className="h-5 w-5" />,
-          keywords: block.keywords,
-          onSelect: () => block.onSelect(editor),
-        })
-      }),
+
       // ...["left", "center", "right", "justify"].map(
       //   (alignment) =>
       //     new ComponentPickerOption(`Align ${alignment}`, {
