@@ -10,34 +10,42 @@ import {
   Spread,
 } from "lexical"
 
-import { AudioComponent } from "./AudioComponent"
+import { FileComponent } from "./component"
 
-export type SerializedAudioNode = Spread<
+export type SerializedFileNode = Spread<
   {
     src: string
+    fileName: string
   },
   SerializedLexicalNode
 >
 
-export class AudioNode extends DecoratorNode<ReactNode> {
+export class FileNode extends DecoratorNode<ReactNode> {
   __src: string
+  __fileName: string
 
   static getType(): string {
-    return "audio"
+    return "file"
   }
 
-  static clone(node: AudioNode): AudioNode {
-    return new AudioNode(node.__src, node.__key)
+  static clone(node: FileNode): FileNode {
+    return new FileNode(node.__src, node.__fileName, node.__key)
   }
 
-  constructor(src: string, key?: NodeKey) {
+  constructor(src: string, fileName: string, key?: NodeKey) {
     super(key)
     this.__src = src
+    this.__fileName = fileName
   }
 
   setSrc(src: string): void {
     const writable = this.getWritable()
     writable.__src = src
+  }
+
+  setFileName(fileName: string): void {
+    const writable = this.getWritable()
+    writable.__fileName = fileName
   }
 
   createDOM(): HTMLElement {
@@ -48,15 +56,19 @@ export class AudioNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  static importJSON(data: SerializedAudioNode): AudioNode {
-    const node = $createAudioNode(data.src)
+  static importJSON(data: SerializedFileNode): FileNode {
+    const node = $createFileNode({
+      src: data.src,
+      fileName: data.fileName,
+    })
     return node
   }
 
   exportJSON() {
     return {
       src: this.__src,
-      type: "audio",
+      fileName: this.__fileName,
+      type: "file",
       version: 1,
     }
   }
@@ -70,22 +82,29 @@ export class AudioNode extends DecoratorNode<ReactNode> {
     }
     return (
       <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
-        <AudioComponent url={this.__src} nodeKey={this.__key} />
+        <FileComponent
+          url={this.__src}
+          fileName={this.__fileName}
+          nodeKey={this.__key}
+        />
       </BlockWithAlignableContents>
     )
   }
 
   getTextContent(): string {
-    return this.__src
+    return this.__fileName
   }
 }
 
-export function $createAudioNode(src: string): AudioNode {
-  return new AudioNode(src)
+export function $createFileNode(data: {
+  src: string
+  fileName: string
+}): FileNode {
+  return new FileNode(data.src, data.fileName)
 }
 
-export function $isAudioNode(
+export function $isFileNode(
   node: LexicalNode | null | undefined
-): node is AudioNode {
-  return node instanceof AudioNode
+): node is FileNode {
+  return node instanceof FileNode
 }

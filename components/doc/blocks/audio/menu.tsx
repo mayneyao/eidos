@@ -5,7 +5,7 @@ import { AudioWaveform } from "lucide-react"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { useWebGPUWhisper } from "@/components/ai-chat/whisper/hooks"
 
-import { $isAudioNode } from "./AudioNode"
+import { $isAudioNode } from "./node"
 
 export const AudioMenu = ({
   nodeKey,
