@@ -187,7 +187,6 @@ export function Editor(props: EditorProps) {
             <input
               id="doc-title"
               placeholder="Untitled"
-              autoFocus
               className="h-[50px] max-w-xs grow truncate bg-transparent text-4xl font-bold text-primary outline-none sm:max-w-full"
               value={title}
               title={title}
