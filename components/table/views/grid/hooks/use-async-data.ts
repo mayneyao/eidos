@@ -255,6 +255,9 @@ export function useAsyncData<TRowType>(data: {
   }, [qs, setLoading, sqlite, count])
 
   useEffect(() => {
+    if (isInkServiceMode) {
+      return
+    }
     getViewSortedSqliteRowIds()
   }, [getViewSortedSqliteRowIds])
 
@@ -289,21 +292,52 @@ export function useAsyncData<TRowType>(data: {
     [gridRef, qs, setRows, sqlite, tableId, tableName]
   )
 
+  const loadDataWithOffsetAndLimit = useCallback(
+    async (page: number, _pageSize: number = pageSize) => {
+      if (!sqlite || !tableName || !tableId || !qs) return
+      const startIndex = page * _pageSize
+      _loadingRef.current.push(startIndex)
+
+      let sql = rewriteQueryWithOffsetAndLimit(qs, startIndex, _pageSize)
+      const d = await sqlite?.sql4mainThread2(sql)
+      setRows(tableId, d)
+      const rowIds = d.map((r: any) => r._id)
+      const vr = visiblePagesRef.current
+      const damageList: { cell: [number, number] }[] = []
+      const data = dataRef.current
+      for (const [i, element] of rowIds.entries()) {
+        data[i + startIndex] = element
+        for (let col = vr.x; col <= vr.x + vr.width; col++) {
+          damageList.push({
+            cell: [col, i + startIndex],
+          })
+        }
+      }
+      gridRef.current?.updateCells(damageList)
+    },
+    [gridRef, qs, setRows, sqlite, tableId, tableName, pageSize]
+  )
+
   useEffect(() => {
     if (!sqlite || !tableName || !tableId) return
     const r = visiblePages
     const firstPage = Math.max(0, Math.floor((r.y - pageSize / 2) / pageSize))
     const lastPage = Math.floor((r.y + r.height + pageSize / 2) / pageSize)
     for (const page of range(firstPage, lastPage + 1)) {
-      const startIndex = page * pageSize
-      if (_loadingRef.current.includes(startIndex)) continue
-      const loadRowIds = rowIdsRef.current.slice(
-        page * pageSize,
-        (page + 1) * pageSize
-      )
-      loadData(loadRowIds, startIndex)
+      if (isInkServiceMode) {
+        if (_loadingRef.current.includes(page * pageSize)) continue
+        loadDataWithOffsetAndLimit(page)
+      } else {
+        const startIndex = page * pageSize
+        if (_loadingRef.current.includes(startIndex)) continue
+        const loadRowIds = rowIdsRef.current.slice(
+          page * pageSize,
+          (page + 1) * pageSize
+        )
+        loadData(loadRowIds, startIndex)
+      }
     }
-  }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages])
+  }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages, loadDataWithOffsetAndLimit])
 
   useEffect(() => {
     // when view changes, reset scroll position
