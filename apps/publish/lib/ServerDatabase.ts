@@ -36,11 +36,16 @@ export class ServerDatabase {
         return rows
       }
       if (rowMode === "array") {
-        const { rows } = await this.db.execute({
+        const { rows, columns } = await this.db.execute({
           sql,
           args: bind,
         })
-        return rows
+
+        return rows.map((row: any) => {
+          return columns.map((col: any, index: number) => {
+            return row[index]
+          })
+        })
       }
     }
     return []
