@@ -27,3 +27,40 @@ pnpm build:ink
 ```bash
 npx wrangler pages dev dist --compatibility-flags="nodejs_compat" --local
 ```
+
+## deploy
+
+`pages` now not support `durable_objects`, so we need to deploy a durable object worker first.
+
+create a wrangler.toml for the durable object worker.
+
+```toml
+# this file is used for testing
+name = "data-space-object"
+main = "dist/_DataSpaceObject.js"
+compatibility_date = "2023-05-18"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "DATA_SPACE"
+class_name = "DataSpaceObject"
+
+[[migrations]]
+tag = "v1" # Should be unique for each entry
+new_classes = ["DataSpaceObject"]
+
+[[kv_namespaces]]
+binding = "DOMAIN_DB_INFO"
+id = "your kv namespace id"
+
+
+```
+
+build and deploy the durable object worker.
+
+```bash
+pnpm build:cf-worker-do
+npx wrangler deploy
+```
+
+config the durable object binding in the cloudflare dashboard.

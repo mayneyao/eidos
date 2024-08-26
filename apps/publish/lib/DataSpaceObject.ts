@@ -1,10 +1,12 @@
 import { DataSpace } from "@/worker/web-worker/DataSpace";
-import { DurableObjectState, KVNamespace } from "@cloudflare/workers-types";
+import { DurableObjectNamespace, DurableObjectState, ExportedHandler, KVNamespace, Request } from "@cloudflare/workers-types";
 import { ServerDatabase } from "./ServerDatabase";
 import { IHttpSendData, handleFunctionCall } from "./handleFunctionCall";
 
+
 interface Env {
     DOMAIN_DB_INFO: KVNamespace
+    DATA_SPACE: DurableObjectNamespace
 }
 
 export class DataSpaceObject {
@@ -96,3 +98,13 @@ export class DataSpaceObject {
         return response;
     }
 }
+
+
+export default {
+    async fetch(request, env, ctx): Promise<any> {
+        let id = env.DATA_SPACE.idFromName(new URL(request.url).pathname);
+        let stub = env.DATA_SPACE.get(id);
+        let response = await stub.fetch(request);
+        return response;
+    },
+} satisfies ExportedHandler<Env>;
