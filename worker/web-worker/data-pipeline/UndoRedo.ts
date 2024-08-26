@@ -1,4 +1,4 @@
-import { logger } from "@/lib/log"
+import { logger } from "@/lib/env"
 
 import { DataSpace } from "../DataSpace"
 

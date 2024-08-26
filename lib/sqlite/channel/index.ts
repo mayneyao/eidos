@@ -2,7 +2,7 @@ import { DataSpace, EidosTable } from "@/worker/web-worker/DataSpace"
 import { DataConnection } from "peerjs"
 
 import { MsgType } from "../../const"
-import { isInkServiceMode } from "../../log"
+import { isInkServiceMode } from "../../env"
 import { uuidv7 } from "../../utils"
 import { HttpSqlite } from "./http"
 import { ILocalSendData, LocalSqlite } from "./local"

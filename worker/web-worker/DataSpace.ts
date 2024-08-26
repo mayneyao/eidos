@@ -3,7 +3,7 @@ import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
 import { FieldType } from "@/lib/fields/const"
-import { logger } from "@/lib/log"
+import { logger } from "@/lib/env"
 import { ColumnTableName } from "@/lib/sqlite/const"
 import { buildSql, isReadOnlySql } from "@/lib/sqlite/helper"
 import {

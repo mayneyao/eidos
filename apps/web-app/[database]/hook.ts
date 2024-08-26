@@ -21,7 +21,7 @@ import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv7 } from "@/lib/utils"
 
-import { isInkServiceMode } from "@/lib/log"
+import { isInkServiceMode } from "@/lib/env"
 import { useAIConfigStore } from "../settings/ai/store"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)

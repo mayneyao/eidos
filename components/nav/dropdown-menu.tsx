@@ -46,7 +46,7 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { useVCardEmail } from "@/hooks/use-vcard-email"
 import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { DOMAINS } from "@/lib/const"
-import { EIDOS_VERSION } from "@/lib/log"
+import { EIDOS_VERSION } from "@/lib/env"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { CopyShowHide } from "../copy-show-hide"
