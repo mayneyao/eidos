@@ -39,6 +39,8 @@ interface SqliteState {
   getRowById: (tableId: string, rowId: string) => Record<string, any> | null
   getRowIds: (tableId: string) => string[]
 
+  setView: (tableId: string, viewId: string, view: Partial<IView>) => void
+
   cleanFieldData: (tableId: string, fieldId: string) => void
 
   selectedTable: string
@@ -97,6 +99,22 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
         acc[cur.id] = cur
         return acc
       }, {} as Record<string, IView>)
+      return { dataStore: { ...state.dataStore, tableMap } }
+    })
+  },
+
+  setView: (tableId: string, viewId: string, view: Partial<IView>) => {
+    set((state) => {
+      const { tableMap } = state.dataStore
+      if (!tableMap[tableId]) {
+        tableMap[tableId] = {
+          rowMap: {},
+          fieldMap: {},
+          viewIds: [],
+          viewMap: {},
+        }
+      }
+      tableMap[tableId].viewMap[viewId] = { ...tableMap[tableId].viewMap[viewId], ...view }
       return { dataStore: { ...state.dataStore, tableMap } }
     })
   },
@@ -200,7 +218,7 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
   sqliteProxy: null,
   setSqliteProxy: (sqlWorker) => {
     // for debug
-    ;(window as any).sqlite = sqlWorker
+    ; (window as any).sqlite = sqlWorker
     return set({ sqliteProxy: sqlWorker })
   },
 

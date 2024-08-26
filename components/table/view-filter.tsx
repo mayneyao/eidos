@@ -1,20 +1,17 @@
-import { useWhyDidYouUpdate } from "ahooks"
 import { FilterIcon } from "lucide-react"
 
-import { BinaryOperator, CompareOperator } from "@/lib/fields/const"
-import {
-  transformFilterItems2SqlString,
-  transformSql2FilterItems,
-} from "@/lib/sqlite/sql-filter-parser"
-import { IView } from "@/lib/store/IView"
-import { cn } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useUiColumns } from "@/hooks/use-ui-columns"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useUiColumns } from "@/hooks/use-ui-columns"
+import {
+  transformFilterItems2SqlString
+} from "@/lib/sqlite/sql-filter-parser"
+import { IView } from "@/lib/store/IView"
+import { cn } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { useViewOperation } from "./hooks"
