@@ -64,12 +64,13 @@ export async function handleOpenAI(
   //   ]
   //   console.log("sw", newMsgs)
   // }
+  const isDifyBackend = modelAndProvider.split("@")[1].startsWith("dify")
   let request: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
     model: model ?? "gpt-3.5-turbo-0613",
     stream: true,
     messages: newMsgs,
-    ...(data.paths && { paths: data.paths }),
-    ...(data.space && { space: data.space }),
+    ...(isDifyBackend && data.paths && { paths: data.paths }),
+    ...(isDifyBackend && data.space && { space: data.space }),
   } as any
   if (useFunctions) {
     request = {
