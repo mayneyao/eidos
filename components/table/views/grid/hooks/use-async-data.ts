@@ -1,6 +1,7 @@
 import {
   MutableRefObject,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -30,6 +31,7 @@ import { useViewCount } from "@/components/table/hooks/use-view-count"
 import { useViewLoadingStore } from "@/components/table/hooks/use-view-loading"
 
 import { useDataMutation } from "./use-data-mutation"
+import { TableContext } from "@/components/table/hooks"
 
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
@@ -110,6 +112,7 @@ export function useAsyncData<TRowType>(data: {
       return r
     })
   }, [])
+  const { isReadOnly } = useContext(TableContext)
 
   const getCellContent = useCallback<DataEditorProps["getCellContent"]>(
     (cell) => {
@@ -117,14 +120,20 @@ export function useAsyncData<TRowType>(data: {
       const rowUuid = dataRef.current[row]
       const rowData = rowUuid && getRowDataById(rowUuid)
       if (rowUuid !== undefined && rowData) {
-        return toCell(rowData, col)
+        const cell = toCell(rowData, col)
+        const isFileCell = cell.kind === GridCellKind.Custom && (cell.data as any).kind === "file-cell"
+        return {
+          ...cell,
+          readonly: Boolean(isReadOnly),
+          allowOverlay: isFileCell,
+        } as any
       }
       return {
         kind: GridCellKind.Loading,
         allowOverlay: false,
       }
     },
-    [getRowDataById, toCell]
+    [getRowDataById, toCell, isReadOnly]
   )
 
   const getRowDataByIndex = useCallback(

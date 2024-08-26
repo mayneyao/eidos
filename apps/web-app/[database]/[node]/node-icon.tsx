@@ -3,6 +3,7 @@ import data from "@emoji-mart/data"
 import Picker from "@emoji-mart/react"
 import { init } from "emoji-mart"
 
+import { isInkServiceMode } from "@/lib/env"
 import { useNode } from "@/hooks/use-nodes"
 import { Button } from "@/components/ui/button"
 import {
@@ -60,7 +61,7 @@ export const NodeIconEditor = (props: {
     setOpen(false)
   }
 
-  if (props.disabled) {
+  if (props.disabled || isInkServiceMode) {
     // just show the icon
     return (
       <>

@@ -7,7 +7,13 @@ import DataEditor, {
 import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -19,7 +25,7 @@ import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 
 import { Button } from "../../../ui/button"
-import { useCurrentView } from "../../hooks"
+import { TableContext, useCurrentView } from "../../hooks"
 import { useViewCount } from "../../hooks/use-view-count"
 import { AITools } from "./ai-tools"
 import { customCells } from "./cells"
@@ -115,6 +121,7 @@ export default function GridView(props: IGridProps) {
     },
     [showColumns]
   )
+  const { isReadOnly } = useContext(TableContext)
 
   const {
     getCellContent,
@@ -342,16 +349,18 @@ export default function GridView(props: IGridProps) {
               columns={columns ?? []}
               rows={viewCount}
               rightElement={
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="flex w-full justify-start rounded-none"
-                  onClick={() => {
-                    setIsAddFieldEditorOpen(true)
-                  }}
-                >
-                  <Plus size={16} />
-                </Button>
+                !isReadOnly && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="flex w-full justify-start rounded-none"
+                    onClick={() => {
+                      setIsAddFieldEditorOpen(true)
+                    }}
+                  >
+                    <Plus size={16} />
+                  </Button>
+                )
               }
               rightElementProps={{
                 // sticky: true,
@@ -359,7 +368,7 @@ export default function GridView(props: IGridProps) {
               }}
               onCellEdited={onCellEdited}
               onCellsEdited={onCellsEdited}
-              onRowAppended={handleAddRow}
+              onRowAppended={isReadOnly ? undefined : handleAddRow}
             />
           )}
         </GridContextMenu>

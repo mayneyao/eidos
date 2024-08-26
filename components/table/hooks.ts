@@ -22,10 +22,12 @@ export const TableContext = createContext<{
   tableName: string
   space: string
   viewId?: string
+  isReadOnly?: boolean
 }>({
   tableName: "",
   space: "",
   viewId: undefined,
+  isReadOnly: true,
 })
 
 export const useViewOperation = () => {

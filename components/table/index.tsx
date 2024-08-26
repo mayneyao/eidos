@@ -21,6 +21,7 @@ interface ITableProps {
   viewId?: string
   isEmbed?: boolean
   isEditable?: boolean
+  isReadOnly?: boolean
 }
 
 export const Table = ({
@@ -29,6 +30,7 @@ export const Table = ({
   viewId,
   isEmbed,
   isEditable,
+  isReadOnly,
 }: ITableProps) => {
   const { currentView } = useCurrentView({
     space,
@@ -43,12 +45,13 @@ export const Table = ({
 
   useSqliteTableSubscribe(tableName)
   return (
-    <TableContext.Provider value={{ tableName, space, viewId }}>
+    <TableContext.Provider value={{ tableName, space, viewId, isReadOnly }}>
       <div className="h-full w-full overflow-hidden p-2">
         <ViewToolbar
           tableName={tableName}
           space={space}
           isEmbed={Boolean(isEmbed)}
+          isReadOnly={isReadOnly}
         />
         <div
           className="relative h-full w-full overflow-hidden"

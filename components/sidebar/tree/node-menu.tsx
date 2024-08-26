@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
+import { isInkServiceMode } from "@/lib/env"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
@@ -112,6 +113,9 @@ export function NodeItem({
     if (e.key === "Escape") {
       setRenameOpen(false)
     }
+  }
+  if (isInkServiceMode) {
+    return children
   }
 
   return (

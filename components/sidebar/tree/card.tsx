@@ -3,6 +3,7 @@ import type { Identifier, XYCoord } from "dnd-core"
 import { useDrag, useDrop } from "react-dnd"
 import { Link, useSearchParams } from "react-router-dom"
 
+import { isInkServiceMode } from "@/lib/env"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
@@ -184,6 +185,7 @@ export const Card: FC<CardProps> = ({
         onDrop(item)
       }
     },
+    canDrag: !isInkServiceMode,
   })
 
   // const opacity = isDragging ? 0 : 1
