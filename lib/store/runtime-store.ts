@@ -35,7 +35,7 @@ interface AppRuntimeState {
 
   blockUIMsg: string | null
   blockUIData?: Record<string, any>
-  setBlockUIMsg: (blockUIMsg: string) => void
+  setBlockUIMsg: (blockUIMsg: string | null) => void
   setBlockUIData: (blockUIData: Record<string, any>) => void
 }
 

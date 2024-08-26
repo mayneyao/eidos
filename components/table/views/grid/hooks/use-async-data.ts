@@ -20,6 +20,7 @@ import {
 import { chunk, range } from "lodash"
 
 import {
+  _rewriteQuery2getSortedSqliteRowIds,
   rewriteQuery2getSortedSqliteRowIds,
   rewriteQueryWithOffsetAndLimit,
   rewriteQueryWithSortedQuery,
@@ -32,6 +33,8 @@ import { useViewLoadingStore } from "@/components/table/hooks/use-view-loading"
 
 import { useDataMutation } from "./use-data-mutation"
 import { TableContext } from "@/components/table/hooks"
+import { isInkServiceMode } from "@/lib/env"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
@@ -84,7 +87,7 @@ export function useAsyncData<TRowType>(data: {
   // rowIdsRef and dataRef are same thing, the diff is rowIdsRef has all row ids, dataRef has only part of row ids
   const dataRef = useRef<string[]>([])
   const rowIdsRef = useRef<string[]>([])
-  const { setCount } = useViewCount(view)
+  const { count } = useViewCount(view)
 
   const [visiblePages, setVisiblePages] = useState<Rectangle>({
     x: 0,
@@ -213,21 +216,43 @@ export function useAsyncData<TRowType>(data: {
     refreshData()
     loadPage(0)
   }, [tableName, qs, loadPage])
+  const {
+    setBlockUIMsg,
+  } = useAppRuntimeStore()
 
   const getViewSortedSqliteRowIds = useCallback(async () => {
     if (!qs || !sqlite) return
     setLoading(qs, true)
-    const _qs = rewriteQuery2getSortedSqliteRowIds(qs)
-    const res = await sqlite.sql4mainThread(_qs)
-    const rowIds = res.map((r: any) => r[0])
+    let allRowIds: string[] = []
+    if (isInkServiceMode) {
+      const batchSize = 150000
+      setBlockUIMsg('loading')
+      const queries = rewriteQuery2getSortedSqliteRowIds(qs, count, batchSize)
+      for (let i = 0; i < queries.length; i++) {
+        const res = await sqlite.sql4mainThread(queries[i])
+        const rowIds = res.map((r: any) => r[0])
+        allRowIds = allRowIds.concat(rowIds)
+
+        // If we've fetched less than 200,000 rows (except for the last query), we can stop
+        if (i < queries.length - 1 && rowIds.length < batchSize) {
+          break
+        }
+      }
+      setBlockUIMsg(null)
+    } else {
+      const _qs = _rewriteQuery2getSortedSqliteRowIds(qs)
+      const res = await sqlite.sql4mainThread(_qs)
+      allRowIds = res.map((r: any) => r[0])
+    }
+
+    rowIdsRef.current = allRowIds
+    // setCount(allRowIds.length)
     setLoading(qs, false)
-    rowIdsRef.current = rowIds
-    setCount(rowIdsRef.current.length)
-  }, [qs, setCount, setLoading, sqlite])
+  }, [qs, setLoading, sqlite, count])
 
   useEffect(() => {
     getViewSortedSqliteRowIds()
-  }, [getViewSortedSqliteRowIds, setLoading, sqlite])
+  }, [getViewSortedSqliteRowIds])
 
   const loadData = useCallback(
     async (loadRowIds: string[], startIndex: number) => {
