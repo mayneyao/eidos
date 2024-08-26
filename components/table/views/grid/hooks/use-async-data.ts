@@ -218,6 +218,7 @@ export function useAsyncData<TRowType>(data: {
   }, [tableName, qs, loadPage])
   const {
     setBlockUIMsg,
+    setBlockUIData,
   } = useAppRuntimeStore()
 
   const getViewSortedSqliteRowIds = useCallback(async () => {
@@ -230,6 +231,9 @@ export function useAsyncData<TRowType>(data: {
       const queries = rewriteQuery2getSortedSqliteRowIds(qs, count, batchSize)
       for (let i = 0; i < queries.length; i++) {
         const res = await sqlite.sql4mainThread(queries[i])
+        setBlockUIData({
+          progress: (i / queries.length) * 100,
+        })
         const rowIds = res.map((r: any) => r[0])
         allRowIds = allRowIds.concat(rowIds)
 

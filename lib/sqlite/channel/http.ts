@@ -41,7 +41,7 @@ export class HttpSqlite implements ISqlite<string, IHttpSendData> {
 
   async onCallBack(
     thisCallId: string,
-    timeout: number = 5000,
+    timeout: number = 15000,
     interval: number = 100
   ) {
     return new Promise((resolve, reject) => {
