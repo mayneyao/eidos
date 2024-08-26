@@ -68,6 +68,8 @@ export async function handleOpenAI(
     model: model ?? "gpt-3.5-turbo-0613",
     stream: true,
     messages: newMsgs,
+    ...(data.paths && { paths: data.paths }),
+    ...(data.space && { space: data.space }),
   } as any
   if (useFunctions) {
     request = {

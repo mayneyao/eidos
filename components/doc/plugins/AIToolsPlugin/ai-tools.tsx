@@ -5,9 +5,12 @@ import { useClickAway, useKeyPress } from "ahooks"
 import { useChat } from "ai/react"
 import { $createParagraphNode, $getRoot, RangeSelection } from "lexical"
 import { ChevronRightIcon, PauseIcon, RefreshCcwIcon } from "lucide-react"
+import { useParams } from "react-router-dom"
 
 import { uuidv7 } from "@/lib/utils"
 import { useAiConfig } from "@/hooks/use-ai-config"
+import { useCurrentNode, useCurrentNodePath } from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -58,6 +61,14 @@ export function AITools({
   cancelAIAction: (flag?: boolean) => void
   content: string
 }) {
+  const { day } = useParams()
+  const node = useCurrentNode()
+  const paths = useCurrentNodePath({
+    nodeId: node?.id || day,
+    parentId: node?.parent_id,
+  })
+  const { space } = useCurrentPathInfo()
+
   const { prompts } = useUserPrompts()
   const builtInPrompts = useBuiltInPrompts()
   const [editor] = useLexicalComposerContext()
@@ -85,6 +96,8 @@ export function AITools({
     body: {
       ...getConfigByModel(currentModel),
       model: currentModel,
+      paths: paths.map((path) => path.name).join(","),
+      space,
     },
   })
 

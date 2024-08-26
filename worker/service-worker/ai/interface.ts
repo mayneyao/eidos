@@ -9,4 +9,6 @@ export interface IData {
   systemPrompt: string
   model: string
   modelId: string
+  paths: string
+  space: string
 }
