@@ -4,8 +4,15 @@ We reused most of the code from apps/web-app, with only layout differences. Publ
 
 ## Dev
 
+if you want to develop locally, you need to rename `wrangler-for-dev.toml` to `wrangler.toml` first. and `wrangler.toml` should be ignored by git. when deploy, config the binding in the cloudflare dashboard.
+
 ```bash
+# build the worker
 pnpm build:cf-worker
+
+# start /api/server
+npx wrangler pages dev dist --compatibility-flags="nodejs_compat" --local
+
 pnpm dev:ink
 ```
 
@@ -18,5 +25,5 @@ pnpm build:ink
 ```
 
 ```bash
-npx wrangler pages dev dist --compatibility-flags="nodejs_compat"
+npx wrangler pages dev dist --compatibility-flags="nodejs_compat" --local
 ```

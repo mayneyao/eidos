@@ -1,16 +1,13 @@
 // Note: You would need to compile your TS into JS and output it as a `_worker.js` file. We do not read `_worker.ts`
+import { DurableObjectNamespace, ExportedHandler, Fetcher, KVNamespace, R2Bucket, Request } from "@cloudflare/workers-types"
 
-import { DataSpace } from "@/worker/web-worker/DataSpace"
-import { ExportedHandler, Fetcher, KVNamespace, R2Bucket, Request } from "@cloudflare/workers-types"
-
-import { ServerDatabase } from "./lib/ServerDatabase"
-import { handleFunctionCall, IHttpSendData } from "./lib/handleFunctionCall"
-
+import { DataSpaceObject } from "./lib/DataSpaceObject"
 
 interface Env {
   ASSETS: Fetcher
   DOMAIN_DB_INFO: KVNamespace
   FILES: R2Bucket
+  DATA_SPACE: DurableObjectNamespace
 }
 
 function objectNotFound(objectName: string): Response {
@@ -67,58 +64,16 @@ export default {
         headers,
       })
     }
-    const domainDbInfo: {
-      name: string,
-      url: string,
-      readToken: string,
-      writeToken?: string,
-    } | null = await env.DOMAIN_DB_INFO.get(subdomain, {
-      type: "json",
-    })
     // handle server api
-    if (!domainDbInfo) {
-      return new Response("Not found", {
-        status: 404,
-      })
-    }
     if (url.pathname.startsWith("/server/api")) {
-      const serverDb = new ServerDatabase(domainDbInfo.url, domainDbInfo.readToken)
-      const dataSpace = new DataSpace({
-        db: serverDb as any,
-        activeUndoManager: false,
-        dbName: "read",
-        context: {
-          setInterval: undefined,
-        },
-      })
-      const req = await request.json<IHttpSendData>()
-      let result = "url: " + request.url + "\n"
-      for (const header of request.headers) {
-        result += "header: " + header + "\n"
-      }
-      try {
-        const res = await handleFunctionCall(req.data as any, dataSpace)
-        return new Response(JSON.stringify({
-          status: "success",
-          result: res,
-        }), {
-          headers: {
-            "content-type": "application/json",
-          },
-        })
-      } catch (error) {
-        return new Response(JSON.stringify({
-          status: "error",
-          result: error instanceof Error ? error.message : "未知错误",
-        }), {
-          headers: {
-            "content-type": "application/json",
-          },
-        })
-      }
+      const id = env.DATA_SPACE.idFromName(subdomain);
+      const dataSpaceObject = env.DATA_SPACE.get(id);
+      return dataSpaceObject.fetch(request);
     }
     // Otherwise, serve the static assets.
     // Without this, the Worker will error and no assets will be served.
     return env.ASSETS.fetch(request)
   },
 } satisfies ExportedHandler<Env>
+
+export { DataSpaceObject }

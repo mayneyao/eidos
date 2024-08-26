@@ -1,0 +1,20 @@
+# rename this file to wrangler.toml before using
+# this file is just for development
+name = "your-worker-name"
+main = "apps/publish/_worker.ts"
+compatibility_date = "2023-05-18"
+
+[durable_objects]
+bindings = [
+  { name = "DATA_SPACE", class_name = "DataSpaceObject" }
+]
+
+[[kv_namespaces]]
+binding = "DOMAIN_DB_INFO"
+id = "test_namespace_id"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "your-bucket-name"
+
+[vars]
