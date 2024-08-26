@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react"
-import { $convertFromMarkdownString } from "@lexical/markdown"
+import { $convertFromMarkdownString, Transformer } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useClickAway, useKeyPress } from "ahooks"
 import { useChat } from "ai/react"
@@ -68,7 +68,7 @@ export function AITools({
   const allBlocks = useAllDocBlocks()
   const __allTransformers = useMemo(() => {
     return [...extBlocks.map((block) => block.transform), ...allTransformers]
-  }, [extBlocks])
+  }, [extBlocks]) as Transformer[]
 
   const [isFinished, setIsFinished] = useState(true)
   const [customPrompt, setCustomPrompt] = useState<string>("")

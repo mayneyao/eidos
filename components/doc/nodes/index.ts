@@ -5,7 +5,7 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 
-import { AudioNode } from "./AudioNode/AudioNode"
+import { AudioNode } from "../blocks/audio/node"
 import { BookmarkNode } from "./BookmarkNode"
 import { CardNode } from "./CardNode"
 import { DatabaseTableNode } from "./DatabaseTableNode"
@@ -36,8 +36,6 @@ export const AllNodes = [
   DatabaseTableNode,
   TableOfContentsNode,
   CardNode,
-  // media
-  AudioNode,
   // custom embed node
   YouTubeNode,
   // block

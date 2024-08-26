@@ -2,25 +2,25 @@ import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $insertNodeToNearestRoot } from "@lexical/utils"
 import { COMMAND_PRIORITY_EDITOR, LexicalCommand, createCommand } from "lexical"
+import { $createVideoNode, VideoNode } from "./node"
 
-import { $createAudioNode, AudioNode } from "../../nodes/AudioNode/AudioNode"
 
-export const INSERT_AUDIO_FILE_COMMAND: LexicalCommand<string> = createCommand()
+export const INSERT_VIDEO_FILE_COMMAND: LexicalCommand<string> = createCommand()
 
-export const FilePlugin = () => {
+export const VideoPlugin = () => {
   const [editor] = useLexicalComposerContext()
 
   useEffect(() => {
-    if (!editor.hasNodes([AudioNode])) {
+    if (!editor.hasNodes([VideoNode])) {
       throw new Error(
-        "FilePlugin: AudioNode not registered on editor (initialConfig.nodes)"
+        "VideoPlugin: VideoNode not registered on editor (initialConfig.nodes)"
       )
     }
     return editor.registerCommand<string>(
-      INSERT_AUDIO_FILE_COMMAND,
+      INSERT_VIDEO_FILE_COMMAND,
       (payload) => {
-        const audioNode = $createAudioNode(payload)
-        $insertNodeToNearestRoot(audioNode)
+        const VideoNode = $createVideoNode(payload)
+        $insertNodeToNearestRoot(VideoNode)
         return true
       },
       COMMAND_PRIORITY_EDITOR

@@ -8,6 +8,7 @@ import {
   ORDERED_LIST,
   QUOTE,
   TRANSFORMERS,
+  Transformer,
 } from "@lexical/markdown"
 
 import { IMAGE } from "@/components/doc/nodes/ImageNode/ImageNode"
@@ -32,8 +33,8 @@ export const allTransformers = [
   HR,
   SQL_NODE_TRANSFORMER,
   ...TRANSFORMERS,
-  ...BuiltInBlocks.map((block) => block.transform),
-]
+  ...BuiltInBlocks.map((block) => block.transform).filter(Boolean),
+] as Transformer[]
 
 export const fgColors = [
   { name: "default", value: "inherit" },

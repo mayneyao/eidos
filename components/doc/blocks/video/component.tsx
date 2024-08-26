@@ -10,10 +10,9 @@ import {
 import { FileSelector } from "@/components/file-selector"
 import { Loading } from "@/components/loading"
 
-import { $isAudioNode } from "./AudioNode"
-import { AudioPlayer } from "./AudioPlayer"
+import { $isVideoNode } from "./node"
 
-function AudioPlaceholder(props: { nodeKey: string }) {
+function VideoPlaceholder(props: { nodeKey: string }) {
   const { nodeKey } = props
   const [editor] = useLexicalComposerContext()
   const [loading, setLoading] = useState(false)
@@ -21,7 +20,7 @@ function AudioPlaceholder(props: { nodeKey: string }) {
   const handleSelect = async (url: string) => {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey)
-      if ($isAudioNode(node)) {
+      if ($isVideoNode(node)) {
         node.setSrc(url)
       }
     })
@@ -35,7 +34,7 @@ function AudioPlaceholder(props: { nodeKey: string }) {
             {loading ? (
               <Loading />
             ) : (
-              <div className="text-sm text-gray-500">Add an audio file</div>
+              <div className="text-sm text-gray-500">Add an Video file</div>
             )}
           </div>
         </div>
@@ -54,9 +53,13 @@ function AudioPlaceholder(props: { nodeKey: string }) {
   )
 }
 
-export const AudioComponent = (props: { url: string; nodeKey: NodeKey }) => {
+export const VideoComponent = (props: { url: string; nodeKey: NodeKey }) => {
   if (!props.url.length) {
-    return <AudioPlaceholder nodeKey={props.nodeKey} />
+    return <VideoPlaceholder nodeKey={props.nodeKey} />
   }
-  return <AudioPlayer url={props.url} />
+  return (
+    <video controls>
+      <source src={props.url} />
+    </video>
+  )
 }

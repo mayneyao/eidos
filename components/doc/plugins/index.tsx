@@ -1,3 +1,4 @@
+import { Transformer } from "@lexical/markdown"
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin"
 import LexicalClickableLinkPlugin from "@lexical/react/LexicalClickableLinkPlugin"
 import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin"
@@ -18,7 +19,6 @@ import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import { DatabasePlugin } from "./DatabasePlugin"
 import DragDropPaste from "./DragDropPaste"
-import { FilePlugin } from "./FilePlugin"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ImagesPlugin from "./ImagesPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
@@ -32,8 +32,8 @@ export const AllPlugins = () => {
   const __allTransformers = [
     ...allTransformers,
     ...extBlocks.map((block) => block.transform),
-    ...BuiltInBlocks.map((block) => block.transform),
-  ]
+    ...BuiltInBlocks.map((block) => block.transform).filter(Boolean),
+  ] as Transformer[]
   return (
     <>
       <HorizontalRulePlugin />
@@ -54,7 +54,6 @@ export const AllPlugins = () => {
       <ShortcutPlugin />
       <AutoLinkPlugin />
       <ImagesPlugin />
-      <FilePlugin />
       <DragDropPaste />
       <LexicalClickableLinkPlugin />
       <ComponentPickerMenuPlugin />

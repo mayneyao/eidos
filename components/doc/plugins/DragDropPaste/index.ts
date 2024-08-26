@@ -22,8 +22,10 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useFileSystem } from "@/hooks/use-files"
 import { getDragFileUrl } from "@/components/file-manager/helper"
 
-import { INSERT_AUDIO_FILE_COMMAND } from "../FilePlugin"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
+import { INSERT_AUDIO_FILE_COMMAND } from "../../blocks/audio/plugin"
+import { INSERT_VIDEO_FILE_COMMAND } from "../../blocks/video/plugin"
+import { INSERT_FILE_COMMAND } from "../../blocks/file/plugin"
 
 const ACCEPTABLE_IMAGE_TYPES = [
   "image/",
@@ -44,21 +46,21 @@ export default function DragDropPaste(): null {
         DRAG_DROP_PASTE,
         (files) => {
           console.log("files", files)
-          ;(async () => {
-            const _files = await addFiles(files)
-            const fileZip = zip(_files, files)
-            for (const [meta, file] of fileZip) {
-              const paths = meta!.path.split("/")
-              // skip spaces
-              const path = "/" + paths.slice(1).join("/")
-              if (isMimeType(file!, ACCEPTABLE_IMAGE_TYPES)) {
-                editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-                  altText: file!.name,
-                  src: path,
-                })
+            ; (async () => {
+              const _files = await addFiles(files)
+              const fileZip = zip(_files, files)
+              for (const [meta, file] of fileZip) {
+                const paths = meta!.path.split("/")
+                // skip spaces
+                const path = "/" + paths.slice(1).join("/")
+                if (isMimeType(file!, ACCEPTABLE_IMAGE_TYPES)) {
+                  editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
+                    altText: file!.name,
+                    src: path,
+                  })
+                }
               }
-            }
-          })()
+            })()
           return true
         },
         COMMAND_PRIORITY_LOW
@@ -84,7 +86,14 @@ export default function DragDropPaste(): null {
                 case "audio":
                   editor.dispatchCommand(INSERT_AUDIO_FILE_COMMAND, file.url)
                   break
+                case "video":
+                  editor.dispatchCommand(INSERT_VIDEO_FILE_COMMAND, file.url)
+                  break
                 default:
+                  editor.dispatchCommand(INSERT_FILE_COMMAND, {
+                    src: file.url,
+                    fileName: file.url.split("/").pop() ?? "",
+                  })
                   break
               }
               event.preventDefault()
