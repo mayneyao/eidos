@@ -3,7 +3,7 @@ import type { Message } from "ai"
 export interface IData {
   messages: Message[]
   // body
-  type: string | "google" | "openai"
+  type: string | "google" | "openai" | "dify2openai"
   apiKey: string
   baseUrl: string
   systemPrompt: string

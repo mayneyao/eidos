@@ -192,6 +192,7 @@ export const LLMProviderForm = ({
                   <SelectContent>
                     <SelectItem value="openai">OpenAI</SelectItem>
                     <SelectItem value="google">Google</SelectItem>
+                    <SelectItem value="dify2openai">Dify2OpenAI</SelectItem>
                   </SelectContent>
                 </Select>
               </FormControl>
@@ -201,7 +202,8 @@ export const LLMProviderForm = ({
         />
         {
           // only show the following fields if the type is openai
-          form.watch("type") === "openai" && (
+          (form.watch("type") === "openai" ||
+            form.watch("type") === "dify2openai") && (
             <FormField
               name="baseUrl"
               render={({ field }) => (
@@ -241,7 +243,8 @@ export const LLMProviderForm = ({
             <FormItem>
               <div className="flex items-center justify-between">
                 <FormLabel>Models</FormLabel>
-                {form.watch("type") === "openai" && (
+                {(form.watch("type") === "openai" ||
+                  form.watch("type") === "dify2openai") && (
                   <Button
                     size="xs"
                     variant="outline"

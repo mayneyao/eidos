@@ -1,3 +1,4 @@
+import { handleDify2OpenAI } from "./dify2openai"
 import { handleGoogleAI } from "./google"
 import { IData } from "./interface"
 import { handleOpenAI } from "./openai"
@@ -12,6 +13,8 @@ export default async function handle(event: FetchEvent) {
       return handleGoogleAI(data)
     case "openai":
       return handleOpenAI(data, { useFunctions: false })
+    case "dify2openai":
+      return handleDify2OpenAI(data)
     default:
       // local model
       return handleWebLLM(data)
