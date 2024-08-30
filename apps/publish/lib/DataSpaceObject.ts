@@ -74,8 +74,12 @@ export class DataSpaceObject {
 
     const req = await request.json() as IHttpSendData;
 
+    const dbInfo = await this.env.DOMAIN_DB_INFO.get(subdomain, {
+      type: "json",
+    }) as DomainDbInfo;
+
     const cacheKey = this.getCacheKey(req);
-    const cacheName = `${subdomain}-${this.domainDbInfo.config.version || "default"}`;
+    const cacheName = `${subdomain}-${dbInfo.config.version || "default"}`;
     const cache = await caches.open(cacheName);
 
     // Try to get the response from cache
