@@ -1,12 +1,4 @@
 import {
-  MutableRefObject,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
-import {
   CellArray,
   CompactSelection,
   DataEditorProps,
@@ -18,7 +10,19 @@ import {
   Rectangle,
 } from "@glideapps/glide-data-grid"
 import { chunk, range } from "lodash"
+import {
+  MutableRefObject,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 
+import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
+import { useViewCount } from "@/components/table/hooks/use-view-count"
+import { useViewLoadingStore } from "@/components/table/hooks/use-view-loading"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import {
   _rewriteQuery2getSortedSqliteRowIds,
   rewriteQuery2getSortedSqliteRowIds,
@@ -26,15 +30,12 @@ import {
   rewriteQueryWithSortedQuery,
 } from "@/lib/sqlite/sql-sort-parser"
 import { IView } from "@/lib/store/IView"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
-import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
-import { useViewCount } from "@/components/table/hooks/use-view-count"
-import { useViewLoadingStore } from "@/components/table/hooks/use-view-loading"
+import { useDebounceFn } from "ahooks"
 
-import { useDataMutation } from "./use-data-mutation"
 import { TableContext } from "@/components/table/hooks"
 import { isInkServiceMode } from "@/lib/env"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useDataMutation } from "./use-data-mutation"
 
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
@@ -297,7 +298,6 @@ export function useAsyncData<TRowType>(data: {
       if (!sqlite || !tableName || !tableId || !qs) return
       const startIndex = page * _pageSize
       _loadingRef.current.push(startIndex)
-
       let sql = rewriteQueryWithOffsetAndLimit(qs, startIndex, _pageSize)
       const d = await sqlite?.sql4mainThread2(sql)
       setRows(tableId, d)
@@ -318,7 +318,9 @@ export function useAsyncData<TRowType>(data: {
     [gridRef, qs, setRows, sqlite, tableId, tableName, pageSize]
   )
 
-  useEffect(() => {
+
+
+  const { run: loadDataWithOffsetAndLimitDebounced } = useDebounceFn(() => {
     if (!sqlite || !tableName || !tableId) return
     const r = visiblePages
     const firstPage = Math.max(0, Math.floor((r.y - pageSize / 2) / pageSize))
@@ -337,7 +339,12 @@ export function useAsyncData<TRowType>(data: {
         loadData(loadRowIds, startIndex)
       }
     }
-  }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages, loadDataWithOffsetAndLimit])
+  }, { wait: 200 })
+
+
+  useEffect(() => {
+    loadDataWithOffsetAndLimitDebounced()
+  }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages, loadDataWithOffsetAndLimitDebounced])
 
   useEffect(() => {
     // when view changes, reset scroll position
