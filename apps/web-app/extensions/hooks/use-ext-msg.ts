@@ -1,11 +1,10 @@
 import { useCallback } from "react"
 
 import { MsgType } from "@/lib/const"
-import { LocalSqlite } from "@/lib/sqlite/channel/local"
-import { getWorker } from "@/lib/sqlite/worker"
 import { efsManager } from "@/lib/storage/eidos-file-system"
 import { uuidv7 } from "@/lib/utils"
 
+import { getSqliteChannel } from "@/lib/sqlite/channel"
 import { useExtensions } from "./use-extensions"
 
 export enum ExtMsgType {
@@ -19,7 +18,7 @@ export enum ExtMsgType {
   rpcCallResp = "rpcCallResp",
 }
 
-const sqlite = new LocalSqlite(getWorker())
+const sqlite = getSqliteChannel("publish-default-space", "publish-default-user")
 
 /**
  * we have two source type, app and script yet.

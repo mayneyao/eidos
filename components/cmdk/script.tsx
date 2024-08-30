@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react"
 import { ICommand, IScript } from "@/worker/web-worker/meta-table/script"
 import { useKeyPress } from "ahooks"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 
-import { ActionExecutor } from "@/lib/action/action"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useAllExtensions } from "@/hooks/use-all-extensions"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useAllExtensions } from "@/hooks/use-all-extensions"
+import { ActionExecutor } from "@/lib/action/action"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { CommandDialogDemo } from "."
 import { useScriptFunction } from "../script-container/hook"

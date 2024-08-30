@@ -2,18 +2,10 @@
 
 import { useEffect } from "react"
 import { useDebounceFn, useKeyPress } from "ahooks"
-import {
-  Bot,
-  CalendarDays,
-  Clock3Icon,
-  FilePlus2Icon,
-  Forward,
-  Palette,
-  Settings,
-} from "lucide-react"
+import { Bot, Clock3Icon, FilePlus2Icon, Palette, Settings } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import { useAppStore } from "@/lib/store/app-store"
+import { isInkServiceMode } from "@/lib/env"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { getToday } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -110,42 +102,51 @@ export function CommandDialogDemo() {
         <CommandEmpty>
           <span>not found "{input}"</span>
         </CommandEmpty>
-        <CommandGroup heading="Suggestions">
-          <CommandItem onSelect={goToday} value="today">
-            <Clock3Icon className="mr-2 h-4 w-4" />
-            <span>Today</span>
-          </CommandItem>
-          {/* <CommandItem onSelect={goEveryday} value="everyday">
-            <CalendarDays className="mr-2 h-4 w-4" />
-            <span>Everyday</span>
-          </CommandItem> */}
-          <CommandItem onSelect={createNewDoc} value="new draft doc">
-            <FilePlus2Icon className="mr-2 h-4 w-4" />
-            <span>New Draft Doc</span>
-          </CommandItem>
-          <CommandItem onSelect={toggleAI}>
-            <Bot className="mr-2 h-4 w-4" />
-            <span>AI</span>
-          </CommandItem>
-          {/* <CommandItem onSelect={goShare}>
-            <Forward className="mr-2 h-4 w-4" />
-            <span>Share</span>
-          </CommandItem> */}
-        </CommandGroup>
+        {!isInkServiceMode && (
+          <CommandGroup heading="Suggestions">
+            <CommandItem onSelect={goToday} value="today">
+              <Clock3Icon className="mr-2 h-4 w-4" />
+              <span>Today</span>
+            </CommandItem>
+            {/* <CommandItem onSelect={goEveryday} value="everyday">
+              <CalendarDays className="mr-2 h-4 w-4" />
+              <span>Everyday</span>
+            </CommandItem> */}
+            <CommandItem onSelect={createNewDoc} value="new draft doc">
+              <FilePlus2Icon className="mr-2 h-4 w-4" />
+              <span>New Draft Doc</span>
+            </CommandItem>
+            <CommandItem onSelect={toggleAI}>
+              <Bot className="mr-2 h-4 w-4" />
+              <span>AI</span>
+            </CommandItem>
+            {/* <CommandItem onSelect={goShare}>
+              <Forward className="mr-2 h-4 w-4" />
+              <span>Share</span>
+            </CommandItem> */}
+          </CommandGroup>
+        )}
+
         <CommandSeparator />
         {/* <ExtensionCommandItems /> */}
-        <NodeCommandItems />
-        <SpaceCommandItems />
+        {!isInkServiceMode && (
+          <>
+            <NodeCommandItems />
+            <SpaceCommandItems />
+          </>
+        )}
         <CommandGroup heading="Settings">
           <CommandItem onSelect={switchTheme}>
             <Palette className="mr-2 h-4 w-4" />
             <span>Switch Theme</span>
             <CommandShortcut>⌘+Shift+L</CommandShortcut>
           </CommandItem>
-          <CommandItem onSelect={goto("/settings")}>
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Settings</span>
-          </CommandItem>
+          {!isInkServiceMode && (
+            <CommandItem onSelect={goto("/settings")}>
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
+            </CommandItem>
+          )}
         </CommandGroup>
       </CommandList>
     </CommandDialog>

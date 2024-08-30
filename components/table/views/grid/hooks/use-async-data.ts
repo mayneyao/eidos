@@ -126,6 +126,9 @@ export function useAsyncData<TRowType>(data: {
       if (rowUuid !== undefined && rowData) {
         const cell = toCell(rowData, col)
         const isFileCell = cell.kind === GridCellKind.Custom && (cell.data as any).kind === "file-cell"
+        if (!isReadOnly) {
+          return cell
+        }
         return {
           ...cell,
           readonly: Boolean(isReadOnly),

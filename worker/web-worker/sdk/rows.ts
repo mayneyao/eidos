@@ -185,7 +185,7 @@ export class RowsManager {
       }
       rows = await this.dataSpace.exec2(view.query)
     } else {
-      const { rawData, notExistKeys } = this.transformData(filter, {
+      const { rawData, notExistKeys } = this.transformData(filter || {}, {
         fieldNameRawColumnNameMap,
         fieldRawColumnNameFieldMap,
       })
@@ -194,13 +194,11 @@ export class RowsManager {
       }
 
       const hasFilter = Object.keys(rawData).length > 0
-      const sql = `SELECT * FROM ${this.table.rawTableName} ${
-        hasFilter ? "WHERE" : ""
-      } ${Object.keys(rawData)
-        .map((key) => `${key} = ?`)
-        .join(" AND ")} ${options?.limit ? `LIMIT ${options.limit}` : ""} ${
-        options?.offset ? `OFFSET ${options.offset}` : ""
-      }`
+      const sql = `SELECT * FROM ${this.table.rawTableName} ${hasFilter ? "WHERE" : ""
+        } ${Object.keys(rawData)
+          .map((key) => `${key} = ?`)
+          .join(" AND ")} ${options?.limit ? `LIMIT ${options.limit}` : ""} ${options?.offset ? `OFFSET ${options.offset}` : ""
+        }`
       const bind = Object.values(rawData)
       rows = await this.dataSpace.exec2(sql, bind)
     }
