@@ -1,4 +1,4 @@
-import { ServerDatabase } from "@/apps/publish/lib/ServerDatabase"
+import { BaseServerDatabase } from "@/apps/publish/lib/sqlite-provider/base"
 import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
@@ -747,7 +747,7 @@ export class DataSpace {
     //   sql,
     //   bind
     // )
-    if (this.db instanceof ServerDatabase) {
+    if (this.db instanceof BaseServerDatabase) {
       return this.db.exec({
         sql,
         bind,
@@ -773,6 +773,7 @@ export class DataSpace {
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
+    console.log('exec2', sql, bind)
     return this.syncExec2(sql, bind)
   }
 
@@ -970,7 +971,7 @@ export class DataSpace {
   ) {
     // console.debug(sql, bind)
     const res: any[] = []
-    if (this.db instanceof ServerDatabase) {
+    if (this.db instanceof BaseServerDatabase) {
       return this.db.exec({
         sql,
         bind,
