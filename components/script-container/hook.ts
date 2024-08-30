@@ -8,6 +8,7 @@ interface IScriptContext {
   currentNodeId?: string | null
   currentRowId?: string | null
   currentViewId?: string | null
+  currentViewQuery?: string | null
   callFromTableAction?: boolean
 }
 

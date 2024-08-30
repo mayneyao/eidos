@@ -172,13 +172,16 @@ export class RowsManager {
       offset?: number
       raw?: boolean
       select?: string[]
+      rawQuery?: string // if set, it will ignore viewId and filter
     }
   ) {
     const { fieldRawColumnNameFieldMap, fieldNameRawColumnNameMap } =
       await this.getFieldMap()
 
     let rows: Record<string, any>[] = []
-    if (options?.viewId) {
+    if (options?.rawQuery) {
+      rows = await this.dataSpace.exec2(options.rawQuery)
+    } else if (options?.viewId) {
       const view: IView = await this.dataSpace.view.get(options.viewId)
       if (!view) {
         throw new Error("view not found")

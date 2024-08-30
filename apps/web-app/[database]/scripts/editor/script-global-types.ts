@@ -23,4 +23,6 @@ interface Context {
   currentRowId?: string | null
   currentViewId?: string | null
   callFrom: CallType
+  currentViewQuery?: string | null
+  callFromTableAction?: boolean
 }

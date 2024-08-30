@@ -44,7 +44,7 @@ export const useTableFields = (tableIdOrName: string | undefined) => {
   }
 }
 
-export const useTableViews = (tableId: string, databaseName: string) => {
+export const useTableViews = (tableId: string, databaseName?: string) => {
   const {
     dataStore: { tableMap },
   } = useSqliteStore()

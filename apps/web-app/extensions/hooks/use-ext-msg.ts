@@ -16,8 +16,10 @@ export enum ExtMsgType {
   loadExtensionResp = "loadExtensionResp",
   loadExtensionAssetResp = "loadExtensionAssetResp",
   rpcCallResp = "rpcCallResp",
-  scriptFetch = "scriptFetch",
-  scriptFetchResp = "scriptFetchResp",
+
+  // script container => main thread
+  scriptCallMain = "scriptCallMain",
+  scriptCallMainResp = "scriptCallMainResp",
 }
 
 const sqlite = getSqliteChannel("publish-default-space", "publish-default-user")
@@ -89,18 +91,42 @@ export const useExtMsg = (source: ExtensionSourceType) => {
               }
             })
           break
-        case ExtMsgType.scriptFetch:
-          const data = event.data.data
-          console.log("receive script fetch", data.url, data.options)
-          fetch(data.url, data.options).then(async (res) => {
-            const blob = await res.blob()
-            event.ports[0].postMessage({
-              type: ExtMsgType.scriptFetchResp,
-              data: blob,
-            })
-          })
+        case ExtMsgType.scriptCallMain:
+          // script container => main thread, does not include database operation
+          console.log("receive script call main", event.data)
+          const { method: _method, args: _args } = event.data.data
+          switch (_method) {
+            case "fetchBlob":
+              fetch(_args[0], _args[1]).then(async (res) => {
+                const blob = await res.blob()
+                event.ports[0].postMessage({
+                  type: ExtMsgType.scriptCallMainResp,
+                  data: blob,
+                })
+              })
+              break
+            case "tableHighlightRow":
+              const [tableId, rowId, fieldId] = _args
+              window.postMessage({
+                type: MsgType.HighlightRow,
+                payload: {
+                  tableId: tableId,
+                  rowId: rowId,
+                  fieldId: fieldId,
+                },
+              })
+              event.ports[0].postMessage({
+                type: ExtMsgType.scriptCallMainResp,
+                data: null,
+              })
+              break
+            default:
+              break
+          }
+
           break
         case ExtMsgType.rpcCall:
+          // query database
           const { method, params, space } = event.data.data
           console.log("receive rpc call", method, params, space)
           const thisCallId = uuidv7()

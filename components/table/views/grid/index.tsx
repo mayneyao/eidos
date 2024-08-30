@@ -179,7 +179,11 @@ export default function GridView(props: IGridProps) {
       }
     }
     worker.addEventListener("message", subscribeHighlightRow)
-    return () => worker.removeEventListener("message", subscribeHighlightRow)
+    window.addEventListener("message", subscribeHighlightRow)
+    return () => {
+      worker.removeEventListener("message", subscribeHighlightRow)
+      window.removeEventListener("message", subscribeHighlightRow)
+    }
   }, [getIndexByRowId, showColumns, tableName])
 
   useEffect(() => {
