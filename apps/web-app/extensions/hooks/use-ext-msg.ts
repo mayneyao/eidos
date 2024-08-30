@@ -16,6 +16,8 @@ export enum ExtMsgType {
   loadExtensionResp = "loadExtensionResp",
   loadExtensionAssetResp = "loadExtensionAssetResp",
   rpcCallResp = "rpcCallResp",
+  scriptFetch = "scriptFetch",
+  scriptFetchResp = "scriptFetchResp",
 }
 
 const sqlite = getSqliteChannel("publish-default-space", "publish-default-user")
@@ -86,6 +88,17 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                 })
               }
             })
+          break
+        case ExtMsgType.scriptFetch:
+          const data = event.data.data
+          console.log("receive script fetch", data.url, data.options)
+          fetch(data.url, data.options).then(async (res) => {
+            const blob = await res.blob()
+            event.ports[0].postMessage({
+              type: ExtMsgType.scriptFetchResp,
+              data: blob,
+            })
+          })
           break
         case ExtMsgType.rpcCall:
           const { method, params, space } = event.data.data

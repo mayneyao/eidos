@@ -127,6 +127,38 @@
             if (prop === "currentSpace") {
               return makeSpaceProxy("${{currentSpace}}")
             }
+
+            if (prop === "fetchBlob") {
+              const msgChannel = new MessageChannel()
+              const send = (data) => {
+                window.parent.postMessage(
+                  {
+                    type: "scriptFetch",
+                    data,
+                  },
+                  "*",
+                  [msgChannel.port2]
+                )
+              }
+              const onCallBack = () => {
+                return new Promise((resolve, reject) => {
+                  msgChannel.port1.onmessage = (event) => {
+                    msgChannel.port1.close()
+                    const { type, data } = event.data
+                    if (type === "scriptFetchResp") {
+                      resolve(data)
+                    }
+                  }
+                })
+              }
+              return (url, options) => {
+                send({
+                  url,
+                  options,
+                })
+                return onCallBack()
+              }
+            }
           },
         }
       )
