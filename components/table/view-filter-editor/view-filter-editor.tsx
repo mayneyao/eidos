@@ -171,7 +171,7 @@ export const ViewFilterEditor = ({
     }
     return (
       <div className="sub-group-filter flex flex-col gap-2 border border-gray-200 dark:border-gray-700">
-        <div className="group-wrapper-root items-start">
+        <div className="group-wrapper-root items-baseline">
           <ViewFilterGroupEditor
             value={_value as IGroupFilterValue}
             fields={fields}
