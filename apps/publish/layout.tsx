@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom"
 
 import { Toaster } from "@/components/ui/toaster"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
+import { ScriptList } from "@/components/cmdk/script"
 import { ShortCuts } from "@/components/shortcuts"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -19,6 +20,7 @@ export default function RootLayout() {
           </div>
         </div>
         {/* <CommandDialogDemo /> */}
+        <ScriptList />
         <ShortCuts />
       </>
       <TailwindIndicator />

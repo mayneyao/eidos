@@ -1,6 +1,9 @@
+import { useContext } from "react"
+
 import { IView } from "@/lib/store/IView"
 import { useTableOperation } from "@/hooks/use-table"
 import { useUiColumns } from "@/hooks/use-ui-columns"
+import { TableContext } from "@/components/table/hooks"
 
 import { useTableAppStore } from "../store"
 import { FieldAppendPanel } from "./field-append-panel"
@@ -21,6 +24,7 @@ export const FieldEditor = (props: IFieldEditorProps) => {
 
   const { deleteField, addField, updateFieldProperty, changeFieldType } =
     useTableOperation(tableName, databaseName)
+  const { isReadOnly } = useContext(TableContext)
   return (
     <>
       {isAddFieldEditorOpen && (
@@ -35,12 +39,14 @@ export const FieldEditor = (props: IFieldEditorProps) => {
           deleteField={deleteField}
         />
       )}
-      <FieldEditorDropdown
-        databaseName={databaseName}
-        tableName={tableName}
-        view={props.view}
-        deleteField={deleteField}
-      />
+      {!isReadOnly && (
+        <FieldEditorDropdown
+          databaseName={databaseName}
+          tableName={tableName}
+          view={props.view}
+          deleteField={deleteField}
+        />
+      )}
     </>
   )
 }

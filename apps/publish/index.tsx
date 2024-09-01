@@ -1,6 +1,6 @@
 import React from "react"
 import ReactDOM from "react-dom/client"
-import { RouterProvider, createBrowserRouter } from "react-router-dom"
+import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom"
 
 import { NotFound } from "@/apps/web-app/404"
 import NodePage from "@/apps/web-app/[database]/[node]/page"
@@ -17,11 +17,15 @@ const router = createBrowserRouter([
     errorElement: <ErrorBoundary />,
     children: [
       {
+        index: true,
+        element: <Navigate to="~" replace />,
+      },
+      {
         path: "404",
         element: <NotFound />,
       },
       {
-        path: ":database",
+        path: "~",
         element: <SpaceLayout />,
         children: [
           {

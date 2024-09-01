@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from "react"
 import { ICommand, IScript } from "@/worker/web-worker/meta-table/script"
 import { useKeyPress } from "ahooks"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 
-import { ActionExecutor } from "@/lib/action/action"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useAllExtensions } from "@/hooks/use-all-extensions"
 import { useCurrentNode } from "@/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useAllExtensions } from "@/hooks/use-all-extensions"
+import { useTableViews } from "@/hooks/use-table"
+import { ActionExecutor } from "@/lib/action/action"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
 import { CommandDialogDemo } from "."
 import { useScriptFunction } from "../script-container/hook"
@@ -30,6 +31,7 @@ export const ScriptList = () => {
   const { space, tableId, viewId } = useCurrentPathInfo()
   const currentNode = useCurrentNode()
   const _scripts = useAllExtensions(space)
+  const views = useTableViews(tableId!)
 
   const scripts = useMemo(() => {
     return _scripts.filter((script) => {
@@ -70,6 +72,7 @@ export const ScriptList = () => {
     if (currentAction) {
       console.log("executing command: " + input)
       const realParams: Record<string, any> = ActionExecutor.getParams(input)
+      const view = viewId ? views.find((v) => v.id === viewId) : views[0]
       callFunction({
         input: realParams,
         command: currentCommand?.name || "default",
@@ -78,6 +81,7 @@ export const ScriptList = () => {
           env: currentAction.env_map || {},
           currentNodeId: currentNode?.id,
           currentViewId: viewId,
+          currentViewQuery: view?.query,
         },
         code: currentAction.code,
         id: currentAction.id,

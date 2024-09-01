@@ -10,6 +10,7 @@
     "dev:ink": "EIDOS_SERVICE_MODE=ink vite --mode ink",
     "build:ink": "pnpm recursive run build && tsc && EIDOS_SERVICE_MODE=ink vite build --mode ink && pnpm build:cf-worker",
     "build:cf-worker": "node scripts/build-cf-worker.cjs",
+    "build:cf-worker-do": "node scripts/build-cf-worker-do.cjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

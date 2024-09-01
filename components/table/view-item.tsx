@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useContext, useState } from "react"
 import { LayoutGridIcon, LayoutListIcon, Table2Icon } from "lucide-react"
 import ReactDOM from "react-dom"
 
@@ -22,6 +22,7 @@ import {
 
 import { Button } from "../ui/button"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
+import { TableContext } from "./hooks"
 import { useViewLoadingStore } from "./hooks/use-view-loading"
 import { ViewEditor } from "./view-editor/view-editor"
 
@@ -51,70 +52,93 @@ export const ViewItem = ({
   const loading = getLoading(view.query)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const { isReadOnly } = useContext(TableContext)
 
   const Icon = ViewIconMap[view.type]
   const handleOpen = () => {
-    if (isActive) {
+    if (isActive && !isReadOnly) {
       setOpen(!open)
     }
   }
 
   const handleEdit = () => {
-    setEditDialogOpen(true)
-    setOpen(false)
+    if (!isReadOnly) {
+      setEditDialogOpen(true)
+      setOpen(false)
+    }
   }
 
   return (
     <>
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DropdownMenu onOpenChange={handleOpen} open={open}>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              onClick={() => jump2View(view.id)}
-              size="sm"
-              className={cn({
-                "opacity-60": !isActive,
-                "border-b-2 border-primary  rounded-b-none": isActive,
-                "animate-border-flicker": loading,
-              })}
-            >
-              <div className="flex items-center gap-1">
-                <Icon className="h-4 w-4" />
-                <span className="select-none">{view.name}</span>
-              </div>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onSelect={handleEdit}>Edit</DropdownMenuItem>
-            <DropdownMenuItem disabled={disabledDelete}>
-              <DialogTrigger className="flex w-full cursor-default">
-                Delete
-              </DialogTrigger>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Are you sure delete this view?</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone. This will permanently delete the
-              view
-            </DialogDescription>
-            <DialogFooter>
+      {!isReadOnly ? (
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DropdownMenu onOpenChange={handleOpen} open={open}>
+            <DropdownMenuTrigger asChild>
               <Button
-                variant="secondary"
-                onClick={() => setDeleteDialogOpen(false)}
+                variant="ghost"
+                onClick={() => jump2View(view.id)}
+                size="sm"
+                className={cn({
+                  "opacity-60": !isActive,
+                  "border-b-2 border-primary  rounded-b-none": isActive,
+                  "animate-border-flicker": loading,
+                })}
               >
-                Cancel
+                <div className="flex items-center gap-1">
+                  <Icon className="h-4 w-4" />
+                  <span className="select-none">{view.name}</span>
+                </div>
               </Button>
-              <Button variant="destructive" onClick={deleteView}>
-                Delete
-              </Button>
-            </DialogFooter>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={handleEdit} disabled={isReadOnly}>
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={disabledDelete || isReadOnly}>
+                <DialogTrigger className="flex w-full cursor-default">
+                  Delete
+                </DialogTrigger>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Are you sure delete this view?</DialogTitle>
+              <DialogDescription>
+                This action cannot be undone. This will permanently delete the
+                view
+              </DialogDescription>
+              <DialogFooter>
+                <Button
+                  variant="secondary"
+                  onClick={() => setDeleteDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={deleteView}>
+                  Delete
+                </Button>
+              </DialogFooter>
+            </DialogHeader>
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <Button
+          variant="ghost"
+          onClick={() => jump2View(view.id)}
+          size="sm"
+          className={cn({
+            "opacity-60": !isActive,
+            "border-b-2 border-primary  rounded-b-none": isActive,
+            "animate-border-flicker": loading,
+          })}
+        >
+          <div className="flex items-center gap-1">
+            <Icon className="h-4 w-4" />
+            <span className="select-none">{view.name}</span>
+          </div>
+        </Button>
+      )}
       {editDialogOpen &&
         ReactDOM.createPortal(
           <ViewEditor setEditDialogOpen={setEditDialogOpen} view={view} />,

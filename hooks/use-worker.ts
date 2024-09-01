@@ -15,7 +15,7 @@ import {
 } from "./use-doc-editor"
 import { useSqliteStore } from "./use-sqlite"
 import { useCurrentUser } from "./user-current-user"
-import { isInkServiceMode } from "@/lib/log"
+import { isInkServiceMode } from "@/lib/env"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()

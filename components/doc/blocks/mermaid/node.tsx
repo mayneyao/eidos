@@ -92,7 +92,7 @@ export const MERMAID_NODE_TRANSFORMER: TextMatchTransformer = {
     }
     const textContent = node.getTextContent()
     return (
-      "```" +
+      "```mermaid\n" +
       (node.__text || "") +
       (textContent ? "\n" + textContent : "") +
       "\n" +

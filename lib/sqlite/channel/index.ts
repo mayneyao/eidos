@@ -2,7 +2,7 @@ import { DataSpace, EidosTable } from "@/worker/web-worker/DataSpace"
 import { DataConnection } from "peerjs"
 
 import { MsgType } from "../../const"
-import { isInkServiceMode } from "../../log"
+import { isInkServiceMode } from "../../env"
 import { uuidv7 } from "../../utils"
 import { HttpSqlite } from "./http"
 import { ILocalSendData, LocalSqlite } from "./local"
@@ -11,14 +11,11 @@ import { IQuery, ISqlite } from "../interface"
 import { getWorker } from "../worker"
 import { RemoteSqlite } from "./webrtc"
 
-export const getSqliteProxy = (
-  dbName: string,
-  userId: string,
-  config?: {
-    isShareMode: boolean
-    connection: DataConnection
-  }
-) => {
+
+export const getSqliteChannel = (dbName: string, userId: string, config?: {
+  isShareMode: boolean
+  connection: DataConnection
+}) => {
   let sqlite: ISqlite<any, ILocalSendData>
   console.log("isInkServiceMode", isInkServiceMode)
   if (isInkServiceMode) {
@@ -30,7 +27,18 @@ export const getSqliteProxy = (
   } else {
     sqlite = new LocalSqlite(getWorker())
   }
+  return sqlite
+}
 
+export const getSqliteProxy = (
+  dbName: string,
+  userId: string,
+  config?: {
+    isShareMode: boolean
+    connection: DataConnection
+  }
+) => {
+  const sqlite = getSqliteChannel(dbName, userId, config)
   return new Proxy<DataSpace>({} as any, {
     get(target, method) {
       if (method == "_config") {

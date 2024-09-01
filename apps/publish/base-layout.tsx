@@ -2,6 +2,7 @@ import { motion } from "framer-motion"
 
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
+import { ScriptContainer } from "@/components/script-container"
 
 import { Nav } from "./nav"
 import { SideBar } from "./siderbar"
@@ -22,6 +23,7 @@ export function DatabaseLayoutBase({
 
   return (
     <div className={cn("relative  flex h-screen", className)}>
+      <ScriptContainer />
       <motion.div className="flex h-full w-full">
         <motion.div
           className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}

@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react"
 import mermaid from "mermaid"
 import { useTheme } from "next-themes"
 
+import { isInkServiceMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -156,32 +157,34 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
       style={{ minHeight: "200px" }}
       ref={ref}
     >
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-        <Button variant="outline" size="xs" onClick={toggleMode}>
-          {mode === "preview" ? "Edit" : "Preview"}
-        </Button>
-        <DropdownMenu open={open} onOpenChange={setOpen}>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="xs">
-              Copy as <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="group-hover:opacity-100"
-            container={ref.current!}
-          >
-            <DropdownMenuItem onClick={() => copyContent("text")}>
-              Text
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => copyContent("png")}>
-              PNG
-            </DropdownMenuItem>
-            {/* <DropdownMenuItem onClick={() => copyContent("svg")}>
+      {!isInkServiceMode && (
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+          <Button variant="outline" size="xs" onClick={toggleMode}>
+            {mode === "preview" ? "Edit" : "Preview"}
+          </Button>
+          <DropdownMenu open={open} onOpenChange={setOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="xs">
+                Copy as <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="group-hover:opacity-100"
+              container={ref.current!}
+            >
+              <DropdownMenuItem onClick={() => copyContent("text")}>
+                Text
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => copyContent("png")}>
+                PNG
+              </DropdownMenuItem>
+              {/* <DropdownMenuItem onClick={() => copyContent("svg")}>
               SVG
             </DropdownMenuItem> */}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       {mode === "edit" && (
         <Textarea
           ref={textareaRef}

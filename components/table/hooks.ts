@@ -13,25 +13,29 @@ import { FieldType } from "@/lib/fields/const"
 import { IView } from "@/lib/store/IView"
 import { IField } from "@/lib/store/interface"
 import { getTableIdByRawTableName } from "@/lib/utils"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
 import { useTableFields, useTableOperation } from "@/hooks/use-table"
 
 import { getShowColumns } from "./helper"
+import { isInkServiceMode } from "@/lib/env"
 
 export const TableContext = createContext<{
   tableName: string
   space: string
   viewId?: string
+  isReadOnly?: boolean
 }>({
   tableName: "",
   space: "",
   viewId: undefined,
+  isReadOnly: true,
 })
 
 export const useViewOperation = () => {
   const { tableName, space } = useContext(TableContext)
   const tableId = getTableIdByRawTableName(tableName)
   const { updateViews } = useTableOperation(tableName!, space)
+  const { setView } = useSqliteStore()
   const { sqlite } = useSqlite()
 
   const addView = useCallback(async () => {
@@ -54,7 +58,9 @@ export const useViewOperation = () => {
 
   const updateView = useCallback(
     async (id: string, view: Partial<IView>) => {
-      if (sqlite) {
+      if (isInkServiceMode) {
+        setView(tableId, id, view)
+      } else if (sqlite) {
         await sqlite.updateView(id, view)
         await updateViews()
       }

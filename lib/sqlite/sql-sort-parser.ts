@@ -57,11 +57,11 @@ export const rewriteQuery2getSortedRowIds = (
   return toSql.statement(modified)
 }
 
-export const rewriteQuery2getSortedSqliteRowIds = (query: string) => {
+
+export const _rewriteQuery2getSortedSqliteRowIds = (query: string): string => {
   const ast = parseFirst(query) as SelectFromStatement
   const mapper = astMapper((map) => ({
     ref: (t) => {
-      // we need to rewrite the query to get sorted row IDs, replacing * with _id to reduce the data size
       if (t.name === "*") {
         return {
           ...t,
@@ -84,7 +84,21 @@ export const rewriteQuery2getSortedSqliteRowIds = (query: string) => {
   }
   const modified = mapper.statement(ast) as SelectFromStatement
 
-  return toSql.statement(modified)
+  const baseQuery = toSql.statement(modified)
+  return baseQuery
+}
+
+export const rewriteQuery2getSortedSqliteRowIds = (query: string, totalCount: number, batchSize: number = 100000): string[] => {
+  const baseQuery = _rewriteQuery2getSortedSqliteRowIds(query)
+
+  const queries: string[] = []
+
+  for (let offset = 0; offset < totalCount; offset += batchSize) {
+    const limit = Math.min(batchSize, totalCount - offset)
+    queries.push(`${baseQuery} LIMIT ${limit} OFFSET ${offset}`)
+  }
+
+  return queries
 }
 
 export const rewriteQueryWithSortedQuery = (
@@ -142,19 +156,19 @@ export const transformQueryWithOrderBy2Sql = (
       return {
         by: isNumber
           ? {
-              type: "cast",
-              operand: {
-                type: "ref",
-                name: item.column as any,
-              },
-              to: {
-                name: "real",
-              },
-            }
-          : {
+            type: "cast",
+            operand: {
               type: "ref",
               name: item.column as any,
             },
+            to: {
+              name: "real",
+            },
+          }
+          : {
+            type: "ref",
+            name: item.column as any,
+          },
         order: item.order as any,
       } as OrderByStatement
     })

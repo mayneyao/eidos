@@ -122,6 +122,7 @@ export const ViewToolbar = (props: {
   tableName: string
   space: string
   isEmbed: boolean
+  isReadOnly?: boolean
 }) => {
   const { space, tableName, viewId } = useContext(TableContext)
   const ref = useRef<HTMLDivElement>(null)
@@ -229,9 +230,11 @@ export const ViewToolbar = (props: {
             jump2View={jump2View}
             deleteView={deleteView}
           />
-          <Button onClick={handleAddView} variant="ghost" size="sm">
-            <PlusIcon className="h-4 w-4"></PlusIcon>
-          </Button>
+          {!props.isReadOnly && (
+            <Button onClick={handleAddView} variant="ghost" size="sm">
+              <PlusIcon className="h-4 w-4"></PlusIcon>
+            </Button>
+          )}
         </div>
         <div
           className={cn("flex gap-2 hover:opacity-100", {
@@ -245,10 +248,12 @@ export const ViewToolbar = (props: {
             <ViewField view={currentView} />
           </div>
 
-          <Button size="xs" onClick={handleAddRow}>
-            <PlusIcon className="h-4 w-4"></PlusIcon>
-            New
-          </Button>
+          {!props.isReadOnly && (
+            <Button size="xs" onClick={handleAddRow}>
+              <PlusIcon className="h-4 w-4"></PlusIcon>
+              New
+            </Button>
+          )}
           <Dialog open={open} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger>
               <div></div>

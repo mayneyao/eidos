@@ -1,4 +1,16 @@
 /// <reference types="react" resolution-mode="require"/>
+declare module "apps/publish/lib/sqlite-provider/base" {
+    export abstract class BaseServerDatabase {
+        abstract prepare(sql: string): any;
+        abstract close(): void;
+        abstract selectObjects(sql: string): Promise<{
+            [columnName: string]: any;
+        }[]>;
+        abstract transaction(): any;
+        abstract exec(opts: any): Promise<any>;
+        abstract createFunction(): any;
+    }
+}
 declare module "lib/const" {
     export enum MsgType {
         SetConfig = "SetConfig",
@@ -117,9 +129,9 @@ declare module "lib/fields/const" {
     export const TEXT_BASED_COMPARE_OPERATORS: CompareOperator[];
     export function applyMixins(derivedCtor: any, constructors: any[]): void;
 }
-declare module "lib/log" {
+declare module "lib/env" {
     export const logger: Console;
-    export const EIDOS_VERSION = "0.5.5";
+    export const EIDOS_VERSION = "0.6.3";
     export const isDevMode: boolean;
     export const isSelfHosted: boolean;
     export const isInkServiceMode: boolean;
@@ -811,7 +823,7 @@ declare module "lib/store/runtime-store" {
         setScriptContainerRef: (scriptContainerRef: React.RefObject<any>) => void;
         blockUIMsg: string | null;
         blockUIData?: Record<string, any>;
-        setBlockUIMsg: (blockUIMsg: string) => void;
+        setBlockUIMsg: (blockUIMsg: string | null) => void;
         setBlockUIData: (blockUIData: Record<string, any>) => void;
     }
     export const useAppRuntimeStore: import("zustand").UseBoundStore<import("zustand").StoreApi<AppRuntimeState>>;
@@ -1055,6 +1067,7 @@ declare module "components/doc/nodes/BookmarkNode/index" {
         static importJSON(data: any): BookmarkNode;
         setAll(payload: BookmarkPayload): void;
         exportJSON(): {
+            key: string;
             url: string;
             title: string;
             description: string;
@@ -1091,9 +1104,312 @@ declare module "components/doc/plugins/MarkdownTransformers" {
     import { ElementTransformer } from "@lexical/markdown";
     export const HR: ElementTransformer;
 }
+declare module "components/doc/blocks/interface" {
+    import { Transformer } from "@lexical/markdown";
+    import { LexicalCommand } from "lexical";
+    import { FunctionComponent } from "react";
+    export interface DocBlock {
+        name: string;
+        icon: string;
+        node: any;
+        plugin: FunctionComponent;
+        onSelect: (editor: any) => void;
+        keywords: string[];
+        transform?: Transformer;
+        command: {
+            create: LexicalCommand<any>;
+        };
+        createNode: (args: any) => any;
+        markdownLanguage?: string;
+    }
+}
+declare module "components/ui/dropdown-menu" {
+    import * as React from "react";
+    import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+    const DropdownMenu: React.FC<DropdownMenuPrimitive.DropdownMenuProps>;
+    const DropdownMenuTrigger: React.ForwardRefExoticComponent<DropdownMenuPrimitive.DropdownMenuTriggerProps & React.RefAttributes<HTMLButtonElement>>;
+    const DropdownMenuGroup: React.ForwardRefExoticComponent<DropdownMenuPrimitive.DropdownMenuGroupProps & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuPortal: React.FC<DropdownMenuPrimitive.DropdownMenuPortalProps>;
+    const DropdownMenuSub: React.FC<DropdownMenuPrimitive.DropdownMenuSubProps>;
+    const DropdownMenuRadioGroup: React.ForwardRefExoticComponent<DropdownMenuPrimitive.DropdownMenuRadioGroupProps & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuSubTrigger: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuSubTriggerProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
+        inset?: boolean;
+    } & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuSubContent: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuSubContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuContent: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
+        container?: HTMLElement;
+    } & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuItem: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuItemProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
+        inset?: boolean;
+    } & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuCheckboxItem: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuCheckboxItemProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuRadioItem: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuRadioItemProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuLabel: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuLabelProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
+        inset?: boolean;
+    } & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuSeparator: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuSeparatorProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    const DropdownMenuShortcut: {
+        ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>): import("react/jsx-runtime").JSX.Element;
+        displayName: string;
+    };
+    export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuGroup, DropdownMenuPortal, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuRadioGroup, };
+}
+declare module "components/ui/textarea" {
+    import * as React from "react";
+    export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+    }
+    const Textarea: React.ForwardRefExoticComponent<TextareaProps & React.RefAttributes<HTMLTextAreaElement>>;
+    export { Textarea };
+}
+declare module "components/ui/toast" {
+    import * as React from "react";
+    import * as ToastPrimitives from "@radix-ui/react-toast";
+    import { type VariantProps } from "class-variance-authority";
+    const ToastProvider: React.FC<ToastPrimitives.ToastProviderProps>;
+    const ToastViewport: React.ForwardRefExoticComponent<Omit<ToastPrimitives.ToastViewportProps & React.RefAttributes<HTMLOListElement>, "ref"> & React.RefAttributes<HTMLOListElement>>;
+    const Toast: React.ForwardRefExoticComponent<Omit<ToastPrimitives.ToastProps & React.RefAttributes<HTMLLIElement>, "ref"> & VariantProps<(props?: {
+        variant?: "default" | "destructive";
+    } & import("class-variance-authority/dist/types").ClassProp) => string> & React.RefAttributes<HTMLLIElement>>;
+    const ToastAction: React.ForwardRefExoticComponent<Omit<ToastPrimitives.ToastActionProps & React.RefAttributes<HTMLButtonElement>, "ref"> & React.RefAttributes<HTMLButtonElement>>;
+    const ToastClose: React.ForwardRefExoticComponent<Omit<ToastPrimitives.ToastCloseProps & React.RefAttributes<HTMLButtonElement>, "ref"> & React.RefAttributes<HTMLButtonElement>>;
+    const ToastTitle: React.ForwardRefExoticComponent<Omit<ToastPrimitives.ToastTitleProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    const ToastDescription: React.ForwardRefExoticComponent<Omit<ToastPrimitives.ToastDescriptionProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
+    type ToastProps = React.ComponentPropsWithoutRef<typeof Toast>;
+    type ToastActionElement = React.ReactElement<typeof ToastAction>;
+    export { type ToastProps, type ToastActionElement, ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastClose, ToastAction, };
+}
+declare module "components/ui/use-toast" {
+    import * as React from "react";
+    import type { ToastActionElement, ToastProps } from "components/ui/toast";
+    type ToasterToast = ToastProps & {
+        id: string;
+        title?: React.ReactNode;
+        description?: React.ReactNode;
+        action?: ToastActionElement;
+    };
+    const actionTypes: {
+        readonly ADD_TOAST: "ADD_TOAST";
+        readonly UPDATE_TOAST: "UPDATE_TOAST";
+        readonly DISMISS_TOAST: "DISMISS_TOAST";
+        readonly REMOVE_TOAST: "REMOVE_TOAST";
+    };
+    type ActionType = typeof actionTypes;
+    type Action = {
+        type: ActionType["ADD_TOAST"];
+        toast: ToasterToast;
+    } | {
+        type: ActionType["UPDATE_TOAST"];
+        toast: Partial<ToasterToast>;
+    } | {
+        type: ActionType["DISMISS_TOAST"];
+        toastId?: ToasterToast["id"];
+    } | {
+        type: ActionType["REMOVE_TOAST"];
+        toastId?: ToasterToast["id"];
+    };
+    interface State {
+        toasts: ToasterToast[];
+    }
+    export const reducer: (state: State, action: Action) => State;
+    type Toast = Omit<ToasterToast, "id">;
+    function toast({ ...props }: Toast): {
+        id: string;
+        dismiss: () => void;
+        update: (props: ToasterToast) => void;
+    };
+    function useToast(): {
+        toast: typeof toast;
+        dismiss: (toastId?: string) => void;
+        toasts: ToasterToast[];
+    };
+    export { useToast, toast };
+}
+declare module "components/doc/blocks/mermaid/component" {
+    import { NodeKey } from "lexical";
+    export interface MermaidProps {
+        text: string;
+        nodeKey: NodeKey;
+    }
+    export const Mermaid: React.FC<MermaidProps>;
+}
+declare module "components/doc/blocks/mermaid/node" {
+    import { ReactNode } from "react";
+    import { TextMatchTransformer } from "@lexical/markdown";
+    import { DecoratorNode, EditorConfig, LexicalEditor, LexicalNode, NodeKey } from "lexical";
+    export class MermaidNode extends DecoratorNode<ReactNode> {
+        __text: string;
+        static getType(): string;
+        static clone(node: MermaidNode): MermaidNode;
+        constructor(text: string, key?: NodeKey);
+        setText(text: string): void;
+        createDOM(): HTMLElement;
+        updateDOM(): false;
+        exportJSON(): any;
+        static importJSON(_serializedNode: any): MermaidNode;
+        decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode;
+    }
+    export function $createMermaidNode(text: string): MermaidNode;
+    export function $isMermaidNode(node: LexicalNode | null | undefined): node is MermaidNode;
+    export const MERMAID_NODE_TRANSFORMER: TextMatchTransformer;
+}
+declare module "components/doc/blocks/mermaid/plugin" {
+    import { LexicalCommand } from "lexical";
+    export const INSERT_MERMAID_COMMAND: LexicalCommand<string>;
+    export function MermaidPlugin(): JSX.Element | null;
+}
+declare module "components/doc/blocks/mermaid/index" {
+    import { DocBlock } from "components/doc/blocks/interface";
+    const _default: DocBlock;
+    export default _default;
+}
+declare module "components/doc/blocks/video/component" {
+    import { NodeKey } from "lexical";
+    export const VideoComponent: (props: {
+        url: string;
+        nodeKey: NodeKey;
+    }) => import("react/jsx-runtime").JSX.Element;
+}
+declare module "components/doc/blocks/video/node" {
+    import { ReactNode } from "react";
+    import { DecoratorNode, EditorConfig, LexicalEditor, LexicalNode, NodeKey, SerializedLexicalNode, Spread } from "lexical";
+    export type SerializedVideoNode = Spread<{
+        src: string;
+    }, SerializedLexicalNode>;
+    export class VideoNode extends DecoratorNode<ReactNode> {
+        __src: string;
+        static getType(): string;
+        static clone(node: VideoNode): VideoNode;
+        constructor(src: string, key?: NodeKey);
+        setSrc(src: string): void;
+        createDOM(): HTMLElement;
+        updateDOM(): false;
+        static importJSON(data: SerializedVideoNode): VideoNode;
+        exportJSON(): {
+            src: string;
+            type: string;
+            version: number;
+        };
+        decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode;
+        getTextContent(): string;
+    }
+    export function $createVideoNode(src: string): VideoNode;
+    export function $isVideoNode(node: LexicalNode | null | undefined): node is VideoNode;
+}
+declare module "components/doc/blocks/video/plugin" {
+    import { LexicalCommand } from "lexical";
+    export const INSERT_VIDEO_FILE_COMMAND: LexicalCommand<string>;
+    export const VideoPlugin: () => any;
+}
+declare module "components/doc/blocks/video/index" {
+    import { DocBlock } from "components/doc/blocks/interface";
+    const _default_1: DocBlock;
+    export default _default_1;
+}
+declare module "components/doc/blocks/audio/component" {
+    import { NodeKey } from "lexical";
+    export const AudioComponent: (props: {
+        url: string;
+        nodeKey: NodeKey;
+    }) => import("react/jsx-runtime").JSX.Element;
+}
+declare module "components/doc/blocks/audio/node" {
+    import { ReactNode } from "react";
+    import { DecoratorNode, EditorConfig, LexicalEditor, LexicalNode, NodeKey, SerializedLexicalNode, Spread } from "lexical";
+    export type SerializedAudioNode = Spread<{
+        src: string;
+    }, SerializedLexicalNode>;
+    export class AudioNode extends DecoratorNode<ReactNode> {
+        __src: string;
+        static getType(): string;
+        static clone(node: AudioNode): AudioNode;
+        constructor(src: string, key?: NodeKey);
+        setSrc(src: string): void;
+        createDOM(): HTMLElement;
+        updateDOM(): false;
+        static importJSON(data: SerializedAudioNode): AudioNode;
+        exportJSON(): {
+            src: string;
+            type: string;
+            version: number;
+        };
+        decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode;
+        getTextContent(): string;
+    }
+    export function $createAudioNode(src: string): AudioNode;
+    export function $isAudioNode(node: LexicalNode | null | undefined): node is AudioNode;
+}
+declare module "components/doc/blocks/audio/plugin" {
+    import { LexicalCommand } from "lexical";
+    export const INSERT_AUDIO_FILE_COMMAND: LexicalCommand<string>;
+    export const AudioPlugin: () => any;
+}
+declare module "components/doc/blocks/audio/index" {
+    import { DocBlock } from "components/doc/blocks/interface";
+    const _default_2: DocBlock;
+    export default _default_2;
+}
+declare module "components/doc/blocks/file/component" {
+    import { NodeKey } from "lexical";
+    export const FileComponent: ({ url, fileName, nodeKey, }: {
+        url: string;
+        fileName: string;
+        nodeKey: NodeKey;
+    }) => import("react/jsx-runtime").JSX.Element;
+}
+declare module "components/doc/blocks/file/node" {
+    import { ReactNode } from "react";
+    import { DecoratorNode, EditorConfig, LexicalEditor, LexicalNode, NodeKey, SerializedLexicalNode, Spread } from "lexical";
+    export type SerializedFileNode = Spread<{
+        src: string;
+        fileName: string;
+    }, SerializedLexicalNode>;
+    export class FileNode extends DecoratorNode<ReactNode> {
+        __src: string;
+        __fileName: string;
+        static getType(): string;
+        static clone(node: FileNode): FileNode;
+        constructor(src: string, fileName: string, key?: NodeKey);
+        setSrc(src: string): void;
+        setFileName(fileName: string): void;
+        createDOM(): HTMLElement;
+        updateDOM(): false;
+        static importJSON(data: SerializedFileNode): FileNode;
+        exportJSON(): {
+            src: string;
+            fileName: string;
+            type: string;
+            version: number;
+        };
+        decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode;
+        getTextContent(): string;
+    }
+    export function $createFileNode(data: {
+        src: string;
+        fileName: string;
+    }): FileNode;
+    export function $isFileNode(node: LexicalNode | null | undefined): node is FileNode;
+}
+declare module "components/doc/blocks/file/plugin" {
+    import { LexicalCommand } from "lexical";
+    export const INSERT_FILE_COMMAND: LexicalCommand<{
+        src: string;
+        fileName: string;
+    }>;
+    export const FilePlugin: () => any;
+}
+declare module "components/doc/blocks/file/index" {
+    import { DocBlock } from "components/doc/blocks/interface";
+    const _default_3: DocBlock;
+    export default _default_3;
+}
+declare module "components/doc/blocks/index" {
+    import { DocBlock } from "components/doc/blocks/interface";
+    export const BuiltInBlocks: DocBlock[];
+}
 declare module "components/doc/plugins/const" {
+    import { Transformer } from "@lexical/markdown";
     import { BookmarkPayload } from "components/doc/nodes/BookmarkNode/index";
-    export const allTransformers: import("@lexical/markdown").Transformer[];
+    export const allTransformers: Transformer[];
     export const fgColors: {
         name: string;
         value: string;
@@ -1243,6 +1559,7 @@ declare module "hooks/use-sqlite" {
         delRows: (tableId: string, rowIds: string[]) => void;
         getRowById: (tableId: string, rowId: string) => Record<string, any> | null;
         getRowIds: (tableId: string) => string[];
+        setView: (tableId: string, viewId: string, view: Partial<IView>) => void;
         cleanFieldData: (tableId: string, fieldId: string) => void;
         selectedTable: string;
         setSelectedTable: (table: string) => void;
@@ -1541,35 +1858,6 @@ declare module "components/table/views/grid/cells/helper" {
     export function measureTextCached(s: string, ctx: CanvasRenderingContext2D, font?: string): TextMetrics;
     export function drawDrilldownCell(args: BaseDrawArgs, data: readonly LinkCellData[]): void;
     export function drawImage(args: BaseDrawArgs, data: readonly string[], rounding?: number, contentAlign?: BaseGridCell["contentAlign"]): void;
-}
-declare module "components/ui/dropdown-menu" {
-    import * as React from "react";
-    import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-    const DropdownMenu: React.FC<DropdownMenuPrimitive.DropdownMenuProps>;
-    const DropdownMenuTrigger: React.ForwardRefExoticComponent<DropdownMenuPrimitive.DropdownMenuTriggerProps & React.RefAttributes<HTMLButtonElement>>;
-    const DropdownMenuGroup: React.ForwardRefExoticComponent<DropdownMenuPrimitive.DropdownMenuGroupProps & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuPortal: React.FC<DropdownMenuPrimitive.DropdownMenuPortalProps>;
-    const DropdownMenuSub: React.FC<DropdownMenuPrimitive.DropdownMenuSubProps>;
-    const DropdownMenuRadioGroup: React.ForwardRefExoticComponent<DropdownMenuPrimitive.DropdownMenuRadioGroupProps & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuSubTrigger: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuSubTriggerProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
-        inset?: boolean;
-    } & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuSubContent: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuSubContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuContent: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuContentProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuItem: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuItemProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
-        inset?: boolean;
-    } & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuCheckboxItem: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuCheckboxItemProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuRadioItem: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuRadioItemProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuLabel: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuLabelProps & React.RefAttributes<HTMLDivElement>, "ref"> & {
-        inset?: boolean;
-    } & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuSeparator: React.ForwardRefExoticComponent<Omit<DropdownMenuPrimitive.DropdownMenuSeparatorProps & React.RefAttributes<HTMLDivElement>, "ref"> & React.RefAttributes<HTMLDivElement>>;
-    const DropdownMenuShortcut: {
-        ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>): import("react/jsx-runtime").JSX.Element;
-        displayName: string;
-    };
-    export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuGroup, DropdownMenuPortal, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuRadioGroup, };
 }
 declare module "components/table/views/grid/cells/file/file-cell-eidtor" {
     import { type FC } from "react";
@@ -2024,6 +2312,7 @@ declare module "worker/web-worker/sdk/rows" {
             offset?: number;
             raw?: boolean;
             select?: string[];
+            rawQuery?: string;
         }): Promise<Record<string, any>[]>;
         getCreateData(data: Record<string, any>): Record<string, any>;
         getUpdateData(data: Record<string, any>): {
@@ -2325,7 +2614,7 @@ declare module "worker/web-worker/data-pipeline/LinkRelationUpdater" {
     export class LinkRelationUpdater {
         private dataSpace;
         needUpdateCell: Record<string, Record<string, Set<string>>>;
-        constructor(dataSpace: DataSpace);
+        constructor(dataSpace: DataSpace, setInterval?: typeof global.setInterval);
         updateCells: () => Promise<void>;
         addCell: (tableName: string, tableColumnName: string, rowId: string) => void;
     }
@@ -2773,10 +3062,19 @@ declare module "worker/web-worker/DataSpace" {
         allTables: BaseTable<any>[];
         eventHandler: DataChangeEventHandler;
         hasMigrated: boolean;
-        constructor(db: Database, activeUndoManager: boolean, dbName: string, sqlite3?: Sqlite3Static, draftDb?: DataSpace);
+        constructor(config: {
+            db: Database;
+            activeUndoManager: boolean;
+            dbName: string;
+            context: {
+                setInterval?: typeof setInterval;
+            };
+            createUDF?: (db: Database) => void;
+            sqlite3?: Sqlite3Static;
+            draftDb?: DataSpace;
+        });
         closeDb(): void;
         private initUDF;
-        private initUDF2;
         private initMetaTable;
         onTableChange(space: string, tableName: string, toDeleteColumns?: string[]): Promise<void>;
         addEmbedding(embedding: IEmbedding): Promise<IEmbedding>;
@@ -2893,6 +3191,7 @@ declare module "worker/web-worker/DataSpace" {
             msg: string;
         }>;
         deleteDoc(docId: string): Promise<void>;
+        listAllDocIds(): Promise<any[]>;
         fullTextSearch(query: string): Promise<{
             id: string;
             result: string;
@@ -2955,9 +3254,9 @@ declare module "worker/web-worker/DataSpace" {
          * @param values
          * @returns
          */
-        sql(strings: TemplateStringsArray, ...values: any[]): Promise<any[] | import("@libsql/client/web").Row[]>;
-        sql2: (strings: TemplateStringsArray, ...values: any[]) => Promise<any[] | import("@libsql/client/web").Row[]>;
-        sqlQuery: (sql: string, bind?: any[], rowMode?: "object" | "array") => Promise<any[] | import("@libsql/client/web").Row[]>;
+        sql(strings: TemplateStringsArray, ...values: any[]): Promise<any>;
+        sql2: (strings: TemplateStringsArray, ...values: any[]) => Promise<any>;
+        sqlQuery: (sql: string, bind?: any[], rowMode?: "object" | "array") => Promise<any>;
         /**
          * Symbol can't be transformed between main thread and worker thread.
          * so we need to parse sql in main thread, then call this function. it will equal to call `sql` function in worker thread
@@ -2966,8 +3265,8 @@ declare module "worker/web-worker/DataSpace" {
          * @param bind
          * @returns
          */
-        sql4mainThread(sql: string, bind?: any[], rowMode?: "object" | "array"): Promise<any[] | import("@libsql/client/web").Row[]>;
-        sql4mainThread2(sql: string, bind?: any[]): Promise<any[] | import("@libsql/client/web").Row[]>;
+        sql4mainThread(sql: string, bind?: any[], rowMode?: "object" | "array"): Promise<any>;
+        sql4mainThread2(sql: string, bind?: any[]): Promise<any>;
         onUpdate(): void;
         notify(msg: {
             title: string;
@@ -2976,26 +3275,42 @@ declare module "worker/web-worker/DataSpace" {
         blockUIMsg(msg: string | null, data?: Record<string, any>): void;
     }
 }
-declare module "apps/publish/_worker" {
-    import { Request, Response } from "node_modules/.pnpm/@cloudflare+workers-types@4.20240806.0/node_modules/@cloudflare/workers-types/index";
-    import { Client } from "@libsql/client/web";
-    export const turso: Client;
-    export class ServerDatabase {
-        db: Client;
-        filename: string;
-        constructor(db: Client);
-        prepare(): any;
-        close(): void;
-        selectObjects(sql: string): Promise<{
-            [columnName: string]: any;
-        }[]>;
-        transaction(): void;
-        exec(opts: any): Promise<import("@libsql/client/web").Row[]>;
-        createFunction(): void;
+declare module "@eidos.space/types" {
+    import { DataSpace } from "worker/web-worker/DataSpace";
+    export interface Eidos {
+        space(spaceName: string): DataSpace;
+        currentSpace: DataSpace;
+        utils: {
+            /**
+             * we can't use fetch directly in the iframe, so we need to use this method to fetch resource
+             * Note: it return Blob, not Response
+             *
+             * for example:
+             *
+             * const blob = await eidos.fetchBlob("https://example.com/file.zip", {
+             *   method: "GET",
+             *   headers: {
+             *     "Content-Type": "application/zip",
+             *   },
+             * })
+             *
+             * @param url
+             * @param options
+             * @returns
+             */
+            fetchBlob(url: string, options: RequestInit): Promise<Blob>;
+            /**
+             * highlight the row if it is in the current view
+             * @param tableId
+             * @param rowId
+             * @param fieldId
+             */
+            tableHighlightRow(tableId: string, rowId: string, fieldId?: string): void;
+        };
     }
-    export const serverDb: ServerDatabase;
-    const _default: {
-        fetch(request: Request, env: any): Promise<Response>;
-    };
-    export default _default;
+    export interface EidosTable<T = Record<string, string>> {
+        id: string;
+        name: string;
+        fieldsMap: T;
+    }
 }

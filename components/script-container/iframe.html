@@ -114,6 +114,35 @@
         )
       }
 
+      function createFunction(method) {
+        const msgChannel = new MessageChannel()
+        const send = (data) => {
+          window.parent.postMessage(
+            {
+              type: `scriptCallMain`,
+              data,
+            },
+            "*",
+            [msgChannel.port2]
+          )
+        }
+        const run = (...args) => {
+          send({
+            method,
+            args,
+          })
+          return new Promise((resolve, reject) => {
+            msgChannel.port1.onmessage = (event) => {
+              const { type, data } = event.data
+              if (type === `scriptCallMainResp`) {
+                resolve(data)
+              }
+              msgChannel.port1.close()
+            }
+          })
+        }
+        return (...args) => run(...args)
+      }
       window.eidos = new Proxy(
         {},
         {
@@ -126,6 +155,16 @@
             }
             if (prop === "currentSpace") {
               return makeSpaceProxy("${{currentSpace}}")
+            }
+            if (prop === "utils") {
+              return {
+                tableHighlightRow: (...args) => {
+                  return createFunction("tableHighlightRow")(...args)
+                },
+                fetchBlob: (...args) => {
+                  return createFunction("fetchBlob")(...args)
+                },
+              }
             }
           },
         }

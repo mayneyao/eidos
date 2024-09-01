@@ -17,7 +17,7 @@ interface IHttpSendData {
 export class HttpSqlite implements ISqlite<string, IHttpSendData> {
   connector: string // URL of the server
 
-  responseMap: Map<string, Response> = new Map()
+  responseMap: Map<string, any> = new Map()
   constructor(connector: string) {
     this.connector = connector
     this.responseMap = new Map()
@@ -35,38 +35,35 @@ export class HttpSqlite implements ISqlite<string, IHttpSendData> {
     if (!response.ok) {
       throw new Error("Network response was not ok")
     }
-    this.responseMap.set(data.id, response)
+    const responseData = await response.json()
+    this.responseMap.set(data.id, responseData)
   }
 
   async onCallBack(
     thisCallId: string,
-    timeout: number = 5000,
+    timeout: number = 15000,
     interval: number = 100
   ) {
     return new Promise((resolve, reject) => {
       const startTime = Date.now()
 
-      const checkResponse = async () => {
-        const response = this.responseMap.get(thisCallId)
-        if (response) {
+      const checkResponse = () => {
+        const responseData = this.responseMap.get(thisCallId)
+        if (responseData) {
           try {
-            const data: {
-              status: "success" | "error"
-              result: any
-            } = await response.json()
-            if (data.status === "success") {
-              resolve(data.result)
+            if (responseData.status === "success") {
+              resolve(responseData.result)
             } else {
-              reject(new Error(data.result))
+              reject(new Error(responseData.result))
             }
           } catch (error) {
-            reject(new Error(`解析响应失败: ${error instanceof Error ? error.message : '未知错误'}`))
+            reject(new Error(`Error: ${error instanceof Error ? error.message : '未知错误'}`))
           } finally {
             this.responseMap.delete(thisCallId)
           }
           clearInterval(polling)
         } else if (Date.now() - startTime >= timeout) {
-          reject(new Error("在超时时间内未找到响应"))
+          reject(new Error("Timeout"))
           clearInterval(polling)
         }
       }

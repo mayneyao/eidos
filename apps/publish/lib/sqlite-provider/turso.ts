@@ -1,13 +1,28 @@
 import { Client, createClient } from "@libsql/client/web"
+import { BaseServerDatabase } from "./base";
 
-export class ServerDatabase {
-  db: Client
-  filename: string
-  constructor(url: string, token: string) {
+
+export interface TursoDomainDbInfo {
+  type: "turso"
+  config: {
+    name: string
+    url: string
+    readToken: string
+    version: string
+  }
+}
+
+
+export class TursoServerDatabase extends BaseServerDatabase {
+  db: Client;
+  filename: string;
+  constructor(config: TursoDomainDbInfo['config']) {
+    super();
+    const { url, readToken } = config
     // token below just for testing, should be removed
     this.db = createClient({
       url,
-      authToken: token,
+      authToken: readToken,
     })
     this.filename = "demo"
   }
@@ -36,11 +51,16 @@ export class ServerDatabase {
         return rows
       }
       if (rowMode === "array") {
-        const { rows } = await this.db.execute({
+        const { rows, columns } = await this.db.execute({
           sql,
           args: bind,
         })
-        return rows
+
+        return rows.map((row: any) => {
+          return columns.map((col: any, index: number) => {
+            return row[index]
+          })
+        })
       }
     }
     return []

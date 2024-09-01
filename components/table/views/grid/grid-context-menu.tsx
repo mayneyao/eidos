@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react"
+import { useCallback, useContext, useMemo } from "react"
 import { CompactSelectionRanges } from "@glideapps/glide-data-grid"
 import {
   ExternalLinkIcon,
@@ -23,6 +23,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 
+import { TableContext } from "../../hooks"
 import { ScriptContextMenu } from "./script-context-menu"
 import { useTableAppStore } from "./store"
 
@@ -139,6 +140,7 @@ export function GridContextMenu({
     }
     clearSelection()
   }
+  const { isReadOnly } = useContext(TableContext)
 
   return (
     <ContextMenu>
@@ -154,10 +156,12 @@ export function GridContextMenu({
           <MoveDiagonalIcon className="pr-2" />
           Open in full page
         </ContextMenuItem>
-        <ContextMenuItem onClick={handleDelete}>
-          <Trash2Icon className="pr-2" />
-          Delete Rows ({count})
-        </ContextMenuItem>
+        {!isReadOnly && (
+          <ContextMenuItem onClick={handleDelete}>
+            <Trash2Icon className="pr-2" />
+            Delete Rows ({count})
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         {currentField?.type === "url" && (
           <>
@@ -167,11 +171,13 @@ export function GridContextMenu({
             </ContextMenuItem>
           </>
         )}
-        <ContextMenuItem onClick={openAItools}>
-          <SparklesIcon className="pr-2" />
-          Ask AI
-          <ContextMenuShortcut>Alt+I</ContextMenuShortcut>
-        </ContextMenuItem>
+        {!isReadOnly && (
+          <ContextMenuItem onClick={openAItools}>
+            <SparklesIcon className="pr-2" />
+            Ask AI
+            <ContextMenuShortcut>Alt+I</ContextMenuShortcut>
+          </ContextMenuItem>
+        )}
         <ScriptContextMenu getRows={getRows} />
       </ContextMenuContent>
     </ContextMenu>

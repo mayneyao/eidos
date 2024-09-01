@@ -1,6 +1,6 @@
 import sqlite3InitModule, { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
-import { logger } from "@/lib/log"
+import { logger } from "@/lib/env"
 import { getConfig } from "@/lib/storage/indexeddb"
 import { ExperimentFormValues } from "@/apps/web-app/settings/experiment/store"
 
