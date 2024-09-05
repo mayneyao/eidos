@@ -58,7 +58,7 @@ export const getSqliteProxy = (
                     return function (params: any) {
                       const thisCallId = uuidv7()
                       const [_params, ...rest] = arguments
-                      sqlite.send({
+                      const res = sqlite.send({
                         type: MsgType.CallFunction,
                         data: {
                           method: `table(${id}).rows.${method as string}`,
@@ -69,6 +69,9 @@ export const getSqliteProxy = (
                         },
                         id: thisCallId,
                       })
+                      if (res) {
+                        return res
+                      }
                       return sqlite.onCallBack(thisCallId)
                     }
                   },
@@ -77,7 +80,7 @@ export const getSqliteProxy = (
               return function (params: any) {
                 const thisCallId = uuidv7()
                 const [_params, ...rest] = arguments
-                sqlite.send({
+                const res = sqlite.send({
                   type: MsgType.CallFunction,
                   data: {
                     method: `table("${id}").${method as string}`,
@@ -88,6 +91,9 @@ export const getSqliteProxy = (
                   },
                   id: thisCallId,
                 })
+                if (res) {
+                  return res
+                }
                 return sqlite.onCallBack(thisCallId)
               }
             },
@@ -111,7 +117,7 @@ export const getSqliteProxy = (
             return function (params: any) {
               const thisCallId = uuidv7()
               const [_params, ...rest] = arguments
-              sqlite.send({
+              const res = sqlite.send({
                 type: MsgType.CallFunction,
                 data: {
                   method: `${method as string}.${subMethod as string}`,
@@ -121,6 +127,9 @@ export const getSqliteProxy = (
                 },
                 id: thisCallId,
               })
+              if (res) {
+                return res
+              }
               return sqlite.onCallBack(thisCallId)
             }
           },
@@ -157,7 +166,7 @@ export const getSqliteProxy = (
           }
           sqlite.send(data)
         } else {
-          sqlite.send({
+          const res = sqlite.send({
             type: MsgType.CallFunction,
             data: {
               method: method as string,
@@ -167,6 +176,9 @@ export const getSqliteProxy = (
             },
             id: thisCallId,
           })
+          if (res) {
+            return res
+          }
         }
         return sqlite.onCallBack(thisCallId)
       }

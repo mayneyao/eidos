@@ -27,6 +27,6 @@ export type ITreeItem = {
 
 export interface ISqlite<T, D> {
   connector: T
-  send: (data: D) => void
+  send: (data: D) => void | Promise<any>
   onCallBack: (thisCallId: string) => Promise<any>
 }

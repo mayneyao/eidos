@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('eidos', {
     return ipcRenderer.invoke(channel, ...omit)
   },
   chrome: process.versions.chrome,
+  node: process.versions.node,
 
   // You can expose other APTs you need here.
   // ...

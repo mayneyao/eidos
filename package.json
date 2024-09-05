@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
     "build": "pnpm recursive run build && tsc && vite build",
     "build:self-host": "pnpm recursive run build && tsc && vite build --mode self-host",
     "dev:ink": "EIDOS_SERVICE_MODE=ink vite --mode ink",
@@ -13,6 +14,7 @@
     "build:desktop": "pnpm recursive run build && tsc && EIDOS_SERVICE_MODE=desktop vite build --mode desktop",
     "build:cf-worker": "node scripts/build-cf-worker.cjs",
     "build:cf-worker-do": "node scripts/build-cf-worker-do.cjs",
+    "build:electron-main": "node scripts/build-electron-main.cjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -23,9 +25,11 @@
     "minor": "node scripts/version.cjs minor",
     "major": "node scripts/version.cjs major",
     "test": "vitest",
-    "start-electron": "electron main.js",
-    "build-electron": "BUILD_MODE=1 electron-builder"
+    "start-electron": "electron .",
+    "build-electron": "BUILD_MODE=1 electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
+  "start": "electron .",
   "main": "dist-electron/main.js",
   "build": {
     "appId": "space.eidos.desktop",
@@ -33,6 +37,7 @@
     "directories": {
       "output": "dist-app"
     },
+    "npmRebuild": true,
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -164,6 +169,7 @@
     "react-virtualized-auto-sizer": "^1.0.20",
     "react-window": "^1.8.9",
     "sort-by": "^1.2.0",
+    "sqlite3": "^5.1.7",
     "tailwindcss-animate": "^1.0.6",
     "utf-8-validate": "^6.0.3",
     "uuid": "^9.0.0",
@@ -180,6 +186,9 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240806.0",
     "@ianvs/prettier-plugin-sort-imports": "^3.7.2",
+    "@rollup/plugin-commonjs": "^26.0.1",
+    "@rollup/plugin-esm-shim": "^0.1.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
     "@tailwindcss/typography": "^0.5.9",
     "@testing-library/react-hooks": "^8.0.1",
     "@types/better-sqlite3": "^7.6.11",
@@ -205,6 +214,7 @@
     "cross-env": "^7.0.3",
     "electron": "^32.0.1",
     "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
     "esbuild": "^0.23.0",
     "eslint": "^8.44.0",
     "eslint-config-prettier": "^8.8.0",

@@ -1,10 +1,11 @@
+import esmShim from '@rollup/plugin-esm-shim'
 import react from "@vitejs/plugin-react"
 import fs from "fs"
 import path from "path"
 import { visualizer } from "rollup-plugin-visualizer"
 import { Plugin, PluginOption, defineConfig } from "vite"
-import { VitePWA } from "vite-plugin-pwa"
 import electron from 'vite-plugin-electron/simple'
+import { VitePWA } from "vite-plugin-pwa"
 
 const serviceMode = process.env.EIDOS_SERVICE_MODE || 'web-app'
 
@@ -90,6 +91,35 @@ const config = defineConfig({
         main: {
           // Shortcut of `build.lib.entry`
           entry: 'electron/main.ts',
+          vite: {
+            resolve: {
+              alias: {
+                "@": path.resolve(__dirname, "./"),
+              },
+            },
+            build: {
+              rollupOptions: {
+                plugins: [
+                  // resolve({
+                  //   preferBuiltins: true,
+                  //   extensions: ['.js', '.json', '.node']
+                  // }) as any,
+                  // commonjs({
+                  //   include: 'node_modules/**',
+                  //   dynamicRequireTargets: [
+                  //     // specify the paths to the native modules
+                  //     'node_modules/better-sqlite3/**/*'
+                  //   ]
+                  // }),
+                  esmShim() as any
+                ],
+                external: [
+                  'better-sqlite3', // Treat better-sqlite3 as external module
+                ]
+              },
+            },
+
+          }
         },
         preload: {
           input: 'electron/preload.ts',

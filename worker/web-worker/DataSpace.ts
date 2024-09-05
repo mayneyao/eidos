@@ -76,6 +76,7 @@ export class DataSpace {
   dataChangeTrigger: DataChangeTrigger
   linkRelationUpdater: LinkRelationUpdater
   allTables: BaseTable<any>[] = []
+  postMessage?: (data: any) => void
 
   // for trigger
   eventHandler: DataChangeEventHandler
@@ -92,12 +93,14 @@ export class DataSpace {
     createUDF?: (db: Database) => void,
     sqlite3?: Sqlite3Static
     draftDb?: DataSpace
+    postMessage?: (data: any) => void
   }) {
-    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF } = config
+    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF, postMessage } = config
     this.db = db
     this.sqlite3 = sqlite3
     this.draftDb = draftDb
     this.dbName = dbName
+    this.postMessage = postMessage
     this.initUDF()
     this.eventHandler = new DataChangeEventHandler(this)
     this.dataChangeTrigger = new DataChangeTrigger()
@@ -151,19 +154,25 @@ export class DataSpace {
   }
 
   private initUDF() {
-    if (!this.sqlite3) {
-      return
-    }
-    const allUfs = withSqlite3AllUDF(this.sqlite3)
+    const allUfs = withSqlite3AllUDF()
     // system functions
-    allUfs.forEach((udf) => {
-      this.db.createFunction(udf as any)
-    })
+    if (this.db instanceof BaseServerDatabase) {
+      allUfs.ALL_UDF_NO_CTX.forEach((udf) => {
+        this.db.createFunction(udf as any)
+      })
+    } else {
+      allUfs.ALL_UDF.forEach((udf) => {
+        this.db.createFunction(udf as any)
+      })
+    }
   }
 
   private initMetaTable() {
     this.allTables.forEach((table) => {
-      this.exec(table.createTableSql)
+      const sqlStatements = table.createTableSql.split(';').map(stmt => stmt.trim()).filter(stmt => stmt);
+      sqlStatements.forEach((sql) => {
+        this.exec(sql);
+      });
     })
   }
 
@@ -992,7 +1001,7 @@ export class DataSpace {
     } catch (error: any) {
       logger.error(error)
       logger.error({ sql, bind })
-      postMessage({
+      this.postMessage?.({
         type: MsgType.Error,
         data: {
           message: error.message,
@@ -1081,7 +1090,7 @@ export class DataSpace {
   }
 
   public onUpdate() {
-    postMessage({
+    this.postMessage?.({
       type: MsgType.DataUpdateSignal,
       data: {
         database: this.dbName,
@@ -1091,14 +1100,14 @@ export class DataSpace {
   }
 
   public notify(msg: { title: string; description: string }) {
-    postMessage({
+    this.postMessage?.({
       type: MsgType.Notify,
       data: msg,
     })
   }
 
   public blockUIMsg(msg: string | null, data?: Record<string, any>) {
-    postMessage({
+    this.postMessage?.({
       type: MsgType.BlockUIMsg,
       data: {
         msg,

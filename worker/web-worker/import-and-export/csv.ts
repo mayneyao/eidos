@@ -64,7 +64,7 @@ export class CsvImportAndExport extends BaseImportAndExport {
   }
   async import(file: File, dataSpace: DataSpace): Promise<string> {
     // name without extension
-    const nodeName = file.name.replace(/\.[^/.]+$/, "")
+    const nodeName = file.name?.replace(/\.[^/.]+$/, "")
     const tableId = uuidv4().split("-").join("")
     let tm = new TableManager(tableId, dataSpace)
     let rows2Create: any[] = []
