@@ -38,6 +38,7 @@ import { LicenseManagePage } from "../web-app/license-manage/page"
 import { DevtoolsPage } from "../web-app/settings/dev/page"
 // extensions
 import RootLayout from "./layout"
+import { DesktopSpaceLayout } from "./space-layout"
 
 const router = createBrowserRouter([
   {
@@ -101,7 +102,7 @@ const router = createBrowserRouter([
       },
       {
         path: ":database",
-        element: <SpaceLayout />,
+        element: <DesktopSpaceLayout />,
         loader: async ({ params }) => {
           // check the space is exist
           const spaceNames = await spaceFileSystem.list()

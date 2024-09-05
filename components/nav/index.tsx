@@ -1,6 +1,7 @@
 import { Menu } from "lucide-react"
 import { useTheme } from "next-themes"
 
+import { isDesktopMode } from "@/lib/env"
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/web/helper"
@@ -31,6 +32,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
         "flex h-8 w-full border-separate items-center justify-between pl-2",
         {
           fixed: navigator.windowControlsOverlay?.visible,
+          "!pl-[72px]": isDesktopMode && isMac(),
           "!h-[38px]": isMac(),
           "bg-[#000]": theme === "dark",
           "bg-[#fff]": theme === "light",

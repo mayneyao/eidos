@@ -25,9 +25,7 @@ export default function RootLayout() {
       <>
         {/* APP MODEL， a sidebar and main */}
         <div className="flex h-screen w-screen overflow-auto">
-          <div className="h-full w-full grow">
-            <Outlet />
-          </div>
+          <Outlet />
         </div>
         <CommandDialogDemo />
         <ShortCuts />

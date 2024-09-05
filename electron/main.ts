@@ -61,7 +61,6 @@ const dataSpace = new DataSpace({
 
 ipcMain.handle('sqlite-msg', async (event, payload) => {
     const res = await handleFunctionCall(payload.data, dataSpace)
-    console.log(res)
     return res
 });
 

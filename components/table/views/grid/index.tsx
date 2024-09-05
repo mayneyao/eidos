@@ -291,6 +291,7 @@ export default function GridView(props: IGridProps) {
   })
 
   useKeyPress("alt.i", (e) => {
+    if (e.metaKey) return
     e.preventDefault()
     e.stopPropagation()
     setIsAItoolsOpen((prev) => !prev)
