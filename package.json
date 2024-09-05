@@ -8,7 +8,9 @@
     "build": "pnpm recursive run build && tsc && vite build",
     "build:self-host": "pnpm recursive run build && tsc && vite build --mode self-host",
     "dev:ink": "EIDOS_SERVICE_MODE=ink vite --mode ink",
+    "dev:desktop": "EIDOS_SERVICE_MODE=desktop vite --mode desktop",
     "build:ink": "pnpm recursive run build && tsc && EIDOS_SERVICE_MODE=ink vite build --mode ink && pnpm build:cf-worker",
+    "build:desktop": "pnpm recursive run build && tsc && EIDOS_SERVICE_MODE=desktop vite build --mode desktop",
     "build:cf-worker": "node scripts/build-cf-worker.cjs",
     "build:cf-worker-do": "node scripts/build-cf-worker-do.cjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
@@ -20,7 +22,31 @@
     "patch": "node scripts/version.cjs patch",
     "minor": "node scripts/version.cjs minor",
     "major": "node scripts/version.cjs major",
-    "test": "vitest"
+    "test": "vitest",
+    "start-electron": "electron main.js",
+    "build-electron": "BUILD_MODE=1 electron-builder"
+  },
+  "main": "dist-electron/main.js",
+  "build": {
+    "appId": "space.eidos.desktop",
+    "productName": "Eidos",
+    "directories": {
+      "output": "dist-app"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
     "@ai-sdk/openai": "^0.0.45",
@@ -86,6 +112,7 @@
     "ai": "^3.3.6",
     "aws-sdk": "^2.1526.0",
     "aws4fetch": "^1.0.17",
+    "better-sqlite3": "^11.2.1",
     "bufferutil": "^4.0.7",
     "class-variance-authority": "^0.4.0",
     "cmdk": "^0.2.0",
@@ -94,6 +121,7 @@
     "dnd-core": "^16.0.1",
     "emoji-mart": "^5.5.2",
     "eventemitter3": "^5.0.1",
+    "express": "^4.19.2",
     "gpt-tokenizer": "^2.1.1",
     "hnswlib-wasm": "^0.8.2",
     "html2canvas": "^1.4.1",
@@ -154,7 +182,9 @@
     "@ianvs/prettier-plugin-sort-imports": "^3.7.2",
     "@tailwindcss/typography": "^0.5.9",
     "@testing-library/react-hooks": "^8.0.1",
+    "@types/better-sqlite3": "^7.6.11",
     "@types/d3": "^7.4.0",
+    "@types/express": "^4.17.21",
     "@types/lodash": "^4.14.195",
     "@types/mime-db": "^1.43.5",
     "@types/mime-types": "^2.1.4",
@@ -173,6 +203,8 @@
     "autoprefixer": "^10.4.14",
     "clsx": "^1.2.1",
     "cross-env": "^7.0.3",
+    "electron": "^32.0.1",
+    "electron-builder": "^24.13.3",
     "esbuild": "^0.23.0",
     "eslint": "^8.44.0",
     "eslint-config-prettier": "^8.8.0",
@@ -193,6 +225,7 @@
     "tsx": "^3.12.7",
     "typescript": "^5.3.3",
     "vite": "^5.4.0",
+    "vite-plugin-electron": "^0.28.7",
     "vite-plugin-pwa": "^0.20.1",
     "vitest": "^2.0.3",
     "workbox-window": "^7.0.0"

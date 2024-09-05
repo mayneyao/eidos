@@ -4,10 +4,10 @@ import path from "path"
 import { visualizer } from "rollup-plugin-visualizer"
 import { Plugin, PluginOption, defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
+import electron from 'vite-plugin-electron/simple'
 
-const serviceMode = process.env.EIDOS_SERVICE_MODE
+const serviceMode = process.env.EIDOS_SERVICE_MODE || 'web-app'
 
-const isInkServiceMode = serviceMode === "ink"
 
 const iconPath = path.resolve(__dirname, "icons.json")
 const iconJson = JSON.parse(fs.readFileSync(iconPath, "utf-8"))
@@ -19,7 +19,14 @@ const htmlPlugin = (): Plugin => {
     transformIndexHtml: {
       order: "pre",
       handler() {
-        const src = isInkServiceMode ? "/apps/publish/index.tsx" : "/apps/web-app/index.tsx"
+        const entryMap: {
+          [key: string]: string
+        } = {
+          "ink": "/apps/publish/index.tsx",
+          "desktop": "/apps/desktop/index.tsx",
+          "web-app": "/apps/web-app/index.tsx"
+        }
+        const src = entryMap[serviceMode]
         return [
           {
             tag: "script",
@@ -36,7 +43,7 @@ const config = defineConfig({
   plugins: [
     htmlPlugin(),
     react(),
-    isInkServiceMode ? null :
+    serviceMode === 'web-app' ?
       VitePWA({
         srcDir: "apps/web-app",
         filename: "sw.ts",
@@ -77,7 +84,32 @@ const config = defineConfig({
           enabled: true,
           type: "module",
         },
-      }),
+      }) : null,
+    serviceMode === 'desktop' ?
+      electron({
+        main: {
+          // Shortcut of `build.lib.entry`
+          entry: 'electron/main.ts',
+        },
+        preload: {
+          input: 'electron/preload.ts',
+          vite: {
+            build: {
+              rollupOptions: {
+                output: {
+                  format: 'es',
+                  inlineDynamicImports: true,
+                  entryFileNames: '[name].mjs',
+                  chunkFileNames: '[name].mjs',
+                  assetFileNames: '[name].[ext]',
+                },
+              },
+            },
+          },
+        },
+        // Optional: Use Node.js API in the Renderer process
+        // renderer: {},
+      }) : null,
     visualizer({
       gzipSize: true,
       brotliSize: true,
@@ -86,6 +118,11 @@ const config = defineConfig({
       open: true,
     }) as unknown as PluginOption,
   ],
+  build: {
+    rollupOptions: {
+      external: ['electron'],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./"),

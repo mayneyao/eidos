@@ -1,5 +1,5 @@
 import { MsgType } from "@/lib/const"
-import { EIDOS_VERSION, logger } from "@/lib/env"
+import { EIDOS_VERSION, logger,isDesktopMode } from "@/lib/env"
 import { getConfig } from "@/lib/storage/indexeddb"
 import { APIAgentFormValues } from "@/apps/web-app/settings/api/store"
 

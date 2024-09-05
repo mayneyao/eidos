@@ -15,7 +15,7 @@ import {
 } from "./use-doc-editor"
 import { useSqliteStore } from "./use-sqlite"
 import { useCurrentUser } from "./user-current-user"
-import { isInkServiceMode } from "@/lib/env"
+import { isInkServiceMode, isDesktopMode } from "@/lib/env"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
@@ -30,7 +30,7 @@ export const useWorker = () => {
 
   const { toast } = useToast()
   const initWorker = useCallback(() => {
-    if (isInkServiceMode) {
+    if (isInkServiceMode || isDesktopMode) {
       setInitialized(true)
       return () => { }
     }

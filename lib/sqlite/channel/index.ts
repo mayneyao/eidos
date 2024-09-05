@@ -2,7 +2,7 @@ import { DataSpace, EidosTable } from "@/worker/web-worker/DataSpace"
 import { DataConnection } from "peerjs"
 
 import { MsgType } from "../../const"
-import { isInkServiceMode } from "../../env"
+import { isDesktopMode, isInkServiceMode } from "../../env"
 import { uuidv7 } from "../../utils"
 import { HttpSqlite } from "./http"
 import { ILocalSendData, LocalSqlite } from "./local"
@@ -18,7 +18,10 @@ export const getSqliteChannel = (dbName: string, userId: string, config?: {
 }) => {
   let sqlite: ISqlite<any, ILocalSendData>
   console.log("isInkServiceMode", isInkServiceMode)
-  if (isInkServiceMode) {
+  if (isDesktopMode) {
+    console.log('window.eidos', (window as any).eidos)
+    sqlite = new LocalSqlite((window as any).eidos)
+  } else if (isInkServiceMode) {
     const serverSqlite = new HttpSqlite("/server/api")
     sqlite = serverSqlite
   } else if (config) {

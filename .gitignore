@@ -1,3 +1,7 @@
+# electron
+dist-electron
+dist-app
+
 # wrangler
 .wrangler/*
 wrangler.toml
