@@ -1,4 +1,3 @@
-import { BaseServerDatabase } from "@/apps/publish/lib/sqlite-provider/base"
 import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
 import { MsgType } from "@/lib/const"
@@ -45,6 +44,7 @@ import { ViewTable } from "./meta-table/view"
 import { RowsManager } from "./sdk/rows"
 import { TableManager } from "./sdk/table"
 import { withSqlite3AllUDF } from "./udf"
+import { BaseServerDatabase } from "@/lib/sqlite/interface"
 
 export type EidosTable =
   | DocTable

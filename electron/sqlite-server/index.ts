@@ -1,5 +1,4 @@
-import { BaseServerDatabase } from '@/apps/publish/lib/sqlite-provider/base';
-import { uuidv7 } from '@/lib/utils';
+import { BaseServerDatabase } from '@/lib/sqlite/interface';
 import Database from 'better-sqlite3';
 
 export interface NodeDomainDbInfo {
