@@ -57,7 +57,7 @@ export type EidosTable =
   | FileTable
 
 
-type EidosDatabase = Database | BaseServerDatabase
+export type EidosDatabase = Database | BaseServerDatabase
 
 export class DataSpace {
   db: EidosDatabase
@@ -83,7 +83,7 @@ export class DataSpace {
 
   // for trigger
   eventHandler: DataChangeEventHandler
-  efsManager: EidosFileSystemManager
+  efsManager?: EidosFileSystemManager
 
   // for auto migration
   hasMigrated = false
@@ -98,7 +98,7 @@ export class DataSpace {
     sqlite3?: Sqlite3Static
     draftDb?: DataSpace
     postMessage?: (data: any) => void
-    efsManager: EidosFileSystemManager
+    efsManager?: EidosFileSystemManager
   }) {
     const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF, postMessage, efsManager } = config
     this.db = db

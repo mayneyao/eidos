@@ -21,9 +21,9 @@ export class NodeServerDatabase extends BaseServerDatabase {
         this.db.close();
     }
 
-    async selectObjects(sql: string): Promise<{ [columnName: string]: any }[]> {
+    async selectObjects(sql: string, bind?: any[]): Promise<{ [columnName: string]: any }[]> {
         const stmt = this.db.prepare(sql);
-        return stmt.all() as { [columnName: string]: any }[];
+        return stmt.all(bind) as { [columnName: string]: any }[];
     }
 
     transaction(func: (db: NodeServerDatabase) => void) {

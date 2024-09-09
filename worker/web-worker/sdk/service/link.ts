@@ -1,4 +1,3 @@
-import { Database } from "@sqlite.org/sqlite-wasm"
 
 import { FieldType } from "@/lib/fields/const"
 import { ILinkProperty } from "@/lib/fields/link"
@@ -6,7 +5,7 @@ import { ColumnTableName } from "@/lib/sqlite/const"
 import { IField } from "@/lib/store/interface"
 import { getTableIdByRawTableName } from "@/lib/utils"
 
-import { DataSpace } from "../../DataSpace"
+import { DataSpace, EidosDatabase } from "../../DataSpace"
 import { TableManager } from "../table"
 
 interface IRelation {
@@ -17,7 +16,7 @@ interface IRelation {
 
 export class LinkFieldService {
   dataSpace: DataSpace
-  db: Database
+  db: EidosDatabase
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
     this.db = this.table.db || this.dataSpace.db
@@ -92,19 +91,19 @@ export class LinkFieldService {
     db = this.dataSpace.db
   ) => {
     // get all lk table
-    const allLinkTables = db.selectObjects(
+    const allLinkTables = await db.selectObjects(
       `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'lk_tb_%${table_name}%'`
     )
     const allLinkRelationTableNames = allLinkTables.map(
       (item: any) => item.name
     )
     const effectRows: Record<string, string[]> = {}
-    allLinkRelationTableNames.forEach((relationTableName) => {
+    allLinkRelationTableNames.forEach(async (relationTableName) => {
       const sql = `SELECT self FROM ${relationTableName} WHERE ref IN (${rowIds
         .map(() => "?")
         .join(",")})`
       const bind = [...rowIds]
-      const res = db.selectObjects(sql, bind)
+      const res = await db.selectObjects(sql, bind)
       const effectTableName = relationTableName
         .replace(`__${table_name}`, "")
         .replace("lk_", "")
@@ -159,9 +158,8 @@ export class LinkFieldService {
       return null
     }
     const rowIds = value?.split(",") || []
-    const sql = `SELECT _id,title FROM ${
-      property.linkTableName
-    } WHERE _id IN (${rowIds.map(() => "?").join(",")})`
+    const sql = `SELECT _id,title FROM ${property.linkTableName
+      } WHERE _id IN (${rowIds.map(() => "?").join(",")})`
     const bind = [...rowIds]
     const rows = await this.dataSpace.exec2(sql, bind)
     // map id to title, avoid order change
@@ -408,15 +406,17 @@ export class LinkFieldService {
    */
   async beforeDeleteTable(tableName: string, db = this.dataSpace.db) {
     // clear relation
-    db.selectObjects(
+    const allLinkTables = await db.selectObjects(
       `SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE 'lk_${tableName}__%' OR name LIKE 'lk_%__${tableName}')`
-    ).forEach((item) => {
+    )
+    allLinkTables.forEach(async (item: any) => {
       const { name: relationTableName } = item
       // delete trigger
-      db.selectObjects(
+      const triggers = await db.selectObjects(
         `SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name = ?`,
         [relationTableName]
-      ).forEach((item: any) => {
+      )
+      triggers.forEach((item: any) => {
         db.exec(`DROP TRIGGER ${item.name}`)
       })
       // delete relation table

@@ -35,7 +35,7 @@ const handleFunctionCall = async (
     //
     _dataspace = await loadDatabase(dbName)
   }
-  let callMethod: Function = () => {}
+  let callMethod: Function = () => { }
   if (method.includes(".")) {
     let obj: any = _dataspace
     const properties = method.split(".")

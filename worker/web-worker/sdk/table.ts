@@ -1,10 +1,8 @@
-import { Database } from "@sqlite.org/sqlite-wasm"
-
 import { generateMergeTableWithNewColumnsSql } from "@/lib/sqlite/sql-merge-table-with-new-columns"
 import { IView } from "@/lib/store/IView"
 import { getRawTableNameById } from "@/lib/utils"
 
-import { DataSpace } from "../DataSpace"
+import { DataSpace, EidosDatabase } from "../DataSpace"
 import { IndexManager } from "./index-manager"
 import { RowsManager } from "./rows"
 import { FieldsManager } from "./service"
@@ -19,14 +17,10 @@ interface ITable {
 export class TableManager {
   // table name in sqlite
   rawTableName: string
-  db: Database | null = null
+  db: EidosDatabase
   constructor(public id: string, public dataSpace: DataSpace) {
     this.rawTableName = getRawTableNameById(id)
     this.db = dataSpace.db
-  }
-
-  startTransaction(db: Database) {
-    this.db = db
   }
 
   get compute() {

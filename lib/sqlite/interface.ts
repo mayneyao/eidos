@@ -33,9 +33,10 @@ export interface ISqlite<T, D> {
 
 
 export abstract class BaseServerDatabase {
+  filename?: string
   abstract prepare(sql: string): any;
   abstract close(): void;
-  abstract selectObjects(sql: string): Promise<{ [columnName: string]: any }[]>;
+  abstract selectObjects(sql: string, bind?: any[]): Promise<{ [columnName: string]: any }[]>;
   abstract transaction(func: (db: BaseServerDatabase) => void): any;
   abstract exec(opts: any): Promise<any>;
   abstract createFunction(opt: {

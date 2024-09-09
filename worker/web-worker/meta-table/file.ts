@@ -151,6 +151,9 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
 
   async getBlobURLbyPath(path: string): Promise<string | null> {
     const f = await this.dataSpace.efsManager?.getFileByPath(path)
+    if (!f) {
+      throw new Error("file not found")
+    }
     return URL.createObjectURL(f)
   }
 
@@ -163,6 +166,9 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       const paths = decodeURIComponent(path).split("/").filter(Boolean).slice(2)
       f = await fileManager.getFile(paths)
     } else {
+      if (!fileManager) {
+        throw new Error("file manager not found")
+      }
       f = await fileManager.getFileByPath(path)
     }
     const blob = new Blob([f], { type: f.type })
@@ -170,7 +176,11 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   }
 
   async walk(): Promise<any[]> {
-    const allFiles = await this.dataSpace.efsManager.walk([
+    const fileManager = this.dataSpace.efsManager
+    if (!fileManager) {
+      throw new Error("file manager not found")
+    }
+    const allFiles = await fileManager.walk([
       "spaces",
       this.dataSpace.dbName,
       "files",
@@ -241,6 +251,9 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     const space = this.dataSpace.dbName
     let parentPath = _parentPath || ["spaces", space, "files"]
     // walk dirHandle upload to /extensions/<name>/
+    if (!this.dataSpace.efsManager) {
+      throw new Error("file manager not found")
+    }
     await this.dataSpace.efsManager.addDir(parentPath, dirHandle.name)
     parentPath = [...parentPath, dirHandle.name]
     for await (const [key, value] of dirHandle.entries()) {

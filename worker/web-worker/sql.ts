@@ -1,10 +1,10 @@
-import sqlite3InitModule, { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
+import sqlite3InitModule, { Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
+import { ExperimentFormValues } from "@/apps/web-app/settings/experiment/store"
 import { logger } from "@/lib/env"
 import { getConfig } from "@/lib/storage/indexeddb"
-import { ExperimentFormValues } from "@/apps/web-app/settings/experiment/store"
 
-import { DataSpace } from "./DataSpace"
+import { DataSpace, EidosDatabase } from "./DataSpace"
 
 const log = logger.info
 const error = logger.error
@@ -75,12 +75,13 @@ export class Sqlite {
       "config-experiment"
     )
 
-    function createUDF(db: Database) {
+    async function createUDF(db: EidosDatabase) {
       const globalKv = new Map()
       // udf
-      db.selectObjects(
+      const scripts = await db.selectObjects(
         `SELECT DISTINCT name, code FROM eidos__scripts WHERE type = 'udf' AND enabled = 1`
-      ).forEach((script) => {
+      )
+      scripts.forEach((script) => {
         const { code, name } = script
         globalKv.set(name, new Map())
         try {
