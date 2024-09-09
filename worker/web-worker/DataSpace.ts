@@ -56,8 +56,11 @@ export type EidosTable =
   | EmbeddingTable
   | FileTable
 
+
+type EidosDatabase = Database | BaseServerDatabase
+
 export class DataSpace {
-  db: Database
+  db: EidosDatabase
   draftDb: DataSpace | undefined
   sqlite3: Sqlite3Static | undefined
   undoRedoManager: SQLiteUndoRedo
@@ -80,27 +83,30 @@ export class DataSpace {
 
   // for trigger
   eventHandler: DataChangeEventHandler
+  efsManager: EidosFileSystemManager
 
   // for auto migration
   hasMigrated = false
   constructor(config: {
-    db: Database
+    db: EidosDatabase
     activeUndoManager: boolean
     dbName: string
     context: {
       setInterval?: typeof setInterval
     }
-    createUDF?: (db: Database) => void,
+    createUDF?: (db: EidosDatabase) => void,
     sqlite3?: Sqlite3Static
     draftDb?: DataSpace
     postMessage?: (data: any) => void
+    efsManager: EidosFileSystemManager
   }) {
-    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF, postMessage } = config
+    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF, postMessage, efsManager } = config
     this.db = db
     this.sqlite3 = sqlite3
     this.draftDb = draftDb
     this.dbName = dbName
     this.postMessage = postMessage
+    this.efsManager = efsManager
     this.initUDF()
     this.eventHandler = new DataChangeEventHandler(this)
     this.dataChangeTrigger = new DataChangeTrigger()

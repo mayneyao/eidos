@@ -1,11 +1,11 @@
 import { useCallback } from "react"
 
 import { MsgType } from "@/lib/const"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 import { uuidv7 } from "@/lib/utils"
 
 import { getSqliteChannel } from "@/lib/sqlite/channel"
 import { useExtensions } from "./use-extensions"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 
 export enum ExtMsgType {
   // incoming msg
@@ -46,6 +46,7 @@ const shouldHandle = (event: MessageEvent, source: ExtensionSourceType) => {
 export const useExtMsg = (source: ExtensionSourceType) => {
   const { getExtensionIndex } = useExtensions()
 
+  const { efsManager } = useEidosFileSystemManager()
   const handleMsg = useCallback(
     (event: MessageEvent) => {
       if (!shouldHandle(event, source)) {

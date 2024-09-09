@@ -33,7 +33,7 @@ export class NodeServerDatabase extends BaseServerDatabase {
     }
 
     async exec(opts: { sql: string; bind?: any[]; rowMode?: "array" | "object" }) {
-        console.log(opts)
+        // console.log(opts)
         try {
             if (typeof opts === 'string') {
                 const stmt = this.db.prepare(opts);

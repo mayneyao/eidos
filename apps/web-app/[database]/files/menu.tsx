@@ -1,4 +1,3 @@
-
 import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
 import {
   ContextMenu,
@@ -7,9 +6,9 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 import { useFileSystem } from "@/hooks/use-files"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 
@@ -64,6 +63,8 @@ export function FileItemContextMenu({ children }: any) {
       setCurrentPreviewFile(file)
     }
   }
+
+  const { efsManager } = useEidosFileSystemManager()
 
   const downloadFile = async () => {
     const path = "spaces" + getFileUrlPath(name)

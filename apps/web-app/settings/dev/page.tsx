@@ -2,6 +2,7 @@ import { useCallback, useState } from "react"
 
 import { getHnswIndex } from "@/lib/ai/vec_search"
 import { getSqliteProxy } from "@/lib/sqlite/channel"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { Button } from "@/components/ui/button"
 import {
@@ -71,6 +72,7 @@ export function DevtoolsPage() {
     await embedSpace(space, (progress) => setEmbeddingProgress(progress))
     setEmbeddingProgress(0) // Reset progress
   }, [space])
+  const { efsManager } = useEidosFileSystemManager()
 
   return (
     <div className="space-y-6">
@@ -95,7 +97,7 @@ export function DevtoolsPage() {
           <CardFooter className="border-t px-6 py-4">
             <Button
               className="w-full"
-              onClick={handleAction(saveTransformerCache)}
+              onClick={handleAction(saveTransformerCache(efsManager))}
             >
               Save
             </Button>

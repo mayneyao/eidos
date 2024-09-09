@@ -23,5 +23,8 @@ declare namespace NodeJS {
 
 // Used in Renderer process, expose in `preload.ts`
 interface Window {
-    ipcRenderer: import('electron').IpcRenderer
+    eidos: import('electron').IpcRenderer & {
+        efsManager: import('@/lib/storage/eidos-file-system').EidosFileSystemManager
+        spaceList: string[]
+    }
 }

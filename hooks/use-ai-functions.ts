@@ -2,11 +2,11 @@ import { useCallback } from "react"
 import { v4 as uuidV4 } from "uuid"
 
 import { getCodeFromMarkdown } from "@/lib/markdown"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 import { getUuid, uuidv7 } from "@/lib/utils"
 import { startRecorder, stopRecorder } from "@/lib/web/recorder"
 
 import { useCurrentPathInfo } from "./use-current-pathinfo"
+import { useEidosFileSystemManager } from "./use-fs"
 import { useSqlite } from "./use-sqlite"
 import { useTableOperation } from "./use-table"
 
@@ -17,6 +17,7 @@ export const useAIFunctions = () => {
   const { handleSql, sqlite } = useSqlite(database)
   // FIXME: now ai-chat is global, maybe not in table page
   const { runQuery } = useTableOperation(table ?? "", database)
+  const { efsManager } = useEidosFileSystemManager()
 
   const handleRunSql = useCallback(
     async (sql: string) => {

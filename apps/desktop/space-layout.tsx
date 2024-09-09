@@ -2,13 +2,11 @@ import { Suspense, lazy, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Outlet, useNavigate } from "react-router-dom"
 
-import { isDesktopMode } from "@/lib/env"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
-import { isMac } from "@/lib/web/helper"
 import { useActivation } from "@/hooks/use-activation"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
   ResizableHandle,
@@ -39,6 +37,7 @@ export function DesktopSpaceLayout() {
   const { isActivated } = useActivation()
 
   useLayoutInit()
+  const { efsManager } = useEidosFileSystemManager()
 
   useEffect(() => {
     if (!isActivated) {

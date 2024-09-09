@@ -1,4 +1,3 @@
-import { useRef } from "react"
 import {
   FileAudioIcon,
   FileIcon,
@@ -6,15 +5,16 @@ import {
   FolderIcon,
   MoreHorizontalIcon,
 } from "lucide-react"
+import { useRef } from "react"
 
-import { getFileType } from "@/lib/mime/mime"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
+import { getFileType } from "@/lib/mime/mime"
 
 import { Button } from "../ui/button"
 import { useToast } from "../ui/use-toast"
@@ -31,6 +31,7 @@ export const FileEntry = ({
 }) => {
   const { getFileUrlPath, enterDir } = useFileOp()
 
+  const { efsManager } = useEidosFileSystemManager()
   const { currentDir, setCurrentDir } = useRootDirStore()
   const isFile = entry.kind === "file"
   const url = getFileUrlPath(name)

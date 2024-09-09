@@ -1,10 +1,10 @@
 import { Suspense, lazy } from "react"
 import { motion } from "framer-motion"
 
-import { efsManager } from "@/lib/storage/eidos-file-system"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Loading } from "@/components/loading"
 import { ScriptContainer } from "@/components/script-container"
@@ -28,6 +28,7 @@ export function DatabaseLayoutBase({
   const { isSidebarOpen } = useAppStore()
   const { isAiOpen, isExtAppOpen } = useSpaceAppStore()
 
+  const { efsManager } = useEidosFileSystemManager()
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">

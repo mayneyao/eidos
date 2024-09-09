@@ -1,29 +1,43 @@
+import { EidosFileSystemManager } from '@/lib/storage/eidos-file-system'
+import { SpaceFileSystem } from '@/lib/storage/space';
 import { contextBridge, ipcRenderer } from 'electron'
+import { getOriginPrivateDirectory } from 'native-file-system-adapter'
+import nodeAdapter from 'native-file-system-adapter/src/adapters/node'
 
-// --------- Expose some API to the Renderer process ---------
-contextBridge.exposeInMainWorld('eidos', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
-  },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.send(channel, ...omit)
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.invoke(channel, ...omit)
-  },
-  chrome: process.versions.chrome,
-  node: process.versions.node,
+async function main() {
+  const userDataPath = (await ipcRenderer.invoke('get-app-config')).dataFolder;
+  const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath)
+  console.log('dirHandle', dirHandle)
+  const spaceList = await new SpaceFileSystem(dirHandle as any).list()
+  // --------- Expose some API to the Renderer process ---------
+  contextBridge.exposeInMainWorld('eidos', {
+    on(...args: Parameters<typeof ipcRenderer.on>) {
+      const [channel, listener] = args
+      return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
+    },
+    off(...args: Parameters<typeof ipcRenderer.off>) {
+      const [channel, ...omit] = args
+      return ipcRenderer.off(channel, ...omit)
+    },
+    send(...args: Parameters<typeof ipcRenderer.send>) {
+      const [channel, ...omit] = args
+      return ipcRenderer.send(channel, ...omit)
+    },
+    invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
+      const [channel, ...omit] = args
+      return ipcRenderer.invoke(channel, ...omit)
+    },
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    efsManager: new EidosFileSystemManager(dirHandle as any),
+    spaceList: spaceList
+    // You can expose other APTs you need here.
+    // ...
+  })
+}
 
-  // You can expose other APTs you need here.
-  // ...
-})
+
+main()
 
 // --------- Preload scripts loading ---------
 function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']) {

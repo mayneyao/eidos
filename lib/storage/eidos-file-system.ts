@@ -1,5 +1,7 @@
+import { isDesktopMode } from "../env"
 import { extension } from "../mime/mime"
 import { getIndexedDBValue } from "./indexeddb"
+
 
 export enum FileSystemType {
   OPFS = "opfs",
@@ -8,6 +10,7 @@ export enum FileSystemType {
 
 export const getFsRootHandle = async (fsType: FileSystemType) => {
   let dirHandle: FileSystemDirectoryHandle
+
   switch (fsType) {
     case FileSystemType.NFS:
       // how it works https://developer.chrome.com/blog/persistent-permissions-for-the-file-system-access-api
@@ -44,6 +47,7 @@ export const getDirHandle = async (
   _paths: string[],
   rootDirHandle?: FileSystemDirectoryHandle
 ) => {
+  console.log('rootDirHandle', rootDirHandle, _paths)
   const paths = [..._paths]
   let dirHandle: FileSystemDirectoryHandle
   if (rootDirHandle) {
@@ -324,7 +328,7 @@ export class EidosFileSystemManager {
 }
 
 // deprecated
-export const efsManager = new EidosFileSystemManager()
+export const efsManager = isDesktopMode ? new EidosFileSystemManager() : new EidosFileSystemManager()
 
 export const getExternalFolderManager = async (name: string) => {
   const dirHandler = await getExternalFolderHandle(name)

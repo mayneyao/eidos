@@ -7,7 +7,6 @@ import EverydayPage from "@/apps/web-app/[database]/everyday/[day]/page"
 import EverydayHomePage from "@/apps/web-app/[database]/everyday/page"
 import { FileManager } from "@/apps/web-app/[database]/files/page"
 // space
-import SpaceLayout from "@/apps/web-app/[database]/layout"
 import SpaceHomePage from "@/apps/web-app/[database]/page"
 import { LandingPage } from "@/apps/web-app/page"
 import SettingsAIPage from "@/apps/web-app/settings/ai/page"
@@ -24,7 +23,7 @@ import ShareLayout from "@/apps/web-app/share/[database]/layout"
 // share
 import SharePage from "@/apps/web-app/share/page"
 
-import { spaceFileSystem } from "../../lib/storage/space"
+import { SpaceFileSystem } from "../../lib/storage/space"
 import { NotFound } from "../web-app/404"
 import { AppPage } from "../web-app/[database]/apps/page"
 import { ScriptDetailPage } from "../web-app/[database]/scripts/detail"
@@ -105,7 +104,7 @@ const router = createBrowserRouter([
         element: <DesktopSpaceLayout />,
         loader: async ({ params }) => {
           // check the space is exist
-          const spaceNames = await spaceFileSystem.list()
+          const spaceNames = window.eidos.spaceList
           if (params.database && !spaceNames.includes(params.database)) {
             return redirect("/404")
           }

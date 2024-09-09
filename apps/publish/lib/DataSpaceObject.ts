@@ -1,10 +1,11 @@
 import { DataSpace } from "@/worker/web-worker/DataSpace";
 import { DurableObjectNamespace, DurableObjectState, ExportedHandler, KVNamespace, Request } from "@cloudflare/workers-types";
-import { IHttpSendData, handleFunctionCall } from "./handleFunctionCall";
+import { IHttpSendData } from "./handleFunctionCall";
 import { EidosSQLiteServerDatabase, EidosSQLiteServerDomainDbInfo } from "./sqlite-provider/eidos-sqlite-server";
 import { SQLiteCloudDomainDbInfo, SQLiteCloudServerDatabase } from "./sqlite-provider/sqlite-clound";
 import { TursoDomainDbInfo, TursoServerDatabase } from "./sqlite-provider/turso";
 import { BaseServerDatabase } from "@/lib/sqlite/interface";
+import { handleFunctionCall } from "@/lib/rpc";
 
 
 interface Env {

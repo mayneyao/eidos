@@ -16,6 +16,7 @@ import {
 import { useSqliteStore } from "./use-sqlite"
 import { useCurrentUser } from "./user-current-user"
 import { isInkServiceMode, isDesktopMode } from "@/lib/env"
+import { ipcRenderer } from "electron"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
@@ -86,6 +87,12 @@ export const useWorker = () => {
           break
       }
     }
+
+    window.eidos.on('server-message', (event, message) => {
+      console.log('server-message')
+      console.log(message); // 输出: Hello from Main Process
+    });
+
     worker.addEventListener("message", handle)
     return () => worker.removeEventListener("message", handle)
   }, [

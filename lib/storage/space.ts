@@ -4,9 +4,13 @@ import { getDirHandle } from "./eidos-file-system"
 import { importZipFileIntoDir, zipDirectory } from "./zip-file"
 
 export class SpaceFileSystem {
+  rootDirHandle?: FileSystemDirectoryHandle
+  constructor(rootDirHandle?: FileSystemDirectoryHandle) {
+    this.rootDirHandle = rootDirHandle
+  }
   async remove(space: string) {
     const dir = ["spaces"]
-    const dirHandle = await getDirHandle(dir)
+    const dirHandle = await getDirHandle(dir, this.rootDirHandle)
     await dirHandle.removeEntry(space, { recursive: true })
   }
 
@@ -23,7 +27,7 @@ export class SpaceFileSystem {
 
   async create(space: string) {
     const dir = ["spaces", space]
-    const dirHandle = await getDirHandle(dir)
+    const dirHandle = await getDirHandle(dir, this.rootDirHandle)
     return dirHandle
   }
 
@@ -47,7 +51,7 @@ export class SpaceFileSystem {
    * @returns list of spaces
    */
   async list() {
-    const spacesDirHandle = await getDirHandle(["spaces"])
+    const spacesDirHandle = await getDirHandle(["spaces"], this.rootDirHandle)
     const spaces = []
     for await (let name of spacesDirHandle.keys()) {
       if (!name.startsWith(".")) {
@@ -57,5 +61,3 @@ export class SpaceFileSystem {
     return spaces
   }
 }
-
-export const spaceFileSystem = new SpaceFileSystem()

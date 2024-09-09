@@ -124,6 +124,11 @@ const config = defineConfig({
         preload: {
           input: 'electron/preload.ts',
           vite: {
+            resolve: {
+              alias: {
+                "@": path.resolve(__dirname, "./"),
+              },
+            },
             build: {
               rollupOptions: {
                 output: {
@@ -159,12 +164,17 @@ const config = defineConfig({
     },
   },
   server: {
-    headers: {
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-    },
+    // headers: {
+    //   'Cross-Origin-Opener-Policy': 'same-origin',
+    //   'Cross-Origin-Embedder-Policy': 'require-corp',
+    // },
     proxy: {
       "/server/api": "http://localhost:8788",
+      '^/[^/]+/files/[^/]+$': {
+        target: 'http://localhost:13127',
+        changeOrigin: true,
+        rewrite: (path) => path, // 保持路径不变
+      },
     },
   },
   optimizeDeps: {

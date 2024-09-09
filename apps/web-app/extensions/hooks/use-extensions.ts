@@ -1,14 +1,13 @@
-import { dir } from "console"
 import { useCallback, useEffect } from "react"
 import { create } from "zustand"
 
-import { efsManager } from "@/lib/storage/eidos-file-system"
+import { toast } from "@/components/ui/use-toast"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import {
   getPackageJsonFromZipFile,
   unZipFileToDir,
 } from "@/lib/storage/zip-file"
 import { nonNullable } from "@/lib/utils"
-import { toast } from "@/components/ui/use-toast"
 
 interface ExtensionType {
   id: string
@@ -44,6 +43,7 @@ export const getExtInfo = async (file: File): Promise<ExtensionType | null> => {
 export const useExtensions = () => {
   const { extensions, setExtensions } = useExtensionStore()
 
+  const { efsManager } = useEidosFileSystemManager()
   const getExtensionIndex = async (name: string) => {
     const file = await efsManager.getFile([
       "extensions",

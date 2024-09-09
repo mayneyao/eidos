@@ -11,12 +11,13 @@ import {
 } from "lucide-react"
 import { Link } from "react-router-dom"
 
+import { isDesktopMode } from "@/lib/env"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { useAllExtensions } from "@/hooks/use-all-extensions"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
-import { useAllExtensions } from "@/hooks/use-all-extensions"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { DatabaseSelect } from "@/components/database-select"
@@ -68,7 +69,7 @@ export const SideBar = ({ className }: any) => {
   const {
     experiment: { enableFileManager },
   } = useExperimentConfigStore()
-  if (isFileManagerOpen) {
+  if (!isDesktopMode && isFileManagerOpen) {
     return <FileManager />
   }
 
@@ -92,7 +93,7 @@ export const SideBar = ({ className }: any) => {
               {!isShareMode && (
                 <>
                   <EverydaySidebarItem space={space} />
-                  {enableFileManager && (
+                  {enableFileManager && !isDesktopMode && (
                     <Button
                       variant={"ghost"}
                       size="sm"
