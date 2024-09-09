@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { SettingsIcon } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
@@ -31,16 +32,21 @@ export function Settings() {
   const { space } = useCurrentPathInfo()
   const { exportSpace, deleteSpace } = useSpace()
   const navigate = useNavigate()
+  const [confirmName, setConfirmName] = useState("")
   const handleExport = () => {
     exportSpace(space)
   }
 
   const handleDelete = async () => {
-    await deleteSpace(space)
-    navigate("/")
-    // reload to reset the app
-    window.location.reload()
+    if (confirmName === space) {
+      await deleteSpace(space)
+      navigate("/")
+      window.location.reload()
+    } else {
+      alert("The space name does not match.")
+    }
   }
+
   return (
     <Card className="border-0 p-0">
       <CardHeader>
@@ -84,12 +90,24 @@ export function Settings() {
                   <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                   <AlertDialogDescription>
                     This action cannot be undone. This will permanently delete
-                    your space.
+                    your space{" "}
+                    <span className="font-bold text-red-500">{space}</span>.
+                    Please type the space name to confirm.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                <Input
+                  id="confirmName"
+                  type="text"
+                  placeholder="Type space name"
+                  value={confirmName}
+                  onChange={(e) => setConfirmName(e.target.value)}
+                />
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete}>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={confirmName !== space}
+                  >
                     Continue
                   </AlertDialogAction>
                 </AlertDialogFooter>
