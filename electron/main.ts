@@ -8,7 +8,7 @@ import { checkAndPromptForFolder } from './file-system/config';
 import { startServer } from './server/server';
 import { getAppConfig } from './file-system/config';
 
-let win: BrowserWindow | null
+export let win: BrowserWindow | null
 
 export const PORT = 13127;
 

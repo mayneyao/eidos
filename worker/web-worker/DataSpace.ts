@@ -1,6 +1,6 @@
 import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
-import { MsgType } from "@/lib/const"
+import { EidosDataEventChannelName, MsgType } from "@/lib/const"
 import { FieldType } from "@/lib/fields/const"
 import { logger } from "@/lib/env"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -79,7 +79,12 @@ export class DataSpace {
   dataChangeTrigger: DataChangeTrigger
   linkRelationUpdater: LinkRelationUpdater
   allTables: BaseTable<any>[] = []
+  // worker to main thread
   postMessage?: (data: any) => void
+  // channel broadcast
+  dataEventChannel: {
+    postMessage: (data: any) => void
+  }
 
   // for trigger
   eventHandler: DataChangeEventHandler
@@ -99,9 +104,18 @@ export class DataSpace {
     draftDb?: DataSpace
     postMessage?: (data: any) => void
     efsManager?: EidosFileSystemManager
+    dataEventChannel?: {
+      postMessage: (data: any) => void
+    }
   }) {
-    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF, postMessage, efsManager } = config
+    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF, postMessage, efsManager, dataEventChannel } = config
     this.db = db
+
+    if (dataEventChannel) {
+      this.dataEventChannel = dataEventChannel
+    } else {
+      this.dataEventChannel = new BroadcastChannel(EidosDataEventChannelName)
+    }
     this.sqlite3 = sqlite3
     this.draftDb = draftDb
     this.dbName = dbName
@@ -160,7 +174,7 @@ export class DataSpace {
   }
 
   private initUDF() {
-    const allUfs = withSqlite3AllUDF()
+    const allUfs = withSqlite3AllUDF(this.dataEventChannel)
     // system functions
     if (this.db instanceof BaseServerDatabase) {
       allUfs.ALL_UDF_NO_CTX.forEach((udf) => {
@@ -175,10 +189,7 @@ export class DataSpace {
 
   private initMetaTable() {
     this.allTables.forEach((table) => {
-      const sqlStatements = table.createTableSql.split(';').map(stmt => stmt.trim()).filter(stmt => stmt);
-      sqlStatements.forEach((sql) => {
-        this.exec(sql);
-      });
+      this.db.exec(table.createTableSql);
     })
   }
 
@@ -682,9 +693,7 @@ export class DataSpace {
     // FIXME: should use db transaction to execute multiple sql
     this.db.transaction(async (db) => {
       await this.addTreeNode({ id, name, type: "table", parent_id })
-      db.exec({
-        sql: tableSchema,
-      })
+      db.exec(tableSchema)
       // create view for table
       await this.createDefaultView(id)
     })
@@ -788,7 +797,6 @@ export class DataSpace {
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
-    console.log('exec2', sql, bind)
     return this.syncExec2(sql, bind)
   }
 

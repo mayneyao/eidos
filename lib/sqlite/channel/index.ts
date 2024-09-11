@@ -164,7 +164,10 @@ export const getSqliteProxy = (
             },
             id: thisCallId,
           }
-          sqlite.send(data)
+          const r = sqlite.send(data)
+          if (r) {
+            return r
+          }
         } else {
           const res = sqlite.send({
             type: MsgType.CallFunction,

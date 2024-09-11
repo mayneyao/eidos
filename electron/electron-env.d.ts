@@ -26,5 +26,6 @@ interface Window {
     eidos: import('electron').IpcRenderer & {
         efsManager: import('@/lib/storage/eidos-file-system').EidosFileSystemManager
         spaceList: string[]
+        spaceFileSystem: import('@/lib/storage/space').SpaceFileSystem
     }
 }

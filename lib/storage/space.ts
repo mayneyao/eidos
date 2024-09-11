@@ -3,12 +3,18 @@ import JSZip from "jszip"
 import { getDirHandle } from "./eidos-file-system"
 import { importZipFileIntoDir, zipDirectory } from "./zip-file"
 
+
+/**
+ * when expose spaceFileSystem  from electron preload,
+ * the method only works when it's a arrow function, i don't know why, so we need to use class to wrap it 
+ */
 export class SpaceFileSystem {
   rootDirHandle?: FileSystemDirectoryHandle
   constructor(rootDirHandle?: FileSystemDirectoryHandle) {
     this.rootDirHandle = rootDirHandle
   }
-  async remove(space: string) {
+
+  remove = async (space: string) => {
     const dir = ["spaces"]
     const dirHandle = await getDirHandle(dir, this.rootDirHandle)
     await dirHandle.removeEntry(space, { recursive: true })
@@ -19,19 +25,19 @@ export class SpaceFileSystem {
    * @param space
    * @param file
    */
-  async import(space: string, file: File) {
+  import = async (space: string, file: File) => {
     const zip = await JSZip.loadAsync(file)
     console.log("import space", file)
     await importZipFileIntoDir(["spaces", space], zip)
   }
 
-  async create(space: string) {
+  create = async (space: string) => {
     const dir = ["spaces", space]
     const dirHandle = await getDirHandle(dir, this.rootDirHandle)
     return dirHandle
   }
 
-  async export(space: string) {
+  export = async (space: string) => {
     const dir = ["spaces", space]
     const zip = new JSZip()
 
@@ -50,7 +56,7 @@ export class SpaceFileSystem {
    *
    * @returns list of spaces
    */
-  async list() {
+  list = async () => {
     const spacesDirHandle = await getDirHandle(["spaces"], this.rootDirHandle)
     const spaces = []
     for await (let name of spacesDirHandle.keys()) {

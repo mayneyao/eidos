@@ -23,7 +23,10 @@ export class NodeServerDatabase extends BaseServerDatabase {
 
     async selectObjects(sql: string, bind?: any[]): Promise<{ [columnName: string]: any }[]> {
         const stmt = this.db.prepare(sql);
-        return stmt.all(bind) as { [columnName: string]: any }[];
+        if (bind != null) {
+            return stmt.all(bind) as { [columnName: string]: any }[];
+        }
+        return stmt.all() as { [columnName: string]: any }[];
     }
 
     transaction(func: (db: NodeServerDatabase) => void) {
@@ -33,21 +36,11 @@ export class NodeServerDatabase extends BaseServerDatabase {
     }
 
     async exec(opts: { sql: string; bind?: any[]; rowMode?: "array" | "object" }) {
-        // console.log(opts)
         try {
             if (typeof opts === 'string') {
-                const stmt = this.db.prepare(opts);
-                return stmt.run();
+                return this.db.exec(opts);
             } else if (typeof opts === 'object') {
                 const { sql, bind } = opts;
-                if (!bind) {
-                    const sqlStatements = opts.sql.split(';').map(stmt => stmt.trim()).filter(stmt => stmt.length > 0);
-                    for (const _stmt of sqlStatements) {
-                        const stmt = this.db.prepare(_stmt);
-                        stmt.run();
-                    }
-                    return
-                }
                 const _bind = bind?.map((item: any) => {
                     // if item is boolean return 1 or 0
                     if (typeof item === 'boolean') {
@@ -60,6 +53,9 @@ export class NodeServerDatabase extends BaseServerDatabase {
                 if (stmt.readonly) {
                     res = stmt.all(_bind);
                 } else {
+                    if (_bind == null) {
+                        return stmt.run();
+                    }
                     return stmt.run(_bind);
                 }
                 if (opts.rowMode === 'array') {

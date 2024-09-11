@@ -1,17 +1,17 @@
 // @ts-nocheck
-import { ScalarFunctionOptions, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
+import { ScalarFunctionOptions } from "@sqlite.org/sqlite-wasm"
 import { v4 } from "uuid"
 import { uuidv7 as v7 } from "uuidv7"
 
 import {
   DataUpdateSignalType,
-  EidosDataEventChannelMsgType,
-  EidosDataEventChannelName,
+  EidosDataEventChannelMsgType
 } from "@/lib/const.ts"
 
-const bc = new BroadcastChannel(EidosDataEventChannelName)
 
-export const withSqlite3AllUDF = () => {
+export const withSqlite3AllUDF = (bc: {
+  postMessage: (data: any) => void
+}) => {
   const twice: ScalarFunctionOptions = {
     name: "twice",
     xFunc: function (pCx, arg) {

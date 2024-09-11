@@ -1,5 +1,5 @@
 import path from 'path';
-import { BrowserWindow, dialog, session } from 'electron';
+import { BrowserWindow } from 'electron';
 import os from "node:os";
 import { PORT } from './main';
 
@@ -11,26 +11,10 @@ export function createWindow() {
         webPreferences: {
             preload: path.join(__dirname, './preload.mjs'),
             nodeIntegration: true,
+            contextIsolation: true,
         }
     };
 
-    session.defaultSession.on('file-system-access-restricted', async (e, details, callback) => {
-        const { origin, path } = details
-        const { response } = await dialog.showMessageBox({
-            message: `Are you sure you want ${origin} to open restricted path ${path}?`,
-            title: 'File System Access Restricted',
-            buttons: ['Choose a different folder', 'Allow', 'Cancel'],
-            cancelId: 2
-        })
-
-        if (response === 0) {
-            callback('tryAgain')
-        } else if (response === 1) {
-            callback('allow')
-        } else {
-            callback('deny')
-        }
-    })
     const platform = process.platform;
     const isWindows11 = os.platform() === "win32" && os.release().startsWith("10.0.");
 

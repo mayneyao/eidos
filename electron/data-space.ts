@@ -2,6 +2,8 @@ import { DataSpace } from "@/worker/web-worker/DataSpace";
 import { getEidosFileSystemManager } from "./file-system/manager";
 import { getSpaceDbPath } from "./file-system/space";
 import { NodeServerDatabase } from "./sqlite-server";
+import { win } from "./main";
+import { EidosDataEventChannelName, EidosMessageChannelName } from "@/lib/const";
 
 export let dataSpace: DataSpace | null = null
 
@@ -23,6 +25,12 @@ export async function getOrSetDataSpace(spaceName: string) {
             setInterval: undefined,
         },
         postMessage: (data: any) => {
+            win?.webContents.send(EidosMessageChannelName, data)
+        },
+        dataEventChannel: {
+            postMessage: (data: any) => {
+                win?.webContents.send(EidosDataEventChannelName, data)
+            }
         },
         efsManager: efsManager
     });

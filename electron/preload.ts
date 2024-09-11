@@ -2,13 +2,12 @@ import { EidosFileSystemManager } from '@/lib/storage/eidos-file-system'
 import { SpaceFileSystem } from '@/lib/storage/space';
 import { contextBridge, ipcRenderer } from 'electron'
 import { getOriginPrivateDirectory } from 'native-file-system-adapter'
-import nodeAdapter from 'native-file-system-adapter/src/adapters/node'
+
+import nodeAdapter from './lib/node-adapter'
 
 async function main() {
   const userDataPath = (await ipcRenderer.invoke('get-app-config')).dataFolder;
   const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath)
-  console.log('dirHandle', dirHandle)
-  const spaceList = await new SpaceFileSystem(dirHandle as any).list()
   // --------- Expose some API to the Renderer process ---------
   contextBridge.exposeInMainWorld('eidos', {
     on(...args: Parameters<typeof ipcRenderer.on>) {
@@ -27,10 +26,12 @@ async function main() {
       const [channel, ...omit] = args
       return ipcRenderer.invoke(channel, ...omit)
     },
+    // versions
     chrome: process.versions.chrome,
     node: process.versions.node,
+
     efsManager: new EidosFileSystemManager(dirHandle as any),
-    spaceList: spaceList
+    spaceFileSystem: new SpaceFileSystem(dirHandle as any)
     // You can expose other APTs you need here.
     // ...
   })

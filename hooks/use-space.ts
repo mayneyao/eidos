@@ -11,7 +11,7 @@ import { useSqliteStore } from "./use-sqlite"
 
 export const useSpaceFileSystem = () => {
   const spaceFileSystem = isDesktopMode
-    ? new SpaceFileSystem(window.eidos.efsManager.rootDirHandle)
+    ? window.eidos.spaceFileSystem
     : new SpaceFileSystem()
   return { spaceFileSystem }
 }
@@ -21,7 +21,7 @@ export const useSpace = () => {
   const { setLastOpenedDatabase } = useLastOpened()
   const { spaceFileSystem } = useSpaceFileSystem()
   const updateSpaceList = useCallback(async () => {
-    const spaceNames = window.eidos.spaceList;
+    const spaceNames = await spaceFileSystem.list()
     setSpaceList(spaceNames)
   }, [setSpaceList])
 
