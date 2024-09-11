@@ -6,7 +6,7 @@ import { tools } from "@/lib/ai/functions"
 // import { queryEmbedding } from "../routes/lib"
 import { IData } from "./interface"
 
-export async function handleOpenAI(
+export async function handleDify2OpenAI(
   data: IData,
   options?: {
     useFunctions: boolean
@@ -32,9 +32,9 @@ export async function handleOpenAI(
   let newMsgs = [
     systemPrompt?.length
       ? {
-          role: "system" as const,
-          content: systemPrompt,
-        }
+        role: "system" as const,
+        content: systemPrompt,
+      }
       : undefined,
     ...messages,
   ].filter(Boolean)
@@ -67,7 +67,9 @@ export async function handleOpenAI(
   let request: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
     model: model ?? "gpt-3.5-turbo-0613",
     stream: true,
-    messages: newMsgs
+    messages: newMsgs,
+    ...(data.paths && { paths: data.paths }),
+    ...(data.space && { space: data.space }),
   } as any
   if (useFunctions) {
     request = {
