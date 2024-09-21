@@ -1,12 +1,4 @@
-import {
-  Suspense,
-  lazy,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
@@ -17,16 +9,16 @@ import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAiConfig } from "@/hooks/use-ai-config"
 import { useAIFunctions } from "@/hooks/use-ai-functions"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useDocEditor } from "@/hooks/use-doc-editor"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
 import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
 
-import { Loading } from "../loading"
+import { Label } from "../ui/label"
+import { ScrollArea } from "../ui/scroll-area"
+import { Switch } from "../ui/switch"
 import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
+import { AIChatPromptSelect } from "./ai-chat-prompt-select"
 import { AIInputEditor } from "./ai-input-editor"
 import {
   sysPrompts,
@@ -35,17 +27,12 @@ import {
   useUserPrompts,
 } from "./hooks"
 import "./index.css"
-import { Label } from "../ui/label"
-import { ScrollArea } from "../ui/scroll-area"
-import { Switch } from "../ui/switch"
-import { AIChatPromptSelect } from "./ai-chat-prompt-select"
-import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore, useReloadModel } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
 import { useSpeak } from "./webspeech/hooks"
 
-const Whisper = lazy(() => import("./whisper"))
+// const Whisper = lazy(() => import("./whisper"))
 
 const promptKeys = Object.keys(sysPrompts).slice(0, 1)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
@@ -182,7 +169,7 @@ export default function Chat() {
           size="xs"
           localModels={aiConfig.localModels}
         />
-        <AIChatSettings />
+        {/* <AIChatSettings /> */}
       </div>
       <ScrollArea className="grow border-t">
         <div className="flex grow flex-col gap-2 p-3 pb-[100px]">
@@ -249,9 +236,9 @@ export default function Chat() {
               </Button>
             )}
 
-            <Suspense fallback={<Loading />}>
+            {/* <Suspense fallback={<Loading />}>
               <Whisper setText={setSpeechText} />
-            </Suspense>
+            </Suspense> */}
             <Button
               variant="ghost"
               onClick={() => reload()}
