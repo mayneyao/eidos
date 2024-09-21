@@ -4,7 +4,6 @@ import { useTheme } from "next-themes"
 export const ThemeUpdater = () => {
   const { theme } = useTheme()
   useEffect(() => {
-    console.log("theme", theme)
     if (theme === "dark") {
       const themeMeta = document.querySelector('meta[name="theme-color"]')
       if (themeMeta) {

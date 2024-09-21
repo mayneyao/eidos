@@ -131,7 +131,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
           const { method, params, space } = event.data.data
           console.log("receive rpc call", method, params, space)
           const thisCallId = uuidv7()
-          sqlite.send({
+          const res = sqlite.send({
             type: MsgType.CallFunction,
             data: {
               method,
@@ -140,6 +140,16 @@ export const useExtMsg = (source: ExtensionSourceType) => {
             },
             id: thisCallId,
           })
+          if (res) {
+            res.then((_res) => {
+              console.log(thisCallId, "receive data from worker", _res)
+              event.ports[0].postMessage({
+                type: ExtMsgType.rpcCallResp,
+                data: _res,
+              })
+            })
+            return
+          }
           sqlite.onCallBack(thisCallId).then((res) => {
             console.log(thisCallId, "receive data from worker", res)
             event.ports[0].postMessage({

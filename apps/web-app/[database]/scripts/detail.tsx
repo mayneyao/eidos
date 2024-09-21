@@ -93,14 +93,14 @@ export const ScriptDetailPage = () => {
   return (
     <Tabs
       defaultValue="account"
-      className="flex h-full w-full flex-col overflow-hidden p-6"
+      className="flex h-full w-full flex-col overflow-hidden p-2 px-4 pt-0"
     >
       <TabsList className=" w-max">
         <TabsTrigger value="account">Basic</TabsTrigger>
         <TabsTrigger value="password">Settings</TabsTrigger>
       </TabsList>
 
-      <hr className="my-2" />
+      <hr className="my-1" />
 
       {revalidator.state === "loading" ? (
         <Skeleton className="mt-8 h-[20px] w-[100px] rounded-full" />

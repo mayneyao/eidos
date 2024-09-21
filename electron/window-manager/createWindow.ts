@@ -1,18 +1,25 @@
-import path from 'path';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, WebContents, WebContentsView, WebContentsViewConstructorOptions, ipcMain, shell } from 'electron';
 import os from "node:os";
-import { PORT } from './main';
+import path from 'path';
+import { PORT } from '../main';
+import { WindowManager } from './wm';
 
 
-export function createWindow() {
+const defaultViewOptions: WebContentsViewConstructorOptions = {
+    webPreferences: {
+        preload: path.join(__dirname, './preload.mjs'),
+        nodeIntegration: true,
+        contextIsolation: true,
+    }
+}
+
+
+export function createWindow(url?: string) {
     let baseWindowConfig: Electron.BrowserWindowConstructorOptions = {
         width: 1440,
         height: 900,
-        webPreferences: {
-            preload: path.join(__dirname, './preload.mjs'),
-            nodeIntegration: true,
-            contextIsolation: true,
-        }
+        icon: path.join(__dirname, '../dist/logo.svg'),
+        ...defaultViewOptions
     };
 
     const platform = process.platform;
@@ -46,13 +53,15 @@ export function createWindow() {
     }
 
     const win = new BrowserWindow(baseWindowConfig);
+    const windowManager = new WindowManager(win)
 
-    // Test active push message to Renderer-process.
-    win.webContents.on('did-finish-load', () => {
-        win?.webContents.send('main-process-message', (new Date).toLocaleString());
-    });
+    ipcMain.handle('get-open-tabs', () => {
+        return windowManager.tabs
+    })
 
-    if (process.env.VITE_DEV_SERVER_URL) {
+    if (url) {
+        win.webContents.loadURL(url)
+    } else if (process.env.VITE_DEV_SERVER_URL) {
         win.loadURL(process.env.VITE_DEV_SERVER_URL);
         win.webContents.openDevTools();
     } else {
@@ -60,5 +69,5 @@ export function createWindow() {
         // win.loadFile(path.join(process.env.DIST, 'index.html'))
         win.loadURL(`http://localhost:${PORT}`);
     }
-    return win
+    return win;
 }

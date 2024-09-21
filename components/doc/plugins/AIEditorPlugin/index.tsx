@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { CodeNode } from "@lexical/code"
 import { $convertFromMarkdownString, Transformer } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { mergeRegister } from "@lexical/utils"
@@ -7,11 +8,13 @@ import {
   $getRoot,
   $getSelection,
   $isRangeSelection,
+  $nodesOfType,
   COMMAND_PRIORITY_LOW,
   RangeSelection,
   SELECTION_CHANGE_COMMAND,
 } from "lexical"
 
+import { $createMermaidNode } from "../../blocks/mermaid/node"
 import { INSERT_MERMAID_COMMAND } from "../../blocks/mermaid/plugin"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
 import { allTransformers } from "../const"
@@ -81,6 +84,14 @@ export const AIEditorPlugin = (props: any) => {
         } else {
           const root = $getRoot()
           root.append(paragraphNode)
+        }
+
+        // after calling $convertFromMarkdownString()
+        for (const code of $nodesOfType(CodeNode)) {
+          const lang = code.getLanguage()
+          if (lang === "mermaid") {
+            code.replace($createMermaidNode(code.getTextContent()))
+          }
         }
       })
     }

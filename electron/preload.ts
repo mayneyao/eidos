@@ -7,6 +7,7 @@ import nodeAdapter from './lib/node-adapter'
 
 async function main() {
   const userDataPath = (await ipcRenderer.invoke('get-app-config')).dataFolder;
+  const openTabs = await ipcRenderer.invoke('get-open-tabs') as string[]
   const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath)
   // --------- Expose some API to the Renderer process ---------
   contextBridge.exposeInMainWorld('eidos', {
@@ -26,6 +27,11 @@ async function main() {
       const [channel, ...omit] = args
       return ipcRenderer.invoke(channel, ...omit)
     },
+    postMessage(...args: Parameters<typeof ipcRenderer.postMessage>) {
+      const [channel, ...omit] = args
+      return ipcRenderer.postMessage(channel, ...omit)
+    },
+    openTabs: openTabs,
     // versions
     chrome: process.versions.chrome,
     node: process.versions.node,

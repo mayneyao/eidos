@@ -12,7 +12,7 @@ import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
  */
 export function ShortCuts() {
   const { setTheme, theme } = useTheme()
-  const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
+  const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } = useSpaceAppStore()
   const navigate = useNavigate()
 
   useKeyPress(["shift.ctrl.l", "shift.meta.l"], (e) => {

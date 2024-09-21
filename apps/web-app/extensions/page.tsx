@@ -115,7 +115,7 @@ export function ExtensionPage() {
           </PopoverContent>
         </Popover>
       </div>
-      <ExtensionContainer ext={value} reload$={event$} />
+      <ExtensionContainer ext={'eidos-extension-importer'} reload$={event$} />
     </div>
   )
 }

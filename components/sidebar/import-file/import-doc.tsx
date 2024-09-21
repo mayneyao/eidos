@@ -14,7 +14,10 @@ export const ImportDoc = ({
   const goto = useGoto()
 
   const handleCreateDoc = async (file: File) => {
-    const docId = await sqlite?.importMarkdown(file)
+    const docId = await sqlite?.importMarkdown({
+      name: file.name,
+      content: await file.text(),
+    })
     if (docId) {
       setOpen(false)
       goto(space, docId)

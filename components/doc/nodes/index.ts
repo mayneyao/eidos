@@ -4,8 +4,8 @@ import { AutoLinkNode, LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
+// import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 
-import { AudioNode } from "../blocks/audio/node"
 import { BookmarkNode } from "./BookmarkNode"
 import { CardNode } from "./CardNode"
 import { DatabaseTableNode } from "./DatabaseTableNode"
@@ -34,6 +34,9 @@ export const AllNodes = [
   HashtagNode,
   MentionNode,
   DatabaseTableNode,
+  // TableNode,
+  // TableCellNode,
+  // TableRowNode,
   TableOfContentsNode,
   CardNode,
   // custom embed node

@@ -3,11 +3,17 @@ import { create } from "zustand"
 // import { devtools, persist } from 'zustand/middleware'
 
 interface ISpaceAppState {
-  isAiOpen: boolean
-  setIsAiOpen: (isAiOpen: boolean) => void
+  isRightPanelOpen: boolean
+  setIsRightPanelOpen: (isAiOpen: boolean, index?: number) => void
 
   isExtAppOpen: boolean
   setIsExtAppOpen: (isExtAppOpen: boolean) => void
+
+  apps: string[]
+  setApps: (apps: string[]) => void
+
+  currentAppIndex: number
+  setCurrentAppIndex: (currentAppIndex: number) => void
 
   aiMessages: any[]
   setAiMessages: (aiMessages: any[]) => void
@@ -25,9 +31,25 @@ interface ISpaceAppState {
   setMobileSidebarOpen: (isMobileSidebarOpen: boolean) => void
 }
 
-export const useSpaceAppStore = create<ISpaceAppState>()((set) => ({
-  isAiOpen: false,
-  setIsAiOpen: (isAiOpen) => set({ isAiOpen }),
+export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
+  apps: ["chat"],
+  // disable file manager
+  // apps: ["chat", "file-manager"],
+  setApps: (apps) => set({ apps }),
+
+  currentAppIndex: -1,
+  setCurrentAppIndex: (currentAppIndex) => set({ currentAppIndex }),
+
+  isRightPanelOpen: false,
+  setIsRightPanelOpen: (isRightPanelOpen, index) => {
+    if (index == null) {
+      return set({ isRightPanelOpen: isRightPanelOpen, currentAppIndex: isRightPanelOpen ? 0 : -1 })
+    }
+    return set({
+      isRightPanelOpen: isRightPanelOpen,
+      currentAppIndex: index ?? get().currentAppIndex,
+    })
+  },
 
   isExtAppOpen: false,
   setIsExtAppOpen: (isExtAppOpen) => set({ isExtAppOpen }),

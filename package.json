@@ -3,6 +3,8 @@
   "version": "0.6.3",
   "private": true,
   "type": "module",
+  "description": "Eidos is an extensible framework for managing your personal data throughout your lifetime in one place.",
+  "author": "mayneyao",
   "scripts": {
     "dev": "vite",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
@@ -14,7 +16,6 @@
     "build:desktop": "pnpm recursive run build && tsc && EIDOS_SERVICE_MODE=desktop vite build --mode desktop",
     "build:cf-worker": "node scripts/build-cf-worker.cjs",
     "build:cf-worker-do": "node scripts/build-cf-worker-do.cjs",
-    "build:electron-main": "node scripts/build-electron-main.cjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -26,7 +27,7 @@
     "major": "node scripts/version.cjs major",
     "test": "vitest",
     "start-electron": "electron .",
-    "build-electron": "BUILD_MODE=1 electron-builder",
+    "pkg:desktop": "BUILD_MODE=1 electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
   "start": "electron .",
@@ -41,6 +42,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "dist-simple/**/*",
       "package.json"
     ],
     "win": {
@@ -123,6 +125,8 @@
     "bufferutil": "^4.0.7",
     "class-variance-authority": "^0.4.0",
     "cmdk": "^0.2.0",
+    "csv-parse": "^5.5.6",
+    "csv-stringify": "^6.5.1",
     "d3": "^7.8.5",
     "date-fns": "^2.30.0",
     "dnd-core": "^16.0.1",

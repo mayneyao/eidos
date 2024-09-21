@@ -9,7 +9,6 @@ import { VitePWA } from "vite-plugin-pwa"
 
 const serviceMode = process.env.EIDOS_SERVICE_MODE || 'web-app'
 
-
 const iconPath = path.resolve(__dirname, "icons.json")
 const iconJson = JSON.parse(fs.readFileSync(iconPath, "utf-8"))
 
@@ -40,10 +39,33 @@ const htmlPlugin = (): Plugin => {
   }
 }
 
+const cleanDistElectron = () => {
+  const distElectronPath = path.resolve(__dirname, 'dist-electron')
+  if (fs.existsSync(distElectronPath)) {
+    fs.rmSync(distElectronPath, { recursive: true, force: true })
+  }
+}
+
+const devServerConfig = serviceMode === 'web-app' ? {
+  headers: {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+  },
+} : {}
+
+console.log('devServerConfig', devServerConfig)
+
 const config = defineConfig({
+  base: '/',
   plugins: [
     htmlPlugin(),
     react(),
+    {
+      name: 'clean-dist-electron',
+      buildStart() {
+        // cleanDistElectron()
+      }
+    },
     serviceMode === 'web-app' ?
       VitePWA({
         srcDir: "apps/web-app",
@@ -111,14 +133,13 @@ const config = defineConfig({
                   //     'node_modules/better-sqlite3/**/*'
                   //   ]
                   // }),
-                  esmShim() as any
+                  esmShim() as any,
                 ],
                 external: [
                   'better-sqlite3', // Treat better-sqlite3 as external module
                 ]
               },
             },
-
           }
         },
         preload: {
@@ -161,15 +182,15 @@ const config = defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./"),
+      'csv-parse/sync': serviceMode === 'desktop' ? 'csv-parse/sync' : 'csv-parse/browser/esm',
+      'csv-stringify/sync': serviceMode === 'desktop' ? 'csv-stringify/sync' : 'csv-stringify/browser/esm',
     },
   },
   server: {
-    // headers: {
-    //   'Cross-Origin-Opener-Policy': 'same-origin',
-    //   'Cross-Origin-Embedder-Policy': 'require-corp',
-    // },
+    ...devServerConfig,
     proxy: {
       "/server/api": "http://localhost:8788",
+      "/api/chat": "http://localhost:13127",
       '^/[^/]+/files/[^/]+$': {
         target: 'http://localhost:13127',
         changeOrigin: true,

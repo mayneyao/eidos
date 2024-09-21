@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+* {
+  scrollbar-width: thin;
+  /* Make the scrollbar narrower */
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  /* Thumb and track colors */
+}
+
 #root {
   overflow: hidden;
 }
@@ -136,6 +143,7 @@ html {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;

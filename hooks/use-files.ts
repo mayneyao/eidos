@@ -114,6 +114,7 @@ export const useFileSystem = (rootDir?: FileSystemDirectoryHandle) => {
           file,
           useUuId ? fileId : undefined
         )
+        console.log("paths", { paths, defaultPaths, currentPath })
         if (!paths) {
           throw new Error("add file failed")
         }

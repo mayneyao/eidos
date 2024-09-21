@@ -29,7 +29,7 @@ export function PWALayoutBase({
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useAppStore()
-  const { isAiOpen, isExtAppOpen } = useSpaceAppStore()
+  const { isRightPanelOpen: isAiOpen, isExtAppOpen } = useSpaceAppStore()
   const { efsManager } = useEidosFileSystemManager()
   if (!isShareMode && !sqlite) {
     return (

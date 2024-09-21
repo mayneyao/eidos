@@ -45,13 +45,12 @@ export const useExtensions = () => {
 
   const { efsManager } = useEidosFileSystemManager()
   const getExtensionIndex = async (name: string) => {
-    const file = await efsManager.getFile([
+    const text = await efsManager.getDocContent([
       "extensions",
       "apps",
       name,
       "index.html",
     ])
-    const text = await file.text()
     return text
   }
 

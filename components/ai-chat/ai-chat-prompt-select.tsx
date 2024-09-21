@@ -31,10 +31,17 @@ export const AIChatPromptSelect = (props: {
   promptKeys: string[]
   prompts: IScript[]
   value: string
+  className?: string
   onValueChange: (value: string) => void
 }) => {
   const { space } = useCurrentPathInfo()
-  const { prompts, value, onValueChange: setValue, promptKeys } = props
+  const {
+    prompts,
+    value,
+    onValueChange: setValue,
+    promptKeys,
+    className,
+  } = props
   const [open, setOpen] = React.useState(false)
 
   return (
@@ -45,7 +52,7 @@ export const AIChatPromptSelect = (props: {
           role="combobox"
           size="xs"
           aria-expanded={open}
-          className="w-[100px] justify-between "
+          className={cn("w-[100px] justify-between", className)}
         >
           <p className="w-[70px]  truncate">
             {value

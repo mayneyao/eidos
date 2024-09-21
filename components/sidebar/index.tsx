@@ -41,6 +41,7 @@ import { TableListLoading } from "./loading"
 import { Trash } from "./trash"
 import { useTreeOperations } from "./tree/hooks"
 import { useFolderStore } from "./tree/store"
+import { TabManager } from "../tabs"
 
 export const SideBar = ({ className }: any) => {
   const { space } = useCurrentPathInfo()
@@ -160,6 +161,7 @@ export const SideBar = ({ className }: any) => {
             </div>
           )}
         </ScrollArea>
+        <TabManager />
         <div>
           <Trash />
           <ImportFileDialog />

@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Outlet, useNavigate } from "react-router-dom"
 
+import { EidosDataEventChannelName } from "@/lib/const"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
@@ -14,6 +15,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
+import { FileManager } from "@/components/file-manager"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
@@ -32,12 +34,21 @@ export function DesktopSpaceLayout() {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useAppStore()
-  const { isAiOpen, isExtAppOpen } = useSpaceAppStore()
+  const { isRightPanelOpen, isExtAppOpen, currentAppIndex, apps } =
+    useSpaceAppStore()
+  const currentApp = apps[currentAppIndex]
   const navigate = useNavigate()
   const { isActivated } = useActivation()
 
   useLayoutInit()
   const { efsManager } = useEidosFileSystemManager()
+
+  useEffect(() => {
+    const dataEventChannel = new BroadcastChannel(EidosDataEventChannelName)
+    window.eidos.on(EidosDataEventChannelName, (event, data) => {
+      dataEventChannel.postMessage(data)
+    })
+  }, [])
 
   useEffect(() => {
     if (!isActivated) {
@@ -57,8 +68,7 @@ export function DesktopSpaceLayout() {
     open: { x: 0 },
     closed: { x: "-100%", width: 0 },
   }
-  // when chat is open  2:7:3
-  // when chat is close 2:10
+
   return (
     <>
       <DocExtBlockLoader />
@@ -76,24 +86,22 @@ export function DesktopSpaceLayout() {
 
         <ScriptContainer />
         <div className="flex h-screen w-full flex-col">
-          <ResizablePanelGroup direction="horizontal">
-            <ResizablePanel>
-              <div className="flex h-screen flex-col">
-                <Nav />
-                <div
-                  className={cn("flex w-full", {})}
-                  style={{ height: "calc(100vh - 38px)" }}
+          <div className="flex h-screen flex-col">
+            <Nav />
+            <ResizablePanelGroup direction="horizontal">
+              <div
+                className={cn("flex w-full", {})}
+                style={{ height: "calc(100vh - 38px)" }}
+              >
+                <motion.div
+                  className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}
+                  animate={isSidebarOpen ? "open" : "closed"}
+                  variants={sidebarVariants}
+                  transition={{ type: "tween", duration: 0.2 }}
                 >
-                  <motion.div
-                    className={cn(
-                      "h-full w-[300px] shrink-0 overflow-x-hidden"
-                    )}
-                    animate={isSidebarOpen ? "open" : "closed"}
-                    variants={sidebarVariants}
-                    transition={{ type: "tween", duration: 0.2 }}
-                  >
-                    <SideBar />
-                  </motion.div>
+                  <SideBar />
+                </motion.div>
+                <ResizablePanel minSize={50}>
                   <div
                     className={cn("flex h-full w-auto grow flex-col border-l")}
                   >
@@ -104,41 +112,50 @@ export function DesktopSpaceLayout() {
                       <Outlet />
                     </main>
                   </div>
-                </div>
+                </ResizablePanel>
+                {isRightPanelOpen && (
+                  <>
+                    <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
+                    <ResizablePanel
+                      className={cn("min-w-[400px]")}
+                      defaultSize={isRightPanelOpen ? 20 : 0}
+                      minSize={20}
+                      maxSize={50}
+                    >
+                      <div className={cn("h-full shrink-0 overflow-x-hidden")}>
+                        {currentApp === "chat" && (
+                          <Suspense fallback={<Loading />}>
+                            <AIChat />
+                          </Suspense>
+                        )}
+                        {currentApp === "ext" && <ExtensionPage />}
+                        {currentApp === "file-manager" && (
+                          <Suspense fallback={<Loading />}>
+                            <FileManager />
+                          </Suspense>
+                        )}
+                      </div>
+                    </ResizablePanel>
+                  </>
+                )}
+                {/* {isExtAppOpen && (
+                  <>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel
+                      className="min-w-[400px]"
+                      defaultSize={30}
+                      minSize={30}
+                      maxSize={isAiOpen ? 40 : 50}
+                    >
+                      <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto p-2">
+                        <ExtensionPage />
+                      </div>
+                    </ResizablePanel>
+                  </>
+                )} */}
               </div>
-            </ResizablePanel>
-
-            {isAiOpen && (
-              <>
-                <ResizableHandle withHandle />
-                <ResizablePanel
-                  className="min-w-[400px]"
-                  defaultSize={30}
-                  minSize={30}
-                  maxSize={isExtAppOpen ? 40 : 50}
-                >
-                  <Suspense fallback={<Loading />}>
-                    <AIChat />
-                  </Suspense>
-                </ResizablePanel>
-              </>
-            )}
-            {isExtAppOpen && (
-              <>
-                <ResizableHandle withHandle />
-                <ResizablePanel
-                  className="min-w-[400px]"
-                  defaultSize={30}
-                  minSize={30}
-                  maxSize={isAiOpen ? 40 : 50}
-                >
-                  <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto p-2">
-                    <ExtensionPage />
-                  </div>
-                </ResizablePanel>
-              </>
-            )}
-          </ResizablePanelGroup>
+            </ResizablePanelGroup>
+          </div>
         </div>
       </div>
     </>

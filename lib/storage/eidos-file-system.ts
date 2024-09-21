@@ -33,6 +33,15 @@ export const getExternalFolderHandle = async (name: string) => {
   return dirHandle
 }
 
+
+const adapterSymbol = Symbol('adapter');
+
+function hasAdapterSymbol(obj: any): boolean {
+  const symbols = Object.getOwnPropertySymbols(obj);
+  return symbols.some(symbol => symbol.toString() === adapterSymbol.toString());
+}
+
+
 /**
  * get DirHandle for a given path list
  * we read config from indexeddb to decide which file system to use
@@ -47,7 +56,6 @@ export const getDirHandle = async (
   _paths: string[],
   rootDirHandle?: FileSystemDirectoryHandle
 ) => {
-  console.log('rootDirHandle', rootDirHandle, _paths)
   const paths = [..._paths]
   let dirHandle: FileSystemDirectoryHandle
   if (rootDirHandle) {
@@ -88,6 +96,14 @@ export class EidosFileSystemManager {
     if (rootDirHandle) {
       this.rootDirHandle = rootDirHandle
     }
+  }
+
+  isSameEntry = async (dirHandle: FileSystemDirectoryHandle) => {
+    return this.rootDirHandle?.isSameEntry(dirHandle)
+  }
+
+  getDirHandle = async (paths: string[]) => {
+    return getDirHandle(paths, this.rootDirHandle)
   }
 
   walk = async (_paths: string[]): Promise<string[][]> => {
@@ -247,7 +263,7 @@ export class EidosFileSystemManager {
   }
 
   getFile = async (_paths: string[], options?: FileSystemGetFileOptions) => {
-    const paths = [..._paths]
+    const paths = [..._paths.filter(Boolean)]
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
     }
@@ -280,6 +296,7 @@ export class EidosFileSystemManager {
       throw new Error("paths can't be empty")
     }
     const dirHandle = await getDirHandle(paths, this.rootDirHandle)
+    console.log("dirHandle", dirHandle)
     // if fileId is provided, use it as file name
     const fileExt = extension(file.type)
     const filename = fileId ? `${fileId}.${fileExt}` : file.name
@@ -292,6 +309,7 @@ export class EidosFileSystemManager {
     // fileHandle get path
     const rootDirHandle = await getDirHandle([], this.rootDirHandle)
     const relativePath = await rootDirHandle.resolve(fileHandle)
+    console.log("relativePath", { rootDirHandle, fileHandle, relativePath })
     return relativePath
   }
 

@@ -64,8 +64,8 @@ export default function Chat() {
   const { aiConfig } = useAIConfigStore()
   const { progress } = useLoadingStore()
 
-  const { handleFunctionCall, handleRunCode } = useAIFunctions()
-  const functionCallHandler = getFunctionCallHandler(handleFunctionCall)
+  const { handleToolsCall, handleRunCode } = useAIFunctions()
+  const functionCallHandler = getFunctionCallHandler(handleToolsCall)
 
   const [contextNodes, setContextNodes] = useState<ITreeNode[]>([])
   const [contextEmbeddings, setContextEmbeddings] = useState<IEmbedding[]>([])
@@ -105,7 +105,12 @@ export default function Chat() {
 
   const { getConfigByModel, hasAvailableModels } = useAiConfig()
   const { messages, setMessages, reload, append, isLoading, stop } = useChat({
-    experimental_onFunctionCall: functionCallHandler as any,
+    maxToolRoundtrips: 3,
+    onToolCall: async ({ toolCall }) => {
+      const res = await handleToolsCall(toolCall.toolName, toolCall.args)
+      console.log("toolCall", toolCall, res)
+      return res
+    },
     onFinish(message) {
       autoSpeak && speak(message.content, message.id)
     },
@@ -161,7 +166,7 @@ export default function Chat() {
 
   return (
     <div
-      className="relative flex h-full w-full shrink-0 flex-col gap-2 overflow-auto p-2"
+      className="relative flex h-full w-full shrink-0 flex-col gap-2 overflow-auto p-2 pt-1"
       ref={divRef}
     >
       <div className="flex items-center justify-center gap-2">

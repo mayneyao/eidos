@@ -46,7 +46,7 @@ export const Table = ({
   useSqliteTableSubscribe(tableName)
   return (
     <TableContext.Provider value={{ tableName, space, viewId, isReadOnly }}>
-      <div className="h-full w-full overflow-hidden p-2">
+      <div className="h-full w-full overflow-hidden p-2 pt-0">
         <ViewToolbar
           tableName={tableName}
           space={space}

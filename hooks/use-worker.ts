@@ -1,6 +1,6 @@
 import { useCallback } from "react"
 
-import { MsgType } from "@/lib/const"
+import { EidosMessageChannelName, MsgType } from "@/lib/const"
 import { getEmbeddingWorker } from "@/lib/embedding/worker"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
@@ -16,7 +16,6 @@ import {
 import { useSqliteStore } from "./use-sqlite"
 import { useCurrentUser } from "./user-current-user"
 import { isInkServiceMode, isDesktopMode } from "@/lib/env"
-import { ipcRenderer } from "electron"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
@@ -31,18 +30,17 @@ export const useWorker = () => {
 
   const { toast } = useToast()
   const initWorker = useCallback(() => {
-    if (isInkServiceMode || isDesktopMode) {
+    if (isInkServiceMode) {
       setInitialized(true)
       return () => { }
     }
-    const worker = getWorker()
-
     const handle = async (event: MessageEvent) => {
       if (event.data === "init") {
         console.log("sqlite is loaded")
         setInitialized(true)
       }
       const { type, data } = event.data
+      let res = null
       switch (type) {
         case MsgType.WebSocketConnected:
           setWebsocketConnected(true)
@@ -68,33 +66,46 @@ export const useWorker = () => {
           })
           break
         case MsgType.GetDocMarkdown:
-          const res = await _getDocMarkdown(data)
-          event.ports[0].postMessage(res)
+          res = await _getDocMarkdown(data)
           break
         case MsgType.ConvertMarkdown2State:
-          const res2 = await _convertMarkdown2State(data)
-          event.ports[0].postMessage(res2)
+          res = await _convertMarkdown2State(data)
           break
         case MsgType.ConvertHtml2State:
-          const res3 = await _convertHtml2State(data)
-          event.ports[0].postMessage(res3)
+          res = await _convertHtml2State(data)
           break
         case MsgType.ConvertEmail2State:
-          const res4 = await _convertEmail2State(data.email, data.space, userId)
-          event.ports[0].postMessage(res4)
+          res = await _convertEmail2State(data.email, data.space, userId)
           break
         default:
           break
       }
+      event?.ports[0]?.postMessage(res)
+      return res
     }
 
-    window.eidos.on('server-message', (event, message) => {
-      console.log('server-message')
-      console.log(message); // 输出: Hello from Main Process
-    });
-
-    worker.addEventListener("message", handle)
-    return () => worker.removeEventListener("message", handle)
+    if (isDesktopMode) {
+      window.eidos.on('request-from-main', async (event, requestId, arg) => {
+        console.log('request-from-main', requestId, arg)
+        const result = await handle(new MessageEvent('message', { data: arg }))
+        console.log('response-from-main', requestId, result)
+        window.eidos.send(`response-${requestId}`, result);
+      });
+      window.eidos.on(EidosMessageChannelName, async (event, arg) => {
+        await handle(new MessageEvent('message', { data: arg }))
+      });
+      setInitialized(true)
+    } else {
+      const worker = getWorker()
+      worker.addEventListener("message", handle)
+    }
+    return () => {
+      if (isDesktopMode) {
+      } else {
+        const worker = getWorker()
+        worker.removeEventListener("message", handle)
+      }
+    }
   }, [
     setBlockUIData,
     setBlockUIMsg,

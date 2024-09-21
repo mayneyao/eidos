@@ -59,7 +59,7 @@ export function CommandDialogDemo() {
     space && run(input)
   }, [input, run, space])
 
-  const { isAiOpen, setIsAiOpen } = useSpaceAppStore()
+  const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } = useSpaceAppStore()
   const { lastOpenedDatabase } = useLastOpened()
 
   const { createDoc } = useSqlite()

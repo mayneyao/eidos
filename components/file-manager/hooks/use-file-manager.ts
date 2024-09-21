@@ -67,12 +67,13 @@ export function useFileManager(search?: string) {
       await dir.requestPermission({ mode: "read" })
     } catch (error) {
       console.error("Error requesting permission:", error)
-      return
+      // return
     }
     const entries = []
     for await (const entry of dir.values()) {
       entries.push(entry)
     }
+    console.log('entries', entries)
     setEntries(entries)
   }
 

@@ -1,10 +1,13 @@
 "use client"
 
+import * as React from "react"
 import { kebabCase } from "lodash"
 import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
-import * as React from "react"
 
-import { useLastOpened } from "@/apps/web-app/[database]/hook"
+import { cn } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useGoto } from "@/hooks/use-goto"
+import { useSpace, useSpaceFileSystem } from "@/hooks/use-space"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -29,10 +32,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useGoto } from "@/hooks/use-goto"
-import { useSpace, useSpaceFileSystem } from "@/hooks/use-space"
-import { cn } from "@/lib/utils"
+import { useLastOpened } from "@/apps/web-app/[database]/hook"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -126,6 +126,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
           <Button
             variant="outline"
             role="combobox"
+            size="xs"
             aria-expanded={open}
             className="w-full min-w-[180px] justify-between"
           >

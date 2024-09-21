@@ -153,7 +153,7 @@ export const CodeEditor = forwardRef(
       return () => window.removeEventListener("resize", debounced)
     }, [resetEditorLayout])
 
-    const { isAiOpen, isExtAppOpen } = useSpaceAppStore()
+    const { isRightPanelOpen: isAiOpen, isExtAppOpen } = useSpaceAppStore()
     useEffect(() => {
       resetEditorLayout()
     }, [size, resetEditorLayout, isAiOpen, isExtAppOpen])

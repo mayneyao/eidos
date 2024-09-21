@@ -23,7 +23,6 @@ import ShareLayout from "@/apps/web-app/share/[database]/layout"
 // share
 import SharePage from "@/apps/web-app/share/page"
 
-import { SpaceFileSystem } from "../../lib/storage/space"
 import { NotFound } from "../web-app/404"
 import { AppPage } from "../web-app/[database]/apps/page"
 import { ScriptDetailPage } from "../web-app/[database]/scripts/detail"
@@ -104,7 +103,7 @@ const router = createBrowserRouter([
         element: <DesktopSpaceLayout />,
         loader: async ({ params }) => {
           // check the space is exist
-          const spaceNames = window.eidos.spaceList
+          const spaceNames = await window.eidos.spaceFileSystem.list()
           if (params.database && !spaceNames.includes(params.database)) {
             return redirect("/404")
           }

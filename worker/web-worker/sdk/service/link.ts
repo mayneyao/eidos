@@ -304,14 +304,12 @@ export class LinkFieldService {
     )
 
     // add column for two link fields
-    this.dataSpace.syncExec2(
+    db.exec(
       `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} TEXT;
         ALTER TABLE ${table_name} ADD COLUMN ${table_column_name}__title TEXT;
         ALTER TABLE ${pairedField.table_name} ADD COLUMN ${pairedField.table_column_name} TEXT;
         ALTER TABLE ${pairedField.table_name} ADD COLUMN ${pairedField.table_column_name}__title TEXT;
         `,
-      [],
-      db
     )
 
     /**
@@ -348,7 +346,7 @@ export class LinkFieldService {
     // add relation table and delete trigger
     const relationTableName = `lk_${table_name}__${pairedField.table_name}`
     const reverseRelationTableName = `lk_${pairedField.table_name}__${table_name}`
-    this.dataSpace.syncExec2(
+    db.exec(
       `CREATE TABLE IF NOT EXISTS ${relationTableName} (
           self TEXT,
           ref TEXT,
@@ -395,8 +393,6 @@ export class LinkFieldService {
             SELECT eidos_data_event_insert('${reverseRelationTableName}', json_object('self',NEW.self,'ref',NEW.ref,'link_field_id',NEW.link_field_id));
         END;
         `,
-      [],
-      db
     )
     return db
   }

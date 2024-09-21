@@ -55,9 +55,9 @@ export const useAIFunctions = () => {
     const { msgIndex, width } = context
 
     try {
-      ;(window as any)._CANVAS_ID_ = `#chart-${msgIndex}`
-      ;(window as any)._CHART_WIDTH_ = width - 50
-      ;(window as any)._CHART_HEIGHT_ = width - 50
+      ; (window as any)._CANVAS_ID_ = `#chart-${msgIndex}`
+        ; (window as any)._CHART_WIDTH_ = width - 50
+        ; (window as any)._CHART_HEIGHT_ = width - 50
       eval(code)
     } catch (error) {
       console.log(code)
@@ -97,7 +97,7 @@ export const useAIFunctions = () => {
     }
   }
 
-  const handleFunctionCall = async (
+  const handleToolsCall = async (
     name: string,
     parameters: any,
     isAuto: boolean = true
@@ -138,10 +138,10 @@ export const useAIFunctions = () => {
           window.location.origin + efsManager.getFileUrlByPath(fileObj.path)
         )
       case "createDoc":
-        const { markdown } = parameters
+        const { markdown, title } = parameters
         const docId = getUuid()
-        const doc = await sqlite?.createOrUpdateDocWithMarkdown(docId, markdown)
-        const url = window.location.origin + `/${database}/${docId}}`
+        const doc = await sqlite?.createOrUpdateDocWithMarkdown(docId, markdown, undefined, title)
+        const url = `/${database}/${docId}}`
         console.log(doc, url)
         return url
       default:
@@ -166,5 +166,5 @@ export const useAIFunctions = () => {
       })
     }
   }
-  return { autoRun, handleRunCode, handleFunctionCall }
+  return { autoRun, handleRunCode, handleToolsCall }
 }

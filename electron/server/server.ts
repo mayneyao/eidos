@@ -1,9 +1,11 @@
 import { handleFunctionCall } from '@/lib/rpc';
 import { Hono } from 'hono';
 import { getOrSetDataSpace } from '../data-space';
-import { serveStatic } from '@hono/node-server/serve-static'
-import { serve } from '@hono/node-server'
+import { serveStatic } from '@hono/node-server/serve-static';
+import { serve } from '@hono/node-server';
 import { getFileFromPath } from '../file-system/space';
+import aiCompletionHandler, { pathname as aiCompletionPath } from '@/worker/service-worker/routes/ai_completion';
+import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
 
 const app = new Hono();
 
@@ -30,6 +32,24 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
         }
     });
 
+    // AI completion route
+    app.post(aiCompletionPath, async (c) => {
+        const response = await aiCompletionHandler({
+            request: c.req,
+            respondWith: (response: Response) => response,
+        } as unknown as FetchEvent);
+        return response;
+    });
+
+    // AI route
+    app.all(aiPath, async (c) => {
+        const response = await aiHandler({
+            request: c.req,
+            respondWith: (response: Response) => response,
+        } as unknown as FetchEvent);
+        return response;
+    });
+
     // 
     app.get('/:space/files/:filename', async (c) => {
         const { space, filename } = c.req.param()
@@ -41,6 +61,9 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
 
         return new Response(file, { headers })
     })
+
+    // Fallback to index.html for non-existent paths
+    app.use('*', serveStatic({ path: `${dist}/index.html` }));
 
     serve({
         port,

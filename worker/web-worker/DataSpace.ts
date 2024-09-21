@@ -79,8 +79,10 @@ export class DataSpace {
   dataChangeTrigger: DataChangeTrigger
   linkRelationUpdater: LinkRelationUpdater
   allTables: BaseTable<any>[] = []
+  hasLoadExtension = false
   // worker to main thread
-  postMessage?: (data: any) => void
+  postMessage?: (data: any, transfer?: any[]) => void
+  callRenderer?: (type: any, data: any) => Promise<any>
   // channel broadcast
   dataEventChannel: {
     postMessage: (data: any) => void
@@ -99,28 +101,46 @@ export class DataSpace {
     context: {
       setInterval?: typeof setInterval
     }
+    hasLoadExtension?: boolean
     createUDF?: (db: EidosDatabase) => void,
     sqlite3?: Sqlite3Static
     draftDb?: DataSpace
-    postMessage?: (data: any) => void
+    postMessage?: (data: any, transfer?: any[]) => void
+    callRenderer?: (type: any, data: any) => Promise<any>
     efsManager?: EidosFileSystemManager
     dataEventChannel?: {
       postMessage: (data: any) => void
     }
   }) {
-    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF, postMessage, efsManager, dataEventChannel } = config
+    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF, postMessage, efsManager, dataEventChannel, hasLoadExtension, callRenderer } = config
     this.db = db
 
+    this.hasLoadExtension = Boolean(hasLoadExtension)
     if (dataEventChannel) {
       this.dataEventChannel = dataEventChannel
     } else {
       this.dataEventChannel = new BroadcastChannel(EidosDataEventChannelName)
+    }
+
+    if (callRenderer) {
+      this.callRenderer = callRenderer
+    } else {
+      this.callRenderer = (type: any, data: any) => {
+        const channel = new MessageChannel()
+        self.postMessage({ type, data }, [channel.port2])
+        return new Promise((resolve) => {
+          channel.port1.onmessage = (event) => {
+            resolve(event.data)
+          }
+        })
+      }
     }
     this.sqlite3 = sqlite3
     this.draftDb = draftDb
     this.dbName = dbName
     this.postMessage = postMessage
     this.efsManager = efsManager
+
     this.initUDF()
     this.eventHandler = new DataChangeEventHandler(this)
     this.dataChangeTrigger = new DataChangeTrigger()
@@ -699,8 +719,12 @@ export class DataSpace {
     })
   }
 
-  public async importCsv(file: File) {
+  public async importCsv(file: {
+    name: string
+    content: string
+  }) {
     const csvImport = new CsvImportAndExport()
+    console.log("importing csv file", file)
     const tableId = await csvImport.import(file, this)
     return tableId
   }
@@ -710,7 +734,10 @@ export class DataSpace {
     return await csvImport.export(tableId, this)
   }
 
-  public async importMarkdown(file: File) {
+  public async importMarkdown(file: {
+    name: string
+    content: string
+  }) {
     const markdownImport = new MarkdownImportAndExport()
     const nodeId = await markdownImport.import(file, this)
     return nodeId
@@ -771,13 +798,23 @@ export class DataSpace {
     //   sql,
     //   bind
     // )
-    if (this.db instanceof BaseServerDatabase) {
-      return this.db.exec({
-        sql,
-        bind,
-        returnValue: "resultRows",
-        rowMode: "object",
-      })
+    if (db instanceof BaseServerDatabase) {
+      try {
+        return db.exec({
+          sql,
+          bind,
+          returnValue: "resultRows",
+          rowMode: "object",
+        })
+      } catch (error: any) {
+        if (error.toString().includes("SqliteError")) {
+          this.notify({
+            title: "SqliteError",
+            description: error.toString(),
+          })
+        }
+        console.log(error)
+      }
     }
     db.exec({
       sql,
@@ -793,7 +830,11 @@ export class DataSpace {
   // FIXME: there are some problem with headless lexical run in worker
   // return markdown string, compute in worker
   // public async asyncGetDocMarkdown(docId: string) {
-  //   return await getDocMarkdown(this.dbName, docId)
+  //   const doc = await this.doc.get(docId)
+  //   if (!doc) {
+  //     throw new Error(`doc ${docId} not found`)
+  //   }
+  //   return await _getDocMarkdown(doc.markdown)
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
@@ -1121,6 +1162,7 @@ export class DataSpace {
   }
 
   public blockUIMsg(msg: string | null, data?: Record<string, any>) {
+    console.log("blockUIMsg", msg, data)
     this.postMessage?.({
       type: MsgType.BlockUIMsg,
       data: {

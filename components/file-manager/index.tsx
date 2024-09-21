@@ -33,7 +33,7 @@ export const FileManager = () => {
   })
 
   return (
-    <div className="flex h-full w-full flex-col justify-between p-1">
+    <div className="flex h-full w-full flex-col justify-between p-1 pt-0">
       <div>
         <div className="flex w-full items-center gap-2">
           <Input

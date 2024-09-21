@@ -17,9 +17,7 @@ export const getSqliteChannel = (dbName: string, userId: string, config?: {
   connection: DataConnection
 }) => {
   let sqlite: ISqlite<any, ILocalSendData>
-  console.log("isInkServiceMode", isInkServiceMode)
   if (isDesktopMode) {
-    console.log('window.eidos', (window as any).eidos)
     sqlite = new LocalSqlite((window as any).eidos)
   } else if (isInkServiceMode) {
     const serverSqlite = new HttpSqlite("/server/api")

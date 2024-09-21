@@ -4,8 +4,21 @@ import { getSpaceDbPath } from "./file-system/space";
 import { NodeServerDatabase } from "./sqlite-server";
 import { win } from "./main";
 import { EidosDataEventChannelName, EidosMessageChannelName } from "@/lib/const";
+import { MessageChannelMain, WebContents, ipcMain } from "electron";
 
 export let dataSpace: DataSpace | null = null
+
+function requestFromRenderer(webContents: WebContents, arg: any) {
+    return new Promise((resolve, reject) => {
+        const requestId = Math.random().toString(36).substr(2, 9); // 生成唯一请求ID
+
+        ipcMain.once(`response-${requestId}`, (event: any, result: any) => {
+            resolve(result);
+        });
+
+        webContents.send('request-from-main', requestId, arg);
+    });
+}
 
 export async function getOrSetDataSpace(spaceName: string) {
     if (dataSpace) {
@@ -22,10 +35,14 @@ export async function getOrSetDataSpace(spaceName: string) {
         activeUndoManager: false,
         dbName: spaceName,
         context: {
-            setInterval: undefined,
+            setInterval,
         },
-        postMessage: (data: any) => {
-            win?.webContents.send(EidosMessageChannelName, data)
+        hasLoadExtension: true,
+        postMessage: (data: any, transfer?: any[]) => {
+            win?.webContents.send(EidosMessageChannelName, data, transfer)
+        },
+        callRenderer: (type: any, data: any) => {
+            return requestFromRenderer(win!.webContents, { type, data })
         },
         dataEventChannel: {
             postMessage: (data: any) => {

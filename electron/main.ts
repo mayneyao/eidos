@@ -1,8 +1,8 @@
 import { MsgType } from '@/lib/const';
 import { handleFunctionCall } from '@/lib/rpc';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron';
 import path from 'path';
-import { createWindow } from './createWindow';
+import { createWindow } from './window-manager/createWindow';
 import { dataSpace, getOrSetDataSpace } from './data-space';
 import { checkAndPromptForFolder } from './file-system/config';
 import { startServer } from './server/server';
@@ -66,6 +66,7 @@ app.on('window-all-closed', () => {
     dataSpace?.closeDb()
     win = null
 })
+
 
 app.whenReady().then(() => {
     win = createWindow()

@@ -64,7 +64,7 @@ export default function SettingsLayout() {
   })
 
   return (
-    <ScrollArea className="h-[100vh]">
+    <ScrollArea className="h-[100vh] w-full">
       <div className="grid w-full grid-cols-5 ">
         <div className="col-span-1" />
         <div className="col-span-5 space-y-6 p-4 pb-16 md:block md:p-10 xl:col-span-3">

@@ -39,7 +39,7 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
     this.channelMap.delete(id)
   }
 
-  async send(data: ILocalSendData) {
+  send(data: ILocalSendData) {
     /**
      * every msg need to have a unique id,
      * one msg id, one channel
@@ -51,8 +51,7 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
     if (this.connector instanceof Worker) {
       this.connector.postMessage(data, [channel.port2])
     } else {
-      const r = await this.connector.invoke('sqlite-msg', data)
-      return r
+      return this.connector.invoke('sqlite-msg', data)
     }
   }
   onCallBack(thisCallId: string) {

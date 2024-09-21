@@ -1,7 +1,8 @@
-import { OpenAIStream, StreamingTextResponse } from "ai"
+import { CoreTool, OpenAIStream, StreamingTextResponse, convertToCoreMessages, streamText } from "ai"
 import OpenAI from "openai"
+import { createOpenAI } from "@ai-sdk/openai";
 
-import { tools } from "@/lib/ai/functions"
+import { tools, allFunctions } from "@/lib/ai/functions"
 
 // import { queryEmbedding } from "../routes/lib"
 import { IData } from "./interface"
@@ -23,23 +24,24 @@ export async function handleOpenAI(
   } = data
 
   const model = modelAndProvider.split("@")[0]
-  const openai = new OpenAI({
+  const openai = createOpenAI({
     apiKey: apiKey,
     baseURL: baseUrl,
   })
 
   const lastMsg = messages[messages.length - 1]
-  let newMsgs = [
-    systemPrompt?.length
-      ? {
-          role: "system" as const,
-          content: systemPrompt,
-        }
-      : undefined,
-    ...messages,
-  ].filter(Boolean)
+  let newMsgs = messages
+  if (systemPrompt?.length) {
+    newMsgs = [
+      {
+        id: "system",
+        role: "system" as const,
+        content: systemPrompt,
+      },
+      ...messages,
+    ]
+  }
 
-  console.log({ systemPrompt, messages, newMsgs })
   // if (
   //   currentPreviewFile &&
   //   // is user query
@@ -76,8 +78,22 @@ export async function handleOpenAI(
       tools: tools as any,
     }
   }
-  console.log(request)
-  const response = await openai.chat.completions.create(request)
-  const stream = OpenAIStream(response)
-  return new StreamingTextResponse(stream)
+
+  const _tools: Record<string, CoreTool> = {}
+  allFunctions.forEach((f) => {
+    _tools[f.name] = {
+      description: f.description,
+      parameters: f.schema
+    }
+  })
+  const result = await streamText({
+    model: openai(model ?? "gpt-3.5-turbo-0125"),
+    messages: convertToCoreMessages(newMsgs as any),
+    tools: _tools,
+  })
+  // console.log(request)
+  // const response = await openai.chat.completions.create(request)
+  // const stream = OpenAIStream(response)
+  // return new StreamingTextResponse(stream)
+  return result.toAIStreamResponse()
 }
