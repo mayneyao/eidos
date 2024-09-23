@@ -1,12 +1,11 @@
 import { MsgType } from '@/lib/const';
 import { handleFunctionCall } from '@/lib/rpc';
-import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import path from 'path';
-import { createWindow } from './window-manager/createWindow';
 import { dataSpace, getOrSetDataSpace } from './data-space';
-import { checkAndPromptForFolder } from './file-system/config';
 import { startServer } from './server/server';
-import { getAppConfig } from './file-system/config';
+import { createWindow } from './window-manager/createWindow';
+import { getAppConfig } from './config';
 
 export let win: BrowserWindow | null
 
@@ -39,6 +38,10 @@ ipcMain.handle('get-app-config', () => {
     return getAppConfig();
 });
 
+ipcMain.handle('get-user-config-path', () => {
+    return path.join(app.getPath('userData'), 'config.json');
+});
+
 ipcMain.handle('sqlite-msg', async (event, payload) => {
     const res = await handleFunctionCall(payload.data, dataSpace)
     return res
@@ -60,6 +63,22 @@ ipcMain.handle(MsgType.CreateSpace, (event, args) => {
     return { data }
 })
 
+ipcMain.handle('select-folder', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+    });
+
+    if (result.canceled) {
+        return undefined;
+    } else {
+        return result.filePaths[0];
+    }
+});
+
+ipcMain.handle('reload-app', () => {
+    app.relaunch();
+    win?.reload()
+});
 
 app.on('window-all-closed', () => {
     app.quit()
@@ -70,7 +89,6 @@ app.on('window-all-closed', () => {
 
 app.whenReady().then(() => {
     win = createWindow()
-    checkAndPromptForFolder(win)
     // ensure did-finish-load
     setTimeout(() => {
         // win?.webContents.send('main-process-message', `[better-sqlite3] ${JSON.stringify(db.pragma('journal_mode = WAL'))}`)

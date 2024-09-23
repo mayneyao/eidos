@@ -28,5 +28,8 @@ interface Window {
         spaceList: string[]
         spaceFileSystem: import('@/lib/storage/space').SpaceFileSystem
         openTabs: string[]
+        config: import('./config/index').ConfigManager
+        selectFolder: () => Promise<string | undefined>
+        reloadApp: () => Promise<void>
     }
 }

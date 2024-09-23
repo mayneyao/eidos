@@ -25,6 +25,7 @@ import { SideBar } from "@/components/sidebar"
 import { useLayoutInit } from "../web-app/[database]/hook"
 import { useSpaceAppStore } from "../web-app/[database]/store"
 import { ExtensionPage } from "../web-app/extensions/page"
+import { useDataFolderCheck } from "./hooks"
 
 const WebLLM = lazy(() => import("@/components/ai-chat/webllm"))
 
@@ -39,6 +40,7 @@ export function DesktopSpaceLayout() {
   const currentApp = apps[currentAppIndex]
   const navigate = useNavigate()
   const { isActivated } = useActivation()
+  const isDataFolderSet = useDataFolderCheck()
 
   useLayoutInit()
   const { efsManager } = useEidosFileSystemManager()
@@ -49,6 +51,12 @@ export function DesktopSpaceLayout() {
       dataEventChannel.postMessage(data)
     })
   }, [])
+
+  useEffect(() => {
+    if (!isDataFolderSet) {
+      navigate("/settings/storage")
+    }
+  }, [isDataFolderSet, navigate])
 
   useEffect(() => {
     if (!isActivated) {

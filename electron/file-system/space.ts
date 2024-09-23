@@ -1,8 +1,8 @@
 import path from "path";
-import { getAppConfig } from "./config";
 import fs from "node:fs";
 import { NodeFS } from 'fs-un'
 import { lookup } from "@/lib/mime/mime";
+import { getAppConfig } from "../config";
 
 export const createSpace = (spaceName: string) => {
     const root = getAppConfig().dataFolder

@@ -2,6 +2,7 @@ import React from "react"
 import ReactDOM from "react-dom/client"
 import { RouterProvider, createBrowserRouter, redirect } from "react-router-dom"
 
+import SettingsStoragePage from "@/apps/desktop/settings/storage/page"
 import NodePage from "@/apps/web-app/[database]/[node]/page"
 import EverydayPage from "@/apps/web-app/[database]/everyday/[day]/page"
 import EverydayHomePage from "@/apps/web-app/[database]/everyday/page"
@@ -17,7 +18,6 @@ import SettingsExperimentPage from "@/apps/web-app/settings/experiment/page"
 // settings
 import SettingsLayout from "@/apps/web-app/settings/layout"
 import SettingsPage from "@/apps/web-app/settings/page"
-import SettingsStoragePage from "@/apps/web-app/settings/storage/page"
 import ShareNodePage from "@/apps/web-app/share/[database]/[table]/page"
 import ShareLayout from "@/apps/web-app/share/[database]/layout"
 // share
