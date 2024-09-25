@@ -92,7 +92,12 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
       <div className="mr-3 flex items-center justify-between gap-2">
         <NavStatus />
         <NavDropdownMenu />
-        {!isRightPanelOpen && (
+        {isDesktopMode && !isRightPanelOpen && (
+          <Button size="xs" variant="ghost" onClick={() => handleAppChange(0)}>
+            <PanelRightIcon className="h-5 w-5" />
+          </Button>
+        )}
+        {!isDesktopMode && (
           <Button size="xs" variant="ghost" onClick={() => handleAppChange(0)}>
             <PanelRightIcon className="h-5 w-5" />
           </Button>
