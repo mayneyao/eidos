@@ -120,7 +120,9 @@ export class BaseTableImpl<T = any> {
           return `${k} = ?`
         })
         .join(" AND ")
-      setV = kv.map(([, v]) => v)
+      setV = kv
+        .filter(([, v]) => v != null)
+        .map(([, v]) => v)
       sql += ` WHERE ${setK}`
     }
     if (opts?.orderBy) {
