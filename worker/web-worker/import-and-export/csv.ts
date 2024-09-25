@@ -9,6 +9,7 @@ import { TableManager } from "../sdk/table"
 import { BaseImportAndExport } from "./base"
 import { parse } from "csv-parse/sync"
 import { stringify } from "csv-stringify/sync"
+import type { Stringifier } from "csv-stringify"
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -157,6 +158,16 @@ CREATE TABLE ${rawTableName} (
     const tm = new TableManager(nodeId, dataSpace)
     const rows = await tm.rows.query()
     const csv = stringify(rows, { header: true, columns: columnNames })
-    return csv
+    if (typeof csv === "string") {
+      return csv
+    } else {
+      return new Promise((resolve, reject) => {
+        const chunks: string[] = [];
+        (csv as Stringifier)
+          .on('data', (chunk) => chunks.push(chunk.toString()))
+          .on('error', reject)
+          .on('end', () => resolve(chunks.join('')));
+      });
+    }
   }
 }
