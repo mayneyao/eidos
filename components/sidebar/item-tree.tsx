@@ -40,7 +40,7 @@ export const CurrentItemTree = ({
   }
   return (
     <>
-      <div className="flex items-center">
+      <div className="flex items-center justify-between w-full">
         <Button
           variant={"ghost"}
           size="sm"

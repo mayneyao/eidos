@@ -46,9 +46,13 @@ export function DesktopSpaceLayout() {
 
   useEffect(() => {
     const dataEventChannel = new BroadcastChannel(EidosDataEventChannelName)
-    window.eidos.on(EidosDataEventChannelName, (event, data) => {
+    const handler = (event: any, data: any) => {
       dataEventChannel.postMessage(data)
-    })
+    }
+    window.eidos.on(EidosDataEventChannelName, handler)
+    return () => {
+      window.eidos.off(EidosDataEventChannelName, handler)
+    }
   }, [])
 
   useEffect(() => {

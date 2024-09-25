@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import {
   AppWindowIcon,
   BlocksIcon,
@@ -9,19 +8,20 @@ import {
   ListTreeIcon,
   PinIcon,
 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { isDesktopMode } from "@/lib/env"
-import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
+import { DatabaseSelect } from "@/components/database-select"
 import { useAllExtensions } from "@/hooks/use-all-extensions"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/hooks/use-nodes"
 import { useSpace } from "@/hooks/use-space"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { DatabaseSelect } from "@/components/database-select"
-import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
+import { isDesktopMode } from "@/lib/env"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
 
 import { FileManager } from "../file-manager"
 import { SpaceSettings } from "../space-settings"
@@ -32,7 +32,6 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "../ui/context-menu"
-import { ScrollArea } from "../ui/scroll-area"
 // import { BackupStatus } from "./backup"
 import { EverydaySidebarItem } from "./everyday"
 import { ImportFileDialog } from "./import-file"
@@ -85,7 +84,7 @@ export const SideBar = ({ className }: any) => {
             </>
           )}
         </div>
-        <ScrollArea className="flex h-full w-full flex-col justify-between overflow-y-auto">
+        <div className="flex h-full w-full flex-col justify-between overflow-y-auto">
           {loading ? (
             <TableListLoading />
           ) : (
@@ -159,7 +158,7 @@ export const SideBar = ({ className }: any) => {
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
         <div>
           <Trash />
           <ImportFileDialog />
