@@ -1,12 +1,10 @@
-import path from "path";
-import fs from "node:fs";
-import { NodeFS } from 'fs-un'
 import { lookup } from "@/lib/mime/mime";
+import fs from "node:fs";
+import path from "path";
 import { getAppConfig } from "../config";
 
 export const createSpace = (spaceName: string) => {
     const root = getAppConfig().dataFolder
-    const ifs = new NodeFS(root)
     // root/<spaceName>/db.sqlite3
     const spaceFolder = path.join(root, 'spaces', spaceName)
     if (!fs.existsSync(spaceFolder)) {

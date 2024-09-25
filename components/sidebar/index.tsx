@@ -41,7 +41,6 @@ import { TableListLoading } from "./loading"
 import { Trash } from "./trash"
 import { useTreeOperations } from "./tree/hooks"
 import { useFolderStore } from "./tree/store"
-import { TabManager } from "../tabs"
 
 export const SideBar = ({ className }: any) => {
   const { space } = useCurrentPathInfo()
@@ -86,7 +85,7 @@ export const SideBar = ({ className }: any) => {
             </>
           )}
         </div>
-        <ScrollArea className="flex h-full max-w-[300px] flex-col justify-between overflow-y-auto">
+        <ScrollArea className="flex h-full w-full flex-col justify-between overflow-y-auto">
           {loading ? (
             <TableListLoading />
           ) : (
@@ -161,7 +160,6 @@ export const SideBar = ({ className }: any) => {
             </div>
           )}
         </ScrollArea>
-        <TabManager />
         <div>
           <Trash />
           <ImportFileDialog />

@@ -39,6 +39,7 @@ const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
 export default function Chat() {
   const loadingRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
 
   const { prompts } = useUserPrompts()
   const { experiment } = useExperimentConfigStore()
@@ -100,6 +101,7 @@ export default function Chat() {
     },
     onFinish(message) {
       autoSpeak && speak(message.content, message.id)
+      scrollToBottom()
     },
     body: {
       ...getConfigByModel(aiModel),
@@ -107,6 +109,12 @@ export default function Chat() {
       model: aiModel, // model@provider
     },
   })
+
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }
 
   useEffect(() => {
     if (isLoading && loadingRef.current) {
@@ -156,22 +164,7 @@ export default function Chat() {
       className="relative flex h-full w-full shrink-0 flex-col gap-2 overflow-auto p-2 pt-1"
       ref={divRef}
     >
-      <div className="flex items-center justify-center gap-2">
-        <AIChatPromptSelect
-          value={currentSysPrompt}
-          onValueChange={setCurrentSysPrompt}
-          promptKeys={promptKeys}
-          prompts={prompts}
-        />
-        <AIModelSelect
-          onValueChange={setAIModel as any}
-          value={aiModel}
-          size="xs"
-          localModels={aiConfig.localModels}
-        />
-        {/* <AIChatSettings /> */}
-      </div>
-      <ScrollArea className="grow border-t">
+      <ScrollArea className="grow" ref={chatContainerRef}>
         <div className="flex grow flex-col gap-2 p-3 pb-[100px]">
           {!hasAvailableModels && (
             <p className="p-2">
@@ -229,30 +222,48 @@ export default function Chat() {
               </Label>
             </div>
           )}
-          <div className="flex  w-full items-center justify-end">
-            {isLoading && (
-              <Button onClick={stop} variant="ghost" size="sm">
-                <PauseIcon className="h-5 w-5" />
-              </Button>
-            )}
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <AIChatPromptSelect
+                value={currentSysPrompt}
+                onValueChange={setCurrentSysPrompt}
+                promptKeys={promptKeys}
+                prompts={prompts}
+              />
+              <AIModelSelect
+                onValueChange={setAIModel as any}
+                value={aiModel}
+                size="xs"
+                className="max-w-[100px]"
+                localModels={aiConfig.localModels}
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              {/* <AIChatSettings /> */}
+              {isLoading && (
+                <Button onClick={stop} variant="ghost" size="sm">
+                  <PauseIcon className="h-5 w-5" />
+                </Button>
+              )}
 
-            {/* <Suspense fallback={<Loading />}>
+              {/* <Suspense fallback={<Loading />}>
               <Whisper setText={setSpeechText} />
             </Suspense> */}
-            <Button
-              variant="ghost"
-              onClick={() => reload()}
-              size="sm"
-              disabled={isLoading}
-            >
-              <RefreshCcwIcon className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" onClick={cleanMessages} size="sm">
-              <Paintbrush className="h-5 w-5" />
-            </Button>
-            {/* <Button variant="ghost" size="sm">
+              <Button
+                variant="ghost"
+                onClick={() => reload()}
+                size="sm"
+                disabled={isLoading}
+              >
+                <RefreshCcwIcon className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" onClick={cleanMessages} size="sm">
+                <Paintbrush className="h-5 w-5" />
+              </Button>
+              {/* <Button variant="ghost" size="sm">
               <SendIcon className="h-5 w-5 opacity-60"></SendIcon>
             </Button> */}
+            </div>
           </div>
         </div>
         <div

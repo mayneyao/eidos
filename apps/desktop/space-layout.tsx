@@ -1,5 +1,4 @@
 import { Suspense, lazy, useEffect } from "react"
-import { motion } from "framer-motion"
 import { Outlet, useNavigate } from "react-router-dom"
 
 import { EidosDataEventChannelName } from "@/lib/const"
@@ -19,6 +18,7 @@ import { FileManager } from "@/components/file-manager"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
+import { RightPanelNav } from "@/components/nav/right-panel-nav"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
@@ -35,8 +35,7 @@ export function DesktopSpaceLayout() {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useAppStore()
-  const { isRightPanelOpen, isExtAppOpen, currentAppIndex, apps } =
-    useSpaceAppStore()
+  const { isRightPanelOpen, currentAppIndex, apps } = useSpaceAppStore()
   const currentApp = apps[currentAppIndex]
   const navigate = useNavigate()
   const { isActivated } = useActivation()
@@ -72,11 +71,6 @@ export function DesktopSpaceLayout() {
     )
   }
 
-  const sidebarVariants = {
-    open: { x: 0 },
-    closed: { x: "-100%", width: 0 },
-  }
-
   return (
     <>
       <DocExtBlockLoader />
@@ -94,76 +88,62 @@ export function DesktopSpaceLayout() {
 
         <ScriptContainer />
         <div className="flex h-screen w-full flex-col">
-          <div className="flex h-screen flex-col">
-            <Nav />
-            <ResizablePanelGroup direction="horizontal">
-              <div
-                className={cn("flex w-full", {})}
-                style={{ height: "calc(100vh - 38px)" }}
-              >
-                <motion.div
-                  className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}
-                  animate={isSidebarOpen ? "open" : "closed"}
-                  variants={sidebarVariants}
-                  transition={{ type: "tween", duration: 0.2 }}
-                >
-                  <SideBar />
-                </motion.div>
-                <ResizablePanel minSize={50}>
-                  <div
-                    className={cn("flex h-full w-auto grow flex-col border-l")}
-                  >
-                    <main
-                      id="main-content"
-                      className="z-[1] flex w-full grow flex-col overflow-y-auto"
-                    >
-                      <Outlet />
-                    </main>
-                  </div>
-                </ResizablePanel>
-                {isRightPanelOpen && (
-                  <>
-                    <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
-                    <ResizablePanel
-                      className={cn("min-w-[400px]")}
-                      defaultSize={isRightPanelOpen ? 20 : 0}
-                      minSize={20}
-                      maxSize={50}
-                    >
-                      <div className={cn("h-full shrink-0 overflow-x-hidden")}>
-                        {currentApp === "chat" && (
-                          <Suspense fallback={<Loading />}>
-                            <AIChat />
-                          </Suspense>
-                        )}
-                        {currentApp === "ext" && <ExtensionPage />}
-                        {currentApp === "file-manager" && (
-                          <Suspense fallback={<Loading />}>
-                            <FileManager />
-                          </Suspense>
-                        )}
-                      </div>
-                    </ResizablePanel>
-                  </>
-                )}
-                {/* {isExtAppOpen && (
-                  <>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel
-                      className="min-w-[400px]"
-                      defaultSize={30}
-                      minSize={30}
-                      maxSize={isAiOpen ? 40 : 50}
-                    >
-                      <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto p-2">
-                        <ExtensionPage />
-                      </div>
-                    </ResizablePanel>
-                  </>
-                )} */}
+          <ResizablePanelGroup direction="horizontal" className="h-screen">
+            <ResizablePanel
+              className={cn(
+                "flex flex-col h-full overflow-x-hidden",
+                isSidebarOpen ? "min-w-[300px]" : "w-0 min-w-0 hidden"
+              )}
+              defaultSize={20}
+              minSize={0}
+              maxSize={30}
+            >
+              <div className="flex flex-col h-full shrink-0 pt-8">
+                <SideBar />
               </div>
-            </ResizablePanelGroup>
-          </div>
+            </ResizablePanel>
+            <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
+            <ResizablePanel defaultSize={60} minSize={50}>
+              <div className="flex flex-col h-full">
+                <Nav />
+                <main
+                  id="main-content"
+                  className="z-[1] flex w-full grow flex-col overflow-y-auto"
+                >
+                  <Outlet />
+                </main>
+              </div>
+            </ResizablePanel>
+            {isRightPanelOpen && (
+              <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
+            )}
+            <ResizablePanel
+              className={cn(
+                "flex flex-col h-full overflow-x-hidden",
+                isRightPanelOpen ? "min-w-[400px]" : "w-0 min-w-0 hidden"
+              )}
+              defaultSize={isRightPanelOpen ? 40 : 0}
+              minSize={0}
+              maxSize={50}
+            >
+              <div className="mx-3 flex justify-end !h-[38px] items-center shrink-0">
+                <RightPanelNav />
+              </div>
+              <div className="grow border-t h-full overflow-y-auto">
+                {currentApp === "chat" && (
+                  <Suspense fallback={<Loading />}>
+                    <AIChat />
+                  </Suspense>
+                )}
+                {currentApp === "ext" && <ExtensionPage />}
+                {currentApp === "file-manager" && (
+                  <Suspense fallback={<Loading />}>
+                    <FileManager />
+                  </Suspense>
+                )}
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
         </div>
       </div>
     </>

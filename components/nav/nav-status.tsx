@@ -6,30 +6,22 @@ import {
   LucideIcon,
   PinIcon,
   PinOffIcon,
-  ShapesIcon,
-  Unplug,
+  Unplug
 } from "lucide-react"
 
-import { isDesktopMode } from "@/lib/env"
-import { cn } from "@/lib/utils"
-import { useAPIAgent } from "@/hooks/use-api-agent"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useNodeTree } from "@/hooks/use-node-tree"
-import { usePeer } from "@/hooks/use-peer"
+import { AvatarList } from "@/components/avatar-list"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { AvatarList } from "@/components/avatar-list"
+import { useAPIAgent } from "@/hooks/use-api-agent"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useNodeTree } from "@/hooks/use-node-tree"
+import { usePeer } from "@/hooks/use-peer"
+import { isDesktopMode } from "@/lib/env"
 
 import { useSpaceAppStore } from "../../apps/web-app/[database]/store"
 
@@ -146,61 +138,6 @@ export const NavStatus = () => {
           </TooltipProvider>
         </>
       )}
-      {apps.map((app, index) => {
-        const { icon: Icon, title, description, shortcut } = AppInfoMap[app]
-        const isCurrentApp = index === currentAppIndex
-        return (
-          <TooltipProvider key={title}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => handleAppChange(index)}
-                  className={cn("rounded-b-none relative", {
-                    "after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary":
-                      isCurrentApp, // Add underline using ::after
-                  })}
-                >
-                  <Icon className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>
-                  {title} <br />
-                  <span
-                    className={"ml-auto text-xs tracking-widest opacity-60"}
-                  >
-                    {shortcut}
-                  </span>
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )
-      })}
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="xs" variant="ghost">
-            <ShapesIcon className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-[200px]">
-          {apps.map((app) => {
-            const { icon: Icon, title } = AppInfoMap[app]
-            return (
-              <DropdownMenuItem key={title} className="flex justify-between">
-                <div className="flex items-center gap-2">
-                  <Icon className="h-5 w-5" />
-                  {title}
-                </div>
-                <PinIcon className="h-4 w-4 ml-auto" />
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
     </>
   )
 }

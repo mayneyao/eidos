@@ -18,7 +18,6 @@ export function createWindow(url?: string) {
     let baseWindowConfig: Electron.BrowserWindowConstructorOptions = {
         width: 1440,
         height: 900,
-        icon: path.join(__dirname, '../dist/logo.svg'),
         ...defaultViewOptions
     };
 

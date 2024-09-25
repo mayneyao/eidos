@@ -12,7 +12,7 @@ interface TabState {
 
 export const useTabStore = create<TabState>((set) => ({
     currentTab: null,
-    openTabs: new Set(window.eidos.openTabs),
+    openTabs: new Set(window.eidos?.openTabs || []),
     setTabs: (tabs: Set<string>) => set({ openTabs: tabs }),
     setCurrentTab: (tab: string) => set({ currentTab: tab }),
 

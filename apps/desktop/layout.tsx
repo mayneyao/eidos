@@ -23,6 +23,8 @@ export default function RootLayout() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <>
+        {/* Transparent titlebar for dragging */}
+        <div className="h-[8px] w-full bg-transparent absolute top-0 left-0" id="drag-region"></div>
         {/* APP MODEL， a sidebar and main */}
         <div className="flex h-screen w-screen overflow-auto">
           <Outlet />

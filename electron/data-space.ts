@@ -1,16 +1,16 @@
+import { EidosDataEventChannelName, EidosMessageChannelName } from "@/lib/const";
 import { DataSpace } from "@/worker/web-worker/DataSpace";
+import { WebContents, ipcMain } from "electron";
 import { getEidosFileSystemManager } from "./file-system/manager";
 import { getSpaceDbPath } from "./file-system/space";
-import { NodeServerDatabase } from "./sqlite-server";
 import { win } from "./main";
-import { EidosDataEventChannelName, EidosMessageChannelName } from "@/lib/const";
-import { MessageChannelMain, WebContents, ipcMain } from "electron";
+import { NodeServerDatabase } from "./sqlite-server";
 
 export let dataSpace: DataSpace | null = null
 
 function requestFromRenderer(webContents: WebContents, arg: any) {
     return new Promise((resolve, reject) => {
-        const requestId = Math.random().toString(36).substr(2, 9); // 生成唯一请求ID
+        const requestId = Math.random().toString(36).substr(2, 9);
 
         ipcMain.once(`response-${requestId}`, (event: any, result: any) => {
             resolve(result);

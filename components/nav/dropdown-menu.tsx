@@ -145,8 +145,8 @@ export function NavDropdownMenu() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56">
-            <DropdownMenuLabel>All data hosted on Local 🖥</DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            {/* <DropdownMenuLabel>All data hosted on Local 🖥</DropdownMenuLabel> */}
+            {/* <DropdownMenuSeparator /> */}
             <DropdownMenuGroup>
               <DropdownMenuItem onSelect={toggleCMDK}>
                 <CommandIcon className="mr-2 h-4 w-4" />

@@ -52,6 +52,7 @@ export function AIModelSelect({
   className,
   excludeLocalModels,
   localModels,
+  noBorder,
 }: {
   onValueChange: (value: string) => void
   value: string
@@ -60,6 +61,7 @@ export function AIModelSelect({
   className?: string
   excludeLocalModels?: string[]
   localModels?: string[]
+  noBorder?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const { models } = useModels()
@@ -79,7 +81,7 @@ export function AIModelSelect({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant={noBorder ? "ghost" : "outline"}
           role="combobox"
           aria-expanded={open}
           size={size}
