@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Eidos is an extensible framework for managing your personal data throughout your lifetime in one place.",
@@ -27,6 +27,7 @@
     "major": "node scripts/version.cjs major",
     "test": "vitest",
     "start-electron": "electron .",
+    "build-electron": "electron-builder",
     "pkg:desktop": "BUILD_MODE=1 electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
@@ -45,11 +46,21 @@
       "dist-simple/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "dist-simple",
+        "to": "dist-simple",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "win": {
       "target": "nsis"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "dist/logo.icns"
     },
     "linux": {
       "target": "AppImage"
@@ -130,6 +141,7 @@
     "d3": "^7.8.5",
     "date-fns": "^2.30.0",
     "dnd-core": "^16.0.1",
+    "electron-log": "^5.2.0",
     "emoji-mart": "^5.5.2",
     "eventemitter3": "^5.0.1",
     "express": "^4.19.2",
@@ -179,7 +191,6 @@
     "react-virtualized-auto-sizer": "^1.0.20",
     "react-window": "^1.8.9",
     "sort-by": "^1.2.0",
-    "sqlite3": "^5.1.7",
     "tailwindcss-animate": "^1.0.6",
     "utf-8-validate": "^6.0.3",
     "uuid": "^9.0.0",
@@ -223,7 +234,6 @@
     "cross-env": "^7.0.3",
     "electron": "^32.0.1",
     "electron-builder": "^24.13.3",
-    "electron-rebuild": "^3.2.9",
     "esbuild": "^0.23.0",
     "eslint": "^8.44.0",
     "eslint-config-prettier": "^8.8.0",

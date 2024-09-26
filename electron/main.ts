@@ -2,10 +2,11 @@ import { MsgType } from '@/lib/const';
 import { handleFunctionCall } from '@/lib/rpc';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import path from 'path';
-import { dataSpace, getOrSetDataSpace } from './data-space';
+import { getDataSpace, getOrSetDataSpace } from './data-space';
 import { startServer } from './server/server';
 import { createWindow } from './window-manager/createWindow';
 import { getAppConfig } from './config';
+import { log } from 'electron-log';
 
 export let win: BrowserWindow | null
 
@@ -43,6 +44,15 @@ ipcMain.handle('get-user-config-path', () => {
 });
 
 ipcMain.handle('sqlite-msg', async (event, payload) => {
+    let dataSpace = getDataSpace()
+    if (!dataSpace) {
+        log('not found data space')
+        const { space, dbName } = payload.data
+        dataSpace = await getOrSetDataSpace(dbName || space)
+        log('switch to data space', dataSpace.dbName)
+    } else {
+        log('get data space', dataSpace.dbName)
+    }
     const res = await handleFunctionCall(payload.data, dataSpace)
     return res
 });
@@ -51,7 +61,7 @@ ipcMain.handle(MsgType.SwitchDatabase, (event, args) => {
     const { databaseName, id } = args
     // Perform the database switch logic here
     const data = { dbName: databaseName } // Example response data
-    console.log('switch-database', databaseName)
+    log('switch-database', databaseName)
     getOrSetDataSpace(databaseName)
     return { id, data }
 })
@@ -82,7 +92,7 @@ ipcMain.handle('reload-app', () => {
 
 app.on('window-all-closed', () => {
     app.quit()
-    dataSpace?.closeDb()
+    getDataSpace()?.closeDb()
     win = null
 })
 

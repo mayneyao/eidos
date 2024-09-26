@@ -6,6 +6,7 @@ import { serve } from '@hono/node-server';
 import { getFileFromPath } from '../file-system/space';
 import aiCompletionHandler, { pathname as aiCompletionPath } from '@/worker/service-worker/routes/ai_completion';
 import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
+import { log } from 'electron-log';
 
 const app = new Hono();
 
@@ -25,6 +26,7 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
         try {
             const { space, method, params } = await c.req.json();
             const dataSpace = await getOrSetDataSpace(space);
+            log('rpc', method, params, space, dataSpace.dbName)
             const result = await handleFunctionCall({ method, params, space, dbName: space, userId: 'unknown' }, dataSpace);
             return c.json({ success: true, data: result });
         } catch (error: any) {

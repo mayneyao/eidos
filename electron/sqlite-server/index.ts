@@ -1,6 +1,17 @@
 import { BaseServerDatabase } from '@/lib/sqlite/interface';
 import Database from 'better-sqlite3';
 import path from 'path';
+import { app } from 'electron';
+import fs from 'fs';
+import console from 'electron-log';
+
+function getResourcePath(relativePath: string): string {
+    if (app.isPackaged) {
+        return path.join(process.resourcesPath, relativePath);
+    } else {
+        return path.join(app.getAppPath(), relativePath);
+    }
+}
 
 export interface NodeDomainDbInfo {
     type: 'node';
@@ -15,11 +26,31 @@ export class NodeServerDatabase extends BaseServerDatabase {
     constructor(config: NodeDomainDbInfo['config']) {
         super();
         this.db = new Database(config.path, config.options);
-        this.db.loadExtension(path.join(__dirname, '../dist-simple/libsimple'))
-        const row = this.db.prepare('select simple_query(\'pinyin\') as query').get() as any;
-        console.log(row.query);
-        // set the jieba dict file path
-        this.db.prepare("select jieba_dict(?)").run(path.join(__dirname, '../dist-simple/dict'));
+
+        const libPath = getResourcePath('dist-simple/libsimple.dylib');
+        const dictPath = getResourcePath('dist-simple/dict');
+
+        console.log('Lib path:', libPath);
+        console.log('Dict path:', dictPath);
+
+        // 检查文件是否存在
+        if (fs.existsSync(libPath)) {
+            try {
+                this.db.loadExtension(libPath);
+                const row = this.db.prepare('select simple_query(\'pinyin\') as query').get() as any;
+                console.log(row.query);
+            } catch (error) {
+                console.error('Error loading extension:', error);
+            }
+        } else {
+            console.log('Library file not found:', libPath);
+        }
+
+        if (fs.existsSync(dictPath)) {
+            this.db.prepare("select jieba_dict(?)").run(dictPath);
+        } else {
+            console.log('Dictionary file not found:', dictPath);
+        }
     }
 
     prepare(sql: string): any {

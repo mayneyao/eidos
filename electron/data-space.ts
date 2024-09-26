@@ -6,7 +6,6 @@ import { getSpaceDbPath } from "./file-system/space";
 import { win } from "./main";
 import { NodeServerDatabase } from "./sqlite-server";
 
-export let dataSpace: DataSpace | null = null
 
 function requestFromRenderer(webContents: WebContents, arg: any) {
     return new Promise((resolve, reject) => {
@@ -20,38 +19,67 @@ function requestFromRenderer(webContents: WebContents, arg: any) {
     });
 }
 
-export async function getOrSetDataSpace(spaceName: string) {
-    if (dataSpace) {
-        dataSpace.closeDb()
+
+export class DataSpaceManager {
+    private static instance: DataSpaceManager;
+    private dataSpace: DataSpace | null = null;
+
+    private constructor() { }
+
+    public static getInstance(): DataSpaceManager {
+        if (!DataSpaceManager.instance) {
+            DataSpaceManager.instance = new DataSpaceManager();
+        }
+        return DataSpaceManager.instance;
     }
-    const serverDb = new NodeServerDatabase({
-        path: getSpaceDbPath(spaceName),
-    });
 
-    const efsManager = await getEidosFileSystemManager()
+    public getDataSpace(): DataSpace | null {
+        return this.dataSpace;
+    }
 
-    dataSpace = new DataSpace({
-        db: serverDb,
-        activeUndoManager: false,
-        dbName: spaceName,
-        context: {
-            setInterval,
-        },
-        hasLoadExtension: true,
-        postMessage: (data: any, transfer?: any[]) => {
-            win?.webContents.send(EidosMessageChannelName, data, transfer)
-        },
-        callRenderer: (type: any, data: any) => {
-            return requestFromRenderer(win!.webContents, { type, data })
-        },
-        dataEventChannel: {
-            postMessage: (data: any) => {
-                win?.webContents.send(EidosDataEventChannelName, data)
-            }
-        },
-        efsManager: efsManager
-    });
-    return dataSpace
+    public async getOrSetDataSpace(spaceName: string): Promise<DataSpace> {
+        if (this.dataSpace) {
+            this.dataSpace.closeDb();
+        }
+
+        const serverDb = new NodeServerDatabase({
+            path: getSpaceDbPath(spaceName),
+        });
+
+        const efsManager = await getEidosFileSystemManager();
+
+        this.dataSpace = new DataSpace({
+            db: serverDb,
+            activeUndoManager: false,
+            dbName: spaceName,
+            context: {
+                setInterval,
+            },
+            hasLoadExtension: true,
+            postMessage: (data: any, transfer?: any[]) => {
+                win?.webContents.send(EidosMessageChannelName, data, transfer);
+            },
+            callRenderer: (type: any, data: any) => {
+                return requestFromRenderer(win!.webContents, { type, data });
+            },
+            dataEventChannel: {
+                postMessage: (data: any) => {
+                    win?.webContents.send(EidosDataEventChannelName, data);
+                }
+            },
+            efsManager: efsManager
+        });
+
+        return this.dataSpace;
+    }
 }
 
 
+// Export convenience functions
+export function getDataSpace(): DataSpace | null {
+    return DataSpaceManager.getInstance().getDataSpace();
+}
+
+export function getOrSetDataSpace(spaceName: string): Promise<DataSpace> {
+    return DataSpaceManager.getInstance().getOrSetDataSpace(spaceName);
+}
