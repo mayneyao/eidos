@@ -27,23 +27,18 @@ export class NodeServerDatabase extends BaseServerDatabase {
         super();
         this.db = new Database(config.path, config.options);
 
-        const libPath = getResourcePath('dist-simple/libsimple.dylib');
+        const libPath = getResourcePath(`dist-simple/libsimple`);
         const dictPath = getResourcePath('dist-simple/dict');
 
         console.log('Lib path:', libPath);
         console.log('Dict path:', dictPath);
 
-        // 检查文件是否存在
-        if (fs.existsSync(libPath)) {
-            try {
-                this.db.loadExtension(libPath);
-                const row = this.db.prepare('select simple_query(\'pinyin\') as query').get() as any;
-                console.log(row.query);
-            } catch (error) {
-                console.error('Error loading extension:', error);
-            }
-        } else {
-            console.log('Library file not found:', libPath);
+        try {
+            this.db.loadExtension(libPath);
+            const row = this.db.prepare('select simple_query(\'pinyin\') as query').get() as any;
+            console.log(row.query);
+        } catch (error) {
+            console.error('Error loading extension:', error);
         }
 
         if (fs.existsSync(dictPath)) {

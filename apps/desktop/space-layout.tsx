@@ -5,6 +5,7 @@ import { EidosDataEventChannelName } from "@/lib/const"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
+import { isMac } from "@/lib/web/helper"
 import { useActivation } from "@/hooks/use-activation"
 import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { useSqlite } from "@/hooks/use-sqlite"
@@ -59,14 +60,12 @@ export function DesktopSpaceLayout() {
     if (!isDataFolderSet) {
       navigate("/settings/storage")
     }
-  }, [isDataFolderSet, navigate])
-
-  useEffect(() => {
     if (!isActivated) {
       // navigate to home page
       navigate("/")
     }
-  }, [isActivated, navigate])
+  }, [isActivated, isDataFolderSet, navigate])
+
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
@@ -102,7 +101,11 @@ export function DesktopSpaceLayout() {
               minSize={0}
               maxSize={30}
             >
-              <div className="flex flex-col h-full shrink-0 pt-8">
+              <div
+                className={cn("flex flex-col h-full shrink-0", {
+                  "pt-8": isMac(),
+                })}
+              >
                 <SideBar />
               </div>
             </ResizablePanel>

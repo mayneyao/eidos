@@ -42,6 +42,11 @@ export function getAppConfig(): {
 } {
     const userDataPath = app.getPath('userData');
     const configFilePath = path.join(userDataPath, 'config.json');
-    return JSON.parse(fs.readFileSync(configFilePath, 'utf-8'));
-}
 
+    if (fs.existsSync(configFilePath)) {
+        return JSON.parse(fs.readFileSync(configFilePath, 'utf-8'));
+    } else {
+        // Handle the case where the config file does not exist
+        return { dataFolder: '' }; // Return a default configuration or handle as needed
+    }
+}

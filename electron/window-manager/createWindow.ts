@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContents, WebContentsView, WebContentsViewConstructorOptions, ipcMain, shell } from 'electron';
+import { BrowserWindow, WebContentsViewConstructorOptions, ipcMain } from 'electron';
 import os from "node:os";
 import path from 'path';
 import { PORT } from '../main';
@@ -39,10 +39,8 @@ export function createWindow(url?: string) {
         case "win32":
             baseWindowConfig = {
                 ...baseWindowConfig,
-                titleBarStyle: "hidden",
-                backgroundMaterial: isWindows11 ? "mica" : undefined,
-                frame: true,
-                maximizable: !isWindows11,
+                // backgroundMaterial: isWindows11 ? "mica" : undefined,
+                autoHideMenuBar: true,
             };
             break;
         default:
