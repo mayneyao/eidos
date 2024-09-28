@@ -579,7 +579,7 @@ export class DataSpace {
 
   // docs
   public async rebuildIndex(refillNullMarkdown: boolean = false) {
-    await this.doc.rebuildIndex(refillNullMarkdown)
+    await this.doc.rebuildIndex({ refillNullMarkdown })
   }
 
   @timeit(100)

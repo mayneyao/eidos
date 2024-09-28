@@ -7,7 +7,7 @@ import { SpaceFileSystem } from "@/lib/storage/space"
 import { uuidv7 } from "@/lib/utils"
 
 import { isDesktopMode } from "@/lib/env"
-import { useSqliteStore } from "./use-sqlite"
+import { useSqlite, useSqliteStore } from "./use-sqlite"
 
 export const useSpaceFileSystem = () => {
   const spaceFileSystem = isDesktopMode
@@ -18,6 +18,7 @@ export const useSpaceFileSystem = () => {
 
 export const useSpace = () => {
   const { setSpaceList, spaceList } = useSqliteStore()
+  const { sqlite } = useSqlite()
   const { setLastOpenedDatabase } = useLastOpened()
   const { spaceFileSystem } = useSpaceFileSystem()
   const updateSpaceList = useCallback(async () => {
@@ -41,6 +42,12 @@ export const useSpace = () => {
     },
     [setLastOpenedDatabase, updateSpaceList]
   )
+
+  const rebuildIndex = useCallback(async () => {
+    await sqlite?.doc.rebuildIndex({
+      recreateFtsTable: true
+    })
+  }, [])
 
   const createSpace = useCallback(async (spaceName: string) => {
     await spaceFileSystem.create(spaceName)
@@ -81,5 +88,6 @@ export const useSpace = () => {
     createSpace,
     exportSpace,
     deleteSpace,
+    rebuildIndex
   }
 }

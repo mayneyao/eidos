@@ -30,9 +30,11 @@ import { Button } from "../ui/button"
 
 export function Settings() {
   const { space } = useCurrentPathInfo()
-  const { exportSpace, deleteSpace } = useSpace()
+  const { exportSpace, deleteSpace, rebuildIndex } = useSpace()
   const navigate = useNavigate()
   const [confirmName, setConfirmName] = useState("")
+  const [isRebuilding, setIsRebuilding] = useState(false)
+
   const handleExport = () => {
     exportSpace(space)
   }
@@ -44,6 +46,19 @@ export function Settings() {
       window.location.reload()
     } else {
       alert("The space name does not match.")
+    }
+  }
+
+  const handleRebuildIndex = async () => {
+    setIsRebuilding(true)
+    try {
+      await rebuildIndex()
+      alert("Index rebuilt successfully!")
+    } catch (error) {
+      console.error("Error rebuilding index:", error)
+      alert("Failed to rebuild index. Please try again.")
+    } finally {
+      setIsRebuilding(false)
     }
   }
 
@@ -68,9 +83,12 @@ export function Settings() {
           <hr />
           <div className="grid gap-3">
             <Label htmlFor="description">Export</Label>
+            <p className="text-sm text-muted-foreground">
+              Export all data from this space for backup or transfer purposes.
+            </p>
             <Button
               size="sm"
-              className=" max-w-max"
+              className="max-w-max"
               variant="outline"
               onClick={handleExport}
             >
@@ -78,7 +96,27 @@ export function Settings() {
             </Button>
           </div>
           <div className="grid gap-3">
+            <Label htmlFor="rebuild-index">Rebuild Index</Label>
+            <p className="text-sm text-muted-foreground">
+              Reconstruct the search index for this space. Use this if you're
+              experiencing search issues.
+            </p>
+            <Button
+              size="sm"
+              className="max-w-max"
+              variant="outline"
+              onClick={handleRebuildIndex}
+              disabled={isRebuilding}
+            >
+              {isRebuilding ? "Rebuilding..." : "Rebuild Index"}
+            </Button>
+          </div>
+          <div className="grid gap-3">
             <Label htmlFor="description">Danger zone</Label>
+            <p className="text-sm text-muted-foreground">
+              Permanently delete this space and all its contents. This action
+              cannot be undone.
+            </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button size="sm" className=" max-w-max" variant="destructive">

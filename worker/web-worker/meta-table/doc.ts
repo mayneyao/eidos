@@ -74,7 +74,26 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
     return this.dataSpace.callRenderer?.(type, data)
   }
 
-  async rebuildIndex(refillNullMarkdown: boolean = false) {
+  async rebuildIndex(opts: {
+    refillNullMarkdown?: boolean;
+    recreateFtsTable?: boolean;
+  }) {
+    const { refillNullMarkdown, recreateFtsTable } = opts;
+
+    if (recreateFtsTable) {
+      // Drop triggers first
+      await this.dataSpace.db.exec(`
+        DROP TRIGGER IF EXISTS ${this.name}_ai;
+        DROP TRIGGER IF EXISTS ${this.name}_ad;
+        DROP TRIGGER IF EXISTS ${this.name}_au;
+      `);
+      // Then drop the FTS table
+      await this.dataSpace.exec2(`DROP TABLE IF EXISTS fts_docs;`);
+      // Recreate the FTS table
+      await this.dataSpace.exec2(this.createFTSSql);
+      console.log(`Recreated fts_docs table and triggers for ${this.dataSpace.dbName}`);
+    }
+
     await this.dataSpace.exec2(
       `INSERT INTO fts_docs(fts_docs) VALUES('rebuild');`
     )
