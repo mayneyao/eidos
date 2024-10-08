@@ -58,9 +58,15 @@
     "win": {
       "target": "nsis"
     },
+    "afterSign": "scripts/notarize.cjs",
     "mac": {
       "target": "dmg",
-      "icon": "dist/logo.icns"
+      "icon": "dist/logo.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "electron/build/entitlements.mac.plist",
+      "entitlementsInherit": "electron/build/entitlements.mac.plist",
+      "notarize": false
     },
     "linux": {
       "target": "AppImage"
@@ -234,6 +240,7 @@
     "cross-env": "^7.0.3",
     "electron": "^32.0.1",
     "electron-builder": "^24.13.3",
+    "electron-notarize": "^1.2.2",
     "esbuild": "^0.23.0",
     "eslint": "^8.44.0",
     "eslint-config-prettier": "^8.8.0",
