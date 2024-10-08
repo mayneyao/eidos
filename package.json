@@ -34,6 +34,7 @@
   "start": "electron .",
   "main": "dist-electron/main.js",
   "build": {
+    "asar": true,
     "appId": "space.eidos.desktop",
     "productName": "Eidos",
     "directories": {
@@ -57,7 +58,8 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "dist/512.png"
     },
     "afterSign": "scripts/notarize.cjs",
     "mac": {
