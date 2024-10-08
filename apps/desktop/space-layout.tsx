@@ -154,7 +154,7 @@ export function DesktopSpaceLayout() {
                   <div className="mx-3 flex justify-end !h-[38px] items-center shrink-0">
                     <RightPanelNav />
                   </div>
-                  <div className="grow border-t h-full overflow-y-auto">
+                  <div className="grow border-t h-[calc(100%-38px)] overflow-y-auto">
                     {currentApp === "chat" && (
                       <Suspense fallback={<Loading />}>
                         <AIChat />
