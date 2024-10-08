@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react"
+import { useLocalStorageState } from "ahooks"
 import { Outlet, useNavigate } from "react-router-dom"
 
 import { EidosDataEventChannelName } from "@/lib/const"
@@ -26,7 +27,6 @@ import { SideBar } from "@/components/sidebar"
 import { useLayoutInit } from "../web-app/[database]/hook"
 import { useSpaceAppStore } from "../web-app/[database]/store"
 import { ExtensionPage } from "../web-app/extensions/page"
-import { useDataFolderCheck } from "./hooks"
 
 const WebLLM = lazy(() => import("@/components/ai-chat/webllm"))
 
@@ -40,10 +40,28 @@ export function DesktopSpaceLayout() {
   const currentApp = apps[currentAppIndex]
   const navigate = useNavigate()
   const { isActivated } = useActivation()
-  const isDataFolderSet = useDataFolderCheck()
 
   useLayoutInit()
   const { efsManager } = useEidosFileSystemManager()
+
+  const [sidebarSize, setSidebarSize] = useLocalStorageState<number>(
+    "sidebarSize",
+    {
+      defaultValue: 20,
+    }
+  )
+  const [mainPanelSize, setMainPanelSize] = useLocalStorageState<number>(
+    "mainPanelSize",
+    {
+      defaultValue: 60,
+    }
+  )
+  const [rightPanelSize, setRightPanelSize] = useLocalStorageState<number>(
+    "rightPanelSize",
+    {
+      defaultValue: 20,
+    }
+  )
 
   useEffect(() => {
     const dataEventChannel = new BroadcastChannel(EidosDataEventChannelName)
@@ -57,14 +75,11 @@ export function DesktopSpaceLayout() {
   }, [])
 
   useEffect(() => {
-    if (!isDataFolderSet) {
-      navigate("/settings/storage")
-    }
     if (!isActivated) {
       // navigate to home page
       navigate("/")
     }
-  }, [isActivated, isDataFolderSet, navigate])
+  }, [isActivated, navigate])
 
   if (!isShareMode && !sqlite) {
     return (
@@ -97,9 +112,10 @@ export function DesktopSpaceLayout() {
                 "flex flex-col h-full overflow-x-hidden",
                 isSidebarOpen ? "min-w-[300px]" : "w-0 min-w-0 hidden"
               )}
-              defaultSize={20}
+              defaultSize={sidebarSize}
               minSize={0}
               maxSize={30}
+              onResize={(size) => setSidebarSize(size)}
             >
               <div
                 className={cn("flex flex-col h-full shrink-0", {
@@ -110,7 +126,12 @@ export function DesktopSpaceLayout() {
               </div>
             </ResizablePanel>
             <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
-            <ResizablePanel defaultSize={60} minSize={50}>
+            <ResizablePanel
+              defaultSize={
+                100 - sidebarSize! - (isRightPanelOpen ? rightPanelSize! : 0)
+              }
+              minSize={50}
+            >
               <div className="flex flex-col h-full">
                 <Nav />
                 <main
@@ -122,34 +143,33 @@ export function DesktopSpaceLayout() {
               </div>
             </ResizablePanel>
             {isRightPanelOpen && (
-              <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
+              <>
+                <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
+                <ResizablePanel
+                  defaultSize={rightPanelSize}
+                  minSize={30}
+                  maxSize={50}
+                  onResize={(size) => setRightPanelSize(size)}
+                >
+                  <div className="mx-3 flex justify-end !h-[38px] items-center shrink-0">
+                    <RightPanelNav />
+                  </div>
+                  <div className="grow border-t h-full overflow-y-auto">
+                    {currentApp === "chat" && (
+                      <Suspense fallback={<Loading />}>
+                        <AIChat />
+                      </Suspense>
+                    )}
+                    {currentApp === "ext" && <ExtensionPage />}
+                    {currentApp === "file-manager" && (
+                      <Suspense fallback={<Loading />}>
+                        <FileManager />
+                      </Suspense>
+                    )}
+                  </div>
+                </ResizablePanel>
+              </>
             )}
-            <ResizablePanel
-              className={cn(
-                "flex flex-col h-full overflow-x-hidden",
-                isRightPanelOpen ? "min-w-[400px]" : "w-0 min-w-0 hidden"
-              )}
-              defaultSize={isRightPanelOpen ? 40 : 0}
-              minSize={0}
-              maxSize={50}
-            >
-              <div className="mx-3 flex justify-end !h-[38px] items-center shrink-0">
-                <RightPanelNav />
-              </div>
-              <div className="grow border-t h-full overflow-y-auto">
-                {currentApp === "chat" && (
-                  <Suspense fallback={<Loading />}>
-                    <AIChat />
-                  </Suspense>
-                )}
-                {currentApp === "ext" && <ExtensionPage />}
-                {currentApp === "file-manager" && (
-                  <Suspense fallback={<Loading />}>
-                    <FileManager />
-                  </Suspense>
-                )}
-              </div>
-            </ResizablePanel>
           </ResizablePanelGroup>
         </div>
       </div>
