@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   CogIcon,
   CommandIcon,
@@ -8,14 +9,20 @@ import {
   MoreHorizontal,
   PackageIcon,
   ScanTextIcon,
-  Trash2Icon
+  Trash2Icon,
 } from "lucide-react"
-import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { NodeUpdateTime } from "@/apps/web-app/[database]/[node]/node-update-time"
-import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
-import { DiscordIcon } from "@/components/icons/discord"
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
+import { DOMAINS } from "@/lib/const"
+import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useEmbedding } from "@/hooks/use-embedding"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { useVCardEmail } from "@/hooks/use-vcard-email"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -38,16 +45,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useEmbedding } from "@/hooks/use-embedding"
-import { useHnsw } from "@/hooks/use-hnsw"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { useVCardEmail } from "@/hooks/use-vcard-email"
-import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
-import { DOMAINS } from "@/lib/const"
-import { EIDOS_VERSION } from "@/lib/env"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { DiscordIcon } from "@/components/icons/discord"
+import { NodeUpdateTime } from "@/apps/web-app/[database]/[node]/node-update-time"
+import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"
@@ -265,7 +265,7 @@ export function NavDropdownMenu() {
             )}
             <DropdownMenuSeparator />
             <span className="p-2 text-sm text-gray-500">
-              Version: {EIDOS_VERSION}
+              Version: {EIDOS_VERSION} ({isDesktopMode ? "Desktop" : "Web"})
             </span>
           </DropdownMenuContent>
         </DropdownMenu>
