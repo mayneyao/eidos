@@ -2,7 +2,7 @@ name: Build, Sign, and Notarize macOS App
 
 on:
   release:
-    types: [created]
+    types: [prereleased]
 
 jobs:
   build:
@@ -15,12 +15,19 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18'
+        node-version: '20.16.0'
 
     - name: Install pnpm
       uses: pnpm/action-setup@v2
       with:
         version: 8
+
+    - name: Download and extract libsimple
+      run: |
+        curl -L https://github.com/wangfenjin/simple/releases/latest/download/libsimple-osx-x64.zip -o libsimple.zip
+        mkdir -p dist-simple
+        unzip -j libsimple.zip -d dist-simple
+        ls -R dist-simple
 
     - name: Install dependencies
       run: pnpm install
@@ -32,6 +39,8 @@ jobs:
         p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
 
     - name: Build application
+      env:
+        NODE_OPTIONS: "--max_old_space_size=4096"
       run: pnpm run build:desktop
 
     - name: Build and Sign
@@ -43,16 +52,9 @@ jobs:
         CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
       run: pnpm run pkg:desktop
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: mac-app
-        path: dist-app/*.dmg
-
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
+    - name: Update Release
+      uses: softprops/action-gh-release@v2
       with:
         files: dist-app/*.dmg
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}

@@ -39,6 +39,7 @@
     "directories": {
       "output": "dist-app"
     },
+    "publish": null,
     "npmRebuild": true,
     "files": [
       "dist/**/*",
@@ -238,6 +239,7 @@
     "autoprefixer": "^10.4.14",
     "clsx": "^1.2.1",
     "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
     "electron": "^32.0.1",
     "electron-builder": "^24.13.3",
     "electron-notarize": "^1.2.2",
