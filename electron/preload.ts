@@ -46,6 +46,7 @@ async function main() {
       get: (key: string) => configManager.get(key),
       set: (key: string, value: any) => configManager.set(key, value),
     },
+    isDataFolderSet: !!configManager.get('dataFolder'),
     selectFolder: () => ipcRenderer.invoke('select-folder'),
     reloadApp: () => ipcRenderer.invoke('reload-app')
     // You can expose other APIs you need here.

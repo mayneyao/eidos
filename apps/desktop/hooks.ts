@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 
 export const useDataFolderCheck = () => {
-    const [isDataFolderSet, setIsDataFolderSet] = useState<boolean>(true)
+    const [isDataFolderSet, setIsDataFolderSet] = useState<boolean>(window.eidos.isDataFolderSet)
 
     useEffect(() => {
         const checkDataFolder = async () => {

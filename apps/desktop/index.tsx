@@ -47,6 +47,12 @@ const router = createBrowserRouter([
       {
         path: "/",
         element: <LandingPage />,
+        loader: ({ params }) => {
+          if (!window.eidos.isDataFolderSet) {
+            return redirect("/settings/storage")
+          }
+          return null
+        },
       },
       {
         path: "404",
@@ -103,6 +109,9 @@ const router = createBrowserRouter([
         element: <DesktopSpaceLayout />,
         loader: async ({ params }) => {
           // check the space is exist
+          if (!window.eidos.isDataFolderSet) {
+            return redirect("/settings/storage")
+          }
           const spaceNames = await window.eidos.spaceFileSystem.list()
           if (params.database && !spaceNames.includes(params.database)) {
             return redirect("/404")

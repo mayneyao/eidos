@@ -30,6 +30,7 @@ interface Window {
         openTabs: string[]
         config: import('./config/index').ConfigManager
         selectFolder: () => Promise<string | undefined>
+        isDataFolderSet: boolean
         reloadApp: () => Promise<void>
     }
 }
