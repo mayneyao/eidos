@@ -112,8 +112,18 @@ export function NavDropdownMenu() {
     }
   }
 
-  const { updateStatus, updateInfo, checkForUpdates, quitAndInstall } =
-    useUpdateStatus()
+  const {
+    updateStatus,
+    updateInfo,
+    updateProgress,
+    updateError,
+    checkForUpdates,
+    quitAndInstall,
+  } = useUpdateStatus()
+  console.log("updateStatus", updateStatus)
+  console.log("updateInfo", updateInfo)
+  console.log("updateProgress", updateProgress)
+  console.log("updateError", updateError)
 
   useEffect(() => {
     checkForUpdates()

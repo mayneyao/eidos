@@ -42,11 +42,16 @@ export class AppUpdater {
         autoUpdater.on('update-downloaded', (info) => {
             log.info('Update downloaded', info);
             this.sendStatusToWindow('downloaded', info);
+            this.notifyUpdateReady(info);
         });
     }
 
     private sendStatusToWindow(status: string, data?: any) {
         this.mainWindow?.webContents.send('update-status', status, data);
+    }
+
+    private notifyUpdateReady(info: any) {
+        this.mainWindow?.webContents.send('update-ready', info);
     }
 
     public checkForUpdates() {
