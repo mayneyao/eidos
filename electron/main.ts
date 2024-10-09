@@ -53,8 +53,6 @@ ipcMain.handle('sqlite-msg', async (event, payload) => {
         const { space, dbName } = payload.data
         dataSpace = await getOrSetDataSpace(dbName || space)
         log('switch to data space', dataSpace.dbName)
-    } else {
-        log('get data space', dataSpace.dbName)
     }
     const res = await handleFunctionCall(payload.data, dataSpace)
     return res

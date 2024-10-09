@@ -1,3 +1,4 @@
+import { isDesktopMode } from "@/lib/env";
 import { useEffect, useState } from "react"
 
 
@@ -23,6 +24,9 @@ export const useUpdateStatus = () => {
     const [updateError, setUpdateError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (!isDesktopMode) {
+            return
+        }
         const handleUpdateStatus = (status: UpdateStatus, data?: any) => {
             setUpdateStatus(status);
             switch (status) {

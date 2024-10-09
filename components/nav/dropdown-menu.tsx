@@ -24,7 +24,6 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useEmbedding } from "@/hooks/use-embedding"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { useUpdateStatus } from "@/hooks/use-updater"
 import { useVCardEmail } from "@/hooks/use-vcard-email"
 import { Button } from "@/components/ui/button"
 import {
