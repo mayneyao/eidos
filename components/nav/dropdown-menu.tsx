@@ -58,6 +58,7 @@ import { NodeExport } from "../node-menu/node-export"
 import { Switch } from "../ui/switch"
 import { useToast } from "../ui/use-toast"
 import { VCardQrCode } from "../vcard-qr-code"
+import { UpdateStatusComponent } from "./update-status"
 
 export function NavDropdownMenu() {
   const router = useNavigate()
@@ -111,23 +112,6 @@ export function NavDropdownMenu() {
       })
     }
   }
-
-  const {
-    updateStatus,
-    updateInfo,
-    updateProgress,
-    updateError,
-    checkForUpdates,
-    quitAndInstall,
-  } = useUpdateStatus()
-  console.log("updateStatus", updateStatus)
-  console.log("updateInfo", updateInfo)
-  console.log("updateProgress", updateProgress)
-  console.log("updateError", updateError)
-
-  useEffect(() => {
-    checkForUpdates()
-  }, [])
 
   return (
     <>
@@ -284,28 +268,10 @@ export function NavDropdownMenu() {
               </>
             )}
             <DropdownMenuSeparator />
-            {updateStatus === "available" && (
-              <DropdownMenuItem onSelect={quitAndInstall}>
-                <Download className="mr-2 h-4 w-4" />
-                <span>Update to v{updateInfo?.version}</span>
-              </DropdownMenuItem>
-            )}
-            {updateStatus === "not-available" && (
-              <DropdownMenuItem disabled>
-                <span>No updates available</span>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={checkForUpdates}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              <span>Check for updates</span>
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
+            <UpdateStatusComponent />
             <span className="p-2 text-sm text-gray-500">
               Version: {EIDOS_VERSION} ({isDesktopMode ? "Desktop" : "Web"})
-              {updateStatus === "available" && " (Update available)"}
             </span>
-            {isDesktopMode}
           </DropdownMenuContent>
         </DropdownMenu>
       </Dialog>
