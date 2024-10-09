@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "type": "module",
   "description": "Eidos is an extensible framework for managing your personal data throughout your lifetime in one place.",
@@ -40,11 +40,14 @@
     },
     "publish": [
       {
-        "provider": "generic",
-        "url": "https://example.com/auto-updates"
+        "provider": "github",
+        "owner": "mayneyao",
+        "repo": "eidos",
+        "releaseType": "prerelease"
       }
     ],
     "npmRebuild": true,
+    "generateUpdatesFilesForAllChannels": true,
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -65,7 +68,10 @@
     },
     "afterSign": "scripts/notarize.cjs",
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "dist/logo.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,

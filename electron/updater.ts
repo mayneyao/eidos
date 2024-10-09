@@ -7,13 +7,6 @@ export class AppUpdater {
         log.transports.file.level = 'info';
         autoUpdater.logger = log;
 
-        autoUpdater.setFeedURL({
-            provider: 'github',
-            owner: 'mayneyao',
-            repo: 'eidos',
-            releaseType: 'prerelease'
-        });
-
         autoUpdater.allowPrerelease = true;
 
         this.setupAutoUpdater();

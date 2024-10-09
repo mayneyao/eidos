@@ -67,6 +67,7 @@ jobs:
         with:
           files: |
             dist-app/*.dmg
+            dist-app/*.zip
             dist-app/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
