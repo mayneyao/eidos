@@ -4,7 +4,6 @@ import path from 'path';
 import { PORT } from '../main';
 import { WindowManager } from './wm';
 
-
 const defaultViewOptions: WebContentsViewConstructorOptions = {
     webPreferences: {
         preload: path.join(__dirname, './preload.mjs'),

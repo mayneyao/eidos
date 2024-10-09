@@ -1,13 +1,15 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   CogIcon,
   CommandIcon,
+  Download,
   Github,
   HomeIcon,
   Keyboard,
   MailIcon,
   MoreHorizontal,
   PackageIcon,
+  RefreshCw,
   ScanTextIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -22,6 +24,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useEmbedding } from "@/hooks/use-embedding"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { useUpdateStatus } from "@/hooks/use-updater"
 import { useVCardEmail } from "@/hooks/use-vcard-email"
 import { Button } from "@/components/ui/button"
 import {
@@ -108,6 +111,13 @@ export function NavDropdownMenu() {
       })
     }
   }
+
+  const { updateStatus, updateInfo, checkForUpdates, quitAndInstall } =
+    useUpdateStatus()
+
+  useEffect(() => {
+    checkForUpdates()
+  }, [])
 
   return (
     <>
@@ -264,9 +274,28 @@ export function NavDropdownMenu() {
               </>
             )}
             <DropdownMenuSeparator />
+            {updateStatus === "available" && (
+              <DropdownMenuItem onSelect={quitAndInstall}>
+                <Download className="mr-2 h-4 w-4" />
+                <span>Update to v{updateInfo?.version}</span>
+              </DropdownMenuItem>
+            )}
+            {updateStatus === "not-available" && (
+              <DropdownMenuItem disabled>
+                <span>No updates available</span>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onSelect={checkForUpdates}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              <span>Check for updates</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
             <span className="p-2 text-sm text-gray-500">
               Version: {EIDOS_VERSION} ({isDesktopMode ? "Desktop" : "Web"})
+              {updateStatus === "available" && " (Update available)"}
             </span>
+            {isDesktopMode}
           </DropdownMenuContent>
         </DropdownMenu>
       </Dialog>

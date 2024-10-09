@@ -1,4 +1,4 @@
-name: Build macOS and Windows Apps
+name: Build macOS App
 
 on:
   release:
@@ -6,10 +6,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
@@ -27,15 +24,14 @@ jobs:
 
       - name: Download and extract libsimple
         run: |
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            curl -L https://github.com/wangfenjin/simple/releases/latest/download/libsimple-osx-x64.zip -o libsimple.zip
-            mkdir -p dist-simple
-            unzip -j libsimple.zip -d dist-simple
+          curl -L https://github.com/wangfenjin/simple/releases/latest/download/libsimple-osx-x64.zip -o libsimple.zip
+          unzip libsimple.zip
+          libsimple_dir=$(ls -d libsimple* | head -n 1)
+          if [ -d "$libsimple_dir" ]; then
+            mv "$libsimple_dir" dist-simple
           else
-            curl -L https://github.com/wangfenjin/simple/releases/latest/download/libsimple-win-x64.zip -o libsimple.zip
             mkdir dist-simple
-            7z x libsimple.zip -odist-simple
-            mv dist-simple/simple.dll dist-simple/libsimple.dll
+            mv libsimple* dist-simple/
           fi
           ls -R dist-simple
         shell: bash
@@ -43,8 +39,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Import Code-Signing Certificates (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: Import Code-Signing Certificates
         uses: Apple-Actions/import-codesign-certs@v1
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
@@ -55,8 +50,7 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: pnpm run build:desktop
 
-      - name: Build and Sign (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: Build and Sign
         env:
           APPLEID: ${{ secrets.APPLE_ID }}
           APPLEIDPASS: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -65,15 +59,14 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
         run: pnpm run pkg:desktop
 
-      - name: Build (Windows)
-        if: matrix.os == 'windows-latest'
-        run: pnpm run pkg:desktop
-
+      - name: List dist-app contents
+        run: ls -la dist-app
+        
       - name: Update Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist-app/*.dmg
-            dist-app/*.exe
+            dist-app/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}

@@ -7,8 +7,11 @@ import { startServer } from './server/server';
 import { createWindow } from './window-manager/createWindow';
 import { getAppConfig } from './config';
 import { log } from 'electron-log';
+import { AppUpdater } from './updater';
 
 export let win: BrowserWindow | null
+
+let appUpdater: AppUpdater;
 
 export const PORT = 13127;
 
@@ -97,8 +100,18 @@ app.on('window-all-closed', () => {
 })
 
 
+ipcMain.handle('check-for-updates', () => {
+    appUpdater.checkForUpdates();
+});
+
+ipcMain.handle('quit-and-install', () => {
+    appUpdater.quitAndInstall();
+});
+
 app.whenReady().then(() => {
     win = createWindow()
+    appUpdater = new AppUpdater(win);
+    appUpdater.checkForUpdates();
     // ensure did-finish-load
     setTimeout(() => {
         // win?.webContents.send('main-process-message', `[better-sqlite3] ${JSON.stringify(db.pragma('journal_mode = WAL'))}`)

@@ -27,20 +27,23 @@
     "major": "node scripts/version.cjs major",
     "test": "vitest",
     "start-electron": "electron .",
-    "build-electron": "electron-builder",
-    "pkg:desktop": "cross-env BUILD_MODE=1 electron-builder",
+    "pkg:desktop": "cross-env BUILD_MODE=1 electron-builder --publish never",
     "postinstall": "electron-builder install-app-deps"
   },
   "start": "electron .",
   "main": "dist-electron/main.js",
   "build": {
-    "asar": true,
     "appId": "space.eidos.desktop",
     "productName": "Eidos",
     "directories": {
       "output": "dist-app"
     },
-    "publish": null,
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://example.com/auto-updates"
+      }
+    ],
     "npmRebuild": true,
     "files": [
       "dist/**/*",
@@ -58,8 +61,7 @@
       }
     ],
     "win": {
-      "target": "nsis",
-      "icon": "dist/512.png"
+      "target": "nsis"
     },
     "afterSign": "scripts/notarize.cjs",
     "mac": {
@@ -151,6 +153,7 @@
     "date-fns": "^2.30.0",
     "dnd-core": "^16.0.1",
     "electron-log": "^5.2.0",
+    "electron-updater": "^6.3.9",
     "emoji-mart": "^5.5.2",
     "eventemitter3": "^5.0.1",
     "express": "^4.19.2",
