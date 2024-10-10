@@ -1,9 +1,9 @@
-interface FileSystemDirectoryHandle {
-  [Symbol.asyncIterator](): AsyncIterableIterator<[string, FileSystemHandle]>
-  entries(): AsyncIterableIterator<[string, FileSystemHandle]>
-  keys(): AsyncIterableIterator<string>
-  values(): AsyncIterableIterator<FileSystemHandle>
-}
+// interface FileSystemDirectoryHandle {
+//   [Symbol.asyncIterator](): AsyncIterableIterator<[string, FileSystemHandle]>
+//   entries(): AsyncIterableIterator<[string, FileSystemHandle]>
+//   keys(): AsyncIterableIterator<string>
+//   values(): AsyncIterableIterator<FileSystemHandle>
+// }
 
 interface ImportMeta {
   env: Record<string, unknown>
@@ -21,11 +21,11 @@ interface WindowControlsOverlay extends EventTarget {
   readonly visible: boolean
   getTitlebarAreaRect(): DOMRect
   ongemometrychange:
-    | ((
-        this: WindowControlsOverlay,
-        ev: WindowControlsOverlayGeometryChangeEvent
-      ) => any)
-    | null
+  | ((
+    this: WindowControlsOverlay,
+    ev: WindowControlsOverlayGeometryChangeEvent
+  ) => any)
+  | null
   addEventListener<K extends keyof WindowControlsOverlayEventMap>(
     type: K,
     listener: (

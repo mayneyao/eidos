@@ -1,16 +1,16 @@
-import { useMemo, useRef, useState } from "react"
 import { useDrop } from "ahooks"
+import { useMemo, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 
-import { getFilePreviewImage } from "@/lib/mime/mime"
-import { efsManager } from "@/lib/storage/eidos-file-system"
-import { cn, proxyImageURL } from "@/lib/utils"
-import { useFileSystem, useFiles } from "@/hooks/use-files"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useFileSystem, useFiles } from "@/hooks/use-files"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
+import { getFilePreviewImage } from "@/lib/mime/mime"
+import { cn, proxyImageURL } from "@/lib/utils"
 
 export const DefaultColors = [
   "bg-red-500",
@@ -35,6 +35,7 @@ export function FileSelector(props: {
   hideGallery?: boolean
 }) {
   const { files } = useFiles()
+  const { efsManager } = useEidosFileSystemManager()
   const { database } = useParams()
   const images = useMemo(() => {
     return files.filter((file) => file.mime.startsWith("image/"))

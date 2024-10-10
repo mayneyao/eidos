@@ -10,7 +10,7 @@ const DatabaseTableComponent = (props: { id: string }) => {
   const { space } = useCurrentPathInfo()
   const rawTableName = getRawTableNameById(props.id)
   return (
-    <div className="border">
+    <div className="border max-h-[300px] overflow-y-auto">
       <Table tableName={rawTableName} space={space} isEmbed />
     </div>
   )

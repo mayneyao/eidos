@@ -33,7 +33,7 @@ export const FileManager = () => {
   })
 
   return (
-    <div className="flex h-full w-full flex-col justify-between p-1">
+    <div className="flex h-full w-full flex-col justify-between p-1 pt-0">
       <div>
         <div className="flex w-full items-center gap-2">
           <Input
@@ -49,14 +49,7 @@ export const FileManager = () => {
           </div>
         </div>
         <Separator className="my-2" />
-        <ScrollArea
-          className={cn("h-[calc(100vh-90px)]", {
-            "h-[calc(100vh-122px)]": window.matchMedia(
-              "(display-mode: window-controls-overlay)"
-            ).matches,
-          })}
-          ref={containerRef}
-        >
+        <ScrollArea className={cn("h-[calc(100vh-122px)]")} ref={containerRef}>
           <ul className="flex max-w-[300px] flex-col" ref={wrapperRef}>
             {entries.map((item) => {
               const entry = item.data

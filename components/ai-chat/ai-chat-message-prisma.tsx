@@ -12,6 +12,7 @@ import {
   MarkdownRenderers,
 } from "react-marked-renderer"
 
+import MermaidRenderer from "../doc/blocks/mermaid/MermaidRenderer"
 import { MentionComponent } from "../doc/nodes/MentionNode/MentionComponent"
 import { useSpeak, useSpeakStore } from "./webspeech/hooks"
 
@@ -92,21 +93,22 @@ export const AIMessage = ({
       }
       if (lang === "mermaid") {
         return (
-          <pre className="relative flex w-[calc(100%-24px)] rounded-sm bg-gray-700 p-2">
-            <code
+          <div className="relative flex w-[calc(100%-24px)] rounded-sm p-2">
+            {/* <code
               className={`language-${lang} w-full overflow-x-auto`}
               dangerouslySetInnerHTML={{
                 __html: codeHtml,
               }}
-            ></code>
+            ></code> */}
+            <MermaidRenderer text={text} />
             <Button
-              className=" absolute right-0 top-0 text-gray-300"
+              className=" absolute right-0 top-0"
               variant="ghost"
               onClick={() => createMermaidChart(text)}
             >
               <AreaChart className="h-4 w-4" />
             </Button>
-          </pre>
+          </div>
         )
       }
       return (

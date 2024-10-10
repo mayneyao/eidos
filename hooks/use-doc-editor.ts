@@ -10,7 +10,7 @@ import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
 } from "@lexical/markdown"
-import { $getRoot, $insertNodes } from "lexical"
+import { $getRoot, $insertNodes, $nodesOfType } from "lexical"
 import zip from "lodash/zip"
 
 import { getAllLinks } from "@/lib/markdown"
@@ -22,13 +22,15 @@ import {
   allTransformers,
   markdownLinkInfoMap,
 } from "@/components/doc/plugins/const"
+import { CodeNode } from "@lexical/code"
+import { $createMermaidNode } from "@/components/doc/blocks/mermaid/node"
 
 export const _getDocMarkdown = async (
   articleEditorStateJSON: string
 ): Promise<string> => {
   const editor = createHeadlessEditor({
     nodes: AllNodes,
-    onError: () => {},
+    onError: () => { },
   })
   try {
     const state = editor.parseEditorState(articleEditorStateJSON)
@@ -92,7 +94,7 @@ export const _convertHtml2State = async (html: string): Promise<string> => {
   return new Promise((resolve) => {
     const editor = createHeadlessEditor({
       nodes: AllNodes,
-      onError: () => {},
+      onError: () => { },
     })
 
     editor.update(
@@ -135,13 +137,20 @@ export const _convertMarkdown2State = async (
   return new Promise((resolve) => {
     const editor = createHeadlessEditor({
       nodes: AllNodes,
-      onError: () => {},
+      onError: () => { },
     })
 
     editor.update(
       () => {
         $convertFromMarkdownString(markdown, allTransformers)
         markdownLinkInfoMap.clear()
+        // after calling $convertFromMarkdownString()
+        for (const code of $nodesOfType(CodeNode)) {
+          const lang = code.getLanguage()
+          if (lang === "mermaid") {
+            code.replace($createMermaidNode(code.getTextContent()))
+          }
+        }
       },
       {
         discrete: true,
@@ -157,7 +166,7 @@ export const useDocEditor = (sqlite: DataSpace | null) => {
   const getDocMarkdown = useCallback(
     async (docId: string): Promise<string> => {
       const doc = await sqlite?.doc.get(docId)
-      return _getDocMarkdown(doc?.content)
+      return _getDocMarkdown(doc?.content ?? "")
     },
     [sqlite]
   )

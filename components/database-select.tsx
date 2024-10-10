@@ -4,12 +4,10 @@ import * as React from "react"
 import { kebabCase } from "lodash"
 import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
 
-import { spaceFileSystem } from "@/lib/storage/space"
-import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useGoto } from "@/hooks/use-goto"
-import { useSpace } from "@/hooks/use-space"
+import { useSpace, useSpaceFileSystem } from "@/hooks/use-space"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -47,6 +45,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [open, setOpen] = React.useState(false)
   const [file, setFile] = React.useState<File | null>(null)
   const { spaceList } = useSpace()
+  const { spaceFileSystem } = useSpaceFileSystem()
 
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
   const { space } = useCurrentPathInfo()
@@ -127,6 +126,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
           <Button
             variant="outline"
             role="combobox"
+            size="xs"
             aria-expanded={open}
             className="w-full min-w-[180px] justify-between"
           >

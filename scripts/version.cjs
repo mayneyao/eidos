@@ -37,7 +37,7 @@ const currentVersion = packageJson.version
 const newVersion = semver.inc(currentVersion, versionIncrement)
 
 // Step 3: Update the version in your TypeScript file
-const tsFilePath = "./lib/log.ts" // Adjust the path to your TypeScript file
+const tsFilePath = "./lib/env.ts" // Adjust the path to your TypeScript file
 let tsFileContent = fs.readFileSync(tsFilePath, "utf8")
 
 // Replace the version in your TypeScript file

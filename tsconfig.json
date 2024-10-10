@@ -2,12 +2,16 @@
   "compilerOptions": {
     "target": "ESNext",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable",
+      "WebWorker"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     "allowJs": true,
     "experimentalDecorators": true,
-
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -15,16 +19,16 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-
     /* Linting */
     "strict": true,
     // "noUnusedLocals": true,
     // "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     },
     "types": [
       "vite-plugin-pwa/react",
@@ -43,7 +47,16 @@
     "apps/web-app/rag.jsx",
     "scripts/version.cjs",
     "scripts/build-cf-worker.cjs"
+, "scripts/notarize.cjs"  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dev-dist",
+    "dist-electron"
   ],
-  "exclude": ["node_modules", "dist", "dev-dist"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ]
 }

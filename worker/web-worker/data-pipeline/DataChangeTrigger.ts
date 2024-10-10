@@ -55,7 +55,7 @@ export class DataChangeTrigger {
   }
 
   async setTrigger(
-    db: DataSpace,
+    dataspace: DataSpace,
     tableName: string,
     collist: any[],
     toDeleteColumns?: string[]
@@ -95,7 +95,7 @@ export class DataChangeTrigger {
 
     // if trigger not changed, do nothing
     if (
-      !this.isTriggerChanged(db.dbName, tableName, {
+      !this.isTriggerChanged(dataspace.dbName, tableName, {
         update: updateSql,
         insert: insertSql,
         delete: deleteSql,
@@ -105,14 +105,16 @@ export class DataChangeTrigger {
     }
 
     // drop trigger if exists
-    db.exec(`DROP TRIGGER IF EXISTS data_update_trigger_${tableName}`)
-    db.exec(`DROP TRIGGER IF EXISTS data_insert_trigger_${tableName}`)
-    db.exec(`DROP TRIGGER IF EXISTS data_delete_trigger_${tableName}`)
-    db.exec(updateSql)
-    db.exec(insertSql)
-    db.exec(deleteSql)
+    dataspace.db.transaction((db) => {
+      db.exec(`DROP TRIGGER IF EXISTS data_update_trigger_${tableName}`)
+      db.exec(`DROP TRIGGER IF EXISTS data_insert_trigger_${tableName}`)
+      db.exec(`DROP TRIGGER IF EXISTS data_delete_trigger_${tableName}`)
+      db.exec(updateSql)
+      db.exec(insertSql)
+      db.exec(deleteSql)
+    })
 
-    this.registerTrigger(db.dbName, tableName, {
+    this.registerTrigger(dataspace.dbName, tableName, {
       update: updateSql,
       insert: insertSql,
       delete: deleteSql,

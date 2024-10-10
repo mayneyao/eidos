@@ -3,7 +3,6 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import html2canvas from "html2canvas"
 import { $getNodeByKey, NodeKey } from "lexical"
 import { ChevronDown } from "lucide-react"
-import mermaid from "mermaid"
 import { useTheme } from "next-themes"
 
 import { isInkServiceMode } from "@/lib/env"
@@ -17,6 +16,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 
+import MermaidRenderer from "./MermaidRenderer"
 import { $isMermaidNode } from "./node"
 
 export interface MermaidProps {
@@ -26,75 +26,27 @@ export interface MermaidProps {
 
 export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
   const [mermaidText, setMermaidText] = useState<string>(text)
-  const [svg, setSvg] = useState<string>("")
-  const [error, setError] = useState<string>("")
   const [mode, setMode] = useState<"preview" | "edit">("preview")
   const { theme } = useTheme()
-  const mermaidRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
-  const [isMermaidInitialized, setIsMermaidInitialized] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  useEffect(() => {
-    const initializeMermaid = () => {
-      try {
-        mermaid.initialize({
-          startOnLoad: false,
-          theme: theme === "dark" ? "dark" : "default",
-        })
-      } catch (error) {
-        // Mermaid is already initialized, ignore the error
-      }
-      setIsMermaidInitialized(true)
-    }
-
-    initializeMermaid()
-  }, [theme])
-
-  const toggleMode = () => {
-    const newMode = mode === "preview" ? "edit" : "preview"
-    setMode(newMode)
-  }
-
-  useEffect(() => {
-    mermaid.contentLoaded()
-  }, [])
 
   const [editor] = useLexicalComposerContext()
 
-  const renderMermaid = useCallback(async () => {
-    if (!isMermaidInitialized) return
-
-    try {
-      const mermaidId = `mermaid-${nodeKey}-${Math.random()
-        .toString(36)
-        .substr(2, 9)}`
-      const isValid = await mermaid.parse(mermaidText)
-      if (isValid) {
-        editor.update(() => {
-          const node = $getNodeByKey(nodeKey)
-          if (text !== mermaidText && $isMermaidNode(node)) {
-            node.setText(mermaidText)
-          }
-        })
-        const { svg } = await mermaid.render(mermaidId, mermaidText)
-        setSvg(svg)
-        setError("")
-      } else {
-        setSvg("")
-        setError("Invalid Mermaid text")
+  const updateNodeText = useCallback(() => {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (text !== mermaidText && $isMermaidNode(node)) {
+        node.setText(mermaidText)
       }
-    } catch (error) {
-      setSvg("")
-      setError("Invalid Mermaid text")
-    }
-  }, [mermaidText, text, nodeKey, editor, isMermaidInitialized])
+    })
+  }, [mermaidText, text, nodeKey, editor])
 
   useEffect(() => {
-    if (isMermaidInitialized) {
-      renderMermaid()
+    if (mode === "preview") {
+      updateNodeText()
     }
-  }, [renderMermaid, isMermaidInitialized])
+  }, [mode, updateNodeText])
 
   const { toast } = useToast()
 
@@ -117,15 +69,16 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
 
   const copyContent = useCallback(
     async (format: "png" | "svg" | "text") => {
-      if (mermaidRef.current) {
+      const mermaidRef = document.querySelector("#mermaid-renderer")
+      if (mermaidRef) {
         try {
           if (format === "text") {
             await navigator.clipboard.writeText(mermaidText)
           } else if (format === "svg") {
-            const svgText = mermaidRef.current.innerHTML
+            const svgText = mermaidRef.innerHTML
             await navigator.clipboard.writeText(svgText)
           } else {
-            const canvas = await html2canvas(mermaidRef.current)
+            const canvas = await html2canvas(mermaidRef as HTMLElement)
             canvas.toBlob((blob) => {
               if (blob) {
                 const item = new ClipboardItem({ [`image/${format}`]: blob })
@@ -159,7 +112,11 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
     >
       {!isInkServiceMode && (
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-          <Button variant="outline" size="xs" onClick={toggleMode}>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => setMode(mode === "preview" ? "edit" : "preview")}
+          >
             {mode === "preview" ? "Edit" : "Preview"}
           </Button>
           <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -195,14 +152,9 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
           placeholder="Enter your Mermaid diagram code here..."
         />
       )}
-      {error && <div className="text-red-500">{error}</div>}
-      <div
-        ref={mermaidRef}
-        className="p-2 flex items-center justify-center"
-        dangerouslySetInnerHTML={{
-          __html: svg,
-        }}
-      />
+      <div id="mermaid-renderer">
+        <MermaidRenderer text={mermaidText} />
+      </div>
     </div>
   )
 }

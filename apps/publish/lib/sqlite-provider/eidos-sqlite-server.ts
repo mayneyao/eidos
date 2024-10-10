@@ -1,4 +1,4 @@
-import { BaseServerDatabase } from "./base";
+import { BaseServerDatabase } from "@/lib/sqlite/interface";
 
 export interface EidosSQLiteServerDomainDbInfo {
     type: "eidosSqliteServer";

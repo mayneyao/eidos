@@ -5,6 +5,7 @@ import {
   DataUpdateSignalType,
   EidosDataEventChannelMsg,
   EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
 } from "@/lib/const"
 import { isInkServiceMode } from "@/lib/env"
 import { useCurrentNode, useNodeMap } from "@/hooks/use-current-node"
@@ -41,6 +42,7 @@ export const NodeComponent = ({
   const { updateIcon, updateCover, updateHideProperties } = useNode()
 
   useEffect(() => {
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
     const handler = (ev: MessageEvent<EidosDataEventChannelMsg>) => {
       const { type, payload } = ev.data
       if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
@@ -60,9 +62,9 @@ export const NodeComponent = ({
         }
       }
     }
-    window.addEventListener("message", handler)
+    bc.addEventListener("message", handler)
     return () => {
-      window.removeEventListener("message", handler)
+      bc.removeEventListener("message", handler)
     }
   }, [updateUiColumns])
 

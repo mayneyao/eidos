@@ -4,6 +4,7 @@ import {
   DataUpdateSignalType,
   EidosDataEventChannelMsg,
   EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
 } from "@/lib/const"
 
 type Row = EidosDataEventChannelMsg["payload"]["_new"]
@@ -22,6 +23,7 @@ export const useTableRowEvent = ({
   onDelete,
 }: UseTableDataEventProps) => {
   useEffect(() => {
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
     const handler = (ev: MessageEvent<EidosDataEventChannelMsg>) => {
       const { type, payload } = ev.data
       if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
@@ -42,9 +44,9 @@ export const useTableRowEvent = ({
         }
       }
     }
-    window.addEventListener("message", handler)
+    bc.addEventListener("message", handler)
     return () => {
-      window.removeEventListener("message", handler)
+      bc.removeEventListener("message", handler)
     }
   }, [onDelete, onInsert, onUpdate, tableName])
 }

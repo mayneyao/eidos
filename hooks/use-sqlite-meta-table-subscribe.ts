@@ -18,8 +18,6 @@ export const useSqliteMetaTableSubscribe = () => {
     const bc = new BroadcastChannel(EidosDataEventChannelName)
     const handler = (ev: MessageEvent<EidosDataEventChannelMsg>) => {
       const { type, payload } = ev.data
-      // resend msg to main thread, why broadcast channel not work???
-      window.postMessage(ev.data)
       if (type === EidosDataEventChannelMsgType.MetaTableUpdateSignalType) {
         const { table, _new } = payload
         switch (payload.type) {
@@ -35,7 +33,7 @@ export const useSqliteMetaTableSubscribe = () => {
     }
     bc.addEventListener("message", handler)
     return () => {
-      bc.close()
+      bc.removeEventListener("message", handler)
     }
   }, [addNode])
 }

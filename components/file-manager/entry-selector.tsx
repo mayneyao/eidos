@@ -28,9 +28,9 @@ export function EntrySelector() {
   const { externalFolders, handleSelectExternalFolder } = useExternalFolder()
   const spaceRootDir = useSpaceDir()
   const [isCurrentSpaceDir, setIsCurrentSpaceDir] = React.useState(false)
-  React.useEffect(() => {
-    rootDir && spaceRootDir?.isSameEntry(rootDir).then(setIsCurrentSpaceDir)
-  }, [rootDir, spaceRootDir])
+  // React.useEffect(() => {
+  //   rootDir && spaceRootDir?.isSameEntry(rootDir).then(setIsCurrentSpaceDir)
+  // }, [rootDir, spaceRootDir])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

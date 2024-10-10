@@ -1,11 +1,11 @@
 import { useCallback } from "react"
 
 import { MsgType } from "@/lib/const"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 import { uuidv7 } from "@/lib/utils"
 
 import { getSqliteChannel } from "@/lib/sqlite/channel"
 import { useExtensions } from "./use-extensions"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 
 export enum ExtMsgType {
   // incoming msg
@@ -46,6 +46,7 @@ const shouldHandle = (event: MessageEvent, source: ExtensionSourceType) => {
 export const useExtMsg = (source: ExtensionSourceType) => {
   const { getExtensionIndex } = useExtensions()
 
+  const { efsManager } = useEidosFileSystemManager()
   const handleMsg = useCallback(
     (event: MessageEvent) => {
       if (!shouldHandle(event, source)) {
@@ -130,7 +131,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
           const { method, params, space } = event.data.data
           console.log("receive rpc call", method, params, space)
           const thisCallId = uuidv7()
-          sqlite.send({
+          const res = sqlite.send({
             type: MsgType.CallFunction,
             data: {
               method,
@@ -139,6 +140,16 @@ export const useExtMsg = (source: ExtensionSourceType) => {
             },
             id: thisCallId,
           })
+          if (res) {
+            res.then((_res) => {
+              console.log(thisCallId, "receive data from worker", _res)
+              event.ports[0].postMessage({
+                type: ExtMsgType.rpcCallResp,
+                data: _res,
+              })
+            })
+            return
+          }
           sqlite.onCallBack(thisCallId).then((res) => {
             console.log(thisCallId, "receive data from worker", res)
             event.ports[0].postMessage({

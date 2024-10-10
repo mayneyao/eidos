@@ -22,12 +22,20 @@ export const NodeExportContextMenu = ({ node }: { node: ITreeNode }) => {
 
   const exportDoc = async (docId: string) => {
     const file = await sqlite?.exportMarkdown(docId)
-    file && downloadFile(file, `${node.name || "Untitled"}.md`)
+    file &&
+      downloadFile(
+        new Blob([file], { type: "text/markdown" }),
+        `${node.name || "Untitled"}.md`
+      )
   }
 
   const exportTable = async (tableId: string) => {
     const file = await sqlite?.exportCsv(tableId)
-    file && downloadFile(file, `${node.name || "Untitled"}.csv`)
+    file &&
+      downloadFile(
+        new Blob([file], { type: "text/csv" }),
+        `${node.name || "Untitled"}.csv`
+      )
   }
   if (node.type === "table") {
     return (
@@ -74,13 +82,21 @@ export const NodeExport = ({ node }: { node: ITreeNode }) => {
   const { sqlite } = useSqlite()
 
   const exportDoc = async (docId: string) => {
-    const file = await sqlite?.exportMarkdown(docId)
-    file && downloadFile(file, `${node.name || "Untitled"}.md`)
+    const md = await sqlite?.exportMarkdown(docId)
+    md &&
+      downloadFile(
+        new Blob([md], { type: "text/markdown" }),
+        `${node.name || "Untitled"}.md`
+      )
   }
 
   const exportTable = async (tableId: string) => {
     const file = await sqlite?.exportCsv(tableId)
-    file && downloadFile(file, `${node.name || "Untitled"}.csv`)
+    file &&
+      downloadFile(
+        new Blob([file], { type: "text/csv" }),
+        `${node.name || "Untitled"}.csv`
+      )
   }
 
   if (node.type === "table") {

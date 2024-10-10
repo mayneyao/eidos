@@ -191,18 +191,18 @@ export const ScriptPage = () => {
     })
   }
   return (
-    <ScrollArea className="h-full w-full p-2">
-      <div className="flex w-full justify-between p-2">
+    <ScrollArea className="h-full w-full p-2 pt-0">
+      <div className="flex w-full justify-between p-2 pt-1">
         <div className="flex">
           <Button
             className=" rounded-r-none"
-            size="sm"
+            size="xs"
             onClick={() => handleCreateNewScript()}
           >
             New
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger className=" h-9 rounded-r-md bg-primary p-1 text-primary-foreground hover:opacity-70">
+            <DropdownMenuTrigger className="h-7 rounded-r-md bg-primary p-1 text-primary-foreground hover:opacity-70">
               <ChevronDownIcon />
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -227,7 +227,7 @@ export const ScriptPage = () => {
             }}
             defaultValue="All"
           >
-            <SelectTrigger className="h-[36px] w-[180px]">
+            <SelectTrigger className="h-[28px] w-[180px]">
               <SelectValue placeholder="" />
             </SelectTrigger>
             <SelectContent>

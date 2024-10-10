@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 
+import { isDesktopMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -63,10 +64,12 @@ export function AIConfigForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <LocalLLMManage
-          models={form.getValues("localModels")}
-          setModels={updateModels}
-        />
+        {!isDesktopMode && (
+          <LocalLLMManage
+            models={form.getValues("localModels")}
+            setModels={updateModels}
+          />
+        )}
         <Card>
           <CardHeader>
             <CardTitle>Provider</CardTitle>
@@ -183,9 +186,7 @@ export function AIConfigForm() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() =>
-                          testModel(TaskType.Coding, field.value)
-                        }
+                        onClick={() => testModel(TaskType.Coding, field.value)}
                       >
                         Test
                       </Button>

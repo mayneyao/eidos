@@ -33,7 +33,7 @@ import { IView } from "@/lib/store/IView"
 import { useDebounceFn } from "ahooks"
 
 import { TableContext } from "@/components/table/hooks"
-import { isInkServiceMode } from "@/lib/env"
+import { isInkServiceMode, isDesktopMode } from "@/lib/env"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useDataMutation } from "./use-data-mutation"
 
@@ -229,7 +229,7 @@ export function useAsyncData<TRowType>(data: {
     if (!qs || !sqlite) return
     setLoading(qs, true)
     let allRowIds: string[] = []
-    if (isInkServiceMode) {
+    if (isInkServiceMode || isDesktopMode) {
       const batchSize = 150000
       setBlockUIMsg('loading')
       const queries = rewriteQuery2getSortedSqliteRowIds(qs, count, batchSize)
@@ -259,7 +259,7 @@ export function useAsyncData<TRowType>(data: {
   }, [qs, setLoading, sqlite, count])
 
   useEffect(() => {
-    if (isInkServiceMode) {
+    if (isInkServiceMode || isDesktopMode) {
       return
     }
     getViewSortedSqliteRowIds()
@@ -322,14 +322,13 @@ export function useAsyncData<TRowType>(data: {
   )
 
 
-
-  const { run: loadDataWithOffsetAndLimitDebounced } = useDebounceFn(() => {
+  const loadDataWithOffsetAndLimitInVisible = useCallback(() => {
     if (!sqlite || !tableName || !tableId) return
     const r = visiblePages
     const firstPage = Math.max(0, Math.floor((r.y - pageSize / 2) / pageSize))
     const lastPage = Math.floor((r.y + r.height + pageSize / 2) / pageSize)
     for (const page of range(firstPage, lastPage + 1)) {
-      if (isInkServiceMode) {
+      if (isInkServiceMode || isDesktopMode) {
         if (_loadingRef.current.includes(page * pageSize)) continue
         loadDataWithOffsetAndLimit(page)
       } else {
@@ -342,12 +341,20 @@ export function useAsyncData<TRowType>(data: {
         loadData(loadRowIds, startIndex)
       }
     }
-  }, { wait: 200 })
+  }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages])
 
+  const { run: loadDataWithOffsetAndLimitDebounced } = useDebounceFn(loadDataWithOffsetAndLimitInVisible, { wait: 100, leading: true, trailing: true })
 
   useEffect(() => {
-    loadDataWithOffsetAndLimitDebounced()
-  }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages, loadDataWithOffsetAndLimitDebounced])
+    if (isDesktopMode) {
+      // load more data, but flash
+      // loadDataWithOffsetAndLimitInVisible()
+      loadDataWithOffsetAndLimitDebounced()
+    } else {
+      // less data, no flash, but blank page
+      loadDataWithOffsetAndLimitDebounced()
+    }
+  }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages, loadDataWithOffsetAndLimitDebounced, loadDataWithOffsetAndLimitInVisible])
 
   useEffect(() => {
     // when view changes, reset scroll position

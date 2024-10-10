@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useLocalStorageState } from "ahooks"
 import {
   CalendarDaysIcon,
   File,
@@ -15,7 +16,6 @@ import { cn } from "@/lib/utils"
 import { Button } from "../ui/button"
 import { CreateNodeTrigger } from "./tree/create-node-trigger"
 import { NodeTreeContainer } from "./tree/node-tree"
-import { useLocalStorageState } from "ahooks"
 
 export const CurrentItemTree = ({
   allNodes,
@@ -28,16 +28,19 @@ export const CurrentItemTree = ({
   Icon: React.ReactNode
   disableAdd?: boolean
 }) => {
-  const [showNodes, setShowNodes] = useLocalStorageState('root-node-tree-show-toggle', {
-    defaultValue: true,
-  })
+  const [showNodes, setShowNodes] = useLocalStorageState(
+    "root-node-tree-show-toggle",
+    {
+      defaultValue: true,
+    }
+  )
 
   const handleToggleShowNodes = () => {
     setShowNodes(!showNodes)
   }
   return (
     <>
-      <div className="flex items-center">
+      <div className="flex items-center justify-between w-full">
         <Button
           variant={"ghost"}
           size="sm"
@@ -53,7 +56,7 @@ export const CurrentItemTree = ({
         {!disableAdd && <CreateNodeTrigger />}
       </div>
       {showNodes && (
-        <div className="mt-1 max-w-[284px] space-y-1 pl-4">
+        <div className="mt-1 w-full space-y-1 pl-4">
           <DndProvider backend={HTML5Backend} context={window}>
             <NodeTreeContainer nodes={allNodes} />
           </DndProvider>

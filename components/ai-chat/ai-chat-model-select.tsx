@@ -4,6 +4,7 @@ import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { Link } from "react-router-dom"
 
+import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -52,6 +53,7 @@ export function AIModelSelect({
   className,
   excludeLocalModels,
   localModels,
+  noBorder,
 }: {
   onValueChange: (value: string) => void
   value: string
@@ -60,6 +62,7 @@ export function AIModelSelect({
   className?: string
   excludeLocalModels?: string[]
   localModels?: string[]
+  noBorder?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const { models } = useModels()
@@ -79,7 +82,7 @@ export function AIModelSelect({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant={noBorder ? "ghost" : "outline"}
           role="combobox"
           aria-expanded={open}
           size={size}
@@ -125,37 +128,39 @@ export function AIModelSelect({
                   ))}
                 </CommandGroup>
               )}
-              <CommandGroup heading="Local LLM">
-                {Boolean(!_localModels?.length) && (
-                  <p className="ml-8 text-xs text-gray-500">
-                    No local model found.
-                    <br />
-                    Add some models in the{" "}
-                    <Link to="/settings/ai" className=" text-blue-500">
-                      settings
-                    </Link>{" "}
-                    page.
-                  </p>
-                )}
-                {_localModels.map((model) => (
-                  <CommandItem
-                    key={model}
-                    value={model}
-                    onSelect={(currentValue) => {
-                      setValue(model === value ? "" : model)
-                      setOpen(false)
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        value === model ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    <p className="max-w-[250px] truncate">{model}</p>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {!isDesktopMode && (
+                <CommandGroup heading="Local LLM">
+                  {Boolean(!_localModels?.length) && (
+                    <p className="ml-8 text-xs text-gray-500">
+                      No local model found.
+                      <br />
+                      Add some models in the{" "}
+                      <Link to="/settings/ai" className=" text-blue-500">
+                        settings
+                      </Link>{" "}
+                      page.
+                    </p>
+                  )}
+                  {_localModels.map((model) => (
+                    <CommandItem
+                      key={model}
+                      value={model}
+                      onSelect={(currentValue) => {
+                        setValue(model === value ? "" : model)
+                        setOpen(false)
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === model ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <p className="max-w-[250px] truncate">{model}</p>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
             </div>
           </ScrollArea>
         </Command>

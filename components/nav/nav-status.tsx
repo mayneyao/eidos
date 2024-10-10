@@ -1,18 +1,15 @@
 import {
-  Bot,
+  BotIcon,
   Cable,
+  FileBoxIcon,
   LockIcon,
-  PanelRightIcon,
+  LucideIcon,
   PinIcon,
   PinOffIcon,
-  Unplug,
+  Unplug
 } from "lucide-react"
 
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { useAPIAgent } from "@/hooks/use-api-agent"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useNodeTree } from "@/hooks/use-node-tree"
-import { usePeer } from "@/hooks/use-peer"
+import { AvatarList } from "@/components/avatar-list"
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
@@ -20,13 +17,51 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { AvatarList } from "@/components/avatar-list"
+import { useAPIAgent } from "@/hooks/use-api-agent"
+import { useCurrentNode } from "@/hooks/use-current-node"
+import { useNodeTree } from "@/hooks/use-node-tree"
+import { usePeer } from "@/hooks/use-peer"
+import { isDesktopMode } from "@/lib/env"
 
 import { useSpaceAppStore } from "../../apps/web-app/[database]/store"
 
+const AppInfoMap: Record<
+  string,
+  {
+    icon: LucideIcon
+    title: string
+    description: string
+    shortcut?: string
+  }
+> = {
+  chat: {
+    icon: BotIcon,
+    title: "Chat with AI",
+    description: "Chat with AI",
+    // shortcut: "ctrl/cmd + /",
+  },
+  ext: {
+    icon: FileBoxIcon,
+    title: "File Manager",
+    description: "File Manager",
+  },
+  "file-manager": {
+    icon: FileBoxIcon,
+    title: "File Manager",
+    description: "File Manager",
+  },
+}
+
 export const NavStatus = () => {
-  const { isAiOpen, setIsAiOpen, isExtAppOpen, setIsExtAppOpen } =
-    useSpaceAppStore()
+  const {
+    isRightPanelOpen,
+    setIsRightPanelOpen,
+    isExtAppOpen,
+    setIsExtAppOpen,
+    apps,
+    currentAppIndex,
+    setCurrentAppIndex,
+  } = useSpaceAppStore()
   const { connected } = useAPIAgent()
 
   const { currentCollaborators } = usePeer()
@@ -34,11 +69,12 @@ export const NavStatus = () => {
   const currentNode = useCurrentNode()
   const { pin, unpin } = useNodeTree()
 
-  const toggleAi = () => {
-    setIsAiOpen(!isAiOpen)
-  }
-  const toggleExtApp = () => {
-    setIsExtAppOpen(!isExtAppOpen)
+  const handleAppChange = (index: number) => {
+    if (index === currentAppIndex) {
+      setIsRightPanelOpen(false)
+    } else {
+      setIsRightPanelOpen(true, index)
+    }
   }
 
   return (
@@ -54,76 +90,54 @@ export const NavStatus = () => {
           <LockIcon className="h-4 w-4" /> Locked
         </Button>
       )}
-      <div
-        className="px-2"
-        title={connected ? "API Agent Connected" : "No API Agent Connected"}
-      >
-        {connected ? (
-          <Cable className="h-5 w-5 text-green-500" />
-        ) : (
-          <Unplug className="h-5 w-5 text-red-500" />
-        )}
-      </div>
+      {!isDesktopMode && (
+        <div
+          className="px-2"
+          title={connected ? "API Agent Connected" : "No API Agent Connected"}
+        >
+          {connected ? (
+            <Cable className="h-5 w-5 text-green-500" />
+          ) : (
+            <Unplug className="h-5 w-5 text-red-500" />
+          )}
+        </div>
+      )}
       {currentNode && (
         <>
-          <div
-            title={
-              currentNode?.is_pinned
-                ? "this node is pinned, click to unpin"
-                : "click to pin this node"
-            }
-          >
-            {currentNode?.is_pinned ? (
-              <Button
-                size="xs"
-                variant="ghost"
-                onClick={() => unpin(currentNode.id)}
-              >
-                <PinOffIcon className="h-5 w-5" />
-              </Button>
-            ) : (
-              <Button
-                size="xs"
-                variant="ghost"
-                onClick={() => pin(currentNode.id)}
-              >
-                <PinIcon className="h-5 w-5" />
-              </Button>
-            )}
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {currentNode?.is_pinned ? (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    className="rounded-b-none relative"
+                    onClick={() => unpin(currentNode.id)}
+                  >
+                    <PinOffIcon className="h-5 w-5" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    className="rounded-b-none relative"
+                    onClick={() => pin(currentNode.id)}
+                  >
+                    <PinIcon className="h-5 w-5" />
+                  </Button>
+                )}
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {currentNode?.is_pinned
+                    ? "Click to unpin this node"
+                    : "Click to pin this node"}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </>
       )}
-      {/* {!isShareMode && <ShareDialog />} */}
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="xs" variant="ghost" onClick={toggleAi}>
-              <Bot className="h-5 w-5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>
-              Chat with AI <br />
-              <span className={"ml-auto text-xs tracking-widest opacity-60"}>
-                ctrl/cmd + /
-              </span>
-            </p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="xs" variant="ghost" onClick={toggleExtApp}>
-              <PanelRightIcon className="h-5 w-5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>App Side Panel</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
     </>
   )
 }

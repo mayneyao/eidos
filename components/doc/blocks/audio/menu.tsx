@@ -3,7 +3,8 @@ import { $getNodeByKey, LexicalEditor, NodeKey } from "lexical"
 import { AudioWaveform } from "lucide-react"
 
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { useWebGPUWhisper } from "@/components/ai-chat/whisper/hooks"
+
+// import { useWebGPUWhisper } from "@/components/ai-chat/whisper/hooks"
 
 import { $isAudioNode } from "./node"
 
@@ -16,10 +17,10 @@ export const AudioMenu = ({
 }) => {
   const [loading, setLoading] = useState(false)
   const [text, setText] = useState("")
-  const { runWhisper, hasWebGPU, canUse } = useWebGPUWhisper({
-    setText,
-    setLoading,
-  })
+  // const { runWhisper, hasWebGPU, canUse } = useWebGPUWhisper({
+  //   setText,
+  //   setLoading,
+  // })
 
   const handleSelect = async () => {
     editor.update(() => {
@@ -36,7 +37,7 @@ export const AudioMenu = ({
           // Decode the audio data
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
           let ch0 = audioBuffer.getChannelData(0)
-          runWhisper(new Uint8Array(ch0.buffer))
+          // runWhisper(new Uint8Array(ch0.buffer))
         }
         getAudioData()
       }

@@ -54,7 +54,7 @@ export const InstallScript = () => {
     <div className="flex gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="xs">
             Install
           </Button>
         </DropdownMenuTrigger>

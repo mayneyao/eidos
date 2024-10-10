@@ -21,7 +21,7 @@ import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { uuidv7 } from "@/lib/utils"
 
-import { isInkServiceMode } from "@/lib/env"
+import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { useAIConfigStore } from "../settings/ai/store"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
@@ -93,7 +93,19 @@ export const useLayoutInit = () => {
   }, [initEmbeddingWorker])
 
   useEffect(() => {
-    if (!isInkServiceMode && database && sqlite) {
+    if (isDesktopMode && database) {
+      if (lastOpenedDatabase === database) return
+      const switchDdMsgId = uuidv7()
+      window.eidos.invoke(MsgType.SwitchDatabase, {
+        databaseName: database,
+        id: switchDdMsgId,
+      }).then((response) => {
+        const { id: returnId, data } = response
+        if (returnId === switchDdMsgId) {
+          setLastOpenedDatabase(data.dbName)
+        }
+      })
+    } else if (!isInkServiceMode && database && sqlite) {
       if (lastOpenedDatabase === database) return
       const switchDdMsgId = uuidv7()
       const worker = getWorker()
