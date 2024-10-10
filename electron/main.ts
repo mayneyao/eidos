@@ -92,7 +92,6 @@ ipcMain.handle('reload-app', () => {
 });
 
 app.on('window-all-closed', () => {
-    app.quit()
     getDataSpace()?.closeDb()
     win = null
 })
@@ -106,12 +105,32 @@ ipcMain.handle('quit-and-install', () => {
     appUpdater.quitAndInstall();
 });
 
+
+let forceQuit = false;
+
+app.on('before-quit', () => {
+    forceQuit = true;
+});
+
 app.whenReady().then(() => {
     win = createWindow()
+    win.on('close', (event) => {
+        if (!forceQuit) {
+            event.preventDefault();
+            win?.hide();
+        }
+    });
     appUpdater = new AppUpdater(win);
     appUpdater.checkForUpdates();
-    // ensure did-finish-load
-    setTimeout(() => {
-        // win?.webContents.send('main-process-message', `[better-sqlite3] ${JSON.stringify(db.pragma('journal_mode = WAL'))}`)
-    }, 999)
 })
+
+app.on('activate', () => {
+    if (win) {
+        win.show();
+    }
+});
+
+ipcMain.handle('quit-app', () => {
+    forceQuit = true;
+    app.quit();
+});
