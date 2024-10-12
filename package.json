@@ -64,7 +64,11 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "dist/512.png"
     },
     "afterSign": "scripts/notarize.cjs",
     "mac": {

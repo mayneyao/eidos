@@ -1,6 +1,6 @@
 import { MsgType } from '@/lib/const';
 import { handleFunctionCall } from '@/lib/rpc';
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage } from 'electron';
 import path from 'path';
 import { getDataSpace, getOrSetDataSpace } from './data-space';
 import { startServer } from './server/server';
@@ -10,8 +10,8 @@ import { log } from 'electron-log';
 import { AppUpdater } from './updater';
 
 export let win: BrowserWindow | null
-
 let appUpdater: AppUpdater;
+let tray: Tray | null
 
 export const PORT = 13127;
 
@@ -112,17 +112,45 @@ app.on('before-quit', () => {
     forceQuit = true;
 });
 
+function createTray() {
+    try {
+        const iconPath = path.join(process.env.VITE_PUBLIC, '512.png');
+        log('Tray icon path:', iconPath);
+
+        const icon = nativeImage.createFromPath(iconPath);
+        tray = new Tray(icon);
+
+        const contextMenu = Menu.buildFromTemplate([
+            { label: 'show', click: () => win?.show() },
+            { label: 'exit', click: () => { forceQuit = true; app.quit(); } }
+        ]);
+
+        tray.setToolTip('Eidos');
+        tray.setContextMenu(contextMenu);
+
+        log('Tray created successfully');
+    } catch (error) {
+        log('Error creating tray:', error);
+    }
+}
+
 app.whenReady().then(() => {
     win = createWindow()
+    createTray();
+
     win.on('close', (event) => {
         if (!forceQuit) {
             event.preventDefault();
-            win?.hide();
+            if (process.platform === 'darwin') {
+                win?.hide();
+            } else {
+                win?.minimize();
+            }
         }
     });
     appUpdater = new AppUpdater(win);
     appUpdater.checkForUpdates();
-})
+});
 
 app.on('activate', () => {
     if (win) {
