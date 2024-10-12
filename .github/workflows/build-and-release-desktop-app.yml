@@ -1,13 +1,71 @@
-name: Build macOS App
+name: Build Desktop Apps
 
 on:
   release:
     types: [prereleased]
 
 jobs:
-  build:
-    runs-on: macos-latest
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20.16.0"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Tweak pnpm.cjs
+        run: sed -i 's/\/usr\/bin\/env node/node/g' /c/Users/runneradmin/setup-pnpm/node_modules/.pnpm/pnpm@8.15.9/node_modules/pnpm/bin/pnpm.cjs
+        shell: bash
+
+      - name: Download and extract libsimple
+        run: |
+          curl -L https://github.com/wangfenjin/simple/releases/latest/download/libsimple-windows-x64.zip -o libsimple.zip
+          Expand-Archive libsimple.zip -DestinationPath . -Force
+          $libsimple_dir = Get-ChildItem -Directory | Where-Object { $_.Name -like "libsimple*" } | Select-Object -First 1
+          if ($libsimple_dir) {
+            Move-Item $libsimple_dir.FullName dist-simple
+          } else {
+            New-Item -ItemType Directory -Name dist-simple
+            Move-Item libsimple* dist-simple/
+          }
+          Rename-Item -Path "dist-simple/simple.dll" -NewName "libsimple.dll"
+          Get-ChildItem -Recurse dist-simple
+        shell: pwsh
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build application
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+        run: pnpm run build:desktop
+
+      - name: Build without Signing
+        run: pnpm run pkg:desktop
+
+      - name: List dist-app contents
+        run: Get-ChildItem -Path dist-app -Force
+
+      - name: Update Release (Windows)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-app/*.exe
+            dist-app/*.zip
+            dist-app/latest*.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+  build-macos:
+    runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -62,7 +120,7 @@ jobs:
       - name: List dist-app contents
         run: ls -la dist-app
         
-      - name: Update Release
+      - name: Update Release (macOS)
         uses: softprops/action-gh-release@v2
         with:
           files: |
