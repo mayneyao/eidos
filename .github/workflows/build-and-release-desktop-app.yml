@@ -119,12 +119,66 @@ jobs:
 
       - name: List dist-app contents
         run: ls -la dist-app
-        
+
       - name: Update Release (macOS)
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist-app/*.dmg
+            dist-app/*.zip
+            dist-app/latest*.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20.16.0"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Download and extract libsimple
+        run: |
+          curl -L https://github.com/wangfenjin/simple/releases/latest/download/libsimple-linux-ubuntu-latest.zip -o libsimple.zip
+          unzip libsimple.zip
+          libsimple_dir=$(ls -d libsimple* | head -n 1)
+          if [ -d "$libsimple_dir" ]; then
+            mv "$libsimple_dir" dist-simple
+          else
+            mkdir dist-simple
+            mv libsimple* dist-simple/
+          fi
+          ls -R dist-simple
+        shell: bash
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build application
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+        run: pnpm run build:desktop
+
+      - name: Build AppImage
+        run: pnpm run pkg:desktop
+
+      - name: List dist-app contents
+        run: ls -la dist-app
+
+      - name: Update Release (Linux)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-app/*.AppImage
             dist-app/*.zip
             dist-app/latest*.yml
         env:

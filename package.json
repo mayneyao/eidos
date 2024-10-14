@@ -84,7 +84,10 @@
       "notarize": false
     },
     "linux": {
-      "target": "AppImage"
+      "target": [
+        "AppImage",
+        "zip"
+      ]
     }
   },
   "dependencies": {
