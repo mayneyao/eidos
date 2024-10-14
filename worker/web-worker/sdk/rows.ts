@@ -9,6 +9,8 @@ import type { IField } from "@/lib/store/interface"
 import { DataSpace } from "../DataSpace"
 import { workerStore } from "../store"
 import { TableManager } from "./table"
+import { BaseServerDatabase } from "@/lib/sqlite/interface"
+import { NodeServerDatabase } from "@/electron/sqlite-server"
 
 export class RowsManager {
   dataSpace: DataSpace
@@ -276,13 +278,19 @@ export class RowsManager {
     const stmt = this.dataSpace.db.prepare(`
       INSERT INTO ${this.table.rawTableName} (${keys}) VALUES (${_values})`)
     // for high performance, use transaction
-    this.dataSpace.db.transaction(async () => {
+    if (this.dataSpace.db instanceof BaseServerDatabase) {
       for (const value of values) {
-        stmt.bind(value).step()
-        stmt.reset()
+        stmt.run(value)
       }
-      stmt.finalize()
-    })
+    } else {
+      this.dataSpace.db.transaction(async () => {
+        for (const value of values) {
+          stmt.bind(value).step()
+          stmt.reset()
+        }
+        stmt.finalize()
+      })
+    }
     return createDatas
   }
 

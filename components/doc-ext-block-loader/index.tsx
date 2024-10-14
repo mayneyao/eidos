@@ -1,19 +1,20 @@
-import { useEffect } from "react"
-import * as React from "react"
 import * as LexicalMarkdown from "@lexical/markdown"
 import * as BlockWithAlignableContents from "@lexical/react/LexicalBlockWithAlignableContents"
 import * as LexicalComposerContext from "@lexical/react/LexicalComposerContext"
 import * as LexicalUtils from "@lexical/utils"
 import * as Lexical from "lexical"
+import * as React from "react"
+import { useEffect } from "react"
 
-import { efsManager } from "@/lib/storage/eidos-file-system"
 
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { useEnabledExtBlocks } from "../doc/hooks/use-ext-blocks"
 
 const ScriptElementId = "doc-ext-block-loader"
 export const DocExtBlockLoader = () => {
   const { scripts: allEnabledExtBlocks } = useEnabledExtBlocks()
 
+  const { efsManager } = useEidosFileSystemManager()
   useEffect(() => {
     async function loadBlocks() {
       const blockDirs = await efsManager.listDir(["extensions", "blocks"])

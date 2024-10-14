@@ -1,12 +1,4 @@
-import {
-  Suspense,
-  lazy,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
@@ -17,16 +9,16 @@ import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAiConfig } from "@/hooks/use-ai-config"
 import { useAIFunctions } from "@/hooks/use-ai-functions"
-import { useCurrentNode } from "@/hooks/use-current-node"
-import { useDocEditor } from "@/hooks/use-doc-editor"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
 import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
 
-import { Loading } from "../loading"
+import { Label } from "../ui/label"
+import { ScrollArea } from "../ui/scroll-area"
+import { Switch } from "../ui/switch"
 import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
+import { AIChatPromptSelect } from "./ai-chat-prompt-select"
 import { AIInputEditor } from "./ai-input-editor"
 import {
   sysPrompts,
@@ -35,23 +27,19 @@ import {
   useUserPrompts,
 } from "./hooks"
 import "./index.css"
-import { Label } from "../ui/label"
-import { ScrollArea } from "../ui/scroll-area"
-import { Switch } from "../ui/switch"
-import { AIChatPromptSelect } from "./ai-chat-prompt-select"
-import { AIChatSettings } from "./settings/ai-chat-settings"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore, useReloadModel } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
 import { useSpeak } from "./webspeech/hooks"
 
-const Whisper = lazy(() => import("./whisper"))
+// const Whisper = lazy(() => import("./whisper"))
 
 const promptKeys = Object.keys(sysPrompts).slice(0, 1)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
 export default function Chat() {
   const loadingRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
 
   const { prompts } = useUserPrompts()
   const { experiment } = useExperimentConfigStore()
@@ -64,8 +52,8 @@ export default function Chat() {
   const { aiConfig } = useAIConfigStore()
   const { progress } = useLoadingStore()
 
-  const { handleFunctionCall, handleRunCode } = useAIFunctions()
-  const functionCallHandler = getFunctionCallHandler(handleFunctionCall)
+  const { handleToolsCall, handleRunCode } = useAIFunctions()
+  const functionCallHandler = getFunctionCallHandler(handleToolsCall)
 
   const [contextNodes, setContextNodes] = useState<ITreeNode[]>([])
   const [contextEmbeddings, setContextEmbeddings] = useState<IEmbedding[]>([])
@@ -105,9 +93,15 @@ export default function Chat() {
 
   const { getConfigByModel, hasAvailableModels } = useAiConfig()
   const { messages, setMessages, reload, append, isLoading, stop } = useChat({
-    experimental_onFunctionCall: functionCallHandler as any,
+    maxToolRoundtrips: 3,
+    onToolCall: async ({ toolCall }) => {
+      const res = await handleToolsCall(toolCall.toolName, toolCall.args)
+      console.log("toolCall", toolCall, res)
+      return res
+    },
     onFinish(message) {
       autoSpeak && speak(message.content, message.id)
+      scrollToBottom()
     },
     body: {
       ...getConfigByModel(aiModel),
@@ -115,6 +109,12 @@ export default function Chat() {
       model: aiModel, // model@provider
     },
   })
+
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }
 
   useEffect(() => {
     if (isLoading && loadingRef.current) {
@@ -161,25 +161,10 @@ export default function Chat() {
 
   return (
     <div
-      className="relative flex h-full w-[400px] shrink-0 flex-col gap-2 overflow-auto border-l border-l-slate-400 p-2"
+      className="relative flex h-full w-full shrink-0 flex-col gap-2 overflow-auto p-2 pt-1"
       ref={divRef}
     >
-      <div className="flex items-center justify-center gap-2">
-        <AIChatPromptSelect
-          value={currentSysPrompt}
-          onValueChange={setCurrentSysPrompt}
-          promptKeys={promptKeys}
-          prompts={prompts}
-        />
-        <AIModelSelect
-          onValueChange={setAIModel as any}
-          value={aiModel}
-          size="xs"
-          localModels={aiConfig.localModels}
-        />
-        <AIChatSettings />
-      </div>
-      <ScrollArea className="grow border-t">
+      <ScrollArea className="grow" ref={chatContainerRef}>
         <div className="flex grow flex-col gap-2 p-3 pb-[100px]">
           {!hasAvailableModels && (
             <p className="p-2">
@@ -237,30 +222,48 @@ export default function Chat() {
               </Label>
             </div>
           )}
-          <div className="flex  w-full items-center justify-end">
-            {isLoading && (
-              <Button onClick={stop} variant="ghost" size="sm">
-                <PauseIcon className="h-5 w-5" />
-              </Button>
-            )}
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <AIChatPromptSelect
+                value={currentSysPrompt}
+                onValueChange={setCurrentSysPrompt}
+                promptKeys={promptKeys}
+                prompts={prompts}
+              />
+              <AIModelSelect
+                onValueChange={setAIModel as any}
+                value={aiModel}
+                size="xs"
+                className="max-w-[100px]"
+                localModels={aiConfig.localModels}
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              {/* <AIChatSettings /> */}
+              {isLoading && (
+                <Button onClick={stop} variant="ghost" size="sm">
+                  <PauseIcon className="h-5 w-5" />
+                </Button>
+              )}
 
-            <Suspense fallback={<Loading />}>
+              {/* <Suspense fallback={<Loading />}>
               <Whisper setText={setSpeechText} />
-            </Suspense>
-            <Button
-              variant="ghost"
-              onClick={() => reload()}
-              size="sm"
-              disabled={isLoading}
-            >
-              <RefreshCcwIcon className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" onClick={cleanMessages} size="sm">
-              <Paintbrush className="h-5 w-5" />
-            </Button>
-            {/* <Button variant="ghost" size="sm">
+            </Suspense> */}
+              <Button
+                variant="ghost"
+                onClick={() => reload()}
+                size="sm"
+                disabled={isLoading}
+              >
+                <RefreshCcwIcon className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" onClick={cleanMessages} size="sm">
+                <Paintbrush className="h-5 w-5" />
+              </Button>
+              {/* <Button variant="ghost" size="sm">
               <SendIcon className="h-5 w-5 opacity-60"></SendIcon>
             </Button> */}
+            </div>
           </div>
         </div>
         <div

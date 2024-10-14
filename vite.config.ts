@@ -1,13 +1,13 @@
+import esmShim from '@rollup/plugin-esm-shim'
 import react from "@vitejs/plugin-react"
 import fs from "fs"
 import path from "path"
 import { visualizer } from "rollup-plugin-visualizer"
 import { Plugin, PluginOption, defineConfig } from "vite"
+import electron from 'vite-plugin-electron/simple'
 import { VitePWA } from "vite-plugin-pwa"
 
-const serviceMode = process.env.EIDOS_SERVICE_MODE
-
-const isInkServiceMode = serviceMode === "ink"
+const serviceMode = process.env.EIDOS_SERVICE_MODE || 'web-app'
 
 const iconPath = path.resolve(__dirname, "icons.json")
 const iconJson = JSON.parse(fs.readFileSync(iconPath, "utf-8"))
@@ -19,7 +19,14 @@ const htmlPlugin = (): Plugin => {
     transformIndexHtml: {
       order: "pre",
       handler() {
-        const src = isInkServiceMode ? "/apps/publish/index.tsx" : "/apps/web-app/index.tsx"
+        const entryMap: {
+          [key: string]: string
+        } = {
+          "ink": "/apps/publish/index.tsx",
+          "desktop": "/apps/desktop/index.tsx",
+          "web-app": "/apps/web-app/index.tsx"
+        }
+        const src = entryMap[serviceMode]
         return [
           {
             tag: "script",
@@ -32,11 +39,34 @@ const htmlPlugin = (): Plugin => {
   }
 }
 
+const cleanDistElectron = () => {
+  const distElectronPath = path.resolve(__dirname, 'dist-electron')
+  if (fs.existsSync(distElectronPath)) {
+    fs.rmSync(distElectronPath, { recursive: true, force: true })
+  }
+}
+
+const devServerConfig = serviceMode === 'web-app' ? {
+  headers: {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+  },
+} : {}
+
+console.log('devServerConfig', devServerConfig)
+
 const config = defineConfig({
+  base: '/',
   plugins: [
     htmlPlugin(),
     react(),
-    isInkServiceMode ? null :
+    {
+      name: 'clean-dist-electron',
+      buildStart() {
+        // cleanDistElectron()
+      }
+    },
+    serviceMode === 'web-app' ?
       VitePWA({
         srcDir: "apps/web-app",
         filename: "sw.ts",
@@ -77,7 +107,65 @@ const config = defineConfig({
           enabled: true,
           type: "module",
         },
-      }),
+      }) : null,
+    serviceMode === 'desktop' ?
+      electron({
+        main: {
+          // Shortcut of `build.lib.entry`
+          entry: 'electron/main.ts',
+          vite: {
+            resolve: {
+              alias: {
+                "@": path.resolve(__dirname, "./"),
+              },
+            },
+            build: {
+              rollupOptions: {
+                plugins: [
+                  // resolve({
+                  //   preferBuiltins: true,
+                  //   extensions: ['.js', '.json', '.node']
+                  // }) as any,
+                  // commonjs({
+                  //   include: 'node_modules/**',
+                  //   dynamicRequireTargets: [
+                  //     // specify the paths to the native modules
+                  //     'node_modules/better-sqlite3/**/*'
+                  //   ]
+                  // }),
+                  esmShim() as any,
+                ],
+                external: [
+                  'better-sqlite3', // Treat better-sqlite3 as external module
+                ]
+              },
+            },
+          }
+        },
+        preload: {
+          input: 'electron/preload.ts',
+          vite: {
+            resolve: {
+              alias: {
+                "@": path.resolve(__dirname, "./"),
+              },
+            },
+            build: {
+              rollupOptions: {
+                output: {
+                  format: 'es',
+                  inlineDynamicImports: true,
+                  entryFileNames: '[name].mjs',
+                  chunkFileNames: '[name].mjs',
+                  assetFileNames: '[name].[ext]',
+                },
+              },
+            },
+          },
+        },
+        // Optional: Use Node.js API in the Renderer process
+        // renderer: {},
+      }) : null,
     visualizer({
       gzipSize: true,
       brotliSize: true,
@@ -86,18 +174,28 @@ const config = defineConfig({
       open: true,
     }) as unknown as PluginOption,
   ],
+  build: {
+    rollupOptions: {
+      external: ['electron'],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./"),
+      'csv-parse/sync': serviceMode === 'desktop' ? 'csv-parse/sync' : 'csv-parse/browser/esm',
+      'csv-stringify/sync': serviceMode === 'desktop' ? 'csv-stringify/sync' : 'csv-stringify/browser/esm',
     },
   },
   server: {
-    headers: {
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-    },
+    ...devServerConfig,
     proxy: {
       "/server/api": "http://localhost:8788",
+      "/api/chat": "http://localhost:13127",
+      '^/[^/]+/files/[^/]+$': {
+        target: 'http://localhost:13127',
+        changeOrigin: true,
+        rewrite: (path) => path, // 保持路径不变
+      },
     },
   },
   optimizeDeps: {

@@ -1,12 +1,11 @@
 import { useEmbedding } from "@/hooks/use-embedding"
-import { EmbeddingManager, useHnsw } from "@/hooks/use-hnsw"
-import { LLMBaseVendor } from "@/lib/ai/llm_vendors/base"
+import { EmbeddingManager } from "@/hooks/use-hnsw"
 import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { getSqliteProxy } from "@/lib/sqlite/channel"
-import { efsManager } from "@/lib/storage/eidos-file-system"
+import { EidosFileSystemManager } from "@/lib/storage/eidos-file-system"
 
 const needRemovedPaths = ["resolve", "main"]
-export const saveTransformerCache = async () => {
+export const saveTransformerCache = (efsManager: EidosFileSystemManager) => async () => {
   const cache = await caches.open("transformers-cache")
   const allKeys = await cache.keys()
   for (const key of allKeys) {

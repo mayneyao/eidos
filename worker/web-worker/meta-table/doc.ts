@@ -5,6 +5,7 @@ import { MsgType } from "@/lib/const"
 import { DocTableName } from "@/lib/sqlite/const"
 
 import { BaseTable, BaseTableImpl } from "./base"
+import { _convertMarkdown2State } from "@/hooks/use-doc-editor"
 
 declare var self: DedicatedWorkerGlobalScope
 
@@ -17,38 +18,12 @@ export interface IDoc {
   updated_at?: string
 }
 
-/**
- * for now lexical's code node depends on the browser's dom, so we can't use lexical in worker.
- * wait for lexical improve code node to support worker
- * @param type
- * @param data
- * @returns
- */
-const callMain = (
-  type:
-    | MsgType.GetDocMarkdown
-    | MsgType.ConvertMarkdown2State
-    | MsgType.ConvertHtml2State
-    | MsgType.ConvertEmail2State,
-  data: any
-) => {
-  const channel = new MessageChannel()
-  self.postMessage(
-    {
-      type,
-      data,
-    },
-    [channel.port2]
-  )
-  return new Promise((resolve) => {
-    channel.port1.onmessage = (event) => {
-      resolve(event.data)
-    }
-  })
-}
 
-export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
+export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
   name = DocTableName
+  createFTSSql = this.dataSpace.hasLoadExtension ? `
+  CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}',tokenize = 'simple');
+  `: `CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}');`
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${this.name} (
     id TEXT PRIMARY KEY,
@@ -66,9 +41,7 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   BEGIN
     UPDATE ${this.name} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
   END;
-
-  CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}',);
-    
+    ${this.createFTSSql}    
   CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_ai AFTER INSERT ON ${this.name} BEGIN
     INSERT INTO fts_docs(rowid,id, markdown) VALUES (new.rowid, new.id, new.markdown);
   END;
@@ -83,7 +56,44 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   END;
 `
 
-  async rebuildIndex(refillNullMarkdown: boolean = false) {
+  /**
+   * for now lexical's code node depends on the browser's dom, so we can't use lexical in worker.
+   * wait for lexical improve code node to support worker
+   * @param type
+   * @param data
+   * @returns
+   */
+  callMain = (
+    type:
+      | MsgType.GetDocMarkdown
+      | MsgType.ConvertMarkdown2State
+      | MsgType.ConvertHtml2State
+      | MsgType.ConvertEmail2State,
+    data: any
+  ) => {
+    return this.dataSpace.callRenderer?.(type, data)
+  }
+
+  async rebuildIndex(opts: {
+    refillNullMarkdown?: boolean;
+    recreateFtsTable?: boolean;
+  }) {
+    const { refillNullMarkdown, recreateFtsTable } = opts;
+
+    if (recreateFtsTable) {
+      // Drop triggers first
+      await this.dataSpace.db.exec(`
+        DROP TRIGGER IF EXISTS ${this.name}_ai;
+        DROP TRIGGER IF EXISTS ${this.name}_ad;
+        DROP TRIGGER IF EXISTS ${this.name}_au;
+      `);
+      // Then drop the FTS table
+      await this.dataSpace.exec2(`DROP TABLE IF EXISTS fts_docs;`);
+      // Recreate the FTS table
+      await this.dataSpace.exec2(this.createFTSSql);
+      console.log(`Recreated fts_docs table and triggers for ${this.dataSpace.dbName}`);
+    }
+
     await this.dataSpace.exec2(
       `INSERT INTO fts_docs(fts_docs) VALUES('rebuild');`
     )
@@ -139,8 +149,9 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
 
   async getMarkdown(id: string): Promise<string> {
     const doc = await this.get(id)
-    const res = await callMain(MsgType.GetDocMarkdown, doc?.content)
-    return res as string
+    return doc?.markdown || ""
+    // const res = await callMain(MsgType.GetDocMarkdown, doc?.content)
+    // return res as string
   }
 
   async getBaseInfo(id: string): Promise<Partial<IDoc>> {
@@ -153,7 +164,7 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
 
   async search(query: string): Promise<{ id: string; result: string }[]> {
     const res = await this.dataSpace.exec2(
-      `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',8) as result FROM fts_docs(?);`,
+      `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',127) as result FROM fts_docs(?);`,
       [query]
     )
     // it seems that the result is in reverse order, user care about the latest result.
@@ -162,7 +173,7 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
   }
 
   async createOrUpdateWithMarkdown(id: string, mdStr: string) {
-    const content = (await callMain(
+    const content = (await this.callMain(
       MsgType.ConvertMarkdown2State,
       mdStr
     )) as string
@@ -178,29 +189,29 @@ export class DocTable extends BaseTableImpl implements BaseTable<IDoc> {
     const { id, text, type, mode = "replace" } = data
     switch (type) {
       case "html":
-        const content = (await callMain(
+        const content = (await this.callMain(
           MsgType.ConvertHtml2State,
           text
         )) as string
 
-        const markdown = (await callMain(
+        const markdown = (await this.callMain(
           MsgType.GetDocMarkdown,
           content
         )) as string
         return this._createOrUpdate(id, content, markdown, mode)
 
       case "markdown":
-        const content2 = (await callMain(
+        const content2 = (await this.callMain(
           MsgType.ConvertMarkdown2State,
           text
         )) as string
         return this._createOrUpdate(id, content2, text as string, mode)
       case "email":
-        const content3 = (await callMain(MsgType.ConvertEmail2State, {
+        const content3 = (await this.callMain(MsgType.ConvertEmail2State, {
           space: this.dataSpace.dbName,
           email: text,
         })) as string
-        const markdown3 = (await callMain(
+        const markdown3 = (await this.callMain(
           MsgType.GetDocMarkdown,
           content3
         )) as string

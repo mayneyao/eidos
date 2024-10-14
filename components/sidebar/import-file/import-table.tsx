@@ -14,7 +14,10 @@ export const ImportTable = ({
   const goto = useGoto()
 
   const handleCreateTable = async (file: File) => {
-    const tableId = await sqlite?.importCsv(file)
+    const tableId = await sqlite?.importCsv({
+      name: file.name,
+      content: await file.text(),
+    })
     if (tableId) {
       setOpen(false)
       goto(space, tableId)

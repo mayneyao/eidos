@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 
-import { efsManager } from "@/lib/storage/eidos-file-system"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { registerPeriodicSync } from "@/hooks/use-register-period-sync"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -80,6 +80,7 @@ const defaultValues: Partial<BackupServerFormValues> = {
 export function BackupServerForm() {
   const { backupServer, setBackupServer } = useConfigStore()
 
+  const { efsManager } = useEidosFileSystemManager()
   const form = useForm<BackupServerFormValues>({
     resolver: zodResolver(backupServerFormSchema),
     defaultValues: {

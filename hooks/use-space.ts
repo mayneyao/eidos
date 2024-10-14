@@ -1,16 +1,26 @@
 import { useCallback, useEffect } from "react"
 
+import { useLastOpened } from "@/apps/web-app/[database]/hook"
 import { MsgType } from "@/lib/const"
 import { getWorker } from "@/lib/sqlite/worker"
-import { spaceFileSystem } from "@/lib/storage/space"
+import { SpaceFileSystem } from "@/lib/storage/space"
 import { uuidv7 } from "@/lib/utils"
-import { useLastOpened } from "@/apps/web-app/[database]/hook"
 
-import { useSqliteStore } from "./use-sqlite"
+import { isDesktopMode } from "@/lib/env"
+import { useSqlite, useSqliteStore } from "./use-sqlite"
+
+export const useSpaceFileSystem = () => {
+  const spaceFileSystem = isDesktopMode
+    ? window.eidos.spaceFileSystem
+    : new SpaceFileSystem()
+  return { spaceFileSystem }
+}
 
 export const useSpace = () => {
   const { setSpaceList, spaceList } = useSqliteStore()
+  const { sqlite } = useSqlite()
   const { setLastOpenedDatabase } = useLastOpened()
+  const { spaceFileSystem } = useSpaceFileSystem()
   const updateSpaceList = useCallback(async () => {
     const spaceNames = await spaceFileSystem.list()
     setSpaceList(spaceNames)
@@ -33,32 +43,43 @@ export const useSpace = () => {
     [setLastOpenedDatabase, updateSpaceList]
   )
 
-  const createSpace = useCallback(async (spaceName: string) => {
-    const msgId = uuidv7()
-    const worker = getWorker()
-
-    const channel = new MessageChannel()
-    worker.postMessage(
-      {
-        type: MsgType.CreateSpace,
-        data: {
-          spaceName,
-        },
-        id: msgId,
-      },
-      [channel.port2]
-    )
-
-    await spaceFileSystem.create(spaceName)
-    return new Promise((resolve) => {
-      channel.port1.onmessage = (e) => {
-        if (e.data.id === msgId) {
-          resolve(e.data.data)
-        }
-        // close the channel
-        channel.port1.close()
-      }
+  const rebuildIndex = useCallback(async () => {
+    await sqlite?.doc.rebuildIndex({
+      recreateFtsTable: true
     })
+  }, [])
+
+  const createSpace = useCallback(async (spaceName: string) => {
+    await spaceFileSystem.create(spaceName)
+
+    if (isDesktopMode) {
+      const res = await window.eidos.invoke(MsgType.CreateSpace, { spaceName })
+      return res
+    } else {
+      const msgId = uuidv7()
+      const worker = getWorker()
+
+      const channel = new MessageChannel()
+      worker.postMessage(
+        {
+          type: MsgType.CreateSpace,
+          data: {
+            spaceName,
+          },
+          id: msgId,
+        },
+        [channel.port2]
+      )
+      return new Promise((resolve) => {
+        channel.port1.onmessage = (e) => {
+          if (e.data.id === msgId) {
+            resolve(e.data.data)
+          }
+          // close the channel
+          channel.port1.close()
+        }
+      })
+    }
   }, [])
 
   return {
@@ -67,5 +88,6 @@ export const useSpace = () => {
     createSpace,
     exportSpace,
     deleteSpace,
+    rebuildIndex
   }
 }

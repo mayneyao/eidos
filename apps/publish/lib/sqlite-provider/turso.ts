@@ -1,5 +1,5 @@
+import { BaseServerDatabase } from "@/lib/sqlite/interface"
 import { Client, createClient } from "@libsql/client/web"
-import { BaseServerDatabase } from "./base";
 
 
 export interface TursoDomainDbInfo {

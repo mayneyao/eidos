@@ -1,14 +1,19 @@
 {
   "name": "eidos",
-  "version": "0.6.3",
+  "version": "0.7.6",
   "private": true,
   "type": "module",
+  "description": "Eidos is an extensible framework for managing your personal data throughout your lifetime in one place.",
+  "author": "mayneyao",
   "scripts": {
     "dev": "vite",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
     "build": "pnpm recursive run build && tsc && vite build",
     "build:self-host": "pnpm recursive run build && tsc && vite build --mode self-host",
-    "dev:ink": "EIDOS_SERVICE_MODE=ink vite --mode ink",
-    "build:ink": "pnpm recursive run build && tsc && EIDOS_SERVICE_MODE=ink vite build --mode ink && pnpm build:cf-worker",
+    "dev:ink": "cross-env EIDOS_SERVICE_MODE=ink vite --mode ink",
+    "dev:desktop": "cross-env EIDOS_SERVICE_MODE=desktop vite --mode desktop",
+    "build:ink": "pnpm recursive run build && tsc && cross-env EIDOS_SERVICE_MODE=ink vite build --mode ink && pnpm build:cf-worker",
+    "build:desktop": "pnpm recursive run build && tsc && cross-env EIDOS_SERVICE_MODE=desktop vite build --mode desktop",
     "build:cf-worker": "node scripts/build-cf-worker.cjs",
     "build:cf-worker-do": "node scripts/build-cf-worker-do.cjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
@@ -20,7 +25,70 @@
     "patch": "node scripts/version.cjs patch",
     "minor": "node scripts/version.cjs minor",
     "major": "node scripts/version.cjs major",
-    "test": "vitest"
+    "test": "vitest",
+    "start-electron": "electron .",
+    "pkg:desktop": "cross-env BUILD_MODE=1 electron-builder --publish never",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "start": "electron .",
+  "main": "dist-electron/main.js",
+  "build": {
+    "appId": "space.eidos.desktop",
+    "productName": "Eidos",
+    "directories": {
+      "output": "dist-app"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "mayneyao",
+        "repo": "eidos",
+        "releaseType": "prerelease"
+      }
+    ],
+    "npmRebuild": true,
+    "generateUpdatesFilesForAllChannels": true,
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "dist-simple/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist-simple",
+        "to": "dist-simple",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "dist/512.png"
+    },
+    "afterSign": "scripts/notarize.cjs",
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "dist/logo.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "electron/build/entitlements.mac.plist",
+      "entitlementsInherit": "electron/build/entitlements.mac.plist",
+      "notarize": false
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "zip"
+      ]
+    }
   },
   "dependencies": {
     "@ai-sdk/openai": "^0.0.45",
@@ -31,6 +99,7 @@
     "@floating-ui/react": "^0.26.13",
     "@glideapps/glide-data-grid": "^6.0.0",
     "@google/generative-ai": "^0.1.3",
+    "@hono/node-server": "^1.12.2",
     "@hookform/resolvers": "^3.1.1",
     "@lexical/clipboard": "^0.17.0",
     "@lexical/code": "^0.17.0",
@@ -86,16 +155,26 @@
     "ai": "^3.3.6",
     "aws-sdk": "^2.1526.0",
     "aws4fetch": "^1.0.17",
+    "better-sqlite3": "^11.2.1",
+    "bindings": "^1.5.0",
     "bufferutil": "^4.0.7",
     "class-variance-authority": "^0.4.0",
     "cmdk": "^0.2.0",
+    "csv-parse": "^5.5.6",
+    "csv-stringify": "^6.5.1",
     "d3": "^7.8.5",
     "date-fns": "^2.30.0",
     "dnd-core": "^16.0.1",
+    "electron-log": "^5.2.0",
+    "electron-updater": "^6.3.9",
     "emoji-mart": "^5.5.2",
     "eventemitter3": "^5.0.1",
+    "express": "^4.19.2",
+    "file-uri-to-path": "^2.0.0",
+    "fs-un": "^0.3.1",
     "gpt-tokenizer": "^2.1.1",
     "hnswlib-wasm": "^0.8.2",
+    "hono": "^4.5.11",
     "html2canvas": "^1.4.1",
     "idb-keyval": "^6.2.1",
     "immutability-helper": "^3.1.1",
@@ -110,6 +189,7 @@
     "mime-db": "^1.53.0",
     "monaco-editor": "^0.44.0",
     "moo": "^0.5.2",
+    "native-file-system-adapter": "^3.0.1",
     "next-themes": "^0.2.1",
     "openai": "^4.16.1",
     "papaparse": "^5.4.1",
@@ -141,7 +221,6 @@
     "uuid": "^9.0.0",
     "uuidv7": "^1.0.1",
     "vaul": "^0.8.0",
-    "whisper-turbo": "workspace:*",
     "workbox-precaching": "^7.0.0",
     "ws": "^8.13.0",
     "yjs": "^13.6.6",
@@ -152,9 +231,14 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240806.0",
     "@ianvs/prettier-plugin-sort-imports": "^3.7.2",
+    "@rollup/plugin-commonjs": "^26.0.1",
+    "@rollup/plugin-esm-shim": "^0.1.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
     "@tailwindcss/typography": "^0.5.9",
     "@testing-library/react-hooks": "^8.0.1",
+    "@types/better-sqlite3": "^7.6.11",
     "@types/d3": "^7.4.0",
+    "@types/express": "^4.17.21",
     "@types/lodash": "^4.14.195",
     "@types/mime-db": "^1.43.5",
     "@types/mime-types": "^2.1.4",
@@ -173,6 +257,10 @@
     "autoprefixer": "^10.4.14",
     "clsx": "^1.2.1",
     "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "electron": "^32.0.1",
+    "electron-builder": "^24.13.3",
+    "electron-notarize": "^1.2.2",
     "esbuild": "^0.23.0",
     "eslint": "^8.44.0",
     "eslint-config-prettier": "^8.8.0",
@@ -193,6 +281,7 @@
     "tsx": "^3.12.7",
     "typescript": "^5.3.3",
     "vite": "^5.4.0",
+    "vite-plugin-electron": "^0.28.7",
     "vite-plugin-pwa": "^0.20.1",
     "vitest": "^2.0.3",
     "workbox-window": "^7.0.0"

@@ -1,24 +1,28 @@
 // @ts-nocheck
-import { ScalarFunctionOptions, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
+import { ScalarFunctionOptions } from "@sqlite.org/sqlite-wasm"
 import { v4 } from "uuid"
 import { uuidv7 as v7 } from "uuidv7"
 
 import {
   DataUpdateSignalType,
-  EidosDataEventChannelMsgType,
-  EidosDataEventChannelName,
+  EidosDataEventChannelMsgType
 } from "@/lib/const.ts"
 
-const bc = new BroadcastChannel(EidosDataEventChannelName)
 
-export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
-  const sjac = sqlite3.capi.sqlite3_js_aggregate_context
-  const wasm = sqlite3.wasm
-  const capi = sqlite3.capi
-
+export const withSqlite3AllUDF = (bc: {
+  postMessage: (data: any) => void
+}) => {
   const twice: ScalarFunctionOptions = {
     name: "twice",
     xFunc: function (pCx, arg) {
+      return arg + arg
+    },
+    deterministic: true,
+  }
+
+  const twiceNoCtx = {
+    name: "twice",
+    xFunc: function (arg) {
       return arg + arg
     },
     deterministic: true,
@@ -32,17 +36,27 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     deterministic: true,
   }
 
+  const propsNoCtx = {
+    name: "props",
+    xFunc: function (arg) {
+      return arg
+    },
+    deterministic: true,
+  }
+
   const today = {
     name: "today",
     xFunc: function (pCx) {
       return new Date().toISOString().slice(0, 10)
     },
-    /**
-     * WARN: we trick the sqlite3 to think this function is deterministic,
-     * let this function can be used in generated column
-     * BUT this function is not deterministic, it's maybe dangerous
-     * more info: https://www.sqlite.org/deterministic.html
-     */
+    deterministic: true,
+  }
+
+  const todayNoCtx = {
+    name: "today",
+    xFunc: function () {
+      return new Date().toISOString().slice(0, 10)
+    },
     deterministic: true,
   }
 
@@ -53,6 +67,15 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     },
     deterministic: false,
   }
+
+  const uuidv4NoCtx = {
+    name: "uuidv4",
+    xFunc: function () {
+      return v4()
+    },
+    deterministic: false,
+  }
+
   const uuidv7 = {
     name: "uuidv7",
     xFunc: function (pCx) {
@@ -61,33 +84,32 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     deterministic: false,
   }
 
-  // const filterAll = {
-  //   name: "filterAll",
-  //   xStep: function (pCtx, ...args) {
-  //     console.log(pCtx, args)
-  //     const ac = sjac(pCtx, 4)
-  //     let res = wasm.peek32(ac)
-  //     res = args.every((arg) => Boolean(arg))
-  //     wasm.poke32(ac, res)
-  //   },
-  //   xFinal: (pCtx) => {
-  //     const ac = sjac(pCtx, 0)
-  //     capi.sqlite3_result_int(pCtx, ac ? wasm.peek32(ac) : 0)
-  //     // capi.sqlite3_result_int(pCtx, ac ? wasm.peek32(ac) : 0)
-  //     // xFinal() may either return its value directly or call
-  //     // sqlite3_result_xyz() and return undefined. Both are
-  //     // functionally equivalent.
-  //   },
-  //   arity: -1,
-  //   opt: {
-  //     deterministic: true,
-  //   },
-  // }
+  const uuidv7NoCtx = {
+    name: "uuidv7",
+    xFunc: function () {
+      return v7()
+    },
+    deterministic: false,
+  }
 
-  // user defined function to handle data event
   const eidos_data_event_update = {
     name: "eidos_data_event_update",
     xFunc: function (pCx, table, _new, _old) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.Update,
+          table,
+          _new: JSON.parse(_new),
+          _old: JSON.parse(_old),
+        },
+      })
+    },
+  }
+
+  const eidos_data_event_updateNoCtx = {
+    name: "eidos_data_event_update",
+    xFunc: function (table, _new, _old) {
       bc.postMessage({
         type: EidosDataEventChannelMsgType.DataUpdateSignalType,
         payload: {
@@ -114,6 +136,20 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     },
   }
 
+  const eidos_data_event_insertNoCtx = {
+    name: "eidos_data_event_insert",
+    xFunc: function (table, _new) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.Insert,
+          table,
+          _new: JSON.parse(_new),
+        },
+      })
+    },
+  }
+
   const eidos_data_event_delete = {
     name: "eidos_data_event_delete",
     xFunc: function (pCx, table, _old) {
@@ -128,9 +164,37 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     },
   }
 
+  const eidos_data_event_deleteNoCtx = {
+    name: "eidos_data_event_delete",
+    xFunc: function (table, _old) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.Delete,
+          table,
+          _old: JSON.parse(_old),
+        },
+      })
+    },
+  }
+
   const eidos_column_event_insert = {
     name: "eidos_column_event_insert",
     xFunc: function (pCx, table, _new) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.AddColumn,
+          table,
+          _new: JSON.parse(_new),
+        },
+      })
+    },
+  }
+
+  const eidos_column_event_insertNoCtx = {
+    name: "eidos_column_event_insert",
+    xFunc: function (table, _new) {
       bc.postMessage({
         type: EidosDataEventChannelMsgType.DataUpdateSignalType,
         payload: {
@@ -157,9 +221,38 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     },
   }
 
+  const eidos_column_event_updateNoCtx = {
+    name: "eidos_column_event_update",
+    xFunc: function (table, _new, _old) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.UpdateColumn,
+          table,
+          _new: JSON.parse(_new),
+          _old: JSON.parse(_old),
+        },
+      })
+    },
+  }
+
   const eidos_meta_table_event_insert = {
     name: "eidos_meta_table_event_insert",
     xFunc: function (pCx, table, _new) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.MetaTableUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.Insert,
+          table,
+          _new: JSON.parse(_new),
+        },
+      })
+    },
+  }
+
+  const eidos_meta_table_event_insertNoCtx = {
+    name: "eidos_meta_table_event_insert",
+    xFunc: function (table, _new) {
       bc.postMessage({
         type: EidosDataEventChannelMsgType.MetaTableUpdateSignalType,
         payload: {
@@ -177,16 +270,27 @@ export const withSqlite3AllUDF = (sqlite3: Sqlite3Static) => {
     today,
     uuidv4,
     uuidv7,
-    // filterAll,
     eidos_data_event_update,
     eidos_data_event_insert,
     eidos_data_event_delete,
-
-    // column
     eidos_column_event_insert,
     eidos_column_event_update,
-    // meta table
     eidos_meta_table_event_insert,
   ]
-  return ALL_UDF
+
+  const ALL_UDF_NO_CTX = [
+    twiceNoCtx,
+    propsNoCtx,
+    todayNoCtx,
+    uuidv4NoCtx,
+    uuidv7NoCtx,
+    eidos_data_event_updateNoCtx,
+    eidos_data_event_insertNoCtx,
+    eidos_data_event_deleteNoCtx,
+    eidos_column_event_insertNoCtx,
+    eidos_column_event_updateNoCtx,
+    eidos_meta_table_event_insertNoCtx,
+  ]
+
+  return { ALL_UDF, ALL_UDF_NO_CTX }
 }

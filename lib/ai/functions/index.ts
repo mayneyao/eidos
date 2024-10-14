@@ -8,7 +8,7 @@ import { startRecorder, stopRecorder } from "./recorder"
 import saveFile2EFS from "./save-file"
 import sqlQuery from "./sql-query"
 
-const allFunctions = [
+export const allFunctions = [
   sqlQuery,
   createDoc,
   // createQuickAction,

@@ -60,6 +60,7 @@ export enum DataUpdateSignalType {
 
 export const EidosDataEventChannelName = "eidos-data-event"
 export const EidosSharedEnvChannelName = "eidos-shared-env"
+export const EidosMessageChannelName = "eidos-message"
 
 // TODO: replace hard-coded link
 export const DOMAINS = {

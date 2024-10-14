@@ -1,5 +1,6 @@
 import { toast } from "@/components/ui/use-toast"
 import { MsgType } from "@/lib/const"
+import type { IpcRenderer } from 'electron';
 
 export interface ISqlite<T, D> {
   connector: T
@@ -19,14 +20,16 @@ export interface ILocalSendData {
   id: string
 }
 
-export class LocalSqlite implements ISqlite<Worker, ILocalSendData> {
-  connector: Worker
+export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData> {
+  connector: Worker | IpcRenderer
   channel: MessageChannel
   channelMap: Map<string, MessageChannel>
-  constructor(connector: Worker) {
+  dataMap: Map<string, any>
+  constructor(connector: Worker | IpcRenderer) {
     this.connector = connector
     this.channel = new MessageChannel()
     this.channelMap = new Map()
+    this.dataMap = new Map()
   }
 
   getChannel(id: string) {
@@ -45,7 +48,11 @@ export class LocalSqlite implements ISqlite<Worker, ILocalSendData> {
     const msgId = data.id
     const channel = new MessageChannel()
     this.channelMap.set(msgId, channel)
-    return this.connector.postMessage(data, [channel.port2])
+    if (this.connector instanceof Worker) {
+      this.connector.postMessage(data, [channel.port2])
+    } else {
+      return this.connector.invoke('sqlite-msg', data)
+    }
   }
   onCallBack(thisCallId: string) {
     return new Promise((resolve, reject) => {

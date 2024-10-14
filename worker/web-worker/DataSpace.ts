@@ -1,7 +1,6 @@
-import { BaseServerDatabase } from "@/apps/publish/lib/sqlite-provider/base"
 import { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm"
 
-import { MsgType } from "@/lib/const"
+import { EidosDataEventChannelName, MsgType } from "@/lib/const"
 import { FieldType } from "@/lib/fields/const"
 import { logger } from "@/lib/env"
 import { ColumnTableName } from "@/lib/sqlite/const"
@@ -45,6 +44,7 @@ import { ViewTable } from "./meta-table/view"
 import { RowsManager } from "./sdk/rows"
 import { TableManager } from "./sdk/table"
 import { withSqlite3AllUDF } from "./udf"
+import { BaseServerDatabase } from "@/lib/sqlite/interface"
 
 export type EidosTable =
   | DocTable
@@ -56,8 +56,11 @@ export type EidosTable =
   | EmbeddingTable
   | FileTable
 
+
+export type EidosDatabase = Database | BaseServerDatabase
+
 export class DataSpace {
-  db: Database
+  db: EidosDatabase
   draftDb: DataSpace | undefined
   sqlite3: Sqlite3Static | undefined
   undoRedoManager: SQLiteUndoRedo
@@ -76,28 +79,68 @@ export class DataSpace {
   dataChangeTrigger: DataChangeTrigger
   linkRelationUpdater: LinkRelationUpdater
   allTables: BaseTable<any>[] = []
+  hasLoadExtension = false
+  // worker to main thread
+  postMessage?: (data: any, transfer?: any[]) => void
+  callRenderer?: (type: any, data: any) => Promise<any>
+  // channel broadcast
+  dataEventChannel: {
+    postMessage: (data: any) => void
+  }
 
   // for trigger
   eventHandler: DataChangeEventHandler
+  efsManager?: EidosFileSystemManager
 
   // for auto migration
   hasMigrated = false
   constructor(config: {
-    db: Database
+    db: EidosDatabase
     activeUndoManager: boolean
     dbName: string
     context: {
       setInterval?: typeof setInterval
     }
-    createUDF?: (db: Database) => void,
+    hasLoadExtension?: boolean
+    createUDF?: (db: EidosDatabase) => void,
     sqlite3?: Sqlite3Static
     draftDb?: DataSpace
+    postMessage?: (data: any, transfer?: any[]) => void
+    callRenderer?: (type: any, data: any) => Promise<any>
+    efsManager?: EidosFileSystemManager
+    dataEventChannel?: {
+      postMessage: (data: any) => void
+    }
   }) {
-    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF } = config
+    const { db, activeUndoManager, dbName, sqlite3, draftDb, context, createUDF, postMessage, efsManager, dataEventChannel, hasLoadExtension, callRenderer } = config
     this.db = db
+
+    this.hasLoadExtension = Boolean(hasLoadExtension)
+    if (dataEventChannel) {
+      this.dataEventChannel = dataEventChannel
+    } else {
+      this.dataEventChannel = new BroadcastChannel(EidosDataEventChannelName)
+    }
+
+    if (callRenderer) {
+      this.callRenderer = callRenderer
+    } else {
+      this.callRenderer = (type: any, data: any) => {
+        const channel = new MessageChannel()
+        self.postMessage({ type, data }, [channel.port2])
+        return new Promise((resolve) => {
+          channel.port1.onmessage = (event) => {
+            resolve(event.data)
+          }
+        })
+      }
+    }
     this.sqlite3 = sqlite3
     this.draftDb = draftDb
     this.dbName = dbName
+    this.postMessage = postMessage
+    this.efsManager = efsManager
+
     this.initUDF()
     this.eventHandler = new DataChangeEventHandler(this)
     this.dataChangeTrigger = new DataChangeTrigger()
@@ -151,19 +194,22 @@ export class DataSpace {
   }
 
   private initUDF() {
-    if (!this.sqlite3) {
-      return
-    }
-    const allUfs = withSqlite3AllUDF(this.sqlite3)
+    const allUfs = withSqlite3AllUDF(this.dataEventChannel)
     // system functions
-    allUfs.forEach((udf) => {
-      this.db.createFunction(udf as any)
-    })
+    if (this.db instanceof BaseServerDatabase) {
+      allUfs.ALL_UDF_NO_CTX.forEach((udf) => {
+        this.db.createFunction(udf as any)
+      })
+    } else {
+      allUfs.ALL_UDF.forEach((udf) => {
+        this.db.createFunction(udf as any)
+      })
+    }
   }
 
   private initMetaTable() {
     this.allTables.forEach((table) => {
-      this.exec(table.createTableSql)
+      this.db.exec(table.createTableSql);
     })
   }
 
@@ -533,7 +579,7 @@ export class DataSpace {
 
   // docs
   public async rebuildIndex(refillNullMarkdown: boolean = false) {
-    await this.doc.rebuildIndex(refillNullMarkdown)
+    await this.doc.rebuildIndex({ refillNullMarkdown })
   }
 
   @timeit(100)
@@ -667,16 +713,18 @@ export class DataSpace {
     // FIXME: should use db transaction to execute multiple sql
     this.db.transaction(async (db) => {
       await this.addTreeNode({ id, name, type: "table", parent_id })
-      db.exec({
-        sql: tableSchema,
-      })
+      db.exec(tableSchema)
       // create view for table
       await this.createDefaultView(id)
     })
   }
 
-  public async importCsv(file: File) {
+  public async importCsv(file: {
+    name: string
+    content: string
+  }) {
     const csvImport = new CsvImportAndExport()
+    console.log("importing csv file", file)
     const tableId = await csvImport.import(file, this)
     return tableId
   }
@@ -686,7 +734,10 @@ export class DataSpace {
     return await csvImport.export(tableId, this)
   }
 
-  public async importMarkdown(file: File) {
+  public async importMarkdown(file: {
+    name: string
+    content: string
+  }) {
     const markdownImport = new MarkdownImportAndExport()
     const nodeId = await markdownImport.import(file, this)
     return nodeId
@@ -747,13 +798,23 @@ export class DataSpace {
     //   sql,
     //   bind
     // )
-    if (this.db instanceof BaseServerDatabase) {
-      return this.db.exec({
-        sql,
-        bind,
-        returnValue: "resultRows",
-        rowMode: "object",
-      })
+    if (db instanceof BaseServerDatabase) {
+      try {
+        return db.exec({
+          sql,
+          bind,
+          returnValue: "resultRows",
+          rowMode: "object",
+        })
+      } catch (error: any) {
+        if (error.toString().includes("SqliteError")) {
+          this.notify({
+            title: "SqliteError",
+            description: error.toString(),
+          })
+        }
+        console.log(error)
+      }
     }
     db.exec({
       sql,
@@ -769,11 +830,14 @@ export class DataSpace {
   // FIXME: there are some problem with headless lexical run in worker
   // return markdown string, compute in worker
   // public async asyncGetDocMarkdown(docId: string) {
-  //   return await getDocMarkdown(this.dbName, docId)
+  //   const doc = await this.doc.get(docId)
+  //   if (!doc) {
+  //     throw new Error(`doc ${docId} not found`)
+  //   }
+  //   return await _getDocMarkdown(doc.markdown)
   // }
   // return object array
   public async exec2(sql: string, bind: any[] = []) {
-    console.log('exec2', sql, bind)
     return this.syncExec2(sql, bind)
   }
 
@@ -992,7 +1056,7 @@ export class DataSpace {
     } catch (error: any) {
       logger.error(error)
       logger.error({ sql, bind })
-      postMessage({
+      this.postMessage?.({
         type: MsgType.Error,
         data: {
           message: error.message,
@@ -1081,7 +1145,7 @@ export class DataSpace {
   }
 
   public onUpdate() {
-    postMessage({
+    this.postMessage?.({
       type: MsgType.DataUpdateSignal,
       data: {
         database: this.dbName,
@@ -1091,14 +1155,15 @@ export class DataSpace {
   }
 
   public notify(msg: { title: string; description: string }) {
-    postMessage({
+    this.postMessage?.({
       type: MsgType.Notify,
       data: msg,
     })
   }
 
   public blockUIMsg(msg: string | null, data?: Record<string, any>) {
-    postMessage({
+    console.log("blockUIMsg", msg, data)
+    this.postMessage?.({
       type: MsgType.BlockUIMsg,
       data: {
         msg,

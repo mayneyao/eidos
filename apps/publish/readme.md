@@ -1,4 +1,4 @@
-# Eidos Publish
+# Eidos Publish [WIP]
 
 We reused most of the code from apps/web-app, with only layout differences. Publish is a read-only site, also known as `ink` mode. It reads data from a remote database instead of a local sqlite database. see: [lib/sqlite/channel/readme.md](../../lib/sqlite/channel/readme.md)
 

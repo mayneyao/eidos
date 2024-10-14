@@ -11,7 +11,7 @@ export default async function handle(event: FetchEvent) {
     case "google":
       return handleGoogleAI(data)
     case "openai":
-      return handleOpenAI(data, { useFunctions: false })
+      return handleOpenAI(data)
     default:
       // local model
       return handleWebLLM(data)

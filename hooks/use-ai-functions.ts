@@ -2,11 +2,11 @@ import { useCallback } from "react"
 import { v4 as uuidV4 } from "uuid"
 
 import { getCodeFromMarkdown } from "@/lib/markdown"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 import { getUuid, uuidv7 } from "@/lib/utils"
 import { startRecorder, stopRecorder } from "@/lib/web/recorder"
 
 import { useCurrentPathInfo } from "./use-current-pathinfo"
+import { useEidosFileSystemManager } from "./use-fs"
 import { useSqlite } from "./use-sqlite"
 import { useTableOperation } from "./use-table"
 
@@ -17,6 +17,7 @@ export const useAIFunctions = () => {
   const { handleSql, sqlite } = useSqlite(database)
   // FIXME: now ai-chat is global, maybe not in table page
   const { runQuery } = useTableOperation(table ?? "", database)
+  const { efsManager } = useEidosFileSystemManager()
 
   const handleRunSql = useCallback(
     async (sql: string) => {
@@ -54,9 +55,9 @@ export const useAIFunctions = () => {
     const { msgIndex, width } = context
 
     try {
-      ;(window as any)._CANVAS_ID_ = `#chart-${msgIndex}`
-      ;(window as any)._CHART_WIDTH_ = width - 50
-      ;(window as any)._CHART_HEIGHT_ = width - 50
+      ; (window as any)._CANVAS_ID_ = `#chart-${msgIndex}`
+        ; (window as any)._CHART_WIDTH_ = width - 50
+        ; (window as any)._CHART_HEIGHT_ = width - 50
       eval(code)
     } catch (error) {
       console.log(code)
@@ -96,7 +97,7 @@ export const useAIFunctions = () => {
     }
   }
 
-  const handleFunctionCall = async (
+  const handleToolsCall = async (
     name: string,
     parameters: any,
     isAuto: boolean = true
@@ -137,10 +138,10 @@ export const useAIFunctions = () => {
           window.location.origin + efsManager.getFileUrlByPath(fileObj.path)
         )
       case "createDoc":
-        const { markdown } = parameters
+        const { markdown, title } = parameters
         const docId = getUuid()
-        const doc = await sqlite?.createOrUpdateDocWithMarkdown(docId, markdown)
-        const url = window.location.origin + `/${database}/${docId}}`
+        const doc = await sqlite?.createOrUpdateDocWithMarkdown(docId, markdown, undefined, title)
+        const url = `/${database}/${docId}}`
         console.log(doc, url)
         return url
       default:
@@ -165,5 +166,5 @@ export const useAIFunctions = () => {
       })
     }
   }
-  return { autoRun, handleRunCode, handleFunctionCall }
+  return { autoRun, handleRunCode, handleToolsCall }
 }

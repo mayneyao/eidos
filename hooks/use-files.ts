@@ -3,9 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { create } from "zustand"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { EidosFileSystemManager } from "@/lib/storage/eidos-file-system"
 import { getUuid } from "@/lib/utils"
 
+import { useEidosFileSystemManager } from "./use-fs"
 import { useSqlite } from "./use-sqlite"
 
 const useFsStore = create<{
@@ -59,9 +59,7 @@ export const useFileSystem = (rootDir?: FileSystemDirectoryHandle) => {
     setPrevSelectedEntries,
     setSelectedEntries,
   } = useFsStore()
-  const efsManager = useMemo(() => {
-    return new EidosFileSystemManager(rootDir)
-  }, [rootDir])
+  const { efsManager } = useEidosFileSystemManager()
 
   const defaultPaths = useMemo(() => {
     if (rootDir) {
@@ -116,6 +114,7 @@ export const useFileSystem = (rootDir?: FileSystemDirectoryHandle) => {
           file,
           useUuId ? fileId : undefined
         )
+        console.log("paths", { paths, defaultPaths, currentPath })
         if (!paths) {
           throw new Error("add file failed")
         }
