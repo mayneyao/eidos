@@ -68,7 +68,7 @@
         "nsis",
         "zip"
       ],
-      "icon": "dist/512.png"
+      "icon": "dist/logo.png"
     },
     "afterSign": "scripts/notarize.cjs",
     "mac": {

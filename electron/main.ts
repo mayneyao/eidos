@@ -114,7 +114,7 @@ app.on('before-quit', () => {
 
 function createTray() {
     try {
-        const iconPath = path.join(process.env.VITE_PUBLIC, '512.png');
+        const iconPath = path.join(process.env.VITE_PUBLIC, 'logo.png');
         log('Tray icon path:', iconPath);
 
         const icon = nativeImage.createFromPath(iconPath);

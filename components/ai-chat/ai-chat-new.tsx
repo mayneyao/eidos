@@ -4,7 +4,6 @@ import { useChat } from "ai/react"
 import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
-import { getFunctionCallHandler } from "@/lib/ai/openai"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAiConfig } from "@/hooks/use-ai-config"
@@ -32,8 +31,6 @@ import { useLoadingStore, useReloadModel } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
 import { useSpeak } from "./webspeech/hooks"
 
-// const Whisper = lazy(() => import("./whisper"))
-
 const promptKeys = Object.keys(sysPrompts).slice(0, 1)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
@@ -53,7 +50,6 @@ export default function Chat() {
   const { progress } = useLoadingStore()
 
   const { handleToolsCall, handleRunCode } = useAIFunctions()
-  const functionCallHandler = getFunctionCallHandler(handleToolsCall)
 
   const [contextNodes, setContextNodes] = useState<ITreeNode[]>([])
   const [contextEmbeddings, setContextEmbeddings] = useState<IEmbedding[]>([])
