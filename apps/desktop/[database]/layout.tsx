@@ -24,9 +24,9 @@ import { RightPanelNav } from "@/components/nav/right-panel-nav"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
-import { useLayoutInit } from "../web-app/[database]/hook"
-import { useSpaceAppStore } from "../web-app/[database]/store"
-import { ExtensionPage } from "../web-app/extensions/page"
+import { useLayoutInit } from "../../web-app/[database]/hook"
+import { useSpaceAppStore } from "../../web-app/[database]/store"
+import { ExtensionPage } from "../../web-app/extensions/page"
 
 const WebLLM = lazy(() => import("@/components/ai-chat/webllm"))
 
@@ -76,8 +76,7 @@ export function DesktopSpaceLayout() {
 
   useEffect(() => {
     if (!isActivated) {
-      // navigate to home page
-      navigate("/")
+      navigate("/my-license")
     }
   }, [isActivated, navigate])
 

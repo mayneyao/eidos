@@ -1,4 +1,3 @@
-
 // Import useHistory
 import { useLastOpened } from "./[database]/hook"
 
@@ -13,7 +12,7 @@ export const NotFound = () => {
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center">
+    <div className="flex w-full h-full flex-col items-center justify-center">
       <div className="text-4xl text-gray-500">404</div>
       <div className="text-lg text-gray-500">Page Not Found</div>
       <button onClick={handleGoHome} className="text-blue-500">

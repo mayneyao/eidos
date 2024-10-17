@@ -98,7 +98,7 @@ export const useActivation = () => {
   }
   return {
     isActivated:
-      isDevMode || isSelfHosted || isDesktopMode
+      isDevMode || isSelfHosted
         ? true
         : clientId && license
           ? isActivated

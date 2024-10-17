@@ -1,6 +1,7 @@
 import { useEffect } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 
+import { isDesktopMode } from "@/lib/env"
 import { useActivation } from "@/hooks/use-activation"
 import { useGoto } from "@/hooks/use-goto"
 import { useSpace } from "@/hooks/use-space"
@@ -15,11 +16,13 @@ export const LandingPage = () => {
   const isHome = Boolean(searchParams.get("home"))
   const { lastOpenedDatabase } = useLastOpened()
   const goto = useGoto()
-
+  const navigate = useNavigate()
   const { isActivated } = useActivation()
 
   useEffect(() => {
-    if (isActivated && lastOpenedDatabase && !isHome) {
+    if (isDesktopMode && !isActivated) {
+      navigate("/my-licenses")
+    } else if (isActivated && lastOpenedDatabase && !isHome) {
       goto(lastOpenedDatabase)
     }
   }, [lastOpenedDatabase, goto, isActivated, isHome])

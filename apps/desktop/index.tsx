@@ -35,9 +35,9 @@ import { ErrorBoundary } from "../web-app/error"
 import { LabPage } from "../web-app/lab"
 import { LicenseManagePage } from "../web-app/license-manage/page"
 import { DevtoolsPage } from "../web-app/settings/dev/page"
+import { DesktopSpaceLayout } from "./[database]/layout"
 // extensions
 import RootLayout from "./layout"
-import { DesktopSpaceLayout } from "./space-layout"
 
 const router = createBrowserRouter([
   {

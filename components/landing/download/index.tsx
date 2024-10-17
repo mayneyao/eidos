@@ -23,7 +23,7 @@ export const DownloadPage: React.FC = () => {
   const isSupported = downloadLink !== null
 
   return (
-    <div className="min-h-screen  flex flex-col items-center justify-center p-8">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-8">
       <div className="text-center mb-12">
         <img
           src="/logo.png"

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { DOMAINS } from "@/lib/const"
+import { isDesktopMode } from "@/lib/env"
 import { useActivation } from "@/hooks/use-activation"
 import { useBrowserCheck } from "@/hooks/use-browser-check"
 import { Button } from "@/components/ui/button"
@@ -93,7 +94,7 @@ export const Activation = () => {
       <h2 className="text-center text-3xl font-bold tracking-tighter sm:text-5xl">
         Activation
       </h2>
-      <BrowserChecker />
+      {!isDesktopMode && <BrowserChecker />}
       <div className="flex gap-2">
         <Input
           // autoFocus
