@@ -1,8 +1,9 @@
 name: Build Desktop Apps
 
 on:
-  release:
-    types: [prereleased]
+  push:
+    tags:
+      - "v*"
 
 jobs:
   build-windows:
