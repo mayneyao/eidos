@@ -2,6 +2,7 @@ import React from "react"
 import ReactDOM from "react-dom/client"
 import { RouterProvider, createBrowserRouter, redirect } from "react-router-dom"
 
+import { DownloadPage } from "@/components/landing/download"
 import SettingsStoragePage from "@/apps/desktop/settings/storage/page"
 import NodePage from "@/apps/web-app/[database]/[node]/page"
 import EverydayPage from "@/apps/web-app/[database]/everyday/[day]/page"
@@ -57,6 +58,10 @@ const router = createBrowserRouter([
       {
         path: "404",
         element: <NotFound />,
+      },
+      {
+        path: "download",
+        element: <DownloadPage />,
       },
       {
         path: "my-licenses",

@@ -47,6 +47,12 @@ export const Landing = () => {
         <nav className="ml-auto flex gap-4 sm:gap-6">
           <a
             className="text-sm font-medium underline-offset-4 hover:underline"
+            href="/download"
+          >
+            Download
+          </a>
+          <a
+            className="text-sm font-medium underline-offset-4 hover:underline"
             href="#features"
           >
             Features
@@ -166,14 +172,14 @@ export const Landing = () => {
                 </p>
               </div>
 
-              <div className="grid gap-1">
+              {/* <div className="grid gap-1">
                 <h3 className="text-lg font-bold">Web is all you need</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Eidos is a web application with no web server.
                   <br />
                   Everything runs inside your browser.
                 </p>
-              </div>
+              </div> */}
 
               <div className="grid gap-1">
                 <h3 className="text-lg font-bold">Extensible</h3>

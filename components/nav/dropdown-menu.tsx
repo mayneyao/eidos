@@ -267,6 +267,12 @@ export function NavDropdownMenu() {
               </>
             )}
             <DropdownMenuSeparator />
+            <Link to="/download">
+              <DropdownMenuItem>
+                <Download className="mr-2 h-4 w-4" />
+                <span>Download</span>
+              </DropdownMenuItem>
+            </Link>
             <UpdateStatusComponent />
             <span className="p-2 text-sm text-gray-500">
               Version: {EIDOS_VERSION} ({isDesktopMode ? "Desktop" : "Web"})
