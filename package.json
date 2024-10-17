@@ -42,8 +42,7 @@
       {
         "provider": "github",
         "owner": "mayneyao",
-        "repo": "eidos",
-        "releaseType": "prerelease"
+        "repo": "eidos"
       }
     ],
     "npmRebuild": true,
@@ -70,7 +69,6 @@
       ],
       "icon": "dist/logo.png"
     },
-    "afterSign": "scripts/notarize.cjs",
     "mac": {
       "target": [
         "dmg",
