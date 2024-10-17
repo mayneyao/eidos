@@ -64,7 +64,11 @@ export class DataSpaceManager {
             },
             dataEventChannel: {
                 postMessage: (data: any) => {
+                    const bc = new BroadcastChannel(EidosDataEventChannelName)
+                    // notify renderer
                     win?.webContents.send(EidosDataEventChannelName, data);
+                    // notify main process
+                    bc.postMessage(data)
                 }
             },
             efsManager: efsManager
