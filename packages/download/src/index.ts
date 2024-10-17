@@ -54,14 +54,13 @@ export default {
 				throw new Error(`GitHub API responded with ${response.status} ${response.statusText}`)
 			}
 
-			const releases = await response.json()
-			const latestPrerelease = (releases as any[]).find((release: any) => release.prerelease)
-
-			if (!latestPrerelease) {
-				return new Response('No prerelease found', { status: 404 })
+			const releases = await response.json() as Array<{ assets: Array<any> }>
+			const latestRelease = releases[0]
+			if (!latestRelease) {
+				return new Response('No release found', { status: 404 })
 			}
 
-			const asset = latestPrerelease.assets.find((asset: any) => {
+			const asset = latestRelease.assets.find((asset: any) => {
 				const name = asset.name.toLowerCase();
 				if (platform === 'mac') {
 					return name.endsWith('.dmg');
