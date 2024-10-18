@@ -48,6 +48,7 @@
     "npmRebuild": true,
     "generateUpdatesFilesForAllChannels": true,
     "files": [
+      "!node_modules",
       "dist/**/*",
       "dist-electron/**/*",
       "dist-simple/**/*",
