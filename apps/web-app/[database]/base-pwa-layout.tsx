@@ -78,16 +78,22 @@ export function PWALayoutBase({
               {children}
             </main>
           </div>
-          {isAiOpen && (
-            <Suspense fallback={<Loading />}>
-              <AIChat />
-            </Suspense>
-          )}
-          {isExtAppOpen && (
-            <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto border-l border-l-slate-400 p-2">
-              <ExtensionPage />
-            </div>
-          )}
+          <div
+            className={cn(
+              "h-full shrink-0 overflow-x-hidden border-l min-w-[400px]"
+            )}
+          >
+            {isAiOpen && (
+              <Suspense fallback={<Loading />}>
+                <AIChat />
+              </Suspense>
+            )}
+            {isExtAppOpen && (
+              <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto border-l border-l-slate-400 p-2">
+                <ExtensionPage />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
