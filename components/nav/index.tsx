@@ -6,12 +6,7 @@ import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/web/helper"
 import { Button } from "@/components/ui/button"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { useSidebar } from "@/components/ui/sidebar"
 import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
 
 import { BreadCrumb } from "./breadcrumb"
@@ -39,9 +34,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
     }
   }
   const { theme } = useTheme()
-  const toggleSidebar = () => {
-    setSidebarOpen(!isSidebarOpen)
-  }
+  const { toggleSidebar } = useSidebar()
 
   return (
     <div
@@ -61,28 +54,14 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
       )}
     >
       {showMenu && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={toggleSidebar}
-                // className="hidden md:block"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>
-                {isSidebarOpen ? "Close Sidebar" : "Open Sidebar"} <br />
-                <span className={"ml-auto text-xs tracking-widest opacity-60"}>
-                  ctrl/cmd + \
-                </span>
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={toggleSidebar}
+          // className="hidden md:block"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
       )}
 
       <div className="hidden md:block">
