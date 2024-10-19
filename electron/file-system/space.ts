@@ -22,12 +22,19 @@ export const getSpaceDbPath = (spaceName: string) => {
     return path.join(spaceFolder, 'db.sqlite3')
 }
 
-export const getFileFromPath = (pathname: string) => {
+export const getSpaceFileFromPath = (pathname: string) => {
     const root = getAppConfig().dataFolder
     // root/<spaceName>/files
     const filePath = path.join(root, 'spaces', pathname)
     // const pathname = `/${space}/files/${filename}`
     const file = fs.readFileSync(filePath)
     // buffer to file
+    return new File([file], pathname, { type: lookup(pathname) as string || 'application/octet-stream' })
+}
+
+export const getFileFromPath = (pathname: string) => {
+    const root = getAppConfig().dataFolder
+    const filePath = path.join(root, pathname)
+    const file = fs.readFileSync(filePath)
     return new File([file], pathname, { type: lookup(pathname) as string || 'application/octet-stream' })
 }
