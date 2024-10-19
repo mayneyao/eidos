@@ -88,8 +88,11 @@ export function NodeItem({
   }
 
   useClickAway(() => {
-    setRenameOpen(false)
-  }, [renameInputRef])
+    if (renameOpen) {
+      renameNode(node.id, newName);
+      setRenameOpen(false);
+    }
+  }, [renameInputRef]);
 
   const router = useNavigate()
 
@@ -107,11 +110,12 @@ export function NodeItem({
 
   const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      renameNode(node.id, newName)
-      setRenameOpen(false)
+      renameNode(node.id, newName);
+      setRenameOpen(false);
     }
     if (e.key === "Escape") {
-      setRenameOpen(false)
+      setRenameOpen(false);
+      setNewName(node.name); // Reset to original name when canceling
     }
   }
   if (isInkServiceMode) {
