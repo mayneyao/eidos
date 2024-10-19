@@ -46,7 +46,7 @@ export const Table = ({
   useSqliteTableSubscribe(tableName)
   return (
     <TableContext.Provider value={{ tableName, space, viewId, isReadOnly }}>
-      <div className="h-full w-full overflow-hidden p-2 pt-0">
+      <div className="h-full w-full overflow-hidden p-2 pt-0 flex flex-col">
         <ViewToolbar
           tableName={tableName}
           space={space}
@@ -54,7 +54,7 @@ export const Table = ({
           isReadOnly={isReadOnly}
         />
         <div
-          className="relative h-full w-full overflow-hidden"
+          className="relative flex-grow overflow-hidden"
           id={TABLE_CONTENT_ELEMENT_ID}
         >
           {currentView?.type === ViewTypeEnum.Grid && (
