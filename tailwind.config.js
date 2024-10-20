@@ -1,6 +1,23 @@
 const { fontFamily } = require("tailwindcss/defaultTheme")
 const defaultTheme = require("tailwindcss/defaultTheme")
 
+const overrideProse = {
+  hr: {
+    border: "none",
+    height: "2em",
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    margin: 0,
+  },
+  "hr::before": {
+    content: '""',
+    flexGrow: "1",
+    height: "1px",
+    background: "var(--tw-prose-hr)",
+  },
+}
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
@@ -70,12 +87,12 @@ module.exports = {
         },
         xl: {
           css: {
-            ...overrideProse,
+            overrideProse,
           },
         },
         "2xl": {
           css: {
-            ...overrideProse,
+            overrideProse,
           },
         },
       },
@@ -135,21 +152,4 @@ module.exports = {
     },
   },
   plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
-}
-
-export const overrideProse = {
-  hr: {
-    border: "none",
-    height: "2em",
-    position: "relative",
-    display: "flex",
-    alignItems: "center",
-    margin: 0,
-  },
-  "hr::before": {
-    content: '""',
-    flexGrow: "1",
-    height: "1px",
-    background: "var(--tw-prose-hr)",
-  },
 }
