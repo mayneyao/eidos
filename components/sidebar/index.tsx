@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   AppWindowIcon,
   BlocksIcon,
@@ -8,25 +9,21 @@ import {
   ListTreeIcon,
   PinIcon,
 } from "lucide-react"
-import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
-import { DatabaseSelect } from "@/components/database-select"
-import {
-  Sidebar,
-  SidebarRail
-} from "@/components/ui/sidebar"
-import { useAllExtensions } from "@/hooks/use-all-extensions"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useAllNodes } from "@/hooks/use-nodes"
-import { useSpace } from "@/hooks/use-space"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { isDesktopMode } from "@/lib/env"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/web/helper"
+import { useAllExtensions } from "@/hooks/use-all-extensions"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useAllNodes } from "@/hooks/use-nodes"
+import { useSpace } from "@/hooks/use-space"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { Sidebar, SidebarRail } from "@/components/ui/sidebar"
+import { DatabaseSelect } from "@/components/database-select"
+import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
 
 import { FileManager } from "../file-manager"
 import { SpaceSettings } from "../space-settings"
@@ -82,7 +79,7 @@ export const SideBar = ({ className }: any) => {
       <SidebarRail />
       <div
         className={cn("flex flex-col h-full shrink-0", {
-          "pt-8": isMac(),
+          "pt-8": isMac() && isDesktopMode,
         })}
       >
         <div className={cn("flex h-full flex-col gap-2 p-2", className)}>

@@ -3,6 +3,7 @@ import { useEffect } from "react"
 import { Outlet } from "react-router-dom"
 
 import { useWorker } from "@/hooks/use-worker"
+import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
 import { CommandDialogDemo } from "@/components/cmdk"
@@ -23,7 +24,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <>
+      <SidebarProvider>
         {/* APP MODEL， a sidebar and main */}
         <div className="flex h-screen w-screen overflow-auto">
           <div className="h-full w-full grow">
@@ -32,7 +33,7 @@ export default function RootLayout() {
         </div>
         <CommandDialogDemo />
         <ShortCuts />
-      </>
+      </SidebarProvider>
       <TailwindIndicator />
       <Toaster />
       <BlockUIDialog />
