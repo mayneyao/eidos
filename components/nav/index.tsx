@@ -38,18 +38,23 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
 
   return (
     <div
-      id="title-bar"
+      id={isMac() ? "title-bar-mac" : "title-bar"}
       className={cn(
         "flex h-8 w-full border-separate items-center justify-between pl-2 shrink-0",
         {
           fixed: navigator.windowControlsOverlay?.visible,
-          "!pl-[72px]": isDesktopMode && isMac() && !isSidebarOpen,
+          "!ml-[72px]":
+            (isDesktopMode || navigator.windowControlsOverlay?.visible) &&
+            isMac() &&
+            !isSidebarOpen,
+          "!pr-[230px]":
+            navigator.windowControlsOverlay?.visible && isSidebarOpen,
           "!h-[38px]": isMac(),
           "bg-[#000]": theme === "dark",
           "bg-[#fff]": theme === "light",
           // PWA does not support css variables for theme color yet, we just use bg-white text-black for now
           // https://github.com/w3c/manifest/issues/975
-          // "bg-white text-black": navigator.windowControlsOverlay?.visible,
+          "bg-white text-black": navigator.windowControlsOverlay?.visible,
         }
       )}
     >

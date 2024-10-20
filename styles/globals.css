@@ -37,6 +37,15 @@ html {
   z-index: 9;
 }
 
+
+#title-bar-mac {
+  margin-top: env(titlebar-area-y, 0);
+  height: env(titlebar-area-height, 32px);
+  width: env(titlebar-area-width, 100%);
+  z-index: 9;
+}
+
+
 #drag-region {
   -webkit-app-region: drag;
 }

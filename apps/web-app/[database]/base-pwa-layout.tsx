@@ -1,20 +1,22 @@
 "use client"
 
 import { Suspense, lazy } from "react"
-import { motion } from "framer-motion"
 
-import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
-import { isMac } from "@/lib/web/helper"
 import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { useSqlite } from "@/hooks/use-sqlite"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
+import { FileManager } from "@/components/file-manager"
 import { Loading } from "@/components/loading"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
 import { Nav } from "../../../components/nav"
-import { ExtensionPage } from "../extensions/page"
 import { useSpaceAppStore } from "./store"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
@@ -28,20 +30,15 @@ export function PWALayoutBase({
 }) {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
-  const { isSidebarOpen } = useAppStore()
-  const { isRightPanelOpen: isAiOpen, isExtAppOpen } = useSpaceAppStore()
   const { efsManager } = useEidosFileSystemManager()
+  const { isRightPanelOpen, currentAppIndex, apps } = useSpaceAppStore()
+  const currentApp = apps[currentAppIndex]
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
         <Loading />
       </div>
     )
-  }
-
-  const sidebarVariants = {
-    open: { x: 0 },
-    closed: { x: "-100%", width: 0 },
   }
   // when chat is open  2:7:3
   // when chat is close 2:10
@@ -53,47 +50,64 @@ export function PWALayoutBase({
           src={efsManager.getFileUrlByPath(currentPreviewFile.path)}
         ></iframe>
       )}
-
       <ScriptContainer />
-      <div className="flex h-screen w-full flex-col">
-        <Nav />
-        <div
-          className={cn("flex h-screen w-full pt-8", {
-            "!pt-[38px]": isMac(),
-          })}
-        >
-          <motion.div
-            className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}
-            animate={isSidebarOpen ? "open" : "closed"}
-            variants={sidebarVariants}
-            transition={{ type: "tween", duration: 0.2 }}
-          >
-            <SideBar />
-          </motion.div>
-          <div className={cn("flex h-full w-auto grow flex-col border-l")}>
-            <main
-              id="main-content"
-              className="z-[1] flex w-full grow flex-col overflow-y-auto"
-            >
-              {children}
-            </main>
-          </div>
-          <div
-            className={cn(
-              "h-full shrink-0 overflow-x-hidden border-l min-w-[400px]"
-            )}
-          >
-            {isAiOpen && (
-              <Suspense fallback={<Loading />}>
-                <AIChat />
-              </Suspense>
-            )}
-            {isExtAppOpen && (
-              <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto border-l border-l-slate-400 p-2">
-                <ExtensionPage />
-              </div>
-            )}
-          </div>
+      <div className="flex h-screen w-full">
+        <SideBar />
+        <div className="flex h-screen flex-col w-full">
+          <Nav />
+          <ResizablePanelGroup direction="horizontal">
+            <div className="flex w-full pt-[38px]">
+              <ResizablePanel minSize={50}>
+                <div className={cn("flex h-full w-auto grow flex-col")}>
+                  <main
+                    id="main-content"
+                    className="z-[1] flex w-full grow flex-col overflow-y-auto"
+                  >
+                    {children}
+                  </main>
+                </div>
+              </ResizablePanel>
+              {isRightPanelOpen && (
+                <>
+                  <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
+                  <ResizablePanel
+                    className={cn("min-w-[400px]")}
+                    defaultSize={isRightPanelOpen ? 20 : 0}
+                    minSize={20}
+                    maxSize={50}
+                  >
+                    <div className={cn("h-full shrink-0 overflow-x-hidden")}>
+                      {currentApp === "chat" && (
+                        <Suspense fallback={<Loading />}>
+                          <AIChat />
+                        </Suspense>
+                      )}
+                      {currentApp === "file-manager" && (
+                        <Suspense fallback={<Loading />}>
+                          <FileManager />
+                        </Suspense>
+                      )}
+                    </div>
+                  </ResizablePanel>
+                </>
+              )}
+              {/* {isExtAppOpen && (
+                  <>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel
+                      className="min-w-[400px]"
+                      defaultSize={30}
+                      minSize={30}
+                      maxSize={isAiOpen ? 40 : 50}
+                    >
+                      <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto p-2">
+                        <ExtensionPage />
+                      </div>
+                    </ResizablePanel>
+                  </>
+                )} */}
+            </div>
+          </ResizablePanelGroup>
         </div>
       </div>
     </div>
