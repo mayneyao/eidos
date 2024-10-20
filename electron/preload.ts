@@ -48,6 +48,7 @@ async function main() {
     },
     isDataFolderSet: !!configManager.get('dataFolder'),
     selectFolder: () => ipcRenderer.invoke('select-folder'),
+    openFolder: (folder: string) => ipcRenderer.invoke('open-folder', folder),
     reloadApp: () => ipcRenderer.invoke('reload-app')
     // You can expose other APIs you need here.
     // ...

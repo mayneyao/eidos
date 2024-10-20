@@ -51,6 +51,12 @@ export function StorageForm() {
     }
   }
 
+  const handleOpenDataFolder = () => {
+    if (dataFolder) {
+      window.eidos.openFolder(dataFolder)
+    }
+  }
+
   async function onSubmit() {
     const data = form.getValues()
 
@@ -90,6 +96,11 @@ export function StorageForm() {
                 <Button type="button" onClick={handleSelectDataFolder}>
                   Select
                 </Button>
+                {dataFolder && (
+                  <Button type="button" onClick={handleOpenDataFolder}>
+                    Open
+                  </Button>
+                )}
               </div>
               <FormDescription>
                 The folder where your data will be stored.
