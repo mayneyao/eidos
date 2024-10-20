@@ -15,6 +15,7 @@ import { FilePropertyEditor } from "./property/file/file-property-editor"
 import { FormulaPropertyEditor } from "./property/formula/formula-property-editor"
 import { LinkPropertyEditor } from "./property/link/link-property-editor"
 import { LookupPropertyEditor } from "./property/lookup/lookup-property-editor"
+import { NumberPropertyEditor } from "./property/number/number-property-editor"
 import { SelectPropertyEditor } from "./property/select/select-property-editor"
 
 export const PropertyEditorTypeMap: {
@@ -31,6 +32,7 @@ export const PropertyEditorTypeMap: {
   link: LinkPropertyEditor,
   lookup: LookupPropertyEditor,
   file: FilePropertyEditor,
+  number: NumberPropertyEditor,
 }
 
 export const NotImplementEditor = () => {
