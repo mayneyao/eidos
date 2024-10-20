@@ -111,10 +111,10 @@ export const getWeek = (day: string) => {
     return parseInt(day.split("-w")[1])
   }
   const date = new Date(day)
-  const onejan = new Date(date.getFullYear(), 0, 1)
-  return Math.ceil(
-    ((date.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7
-  )
+  date.setHours(0, 0, 0, 0)
+  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7)
+  const week1 = new Date(date.getFullYear(), 0, 4)
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7)
 }
 
 /**
@@ -125,15 +125,24 @@ export const getWeek = (day: string) => {
 export const getDaysByYearWeek = (weekNodeId: string) => {
   const year = parseInt(weekNodeId.slice(0, 4))
   const week = parseInt(weekNodeId.slice(6))
-  const d = new Date(year, 0, 1)
-  const w = d.getDay()
-  const target = w > 4 ? 1 : 0
-  const day = d.getDate() + (w <= 4 ? 1 : 8) - w
+  
+  // Find the first day of the year
+  const firstDayOfYear = new Date(year, 0, 1)
+  
+  // Find the first Monday of the year
+  const firstMonday = new Date(year, 0, 1 + (8 - firstDayOfYear.getDay()) % 7)
+  
+  // Calculate the start date of the requested week
+  const startDate = new Date(firstMonday.getTime())
+  startDate.setDate(firstMonday.getDate() + (week - 1) * 7)
+  
   const days = []
   for (let i = 0; i < 7; i++) {
-    const date = new Date(year, 0, day + (week - 1) * 7 + i + target)
+    const date = new Date(startDate.getTime())
+    date.setDate(startDate.getDate() + i)
     days.push(getLocalDate(date))
   }
+  
   return days
 }
 
