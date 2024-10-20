@@ -159,4 +159,8 @@ export const CommonKeyboardShortcuts = [
     key: "Ctrl/Cmd + K",
     description: "Toggle command palette",
   },
+  {
+    key: "Ctrl/Cmd + ,",
+    description: "Open settings",
+  },
 ]
