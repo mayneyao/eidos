@@ -2,6 +2,8 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { useSidebar } from "@/components/ui/sidebar"
+import { useEffect } from "react"
 
 interface AppState {
   lastOpenedTable: string
@@ -13,18 +15,14 @@ interface AppState {
   aiModel: string
   setAIModel: (model: string) => void
 
-  isSidebarOpen: boolean
-  setSidebarOpen: (isSidebarOpen: boolean) => void
-
   isFileManagerOpen: boolean
   setFileManagerOpen: (isOpen: boolean) => void
+
 }
 
-export const useAppStore = create<AppState>()(
+const useAppStoreBase = create<AppState>()(
   persist(
     (set) => ({
-      isSidebarOpen: true,
-      setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
 
       isFileManagerOpen: false,
       setFileManagerOpen: (isFileManagerOpen) => set({ isFileManagerOpen }),
@@ -44,3 +42,19 @@ export const useAppStore = create<AppState>()(
     }
   )
 )
+
+export const useAppStore = () => {
+  const store = useAppStoreBase()
+  const { open, setOpen } = useSidebar()
+
+
+
+
+  return {
+    ...store,
+    isSidebarOpen: open,
+    setSidebarOpen: (isOpen: boolean) => {
+      setOpen(isOpen)
+    }
+  }
+}

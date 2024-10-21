@@ -6,7 +6,6 @@ import { EidosDataEventChannelName } from "@/lib/const"
 import { useAppStore } from "@/lib/store/app-store"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn } from "@/lib/utils"
-import { isMac } from "@/lib/web/helper"
 import { useActivation } from "@/hooks/use-activation"
 import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { useSqlite } from "@/hooks/use-sqlite"
@@ -44,16 +43,10 @@ export function DesktopSpaceLayout() {
   useLayoutInit()
   const { efsManager } = useEidosFileSystemManager()
 
-  const [sidebarSize, setSidebarSize] = useLocalStorageState<number>(
-    "sidebarSize",
-    {
-      defaultValue: 20,
-    }
-  )
   const [mainPanelSize, setMainPanelSize] = useLocalStorageState<number>(
     "mainPanelSize",
     {
-      defaultValue: 60,
+      defaultValue: 80,
     }
   )
   const [rightPanelSize, setRightPanelSize] = useLocalStorageState<number>(
@@ -104,31 +97,11 @@ export function DesktopSpaceLayout() {
         )}
 
         <ScriptContainer />
-        <div className="flex h-screen w-full flex-col">
+        <SideBar />
+        <main className="flex w-full">
           <ResizablePanelGroup direction="horizontal" className="h-screen">
             <ResizablePanel
-              className={cn(
-                "flex flex-col h-full overflow-x-hidden",
-                isSidebarOpen ? "min-w-[300px]" : "w-0 min-w-0 hidden"
-              )}
-              defaultSize={sidebarSize}
-              minSize={0}
-              maxSize={30}
-              onResize={(size) => setSidebarSize(size)}
-            >
-              <div
-                className={cn("flex flex-col h-full shrink-0", {
-                  "pt-8": isMac(),
-                })}
-              >
-                <SideBar />
-              </div>
-            </ResizablePanel>
-            <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
-            <ResizablePanel
-              defaultSize={
-                100 - sidebarSize! - (isRightPanelOpen ? rightPanelSize! : 0)
-              }
+              defaultSize={100 - (isRightPanelOpen ? rightPanelSize! : 0)}
               minSize={50}
             >
               <div className="flex flex-col h-full">
@@ -170,7 +143,7 @@ export function DesktopSpaceLayout() {
               </>
             )}
           </ResizablePanelGroup>
-        </div>
+        </main>
       </div>
     </>
   )

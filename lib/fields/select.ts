@@ -125,6 +125,11 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
     }, {} as Record<string, string>),
   }
 
+  /**
+   * @param colorName name of the color. eg "default" | "gray"
+   * @param theme theme of the color. eg "light" | "dark"
+   * @returns hex value of the color. eg "#cccccc"
+   */
   static getColorValue(colorName: string, theme: "light" | "dark" = "light") {
     return `#${SelectField.colorNameValueMap[theme][colorName]}`
   }

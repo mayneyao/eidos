@@ -16,43 +16,39 @@ const BrowserChecker = () => {
     isMobile,
     version,
   } = useBrowserCheck()
+
   if (isBrowserSupported && isCoreWebApisSupported && isOPFSupported) {
     return (
-      <div>
-        <h1 className="text-green-500">Your browser is supported</h1>
+      <div className="text-green-500 font-semibold">
+        Your browser is supported
       </div>
     )
   }
+
   return (
-    <>
+    <div className="text-red-500 text-sm">
       {!isBrowserSupported && (
-        <div className="text-red-500">
-          It seems like you are not using a Chromium-based browser.
-          <br />
-          Eidos is not tested on other browsers yet.
-          <br />
-          Recommended browsers are Chrome, Edge, Arc, Brave, etc.
-        </div>
+        <p>
+          Please use a Chromium-based browser (Chrome, Edge, Arc, Brave, etc.).
+          Eidos is not tested on other browsers.
+        </p>
       )}
       {!isCoreWebApisSupported && (
-        <div className="text-red-500">
-          Eidos requires some new Web APIs to work properly. Please update your
-          browser to the latest. <br />
+        <p>
+          Please update your browser to the latest version.
           {isBrowserSupported &&
             (isMobile ? (
-              <div>
-                It seems like you are using a mobile browser. It works, but with
-                some limitations. Use a desktop browser for the best experience.
-              </div>
+              <span>
+                {" "}
+                Mobile browsers have limitations. Use a desktop browser for the
+                best experience.
+              </span>
             ) : (
-              <div>
-                Your browser version: {version} <br />
-                Recommended version: 122+
-              </div>
+              <span> Your version: {version}. Recommended: 122+</span>
             ))}
-        </div>
+        </p>
       )}
-    </>
+    </div>
   )
 }
 
@@ -61,10 +57,16 @@ export const Activation = () => {
   const [code, setCode] = useState("")
   const [loading, setLoading] = useState(false)
   const nav = useNavigate()
+
   const handleActive = async () => {
-    setLoading(true)
-    await active(code)
-    setLoading(false)
+    try {
+      setLoading(true)
+      await active(code)
+    } catch (error) {
+      // Handle error
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (isActivated) {
@@ -87,43 +89,48 @@ export const Activation = () => {
   }
 
   return (
-    <div
-      className="flex w-full flex-col items-center justify-center gap-4"
-      id="active-selection"
-    >
-      <h2 className="text-center text-3xl font-bold tracking-tighter sm:text-5xl">
+    <div className="flex flex-col items-center justify-center gap-6 max-w-md mx-auto p-4">
+      <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">
         Activation
       </h2>
+
       {!isDesktopMode && <BrowserChecker />}
-      <div className="flex gap-2">
+
+      <div className="w-full">
         <Input
-          // autoFocus
-          className="w-[300px] ring"
-          placeholder="Enter Key"
+          className="w-full mb-2"
+          placeholder="Enter Activation Key"
           value={code}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              handleActive()
-            }
-          }}
           onChange={(e) => setCode(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleActive()}
         />
-        <Button onClick={handleActive} disabled={loading}>
-          Enter
+        <Button className="w-full" onClick={handleActive} disabled={loading}>
+          {loading ? "Activating..." : "Activate"}
         </Button>
       </div>
 
-      <div className="mt-2 p-2 text-sm">
-        Eidos is currently in development; join our{" "}
+      <p className="text-sm text-center">
+        Don't have a key?{" "}
+        <Link
+          to="https://store.eidos.space/buy/2397216c-4322-40fa-b425-681d455e6702"
+          target="_blank"
+          className="text-blue-500 hover:underline"
+        >
+          Get a free early access key
+        </Link>
+      </p>
+
+      <p className="text-xs text-center text-gray-500">
+        Eidos is in development. Join our{" "}
         <Link
           to={DOMAINS.DISCORD_INVITE}
           target="_blank"
-          className="text-blue-500"
+          className="text-blue-500 hover:underline"
         >
           Discord
         </Link>{" "}
-        server to stay updated on the latest progress
-      </div>
+        for updates.
+      </p>
     </div>
   )
 }

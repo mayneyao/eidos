@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "private": true,
   "type": "module",
   "description": "Eidos is an extensible framework for managing your personal data throughout your lifetime in one place.",
@@ -48,7 +48,6 @@
     "npmRebuild": true,
     "generateUpdatesFilesForAllChannels": true,
     "files": [
-      "!node_modules",
       "dist/**/*",
       "dist-electron/**/*",
       "dist-simple/**/*",

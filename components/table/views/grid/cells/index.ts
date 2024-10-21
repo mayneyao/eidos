@@ -8,6 +8,7 @@ import MultiSelectCell from "./multi-select-cell"
 import RatingCell from "./rating-cell"
 import SelectCell from "./select-cell"
 import UserProfileCell from "./user-profile-cell"
+import RangeCell from "./range-cell"
 
 const cells = [
   RatingCell,
@@ -23,6 +24,7 @@ const cells = [
   DatePicker,
   FileCellRenderer,
   UserProfileCell,
+  RangeCell,
   // LinksCell,
   // ButtonCell,
 ]

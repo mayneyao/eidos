@@ -1,4 +1,5 @@
 import { DataSpace } from "@/worker/web-worker/DataSpace"
+import { workerStore } from "@/worker/web-worker/store"
 
 export const handleFunctionCall = async (
     data: {
@@ -14,6 +15,7 @@ export const handleFunctionCall = async (
         throw new Error("DataSpace is null")
     }
     const { method, params = [] } = data
+    workerStore.currentCallUserId = data.userId
     let callMethod: Function = () => { }
     if (method.includes(".")) {
         let obj: any = dataSpace

@@ -19,7 +19,6 @@ import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
 import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useTableOperation } from "@/hooks/use-table"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +26,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/ui/sub-page-dialog"
 import { NodeComponent } from "@/apps/web-app/[database]/[node]/page"
 
 import { Button } from "../ui/button"
@@ -220,6 +224,12 @@ export const ViewToolbar = (props: {
     jump2View(defaultViewId)
   }
 
+  const handleMaximize = useCallback(() => {
+    if (subPageId) {
+      navigate(`/${space}/${subPageId}`)
+    }
+  }, [navigate, space, subPageId])
+
   return (
     <div ref={ref}>
       <div className="ml-2 flex items-center justify-between border-b pb-1">
@@ -258,7 +268,10 @@ export const ViewToolbar = (props: {
             <DialogTrigger>
               <div></div>
             </DialogTrigger>
-            <DialogContent className="container h-[95vh] p-0 md:max-w-[756px]">
+            <DialogContent
+              className="container h-[95vh] p-0 md:max-w-[756px]"
+              onMaximize={handleMaximize}
+            >
               <ScrollArea className="h-full">
                 <NodeComponent nodeId={subPageId} />
               </ScrollArea>

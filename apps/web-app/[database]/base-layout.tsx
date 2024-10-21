@@ -1,20 +1,19 @@
-import { motion } from "framer-motion"
 import { Suspense, lazy } from "react"
 
-import { FileManager } from "@/components/file-manager"
-import { Loading } from "@/components/loading"
-import { ScriptContainer } from "@/components/script-container"
-import { SideBar } from "@/components/sidebar"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
+import { useSqlite } from "@/hooks/use-sqlite"
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
-import { useEidosFileSystemManager } from "@/hooks/use-fs"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { useAppStore } from "@/lib/store/app-store"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
+import { FileManager } from "@/components/file-manager"
+import { Loading } from "@/components/loading"
+import { ScriptContainer } from "@/components/script-container"
+import { SideBar } from "@/components/sidebar"
 
 import { Nav } from "../../../components/nav"
 import { useSpaceAppStore } from "./store"
@@ -42,10 +41,6 @@ export function DatabaseLayoutBase({
       </div>
     )
   }
-  const sidebarVariants = {
-    open: { x: 0 },
-    closed: { x: "-100%", width: 0 },
-  }
 
   return (
     <div className={cn("relative  flex h-screen", className)}>
@@ -55,28 +50,18 @@ export function DatabaseLayoutBase({
           src={efsManager.getFileUrlByPath(currentPreviewFile.path)}
         ></iframe>
       )}
-
       <ScriptContainer />
-      <div className="flex h-screen w-full flex-col">
-        <div className="flex h-screen flex-col">
+      <div className="flex h-screen w-full">
+        <SideBar />
+        <div className="flex h-screen flex-col w-full">
           <Nav />
           <ResizablePanelGroup direction="horizontal">
             <div
               className={cn("flex w-full", {})}
               style={{ height: "calc(100vh - 38px)" }}
             >
-              <motion.div
-                className={cn("h-full w-[300px] shrink-0 overflow-x-hidden")}
-                animate={isSidebarOpen ? "open" : "closed"}
-                variants={sidebarVariants}
-                transition={{ type: "tween", duration: 0.2 }}
-              >
-                <SideBar />
-              </motion.div>
               <ResizablePanel minSize={50}>
-                <div
-                  className={cn("flex h-full w-auto grow flex-col border-l")}
-                >
+                <div className={cn("flex h-full w-auto grow flex-col")}>
                   <main
                     id="main-content"
                     className="z-[1] flex w-full grow flex-col overflow-y-auto"

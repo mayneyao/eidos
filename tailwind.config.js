@@ -17,6 +17,7 @@ const overrideProse = {
     background: "var(--tw-prose-hr)",
   },
 }
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
@@ -27,7 +28,7 @@ module.exports = {
       ...defaultTheme.screens,
     },
     container: {
-      center: true,
+      center: "true",
       padding: "2rem",
       screens: {
         "2xl": "1400px",
@@ -36,16 +37,38 @@ module.exports = {
     extend: {
       keyframes: {
         "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
+          from: {
+            height: "0",
+          },
+          to: {
+            height: "var(--radix-accordion-content-height)",
+          },
         },
         "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
-        },
-        gradient: {
+          from: {
+            height: "var(--radix-accordion-content-height)",
+          },
           to: {
-            backgroundPosition: "var(--bg-size) 0",
+            height: "0",
+          },
+        },
+        "border-flicker": {
+          "0%, 100%": {
+            borderColor: "hsl(var(--primary))",
+          },
+          "50%": {
+            borderColor: "hsl(var(--secondary))",
+          },
+        },
+        gradientBorder: {
+          "0%": {
+            backgroundPosition: "0% 50%",
+          },
+          "50%": {
+            backgroundPosition: "100% 50%",
+          },
+          "100%": {
+            backgroundPosition: "0% 50%",
           },
         },
       },
@@ -53,8 +76,8 @@ module.exports = {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         gradient: "gradient 8s linear infinite",
+        "border-flicker": "border-flicker 3s linear infinite",
       },
-
       typography: {
         DEFAULT: {
           css: {
@@ -64,12 +87,12 @@ module.exports = {
         },
         xl: {
           css: {
-            ...overrideProse,
+            overrideProse,
           },
         },
         "2xl": {
           css: {
-            ...overrideProse,
+            overrideProse,
           },
         },
       },
@@ -107,6 +130,16 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        sidebar: {
+          DEFAULT: "hsl(var(--sidebar-background))",
+          foreground: "hsl(var(--sidebar-foreground))",
+          primary: "hsl(var(--sidebar-primary))",
+          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
+          accent: "hsl(var(--sidebar-accent))",
+          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
+          border: "hsl(var(--sidebar-border))",
+          ring: "hsl(var(--sidebar-ring))",
+        },
       },
       borderRadius: {
         lg: `var(--radius)`,
@@ -115,31 +148,6 @@ module.exports = {
       },
       fontFamily: {
         sans: fontFamily.sans,
-      },
-      keyframes: {
-        "accordion-down": {
-          from: { height: 0 },
-          to: { height: "var(--radix-accordion-content-height)" },
-        },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: 0 },
-        },
-        "border-flicker": {
-          "0%, 100%": { borderColor: "hsl(var(--primary))" },
-          "50%": { borderColor: "hsl(var(--secondary))" },
-        },
-        gradientBorder: {
-          "0%": { backgroundPosition: "0% 50%" },
-          "50%": { backgroundPosition: "100% 50%" },
-          "100%": { backgroundPosition: "0% 50%" },
-        },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-        gradient: "gradient 8s linear infinite",
-        "border-flicker": "border-flicker 3s linear infinite",
       },
     },
   },

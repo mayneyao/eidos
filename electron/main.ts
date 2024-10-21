@@ -1,6 +1,6 @@
 import { MsgType } from '@/lib/const';
 import { handleFunctionCall } from '@/lib/rpc';
-import { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage, shell } from 'electron';
 import path from 'path';
 import { getDataSpace, getOrSetDataSpace } from './data-space';
 import { startServer } from './server/server';
@@ -83,6 +83,24 @@ ipcMain.handle('select-folder', async () => {
         return undefined;
     } else {
         return result.filePaths[0];
+    }
+});
+
+ipcMain.handle('open-folder', (event, folder) => {
+    if (folder) {
+        shell.openPath(folder)
+            .then((result) => {
+                if (result) {
+                    log(`Error opening folder: ${result}`);
+                } else {
+                    log(`Folder opened successfully: ${folder}`);
+                }
+            })
+            .catch((error) => {
+                log(`Error opening folder: ${error}`);
+            });
+    } else {
+        log('No folder path provided');
     }
 });
 

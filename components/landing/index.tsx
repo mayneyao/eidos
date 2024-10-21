@@ -225,7 +225,7 @@ export const Landing = () => {
           </div>
         </section>
         <section
-          id="#join"
+          id="active-selection"
           className="w-full py-12 xs:px-4 md:py-24 lg:py-32"
           tabIndex={-1}
         >

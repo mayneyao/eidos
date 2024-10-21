@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { getOrSetDataSpace } from '../data-space';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { serve } from '@hono/node-server';
-import { getFileFromPath } from '../file-system/space';
+import { getFileFromPath, getSpaceFileFromPath } from '../file-system/space';
 import aiCompletionHandler, { pathname as aiCompletionPath } from '@/worker/service-worker/routes/ai_completion';
 import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
 import { log } from 'electron-log';
@@ -15,6 +15,15 @@ app.use('*', async (c, next) => {
     c.header("Cross-Origin-Embedder-Policy", "require-corp");
     await next();
 });
+
+const handleStaticFile = async (c: any) => {
+    const pathname = new URL(c.req.url).pathname
+    const file = getFileFromPath(pathname)
+    const headers = new Headers()
+    headers.append("Content-Type", file.type)
+    headers.append("Cross-Origin-Embedder-Policy", "require-corp")
+    return new Response(file, { headers })
+}
 
 export function startServer({ dist, port }: { dist: string, port: number }) {
 
@@ -56,13 +65,17 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
     app.get('/:space/files/:filename', async (c) => {
         const { space, filename } = c.req.param()
         const pathname = `/${space}/files/${filename}`
-        const file = getFileFromPath(pathname)
+        const file = getSpaceFileFromPath(pathname)
         const headers = new Headers()
         headers.append("Content-Type", file.type)
         headers.append("Cross-Origin-Embedder-Policy", "require-corp")
 
         return new Response(file, { headers })
     })
+
+    app.get('/static/*', async (c) => handleStaticFile(c))
+
+    app.get('/extensions/*', async (c) => handleStaticFile(c))
 
     // Fallback to index.html for non-existent paths
     app.use('*', serveStatic({ path: `${dist}/index.html` }));

@@ -194,7 +194,15 @@ const config = defineConfig({
       '^/[^/]+/files/[^/]+$': {
         target: 'http://localhost:13127',
         changeOrigin: true,
-        rewrite: (path) => path, // 保持路径不变
+        rewrite: (path) => path,
+      },
+      '/static/': {
+        target: 'http://localhost:13127',
+        changeOrigin: true,
+      },
+      '/extensions/': {
+        target: 'http://localhost:13127',
+        changeOrigin: true,
       },
     },
   },

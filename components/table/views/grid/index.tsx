@@ -313,12 +313,7 @@ export default function GridView(props: IGridProps) {
       ref={containerRef}
     >
       <div
-        className={cn(
-          "flex h-full w-full overflow-hidden rounded-md border-t",
-          {
-            "pb-8": !props.isEmbed,
-          }
-        )}
+        className={cn("flex h-full w-full overflow-hidden rounded-md border-t")}
       >
         <GridContextMenu
           handleDelRows={handleDelRows}
