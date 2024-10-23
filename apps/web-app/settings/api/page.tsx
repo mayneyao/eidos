@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CopyIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 
 import { DOMAINS } from "@/lib/const"
 import { shortenId, uuidv7 } from "@/lib/utils"
@@ -24,6 +25,7 @@ import {
   apiAgentFormSchema,
   useAPIConfigStore,
 } from "./store"
+import { Separator } from "@/components/ui/separator"
 
 // This can come from your database or API.
 const defaultValues: Partial<APIAgentFormValues> = {
@@ -32,6 +34,7 @@ const defaultValues: Partial<APIAgentFormValues> = {
 }
 
 export function APIAgentForm() {
+  const { t } = useTranslation()
   const { apiAgentConfig, setAPIAgentConfig } = useAPIConfigStore()
 
   const form = useForm<APIAgentFormValues>({
@@ -89,19 +92,21 @@ export function APIAgentForm() {
           name="url"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>API Agent URL</FormLabel>
+              <FormLabel>{t("settings.api.agentUrl")}</FormLabel>
               <FormControl>
                 <div className="flex gap-2">
                   <Input placeholder="wss://" autoComplete="off" {...field} />
                   <Button variant="secondary" onClick={regen}>
-                    Regenerate
+                    {t("settings.api.regenerate")}
                   </Button>
                 </div>
               </FormControl>
-              <FormDescription>The URL of your API Agent.</FormDescription>
+              <FormDescription>
+                {t("settings.api.agentUrlDescription")}
+              </FormDescription>
               {Boolean(apiURL.length) && (
                 <FormDescription>
-                  Call API through{" "}
+                  {t("settings.api.callApiThrough")}{" "}
                   <div className="flex items-center gap-2">
                     <span className=" text-cyan-500">{apiURL}</span>
                     <Button variant="ghost" size="xs" onClick={handleCopyUrl}>
@@ -119,7 +124,7 @@ export function APIAgentForm() {
           name="enabled"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Enable</FormLabel>
+              <FormLabel>{t("settings.api.enable")}</FormLabel>
               <FormControl>
                 <div className="flex">
                   <Switch
@@ -129,7 +134,7 @@ export function APIAgentForm() {
                 </div>
               </FormControl>
               <FormDescription>
-                When enabled, you can query data from Eidos Web APP through{" "}
+                {t("settings.api.enableDescription")}{" "}
                 <a
                   href="https://github.com/mayneyao/eidos-api-agent-node"
                   className="text-blue-500"
@@ -143,12 +148,25 @@ export function APIAgentForm() {
             </FormItem>
           )}
         />
-        <Button type="submit">Update</Button>
+        <Button type="submit">{t("settings.api.update")}</Button>
       </form>
     </Form>
   )
 }
 
 export default function APISettingsPage() {
-  return <APIAgentForm />
+  const { t } = useTranslation()
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-medium">{t("settings.api")}</h3>
+        <p className="text-sm text-muted-foreground">
+          {t("settings.api.description")}
+        </p>
+      </div>
+      <Separator />
+      <APIAgentForm />
+    </div>
+  )
 }
