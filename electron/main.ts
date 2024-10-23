@@ -152,17 +152,26 @@ function createTray() {
     }
 }
 
+function destroyTray() {
+    if (tray) {
+        tray.destroy();
+        tray = null;
+    }
+}
+
 app.whenReady().then(() => {
     win = createWindow()
     createTray();
 
     win.on('close', (event) => {
         if (!forceQuit) {
-            event.preventDefault();
             if (process.platform === 'darwin') {
+                event.preventDefault();
                 win?.hide();
             } else {
-                win?.minimize();
+                forceQuit = true;
+                destroyTray();
+                app.quit();
             }
         }
     });
@@ -178,5 +187,6 @@ app.on('activate', () => {
 
 ipcMain.handle('quit-app', () => {
     forceQuit = true;
+    destroyTray();
     app.quit();
 });
