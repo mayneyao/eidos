@@ -1,13 +1,13 @@
 import { Menu, PanelRightIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
+import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
+import { Button } from "@/components/ui/button"
+import { useSidebar } from "@/components/ui/sidebar"
 import { isDesktopMode } from "@/lib/env"
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/web/helper"
-import { Button } from "@/components/ui/button"
-import { useSidebar } from "@/components/ui/sidebar"
-import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
 
 import { BreadCrumb } from "./breadcrumb"
 import { NavDropdownMenu } from "./dropdown-menu"

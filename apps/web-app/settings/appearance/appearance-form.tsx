@@ -1,14 +1,17 @@
 "use client"
 
+import { useEffect } from "react"
+import i18n from "@/locales/i18n"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ChevronDown } from "lucide-react"
+import { useTheme } from "next-themes"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
 import { cn } from "@/lib/utils"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { toast } from "@/components/ui/use-toast"
 import {
   Form,
   FormControl,
@@ -27,6 +30,10 @@ const appearanceFormSchema = z.object({
     invalid_type_error: "Select a font",
     required_error: "Please select a font.",
   }),
+  language: z.enum(["en", "zh"], {
+    invalid_type_error: "Select a language",
+    required_error: "Please select a language.",
+  }),
 })
 
 type AppearanceFormValues = z.infer<typeof appearanceFormSchema>
@@ -34,34 +41,51 @@ type AppearanceFormValues = z.infer<typeof appearanceFormSchema>
 // This can come from your database or API.
 const defaultValues: Partial<AppearanceFormValues> = {
   theme: "light",
+  language: "en",
 }
 
 export function AppearanceForm() {
+  const { t } = useTranslation()
+  const { theme, setTheme } = useTheme()
   const form = useForm<AppearanceFormValues>({
     resolver: zodResolver(appearanceFormSchema),
     defaultValues,
   })
 
-  function onSubmit(data: AppearanceFormValues) {
-    toast({
-      title: "You submitted the following values:",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
+  useEffect(() => {
+    // Load saved preferences from localStorage
+    const savedPreferences = localStorage.getItem("appearancePreferences")
+    if (savedPreferences) {
+      const parsedPreferences = JSON.parse(savedPreferences)
+      form.reset(parsedPreferences)
+      i18n.changeLanguage(parsedPreferences.language)
+    }
+
+    // Set up event listener for form changes
+    const subscription = form.watch((data) => {
+      if (data.theme || data.font || data.language) {
+        savePreferences(data as AppearanceFormValues)
+      }
     })
+
+    return () => subscription.unsubscribe()
+  }, [form])
+
+  function savePreferences(data: AppearanceFormValues) {
+    localStorage.setItem("appearancePreferences", JSON.stringify(data))
+    i18n.changeLanguage(data.language)
+    setTheme(data.theme)
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <FormField
+      <form className="space-y-8">
+        {/* <FormField
           control={form.control}
           name="font"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Font</FormLabel>
+              <FormLabel>{t("Font")}</FormLabel>
               <div className="relative w-max">
                 <FormControl>
                   <select
@@ -73,26 +97,56 @@ export function AppearanceForm() {
                   >
                     <option value="inter">Inter</option>
                     <option value="manrope">Manrope</option>
-                    <option value="system">System</option>
+                    <option value="system">{t("System")}</option>
                   </select>
                 </FormControl>
                 <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50" />
               </div>
               <FormDescription>
-                Set the font you want to use in the dashboard.
+                {t("Set the font you want to use in the dashboard.")}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        /> */}
+
+        <FormField
+          control={form.control}
+          name="language"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("settings.appearance.language")}</FormLabel>
+              <div className="relative w-max">
+                <FormControl>
+                  <select
+                    className={cn(
+                      buttonVariants({ variant: "outline" }),
+                      "w-[200px] appearance-none bg-transparent font-normal"
+                    )}
+                    {...field}
+                  >
+                    <option value="en">English</option>
+                    <option value="zh">中文</option>
+                  </select>
+                </FormControl>
+                <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50" />
+              </div>
+              <FormDescription>
+                {t("settings.appearance.languageDescription")}
               </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="theme"
           render={({ field }) => (
             <FormItem className="space-y-1">
-              <FormLabel>Theme</FormLabel>
+              <FormLabel>{t("settings.appearance.theme")}</FormLabel>
               <FormDescription>
-                Select the theme for the dashboard.
+                {t("settings.appearance.themeDescription")}
               </FormDescription>
               <FormMessage />
               <RadioGroup
@@ -122,7 +176,7 @@ export function AppearanceForm() {
                       </div>
                     </div>
                     <span className="block w-full p-2 text-center font-normal">
-                      Light
+                      {t("settings.appearance.light")}
                     </span>
                   </FormLabel>
                 </FormItem>
@@ -148,7 +202,7 @@ export function AppearanceForm() {
                       </div>
                     </div>
                     <span className="block w-full p-2 text-center font-normal">
-                      Dark
+                      {t("settings.appearance.dark")}
                     </span>
                   </FormLabel>
                 </FormItem>
@@ -156,8 +210,6 @@ export function AppearanceForm() {
             </FormItem>
           )}
         />
-
-        <Button type="submit">Update preferences</Button>
       </form>
     </Form>
   )

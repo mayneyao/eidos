@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
 import { FileSystemType } from "@/lib/storage/eidos-file-system"
@@ -35,9 +36,9 @@ import {
   FormMessage,
 } from "@/components/react-hook-form/form"
 
-const fsTypes = [
+const getFsTypes = (t: (key: string) => string) => [
   { label: "OPFS", value: FileSystemType.OPFS },
-  { label: "Native File System", value: FileSystemType.NFS },
+  { label: t("settings.storage.nativeFileSystem"), value: FileSystemType.NFS },
 ] as const
 
 const storageFormSchema = z.object({
@@ -49,6 +50,7 @@ const storageFormSchema = z.object({
 type StorageFormValues = z.infer<typeof storageFormSchema>
 
 export function StorageForm() {
+  const { t } = useTranslation()
   const [localPath, setLocalPath] =
     useIndexedDB<FileSystemDirectoryHandle | null>("kv", "localPath", null)
   const [fsType, setFsType] = useIndexedDB("kv", "fs", FileSystemType.OPFS)
@@ -116,15 +118,15 @@ export function StorageForm() {
     if (data.fsType === FileSystemType.NFS) {
       if (!localPath) {
         toast({
-          title: "Local path not selected",
-          description: "You need to select a local path to store your files.",
+          title: t("settings.storage.dataFolderNotSelected"),
+          description: t("settings.storage.selectDataFolder"),
         })
         return
       }
       if (!isGranted) {
         toast({
-          title: "Permission denied",
-          description: "You need to grant permission to access the directory.",
+          title: t("common.error"),
+          description: t("settings.storage.permissionDenied"),
         })
         return
       }
@@ -135,12 +137,15 @@ export function StorageForm() {
     setFsType(data.fsType)
     setAutoBackupGap(data.autoBackupGap)
     toast({
-      title: "Settings updated",
+      title: t("settings.storage.settingsUpdated"),
     })
   }
 
   // get current fsType
   const currentFsType = form.watch("fsType")
+
+  // Use the function to get fsTypes when needed
+  const fsTypes = getFsTypes(t)
 
   return (
     <Form {...form}>
@@ -150,7 +155,7 @@ export function StorageForm() {
           name="fsType"
           render={({ field }) => (
             <FormItem className="flex flex-col">
-              <FormLabel>File System</FormLabel>
+              <FormLabel>{t("settings.storage.fileSystem")}</FormLabel>
               <Popover>
                 <PopoverTrigger asChild>
                   <FormControl>
@@ -165,15 +170,19 @@ export function StorageForm() {
                       {field.value
                         ? fsTypes.find((fsType) => fsType.value === field.value)
                             ?.label
-                        : "Select File System"}
+                        : t("settings.storage.selectFileSystem")}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0">
                   <Command>
-                    <CommandInput placeholder="Search type..." />
-                    <CommandEmpty>No type found.</CommandEmpty>
+                    <CommandInput
+                      placeholder={t("settings.storage.searchType")}
+                    />
+                    <CommandEmpty>
+                      {t("settings.storage.noTypeFound")}
+                    </CommandEmpty>
                     <CommandGroup>
                       {fsTypes.map((type) => (
                         <CommandItem
@@ -200,9 +209,7 @@ export function StorageForm() {
                 </PopoverContent>
               </Popover>
               <FormDescription>
-                which file system to store your files. <br /> OPFS stores files
-                in the browser's storage, while Native File System stores files
-                in a local directory on your device.
+                {t("settings.storage.fileSystemDescription")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -215,36 +222,37 @@ export function StorageForm() {
               name="localPath"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Local Path</FormLabel>
+                  <FormLabel>{t("settings.storage.dataFolder")}</FormLabel>
                   <div className="flex gap-1">
                     <div className="flex w-full items-center rounded-sm border p-1 px-3">
-                      {localPath?.name}
+                      {localPath?.name ||
+                        t("settings.storage.dataFolderNotSelected")}
                     </div>
                     <div className="flex gap-2">
                       <Button type="button" onClick={handleSelectLocalPath}>
-                        Select
+                        {t("common.select")}
                       </Button>
                       <Button
                         type="button"
                         variant="destructive"
                         onClick={clearLocalPath}
                       >
-                        Clear
+                        {t("common.cancel")}
                       </Button>
                     </div>
                   </div>
                   <FormDescription>
-                    the local path where your files will be stored.
+                    {t("settings.storage.dataFolderDescription")}
                     {isGranted ? (
                       <span className="text-green-500">
                         {" "}
-                        Permission granted.
+                        {t("settings.storage.permissionGranted")}
                       </span>
                     ) : (
                       <div className=" inline-flex items-center gap-2">
                         <span className="text-red-500">
                           {" "}
-                          Permission denied.
+                          {t("settings.storage.permissionDenied")}
                         </span>
                         {localPath && (
                           <Button
@@ -257,7 +265,7 @@ export function StorageForm() {
                               })
                             }}
                           >
-                            Grant Permission
+                            {t("settings.storage.grantPermission")}
                           </Button>
                         )}
                       </div>
@@ -272,7 +280,7 @@ export function StorageForm() {
               name="autoBackupGap"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Auto backup gap(minutes)</FormLabel>
+                  <FormLabel>{t("settings.storage.autoBackupGap")}</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="10"
@@ -287,12 +295,12 @@ export function StorageForm() {
                   </FormControl>
                   <FormDescription>
                     {autoBackupGap == 0
-                      ? "Disable auto save."
-                      : `backup data every ${field.value} minutes, 0 means disable auto
-                  save.`}
+                      ? t("settings.storage.autoBackupDisabled")
+                      : t("settings.storage.autoBackupDescription", {
+                          minutes: field.value,
+                        })}
                     <div className="my-2">
-                      backup every space's database to the local path. keep data
-                      more secure.
+                      {t("settings.storage.autoBackupExplanation")}
                     </div>
                   </FormDescription>
                   <FormMessage />
@@ -302,7 +310,7 @@ export function StorageForm() {
           </>
         )}
         <Button type="button" className="mt-4" onClick={() => onSubmit()}>
-          Update
+          {t("common.update")}
         </Button>
       </form>
     </Form>
