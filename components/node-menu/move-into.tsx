@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next"
+
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useNodeTree } from "@/hooks/use-node-tree"
 import { useAllNodes } from "@/hooks/use-nodes"
@@ -19,6 +21,7 @@ export const NodeMoveInto = ({ node }: { node: ITreeNode }) => {
     type: ["table", "folder"],
     isDeleted: false,
   })
+  const { t } = useTranslation()
   const { sqlite } = useSqlite()
   const { setNode } = useNodeTree()
 
@@ -32,10 +35,10 @@ export const NodeMoveInto = ({ node }: { node: ITreeNode }) => {
   }
   return (
     <Command>
-      <CommandInput placeholder="Filter table..." autoFocus={true} />
+      <CommandInput placeholder={t("common.filter")} autoFocus={true} />
       <ScrollArea>
         <CommandList className="max-h-[300px]">
-          <CommandEmpty>No table found.</CommandEmpty>
+          <CommandEmpty>{t("common.noTableFound")}</CommandEmpty>
           <CommandGroup>
             {tableNodes.map((tableNode, index) => (
               <CommandItem
