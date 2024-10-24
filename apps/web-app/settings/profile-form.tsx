@@ -114,7 +114,7 @@ export function ProfileForm() {
             name="username"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Name</FormLabel>
+                <FormLabel>{t("common.name")}</FormLabel>
                 <FormControl>
                   <Input placeholder="yahaha" {...field} />
                 </FormControl>
@@ -127,7 +127,9 @@ export function ProfileForm() {
           />
         </div>
         <FormItem className="flex items-baseline gap-2">
-          <FormLabel className="  whitespace-nowrap">Client ID</FormLabel>
+          <FormLabel className="  whitespace-nowrap">
+            {t("settings.general.clientId")}
+          </FormLabel>
           <FormControl>
             <Input disabled value={clientId} />
           </FormControl>
