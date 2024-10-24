@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { CalendarDays } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
 import { getToday } from "@/lib/utils"
@@ -25,6 +26,7 @@ import { Progress } from "../ui/progress"
 
 export const EverydaySidebarItem = ({ space }: { space: string }) => {
   const { sqlite } = useSqlite(space)
+  const { t } = useTranslation()
   const { convertMarkdown2State } = useDocEditor(sqlite)
   const [progress, setProgress] = useState(0)
   const [importing, setImporting] = useState(false)
@@ -82,26 +84,26 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
           >
             <Link to={`/${space}/everyday/${today}`}>
               <CalendarDays className="pr-2" />
-              Today
+              {t("common.today")}
             </Link>
           </Button>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem disabled>Open</ContextMenuItem>
-          <ContextMenuItem disabled>Download</ContextMenuItem>
+          <ContextMenuItem disabled>{t("common.open")}</ContextMenuItem>
+          <ContextMenuItem disabled>{t("common.download")}</ContextMenuItem>
           <DialogTrigger asChild>
             <ContextMenuItem>
-              <span>Import</span>
+              <span>{t("common.import")}</span>
             </ContextMenuItem>
           </DialogTrigger>
         </ContextMenuContent>
       </ContextMenu>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Import From Logseq(Beta)</DialogTitle>
+          <DialogTitle>{t("everyday.import.title")}</DialogTitle>
         </DialogHeader>
         <div className="flex h-20 cursor-pointer items-center justify-center border border-dashed border-slate-500 p-2">
-          <div onClick={getDir}>click here to select logseq journal folder</div>
+          <div onClick={getDir}>{t("everyday.import.selectFolder")}</div>
         </div>
         <DialogFooter>
           {importing && <Progress value={progress} />}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { Trash2Icon, Undo2Icon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
@@ -31,6 +32,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 export const Trash = () => {
   const [open, setOpen] = useState(false)
+  const { t } = useTranslation()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const allDeletedNodes = useAllNodes({ isDeleted: true })
   const { restoreNode, permanentlyDeleteNode } = useSqlite()
@@ -88,26 +90,29 @@ export const Trash = () => {
             asChild
           >
             <span>
-              <Trash2Icon className="pr-2" /> <span>Trash</span>
+              <Trash2Icon className="pr-2" />
+              {t("common.trash")}
             </span>
           </Button>
         </DialogTrigger>
         <DialogContent className="min-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Trash</DialogTitle>
+            <DialogTitle>{t("common.trash")}</DialogTitle>
             <DialogDescription>
-              restore or permanently delete nodes
+              {t("sidebar.trash.restoreOrPermanentlyDeleteNodes")}
             </DialogDescription>
           </DialogHeader>
           <Input
-            placeholder="Search"
+            placeholder={t("common.search")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           ></Input>
 
           <ScrollArea className="h-[500px] w-full">
-            {!Boolean(allDeletedNodes.length) && <p>Trash is empty</p>}
-            {!Boolean(allNodes.length) && <p>no results found</p>}
+            {!Boolean(allDeletedNodes.length) && (
+              <p>{t("sidebar.trash.trashIsEmpty")}</p>
+            )}
+            {!Boolean(allNodes.length) && <p>{t("common.noResultsFound")}</p>}
             {allNodes.map((node) => {
               return (
                 <div
@@ -140,19 +145,20 @@ export const Trash = () => {
         <AlertDialogTrigger></AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("common.areYouAbsolutelySure")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the
-              node
+              {t("sidebar.trash.thisActionCannotBeUndone")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-red-500 hover:bg-red-600"
             >
-              Continue
+              {t("common.continue")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

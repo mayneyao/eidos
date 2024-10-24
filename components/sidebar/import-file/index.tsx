@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Plus } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +17,7 @@ import { ImportTable } from "./import-table"
 
 export function ImportFileDialog() {
   const [open, setOpen] = useState(false)
-
+  const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -28,20 +29,22 @@ export function ImportFileDialog() {
         >
           <span>
             <Plus className="pr-2" />
-            <span>Import</span>
+            {t("common.import")}
           </span>
         </Button>
       </DialogTrigger>
 
       <DialogContent className="p-8 sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Import File</DialogTitle>
+          <DialogTitle>{t("sidebar.importFile.title")}</DialogTitle>
           <DialogDescription>
-            Import a CSV file to create a new table <br /> Import a markdown
-            file to create a new document
+            {t("sidebar.importFile.importCSVDescription")} <br />
+            {t("sidebar.importFile.importMarkdownDescription")}
           </DialogDescription>
         </DialogHeader>
+
         <ImportTable setOpen={setOpen} />
+
         <ImportDoc setOpen={setOpen} />
       </DialogContent>
     </Dialog>

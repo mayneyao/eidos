@@ -10,6 +10,7 @@ import {
   PinIcon,
 } from "lucide-react"
 import { Link } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
 import { useAppStore } from "@/lib/store/app-store"
@@ -44,6 +45,7 @@ import { useTreeOperations } from "./tree/hooks"
 import { useFolderStore } from "./tree/store"
 
 export const SideBar = ({ className }: any) => {
+  const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
   const [loading, setLoading] = useState(true)
   const { updateNodeList } = useSqlite(space)
@@ -86,7 +88,7 @@ export const SideBar = ({ className }: any) => {
           <div className={cn("flex h-full flex-col gap-2 p-2", className)}>
             <div className="flex items-center justify-between">
               {isShareMode ? (
-                "ShareMode"
+                t("common.shareMode")
               ) : (
                 <>
                   <DatabaseSelect databases={spaceList} />
@@ -109,7 +111,7 @@ export const SideBar = ({ className }: any) => {
                           className="w-full justify-start font-normal"
                         >
                           <FileBoxIcon className="pr-2" />
-                          Files
+                          {t("common.files")}
                         </Button>
                       )}
                       <Button
@@ -120,11 +122,11 @@ export const SideBar = ({ className }: any) => {
                       >
                         <Link to={`/${space}/extensions`}>
                           <BlocksIcon className="pr-2" />
-                          Extensions
+                          {t("common.extensions")}
                         </Link>
                       </Button>
                       <CurrentItemTree
-                        title="Pinned"
+                        title={t("common.pinned")}
                         allNodes={allNodes.filter((node) => node.is_pinned)}
                         Icon={<PinIcon className="pr-2" />}
                         disableAdd
@@ -134,7 +136,7 @@ export const SideBar = ({ className }: any) => {
                   <ContextMenu>
                     <ContextMenuTrigger>
                       <CurrentItemTree
-                        title="Nodes"
+                        title={t("common.nodes")}
                         allNodes={allNodes.filter(
                           (node) => !node.parent_id && !node.is_deleted
                         )}
@@ -147,7 +149,7 @@ export const SideBar = ({ className }: any) => {
                         disabled={!currentCut}
                       >
                         <ClipboardPasteIcon className="pr-2" />
-                        Paste
+                        {t("common.paste")}
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
@@ -172,8 +174,6 @@ export const SideBar = ({ className }: any) => {
               <Trash />
               <ImportFileDialog />
               <SpaceSettings />
-              {/* <Separator /> */}
-              {/* <BackupStatus /> */}
             </div>
           </div>
         )}

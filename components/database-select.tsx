@@ -3,6 +3,7 @@
 import * as React from "react"
 import { kebabCase } from "lodash"
 import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -42,6 +43,7 @@ interface IDatabaseSelectorProps {
 }
 
 export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
+  const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
   const [file, setFile] = React.useState<File | null>(null)
   const { spaceList } = useSpace()
@@ -130,7 +132,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
             aria-expanded={open}
             className="w-full min-w-[180px] justify-between"
           >
-            {space ? <div>{space}</div> : "Select Database..."}
+            {space ? <div>{space}</div> : t('space.select.selectDatabase')}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -138,12 +140,12 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
           <Command>
             <CommandList>
               <CommandInput
-                placeholder="Search Database..."
+                placeholder={t('space.select.searchDatabase')}
                 value={searchValue}
                 onValueChange={setSearchValue}
               />
               <CommandEmpty>
-                <div>No database found.</div>
+                <div>{t('common.noResultsFound')}</div>
               </CommandEmpty>
               <CommandGroup>
                 {databases.map((database) => (
@@ -171,8 +173,8 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
                       setShowNewTeamDialog(true)
                     }}
                   >
-                    <PlusCircle className="mr-2 h-4 w-4" />{" "}
-                    <span>Create New</span>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    <span>{t('space.select.createNew')}</span>
                   </CommandItem>
                 </DialogTrigger>
               </CommandGroup>
@@ -182,25 +184,24 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
       </Popover>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create Space</DialogTitle>
+          <DialogTitle>{t('space.select.createSpace')}</DialogTitle>
           <DialogDescription>
-            Add a new space to manage data for you
+            {t('space.select.createSpaceDescription')}
           </DialogDescription>
         </DialogHeader>
         <div>
           <div className="space-y-4 py-2 pb-4">
             <div className="space-y-2">
-              <Label htmlFor="database-name">Space name</Label>
+              <Label htmlFor="database-name">{t('space.select.spaceName')}</Label>
               <Input
                 id="database-name"
-                placeholder="e.g. personal"
+                placeholder={t('space.select.spaceNamePlaceholder')}
                 value={databaseName}
                 autoComplete="off"
                 type="text"
                 pattern="[\x00-\x7F]+"
                 required
                 onChange={(e) => {
-                  // disable non-ascii characters, sqlite-wasm handle non-ascii characters incorrectly
                   if (e.target.value) {
                     e.target.validity.valid && setDatabaseName(e.target.value)
                   } else {
@@ -212,7 +213,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
               <span>
                 {isExistingSpace && !isOverwrite && (
                   <span className="text-sm text-red-500">
-                    this space already exists, choose another name
+                    {t('space.select.spaceAlreadyExists')}
                   </span>
                 )}
               </span>
@@ -220,9 +221,9 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
           </div>
           <div className="space-y-4 py-2 pb-4">
             <div className="space-y-2">
-              <Label htmlFor="importFromFile">Import from file</Label>
+              <Label htmlFor="importFromFile">{t('space.select.importFromFile')}</Label>
               <div className="text-sm text-muted-foreground">
-                if you export space as a zip file, you can import it here
+                {t('space.select.importFromFileDescription')}
               </div>
               <Input
                 type="file"
@@ -233,8 +234,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
               />
               {isOverwrite && (
                 <span className="text-sm text-red-500">
-                  it seems you are trying to overwrite an existing space. please
-                  be careful, this will overwrite data in the existing space.
+                  {t('space.select.overwriteWarning')}
                 </span>
               )}
             </div>
@@ -242,14 +242,14 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setShowNewTeamDialog(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             type="submit"
             onClick={handleCreateDatabase}
             disabled={loading}
           >
-            {loading ? "Creating" : "Continue"}
+            {loading ? t('space.select.creating') : t('common.continue')}
           </Button>
         </DialogFooter>
       </DialogContent>

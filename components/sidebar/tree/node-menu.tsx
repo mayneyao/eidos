@@ -13,6 +13,7 @@ import {
   ScissorsIcon,
   Trash2Icon,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
 import { isInkServiceMode } from "@/lib/env"
@@ -56,6 +57,7 @@ export function NodeItem({
   node,
   depth,
 }: INodeItemProps) {
+  const { t } = useTranslation()
   const {
     createDoc,
     createTable,
@@ -89,10 +91,10 @@ export function NodeItem({
 
   useClickAway(() => {
     if (renameOpen) {
-      renameNode(node.id, newName);
-      setRenameOpen(false);
+      renameNode(node.id, newName)
+      setRenameOpen(false)
     }
-  }, [renameInputRef]);
+  }, [renameInputRef])
 
   const router = useNavigate()
 
@@ -110,12 +112,12 @@ export function NodeItem({
 
   const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      renameNode(node.id, newName);
-      setRenameOpen(false);
+      renameNode(node.id, newName)
+      setRenameOpen(false)
     }
     if (e.key === "Escape") {
-      setRenameOpen(false);
-      setNewName(node.name); // Reset to original name when canceling
+      setRenameOpen(false)
+      setNewName(node.name) // Reset to original name when canceling
     }
   }
   if (isInkServiceMode) {
@@ -145,11 +147,11 @@ export function NodeItem({
       </Popover>
       <ContextMenuContent className="w-64">
         <ContextMenuItem onClick={handleDeleteTable}>
-          <Trash2Icon className="pr-2" /> Delete
+          <Trash2Icon className="pr-2" /> {t("common.delete")}
         </ContextMenuItem>
         <ContextMenuItem onClick={handleRename}>
           <PencilLineIcon className="pr-2" />
-          Rename
+          {t("node.menu.rename")}
         </ContextMenuItem>
 
         <ContextMenuItem
@@ -157,7 +159,9 @@ export function NodeItem({
           disabled={Boolean(currentCut && currentCut !== node.id)}
         >
           <ScissorsIcon className="pr-2" />
-          {currentCut === node.id ? "Cancel cut" : "Cut"}
+          {currentCut === node.id
+            ? t("node.menu.cancelCut")
+            : t("node.menu.cut")}
         </ContextMenuItem>
 
         {node.type === "folder" && (
@@ -166,7 +170,7 @@ export function NodeItem({
             disabled={!currentCut}
           >
             <ClipboardPasteIcon className="pr-2" />
-            Paste
+            {t("common.paste")}
           </ContextMenuItem>
         )}
 
@@ -175,12 +179,12 @@ export function NodeItem({
             {node.is_pinned ? (
               <ContextMenuItem onClick={() => unpin(node.id)}>
                 <PinOffIcon className="pr-2" />
-                Unpin
+                {t("node.menu.unpin")}
               </ContextMenuItem>
             ) : (
               <ContextMenuItem onClick={() => pin(node.id)}>
                 <PinIcon className="pr-2" />
-                Pin
+                {t("node.menu.pin")}
               </ContextMenuItem>
             )}
           </>
@@ -191,15 +195,15 @@ export function NodeItem({
           <>
             <ContextMenuItem onClick={handleCreateDoc}>
               <FilePlus2Icon className="pr-2" />
-              New Doc
+              {t("node.menu.newDoc")}
             </ContextMenuItem>
             <ContextMenuItem onClick={handleCreateTable}>
               <FileSpreadsheetIcon className="pr-2" />
-              New Table
+              {t("node.menu.newTable")}
             </ContextMenuItem>
             <ContextMenuItem onClick={handleCreateFolder} disabled={depth > 6}>
               <FolderPlusIcon className="pr-2" />
-              New Nested Folder
+              {t("node.menu.newNestedFolder")}
             </ContextMenuItem>
           </>
         )}
@@ -210,8 +214,7 @@ export function NodeItem({
               disabled
             >
               <CopyIcon className="pr-2" />
-              Duplicate
-              {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
+              {t("node.menu.duplicate")}
             </ContextMenuItem>
           </>
         )}
@@ -220,7 +223,7 @@ export function NodeItem({
             <ContextMenuSub>
               <ContextMenuSubTrigger>
                 <PackageIcon className="pr-2" />
-                Move Into
+                {t("node.menu.moveInto")}
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
                 <NodeMoveInto node={node} />
