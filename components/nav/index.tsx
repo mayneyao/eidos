@@ -43,7 +43,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
         "flex h-8 w-full border-separate items-center justify-between pl-2 shrink-0",
         {
           fixed: navigator.windowControlsOverlay?.visible,
-          "!ml-[72px]":
+          "!pl-[72px]":
             (isDesktopMode || navigator.windowControlsOverlay?.visible) &&
             isMac() &&
             !isSidebarOpen,
