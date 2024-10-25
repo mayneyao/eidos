@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useClickAway } from "ahooks"
+import { useTranslation } from "react-i18next"
 import {
   BaselineIcon,
   CalendarDaysIcon,
@@ -40,58 +41,58 @@ export function FieldAppendPanel({
   ) => Promise<void>
   uiColumns: IField[]
 }) {
+  const { t } = useTranslation()
   const [currentField, setCurrentField] = React.useState<IField>()
   const { tableName } = useCurrentPathInfo()
   const ref = React.useRef<HTMLDivElement>(null)
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
   const fieldTypes = [
-    { name: "Text", value: FieldType.Text, icon: BaselineIcon },
-    { name: "Number", value: FieldType.Number, icon: HashIcon },
-    { name: "Select", value: FieldType.Select, icon: TagIcon },
-    { name: "MultiSelect", value: FieldType.MultiSelect, icon: TagsIcon },
+    { name: t("table.field.text"), value: FieldType.Text, icon: BaselineIcon },
+    { name: t("table.field.number"), value: FieldType.Number, icon: HashIcon },
+    { name: t("table.field.select"), value: FieldType.Select, icon: TagIcon },
+    { name: t("table.field.multiSelect"), value: FieldType.MultiSelect, icon: TagsIcon },
     {
-      name: "Checkbox",
+      name: t("table.field.checkbox"),
       value: FieldType.Checkbox,
       icon: CheckSquareIcon,
     },
-    { name: "Rating", value: FieldType.Rating, icon: StarIcon },
-
-    { name: "URL", value: FieldType.URL, icon: Link2Icon },
-    { name: "Date", value: FieldType.Date, icon: CalendarDaysIcon },
-    { name: "Files", value: FieldType.File, icon: ImageIcon },
+    { name: t("table.field.rating"), value: FieldType.Rating, icon: StarIcon },
+    { name: t("table.field.url"), value: FieldType.URL, icon: Link2Icon },
+    { name: t("table.field.date"), value: FieldType.Date, icon: CalendarDaysIcon },
+    { name: t("table.field.file"), value: FieldType.File, icon: ImageIcon },
     {
-      name: "Formula",
+      name: t("table.field.formula"),
       value: FieldType.Formula,
       icon: SigmaIcon,
     },
     {
-      name: "Link",
+      name: t("table.field.link"),
       value: FieldType.Link,
       icon: LinkIcon,
       disable: false,
     },
     {
-      name: "Lookup",
+      name: t("table.field.lookup"),
       value: FieldType.Lookup,
       icon: TextSearchIcon,
     },
     {
-      name: "Created Time",
+      name: t("table.field.createdTime"),
       value: FieldType.CreatedTime,
       icon: Clock3Icon,
     },
     {
-      name: "Last Edited Time",
+      name: t("table.field.lastEditedTime"),
       value: FieldType.LastEditedTime,
       icon: Clock3Icon,
     },
     {
-      name: "Created By",
+      name: t("table.field.createdBy"),
       value: FieldType.CreatedBy,
       icon: UserIcon,
     },
     {
-      name: "Last Edited By",
+      name: t("table.field.lastEditedBy"),
       value: FieldType.LastEditedBy,
       icon: UserIcon,
     },
@@ -187,7 +188,7 @@ export function FieldAppendPanel({
       ) : (
         <div>
           <h2 className="relative px-6 text-lg font-semibold tracking-tight">
-            add field
+            {t("table.field.addField")}
           </h2>
           <div className="space-y-1 p-2">
             {fieldTypes.map((field, i) => {

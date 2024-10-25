@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -14,6 +15,7 @@ import {
 
 export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
   const { space } = useCurrentPathInfo()
+  const { t } = useTranslation()
 
   const { createDoc, createTable, createFolder } = useSqlite(space)
   const goto = useGoto()
@@ -59,21 +61,21 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
             handleCreateNode("doc")
           }}
         >
-          New Doc
+          {t("node.menu.newDoc")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
             handleCreateNode("table")
           }}
         >
-          New Table
+          {t("node.menu.newTable")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
             handleCreateNode("folder")
           }}
         >
-          New Folder
+          {t("node.menu.newFolder")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

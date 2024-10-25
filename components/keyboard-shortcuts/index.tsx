@@ -1,16 +1,23 @@
+import { useTranslation } from "react-i18next"
+
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 
 import {
-  CommonKeyboardShortcuts,
-  DocumentKeyboardShortcuts,
-  TableKeyboardShortcuts,
+  useCommonKeyboardShortcuts,
+  useDocumentKeyboardShortcuts,
+  useTableKeyboardShortcuts,
 } from "./const"
 import { ShortcutTable } from "./shortcut-table"
 
 export function KeyboardShortCuts() {
   const { isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
     useAppRuntimeStore()
+  const { t } = useTranslation()
+  const CommonKeyboardShortcuts = useCommonKeyboardShortcuts()
+  const DocumentKeyboardShortcuts = useDocumentKeyboardShortcuts()
+  const TableKeyboardShortcuts = useTableKeyboardShortcuts()
+
   return (
     <Dialog
       open={isKeyboardShortcutsOpen}
@@ -24,17 +31,17 @@ export function KeyboardShortCuts() {
           <div className="flex flex-col gap-5 p-4">
             <ShortcutTable
               shortcuts={CommonKeyboardShortcuts}
-              title="Common Keyboard Shortcuts"
+              title={t("kbd.shortcuts.common.title")}
             />
             <ShortcutTable
               shortcuts={DocumentKeyboardShortcuts}
-              title="Document Keyboard Shortcuts"
+              title={t("kbd.shortcuts.document.title")}
             />
           </div>
           <div className="flex-shrink-0 p-4">
             <ShortcutTable
               shortcuts={TableKeyboardShortcuts}
-              title="Table(Grid View) Keyboard Shortcuts"
+              title={t("kbd.shortcuts.table.title")}
             />
           </div>
         </div>

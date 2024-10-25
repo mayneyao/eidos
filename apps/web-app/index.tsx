@@ -1,6 +1,7 @@
 import React from "react"
 import ReactDOM from "react-dom/client"
 import { RouterProvider, createBrowserRouter, redirect } from "react-router-dom"
+import "@/locales/i18n"
 
 import { DownloadPage } from "@/components/landing/download"
 import NodePage from "@/apps/web-app/[database]/[node]/page"

@@ -5,6 +5,7 @@ import { sortBy } from "lodash"
 import { ArrowDownUpIcon, SlidersHorizontalIcon } from "lucide-react"
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
+import { useTranslation } from "react-i18next"
 
 import { IView } from "@/lib/store/IView"
 import { IField } from "@/lib/store/interface"
@@ -26,6 +27,7 @@ export interface ContainerState {
 }
 
 export const ViewField = (props: { view?: IView }) => {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const orderMap = useMemo(
     () => props.view?.order_map || {},
@@ -146,10 +148,10 @@ export const ViewField = (props: { view?: IView }) => {
       <PopoverContent className="w-auto p-2">
         <div className="flex justify-between px-2">
           <Button size="xs" variant="ghost" onClick={showAllFields}>
-            show all
+            {t('table.view.field.showAll')}
           </Button>
           <Button size="xs" variant="ghost" onClick={hideAllFields}>
-            hide all
+            {t('table.view.field.hideAll')}
           </Button>
         </div>
         <hr className="my-1" />
@@ -161,7 +163,7 @@ export const ViewField = (props: { view?: IView }) => {
         <hr className="my-1" />
         <CommonMenuItem className="pl-4" onClick={handleAddFieldClick}>
           <PlusIcon className="mr-2 h-4 w-4" />
-          Add Field
+          {t('table.view.field.addField')}
         </CommonMenuItem>
       </PopoverContent>
     </Popover>

@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next"
+
 import {
   Table,
   TableBody,
@@ -13,14 +15,15 @@ interface ShortcutTableProps {
   title?: string
 }
 export const ShortcutTable = ({ shortcuts, title }: ShortcutTableProps) => {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col">
       <h2 className=" px-2 font-medium">{title || "Keyboard Shortcuts"}</h2>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Shortcut</TableHead>
-            <TableHead>Description</TableHead>
+            <TableHead>{t("kbd.shortcuts.common.shortcut")}</TableHead>
+            <TableHead>{t("kbd.shortcuts.common.description")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

@@ -1,4 +1,5 @@
 import { CopyPlusIcon, PlusIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { BinaryOperator, CompareOperator } from "@/lib/fields/const"
 import { IField } from "@/lib/store/interface"
@@ -32,6 +33,8 @@ export const ViewFilterEditor = ({
   handleClearFilter,
   depth = 0,
 }: IViewFilterEditorProps) => {
+  const { t } = useTranslation()
+
   const handleAddFilter = () => {
     const newValue = _value
       ? {
@@ -94,12 +97,12 @@ export const ViewFilterEditor = ({
         className="flex cursor-pointer items-center gap-2 rounded-sm p-2 hover:bg-secondary"
       >
         <PlusIcon className="h-4 w-4"></PlusIcon>
-        add filter
+        {t('table.view.addFilter')}
       </div>
     ) : (
       <Popover>
         <PopoverTrigger className="flex w-full items-center gap-2 rounded-sm p-2 hover:bg-secondary">
-          <PlusIcon className="h-4 w-4"></PlusIcon>add filter
+          <PlusIcon className="h-4 w-4"></PlusIcon>{t('table.view.addFilter')}
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <div
@@ -107,7 +110,7 @@ export const ViewFilterEditor = ({
             className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
           >
             <PlusIcon className="h-4 w-4 opacity-70"></PlusIcon>
-            add filter
+            {t('table.view.addFilter')}
           </div>
           {depth < 2 && (
             <div
@@ -115,7 +118,7 @@ export const ViewFilterEditor = ({
               className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
             >
               <CopyPlusIcon className="h-4 w-4 opacity-70"></CopyPlusIcon>
-              add group filter
+              {t('table.view.addGroupFilter')}
             </div>
           )}
         </PopoverContent>
@@ -131,12 +134,12 @@ export const ViewFilterEditor = ({
           })}
         ></div>
         <span className="select-none text-sm">
-          There is no filter rule, add one
+          {t('table.view.noFilterRule')}
         </span>
         {AddFilterComponent}
         <hr />
         <CommonMenuItem className="pl-4" onClick={clearFilter}>
-          delete filter
+          {t('table.view.deleteFilter')}
         </CommonMenuItem>
       </div>
     )
@@ -164,7 +167,7 @@ export const ViewFilterEditor = ({
           {AddFilterComponent}
           <hr />
           <Button variant="ghost" onClick={clearFilter}>
-            delete filter
+            {t('table.view.deleteFilter')}
           </Button>
         </div>
       )

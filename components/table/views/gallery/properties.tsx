@@ -2,6 +2,7 @@ import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -42,22 +43,15 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
     },
   })
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const { t } = useTranslation()
 
   const onSubmit = (data: IGalleryViewProperties) => console.log(data)
   const fileFields = useFileFields()
 
   const coverPreviewItems = [
-    // {
-    //   value: null,
-    //   label: "None",
-    // },
-    // {
-    //   value: "cover",
-    //   label: "Cover",
-    // },
     {
       value: "content",
-      label: "Content",
+      label: t("table.view.gallery.content"),
     },
     ...fileFields.map((field) => ({
       value: field.table_column_name,
@@ -78,7 +72,7 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
           name="hideEmptyFields"
           render={({ field }) => (
             <FormItem className="flex items-center justify-between rounded-md p-1 hover:bg-secondary">
-              <FormLabel>Hide empty fields</FormLabel>
+              <FormLabel>{t("table.view.gallery.hideEmptyFields")}</FormLabel>
               <Switch
                 checked={Boolean(field.value)}
                 onCheckedChange={(checked) => {
@@ -101,7 +95,7 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
           name="coverPreview"
           render={({ field }) => (
             <FormItem className="flex items-center justify-between rounded-md p-1 hover:bg-secondary">
-              <FormLabel>Cover preview</FormLabel>
+              <FormLabel>{t("table.view.gallery.coverPreview")}</FormLabel>
               <FormControl>
                 <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                   <PopoverTrigger className="!mt-0">

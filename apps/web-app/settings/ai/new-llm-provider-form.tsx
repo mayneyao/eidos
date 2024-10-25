@@ -1,17 +1,9 @@
+import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import OpenAI from "openai"
-import { useState } from "react"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/react-hook-form/form"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -30,6 +22,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/react-hook-form/form"
 
 import { LLMProvider, llmProviderSchema } from "./store"
 
@@ -45,6 +46,7 @@ export const UpdateLLMProviderForm = ({
   children?: React.ReactNode
 }) => {
   const [open, setOpen] = useState(false)
+  const { t } = useTranslation()
   const handleChange = (data: LLMProvider) => {
     onChange?.(data)
     setOpen(false)
@@ -54,7 +56,7 @@ export const UpdateLLMProviderForm = ({
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Update LLM Provider</DialogTitle>
+          <DialogTitle>{t("settings.ai.updateLLMProvider")}</DialogTitle>
         </DialogHeader>
         <LLMProviderForm value={value} onChange={handleChange} />
       </DialogContent>
@@ -63,6 +65,7 @@ export const UpdateLLMProviderForm = ({
 }
 
 export const NewLLMProviderForm = ({ onAdd }: ILLMProviderManageProps) => {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const handleAdd = (data: LLMProvider) => {
     onAdd(data)
@@ -72,14 +75,14 @@ export const NewLLMProviderForm = ({ onAdd }: ILLMProviderManageProps) => {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="secondary">
-          Add Provider
+          {t("settings.ai.addProvider")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>New LLM Provider</DialogTitle>
+          <DialogTitle>{t("settings.ai.addProvider")}</DialogTitle>
           <DialogDescription>
-            Add a new LLM provider to the list of providers.
+            {t("settings.ai.addProviderDescription")}
           </DialogDescription>
         </DialogHeader>
         <LLMProviderForm onAdd={handleAdd} />
@@ -99,6 +102,7 @@ export const LLMProviderForm = ({
   value,
   onChange,
 }: LLMProviderFormProps) => {
+  const { t } = useTranslation()
   const form = useForm<LLMProvider>({
     resolver: zodResolver(llmProviderSchema),
     defaultValues: value || {
@@ -127,8 +131,8 @@ export const LLMProviderForm = ({
     const baseUrl = form.getValues("baseUrl")
     if (!baseUrl) {
       toast.toast({
-        title: "Error",
-        description: "Base URL is required to fetch model list.",
+        title: t("common.error"),
+        description: t("settings.ai.baseUrlRequired"),
       })
       return
     }
@@ -146,9 +150,8 @@ export const LLMProviderForm = ({
     } catch (error) {
       console.error(error)
       toast.toast({
-        title: "Error",
-        description:
-          "Failed to fetch model list! Mostly due to CORS, please check the console for more info. ",
+        title: t("common.error"),
+        description: t("settings.ai.fetchModelListError"),
       })
     }
   }
@@ -162,7 +165,7 @@ export const LLMProviderForm = ({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel>{t("common.name")}</FormLabel>
               <FormControl>
                 <Input
                   {...field}
@@ -178,7 +181,7 @@ export const LLMProviderForm = ({
           name="type"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Type</FormLabel>
+              <FormLabel>{t("settings.ai.providerType")}</FormLabel>
               <FormControl>
                 <Select
                   {...field}
@@ -187,7 +190,7 @@ export const LLMProviderForm = ({
                   }}
                 >
                   <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Type" />
+                    <SelectValue placeholder={t("settings.ai.providerType")} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="openai">OpenAI</SelectItem>
@@ -206,13 +209,12 @@ export const LLMProviderForm = ({
               name="baseUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Base URL</FormLabel>
+                  <FormLabel>{t("settings.ai.baseUrl")}</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="https://api.openai.com/v1" />
                   </FormControl>
                   <FormDescription>
-                    This is the base URL used to access the OpenAI API or API
-                    compatible service.
+                    {t("settings.ai.baseUrlDescription")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -224,12 +226,12 @@ export const LLMProviderForm = ({
           name="apiKey"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Api Key</FormLabel>
+              <FormLabel>{t("common.apiKey")}</FormLabel>
               <FormControl>
                 <Input {...field} type="password" />
               </FormControl>
               <FormDescription>
-                This is the key used to access the API.
+                {t("settings.ai.apiKeyDescription")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -240,15 +242,10 @@ export const LLMProviderForm = ({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center justify-between">
-                <FormLabel>Models</FormLabel>
+                <FormLabel>{t("settings.ai.models")}</FormLabel>
                 {form.watch("type") === "openai" && (
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={getModelList}
-                    title="fetch model list"
-                  >
-                    fetch
+                  <Button size="xs" variant="outline" onClick={getModelList}>
+                    {t("common.fetch")}
                   </Button>
                 )}
               </div>
@@ -259,7 +256,7 @@ export const LLMProviderForm = ({
                 />
               </FormControl>
               <FormDescription>
-                add models to use, comma separated.
+                {t("settings.ai.modelsDescription")}
               </FormDescription>
               <FormMessage />
             </FormItem>

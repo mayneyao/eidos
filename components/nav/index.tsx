@@ -1,13 +1,13 @@
 import { Menu, PanelRightIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
+import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
+import { Button } from "@/components/ui/button"
+import { useSidebar } from "@/components/ui/sidebar"
 import { isDesktopMode } from "@/lib/env"
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/web/helper"
-import { Button } from "@/components/ui/button"
-import { useSidebar } from "@/components/ui/sidebar"
-import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
 
 import { BreadCrumb } from "./breadcrumb"
 import { NavDropdownMenu } from "./dropdown-menu"
@@ -43,7 +43,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
         "flex h-8 w-full border-separate items-center justify-between pl-2 shrink-0",
         {
           fixed: navigator.windowControlsOverlay?.visible,
-          "!ml-[72px]":
+          "!pl-[72px]":
             (isDesktopMode || navigator.windowControlsOverlay?.visible) &&
             isMac() &&
             !isSidebarOpen,

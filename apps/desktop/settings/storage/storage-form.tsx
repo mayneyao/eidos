@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,6 +26,7 @@ const storageFormSchema = z.object({
 type StorageFormValues = z.infer<typeof storageFormSchema>
 
 export function StorageForm() {
+  const { t } = useTranslation()
   const [dataFolder, setDataFolder] = useState<string | null>(null)
 
   const form = useForm<StorageFormValues>({
@@ -62,8 +64,8 @@ export function StorageForm() {
 
     if (!data.dataFolder) {
       toast({
-        title: "Data folder not selected",
-        description: "You need to select a data folder.",
+        title: t("settings.storage.dataFolderNotSelected"),
+        description: t("settings.storage.selectDataFolder"),
       })
       return
     }
@@ -71,7 +73,7 @@ export function StorageForm() {
     await window.eidos.config.set("dataFolder", data.dataFolder)
 
     toast({
-      title: "Settings updated",
+      title: t("settings.storage.settingsUpdated"),
     })
     await window.eidos.reloadApp()
   }
@@ -84,33 +86,33 @@ export function StorageForm() {
           name="dataFolder"
           render={({ field }) => (
             <FormItem className="flex flex-col">
-              <FormLabel>Data Folder</FormLabel>
+              <FormLabel>{t("settings.storage.dataFolder")}</FormLabel>
               <div className="flex gap-1">
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder="Select a data folder"
+                    placeholder={t("settings.storage.selectDataFolderPlaceholder")}
                     readOnly
                   />
                 </FormControl>
                 <Button type="button" onClick={handleSelectDataFolder}>
-                  Select
+                  {t("common.select")}
                 </Button>
                 {dataFolder && (
                   <Button type="button" onClick={handleOpenDataFolder}>
-                    Open
+                    {t("common.open")}
                   </Button>
                 )}
               </div>
               <FormDescription>
-                The folder where your data will be stored.
+                {t("settings.storage.dataFolderDescription")}
               </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
         <Button type="button" className="mt-4" onClick={() => onSubmit()}>
-          Update
+          {t("common.update")}
         </Button>
       </form>
     </Form>

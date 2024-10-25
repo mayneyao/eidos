@@ -17,6 +17,7 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { Message } from "ai/react"
 import { $getRoot } from "lexical"
+import { useTranslation } from "react-i18next"
 
 import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { embeddingTexts } from "@/lib/embedding/worker"
@@ -83,6 +84,7 @@ export const AIInputEditor = ({
   setContextNodes,
   setContextEmbeddings,
 }: InputEditorProps) => {
+  const { t } = useTranslation()
   const initialConfig: InitialConfigType = {
     namespace: "AI-Chat-Input-Editor",
     theme,
@@ -201,9 +203,10 @@ export const AIInputEditor = ({
           }
           placeholder={
             <div className=" pointer-events-none absolute left-3 top-2 text-xs opacity-60">
-              Type your message here.
+              {t("aiChat.inputEditor.typeYourMessageHere")}
               <br />
-              Press / to switch prompt. @ to mention resource.
+              {t("aiChat.inputEditor.pressSlashToSwitchPrompt")}
+              {t("aiChat.inputEditor.pressAtToMentionResource")}
             </div>
           }
           ErrorBoundary={LexicalErrorBoundary}

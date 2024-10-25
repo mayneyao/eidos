@@ -1,5 +1,6 @@
 import React from "react"
 import { Trash2Icon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { BinaryOperator } from "@/lib/fields/const"
 import { isLogicOperator } from "@/lib/sqlite/sql-filter-parser"
@@ -30,6 +31,7 @@ export const ViewFilterGroupEditor = ({
   depth = 0,
   parentOperator,
 }: IViewFilterGroupEditorProps) => {
+  const { t } = useTranslation()
   const handleValueChange = (value: IGroupFilterValue, index: number) => {
     const newValue = { ..._value, operands: [..._value.operands] }
     newValue.operands[index] = value
@@ -54,7 +56,7 @@ export const ViewFilterGroupEditor = ({
       {_value?.operands.map((operand, index) => {
         return (
           <React.Fragment key={index}>
-            {index === 0 && <div>Where</div>}
+            {index === 0 && <div>{t("table.view.where")}</div>}
             {index === 1 && (
               <OpSelector
                 value={parentOperator}
@@ -90,6 +92,7 @@ export const OpSelector = ({
   value: BinaryOperator
   onChange: (value: BinaryOperator) => void
 }) => {
+  const { t } = useTranslation()
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger>
@@ -97,10 +100,14 @@ export const OpSelector = ({
       </SelectTrigger>
       <SelectContent position="popper">
         <SelectItem value={BinaryOperator.And} hidecheckicon className="pl-2">
-          <span className="flex items-center gap-2 text-sm">AND</span>
+          <span className="flex items-center gap-2 text-sm">
+            {t("table.view.and")}
+          </span>
         </SelectItem>
         <SelectItem value={BinaryOperator.Or} hidecheckicon className="pl-2">
-          <span className="flex items-center gap-2 text-sm">OR</span>
+          <span className="flex items-center gap-2 text-sm">
+            {t("table.view.or")}
+          </span>
         </SelectItem>
       </SelectContent>
     </Select>

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { downloadWebLLM } from "@/lib/ai/helper"
 import { cn } from "@/lib/utils"
@@ -24,6 +25,7 @@ export const LocalLLMManage = (props: {
   const [currentModel, setCurrentModel] = useState<string>("")
   const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(false)
+  const { t } = useTranslation()
 
   const cancelDownload = () => {
     controller.abort()
@@ -51,9 +53,9 @@ export const LocalLLMManage = (props: {
     <div>
       <Card>
         <CardHeader>
-          <CardTitle>Local LLM</CardTitle>
+          <CardTitle>{t("settings.ai.localLLMTitle")}</CardTitle>
           <CardDescription>
-            <p>Manage your local LLM.</p>
+            <p>{t("settings.ai.localLLMDescription")}</p>
           </CardDescription>
         </CardHeader>
         <CardFooter className="flex gap-2">
@@ -65,7 +67,7 @@ export const LocalLLMManage = (props: {
             excludeLocalModels={models}
           />
           <Button variant="secondary" className="w-[30%]" onClick={handleAdd}>
-            {loading ? "Cancel" : "Download"}
+            {loading ? t("common.cancel") : t("common.download")}
           </Button>
         </CardFooter>
         <CardContent>

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react"
 import { useDrop } from "ahooks"
+import { useTranslation } from "react-i18next"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { cn } from "@/lib/utils"
@@ -17,6 +18,7 @@ export const NodeCover = (props: { node: ITreeNode }) => {
   const { node } = props
   const [open, setOpen] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
+  const { t } = useTranslation()
 
   const dropRef = useRef(null)
 
@@ -51,7 +53,7 @@ export const NodeCover = (props: { node: ITreeNode }) => {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <div className="absolute right-[24%] opacity-0 group-hover:opacity-100">
-            <Button size="sm">Change cover</Button>
+            <Button size="sm">{t('doc.changeCover')}</Button>
           </div>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">
@@ -75,6 +77,7 @@ export const NodeCover = (props: { node: ITreeNode }) => {
         <img
           className="trigger"
           src={node.cover}
+          alt={t('doc.coverImage')}
           style={{
             backgroundSize: "cover",
             backgroundPosition: "center",

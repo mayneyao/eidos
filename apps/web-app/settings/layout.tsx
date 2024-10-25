@@ -2,6 +2,7 @@
 
 import { useKeyPress } from "ahooks"
 import { Minimize2 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Outlet } from "react-router-dom"
 
 import { useGoto } from "@/hooks/use-goto"
@@ -14,47 +15,47 @@ import { useLastOpened } from "../[database]/hook"
 
 const sidebarNavItems = [
   {
-    title: "General",
+    titleKey: "settings.general",
     href: "/settings",
   },
   {
-    title: "AI",
+    titleKey: "settings.ai",
     href: "/settings/ai",
   },
   {
-    title: "API",
+    titleKey: "settings.api",
     href: "/settings/api",
   },
   {
-    title: "Storage",
+    titleKey: "settings.storage",
     href: "/settings/storage",
   },
-  // {
-  //   title: "Backup(deprecated)",
-  //   href: "/settings/backup",
-  //   disabled: true,
-  // },
   {
-    title: "Sync",
+    titleKey: "settings.appearance",
+    href: "/settings/appearance",
+  },
+  {
+    titleKey: "settings.sync",
     href: "/settings/sync",
     disabled: true,
   },
   {
-    title: "Security",
+    titleKey: "settings.security",
     href: "/settings/security",
     disabled: true,
   },
-  {
-    title: "Experiment",
-    href: "/settings/experiment",
-  },
-  {
-    title: "Devtools",
-    href: "/settings/dev",
-  },
+  // {
+  //   titleKey: "settings.experiment",
+  //   href: "/settings/experiment",
+  // },
+  // {
+  //   titleKey: "settings.devtools",
+  //   href: "/settings/dev",
+  // },
 ]
 
 export default function SettingsLayout() {
+  const { t } = useTranslation()
   const { lastOpenedTable, lastOpenedDatabase } = useLastOpened()
   const goto = useGoto()
   const goBack = () => goto(lastOpenedDatabase, lastOpenedTable)
@@ -70,19 +71,26 @@ export default function SettingsLayout() {
         <div className="col-span-5 space-y-6 p-4 pb-16 md:block md:p-10 xl:col-span-3">
           <div className="flex items-start justify-between">
             <div className="space-y-0.5">
-              <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
+              <h2 className="text-2xl font-bold tracking-tight">
+                {t("settings.title")}
+              </h2>
               <p className="text-muted-foreground">
-                Manage App Settings and Configuration
+                {t("settings.manageAppSettings")}
               </p>
             </div>
             <Button variant="ghost" onClick={goBack}>
-              <Minimize2 className="mr-2 h-4 w-4" /> ESC
+              <Minimize2 className="mr-2 h-4 w-4" /> {t("common.esc")}
             </Button>
           </div>
           <Separator className="my-6" />
           <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
             <aside className="-mx-4 lg:w-1/5">
-              <SidebarNav items={sidebarNavItems} />
+              <SidebarNav
+                items={sidebarNavItems.map((item) => ({
+                  ...item,
+                  title: t(item.titleKey),
+                }))}
+              />
             </aside>
             <div className="flex-1 lg:max-w-2xl">
               <Outlet />

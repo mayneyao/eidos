@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { FieldType } from "@/lib/fields/const"
 import { IField } from "@/lib/store/interface"
@@ -24,6 +25,7 @@ export const FieldDelete = ({
   children,
   deleteField,
 }: IFieldDeleteProps) => {
+  const { t } = useTranslation()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const handleDeleteFieldConfirm = () => {
     deleteField(field.table_column_name)
@@ -34,19 +36,19 @@ export const FieldDelete = ({
       <DialogTrigger className="w-full">{children}</DialogTrigger>
       <DialogContent className="click-outside-ignore max-w-[300px]">
         <DialogHeader>
-          <DialogTitle>Are you sure delete this field?</DialogTitle>
+          <DialogTitle>{t('table.field.deleteConfirmTitle')}</DialogTitle>
           <DialogDescription>
             {field.type === FieldType.Link
-              ? "This field is a link field. Deleting this field will also delete the paired field. and this action cannot be undone."
-              : "This action cannot be undone."}
+              ? t('table.field.deleteLinkFieldWarning')
+              : t('common.thisActionCannotBeUndone')}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="destructive" onClick={handleDeleteFieldConfirm}>
-            Delete
+            {t('common.delete')}
           </Button>
         </DialogFooter>
       </DialogContent>

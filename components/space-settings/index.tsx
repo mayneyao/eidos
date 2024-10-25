@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { SettingsIcon } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSpace } from "@/hooks/use-space"
@@ -29,6 +30,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "../ui/button"
 
 export function Settings() {
+  const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
   const { exportSpace, deleteSpace, rebuildIndex } = useSpace()
   const navigate = useNavigate()
@@ -65,26 +67,25 @@ export function Settings() {
   return (
     <Card className="border-0 p-0">
       <CardHeader>
-        <CardTitle>Space Settings</CardTitle>
+        <CardTitle>{t('space.settings.title')}</CardTitle>
         <CardDescription>
-          Settings only apply to this space. if you want to change settings for
-          all spaces, go to{" "}
+          {t('space.settings.description')}{" "}
           <Link to="/settings" className="text-blue-500 underline">
-            global settings
+            {t('space.settings.globalSettings')}
           </Link>
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid gap-6">
           <div className="grid gap-3">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">{t('common.name')}</Label>
             <Input id="name" type="text" disabled defaultValue={space} />
           </div>
           <hr />
           <div className="grid gap-3">
-            <Label htmlFor="description">Export</Label>
+            <Label htmlFor="description">{t('common.export')}</Label>
             <p className="text-sm text-muted-foreground">
-              Export all data from this space for backup or transfer purposes.
+              {t('space.settings.exportDescription')}
             </p>
             <Button
               size="sm"
@@ -92,14 +93,13 @@ export function Settings() {
               variant="outline"
               onClick={handleExport}
             >
-              Export Space
+              {t('space.settings.exportSpace')}
             </Button>
           </div>
           <div className="grid gap-3">
-            <Label htmlFor="rebuild-index">Rebuild Index</Label>
+            <Label htmlFor="rebuild-index">{t('space.settings.rebuildIndex')}</Label>
             <p className="text-sm text-muted-foreground">
-              Reconstruct the search index for this space. Use this if you're
-              experiencing search issues.
+              {t('space.settings.rebuildIndexDescription')}
             </p>
             <Button
               size="sm"
@@ -108,45 +108,41 @@ export function Settings() {
               onClick={handleRebuildIndex}
               disabled={isRebuilding}
             >
-              {isRebuilding ? "Rebuilding..." : "Rebuild Index"}
+              {isRebuilding ? t('space.settings.rebuilding') : t('space.settings.rebuildIndex')}
             </Button>
           </div>
           <div className="grid gap-3">
-            <Label htmlFor="description">Danger zone</Label>
+            <Label htmlFor="description">{t('space.settings.dangerZone')}</Label>
             <p className="text-sm text-muted-foreground">
-              Permanently delete this space and all its contents. This action
-              cannot be undone.
+              {t('space.settings.deleteSpaceDescription')}
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button size="sm" className=" max-w-max" variant="destructive">
-                  Delete Space
+                  {t('space.settings.deleteSpace')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogTitle>{t('common.areYouAbsolutelySure')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete
-                    your space{" "}
-                    <span className="font-bold text-red-500">{space}</span>.
-                    Please type the space name to confirm.
+                    {t('space.settings.deleteSpaceWarning', { spaceName: space })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <Input
                   id="confirmName"
                   type="text"
-                  placeholder="Type space name"
+                  placeholder={t('space.settings.typeSpaceName')}
                   value={confirmName}
                   onChange={(e) => setConfirmName(e.target.value)}
                 />
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={handleDelete}
                     disabled={confirmName !== space}
                   >
-                    Continue
+                    {t('common.continue')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -159,6 +155,7 @@ export function Settings() {
 }
 
 export const SpaceSettings = () => {
+  const { t } = useTranslation()
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -169,7 +166,7 @@ export const SpaceSettings = () => {
           asChild
         >
           <span>
-            <SettingsIcon className="pr-2" /> <span>Settings</span>
+            <SettingsIcon className="pr-2" /> <span>{t('common.settings')}</span>
           </span>
         </Button>
       </DialogTrigger>
