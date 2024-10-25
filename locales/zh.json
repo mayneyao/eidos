@@ -1,4 +1,7 @@
 {
+    "aiChat.inputEditor.pressAtToMentionResource": "@ 提及资源",
+    "aiChat.inputEditor.pressSlashToSwitchPrompt": "按 / 切换提示词",
+    "aiChat.inputEditor.typeYourMessageHere": "在此输入您的消息。",
     "cmdk.inputPlaceholder": "输入命令或搜索...（输入 / 以查看脚本）",
     "cmdk.newDraftDoc": "新建草稿文档",
     "cmdk.notFound": "未找到 \"{{input}}\"",
@@ -152,7 +155,7 @@
     "settings.ai.baseUrlDescription": "API 的基础 URL。",
     "settings.ai.baseUrlRequired": "基础 URL 是必需的。",
     "settings.ai.codingModel": "编码模型",
-    "settings.ai.codingModelDescription": "选择您偏好的编码���务模型",
+    "settings.ai.codingModelDescription": "选择您偏好的编码任务模型",
     "settings.ai.configUpdated": "AI 配置已更新。",
     "settings.ai.description": "配置您的 AI 设置。",
     "settings.ai.embeddingModel": "嵌入模型",

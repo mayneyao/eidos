@@ -1,4 +1,7 @@
 {
+    "aiChat.inputEditor.pressAtToMentionResource": "@ to mention resource",
+    "aiChat.inputEditor.pressSlashToSwitchPrompt": "Press / to switch prompt",
+    "aiChat.inputEditor.typeYourMessageHere": "Type your message here.",
     "cmdk.inputPlaceholder": "Type a command or search... (type / for scripts)",
     "cmdk.newDraftDoc": "New Draft Doc",
     "cmdk.notFound": "Not found \"{{input}}\"",
