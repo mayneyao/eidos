@@ -1,6 +1,7 @@
 import { useContext, useState } from "react"
 import { LayoutGridIcon, LayoutListIcon, Table2Icon } from "lucide-react"
 import ReactDOM from "react-dom"
+import { useTranslation } from "react-i18next"
 
 import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { cn } from "@/lib/utils"
@@ -47,6 +48,7 @@ export const ViewItem = ({
   deleteView,
   disabledDelete,
 }: IViewItemProps) => {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { getLoading } = useViewLoadingStore()
   const loading = getLoading(view.query)
@@ -92,31 +94,30 @@ export const ViewItem = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem onSelect={handleEdit} disabled={isReadOnly}>
-                Edit
+                {t('table.view.edit')}
               </DropdownMenuItem>
               <DropdownMenuItem disabled={disabledDelete || isReadOnly}>
                 <DialogTrigger className="flex w-full cursor-default">
-                  Delete
+                  {t('common.delete')}
                 </DialogTrigger>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Are you sure delete this view?</DialogTitle>
+              <DialogTitle>{t('table.view.deleteConfirmTitle')}</DialogTitle>
               <DialogDescription>
-                This action cannot be undone. This will permanently delete the
-                view
+                {t('table.view.deleteConfirmDescription')}
               </DialogDescription>
               <DialogFooter>
                 <Button
                   variant="secondary"
                   onClick={() => setDeleteDialogOpen(false)}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button variant="destructive" onClick={deleteView}>
-                  Delete
+                  {t('common.delete')}
                 </Button>
               </DialogFooter>
             </DialogHeader>

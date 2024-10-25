@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { XIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { useUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
@@ -24,6 +25,7 @@ interface IViewEditorProps {
   onSortChange?: (sort: OrderByItem[]) => void
 }
 export function ViewSortEditor(props: IViewEditorProps) {
+  const { t } = useTranslation()
   const { onSortChange } = props
   const { tableName, space, viewId } = useContext(TableContext)
   const { currentView } = useCurrentView({ tableName, space, viewId })
@@ -108,13 +110,12 @@ export function ViewSortEditor(props: IViewEditorProps) {
     <div className="w-[400px] rounded-lg border p-2 shadow-md">
       {!orderItems.length && (
         <span className="select-none text-sm">
-          There is no sort rule, add one
+          {t("table.view.noSortRule")}
         </span>
       )}
       {orderItems.map((item, index) => {
         return (
           <div className="mt-4 flex items-center space-x-2" key={item.column}>
-            {/* <MousePointerIcon className="text-gray-400" /> */}
             <FieldSelector
               fields={uiColumns}
               value={item.column}
@@ -125,11 +126,13 @@ export function ViewSortEditor(props: IViewEditorProps) {
               onValueChange={(value) => onOrderChange(value, index)}
             >
               <SelectTrigger id="sort-order-2">
-                <SelectValue placeholder="Ascending" />
+                <SelectValue placeholder={t("table.sortAscending")} />
               </SelectTrigger>
               <SelectContent position="popper">
-                <SelectItem value="ASC">Ascending</SelectItem>
-                <SelectItem value="DESC">Descending</SelectItem>
+                <SelectItem value="ASC">{t("table.sortAscending")}</SelectItem>
+                <SelectItem value="DESC">
+                  {t("table.sortDescending")}
+                </SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -150,11 +153,10 @@ export function ViewSortEditor(props: IViewEditorProps) {
           onClick={addSort}
           size="sm"
         >
-          {/* <PlusIcon className="w-4 h-4" /> */}
-          <span>Add sort</span>
+          <span>{t("table.view.addSort")}</span>
         </Button>
         <Button size="sm" variant="ghost" onClick={handleClearSort}>
-          <span>Delete sort</span>
+          <span>{t("table.view.deleteSort")}</span>
         </Button>
       </div>
     </div>

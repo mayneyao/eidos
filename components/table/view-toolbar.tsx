@@ -39,6 +39,7 @@ import { ViewField } from "./view-field/view-field"
 import { ViewFilter } from "./view-filter"
 import { ViewItem } from "./view-item"
 import { ViewSort } from "./view-sort"
+import { useTranslation } from "react-i18next"
 
 const useGap = (
   width: number | undefined,
@@ -158,6 +159,7 @@ export const ViewToolbar = (props: {
   const [open, setOpen] = useState(false)
   const tableId = getTableIdByRawTableName(tableName)
   const { subPageId, setSubPage, clearSubPage } = useCurrentSubPage()
+  const { t } = useTranslation()
 
   const handleAddRow = async () => {
     const uuid = uuidv7()
@@ -261,7 +263,7 @@ export const ViewToolbar = (props: {
           {!props.isReadOnly && (
             <Button size="xs" onClick={handleAddRow}>
               <PlusIcon className="h-4 w-4"></PlusIcon>
-              New
+              {t('common.new')}
             </Button>
           )}
           <Dialog open={open} onOpenChange={handleDialogOpenChange}>

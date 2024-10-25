@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { useParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import {
   DataUpdateSignalType,
@@ -32,6 +33,7 @@ export const NodeComponent = ({
   nodeId?: string
   isRootPage?: boolean
 }) => {
+  const { t } = useTranslation()
   const params = useCurrentPathInfo()
   const { updateNodeName } = useSqlite(params.database)
   const { tableName } = params
@@ -128,19 +130,19 @@ export const NodeComponent = ({
                 <>
                   {!node.icon && (
                     <Button size="xs" variant="ghost" onClick={handleAddIcon}>
-                      Add Icon
+                      {t('doc.addIcon')}
                     </Button>
                   )}
                   {!node.cover && (
                     <Button size="xs" variant="ghost" onClick={handleAddCover}>
-                      Add Cover
+                      {t('doc.addCover')}
                     </Button>
                   )}
                 </>
               )}
               {parentNode?.type === "table" && (
                 <Button size="xs" variant="ghost" onClick={toggleProperties}>
-                  {node.hide_properties ? "Show Properties" : "Hide Properties"}
+                  {node.hide_properties ? t('doc.showProperties') : t('doc.hideProperties')}
                 </Button>
               )}
             </div>

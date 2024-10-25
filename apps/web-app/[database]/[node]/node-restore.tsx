@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { useGotoCurrentSpaceHome } from "@/hooks/use-goto"
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button"
 export const NodeRestore = ({ node }: { node: ITreeNode | null }) => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const { restoreNode, permanentlyDeleteNode } = useSqlite()
+  const { t } = useTranslation()
 
   const gotoSpaceHome = useGotoCurrentSpaceHome()
   const confirmDelete = () => {
@@ -34,21 +36,21 @@ export const NodeRestore = ({ node }: { node: ITreeNode | null }) => {
       {Boolean(node && node.is_deleted) && (
         <>
           <div className="my-1 flex w-full items-center justify-center gap-8 bg-red-400 p-2">
-            This node is in the trash
+            {t("doc.nodeInTrash")}
             <div className="flex gap-2">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => restoreNode(node)}
               >
-                Restore
+                {t("common.restore")}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setDeleteConfirmOpen(true)}
               >
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           </div>
@@ -59,19 +61,18 @@ export const NodeRestore = ({ node }: { node: ITreeNode | null }) => {
             <AlertDialogTrigger></AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogTitle>{t("common.areYouAbsolutelySure")}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the
-                  node
+                  {t("doc.permanentDeleteWarning")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={confirmDelete}
                   className="bg-red-500 hover:bg-red-600"
                 >
-                  Continue
+                  {t("common.continue")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

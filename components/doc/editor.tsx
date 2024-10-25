@@ -8,6 +8,7 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { useDebounceFn } from "ahooks"
+import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
 import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
@@ -50,6 +51,7 @@ interface EditorProps {
 }
 
 export function InnerEditor(props: EditorProps) {
+  const { t } = useTranslation()
   const ref = React.useRef<HTMLDivElement>(null)
   const { isToolbarVisible, isAIToolsOpen } = useEditorStore()
   const [floatingAnchorElem, setFloatingAnchorElem] =
@@ -102,7 +104,7 @@ export function InnerEditor(props: EditorProps) {
             }
             placeholder={
               <div className="pointer-events-none absolute left-1 top-0 text-base text-[#aaa]">
-                <span>{props.placeholder ?? "press / for Command"}</span>
+                <span>{props.placeholder ?? t('doc.pressForCommand')}</span>
               </div>
             }
             ErrorBoundary={LexicalErrorBoundary}
@@ -144,6 +146,7 @@ export function InnerEditor(props: EditorProps) {
 }
 
 export function Editor(props: EditorProps) {
+  const { t } = useTranslation()
   const canChangeTitle = props.onTitleChange !== undefined
   const [title, setTitle] = useState(props.title ?? "")
   const isLoading = useLoadingExtBlocks()
@@ -186,7 +189,7 @@ export function Editor(props: EditorProps) {
             {props.beforeTitle && <div>{props.beforeTitle}</div>}
             <input
               id="doc-title"
-              placeholder="Untitled"
+              placeholder={t('doc.untitled')}
               className="h-[50px] max-w-xs grow truncate bg-transparent text-4xl font-bold text-primary outline-none sm:max-w-full"
               value={title}
               title={title}

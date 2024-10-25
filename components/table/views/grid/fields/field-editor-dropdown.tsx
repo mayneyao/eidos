@@ -7,6 +7,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useLayer } from "react-laag"
+import { useTranslation } from 'react-i18next';
 
 import { FieldType } from "@/lib/fields/const"
 import { IView } from "@/lib/store/IView"
@@ -60,6 +61,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const { fields } = useTableFields(tableName)
   const { showColumns } = useColumns(fields, props.view)
+  const { t } = useTranslation();
 
   useEffect(() => {
     const currentField = showColumns[currentColIndex!]
@@ -167,15 +169,15 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 onClick={handleEditFieldPropertiesClick}
               >
                 <Settings2 className="mr-2 h-4 w-4" />
-                Edit Property
+                {t('table.editProperty')}
               </CommonMenuItem>
               <CommonMenuItem className="pl-4" onClick={addASCSort}>
                 <ArrowUpNarrowWideIcon className="mr-2 h-4 w-4" />
-                Sort Ascending
+                {t('table.sortAscending')}
               </CommonMenuItem>
               <CommonMenuItem className="pl-4" onClick={addDESCSort}>
                 <ArrowDownWideNarrowIcon className="mr-2 h-4 w-4" />
-                Sort Descending
+                {t('table.sortDescending')}
               </CommonMenuItem>
               {currentUiColumn?.type !== "title" && (
                 <DialogTrigger
@@ -184,17 +186,17 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 >
                   <CommonMenuItem className="pl-4">
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Field
+                    {t('table.deleteField')}
                   </CommonMenuItem>
                 </DialogTrigger>
               )}
               <DialogContent className="max-w-[300px]">
                 <DialogHeader>
-                  <DialogTitle>Are you sure delete this field?</DialogTitle>
+                  <DialogTitle>{t('table.deleteFieldConfirmation')}</DialogTitle>
                   <DialogDescription>
                     {currentUiColumn?.type === FieldType.Link
-                      ? "This field is a link field. Deleting this field will also delete the paired field. and this action cannot be undone."
-                      : "This action cannot be undone."}
+                      ? t('table.deleteLinkFieldWarning')
+                      : t('common.thisActionCannotBeUndone')}
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -202,13 +204,13 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                     variant="ghost"
                     onClick={() => setIsDeleteDialogOpen(false)}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                   <Button
                     variant="destructive"
                     onClick={handleDeleteFieldConfirm}
                   >
-                    Delete
+                    {t('common.delete')}
                   </Button>
                 </DialogFooter>
               </DialogContent>

@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { ChevronsUpDown } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { IField } from "@/lib/store/interface"
 import {
@@ -32,10 +33,13 @@ export const FieldSelector = ({
   onChange,
 }: IFieldSelectorProps) => {
   const [open, setOpen] = useState(false)
+  const { t } = useTranslation()
+
   const handleSelect = (field: IField) => {
     onChange(field.table_column_name)
     setOpen(false)
   }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger>
@@ -47,16 +51,16 @@ export const FieldSelector = ({
           <div className="max-w-[150px] truncate">
             {value
               ? fields.find((field) => field.table_column_name === value)
-                  ?.name || "Untitled Field"
-              : "Select Field"}
+                  ?.name || t("table.field.untitledField")
+              : t("table.field.selectField")}
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="click-outside-ignore w-[200px] p-0">
         <Command>
-          <CommandInput placeholder="search field" />
-          <CommandEmpty>No field found.</CommandEmpty>
+          <CommandInput placeholder={t("table.field.searchField")} />
+          <CommandEmpty>{t("table.field.noFieldFound")}</CommandEmpty>
           <CommandList>
             {fields.map((field) => {
               const iconSvgString = icons[field.type]({
@@ -76,7 +80,7 @@ export const FieldSelector = ({
                       }}
                     ></span>
                     <p className="max-w-[150px] truncate " title={field.name}>
-                      {field.name || "Untitled Field"}
+                      {field.name || t("table.field.untitledField")}
                     </p>
                   </span>
                 </CommandItem>

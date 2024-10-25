@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { FieldType } from "@/lib/fields/const"
 import { cn } from "@/lib/utils"
@@ -20,77 +21,26 @@ import { FieldIcon } from "@/components/table/field-icon"
 
 // for now only support these fields
 const fields = [
-  {
-    value: FieldType.Text,
-    label: "Text",
-  },
-  {
-    value: FieldType.Number,
-    label: "Number",
-  },
-  {
-    value: FieldType.Select,
-    label: "Select",
-  },
-  {
-    value: FieldType.MultiSelect,
-    label: "Multi-select",
-  },
-  {
-    value: FieldType.Checkbox,
-    label: "Checkbox",
-  },
-  {
-    value: FieldType.Rating,
-    label: "Rating",
-  },
-  {
-    value: FieldType.URL,
-    label: "URL",
-  },
-  {
-    value: FieldType.Date,
-    label: "Date",
-  },
-  {
-    value: FieldType.File,
-    label: "File",
-  },
+  { value: FieldType.Text, label: "table.field.text" },
+  { value: FieldType.Number, label: "table.field.number" },
+  { value: FieldType.Select, label: "table.field.select" },
+  { value: FieldType.MultiSelect, label: "table.field.multiSelect" },
+  { value: FieldType.Checkbox, label: "table.field.checkbox" },
+  { value: FieldType.Rating, label: "table.field.rating" },
+  { value: FieldType.URL, label: "table.field.url" },
+  { value: FieldType.Date, label: "table.field.date" },
+  { value: FieldType.File, label: "table.field.file" },
 ]
 
 const readonlyFields = [
-  {
-    value: FieldType.Title,
-    label: "Title",
-  },
-  {
-    value: FieldType.Formula,
-    label: "Formula",
-  },
-  {
-    value: FieldType.Link,
-    label: "Link",
-  },
-  {
-    value: FieldType.Lookup,
-    label: "Lookup",
-  },
-  {
-    value: FieldType.CreatedTime,
-    label: "Created Time",
-  },
-  {
-    value: FieldType.LastEditedTime,
-    label: "Last Edited Time",
-  },
-  {
-    value: FieldType.CreatedBy,
-    label: "Created By",
-  },
-  {
-    value: FieldType.LastEditedBy,
-    label: "Last Edited By",
-  },
+  { value: FieldType.Title, label: "table.field.title" },
+  { value: FieldType.Formula, label: "table.field.formula" },
+  { value: FieldType.Link, label: "table.field.link" },
+  { value: FieldType.Lookup, label: "table.field.lookup" },
+  { value: FieldType.CreatedTime, label: "table.field.createdTime" },
+  { value: FieldType.LastEditedTime, label: "table.field.lastEditedTime" },
+  { value: FieldType.CreatedBy, label: "table.field.createdBy" },
+  { value: FieldType.LastEditedBy, label: "table.field.lastEditedBy" },
 ]
 
 interface IFieldTypeSelectProps {
@@ -100,6 +50,7 @@ interface IFieldTypeSelectProps {
 
 export function FieldTypeSelect({ value, onChange }: IFieldTypeSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const { t } = useTranslation()
 
   const canBeSelected = fields.some((field) => field.value === value)
   return (
@@ -115,22 +66,22 @@ export function FieldTypeSelect({ value, onChange }: IFieldTypeSelectProps) {
           {value ? (
             <div className="flex items-center gap-2">
               <FieldIcon type={value} />
-              {
+              {t(
                 [...fields, ...readonlyFields].find(
                   (field) => field.value === value
-                )?.label
-              }
+                )?.label || ""
+              )}
             </div>
           ) : (
-            "Select field..."
+            t("table.field.selectField")
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="click-outside-ignore w-[200px] p-0">
         <Command>
-          <CommandInput placeholder="Search field..." />
-          <CommandEmpty>No field found.</CommandEmpty>
+          <CommandInput placeholder={t("table.field.searchField")} />
+          <CommandEmpty>{t("table.field.noFieldFound")}</CommandEmpty>
           <CommandGroup>
             {fields.map((field) => (
               <CommandItem
@@ -149,7 +100,7 @@ export function FieldTypeSelect({ value, onChange }: IFieldTypeSelectProps) {
                 />
                 <div className="flex gap-2">
                   <FieldIcon type={field.value} />
-                  {field.label}
+                  {t(field.label)}
                 </div>
               </CommandItem>
             ))}

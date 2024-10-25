@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useClickAway } from "ahooks"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+import { useTranslation } from "react-i18next"
 
 import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { Input } from "@/components/ui/input"
@@ -36,6 +37,7 @@ interface IViewEditorProps {
 const LIMIT_ROWS_FOR_OPTIMIZE_VIEW = 88888
 
 export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
+  const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const { updateView } = useViewOperation()
   const { count, loading } = useViewCount(view)
@@ -83,8 +85,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Name</FormLabel>
-                <FormDescription></FormDescription>
+                <FormLabel>{t('common.name')}</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -98,9 +99,9 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
             name="type"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Type</FormLabel>
+                <FormLabel>{t('table.fieldType')}</FormLabel>
                 <FormDescription>
-                  The type of view to use for this table.
+                  {t('table.view.typeDescription')}
                 </FormDescription>
                 <FormControl>
                   <div className="flex flex-col gap-2">
@@ -111,7 +112,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                       }}
                       viewId={view.id}
                       isActive={field.value === "grid"}
-                      title="Grid"
+                      title={t('table.view.grid')}
                       viewType={ViewTypeEnum.Grid}
                       icon={ViewIconMap[ViewTypeEnum.Grid]}
                     ></ViewLayout>
@@ -123,7 +124,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                       disabled={disabled}
                       viewId={view.id}
                       isActive={field.value === "gallery"}
-                      title="Gallery"
+                      title={t('table.view.gallery')}
                       viewType={ViewTypeEnum.Gallery}
                       icon={ViewIconMap[ViewTypeEnum.Gallery]}
                     ></ViewLayout>
@@ -135,13 +136,13 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
                       }}
                       disabled={disabled}
                       isActive={field.value === "doc_list"}
-                      title="Doc list (beta)"
+                      title={t('table.view.docList')}
                       viewType={ViewTypeEnum.DocList}
                       icon={ViewIconMap[ViewTypeEnum.DocList]}
                     ></ViewLayout>
                     {disabled && (
                       <p className="text-sm  text-muted-foreground">
-                        The disabled view types are not ready for large data
+                        {t('table.view.disabledViewTypesWarning')}
                       </p>
                     )}
                   </div>
@@ -156,9 +157,9 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
             name="query"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Query</FormLabel>
+                <FormLabel>{t('table.view.query')}</FormLabel>
                 <FormDescription>
-                  sql query to use for this view.
+                  {t('table.view.queryDescription')}
                 </FormDescription>
                 <FormControl>
                   <Input {...field} disabled />
@@ -167,7 +168,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
               </FormItem>
             )}
           />
-          <Button type="submit">update</Button>
+          <Button type="submit">{t('common.update')}</Button>
         </form>
       </Form>
     </div>

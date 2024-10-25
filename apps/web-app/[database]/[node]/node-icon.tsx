@@ -11,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { useTranslation } from "react-i18next"
 
 init({ data })
 
@@ -46,6 +47,7 @@ export const NodeIconEditor = (props: {
   const { updateIcon } = useNode()
   const [open, setOpen] = useState(false)
 
+  const { t } = useTranslation()
   useEffect(() => {
     setIcon(props.icon)
   }, [props.icon])
@@ -94,7 +96,7 @@ export const NodeIconEditor = (props: {
             size="sm"
             onClick={handleRemoveIcon}
           >
-            Remove
+            {t("common.remove")}
           </Button>
         </div>
       </PopoverContent>
