@@ -86,14 +86,14 @@ export function CommandDialogDemo() {
     goto(`/${lastOpenedDatabase}/${docId}`)()
   }
 
+  const { t } = useTranslation()
+
   if (mode === "action") {
     return <ScriptList />
   }
   if (mode === "syscall") {
     return <ActionList />
   }
-
-  const { t } = useTranslation()
 
   return (
     <CommandDialog open={isCmdkOpen} onOpenChange={setCmdkOpen}>
