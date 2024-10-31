@@ -13,7 +13,7 @@ import { $isBookmarkNode, BookmarkPayload } from "."
 import "./style.css"
 import { useState } from "react"
 
-import { proxyImageURL } from "@/lib/utils"
+import { proxyURL } from "@/lib/utils"
 import { Loading } from "@/components/loading"
 
 function BookmarkPlaceholder(props: { nodeKey: string }) {
@@ -99,7 +99,7 @@ export const BookmarkComponent = (
           <div className="h-full w-full">
             {props.image && (
               <img
-                src={proxyImageURL(props.image)}
+                src={proxyURL(props.image)}
                 alt=""
                 className="absolute inset-0 hidden h-full w-full object-cover md:block"
               />
