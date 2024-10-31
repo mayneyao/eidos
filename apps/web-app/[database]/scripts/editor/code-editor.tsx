@@ -47,10 +47,14 @@ export interface CodeEditorProps {
   value: string
   onSave?: (code: string, ts_code?: string) => void
   language?: string
+  customCompile?: (code: string) => Promise<string>
 }
 
 export const CodeEditor = forwardRef(
-  ({ value, onSave, language = "javascript" }: CodeEditorProps, ref) => {
+  (
+    { value, onSave, language = "javascript", customCompile }: CodeEditorProps,
+    ref
+  ) => {
     const monaco = useMonaco()
     const [code, setCode] = useState<string | undefined>(value)
 
@@ -62,13 +66,19 @@ export const CodeEditor = forwardRef(
       (code: string) => {
         setCode(code)
         if (language === "typescript") {
-          const jsCode = compile(code)
-          onSave?.(jsCode, code)
+          if (customCompile) {
+            customCompile(code).then((jsCode) => {
+              onSave?.(jsCode, code)
+            })
+          } else {
+            const jsCode = compile(code)
+            onSave?.(jsCode, code)
+          }
         } else {
           onSave?.(code)
         }
       },
-      [language, onSave]
+      [language, onSave, customCompile]
     )
 
     // parent component can call handleSave directly

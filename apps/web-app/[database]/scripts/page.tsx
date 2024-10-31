@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import {
@@ -10,11 +9,11 @@ import {
   ShapesIcon,
   SparkleIcon,
   SquareCodeIcon,
+  ToyBrickIcon
 } from "lucide-react"
+import { useMemo, useState } from "react"
 import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 
-import { cn } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +46,8 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { cn } from "@/lib/utils"
 
 import { useAllApps } from "./hooks/use-all-apps"
 import { useAllBlocks } from "./hooks/use-all-blocks"
@@ -60,31 +61,42 @@ const IconMap = {
   udf: FunctionSquareIcon,
   prompt: SparkleIcon,
   block: ShapesIcon,
+  m_block: ToyBrickIcon,
   app: AppWindowIcon,
 }
 
 const extensionTypes = [
   {
+    id: "app",
     name: "App",
     icon: AppWindowIcon,
     isGlobal: true,
   },
   {
+    id: "block",
     name: "Block",
     icon: ShapesIcon,
     isGlobal: true,
   },
   {
+    id: "script",
     name: "Script",
     icon: SquareCodeIcon,
   },
   {
+    id: "udf",
     name: "UDF",
     icon: FunctionSquareIcon,
   },
   {
+    id: "prompt",
     name: "Prompt",
     icon: SparkleIcon,
+  },
+  {
+    id: "m_block",
+    name: "Micro Block",
+    icon: ToyBrickIcon,
   },
 ]
 export const ScriptPage = () => {
@@ -97,7 +109,7 @@ export const ScriptPage = () => {
   const _scripts = useMemo(() => {
     return [
       ...scripts.filter((script) =>
-        ["script", "udf", "prompt"].includes(script.type)
+        ["script", "udf", "prompt", "m_block"].includes(script.type)
       ),
       ...blocks.map((block) => ({
         id: block,
@@ -216,6 +228,11 @@ export const ScriptPage = () => {
               <DropdownMenuItem onClick={() => handleCreateNewScript("prompt")}>
                 Prompt
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleCreateNewScript("m_block")}
+              >
+                Micro Block
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -238,10 +255,9 @@ export const ScriptPage = () => {
                 </div>
               </SelectItem>
               {extensionTypes.map((type) => {
-                const Icon =
-                  IconMap[type.name.toLowerCase() as keyof typeof IconMap]
+                const Icon = IconMap[type.id as keyof typeof IconMap]
                 return (
-                  <SelectItem key={type.name} value={type.name}>
+                  <SelectItem key={type.id} value={type.id}>
                     <div className="flex items-center gap-2">
                       <Icon size={18} className=" opacity-60" />
                       {type.name}{" "}
