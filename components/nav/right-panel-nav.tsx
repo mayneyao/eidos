@@ -1,22 +1,39 @@
 import {
-    BotIcon,
-    FileBoxIcon,
-    LucideIcon,
-    PanelRightIcon
+  BotIcon,
+  LucideIcon,
+  PanelRightIcon,
+  PlusIcon,
+  ToyBrickIcon,
 } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
+import { useAllMblocks } from "@/apps/web-app/[database]/scripts/hooks/use-all-mblocks"
 
-import { useSpaceAppStore } from "../../apps/web-app/[database]/store"
+import {
+  useAppsStore,
+  useSpaceAppStore,
+} from "../../apps/web-app/[database]/store"
 
-const AppInfoMap: Record<
+const DefaultAppInfoMap: Record<
   string,
   {
     icon: LucideIcon
@@ -31,61 +48,128 @@ const AppInfoMap: Record<
     description: "Chat with AI",
     // shortcut: "ctrl/cmd + /",
   },
-  ext: {
-    icon: FileBoxIcon,
-    title: "File Manager",
-    description: "File Manager",
-  },
-  "file-manager": {
-    icon: FileBoxIcon,
-    title: "File Manager",
-    description: "File Manager",
-  },
 }
 
 export const RightPanelNav = () => {
-  const { setIsRightPanelOpen, apps, currentAppIndex, setCurrentAppIndex } =
-    useSpaceAppStore()
+  const {
+    setIsRightPanelOpen,
+    apps,
+    currentAppIndex,
+    setCurrentAppIndex,
+    setApps,
+  } = useSpaceAppStore()
+  const { apps: allApps, addApp, deleteApp } = useAppsStore()
 
   const handleAppChange = (index: number) => {
     setCurrentAppIndex(index)
   }
+  const mblocks = useAllMblocks()
+  const getAppInfo = (app: string) => {
+    if (app.startsWith("block://")) {
+      const id = app.replace("block://", "")
+      const block = mblocks.find((mblock) => mblock.id === id)
+      return {
+        icon: ToyBrickIcon,
+        title: block?.name,
+        description: block?.description,
+        shortcut: undefined,
+      }
+    }
+    return DefaultAppInfoMap[app]
+  }
 
   return (
     <div className="flex gap-2 justify-between w-full">
-      {apps.map((app, index) => {
-        const { icon: Icon, title, description, shortcut } = AppInfoMap[app]
-        const isCurrentApp = index === currentAppIndex
-        return (
-          <TooltipProvider key={title}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => handleAppChange(index)}
-                  className={cn("rounded-b-none relative", {
-                    "after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary":
-                      isCurrentApp, // Add underline using ::after
-                  })}
-                >
-                  <Icon className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>
-                  {title} <br />
-                  <span
-                    className={"ml-auto text-xs tracking-widest opacity-60"}
-                  >
-                    {shortcut}
-                  </span>
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )
-      })}
+      <div className="flex gap-2">
+        {allApps.map((app, index) => {
+          const { icon: Icon, title, description, shortcut } = getAppInfo(app)
+          const isCurrentApp = index === currentAppIndex
+          const isBlock = app.startsWith("block://")
+          return (
+            <TooltipProvider key={app}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="relative">
+                    {isBlock ? (
+                      <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => handleAppChange(index)}
+                            className={cn("rounded-b-none relative", {
+                              "after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary":
+                                isCurrentApp,
+                            })}
+                          >
+                            <Icon className="h-5 w-5" />
+                          </Button>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem
+                            onClick={() => {
+                              deleteApp(app)
+                              setCurrentAppIndex(0)
+                            }}
+                          >
+                            delete
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
+                    ) : (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => handleAppChange(index)}
+                        className={cn("rounded-b-none relative", {
+                          "after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary":
+                            isCurrentApp,
+                        })}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </Button>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {title} <br />
+                    <span
+                      className={"ml-auto text-xs tracking-widest opacity-60"}
+                    >
+                      {shortcut}
+                    </span>
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        })}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="xs" variant="ghost" className="rounded-b-none">
+              <PlusIcon className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {mblocks.map((block) => (
+              <DropdownMenuItem
+                key={block.id}
+                onClick={() => {
+                  addApp(`block://${block.id}`)
+                  setCurrentAppIndex(allApps.length) // Set focus to the newly added app
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <ToyBrickIcon className="h-5 w-5" />
+                  <span>{block.name}</span>
+                </div>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <Button
         size="xs"
         variant="ghost"
@@ -93,23 +177,6 @@ export const RightPanelNav = () => {
       >
         <PanelRightIcon className="h-5 w-5" />
       </Button>
-      {/* <DropdownMenu>
-        <DropdownMenuTrigger asChild></DropdownMenuTrigger>
-        <DropdownMenuContent className="w-[200px]">
-          {apps.map((app) => {
-            const { icon: Icon, title } = AppInfoMap[app]
-            return (
-              <DropdownMenuItem key={title} className="flex justify-between">
-                <div className="flex items-center gap-2">
-                  <Icon className="h-5 w-5" />
-                  {title}
-                </div>
-                <PinIcon className="h-4 w-4 ml-auto" />
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu> */}
     </div>
   )
 }

@@ -1,19 +1,18 @@
 import { create } from "zustand"
-
-// import { devtools, persist } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
 
 interface ISpaceAppState {
-  isRightPanelOpen: boolean
-  setIsRightPanelOpen: (isAiOpen: boolean, index?: number) => void
-
-  isExtAppOpen: boolean
-  setIsExtAppOpen: (isExtAppOpen: boolean) => void
-
   apps: string[]
   setApps: (apps: string[]) => void
 
   currentAppIndex: number
   setCurrentAppIndex: (currentAppIndex: number) => void
+
+  isRightPanelOpen: boolean
+  setIsRightPanelOpen: (isAiOpen: boolean, index?: number) => void
+
+  isExtAppOpen: boolean
+  setIsExtAppOpen: (isExtAppOpen: boolean) => void
 
   aiMessages: any[]
   setAiMessages: (aiMessages: any[]) => void
@@ -31,11 +30,34 @@ interface ISpaceAppState {
   setMobileSidebarOpen: (isMobileSidebarOpen: boolean) => void
 }
 
+// 新增 apps store
+interface IAppsState {
+  apps: string[]
+  setApps: (apps: string[]) => void
+  addApp: (app: string) => void
+  deleteApp: (app: string) => void
+}
+
+export const useAppsStore = create<IAppsState>()(
+  persist(
+    (set) => ({
+      apps: ["chat"],
+      setApps: (apps) => set({ apps }),
+      addApp: (app) => set((state) => ({ apps: [...state.apps, app] })),
+      deleteApp: (app) =>
+        set((state) => ({ apps: state.apps.filter((a) => a !== app) })),
+    }),
+    {
+      name: 'space-apps-storage',
+    }
+  )
+)
+
 export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
-  apps: ["chat"],
-  // disable file manager
-  // apps: ["chat", "file-manager"],
-  setApps: (apps) => set({ apps }),
+  get apps() {
+    return useAppsStore.getState().apps
+  },
+  setApps: (apps: string[]) => useAppsStore.getState().setApps(apps),
 
   currentAppIndex: -1,
   setCurrentAppIndex: (currentAppIndex) => set({ currentAppIndex }),

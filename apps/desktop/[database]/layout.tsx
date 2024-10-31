@@ -14,8 +14,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
+import { BlockApp } from "@/components/block-renderer/block-app"
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
-import { FileManager } from "@/components/file-manager"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
@@ -24,8 +24,7 @@ import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
 import { useLayoutInit } from "../../web-app/[database]/hook"
-import { useSpaceAppStore } from "../../web-app/[database]/store"
-import { ExtensionPage } from "../../web-app/extensions/page"
+import { useAppsStore, useSpaceAppStore } from "../../web-app/[database]/store"
 
 const WebLLM = lazy(() => import("@/components/ai-chat/webllm"))
 
@@ -34,8 +33,8 @@ const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 export function DesktopSpaceLayout() {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
-  const { isSidebarOpen } = useAppStore()
-  const { isRightPanelOpen, currentAppIndex, apps } = useSpaceAppStore()
+  const { isRightPanelOpen, currentAppIndex } = useSpaceAppStore()
+  const { apps } = useAppsStore()
   const currentApp = apps[currentAppIndex]
   const navigate = useNavigate()
   const { isActivated } = useActivation()
@@ -43,12 +42,6 @@ export function DesktopSpaceLayout() {
   useLayoutInit()
   const { efsManager } = useEidosFileSystemManager()
 
-  const [mainPanelSize, setMainPanelSize] = useLocalStorageState<number>(
-    "mainPanelSize",
-    {
-      defaultValue: 80,
-    }
-  )
   const [rightPanelSize, setRightPanelSize] = useLocalStorageState<number>(
     "rightPanelSize",
     {
@@ -66,6 +59,9 @@ export function DesktopSpaceLayout() {
       window.eidos.off(EidosDataEventChannelName, handler)
     }
   }, [])
+
+  const isCurrentAppABlock = currentApp?.startsWith("block://")
+  const blockId = isCurrentAppABlock ? currentApp.replace("block://", "") : ""
 
   useEffect(() => {
     if (!isActivated) {
@@ -135,10 +131,9 @@ export function DesktopSpaceLayout() {
                         <AIChat />
                       </Suspense>
                     )}
-                    {currentApp === "ext" && <ExtensionPage />}
-                    {currentApp === "file-manager" && (
+                    {isCurrentAppABlock && (
                       <Suspense fallback={<Loading />}>
-                        <FileManager />
+                        <BlockApp id={blockId} />
                       </Suspense>
                     )}
                   </div>

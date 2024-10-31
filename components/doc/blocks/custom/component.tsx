@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getNodeByKey, NodeKey } from "lexical"
+import { useCallback, useRef, useState } from "react"
 
+import { BlockRenderer } from "@/components/block-renderer/block-renderer"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { BlockRenderer } from "@/components/block-renderer/block-renderer"
 
 import { useEditorInstance } from "../../hooks/editor-instance-context"
 import { $isCustomBlockNode } from "./node"
