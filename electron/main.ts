@@ -131,6 +131,9 @@ app.on('before-quit', () => {
 });
 
 function createTray() {
+    if (process.platform === 'darwin') {
+        return
+    }
     try {
         const iconPath = path.join(process.env.VITE_PUBLIC, 'logo.png');
         log('Tray icon path:', iconPath);
