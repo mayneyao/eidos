@@ -88,30 +88,33 @@ export function DesktopSpaceLayout() {
       <Suspense fallback={<div></div>}>
         <WebLLM />
       </Suspense>
-      <div className={cn("relative flex w-full")}>
+      <div className={cn("relative flex w-full overflow-hidden")}>
         {currentPreviewFile && (
           <iframe
-            className="hidden h-full w-full  md:block"
+            className="hidden h-full w-full md:block"
             src={efsManager.getFileUrlByPath(currentPreviewFile.path)}
           ></iframe>
         )}
 
         <ScriptContainer />
         <SideBar />
-        <main className="flex w-full">
-          <ResizablePanelGroup direction="horizontal" className="h-screen">
+        <main className="flex min-w-0 grow">
+          <ResizablePanelGroup
+            direction="horizontal"
+            className="h-screen w-full"
+          >
             <ResizablePanel
               defaultSize={100 - (isRightPanelOpen ? rightPanelSize! : 0)}
               minSize={50}
             >
-              <div className="flex flex-col h-full">
+              <div className="flex flex-col h-full min-w-0">
                 <Nav />
-                <main
+                <div
                   id="main-content"
-                  className="z-[1] flex w-full grow flex-col overflow-y-auto"
+                  className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
                 >
                   <Outlet />
-                </main>
+                </div>
               </div>
             </ResizablePanel>
             {isRightPanelOpen && (

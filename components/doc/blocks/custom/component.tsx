@@ -138,7 +138,6 @@ export const CustomBlockComponent = (props: {
       </div>
     )
   }
-  console.log(mblock)
 
   return (
     <div

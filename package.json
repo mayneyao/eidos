@@ -196,7 +196,7 @@
     "match-sorter": "^6.3.1",
     "mermaid": "^10.9.3",
     "mime-db": "^1.53.0",
-    "monaco-editor": "^0.44.0",
+    "monaco-editor": "^0.52.0",
     "moo": "^0.5.2",
     "native-file-system-adapter": "^3.0.1",
     "next-themes": "^0.2.1",
