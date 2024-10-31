@@ -1,61 +1,168 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
-import { initializeCompiler } from "@/lib/v3/compiler"
-import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
+import { generateImportMap, getAllLibs } from "@/lib/v3/compiler"
 
-import { Editor } from "./editor"
+import { twConfig } from "./tailwind-config"
+import themeRawCode from "./theme-raw.css?raw"
 
-export default function BlockRenderer() {
-  const [isInitialized, setIsInitialized] = useState(false)
-  const initialCode = `
-    import { useState } from 'react';
-    import { Button } from "@/components/ui/button"
+interface BlockRendererProps {
+  code: string
+  compiledCode: string
+  env?: Record<string, string>
+  width?: string | number
+  height?: string | number
+}
 
-    export default function MyComponent() {
-      const [count, setCount] = useState(0);
-      return (
-        <div className="container" style={{ padding: '2rem' }}>
-          <h1 className="title">
-            A realtime react component renderer, totally run in your browser
-          </h1>
-          <div className="p-4 bg-blue-500 text-white">Hello Tailwind!</div>
-          <p>Count: {count}</p>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setCount(prev => prev + 1)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '0.25rem',
-                border: 'none',
-                background: '#0070f3',
-                color: 'white',
-                cursor: 'pointer'
-              }}
-            >
-              Increment
-            </button>
-            <Button onClick={() => setCount(count - 1)}>Decrement</Button>
-          </div>
-        </div>
-      );
-    };
-  `
+export const BlockRenderer: React.FC<BlockRendererProps> = ({
+  code,
+  compiledCode,
+  env = {},
+  width,
+  height,
+}) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [dependencies, setDependencies] = useState<string[]>([])
+  const [uiComponents, setUiComponents] = useState<string[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  const [importMap, setImportMap] = useState<string>("")
 
   useEffect(() => {
-    async function initialize() {
-      await initializeCompiler()
-      setIsInitialized(true)
+    if (!code.length) {
+      return
     }
-    initialize()
-  }, [])
+    getAllLibs(code).then(async ({ thirdPartyLibs, uiLibs }) => {
+      setDependencies(thirdPartyLibs)
+      setUiComponents(uiLibs)
+      const { importMap } = await generateImportMap(thirdPartyLibs, uiLibs)
+      console.log({ code, compiledCode, importMap })
+      setImportMap(importMap)
+      setIsLoading(false)
+    })
+  }, [code])
 
-  if (!isInitialized) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <Skeleton className="w-1/2 h-1/2" />
-      </div>
-    )
+  const envString = env ? JSON.stringify(env) : "{}"
+
+  useEffect(() => {
+    if (!iframeRef.current) return
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          ${importMap}
+          <script src="https://cdn.tailwindcss.com"></script>
+          <script>
+            window.process = {
+              env: ${envString}
+            };
+          </script>
+          <style>
+            ${themeRawCode}
+            * {
+              border-color: hsl(var(--border));
+            }
+
+            body {
+              background-color: hsl(var(--background));
+              color: hsl(var(--foreground));
+              margin: 0;
+              padding: 0;
+            }
+          </style>
+          <script>
+            tailwind.config = ${JSON.stringify(twConfig)};
+          </script>
+        </head>
+        <body>
+          <div id="root"></div>
+          <script type="module">
+            import React from 'react';
+            import { createRoot } from 'react-dom/client';
+            
+            let retryCount = 0;
+            const maxRetries = 3;
+            
+            const executeCode = async () => {
+              try {
+                const codeStr = ${JSON.stringify(compiledCode)};
+                
+                const codeModule = new Blob(
+                  [codeStr],
+                  { type: 'text/javascript' }
+                );
+                
+                const moduleUrl = URL.createObjectURL(codeModule);
+                const moduleExports = await import(moduleUrl);
+                URL.revokeObjectURL(moduleUrl);
+
+                let MyComponent = moduleExports.default;
+
+                if (!MyComponent) {
+                  MyComponent = Object.values(moduleExports).find(
+                    (exported) => typeof exported === 'function'
+                  );
+                }
+
+                if (!MyComponent) {
+                  throw new Error("Make sure to export a default component or a function");
+                }
+
+                const root = createRoot(document.getElementById('root'));
+                root.render(React.createElement(MyComponent));
+              } catch (err) {
+                if (retryCount < maxRetries) {
+                  retryCount++;
+                  setTimeout(executeCode, 1000); 
+                  return;
+                }
+                
+                const errorElement = document.createElement('div');
+                errorElement.style.color = 'red';
+                errorElement.style.padding = '1rem';
+                errorElement.style.fontFamily = 'monospace';
+                errorElement.textContent = err.message;
+                document.body.appendChild(errorElement);
+              }
+            };
+
+            executeCode();
+          </script>
+        </body>
+      </html>
+    `
+
+    iframeRef.current.srcdoc = html
+  }, [compiledCode, dependencies, uiComponents, importMap, env, height])
+
+  if (isLoading) {
+    return <div>Loading...</div>
   }
 
-  return <Editor initialCode={initialCode} />
+  return (
+    <iframe
+      ref={iframeRef}
+      title="preview"
+      className={cn(
+        width ? "" : "w-full",
+        height ? "" : "h-full",
+        "overflow-hidden"
+      )}
+      sandbox="allow-scripts allow-same-origin"
+      style={{
+        border: "none",
+        width: width
+          ? typeof width === "number"
+            ? `${width}px`
+            : width
+          : "100%",
+        height: height
+          ? typeof height === "number"
+            ? `${height}px`
+            : height
+          : "100%",
+      }}
+    />
+  )
 }

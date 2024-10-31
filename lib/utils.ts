@@ -187,7 +187,7 @@ export function timeAgo(date: Date) {
   }
 }
 
-export const proxyImageURL = (url?: string) => {
+export const proxyURL = (url?: string) => {
   if (!url) {
     return ""
   }

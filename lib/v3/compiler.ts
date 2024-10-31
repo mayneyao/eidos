@@ -2,11 +2,19 @@
 import { initialize, transform } from "esbuild-wasm";
 
 import { uiConfig } from "@/components/ui";
+export let compilerInitialized = false
 export const initializeCompiler = async () => {
-  await initialize({
-    worker: true,
-    wasmURL: "https://unpkg.com/esbuild-wasm@0.24.0/esbuild.wasm",
-  });
+  if (compilerInitialized) return
+  try {
+    await initialize({
+      worker: true,
+      wasmURL: "https://unpkg.com/esbuild-wasm@0.24.0/esbuild.wasm",
+    });
+  } catch (error) {
+    console.error(error)
+    compilerInitialized = true
+  }
+  compilerInitialized = true
 };
 
 interface CompileOptions {
@@ -23,6 +31,9 @@ export const compileCode = async (
   sourceCode: string,
   options: CompileOptions = {}
 ): Promise<CompileResult> => {
+  if (!compilerInitialized) {
+    await initializeCompiler()
+  }
   const { uiLibCode = "" } = options;
 
   try {
@@ -67,26 +78,25 @@ export function getImportsFromCode(code: string) {
   return Array.from(new Set(imports));
 }
 
+const uiLibsRegistry = new Map<string, string>();
+const utilsCode = `
+import {  clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+export function cn(...inputs) {
+return twMerge(clsx(inputs))
+}
+`;
+
+const utilsBlob = new Blob([utilsCode], {
+  type: "application/javascript;charset=utf-8",
+});
+const utilsUrl = URL.createObjectURL(utilsBlob);
+
 export async function generateImportMap(
   thirdPartyLibs: string[],
   uiLibs: string[]
 ) {
-  console.log(thirdPartyLibs, uiLibs);
   const moduleRegistry = new Map();
-
-  const utilsCode = `
-  import {  clsx } from "clsx"
-  import { twMerge } from "tailwind-merge"
-  export function cn(...inputs) {
-  return twMerge(clsx(inputs))
-}
-  `;
-
-  const utilsBlob = new Blob([utilsCode], {
-    type: "application/javascript;charset=utf-8",
-  });
-  const utilsUrl = URL.createObjectURL(utilsBlob);
-
   const imports: Record<string, string> = {
     react: "https://esm.sh/react@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
@@ -96,17 +106,27 @@ export async function generateImportMap(
   };
 
   thirdPartyLibs.forEach((dep) => {
+    // skip react and react-dom
+    if (dep === "react" || dep === "react-dom") return;
     imports[dep] = `https://esm.sh/${dep}`;
   });
 
+  console.log('uiLibs', uiLibs)
   for (const dep of uiLibs) {
     const componentId = `@/components/ui/${dep}`;
-    const code = uiConfig[dep as keyof typeof uiConfig];
-    const compiledCode = await compileCode(code);
-    const blob = new Blob([compiledCode.code], {
-      type: "application/javascript;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
+
+    let url = uiLibsRegistry.get(componentId);
+
+    if (!url) {
+      const code = uiConfig[dep as keyof typeof uiConfig];
+      const compiledCode = await compileCode(code);
+      const blob = new Blob([compiledCode.code], {
+        type: "application/javascript;charset=utf-8",
+      });
+      url = URL.createObjectURL(blob);
+      uiLibsRegistry.set(componentId, url);
+    }
+
     moduleRegistry.set(componentId, url);
     imports[componentId] = url;
   }
@@ -122,12 +142,21 @@ export async function generateImportMap(
   return {
     importMap: importMapScript,
     cleanup: () => {
-      moduleRegistry.forEach((url) => URL.revokeObjectURL(url));
+      moduleRegistry.forEach((url) => {
+        if (!uiLibsRegistry.has(url)) {
+          URL.revokeObjectURL(url);
+        }
+      });
     },
   };
 }
 
-export async function getAllLibs(code: string) {
+export async function getAllLibs(code: string, processedComponents = new Set<string>()) {
+  if (!code) return {
+    thirdPartyLibs: [],
+    uiLibs: [],
+  }
+
   const { dependencies } = await compileCode(code);
   const thirdPartyLibs =
     dependencies?.filter((dep) => !dep.startsWith("@/")) ?? [];
@@ -135,11 +164,15 @@ export async function getAllLibs(code: string) {
     dependencies
       ?.filter((dep) => dep.startsWith("@/components/ui"))
       .map((dep) => dep.replace("@/components/ui/", "")) ?? [];
+
   for (const component of uiLibs) {
+    if (processedComponents.has(component)) continue;
+    processedComponents.add(component);
     const code = uiConfig[component as keyof typeof uiConfig];
-    const { thirdPartyLibs: _thirdPartyLibs } = await getAllLibs(code);
+    const { thirdPartyLibs: _thirdPartyLibs } = await getAllLibs(code, processedComponents);
     thirdPartyLibs.push(..._thirdPartyLibs);
   }
+
   return {
     thirdPartyLibs: Array.from(new Set(thirdPartyLibs)),
     uiLibs: Array.from(new Set(uiLibs)),
