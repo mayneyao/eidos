@@ -170,6 +170,7 @@ export const RightPanelNav = () => {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <div className="drag-region grow"></div>
       <Button
         size="xs"
         variant="ghost"
