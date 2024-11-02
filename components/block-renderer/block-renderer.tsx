@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useWhyDidYouUpdate } from "ahooks"
 
 import { cn } from "@/lib/utils"
 import { generateImportMap, getAllLibs } from "@/lib/v3/compiler"
@@ -12,6 +13,7 @@ interface BlockRendererProps {
   env?: Record<string, string>
   width?: string | number
   height?: string | number
+  defaultProps?: Record<string, any>
 }
 
 export const BlockRenderer: React.FC<BlockRendererProps> = ({
@@ -20,6 +22,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
   env = {},
   width,
   height,
+  defaultProps = {},
 }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [dependencies, setDependencies] = useState<string[]>([])
@@ -27,6 +30,8 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
   const [isLoading, setIsLoading] = useState(true)
 
   const [importMap, setImportMap] = useState<string>("")
+
+  const defaultPropsString = JSON.stringify(defaultProps)
 
   useEffect(() => {
     if (!code.length) {
@@ -43,6 +48,16 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
   }, [code])
 
   const envString = env ? JSON.stringify(env) : "{}"
+
+  useWhyDidYouUpdate("BlockRenderer", {
+    code,
+    compiledCode,
+    env,
+    width,
+    height,
+    defaultPropsString,
+    defaultProps,
+  })
 
   useEffect(() => {
     if (!iframeRef.current) return
@@ -110,7 +125,9 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
                 }
 
                 const root = createRoot(document.getElementById('root'));
-                root.render(React.createElement(MyComponent));
+                root.render(React.createElement(MyComponent, ${JSON.stringify(
+                  defaultProps
+                )}));
               } catch (err) {
                 if (retryCount < maxRetries) {
                   retryCount++;
@@ -134,7 +151,15 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     `
 
     iframeRef.current.srcdoc = html
-  }, [compiledCode, dependencies, uiComponents, importMap, env, height])
+  }, [
+    compiledCode,
+    dependencies,
+    uiComponents,
+    importMap,
+    env,
+    height,
+    defaultPropsString,
+  ])
 
   if (isLoading) {
     return <div>Loading...</div>

@@ -2,12 +2,13 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $getNodeByKey, NodeKey } from "lexical"
 import { useCallback, useRef, useState } from "react"
 
-import { BlockRenderer } from "@/components/block-renderer/block-renderer"
+import { BlockApp } from "@/components/block-renderer/block-app"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { getBlockIdFromUrl, getBlockUrl } from "@/lib/utils"
 
 import { useEditorInstance } from "../../hooks/editor-instance-context"
 import { $isCustomBlockNode } from "./node"
@@ -21,7 +22,7 @@ function CustomBlockPlaceholder(props: { nodeKey: string }) {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey)
       if ($isCustomBlockNode(node)) {
-        node.setSrc(url)
+        node.setUrl(url)
       }
     })
   }
@@ -39,7 +40,7 @@ function CustomBlockPlaceholder(props: { nodeKey: string }) {
         {mblocks.map((mblock) => (
           <div
             key={mblock.id}
-            onClick={() => handleSelect(mblock.id)}
+            onClick={() => handleSelect(getBlockUrl(mblock.id))}
             className="px-4 py-2 hover:bg-gray-100 cursor-pointer rounded-md transition-colors duration-200 flex items-center gap-2"
           >
             <div className="w-2 h-2 rounded-full bg-blue-500" />
@@ -128,7 +129,10 @@ export const CustomBlockComponent = (props: {
     return <CustomBlockPlaceholder nodeKey={props.nodeKey} />
   }
 
-  const mblock = mblocks.find((mblock) => mblock.id === props.url)
+  const mblock = mblocks.find(
+    (mblock) => mblock.id === getBlockIdFromUrl(props.url)
+  )
+
   if (!mblock) {
     return (
       <div className="w-full h-fit border border-gray-200 rounded-lg p-4">
@@ -147,11 +151,7 @@ export const CustomBlockComponent = (props: {
         pointerEvents: isSelecting ? "none" : "auto",
       }}
     >
-      <BlockRenderer
-        code={mblock?.ts_code!}
-        compiledCode={mblock?.code!}
-        env={mblock?.env_map}
-      />
+      <BlockApp url={props.url} />
       <div
         className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-transparent hover:bg-gray-200 transition-colors"
         onMouseDown={handleMouseDown}

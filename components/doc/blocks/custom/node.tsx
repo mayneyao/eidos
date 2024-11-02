@@ -14,14 +14,14 @@ import { CustomBlockComponent } from "./component"
 
 export type SerializedCustomBlockNode = Spread<
   {
-    src: string
+    url: string
     height?: number
   },
   SerializedLexicalNode
 >
 
 export class CustomBlockNode extends DecoratorNode<ReactNode> {
-  __src: string
+  __url: string
   __height?: number
 
   static getType(): string {
@@ -29,18 +29,18 @@ export class CustomBlockNode extends DecoratorNode<ReactNode> {
   }
 
   static clone(node: CustomBlockNode): CustomBlockNode {
-    return new CustomBlockNode(node.__src, node.__height, node.__key)
+    return new CustomBlockNode(node.__url, node.__height, node.__key)
   }
 
-  constructor(src: string, height?: number, key?: NodeKey) {
+  constructor(url: string, height?: number, key?: NodeKey) {
     super(key)
-    this.__src = src
+    this.__url = url
     this.__height = height
   }
 
-  setSrc(src: string): void {
+  setUrl(url: string): void {
     const writable = this.getWritable()
-    writable.__src = src
+    writable.__url = url
   }
 
   setHeight(height?: number): void {
@@ -57,13 +57,13 @@ export class CustomBlockNode extends DecoratorNode<ReactNode> {
   }
 
   static importJSON(data: SerializedCustomBlockNode): CustomBlockNode {
-    const node = $createCustomBlockNode(data.src, data.height)
+    const node = $createCustomBlockNode(data.url, data.height)
     return node
   }
 
   exportJSON() {
     return {
-      src: this.__src,
+      url: this.__url,
       height: this.__height,
       type: "custom",
       version: 1,
@@ -80,7 +80,7 @@ export class CustomBlockNode extends DecoratorNode<ReactNode> {
     return (
       <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
         <CustomBlockComponent
-          url={this.__src}
+          url={this.__url}
           nodeKey={this.__key}
           height={this.__height}
         />
@@ -89,15 +89,15 @@ export class CustomBlockNode extends DecoratorNode<ReactNode> {
   }
 
   getTextContent(): string {
-    return this.__src
+    return this.__url
   }
 }
 
 export function $createCustomBlockNode(
-  src: string,
+  url: string,
   height?: number
 ): CustomBlockNode {
-  return new CustomBlockNode(src, height)
+  return new CustomBlockNode(url, height)
 }
 
 export function $isCustomBlockNode(

@@ -125,24 +125,24 @@ export const getWeek = (day: string) => {
 export const getDaysByYearWeek = (weekNodeId: string) => {
   const year = parseInt(weekNodeId.slice(0, 4))
   const week = parseInt(weekNodeId.slice(6))
-  
+
   // Find the first day of the year
   const firstDayOfYear = new Date(year, 0, 1)
-  
+
   // Find the first Monday of the year
   const firstMonday = new Date(year, 0, 1 + (8 - firstDayOfYear.getDay()) % 7)
-  
+
   // Calculate the start date of the requested week
   const startDate = new Date(firstMonday.getTime())
   startDate.setDate(firstMonday.getDate() + (week - 1) * 7)
-  
+
   const days = []
   for (let i = 0; i < 7; i++) {
     const date = new Date(startDate.getTime())
     date.setDate(startDate.getDate() + i)
     days.push(getLocalDate(date))
   }
-  
+
   return days
 }
 
@@ -192,4 +192,20 @@ export const proxyURL = (url?: string) => {
     return ""
   }
   return `https://proxy.eidos.space?url=${url}`
+}
+
+
+export const getBlockUrl = (blockId: string, props?: Record<string, any>) => {
+  const url = new URL(`block://${blockId}`)
+  if (props) {
+    Object.entries(props).forEach(([key, value]) => {
+      url.searchParams.set(key, value)
+    })
+  }
+  return url.toString()
+}
+
+export const getBlockIdFromUrl = (url: string) => {
+  const urlObj = new URL(url)
+  return urlObj.pathname.replace("//", "")
 }

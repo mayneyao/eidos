@@ -87,7 +87,7 @@ export const NodeCover = (props: { node: ITreeNode }) => {
           <BlockRenderer
             code={block?.ts_code ?? ""}
             compiledCode={block?.code ?? ""}
-            env={block?.env_map ?? {}}
+            env={block?.env_map}
             width={size?.width}
             height={size?.height}
           />
