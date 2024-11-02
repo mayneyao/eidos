@@ -1,7 +1,19 @@
-import { useLocalStorageState } from "ahooks"
 import { Suspense, lazy, useEffect } from "react"
+import { useLocalStorageState } from "ahooks"
 import { Outlet, useNavigate } from "react-router-dom"
 
+import { EidosDataEventChannelName } from "@/lib/const"
+import { useAppStore } from "@/lib/store/app-store"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn } from "@/lib/utils"
+import { useActivation } from "@/hooks/use-activation"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
+import { useSqlite } from "@/hooks/use-sqlite"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 import { BlockApp } from "@/components/block-renderer/block-app"
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
@@ -10,17 +22,6 @@ import { Nav } from "@/components/nav"
 import { RightPanelNav } from "@/components/nav/right-panel-nav"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
-import { useActivation } from "@/hooks/use-activation"
-import { useEidosFileSystemManager } from "@/hooks/use-fs"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { EidosDataEventChannelName } from "@/lib/const"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn } from "@/lib/utils"
 
 import { useLayoutInit } from "../../web-app/[database]/hook"
 import { useAppsStore, useSpaceAppStore } from "../../web-app/[database]/store"
@@ -60,7 +61,6 @@ export function DesktopSpaceLayout() {
   }, [])
 
   const isCurrentAppABlock = currentApp?.startsWith("block://")
-  const blockId = isCurrentAppABlock ? currentApp.replace("block://", "") : ""
 
   useEffect(() => {
     if (!isActivated) {
