@@ -1,7 +1,12 @@
 import { Suspense, lazy, useCallback, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
-import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom"
+import {
+  useLoaderData,
+  useNavigate,
+  useRevalidator,
+  useSearchParams,
+} from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { compileCode } from "@/lib/v3/compiler"
@@ -116,14 +121,20 @@ export const ScriptDetailPage = () => {
   }
   console.log(script)
 
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get("tab") || "basic"
+
   return (
     <Tabs
-      defaultValue="account"
+      value={activeTab}
+      onValueChange={(value) => {
+        setSearchParams({ tab: value })
+      }}
       className="flex h-full w-full flex-col overflow-hidden p-2 px-4 pt-0"
     >
       <TabsList className=" w-max">
-        <TabsTrigger value="account">Basic</TabsTrigger>
-        <TabsTrigger value="password">Settings</TabsTrigger>
+        <TabsTrigger value="basic">Basic</TabsTrigger>
+        <TabsTrigger value="settings">Settings</TabsTrigger>
       </TabsList>
 
       <hr className="my-1" />
@@ -132,7 +143,7 @@ export const ScriptDetailPage = () => {
         <Skeleton className="mt-8 h-[20px] w-[100px] rounded-full" />
       ) : (
         <>
-          <TabsContent value="account" className="h-full w-full">
+          <TabsContent value="basic" className="h-full w-full">
             <div className="flex h-full flex-col gap-4">
               <div className="flex justify-between">
                 <h2 className="mb-2 flex items-end  gap-2 text-xl font-semibold">
@@ -240,7 +251,7 @@ export const ScriptDetailPage = () => {
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="password">
+          <TabsContent value="settings">
             <ExtensionConfig />
           </TabsContent>
         </>
