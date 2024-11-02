@@ -4,6 +4,7 @@ import { useWhyDidYouUpdate } from "ahooks"
 import { cn } from "@/lib/utils"
 import { generateImportMap, getAllLibs } from "@/lib/v3/compiler"
 
+import { LogoLoading } from "../loading"
 import { twConfig } from "./tailwind-config"
 import themeRawCode from "./theme-raw.css?raw"
 
@@ -160,9 +161,27 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     height,
     defaultPropsString,
   ])
-
   if (isLoading) {
-    return <div>Loading...</div>
+    return (
+      <div
+        className="flex items-center justify-center"
+        style={{
+          border: "none",
+          width: width
+            ? typeof width === "number"
+              ? `${width}px`
+              : width
+            : "100%",
+          height: height
+            ? typeof height === "number"
+              ? `${height}px`
+              : height
+            : "100%",
+        }}
+      >
+        <LogoLoading />
+      </div>
+    )
   }
 
   return (
