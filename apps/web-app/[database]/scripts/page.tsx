@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import {
@@ -9,11 +10,12 @@ import {
   ShapesIcon,
   SparkleIcon,
   SquareCodeIcon,
-  ToyBrickIcon
+  ToyBrickIcon,
 } from "lucide-react"
-import { useMemo, useState } from "react"
 import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 
+import { cn } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
@@ -46,8 +49,6 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { cn } from "@/lib/utils"
 
 import { useAllApps } from "./hooks/use-all-apps"
 import { useAllBlocks } from "./hooks/use-all-blocks"
@@ -103,6 +104,7 @@ export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
   const { space } = useCurrentPathInfo()
   const [filter, setFilter] = useState("All")
+  const [searchTerm, setSearchTerm] = useState("")
 
   const blocks = useAllBlocks()
   const apps = useAllApps()
@@ -133,13 +135,26 @@ export const ScriptPage = () => {
   }, [apps, blocks, scripts])
 
   const filterExts = useMemo(() => {
-    if (filter === "All") {
-      return _scripts
+    let filtered = _scripts
+
+    // Apply type filter
+    if (filter !== "All") {
+      filtered = filtered.filter(
+        (script) => script.type.toLowerCase() === filter.toLowerCase()
+      )
     }
-    return _scripts.filter(
-      (script) => script.type.toLocaleLowerCase() === filter.toLowerCase()
-    )
-  }, [filter, _scripts])
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (script) =>
+          script.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          script.description.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    return filtered
+  }, [filter, _scripts, searchTerm])
 
   const { deleteScript, enableScript, disableScript, updateScript, addScript } =
     useScript()
@@ -238,6 +253,12 @@ export const ScriptPage = () => {
         </div>
 
         <div className="flex gap-2">
+          <Input
+            className="h-[28px] w-[200px]"
+            placeholder="Search extension..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
           <Select
             onValueChange={(value) => {
               setFilter(value as string)
