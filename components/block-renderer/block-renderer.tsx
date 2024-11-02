@@ -3,8 +3,10 @@ import { useWhyDidYouUpdate } from "ahooks"
 
 import { cn } from "@/lib/utils"
 import { generateImportMap, getAllLibs } from "@/lib/v3/compiler"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { LogoLoading } from "../loading"
+import sdkInjectScript from "../script-container/sdk-inject-script.html?raw"
 import { twConfig } from "./tailwind-config"
 import themeRawCode from "./theme-raw.css?raw"
 
@@ -29,6 +31,12 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
   const [dependencies, setDependencies] = useState<string[]>([])
   const [uiComponents, setUiComponents] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const { space } = useCurrentPathInfo()
+
+  const sdkInjectScriptContent = sdkInjectScript.replace(
+    "${{currentSpace}}",
+    space
+  )
 
   const [importMap, setImportMap] = useState<string>("")
 
@@ -69,6 +77,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
         <head>
           ${importMap}
           <script src="https://cdn.tailwindcss.com"></script>
+          ${sdkInjectScriptContent}
           <script>
             window.process = {
               env: ${envString}

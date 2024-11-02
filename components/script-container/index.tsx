@@ -7,7 +7,7 @@ import {
   useExtMsg,
 } from "@/apps/web-app/extensions/hooks/use-ext-msg"
 
-import iframeHTML from "./iframe.html?raw"
+import sdkInjectScript from "./sdk-inject-script.html?raw"
 
 // ScriptContainer used to run script in iframe
 export const ScriptContainer = () => {
@@ -23,7 +23,10 @@ export const ScriptContainer = () => {
   }, [handleMsg])
   const { space } = useCurrentPathInfo()
 
-  const iframeContent = iframeHTML.replace("${{currentSpace}}", space)
+  const sdkInjectScriptContent = sdkInjectScript.replace(
+    "${{currentSpace}}",
+    space
+  )
 
   useEffect(() => {
     if (iframeRef.current) {
@@ -34,7 +37,20 @@ export const ScriptContainer = () => {
   return (
     <iframe
       ref={iframeRef}
-      srcDoc={iframeContent}
+      srcDoc={`
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Eidos Script Container</title>
+    ${sdkInjectScriptContent}
+  </head>
+  <body>
+    <p id="message">Loading...</p>
+  </body>
+</html>
+
+`}
       sandbox="allow-scripts allow-popups"
       allow="autoplay"
       width="0"

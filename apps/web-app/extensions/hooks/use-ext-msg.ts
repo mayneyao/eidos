@@ -6,6 +6,7 @@ import { uuidv7 } from "@/lib/utils"
 import { getSqliteChannel } from "@/lib/sqlite/channel"
 import { useExtensions } from "./use-extensions"
 import { useEidosFileSystemManager } from "@/hooks/use-fs"
+import { isDesktopMode } from "@/lib/env"
 
 export enum ExtMsgType {
   // incoming msg
@@ -38,6 +39,7 @@ const shouldHandle = (event: MessageEvent, source: ExtensionSourceType) => {
     return event.origin.startsWith("http")
   }
   if (source === ExtensionSourceType.Script) {
+    return true
     return event.origin === "null"
   }
   return false
@@ -49,6 +51,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
   const { efsManager } = useEidosFileSystemManager()
   const handleMsg = useCallback(
     (event: MessageEvent) => {
+      console.log("receive msg", event, source)
       if (!shouldHandle(event, source)) {
         return
       }
