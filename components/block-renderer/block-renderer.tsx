@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useWhyDidYouUpdate } from "ahooks"
+import { useTheme } from "next-themes"
 
 import { cn } from "@/lib/utils"
 import { generateImportMap, getAllLibs } from "@/lib/v3/compiler"
@@ -32,6 +33,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
   const [uiComponents, setUiComponents] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { space } = useCurrentPathInfo()
+  const { theme } = useTheme()
 
   const sdkInjectScriptContent = sdkInjectScript.replace(
     "${{currentSpace}}",
@@ -73,7 +75,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
 
     const html = `
       <!DOCTYPE html>
-      <html>
+      <html class="${theme}">
         <head>
           ${importMap}
           <script src="https://cdn.tailwindcss.com"></script>
@@ -82,6 +84,11 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
             window.process = {
               env: ${envString}
             };
+            window.addEventListener('message', (event) => {
+              if (event.data.type === 'theme-change') {
+                document.documentElement.className = event.data.theme;
+              }
+            });
           </script>
           <style>
             ${themeRawCode}
@@ -169,7 +176,17 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     env,
     height,
     defaultPropsString,
+    theme,
   ])
+
+  useEffect(() => {
+    if (!iframeRef.current) return
+    iframeRef.current.contentWindow?.postMessage(
+      { type: 'theme-change', theme },
+      '*'
+    )
+  }, [theme])
+
   if (isLoading) {
     return (
       <div
