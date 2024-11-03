@@ -169,8 +169,9 @@ export async function getAllLibs(code: string, processedComponents = new Set<str
     if (processedComponents.has(component)) continue;
     processedComponents.add(component);
     const code = uiConfig[component as keyof typeof uiConfig];
-    const { thirdPartyLibs: _thirdPartyLibs } = await getAllLibs(code, processedComponents);
+    const { thirdPartyLibs: _thirdPartyLibs, uiLibs: _uiLibs } = await getAllLibs(code, processedComponents);
     thirdPartyLibs.push(..._thirdPartyLibs);
+    uiLibs.push(..._uiLibs);
   }
 
   return {
