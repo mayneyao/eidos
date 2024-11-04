@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useRef } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getNodeByKey, NodeKey } from "lexical"
 
@@ -8,7 +8,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { BlockApp } from "@/components/block-renderer/block-app"
+import type { BlockRendererRef } from "@/components/block-renderer/block-renderer"
 
 import { useEditorInstance } from "../../hooks/editor-instance-context"
 import { useResizable } from "./hooks/use-resizable"
@@ -58,6 +64,7 @@ export const CustomBlockComponent = (props: {
   nodeKey: NodeKey
   height?: number
 }) => {
+  const blockRef = useRef<BlockRendererRef>(null)
   const [editor] = useLexicalComposerContext()
   const { mblocks, isSelecting } = useEditorInstance()
 
@@ -68,7 +75,7 @@ export const CustomBlockComponent = (props: {
     return null
   }, [props.url, props.nodeKey])
 
-  const { height, handleMouseDown } = useResizable({
+  const { height, setHeight, handleMouseDown } = useResizable({
     initialHeight: props.height || 300,
     nodeKey: props.nodeKey,
     editor,
@@ -79,6 +86,28 @@ export const CustomBlockComponent = (props: {
     () => mblocks.find((mblock) => mblock.id === getBlockIdFromUrl(props.url)),
     [mblocks, props.url]
   )
+
+  const handleHandlerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.altKey) {
+      const height = blockRef.current?.getHeight()
+      if (height) {
+        const padding = 20
+        const safeHeight = Math.max(height + padding, 100)
+        editor.update(() => {
+          const node = $getNodeByKey(props.nodeKey)
+          if ($isCustomBlockNode(node)) {
+            node.setHeight(safeHeight)
+            setHeight(safeHeight)
+            // setTimeout(() => {
+            //   e.currentTarget.scrollIntoView({ behavior: "smooth" })
+            // }, 300)
+          }
+        })
+      }
+    } else {
+      handleMouseDown(e)
+    }
+  }
 
   if (!props.url.length) {
     return CustomBlockPlaceholder
@@ -102,11 +131,25 @@ export const CustomBlockComponent = (props: {
         pointerEvents: isSelecting ? "none" : "auto",
       }}
     >
-      <BlockApp url={props.url} />
-      <div
-        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-transparent hover:bg-gray-200 transition-colors"
-        onMouseDown={handleMouseDown}
-      />
+      <BlockApp ref={blockRef} url={props.url} />
+      <Tooltip delayDuration={1000}>
+        <TooltipTrigger asChild>
+          <div
+            role="resizable"
+            className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-transparent hover:bg-gray-200 transition-colors"
+            onMouseDown={(e) => {
+              handleHandlerMouseDown(e)
+              const tooltipTrigger = e.currentTarget.parentElement
+              if (tooltipTrigger) {
+                tooltipTrigger.blur()
+              }
+            }}
+          />
+        </TooltipTrigger>
+        <TooltipContent>
+          Drag to resize, hold Alt/Option then click to auto fit content height
+        </TooltipContent>
+      </Tooltip>
     </div>
   )
 }

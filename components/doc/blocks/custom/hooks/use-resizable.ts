@@ -88,5 +88,5 @@ export function useResizable({
         return () => cleanup()
     }, [cleanup])
 
-    return { height, handleMouseDown }
+    return { height, handleMouseDown, setHeight }
 } 

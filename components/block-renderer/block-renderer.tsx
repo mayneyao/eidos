@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react"
+import React, { useEffect, useImperativeHandle, useRef, useState } from "react"
 import { useWhyDidYouUpdate } from "ahooks"
 import { useTheme } from "next-themes"
 
-import { cn } from "@/lib/utils"
 import { generateImportMap, getAllLibs } from "@/lib/v3/compiler"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
@@ -11,6 +10,10 @@ import sdkInjectScript from "../script-container/sdk-inject-script.html?raw"
 import { twConfig } from "./tailwind-config"
 import tailwindRaw from "./tailwind-raw.js?raw"
 import themeRawCode from "./theme-raw.css?raw"
+
+export interface BlockRendererRef {
+  getHeight: () => number
+}
 
 interface BlockRendererProps {
   code: string
@@ -21,14 +24,10 @@ interface BlockRendererProps {
   defaultProps?: Record<string, any>
 }
 
-export const BlockRenderer: React.FC<BlockRendererProps> = ({
-  code,
-  compiledCode,
-  env = {},
-  width,
-  height,
-  defaultProps = {},
-}) => {
+export const BlockRenderer = React.forwardRef<
+  BlockRendererRef,
+  BlockRendererProps
+>(({ code, compiledCode, env = {}, width, height, defaultProps = {} }, ref) => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [dependencies, setDependencies] = useState<string[]>([])
   const [uiComponents, setUiComponents] = useState<string[]>([])
@@ -60,15 +59,11 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
 
   const envString = env ? JSON.stringify(env) : "{}"
 
-  useWhyDidYouUpdate("BlockRenderer", {
-    code,
-    compiledCode,
-    env,
-    width,
-    height,
-    defaultPropsString,
-    defaultProps,
-  })
+  const rootHeight = height
+    ? typeof height === "number"
+      ? `${height}px`
+      : height
+    : "unset"
 
   useEffect(() => {
     if (!iframeRef.current) return
@@ -108,7 +103,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
           </script>
         </head>
         <body>
-          <div id="root"></div>
+          <div id="root" style="height: ${rootHeight}"></div>
           <script type="module">
             import React from 'react';
             import { createRoot } from 'react-dom/client';
@@ -187,6 +182,21 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     )
   }, [theme])
 
+  // 添加 useImperativeHandle
+  useImperativeHandle(
+    ref,
+    () => ({
+      getHeight: () => {
+        if (!iframeRef.current) return 0
+        return (
+          iframeRef.current.contentWindow?.document.getElementById("root")
+            ?.offsetHeight || 0
+        )
+      },
+    }),
+    []
+  )
+
   const style = {
     border: "none",
     width: width ? (typeof width === "number" ? `${width}px` : width) : "100%",
@@ -212,4 +222,4 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       style={style}
     />
   )
-}
+})
