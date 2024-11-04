@@ -14,8 +14,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
+import { BlockApp } from "@/components/block-renderer/block-app"
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
-import { FileManager } from "@/components/file-manager"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
@@ -24,8 +24,7 @@ import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 
 import { useLayoutInit } from "../../web-app/[database]/hook"
-import { useSpaceAppStore } from "../../web-app/[database]/store"
-import { ExtensionPage } from "../../web-app/extensions/page"
+import { useAppsStore, useSpaceAppStore } from "../../web-app/[database]/store"
 
 const WebLLM = lazy(() => import("@/components/ai-chat/webllm"))
 
@@ -34,8 +33,8 @@ const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 export function DesktopSpaceLayout() {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
-  const { isSidebarOpen } = useAppStore()
-  const { isRightPanelOpen, currentAppIndex, apps } = useSpaceAppStore()
+  const { isRightPanelOpen, currentAppIndex } = useSpaceAppStore()
+  const { apps } = useAppsStore()
   const currentApp = apps[currentAppIndex]
   const navigate = useNavigate()
   const { isActivated } = useActivation()
@@ -43,12 +42,6 @@ export function DesktopSpaceLayout() {
   useLayoutInit()
   const { efsManager } = useEidosFileSystemManager()
 
-  const [mainPanelSize, setMainPanelSize] = useLocalStorageState<number>(
-    "mainPanelSize",
-    {
-      defaultValue: 80,
-    }
-  )
   const [rightPanelSize, setRightPanelSize] = useLocalStorageState<number>(
     "rightPanelSize",
     {
@@ -66,6 +59,8 @@ export function DesktopSpaceLayout() {
       window.eidos.off(EidosDataEventChannelName, handler)
     }
   }, [])
+
+  const isCurrentAppABlock = currentApp?.startsWith("block://")
 
   useEffect(() => {
     if (!isActivated) {
@@ -88,30 +83,33 @@ export function DesktopSpaceLayout() {
       <Suspense fallback={<div></div>}>
         <WebLLM />
       </Suspense>
-      <div className={cn("relative flex w-full")}>
+      <div className={cn("relative flex w-full overflow-hidden")}>
         {currentPreviewFile && (
           <iframe
-            className="hidden h-full w-full  md:block"
+            className="hidden h-full w-full md:block"
             src={efsManager.getFileUrlByPath(currentPreviewFile.path)}
           ></iframe>
         )}
 
         <ScriptContainer />
         <SideBar />
-        <main className="flex w-full">
-          <ResizablePanelGroup direction="horizontal" className="h-screen">
+        <main className="flex min-w-0 grow">
+          <ResizablePanelGroup
+            direction="horizontal"
+            className="h-screen w-full"
+          >
             <ResizablePanel
               defaultSize={100 - (isRightPanelOpen ? rightPanelSize! : 0)}
               minSize={50}
             >
-              <div className="flex flex-col h-full">
+              <div className="flex flex-col h-full min-w-0">
                 <Nav />
-                <main
+                <div
                   id="main-content"
-                  className="z-[1] flex w-full grow flex-col overflow-y-auto"
+                  className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
                 >
                   <Outlet />
-                </main>
+                </div>
               </div>
             </ResizablePanel>
             {isRightPanelOpen && (
@@ -132,10 +130,9 @@ export function DesktopSpaceLayout() {
                         <AIChat />
                       </Suspense>
                     )}
-                    {currentApp === "ext" && <ExtensionPage />}
-                    {currentApp === "file-manager" && (
+                    {isCurrentAppABlock && (
                       <Suspense fallback={<Loading />}>
-                        <FileManager />
+                        <BlockApp url={currentApp} />
                       </Suspense>
                     )}
                   </div>

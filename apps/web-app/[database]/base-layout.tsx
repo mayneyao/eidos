@@ -53,7 +53,7 @@ export function DatabaseLayoutBase({
       <ScriptContainer />
       <div className="flex h-screen w-full">
         <SideBar />
-        <div className="flex h-screen flex-col w-full">
+        <div className="flex h-screen flex-col min-w-0 grow">
           <Nav />
           <ResizablePanelGroup direction="horizontal">
             <div

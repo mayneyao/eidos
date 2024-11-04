@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 
 import { Skeleton } from "../ui/skeleton"
+import { EditorInstanceProvider } from "./hooks/editor-instance-context"
 import { useLoadingExtBlocks } from "./hooks/use-all-nodes"
 import { ExtBlock } from "./hooks/use-ext-blocks"
 import { useEditorStore } from "./hooks/useEditorContext"
@@ -84,63 +85,65 @@ export function InnerEditor(props: EditorProps) {
 
   return (
     <LexicalComposer initialConfig={initConfig}>
-      <div
-        className={cn("editor-container w-full", props.className)}
-        ref={ref}
-        id="editor-container"
-      >
+      <EditorInstanceProvider>
         <div
-          className="editor-inner relative w-full"
-          id="editor-container-inner"
+          className={cn("editor-container w-full", props.className)}
+          ref={ref}
+          id="editor-container"
         >
-          <RichTextPlugin
-            contentEditable={
-              <div className="editor relative" ref={onRef}>
-                <ContentEditable className="editor-input outline-none dark:prose-invert" />
-                {!props.disableSafeBottomPaddingPlugin && (
-                  <SafeBottomPaddingPlugin />
-                )}
-              </div>
-            }
-            placeholder={
-              <div className="pointer-events-none absolute left-1 top-0 text-base text-[#aaa]">
-                <span>{props.placeholder ?? t('doc.pressForCommand')}</span>
-              </div>
-            }
-            ErrorBoundary={LexicalErrorBoundary}
-          />
-
-          {isAIToolsOpen && props.isActive && (
-            <div id="ai-content-placeholder" />
-          )}
-
-          <AIEditorPlugin />
-          <AllPlugins />
-          <NewMentionsPlugin currentDocId={props.docId!} />
-          {props.autoFocus && <AutoFocusPlugin />}
-          {props.docId && (
-            <EidosAutoSavePlugin
-              docId={props.docId}
-              isEditable={props.isEditable}
-              disableManuallySave={props.disableManuallySave}
+          <div
+            className="editor-inner relative w-full"
+            id="editor-container-inner"
+          >
+            <RichTextPlugin
+              contentEditable={
+                <div className="editor relative" ref={onRef}>
+                  <ContentEditable className="editor-input outline-none dark:prose-invert" />
+                  {!props.disableSafeBottomPaddingPlugin && (
+                    <SafeBottomPaddingPlugin />
+                  )}
+                </div>
+              }
+              placeholder={
+                <div className="pointer-events-none absolute left-1 top-0 text-base text-[#aaa]">
+                  <span>{props.placeholder ?? t("doc.pressForCommand")}</span>
+                </div>
+              }
+              ErrorBoundary={LexicalErrorBoundary}
             />
-          )}
 
-          {floatingAnchorElem && (
-            <>
-              <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
-              <FloatingTextFormatToolbarPlugin
-                anchorElem={floatingAnchorElem}
+            {isAIToolsOpen && props.isActive && (
+              <div id="ai-content-placeholder" />
+            )}
+
+            <AIEditorPlugin />
+            <AllPlugins />
+            <NewMentionsPlugin currentDocId={props.docId!} />
+            {props.autoFocus && <AutoFocusPlugin />}
+            {props.docId && (
+              <EidosAutoSavePlugin
+                docId={props.docId}
+                isEditable={props.isEditable}
+                disableManuallySave={props.disableManuallySave}
               />
-            </>
-          )}
+            )}
+
+            {floatingAnchorElem && (
+              <>
+                <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
+                <FloatingTextFormatToolbarPlugin
+                  anchorElem={floatingAnchorElem}
+                />
+              </>
+            )}
+          </div>
         </div>
-      </div>
-      {props.disableSelectionPlugin || isToolbarVisible || isAIToolsOpen ? (
-        <></>
-      ) : (
-        <SelectionPlugin />
-      )}
+        {props.disableSelectionPlugin || isToolbarVisible || isAIToolsOpen ? (
+          <></>
+        ) : (
+          <SelectionPlugin />
+        )}
+      </EditorInstanceProvider>
     </LexicalComposer>
   )
 }
@@ -189,7 +192,7 @@ export function Editor(props: EditorProps) {
             {props.beforeTitle && <div>{props.beforeTitle}</div>}
             <input
               id="doc-title"
-              placeholder={t('doc.untitled')}
+              placeholder={t("doc.untitled")}
               className="h-[50px] max-w-xs grow truncate bg-transparent text-4xl font-bold text-primary outline-none sm:max-w-full"
               value={title}
               title={title}

@@ -10,6 +10,7 @@ import {
   ShapesIcon,
   SparkleIcon,
   SquareCodeIcon,
+  ToyBrickIcon,
 } from "lucide-react"
 import { Link, useLoaderData, useRevalidator } from "react-router-dom"
 
@@ -36,6 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
@@ -60,44 +62,56 @@ const IconMap = {
   udf: FunctionSquareIcon,
   prompt: SparkleIcon,
   block: ShapesIcon,
+  m_block: ToyBrickIcon,
   app: AppWindowIcon,
 }
 
 const extensionTypes = [
   {
+    id: "app",
     name: "App",
     icon: AppWindowIcon,
     isGlobal: true,
   },
   {
+    id: "block",
     name: "Block",
     icon: ShapesIcon,
     isGlobal: true,
   },
   {
+    id: "script",
     name: "Script",
     icon: SquareCodeIcon,
   },
   {
+    id: "udf",
     name: "UDF",
     icon: FunctionSquareIcon,
   },
   {
+    id: "prompt",
     name: "Prompt",
     icon: SparkleIcon,
+  },
+  {
+    id: "m_block",
+    name: "Micro Block",
+    icon: ToyBrickIcon,
   },
 ]
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
   const { space } = useCurrentPathInfo()
   const [filter, setFilter] = useState("All")
+  const [searchTerm, setSearchTerm] = useState("")
 
   const blocks = useAllBlocks()
   const apps = useAllApps()
   const _scripts = useMemo(() => {
     return [
       ...scripts.filter((script) =>
-        ["script", "udf", "prompt"].includes(script.type)
+        ["script", "udf", "prompt", "m_block"].includes(script.type)
       ),
       ...blocks.map((block) => ({
         id: block,
@@ -121,13 +135,26 @@ export const ScriptPage = () => {
   }, [apps, blocks, scripts])
 
   const filterExts = useMemo(() => {
-    if (filter === "All") {
-      return _scripts
+    let filtered = _scripts
+
+    // Apply type filter
+    if (filter !== "All") {
+      filtered = filtered.filter(
+        (script) => script.type.toLowerCase() === filter.toLowerCase()
+      )
     }
-    return _scripts.filter(
-      (script) => script.type.toLocaleLowerCase() === filter.toLowerCase()
-    )
-  }, [filter, _scripts])
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (script) =>
+          script.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          script.description.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    return filtered
+  }, [filter, _scripts, searchTerm])
 
   const { deleteScript, enableScript, disableScript, updateScript, addScript } =
     useScript()
@@ -216,11 +243,22 @@ export const ScriptPage = () => {
               <DropdownMenuItem onClick={() => handleCreateNewScript("prompt")}>
                 Prompt
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleCreateNewScript("m_block")}
+              >
+                Micro Block
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
         <div className="flex gap-2">
+          <Input
+            className="h-[28px] w-[200px]"
+            placeholder="Search extension..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
           <Select
             onValueChange={(value) => {
               setFilter(value as string)
@@ -238,10 +276,9 @@ export const ScriptPage = () => {
                 </div>
               </SelectItem>
               {extensionTypes.map((type) => {
-                const Icon =
-                  IconMap[type.name.toLowerCase() as keyof typeof IconMap]
+                const Icon = IconMap[type.id as keyof typeof IconMap]
                 return (
-                  <SelectItem key={type.name} value={type.name}>
+                  <SelectItem key={type.id} value={type.id}>
                     <div className="flex items-center gap-2">
                       <Icon size={18} className=" opacity-60" />
                       {type.name}{" "}

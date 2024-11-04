@@ -1,11 +1,13 @@
 // need persist, store user config in localstorage, make app response faster
 
+import { useSidebar } from "@/components/ui/sidebar"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import { useSidebar } from "@/components/ui/sidebar"
-import { useEffect } from "react"
 
 interface AppState {
+  isSidebarOpen: boolean
+  setSidebarOpen: (isOpen: boolean) => void
+
   lastOpenedTable: string
   setLastOpenedTable: (table: string) => void
 
@@ -20,9 +22,11 @@ interface AppState {
 
 }
 
-const useAppStoreBase = create<AppState>()(
+export const useAppStoreBase = create<AppState>()(
   persist(
     (set) => ({
+      isSidebarOpen: false,
+      setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
 
       isFileManagerOpen: false,
       setFileManagerOpen: (isFileManagerOpen) => set({ isFileManagerOpen }),
@@ -48,12 +52,11 @@ export const useAppStore = () => {
   const { open, setOpen } = useSidebar()
 
 
-
-
   return {
     ...store,
     isSidebarOpen: open,
     setSidebarOpen: (isOpen: boolean) => {
+      store.setSidebarOpen(isOpen)
       setOpen(isOpen)
     }
   }

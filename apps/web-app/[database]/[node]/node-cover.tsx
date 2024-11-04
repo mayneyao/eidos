@@ -1,9 +1,10 @@
 import { useRef, useState } from "react"
-import { useDrop } from "ahooks"
+import { useDrop, useSize } from "ahooks"
 import { useTranslation } from "react-i18next"
 
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { cn } from "@/lib/utils"
+import { useMblock } from "@/hooks/use-mblock"
 import { useNode } from "@/hooks/use-nodes"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,6 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { BlockRenderer } from "@/components/block-renderer/block-renderer"
 import { getDragFileInfo } from "@/components/file-manager/helper"
 import { FileSelector } from "@/components/file-selector"
 
@@ -19,7 +21,8 @@ export const NodeCover = (props: { node: ITreeNode }) => {
   const [open, setOpen] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
   const { t } = useTranslation()
-
+  const ref = useRef(null)
+  const size = useSize(ref)
   const dropRef = useRef(null)
 
   const { updateCover } = useNode()
@@ -43,6 +46,10 @@ export const NodeCover = (props: { node: ITreeNode }) => {
     onDragEnter: () => setIsHovering(true),
     onDragLeave: () => setIsHovering(false),
   })
+  const isBlock = node.cover?.startsWith("block://")
+
+  const blockId = node.cover?.replace("block://", "")
+  const block = useMblock(blockId)
   return (
     <div
       className={cn("group relative", {
@@ -53,7 +60,7 @@ export const NodeCover = (props: { node: ITreeNode }) => {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <div className="absolute right-[24%] opacity-0 group-hover:opacity-100">
-            <Button size="sm">{t('doc.changeCover')}</Button>
+            <Button size="sm">{t("doc.changeCover")}</Button>
           </div>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">
@@ -61,10 +68,31 @@ export const NodeCover = (props: { node: ITreeNode }) => {
             onSelected={handleSelect}
             onRemove={handleRemove}
             onlyImage
+            showBlock
           />
         </PopoverContent>
       </Popover>
-      {isColor ? (
+      {isBlock ? (
+        <div
+          className="inset-0 overflow-hidden"
+          ref={ref}
+          style={{
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            objectFit: "cover",
+            height: "30vh",
+            width: "100%",
+          }}
+        >
+          <BlockRenderer
+            code={block?.ts_code ?? ""}
+            compiledCode={block?.code ?? ""}
+            env={block?.env_map}
+            width={size?.width}
+            height={size?.height}
+          />
+        </div>
+      ) : isColor ? (
         <div
           className={cn(node.cover?.replace("color://", ""), "inset-0")}
           style={{
@@ -77,7 +105,7 @@ export const NodeCover = (props: { node: ITreeNode }) => {
         <img
           className="trigger"
           src={node.cover}
-          alt={t('doc.coverImage')}
+          alt={t("doc.coverImage")}
           style={{
             backgroundSize: "cover",
             backgroundPosition: "center",

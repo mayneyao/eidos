@@ -46,6 +46,10 @@ html {
 }
 
 
+.drag-region {
+  -webkit-app-region: drag;
+}
+
 #drag-region {
   -webkit-app-region: drag;
 }

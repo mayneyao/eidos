@@ -37,6 +37,7 @@ import {
 import "./index.css"
 import { useAppStore } from "@/lib/store/app-store"
 
+import { CustomBlockMenu } from "../../blocks/custom/menu"
 import { FileMenu } from "../../blocks/file/menu"
 import { isHTMLElement } from "../../utils/guard"
 import { Point } from "../../utils/point"
@@ -458,6 +459,9 @@ function useDraggableBlockMenu(
             )} */}
             {currentNode?.__type == "file" && (
               <FileMenu nodeKey={currentNodeKey} editor={editor} />
+            )}
+            {currentNode?.__type == "custom" && (
+              <CustomBlockMenu nodeKey={currentNodeKey} editor={editor} />
             )}
             <TurnIntoMenu editor={editor} currentNodeKey={currentNodeKey} />
           </DropdownMenuContent>

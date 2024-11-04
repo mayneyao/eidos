@@ -2,6 +2,7 @@ import "@/styles/globals.css"
 import { useEffect } from "react"
 import { Outlet } from "react-router-dom"
 
+import { useAppStoreBase } from "@/lib/store/app-store"
 import { useWorker } from "@/hooks/use-worker"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
@@ -15,6 +16,7 @@ import { ThemeUpdater } from "@/components/theme-updater"
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
+  const { isSidebarOpen } = useAppStoreBase()
 
   useEffect(() => {
     if (!isInitialized) {
@@ -24,7 +26,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={isSidebarOpen}>
         {/* APP MODEL， a sidebar and main */}
         <div className="flex h-screen w-screen overflow-auto">
           <div className="h-full w-full grow">

@@ -26,6 +26,7 @@
     "common.lock": "Locked",
     "common.name": "Name",
     "common.new": "New",
+    "common.untitled": "Untitled",
     "common.noResultsFound": "No results found",
     "common.noTableFound": "No table found.",
     "common.nodes": "Nodes",

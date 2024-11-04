@@ -46,8 +46,9 @@
     "prettier.config.cjs",
     "apps/web-app/rag.jsx",
     "scripts/version.cjs",
-    "scripts/build-cf-worker.cjs"
-, "scripts/notarize.cjs"  ],
+    "scripts/build-cf-worker.cjs",
+    "scripts/notarize.cjs"
+  ],
   "exclude": [
     "node_modules",
     "dist",

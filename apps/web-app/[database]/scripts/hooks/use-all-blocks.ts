@@ -7,7 +7,11 @@ export const useAllBlocks = () => {
   const { efsManager } = useEidosFileSystemManager()
   useEffect(() => {
     efsManager.listDir(["extensions", "blocks"]).then((blockDirs) => {
-      setBlocks(blockDirs.map((dir) => dir.name))
+      setBlocks(
+        blockDirs
+          .filter((dir) => !dir.name.startsWith("."))
+          .map((dir) => dir.name)
+      )
     })
   }, [])
 

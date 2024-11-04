@@ -2,6 +2,7 @@ import "@/styles/globals.css"
 import { useEffect } from "react"
 import { Outlet } from "react-router-dom"
 
+import { useAppStore, useAppStoreBase } from "@/lib/store/app-store"
 import { useWorker } from "@/hooks/use-worker"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
@@ -14,6 +15,7 @@ import { ThemeUpdater } from "@/components/theme-updater"
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
+  const { isSidebarOpen } = useAppStoreBase()
 
   useEffect(() => {
     if (!isInitialized) {
@@ -23,7 +25,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={isSidebarOpen}>
         {/* Transparent titlebar for dragging */}
         <div
           className="h-[8px] w-full bg-transparent absolute top-0 left-0"

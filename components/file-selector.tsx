@@ -1,16 +1,17 @@
-import { useDrop } from "ahooks"
 import { useMemo, useRef, useState } from "react"
+import { useDrop } from "ahooks"
 import { useParams } from "react-router-dom"
 
+import { getFilePreviewImage } from "@/lib/mime/mime"
+import { cn, proxyURL } from "@/lib/utils"
+import { useFileSystem, useFiles } from "@/hooks/use-files"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useFileSystem, useFiles } from "@/hooks/use-files"
-import { useEidosFileSystemManager } from "@/hooks/use-fs"
-import { getFilePreviewImage } from "@/lib/mime/mime"
-import { cn, proxyImageURL } from "@/lib/utils"
+import { useAllMblocks } from "@/apps/web-app/[database]/scripts/hooks/use-all-mblocks"
 
 export const DefaultColors = [
   "bg-red-500",
@@ -33,7 +34,9 @@ export function FileSelector(props: {
   height?: number
   onlyImage?: boolean
   hideGallery?: boolean
+  showBlock?: boolean
 }) {
+  const allMblocks = useAllMblocks()
   const { files } = useFiles()
   const { efsManager } = useEidosFileSystemManager()
   const { database } = useParams()
@@ -54,7 +57,7 @@ export function FileSelector(props: {
   const handleSelectWebFile = async () => {
     const url = (document.getElementById("web-image-url") as HTMLInputElement)
       .value
-    const cover = proxyImageURL(url)
+    const cover = proxyURL(url)
     props.onSelected(cover, true)
   }
 
@@ -114,7 +117,9 @@ export function FileSelector(props: {
           {!props.hideGallery && (
             <TabsTrigger value="gallery">Gallery</TabsTrigger>
           )}
-
+          {props.showBlock && (
+            <TabsTrigger value="block">Block</TabsTrigger>
+          )}
           <TabsTrigger value="upload">Load</TabsTrigger>
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
@@ -173,6 +178,26 @@ export function FileSelector(props: {
                   )
                 })}
               </div>
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
+      {props.showBlock && (
+        <TabsContent value="block">
+          <ScrollArea className={cn({
+            "h-[600px]": !props.height,
+            [`h-[${props.height}px]`]: props.height,
+          })}>
+            <div className="grid grid-cols-4 gap-4">
+              {allMblocks.map((block) => (
+                <div
+                  key={block.id}
+                  className="cursor-pointer rounded-lg border p-2"
+                  onClick={() => props.onSelected(`block://${block.id}`)}
+                >
+                  {block.name}
+                </div>
+              ))}
             </div>
           </ScrollArea>
         </TabsContent>
