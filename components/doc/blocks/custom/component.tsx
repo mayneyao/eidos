@@ -1,19 +1,20 @@
+import { useMemo } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getNodeByKey, NodeKey } from "lexical"
-import { useCallback, useRef, useState } from "react"
 
-import { BlockApp } from "@/components/block-renderer/block-app"
+import { getBlockIdFromUrl, getBlockUrl } from "@/lib/utils"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { getBlockIdFromUrl, getBlockUrl } from "@/lib/utils"
+import { BlockApp } from "@/components/block-renderer/block-app"
 
 import { useEditorInstance } from "../../hooks/editor-instance-context"
+import { useResizable } from "./hooks/use-resizable"
 import { $isCustomBlockNode } from "./node"
 
-function CustomBlockPlaceholder(props: { nodeKey: string }) {
+function CustomBlockPlaceholderComponent(props: { nodeKey: string }) {
   const { nodeKey } = props
   const [editor] = useLexicalComposerContext()
   const { mblocks } = useEditorInstance()
@@ -59,83 +60,33 @@ export const CustomBlockComponent = (props: {
 }) => {
   const [editor] = useLexicalComposerContext()
   const { mblocks, isSelecting } = useEditorInstance()
-  const [height, setHeight] = useState<number>(props.height || 300)
-  const isDragging = useRef(false)
-  const startY = useRef(0)
-  const startHeight = useRef(0)
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging.current) return
+  const CustomBlockPlaceholder = useMemo(() => {
+    if (!props.url.length) {
+      return <CustomBlockPlaceholderComponent nodeKey={props.nodeKey} />
+    }
+    return null
+  }, [props.url, props.nodeKey])
 
-    const deltaY = e.clientY - startY.current
-    const newHeight = Math.max(100, startHeight.current + deltaY)
-    setHeight(newHeight)
-  }, [])
+  const { height, handleMouseDown } = useResizable({
+    initialHeight: props.height || 300,
+    nodeKey: props.nodeKey,
+    editor,
+    isSelecting,
+  })
 
-  const handleMouseUp = useCallback(
-    (e: MouseEvent) => {
-      if (!isDragging.current) return
-
-      editor.update(() => {
-        const node = $getNodeByKey(props.nodeKey)
-        if ($isCustomBlockNode(node)) {
-          node.setHeight(height)
-        }
-      })
-
-      isDragging.current = false
-      document.body.style.cursor = ""
-      document.body.style.userSelect = ""
-      window.removeEventListener("mousemove", handleMouseMove)
-      window.removeEventListener("mouseup", handleMouseUp)
-
-      const overlay = document.getElementById("drag-overlay")
-      overlay?.remove()
-    },
-    [handleMouseMove, height, editor, props.nodeKey]
-  )
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (isSelecting) return
-      e.preventDefault()
-
-      isDragging.current = true
-      startY.current = e.clientY
-      startHeight.current = height
-
-      document.body.style.cursor = "ns-resize"
-      document.body.style.userSelect = "none"
-
-      const overlay = document.createElement("div")
-      overlay.id = "drag-overlay"
-      overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 9999;
-      `
-      document.body.appendChild(overlay)
-
-      window.addEventListener("mousemove", handleMouseMove)
-      window.addEventListener("mouseup", handleMouseUp)
-    },
-    [height, handleMouseMove, handleMouseUp, isSelecting]
+  const currentBlock = useMemo(
+    () => mblocks.find((mblock) => mblock.id === getBlockIdFromUrl(props.url)),
+    [mblocks, props.url]
   )
 
   if (!props.url.length) {
-    return <CustomBlockPlaceholder nodeKey={props.nodeKey} />
+    return CustomBlockPlaceholder
   }
 
-  const mblock = mblocks.find(
-    (mblock) => mblock.id === getBlockIdFromUrl(props.url)
-  )
-
-  if (!mblock) {
+  if (!currentBlock) {
     return (
-      <div className="w-full h-fit border border-gray-200 rounded-lg p-4">
+      <div className="w-full h-fit border border-gray-200 rounded-sm p-4">
         <div className="text-center text-sm text-gray-500">
           Custom block Not Found, maybe it's disabled or deleted
         </div>
@@ -145,7 +96,7 @@ export const CustomBlockComponent = (props: {
 
   return (
     <div
-      className="w-full border border-gray-200 rounded-lg p-2 relative"
+      className="w-full ring-1 ring-gray-200 rounded-sm p-2 relative"
       style={{
         height: `${height}px`,
         pointerEvents: isSelecting ? "none" : "auto",
