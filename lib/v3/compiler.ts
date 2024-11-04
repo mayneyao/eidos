@@ -110,7 +110,6 @@ export async function generateImportMap(
     imports[dep] = `https://esm.sh/${dep}`;
   });
 
-  console.log('uiLibs', uiLibs)
   for (const dep of uiLibs) {
     const componentId = `@/components/ui/${dep}`;
 
@@ -140,7 +139,6 @@ export async function generateImportMap(
     imports[componentId] = url;
   }
 
-  console.log(imports);
   const importMapScript = `
   <script type="importmap">
     ${JSON.stringify({ imports })}
