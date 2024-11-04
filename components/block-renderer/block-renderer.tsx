@@ -9,6 +9,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { LogoLoading } from "../loading"
 import sdkInjectScript from "../script-container/sdk-inject-script.html?raw"
 import { twConfig } from "./tailwind-config"
+import tailwindRaw from "./tailwind-raw.js?raw"
 import themeRawCode from "./theme-raw.css?raw"
 
 interface BlockRendererProps {
@@ -77,7 +78,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       <html class="${theme}">
         <head>
           ${importMap}
-          <script src="https://cdn.tailwindcss.com"></script>
+          <script>${tailwindRaw}</script>
           ${sdkInjectScriptContent}
           <script>
             window.process = {
@@ -186,24 +187,18 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     )
   }, [theme])
 
+  const style = {
+    border: "none",
+    width: width ? (typeof width === "number" ? `${width}px` : width) : "100%",
+    height: height
+      ? typeof height === "number"
+        ? `${height}px`
+        : height
+      : "100%",
+  }
   if (isLoading) {
     return (
-      <div
-        className="flex items-center justify-center"
-        style={{
-          border: "none",
-          width: width
-            ? typeof width === "number"
-              ? `${width}px`
-              : width
-            : "100%",
-          height: height
-            ? typeof height === "number"
-              ? `${height}px`
-              : height
-            : "100%",
-        }}
-      >
+      <div className="flex items-center justify-center" style={style}>
         <LogoLoading />
       </div>
     )
@@ -213,25 +208,8 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     <iframe
       ref={iframeRef}
       title="preview"
-      className={cn(
-        width ? "" : "w-full",
-        height ? "" : "h-full",
-        "overflow-hidden"
-      )}
       sandbox="allow-scripts allow-same-origin"
-      style={{
-        border: "none",
-        width: width
-          ? typeof width === "number"
-            ? `${width}px`
-            : width
-          : "100%",
-        height: height
-          ? typeof height === "number"
-            ? `${height}px`
-            : height
-          : "100%",
-      }}
+      style={style}
     />
   )
 }

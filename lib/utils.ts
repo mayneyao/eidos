@@ -206,6 +206,11 @@ export const getBlockUrl = (blockId: string, props?: Record<string, any>) => {
 }
 
 export const getBlockIdFromUrl = (url: string) => {
-  const urlObj = new URL(url)
-  return urlObj.pathname.replace("//", "")
+  try {
+    const blockId = url.replace('block://', '')
+    return blockId.split('?')[0]
+  } catch (error) {
+    console.error(error)
+    return ""
+  }
 }
