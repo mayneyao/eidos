@@ -51,7 +51,6 @@ export const useExtMsg = (source: ExtensionSourceType) => {
   const { efsManager } = useEidosFileSystemManager()
   const handleMsg = useCallback(
     (event: MessageEvent) => {
-      console.log("receive msg", event, source)
       if (!shouldHandle(event, source)) {
         return
       }

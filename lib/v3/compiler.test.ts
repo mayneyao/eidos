@@ -70,28 +70,6 @@ describe("compileCode", () => {
     const result = await compileCode(uilibCode);
     console.log(result);
   });
-  it("should return dependencies", async () => {
-    const result = await compileCode(importUIlibCode);
-    expect(result.dependencies).toEqual([
-      "react",
-      "@/components/ui/button",
-      "@/components/ui/input",
-      "@/components/ui/slider",
-      "lucide-react",
-    ]);
-  });
-  it("should successfully compile valid code", async () => {
-    const validCode = `
-      function add(a: number, b: number) {
-        return a + b;
-      }
-    `;
-
-    const result = await compileCode(validCode);
-    expect(result.error).toBeNull();
-    expect(result.dependencies).toHaveLength(0);
-  });
-
   it("should handle empty code input", async () => {
     const result = await compileCode("");
     expect(result.error).toBeNull();
@@ -100,8 +78,8 @@ describe("compileCode", () => {
 });
 
 describe("getThirdPartyLibs", () => {
-  it("should return third party libs", async () => {
-    const result = await getAllLibs(importUIlibCode);
+  it("should return third party libs", () => {
+    const result = getAllLibs(importUIlibCode);
     console.log(result);
     expect(result.thirdPartyLibs).toEqual([
       "react",

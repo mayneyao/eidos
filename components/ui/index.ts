@@ -52,6 +52,8 @@
 
 import buttonCode from "./button?raw";
 import inputCode from "./input?raw";
+import alertDialogCode from "./alert-dialog?raw";
+import aspectRatioCode from "./aspect-ratio?raw";
 import sliderCode from "./slider?raw";
 import avatarCode from "./avatar?raw";
 import badgeCode from "./badge?raw";
@@ -94,14 +96,18 @@ import toastCode from "./toast?raw";
 import toasterCode from "./toaster?raw";
 import toggleCode from "./toggle?raw";
 import toggleGroupCode from "./toggle-group?raw";
+import alertCode from "./alert?raw";
+import accordionCode from "./accordion?raw";
 
 export const uiConfig = {
-    button: buttonCode,
-    input: inputCode,
-    slider: sliderCode,
+    accordion: accordionCode,
+    alert: alertCode,
+    "alert-dialog": alertDialogCode,
+    aspect: aspectRatioCode,
     avatar: avatarCode,
     badge: badgeCode,
     breadcrumb: breadcrumbCode,
+    button: buttonCode,
     calendar: calendarCode,
     card: cardCode,
     carousel: carouselCode,
@@ -109,14 +115,15 @@ export const uiConfig = {
     checkbox: checkboxCode,
     collapsible: collapsibleCode,
     command: commandCode,
-    dialog: dialogCode,
     "context-menu": contextMenuCode,
+    dialog: dialogCode,
     drawer: drawerCode,
     "dropdown-menu": dropdownMenuCode,
     form: formCode,
-    label: labelCode,
     "hover-card": hoverCardCode,
+    input: inputCode,
     "input-otp": inputOtpCode,
+    label: labelCode,
     menubar: menubarCode,
     "navigation-menu": navigationMenuCode,
     pagination: paginationCode,
@@ -129,15 +136,16 @@ export const uiConfig = {
     separator: separatorCode,
     sheet: sheetCode,
     sidebar: sidebarCode,
-    tooltip: tooltipCode,
-    toast: toastCode,
-    toaster: toasterCode,
-    toggle: toggleCode,
-    "toggle-group": toggleGroupCode,
-    textarea: textareaCode,
+    skeleton: skeletonCode,
+    slider: sliderCode,
     sonner: sonnerCode,
     switch: switchCode,
     table: tableCode,
     tabs: tabsCode,
-    skeleton: skeletonCode,
+    textarea: textareaCode,
+    toast: toastCode,
+    toaster: toasterCode,
+    toggle: toggleCode,
+    "toggle-group": toggleGroupCode,
+    tooltip: tooltipCode,
 };

@@ -2,17 +2,18 @@
 import { initialize, transform } from "esbuild-wasm";
 
 import { uiConfig } from "@/components/ui";
+import { generateCacheKey, getCache, hasCache, setCache } from "./cache";
 export let compilerInitialized = false
 export const initializeCompiler = async () => {
   if (compilerInitialized) return
   try {
     await initialize({
       worker: true,
-      wasmURL: "https://unpkg.com/esbuild-wasm@0.24.0/esbuild.wasm",
+      wasmURL: "https://esm.sh/esbuild-wasm@0.24.0/esbuild.wasm",
     });
   } catch (error) {
     console.error(error)
-    compilerInitialized = true
+    compilerInitialized = false
   }
   compilerInitialized = true
 };
@@ -54,15 +55,13 @@ export const compileCode = async (
       charset: "utf8",
     });
 
-    const dependencies: string[] = getImportsFromCode(jsxResult.code);
 
     return {
       code: jsxResult.code,
       error: null,
-      dependencies,
     };
   } catch (err: any) {
-    return { code: "", error: err.message, dependencies: [] };
+    return { code: "", error: err.message };
   }
 };
 
@@ -119,7 +118,17 @@ export async function generateImportMap(
 
     if (!url) {
       const code = uiConfig[dep as keyof typeof uiConfig];
-      const compiledCode = await compileCode(code);
+      const cacheKey = generateCacheKey(code);
+      let compiledCode: CompileResult;
+      if (hasCache(cacheKey)) {
+        compiledCode = getCache(cacheKey);
+      } else {
+        compiledCode = await compileCode(code);
+        setCache(cacheKey, compiledCode);
+      }
+      if (compiledCode.error) {
+        throw new Error(compiledCode.error);
+      }
       const blob = new Blob([compiledCode.code], {
         type: "application/javascript;charset=utf-8",
       });
@@ -151,13 +160,13 @@ export async function generateImportMap(
   };
 }
 
-export async function getAllLibs(code: string, processedComponents = new Set<string>()) {
+export function getAllLibs(code: string, processedComponents = new Set<string>()) {
   if (!code) return {
     thirdPartyLibs: [],
     uiLibs: [],
   }
 
-  const { dependencies } = await compileCode(code);
+  const dependencies = getImportsFromCode(code);
   const thirdPartyLibs =
     dependencies?.filter((dep) => !dep.startsWith("@/")) ?? [];
   const uiLibs =
@@ -169,7 +178,7 @@ export async function getAllLibs(code: string, processedComponents = new Set<str
     if (processedComponents.has(component)) continue;
     processedComponents.add(component);
     const code = uiConfig[component as keyof typeof uiConfig];
-    const { thirdPartyLibs: _thirdPartyLibs, uiLibs: _uiLibs } = await getAllLibs(code, processedComponents);
+    const { thirdPartyLibs: _thirdPartyLibs, uiLibs: _uiLibs } = getAllLibs(code, processedComponents);
     thirdPartyLibs.push(..._thirdPartyLibs);
     uiLibs.push(..._uiLibs);
   }
@@ -179,3 +188,4 @@ export async function getAllLibs(code: string, processedComponents = new Set<str
     uiLibs: Array.from(new Set(uiLibs)),
   };
 }
+

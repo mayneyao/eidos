@@ -48,11 +48,10 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     if (!code.length) {
       return
     }
-    getAllLibs(code).then(async ({ thirdPartyLibs, uiLibs }) => {
-      setDependencies(thirdPartyLibs)
-      setUiComponents(uiLibs)
-      const { importMap } = await generateImportMap(thirdPartyLibs, uiLibs)
-      console.log({ code, compiledCode, importMap })
+    const { thirdPartyLibs, uiLibs } = getAllLibs(code)
+    setDependencies(thirdPartyLibs)
+    setUiComponents(uiLibs)
+    generateImportMap(thirdPartyLibs, uiLibs).then(({ importMap }) => {
       setImportMap(importMap)
       setIsLoading(false)
     })
@@ -182,8 +181,8 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
   useEffect(() => {
     if (!iframeRef.current) return
     iframeRef.current.contentWindow?.postMessage(
-      { type: 'theme-change', theme },
-      '*'
+      { type: "theme-change", theme },
+      "*"
     )
   }, [theme])
 
