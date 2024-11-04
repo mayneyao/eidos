@@ -30,6 +30,7 @@ export default {
 	): Promise<Response> {
 		const url = new URL(request.url);
 		const platform = url.pathname.split('/').pop()?.toLowerCase();
+		const arch = url.searchParams.get('arch')?.toLowerCase();
 
 		if (platform !== 'mac' && platform !== 'win') {
 			return new Response('Invalid platform. Use /mac or /win', { status: 400 });
@@ -59,14 +60,18 @@ export default {
 			if (!latestRelease) {
 				return new Response('No release found', { status: 404 })
 			}
+			const extMap = {
+				mac: '.dmg',
+				win: '.exe'
+			}
 
 			const asset = latestRelease.assets.find((asset: any) => {
 				const name = asset.name.toLowerCase();
-				if (platform === 'mac') {
-					return name.endsWith('.dmg');
-				} else {
-					return name.endsWith('.exe');
+				const ext = extMap[platform as keyof typeof extMap];
+				if (arch) {
+					return name.includes(arch) && name.endsWith(ext);
 				}
+				return name.endsWith(ext);
 			});
 
 			if (!asset) {

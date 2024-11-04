@@ -62,6 +62,7 @@
         ]
       }
     ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "win": {
       "target": [
         "nsis",
@@ -72,8 +73,20 @@
     "afterSign": "scripts/notarize.cjs",
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "dist/logo.icns",
       "hardenedRuntime": true,
