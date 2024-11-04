@@ -246,7 +246,7 @@ export const ScriptPage = () => {
               <DropdownMenuItem
                 onClick={() => handleCreateNewScript("m_block")}
               >
-                Micro Block
+                Micro Block <Badge variant="secondary">New</Badge>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

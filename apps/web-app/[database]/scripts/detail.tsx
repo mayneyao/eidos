@@ -119,7 +119,6 @@ export const ScriptDetailPage = () => {
     }
     revalidator.revalidate()
   }
-  console.log(script)
 
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get("tab") || "basic"

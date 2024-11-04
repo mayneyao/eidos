@@ -4,9 +4,10 @@ import {
   PanelRightIcon,
   PlusIcon,
   ToyBrickIcon,
+  Trash2,
 } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn, getBlockIdFromUrl } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   ContextMenu,
@@ -32,6 +33,7 @@ import {
   useAppsStore,
   useSpaceAppStore,
 } from "../../apps/web-app/[database]/store"
+import { BlockContextMenu } from "./block-context-menu"
 
 const DefaultAppInfoMap: Record<
   string,
@@ -66,7 +68,7 @@ export const RightPanelNav = () => {
   const mblocks = useAllMblocks()
   const getAppInfo = (app: string) => {
     if (app.startsWith("block://")) {
-      const id = app.replace("block://", "")
+      const id = getBlockIdFromUrl(app)
       const block = mblocks.find((mblock) => mblock.id === id)
       return {
         icon: ToyBrickIcon,
@@ -112,8 +114,19 @@ export const RightPanelNav = () => {
                               setCurrentAppIndex(0)
                             }}
                           >
-                            delete
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
                           </ContextMenuItem>
+                          <BlockContextMenu
+                            url={app}
+                            setUrl={(newUrl) =>
+                              setApps(
+                                apps.map((oldUrl) =>
+                                  oldUrl === app ? newUrl : oldUrl
+                                )
+                              )
+                            }
+                          />
                         </ContextMenuContent>
                       </ContextMenu>
                     ) : (

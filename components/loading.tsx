@@ -35,12 +35,10 @@ export function SVGAnimator({
   const svgRef = useRef<HTMLDivElement>(null)
 
   const animateSVG = (svgElement: SVGElement) => {
-    console.log("animating")
     const elements = svgElement.querySelectorAll(
       "path, line, circle, rect, ellipse, polygon, polyline, text"
     )
     let maxStrokeDuration = 0
-    console.log(elements)
 
     elements.forEach((element, index) => {
       if (
