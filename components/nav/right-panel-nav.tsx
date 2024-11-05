@@ -53,14 +53,9 @@ const DefaultAppInfoMap: Record<
 }
 
 export const RightPanelNav = () => {
-  const {
-    setIsRightPanelOpen,
-    apps,
-    currentAppIndex,
-    setCurrentAppIndex,
-    setApps,
-  } = useSpaceAppStore()
-  const { apps: allApps, addApp, deleteApp } = useAppsStore()
+  const { setIsRightPanelOpen, currentAppIndex, setCurrentAppIndex, setApps } =
+    useSpaceAppStore()
+  const { apps, addApp, deleteApp } = useAppsStore()
 
   const handleAppChange = (index: number) => {
     setCurrentAppIndex(index)
@@ -70,6 +65,9 @@ export const RightPanelNav = () => {
     if (app.startsWith("block://")) {
       const id = getBlockIdFromUrl(app)
       const block = mblocks.find((mblock) => mblock.id === id)
+      if (!block) {
+        return null
+      }
       return {
         icon: ToyBrickIcon,
         title: block?.name,
@@ -79,12 +77,39 @@ export const RightPanelNav = () => {
     }
     return DefaultAppInfoMap[app]
   }
+  const updateApp = (app: string, newUrl: string) => {
+    const newApps = apps.map((oldUrl) => (oldUrl === app ? newUrl : oldUrl))
+    console.log("newApps", { apps, newApps, app, newUrl })
+    setApps(newApps)
+  }
 
   return (
     <div className="flex gap-2 justify-between w-full">
       <div className="flex gap-2">
-        {allApps.map((app, index) => {
-          const { icon: Icon, title, description, shortcut } = getAppInfo(app)
+        {apps.map((app, index) => {
+          const appInfo = getAppInfo(app)
+          if (!appInfo) {
+            return (
+              <TooltipProvider key={app}>
+                <Tooltip>
+                  <TooltipTrigger className="cursor-not-allowed">
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      disabled
+                      onClick={() => handleAppChange(index)}
+                    >
+                      <ToyBrickIcon className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>This block is not available in current space</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )
+          }
+          const { icon: Icon, title, description, shortcut } = appInfo
           const isCurrentApp = index === currentAppIndex
           const isBlock = app.startsWith("block://")
           return (
@@ -119,13 +144,7 @@ export const RightPanelNav = () => {
                           </ContextMenuItem>
                           <BlockContextMenu
                             url={app}
-                            setUrl={(newUrl) =>
-                              setApps(
-                                apps.map((oldUrl) =>
-                                  oldUrl === app ? newUrl : oldUrl
-                                )
-                              )
-                            }
+                            setUrl={(newUrl) => updateApp(app, newUrl)}
                           />
                         </ContextMenuContent>
                       </ContextMenu>
@@ -171,7 +190,7 @@ export const RightPanelNav = () => {
                 key={block.id}
                 onClick={() => {
                   addApp(`block://${block.id}`)
-                  setCurrentAppIndex(allApps.length) // Set focus to the newly added app
+                  setCurrentAppIndex(apps.length) // Set focus to the newly added app
                 }}
               >
                 <div className="flex items-center gap-2">
