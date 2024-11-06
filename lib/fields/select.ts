@@ -2,6 +2,8 @@ import type { SelectCell } from "@/components/table/views/grid/cells/select-cell
 
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
+import { MultiSelectCell } from "@/components/table/views/grid/cells/multi-select-cell"
+import { MultiSelectField } from "./multi-select"
 
 export type SelectOption = {
   id: string
@@ -167,6 +169,17 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
     }
   }
 
+  /**
+   * getCellContentViaLookup is used when the field is used as a lookup target field. 
+   * lookup will convert the raw data to a multi-select cell, value split by comma. 
+   * @param rawData 
+   * @returns 
+   */
+  getCellContentViaLookup(rawData: string): MultiSelectCell {
+    const multiSelectField = new MultiSelectField(this.column)
+    return multiSelectField.getCellContent(rawData)
+  }
+
   cellData2RawData(cell: SelectCell) {
     if (cell.data.value == null) return { rawData: null }
     if (cell.data.kind !== "select-cell") {
@@ -231,14 +244,14 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
   static getNextAvailableColor(existingOptions: SelectOption[]): string {
     const allColors = SelectField.colors.light.map(c => c.name)
     const usedColors = new Set(existingOptions.map(o => o.color))
-    return allColors.find(color => !usedColors.has(color)) || 
+    return allColors.find(color => !usedColors.has(color)) ||
       allColors[existingOptions.length % allColors.length]
   }
 
   addOption(name: string) {
     const options = this.column.property?.options ?? []
     const nextColor = SelectField.getNextAvailableColor(options)
-    
+
     const newOptions = [
       { id: name, name, color: nextColor },
       ...options,

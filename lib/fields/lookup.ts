@@ -91,7 +91,13 @@ export class LookupField extends BaseField<
         allowOverlay: false,
       }
     }
-    const cellData = field?.getCellContent(rawData as never, context)
+    let cellData: any
+
+    if ('getCellContentViaLookup' in field) {
+      cellData = (field as any).getCellContentViaLookup(rawData)
+    } else {
+      cellData = field?.getCellContent(rawData as never, context)
+    }
     return {
       ...cellData,
       allowOverlay: false, // lookup field should not be editable
