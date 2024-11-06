@@ -34,8 +34,9 @@ export class MultiSelectField extends BaseField<
   // TODO: refactor multi-select and select to use the same code
   addOption(name: string) {
     const options = this.column.property?.options ?? []
+    const nextColorName = SelectField.getNextAvailableColor(options)
     const newOptions = [
-      { id: name, name, color: SelectField.defaultColor },
+      { id: name, name, color: nextColorName },
       ...options,
     ]
     this.column.property.options = newOptions
@@ -44,7 +45,7 @@ export class MultiSelectField extends BaseField<
 
   rawData2JSON(rawData: string | null): string[] {
     const options = this.column.property?.options ?? []
-    const ids = rawData?.split(/[\s,]+/) || []
+    const ids = rawData ? rawData.split(",").map(s => s.trim()) : []
     const names = ids.map((id) => {
       const option = options.find((i) => i.id === id)
       return option?.name || ""
@@ -54,7 +55,9 @@ export class MultiSelectField extends BaseField<
 
   /**
    * in database we store the tags as a string, so we need to convert it to an array of strings
-   * e.g. "tag1,tag2,tag3" => ["tag1", "tag2", "tag3"]
+   * e.g. 
+   * "tag1,tag2,tag3" => ["tag1", "tag2", "tag3"]
+   * "tag1, tag2 with space" => ["tag1", "tag2 with space"]
    * @param rawData
    * @returns
    */
@@ -64,7 +67,7 @@ export class MultiSelectField extends BaseField<
       data: {
         kind: "multi-select-cell",
         allowedValues: this.column.property?.options ?? [],
-        values: rawData ? rawData.split(/[\s,]+/) : [],
+        values: rawData ? rawData.split(",").map(s => s.trim()) : [],
       },
       copyData: rawData,
       allowOverlay: true,

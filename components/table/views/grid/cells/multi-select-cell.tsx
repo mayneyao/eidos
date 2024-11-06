@@ -133,7 +133,14 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
         setInputValue("")
         setNewOptions([
           ...newOptions,
-          { id: inputValue, name: inputValue, color: "default" },
+          {
+            id: inputValue,
+            name: inputValue,
+            color: SelectField.getNextAvailableColor([
+              ...allowedValues,
+              ...newOptions,
+            ]),
+          },
         ])
       }
     }
@@ -219,11 +226,23 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
                     ref={createNewOptionRef}
                     key={inputValue}
                     value={inputValue}
+                    className="flex items-center gap-2"
                     onSelect={(currentValue) => {
                       handleSelect(currentValue)
                     }}
                   >
-                    Create {inputValue}
+                    <span>Create</span>
+                    <SelectOptionItem
+                      theme={themeName}
+                      option={{
+                        id: inputValue,
+                        name: inputValue,
+                        color: SelectField.getNextAvailableColor([
+                          ...allowedValues,
+                          ...newOptions,
+                        ]),
+                      }}
+                    />
                   </CommandItem>
                 )}
             </CommandGroup>

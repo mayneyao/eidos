@@ -44,6 +44,8 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
 
   const themeName = (theme as any).name
   const oldOptionName = allowedValues.find((item) => item.id == valueIn)?.name
+  const nextColorName = SelectField.getNextAvailableColor([...allowedValues])
+
   const handleSelect = (value: string) => {
     setValue(value)
     onFinishedEditing({
@@ -117,12 +119,21 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
                   <CommandItem
                     key={value}
                     ref={createNewOptionRef}
+                    className="flex items-center gap-2"
                     value={value}
                     onSelect={(currentValue) => {
                       handleSelect(currentValue)
                     }}
                   >
-                    Create {value}
+                    <span>Create</span>
+                    <SelectOptionItem
+                      theme={themeName}
+                      option={{
+                        id: value,
+                        name: value,
+                        color: nextColorName,
+                      }}
+                    />
                   </CommandItem>
                 )}
             </CommandGroup>
