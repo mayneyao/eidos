@@ -1,8 +1,10 @@
 import { useMemo, useRef } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getNodeByKey, NodeKey } from "lexical"
+import { Link } from "react-router-dom"
 
 import { getBlockIdFromUrl, getBlockUrl } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import {
   Popover,
   PopoverContent,
@@ -24,6 +26,7 @@ function CustomBlockPlaceholderComponent(props: { nodeKey: string }) {
   const { nodeKey } = props
   const [editor] = useLexicalComposerContext()
   const { mblocks } = useEditorInstance()
+  const { space } = useCurrentPathInfo()
 
   const handleSelect = async (url: string) => {
     editor.update(() => {
@@ -44,6 +47,17 @@ function CustomBlockPlaceholderComponent(props: { nodeKey: string }) {
         </div>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-2 max-h-[300px] overflow-y-auto">
+        {mblocks.length === 0 && (
+          <p className="p-2 text-sm text-gray-500">
+            There are no blocks in this space. Try to{" "}
+            <Link
+              to={`/${space}/extensions`}
+              className="flex items-center gap-2 text-blue-500"
+            >
+              <span>create block</span>
+            </Link>
+          </p>
+        )}
         {mblocks.map((mblock) => (
           <div
             key={mblock.id}

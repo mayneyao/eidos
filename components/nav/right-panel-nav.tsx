@@ -6,8 +6,11 @@ import {
   ToyBrickIcon,
   Trash2,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 
 import { cn, getBlockIdFromUrl } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
   ContextMenu,
@@ -42,6 +45,7 @@ const DefaultAppInfoMap: Record<
     title: string
     description: string
     shortcut?: string
+    available: boolean
   }
 > = {
   chat: {
@@ -49,6 +53,7 @@ const DefaultAppInfoMap: Record<
     title: "Chat with AI",
     description: "Chat with AI",
     // shortcut: "ctrl/cmd + /",
+    available: true,
   },
 }
 
@@ -56,30 +61,54 @@ export const RightPanelNav = () => {
   const { setIsRightPanelOpen, currentAppIndex, setCurrentAppIndex, setApps } =
     useSpaceAppStore()
   const { apps, addApp, deleteApp } = useAppsStore()
-
+  const { space } = useCurrentPathInfo()
+  const { t } = useTranslation()
   const handleAppChange = (index: number) => {
     setCurrentAppIndex(index)
   }
+  const handleAddApp = (blockId: string) => {
+    addApp(`block://${blockId}@${space}`)
+    setCurrentAppIndex(apps.length) // Set focus to the newly added app
+  }
+
   const mblocks = useAllMblocks()
   const getAppInfo = (app: string) => {
     if (app.startsWith("block://")) {
       const id = getBlockIdFromUrl(app)
-      const block = mblocks.find((mblock) => mblock.id === id)
+      const [blockId, blockSpace] = id.split("@")
+      if (blockSpace !== space) {
+        return {
+          icon: ToyBrickIcon,
+          title: t("common.tips.blockNotInCurrentSpace", {
+            space: blockSpace,
+          }),
+          description: "",
+          shortcut: undefined,
+          available: false,
+        }
+      }
+      const block = mblocks.find((mblock) => mblock.id === blockId)
       if (!block) {
-        return null
+        return {
+          icon: ToyBrickIcon,
+          title: t("common.tips.notFoundBlock"),
+          description: "",
+          shortcut: undefined,
+          available: false,
+        }
       }
       return {
         icon: ToyBrickIcon,
         title: block?.name,
         description: block?.description,
         shortcut: undefined,
+        available: true,
       }
     }
     return DefaultAppInfoMap[app]
   }
   const updateApp = (app: string, newUrl: string) => {
     const newApps = apps.map((oldUrl) => (oldUrl === app ? newUrl : oldUrl))
-    console.log("newApps", { apps, newApps, app, newUrl })
     setApps(newApps)
   }
 
@@ -88,28 +117,7 @@ export const RightPanelNav = () => {
       <div className="flex gap-2">
         {apps.map((app, index) => {
           const appInfo = getAppInfo(app)
-          if (!appInfo) {
-            return (
-              <TooltipProvider key={app}>
-                <Tooltip>
-                  <TooltipTrigger className="cursor-not-allowed">
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      disabled
-                      onClick={() => handleAppChange(index)}
-                    >
-                      <ToyBrickIcon className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>This block is not available in current space</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )
-          }
-          const { icon: Icon, title, description, shortcut } = appInfo
+          const { icon: Icon, title, description, shortcut } = appInfo ?? {}
           const isCurrentApp = index === currentAppIndex
           const isBlock = app.startsWith("block://")
           return (
@@ -127,6 +135,7 @@ export const RightPanelNav = () => {
                             className={cn("rounded-b-none relative", {
                               "after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary":
                                 isCurrentApp,
+                              "opacity-50": !appInfo?.available,
                             })}
                           >
                             <Icon className="h-5 w-5" />
@@ -185,12 +194,22 @@ export const RightPanelNav = () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
+            {mblocks.length === 0 && (
+              <p className="p-2 text-sm text-gray-500">
+                There are no blocks in this space. Try to{" "}
+                <Link
+                  to={`/${space}/extensions`}
+                  className="flex items-center gap-2 text-blue-500"
+                >
+                  <span>create block</span>
+                </Link>
+              </p>
+            )}
             {mblocks.map((block) => (
               <DropdownMenuItem
                 key={block.id}
                 onClick={() => {
-                  addApp(`block://${block.id}`)
-                  setCurrentAppIndex(apps.length) // Set focus to the newly added app
+                  handleAddApp(block.id)
                 }}
               >
                 <div className="flex items-center gap-2">

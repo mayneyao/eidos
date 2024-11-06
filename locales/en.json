@@ -41,6 +41,8 @@
     "common.system": "System",
     "common.test": "Test",
     "common.thisActionCannotBeUndone": "This action cannot be undone.",
+    "common.tips.blockNotInCurrentSpace": "This block belongs to another space. [{{space}}]",
+    "common.tips.notFoundBlock": "Block not found",
     "common.tips.staging": "This is a staging environment, don't use it in production",
     "common.today": "Today",
     "common.trash": "Trash",

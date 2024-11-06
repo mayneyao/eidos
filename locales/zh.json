@@ -41,6 +41,8 @@
     "common.system": "系统",
     "common.test": "测试",
     "common.thisActionCannotBeUndone": "此操作无法撤消。",
+    "common.tips.blockNotInCurrentSpace": "此 Block 属于另一个空间。[{{space}}]",
+    "common.tips.notFoundBlock": "未找到 Block",
     "common.tips.staging": "这是一个测试环境，请不要在生产环境中使用。",
     "common.today": "今天",
     "common.trash": "回收站",
