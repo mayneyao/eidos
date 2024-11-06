@@ -228,10 +228,19 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
     this.column.property.options = options
   }
 
+  static getNextAvailableColor(existingOptions: SelectOption[]): string {
+    const allColors = SelectField.colors.light.map(c => c.name)
+    const usedColors = new Set(existingOptions.map(o => o.color))
+    return allColors.find(color => !usedColors.has(color)) || 
+      allColors[existingOptions.length % allColors.length]
+  }
+
   addOption(name: string) {
     const options = this.column.property?.options ?? []
+    const nextColor = SelectField.getNextAvailableColor(options)
+    
     const newOptions = [
-      { id: name, name, color: SelectField.defaultColor },
+      { id: name, name, color: nextColor },
       ...options,
     ]
     this.column.property.options = newOptions
