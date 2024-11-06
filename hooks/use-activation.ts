@@ -2,10 +2,10 @@ import { useEffect } from "react"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-import { isDesktopMode, isDevMode, isSelfHosted } from "@/lib/env"
+import { useToast } from "@/components/ui/use-toast"
+import { isDevMode, isSelfHosted, isStagingMode } from "@/lib/env"
 import { uuidv7 } from "@/lib/utils"
 import { verifyMessage } from "@/lib/web/crypto"
-import { useToast } from "@/components/ui/use-toast"
 
 interface IActivationState {
   code: string
@@ -98,7 +98,7 @@ export const useActivation = () => {
   }
   return {
     isActivated:
-      isDevMode || isSelfHosted
+      isDevMode || isSelfHosted || isStagingMode
         ? true
         : clientId && license
           ? isActivated

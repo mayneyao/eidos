@@ -7,8 +7,10 @@
   "author": "mayneyao",
   "scripts": {
     "dev": "vite",
+    "dev:staging": "vite --mode staging",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "build": "pnpm recursive run build && vite build",
+    "build:staging": "pnpm recursive run build && vite build --mode staging",
     "build:self-host": "pnpm recursive run build && vite build --mode self-host",
     "dev:ink": "cross-env EIDOS_SERVICE_MODE=ink vite --mode ink",
     "dev:desktop": "cross-env EIDOS_SERVICE_MODE=desktop vite --mode desktop",
