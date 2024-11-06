@@ -13,6 +13,7 @@ export const useExtensionNavigate = () => {
     return (url: string) => {
         const blockId = getBlockIdFromUrl(url)
         if (!blockId) return
-        navigate(`/${space}/extensions/${blockId}`)
+        const [id, _space] = blockId.split("@")
+        navigate(`/${_space || space}/extensions/${id}`)
     }
 }
