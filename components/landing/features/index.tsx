@@ -19,8 +19,8 @@ const features: IFeatureCard[] = [
         </a>
       </p>
     ),
-    lightImageUrl: "/show/api-light.webp",
-    darkImageUrl: "/show/api-dark.webp",
+    lightImageUrls: ["/show/api-light.webp"],
+    darkImageUrls: ["/show/api-dark.webp"],
   },
   {
     title: "SQLite Standardization",
@@ -32,8 +32,21 @@ const features: IFeatureCard[] = [
         SaaS may come and go, but your data in SQLite will always be there.
       </p>
     ),
-    lightImageUrl: "/show/sqlite.webp",
+    lightImageUrls: ["/show/sqlite.webp"],
+    darkImageUrls: ["/show/sqlite.webp"],
     imgCls: "bg-blue-100 p-4",
+  },
+  {
+    title: "Designed for Performance 🚀",
+    description: (
+      <p>
+        The Eidos table is a lightweight wrapper of SQLite, so you can expect
+        the same performance. 1 million rows? No problem 🤞.
+      </p>
+    ),
+    lightImageUrls: ["/show/1m-rows.webp"],
+    darkImageUrls: ["/show/1m-rows.webp"],
+    imgCls: "bg-green-100 p-2",
   },
   {
     title: "Offline AI Capabilities",
@@ -47,7 +60,8 @@ const features: IFeatureCard[] = [
         OpenAI API.
       </p>
     ),
-    lightImageUrl: "/show/offline-ai.webp",
+    lightImageUrls: ["/show/offline-ai.webp"],
+    darkImageUrls: ["/show/offline-ai.webp"],
     imgCls: "bg-teal-100 p-2",
   },
 ]
@@ -64,39 +78,50 @@ const officeExtServices: IFeatureCard[] = [
         create or update resources simply by sending an email.
       </p>
     ),
-    lightImageUrl: "/show/mail-to-eidos.webp",
+    lightImageUrls: ["/show/mail-to-eidos.webp"],
+    darkImageUrls: ["/show/mail-to-eidos.webp"],
     imgCls: "bg-red-100 p-4",
   },
 ]
 
 const extendFeatures: IFeatureCard[] = [
   {
-    title: "Prompt",
-    description: (
-      <p>
-        Code knowledge is not required.
-        <br />
-        You can use the Prompt extension to speed up your workflow. Just like
-        magic,{" "}
-        <span className="animate-gradient inline bg-gradient-to-r from-[#ffaa40] via-[#9c40ff] to-[#ffaa40] bg-[length:var(--bg-size)_100%] bg-clip-text text-transparent">
-          what you SAY is what you get.
-        </span>
-      </p>
-    ),
-    lightImageUrl: "/show/custom-ai-prompt.webp",
-    imgCls: "bg-indigo-100",
+    title: "Micro Block",
+    description: [
+      <p>Create your own custom blocks with AI.</p>,
+      <p>Or you can write your own blocks with TypeScript/JavaScript.</p>,
+      <p>Blocks can be used as cover</p>,
+      <p>Blocks can be used in doc</p>,
+      <p>Blocks can be used in right panel</p>,
+    ],
+    lightImageUrls: [
+      "/show/v0.webp",
+      "/show/block-game-of-life.webp",
+      "/show/block-in-cover.webp",
+      "/show/block-in-doc.webp",
+      "/show/block-in-right-panel.webp",
+    ],
+    imgCls: "bg-indigo-100 p-2",
   },
   {
     title: "UDF(user-defined function)",
     description: "Use JavaScript to customize your Formula function.",
-    lightImageUrl: "/show/ext-udf-light.webp",
+    lightImageUrls: ["/show/ext-udf-light.webp"],
+    darkImageUrls: ["/show/ext-udf-light.webp"],
     imgCls: "p-2 bg-yellow-100",
   },
   {
     title: "Script",
-    description:
+    description: [
       "You can build your own data processing logic with TypeScript/JavaScript, which is really powerful.",
-    lightImageUrl: "/show/script.webp",
+      "Call script via CMDK / Context Menu",
+      "Effectively data workflow",
+    ],
+    lightImageUrls: [
+      "/show/script.webp",
+      "/show/call-script-via-cmdk.webp",
+      "/show/script-result.webp",
+    ],
     imgCls: "p-2 bg-pink-100",
   },
 ]
