@@ -29,13 +29,13 @@ export class DbMigrator {
     private db: DataSpace,
     private draftDb: DataSpace,
     private allowDeletions = false
-  ) {}
+  ) { }
 
-  private compareTables() {
-    const tables: ITable[] = this.db.syncExec2(
+  private async compareTables() {
+    const tables: ITable[] = await this.db.syncExec2(
       `select * from sqlite_schema where type='table' AND name  like 'eidos__%';`
     )
-    const draftTables: ITable[] = this.draftDb.syncExec2(
+    const draftTables: ITable[] = await this.draftDb.syncExec2(
       `select * from sqlite_schema where type='table' AND name  like 'eidos__%';`
     )
 
@@ -56,11 +56,11 @@ export class DbMigrator {
     }
   }
 
-  private compareColumns(tableName: string) {
-    const columns: IColumn[] = this.db.syncExec2(
+  private async compareColumns(tableName: string) {
+    const columns: IColumn[] = await this.db.syncExec2(
       `PRAGMA table_info(${tableName});`
     )
-    const draftColumns: IColumn[] = this.draftDb.syncExec2(
+    const draftColumns: IColumn[] = await this.draftDb.syncExec2(
       `PRAGMA table_info(${tableName});`
     )
     // console.log(tableName, columns, draftColumns)
@@ -85,9 +85,9 @@ export class DbMigrator {
     }
   }
 
-  private migrateTables() {
+  private async migrateTables() {
     // compare tables
-    const { newTables, removedTables } = this.compareTables()
+    const { newTables, removedTables } = await this.compareTables()
     // console.log("newTables", newTables)
     // console.log("removedTables", removedTables)
     // for (const table of newTables) {
@@ -95,8 +95,8 @@ export class DbMigrator {
     // }
     return { newTables, removedTables }
   }
-  private migrateTable(tableName: string) {
-    const { newColumns, removedColumns } = this.compareColumns(tableName)
+  private async migrateTable(tableName: string) {
+    const { newColumns, removedColumns } = await this.compareColumns(tableName)
     // console.log("newColumns", newColumns)
     // console.log("removedColumns", removedColumns)
     newColumns.length && console.log(`migrateTable ${tableName} start`)
@@ -141,13 +141,13 @@ export class DbMigrator {
     newColumns.length && console.log(`migrateTable ${tableName} done`)
   }
 
-  public migrate() {
+  public async migrate() {
     if (this.db.hasMigrated) {
       console.log("db has migrated")
       return
     }
-    const { removedTables } = this.migrateTables()
-    const tables: ITable[] = this.db.syncExec2(
+    const { removedTables } = await this.migrateTables()
+    const tables: ITable[] = await this.db.syncExec2(
       `select * from sqlite_schema where type='table' AND name  like 'eidos__%';`
     )
     for (const table of tables) {
@@ -155,7 +155,7 @@ export class DbMigrator {
         (removedTable) => removedTable.name === table.name
       )
       if (!isRemovedTable) {
-        this.migrateTable(table.name)
+        await this.migrateTable(table.name)
       }
     }
     this.cleanDraftDb()

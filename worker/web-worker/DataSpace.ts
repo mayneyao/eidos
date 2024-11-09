@@ -169,16 +169,20 @@ export class DataSpace {
       this.file,
       this.reference,
     ]
+    this.initMetaTable()
+
     // migration
     if (this.draftDb) {
       const dbMigrator = new DbMigrator(this, this.draftDb)
-      dbMigrator.migrate()
+      dbMigrator.migrate().then(() => {
+        this.hasMigrated = true
+      })
       // // after migration, enable opfs SyncAccessHandle Pool for better performance
       // this.sqlite3.installOpfsSAHPoolVfs({}).then((poolUtil) => {
       //   console.debug("poolUtil", poolUtil)
       // })
     }
-    this.initMetaTable()
+
     if (createUDF) {
       createUDF(this.db)
     }

@@ -62,7 +62,6 @@ ipcMain.handle(MsgType.SwitchDatabase, (event, args) => {
     const { databaseName, id } = args
     // Perform the database switch logic here
     const data = { dbName: databaseName } // Example response data
-    log('switch-database', databaseName)
     getOrSetDataSpace(databaseName)
     return { id, data }
 })

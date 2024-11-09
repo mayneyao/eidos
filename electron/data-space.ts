@@ -38,12 +38,29 @@ export class DataSpaceManager {
     }
 
     public async getOrSetDataSpace(spaceName: string): Promise<DataSpace> {
-        if (this.dataSpace) {
+        if (this.dataSpace && this.dataSpace.dbName !== spaceName) {
+            // Close both main and draft databases when switching to a different space
             this.dataSpace.closeDb();
+        } else if (this.dataSpace) {
+            // If same space, return existing instance
+            return this.dataSpace;
         }
+        console.log("init space", spaceName)
 
         const serverDb = new NodeServerDatabase({
             path: getSpaceDbPath(spaceName),
+        });
+
+        const draftDataSpace = new DataSpace({
+            db: new NodeServerDatabase({
+                path: ':memory:',
+            }),
+            activeUndoManager: false,
+            dbName: 'draft',
+            context: {
+                setInterval,
+            },
+            hasLoadExtension: true,
         });
 
         const efsManager = await getEidosFileSystemManager();
@@ -71,7 +88,8 @@ export class DataSpaceManager {
                     bc.postMessage(data)
                 }
             },
-            efsManager: efsManager
+            efsManager: efsManager,
+            draftDb: draftDataSpace,
         });
 
         return this.dataSpace;
