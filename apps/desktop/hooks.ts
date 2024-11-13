@@ -20,15 +20,18 @@ interface PlaygroundFile {
     content: string;
 }
 
-export const usePlayground = ({ onChange }: { onChange: (filename: string, content: string) => void }) => {
+interface PlaygroundOptions {
+    onChange: (filename: string, content: string, space: string, blockId: string) => void
+}
+export const usePlayground = ({ onChange }: PlaygroundOptions) => {
 
     const initializePlayground = async (space: string, blockId: string, files: PlaygroundFile[]) => {
         return await window.eidos.initializePlayground(space, blockId, files)
     }
 
     useEffect(() => {
-        const handlePlaygroundFileChanged = (event: any, data: { filename: string, content: string }) => {
-            onChange(data.filename, data.content)
+        const handlePlaygroundFileChanged = (event: any, data: { filename: string, content: string, space: string, blockId: string }) => {
+            onChange(data.filename, data.content, data.space, data.blockId)
         }
         window.eidos.on('playground-file-changed', handlePlaygroundFileChanged)
         return () => {

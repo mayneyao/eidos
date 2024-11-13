@@ -99,7 +99,9 @@ export async function initializePlayground(
             console.log('新的内容:', content);
             win?.webContents.send('playground-file-changed', {
                 filename,
-                content
+                content,
+                space,
+                blockId
             })
         }
     });

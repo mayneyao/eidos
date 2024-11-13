@@ -47,7 +47,9 @@ export const ScriptDetailPage = () => {
   const editorRef = useRef<{ save: () => void }>(null)
   const revalidator = useRevalidator()
   const language = getEditorLanguage(script)
-  const [editorContent, setEditorContent] = useState(script.ts_code || script.code)
+  const [editorContent, setEditorContent] = useState(
+    script.ts_code || script.code
+  )
 
   useMount(() => {
     revalidator.revalidate()
@@ -139,7 +141,10 @@ export const ScriptDetailPage = () => {
   }, [script.ts_code, script.code, toast])
 
   const { initializePlayground } = usePlayground({
-    onChange: (filename, content) => {
+    onChange: (filename, content, spaceName, blockId) => {
+      if (spaceName !== space || blockId !== script.id) {
+        return
+      }
       if (filename === "index.jsx") {
         blockCodeCompile(content).then((code) => {
           onSubmit(code, content)
