@@ -120,7 +120,7 @@ CREATE TABLE ${rawTableName} (
     })
 
     dataSpace.blockUIMsg("Creating table...")
-    await dataSpace.createTable(tableId, nodeName, createTableSql)
+    await dataSpace.createTableViaSchema(tableId, nodeName, createTableSql)
 
     await sleep(1000)
     const fieldMap = await tm.rows.getFieldMap()

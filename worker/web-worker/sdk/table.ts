@@ -1,12 +1,16 @@
 import { generateMergeTableWithNewColumnsSql } from "@/lib/sqlite/sql-merge-table-with-new-columns"
 import { IView } from "@/lib/store/IView"
-import { getRawTableNameById } from "@/lib/utils"
+import { generateColumnName, getRawTableNameById } from "@/lib/utils"
+import { v4 as uuidv4 } from "uuid"
 
 import { DataSpace, EidosDatabase } from "../DataSpace"
 import { IndexManager } from "./index-manager"
 import { RowsManager } from "./rows"
 import { FieldsManager } from "./service"
 import { ComputeService } from "./service/compute"
+import { FieldType } from "@/lib/fields/const"
+import { ColumnTableName } from "@/lib/sqlite/const"
+import { ColumnTable } from "../meta-table/column"
 
 interface ITable {
   id: string
@@ -99,6 +103,51 @@ export class TableManager {
       console.log(sql)
       const res = await this.dataSpace.exec2(sql)
       console.log(res)
+    }
+  }
+
+  static generateCreateTableSql(fields: Array<{
+    name: string;
+    type: FieldType;
+  }>) {
+    const tableId = uuidv4().split("-").join("")
+    const rawTableName = getRawTableNameById(tableId)
+    const fieldsWithoutTitle = fields.filter(field => field.name.toLowerCase() !== 'title')
+    const rawColumns = fieldsWithoutTitle.map((_, index) => generateColumnName())
+
+    let createTableSql = `
+CREATE TABLE ${rawTableName} (
+  _id TEXT PRIMARY KEY NOT NULL,
+  title TEXT NULL,
+  _created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  _last_edited_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  _created_by TEXT DEFAULT 'unknown',
+  _last_edited_by TEXT DEFAULT 'unknown',
+`
+    rawColumns.forEach((column, index) => {
+      const field = fieldsWithoutTitle[index]
+      const sqlType = ColumnTable.getColumnTypeByFieldType(field.type)
+      const isLastColumn = index === rawColumns.length - 1
+      createTableSql +=
+        `${column} ${sqlType} NULL` +
+        (isLastColumn ? "\n" : ",\n")
+    })
+    createTableSql += `);`
+
+    createTableSql += `
+    --- insert ui-column to table
+    INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('_id', 'row-id', '${rawTableName}', '_id');
+    INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('title', 'title', '${rawTableName}', 'title');
+    `
+    fieldsWithoutTitle.forEach((field, index) => {
+      const rawColumn = rawColumns[index]
+      const escapedName = field.name.replace(/'/g, "''")
+      createTableSql += `INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('${escapedName}', '${field.type}', '${rawTableName}', '${rawColumn}');`
+    })
+
+    return {
+      tableId,
+      createTableSql,
     }
   }
 }

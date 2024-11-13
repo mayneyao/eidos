@@ -311,7 +311,7 @@ export const useSqlite = (dbName?: string) => {
   }) => {
     if (!sqlWorker) return
     const { tableName, tableId, sql, parent_id } = data
-    await sqlWorker.createTable(tableId, tableName, sql, parent_id)
+    await sqlWorker.createTableViaSchema(tableId, tableName, sql, parent_id)
   }
 
   const createFolder = async (parent_id?: string) => {
