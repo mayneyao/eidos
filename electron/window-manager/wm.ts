@@ -1,3 +1,4 @@
+import { isStandaloneBlocksPath } from "@/lib/utils";
 import { BrowserWindow, WebContents, WebContentsView, WebContentsViewConstructorOptions, shell } from "electron";
 import path from "path";
 
@@ -77,14 +78,25 @@ export class WindowManager {
         webContents.setWindowOpenHandler(({ url }) => {
             const currentDomain = new URL(this.win.webContents.getURL()).origin;
             const newDomain = new URL(url).origin;
+            const pathname = new URL(url).pathname;
+
             if (currentDomain === newDomain) {
-                this.createView({
-                    webPreferences: defaultViewOptions.webPreferences,
-                    url,
-                })
+                if (isStandaloneBlocksPath(pathname)) {
+                    // 更像移动端的尺寸 
+                    new BrowserWindow({
+                        width: 450,
+                        height: 800,
+                        webPreferences: defaultViewOptions.webPreferences
+                    }).loadURL(url);
+                } else {
+                    this.createView({
+                        webPreferences: defaultViewOptions.webPreferences,
+                        url,
+                    });
+                }
                 return { action: 'deny' };
             } else {
-                handleExternalLinks(new Event(''), url)
+                handleExternalLinks(new Event(''), url);
                 return { action: 'deny' };
             }
         });
