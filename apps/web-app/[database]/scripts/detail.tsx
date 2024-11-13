@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
+import { BlendIcon, Copy } from "lucide-react"
 import {
   useLoaderData,
   useNavigate,
@@ -10,6 +11,8 @@ import {
 
 import { cn } from "@/lib/utils"
 import { compileCode } from "@/lib/v3/compiler"
+import remixPrompt from "@/lib/v3/prompts/remix.md?raw"
+import { openCursor } from "@/lib/web/schema"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,6 +30,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { BlockRenderer } from "@/components/block-renderer/block-renderer"
+import { usePlayground } from "@/apps/desktop/hooks"
 
 import { ExtensionConfig } from "./config/config"
 import { getEditorLanguage } from "./helper"
@@ -43,6 +47,7 @@ export const ScriptDetailPage = () => {
   const editorRef = useRef<{ save: () => void }>(null)
   const revalidator = useRevalidator()
   const language = getEditorLanguage(script)
+  const [editorContent, setEditorContent] = useState(script.ts_code || script.code)
 
   useMount(() => {
     revalidator.revalidate()
@@ -70,6 +75,7 @@ export const ScriptDetailPage = () => {
   const onSubmit = useCallback(
     async (code: string, ts_code?: string) => {
       if (code !== script.code || ts_code !== script.ts_code) {
+        setEditorContent(ts_code || code)
         await updateScript({
           ...script,
           code,
@@ -122,6 +128,40 @@ export const ScriptDetailPage = () => {
 
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get("tab") || "basic"
+
+  const handleCopyCode = useCallback(() => {
+    const codeToCopy = script.ts_code || script.code
+    navigator.clipboard.writeText(codeToCopy)
+    toast({
+      title: "Code copied to clipboard",
+      duration: 2000,
+    })
+  }, [script.ts_code, script.code, toast])
+
+  const { initializePlayground } = usePlayground({
+    onChange: (filename, content) => {
+      if (filename === "index.jsx") {
+        blockCodeCompile(content).then((code) => {
+          onSubmit(code, content)
+        })
+      }
+    },
+  })
+  const handleRemixCode = useCallback(() => {
+    initializePlayground(space, script.id, [
+      {
+        name: "index.jsx",
+        content: script.ts_code || script.code,
+      },
+      {
+        name: ".cursorrules",
+        content: remixPrompt,
+      },
+    ]).then((path) => {
+      const url = openCursor(path)
+      window.open(url, "_blank")
+    })
+  }, [space, script.id, initializePlayground])
 
   return (
     <Tabs
@@ -188,6 +228,16 @@ export const ScriptDetailPage = () => {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+                  <Button variant="outline" size="sm" onClick={handleCopyCode}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy
+                  </Button>
+
+                  <Button variant="outline" size="sm" onClick={handleRemixCode}>
+                    <BlendIcon className="mr-2 h-4 w-4" />
+                    Remix
+                  </Button>
+
                   <Button type="submit" onClick={manualSave} size="sm">
                     Update
                   </Button>
@@ -213,7 +263,7 @@ export const ScriptDetailPage = () => {
                     >
                       <CodeEditor
                         ref={editorRef}
-                        value={script.ts_code || script.code}
+                        value={editorContent}
                         onSave={onSubmit}
                         language={language}
                         customCompile={

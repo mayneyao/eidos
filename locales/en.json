@@ -150,6 +150,7 @@
     "node.menu.newTable": "New Table",
     "node.menu.pin": "Pin",
     "node.menu.rename": "Rename",
+    "node.menu.copyId": "Copy ID",
     "node.menu.unpin": "Unpin",
     "settings.ai": "AI",
     "settings.ai.addProvider": "Add Provider",

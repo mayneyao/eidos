@@ -1,10 +1,11 @@
-import { EidosFileSystemManager } from '@/lib/storage/eidos-file-system'
+import { EidosFileSystemManager } from '@/lib/storage/eidos-file-system';
 import { SpaceFileSystem } from '@/lib/storage/space';
-import { contextBridge, ipcRenderer } from 'electron'
-import { getOriginPrivateDirectory } from 'native-file-system-adapter'
+import { contextBridge, ipcRenderer } from 'electron';
+import { getOriginPrivateDirectory } from 'native-file-system-adapter';
 
-import nodeAdapter from './lib/node-adapter'
-import { ConfigManager } from './config/index'
+import { ConfigManager } from './config/index';
+import { PlaygroundFile } from './file-system/manager';
+import nodeAdapter from './lib/node-adapter';
 
 async function main() {
   const userConfigPath = (await ipcRenderer.invoke('get-user-config-path'));
@@ -49,7 +50,8 @@ async function main() {
     isDataFolderSet: !!configManager.get('dataFolder'),
     selectFolder: () => ipcRenderer.invoke('select-folder'),
     openFolder: (folder: string) => ipcRenderer.invoke('open-folder', folder),
-    reloadApp: () => ipcRenderer.invoke('reload-app')
+    reloadApp: () => ipcRenderer.invoke('reload-app'),
+    initializePlayground: (space: string, blockId: string, files: PlaygroundFile[]) => ipcRenderer.invoke('initialize-playground', space, blockId, files),
     // You can expose other APIs you need here.
     // ...
   })
