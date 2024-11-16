@@ -19,6 +19,32 @@ export enum FieldType {
   LastEditedBy = "last-edited-by",
 }
 
+export enum FieldValueType {
+  String = "string",
+  Number = "number",
+  Boolean = "boolean",
+}
+
+export const FIELD_VALUE_TYPE_MAP = {
+  [FieldType.Title]: FieldValueType.String,
+  [FieldType.Text]: FieldValueType.String,
+  [FieldType.Number]: FieldValueType.Number,
+  [FieldType.Checkbox]: FieldValueType.Boolean,
+  [FieldType.Date]: FieldValueType.String,
+  [FieldType.File]: FieldValueType.String,
+  [FieldType.MultiSelect]: FieldValueType.String,
+  [FieldType.Rating]: FieldValueType.Number,
+  [FieldType.Select]: FieldValueType.String,
+  [FieldType.URL]: FieldValueType.String,
+  [FieldType.Formula]: FieldValueType.String,
+  [FieldType.Link]: FieldValueType.String,
+  [FieldType.Lookup]: FieldValueType.String,
+  [FieldType.CreatedTime]: FieldValueType.String,
+  [FieldType.CreatedBy]: FieldValueType.String,
+  [FieldType.LastEditedTime]: FieldValueType.String,
+  [FieldType.LastEditedBy]: FieldValueType.String,
+}
+
 // copy from glide-data-grid
 export enum GridCellKind {
   Uri = "uri",
@@ -89,7 +115,7 @@ export function applyMixins(derivedCtor: any, constructors: any[]) {
         derivedCtor.prototype,
         name,
         Object.getOwnPropertyDescriptor(baseCtor.prototype, name) ||
-          Object.create(null)
+        Object.create(null)
       )
     })
   })

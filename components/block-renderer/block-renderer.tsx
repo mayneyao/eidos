@@ -1,12 +1,11 @@
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react"
-import { useWhyDidYouUpdate } from "ahooks"
 import { useTheme } from "next-themes"
 
 import { generateImportMap, getAllLibs } from "@/lib/v3/compiler"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { LogoLoading } from "../loading"
-import sdkInjectScript from "../script-container/sdk-inject-script.html?raw"
+import { makeSdkInjectScript } from "../script-container/helper"
 import { twConfig } from "./tailwind-config"
 import tailwindRaw from "./tailwind-raw.js?raw"
 import themeRawCode from "./theme-raw.css?raw"
@@ -19,6 +18,7 @@ interface BlockRendererProps {
   code: string
   compiledCode: string
   env?: Record<string, string>
+  bindings?: Record<string, { type: "table"; value: string }>
   width?: string | number
   height?: string | number
   defaultProps?: Record<string, any>
@@ -27,48 +27,60 @@ interface BlockRendererProps {
 export const BlockRenderer = React.forwardRef<
   BlockRendererRef,
   BlockRendererProps
->(({ code, compiledCode, env = {}, width, height, defaultProps = {} }, ref) => {
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [dependencies, setDependencies] = useState<string[]>([])
-  const [uiComponents, setUiComponents] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const { space } = useCurrentPathInfo()
-  const { theme } = useTheme()
+>(
+  (
+    {
+      code,
+      compiledCode,
+      env = {},
+      width,
+      height,
+      defaultProps = {},
+      bindings = {},
+    },
+    ref
+  ) => {
+    const iframeRef = useRef<HTMLIFrameElement>(null)
+    const [dependencies, setDependencies] = useState<string[]>([])
+    const [uiComponents, setUiComponents] = useState<string[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const { space } = useCurrentPathInfo()
+    const { theme } = useTheme()
 
-  const sdkInjectScriptContent = sdkInjectScript.replace(
-    "${{currentSpace}}",
-    space
-  )
-
-  const [importMap, setImportMap] = useState<string>("")
-
-  const defaultPropsString = JSON.stringify(defaultProps)
-
-  useEffect(() => {
-    if (!code.length) {
-      return
-    }
-    const { thirdPartyLibs, uiLibs } = getAllLibs(code)
-    setDependencies(thirdPartyLibs)
-    setUiComponents(uiLibs)
-    generateImportMap(thirdPartyLibs, uiLibs).then(({ importMap }) => {
-      setImportMap(importMap)
-      setIsLoading(false)
+    const sdkInjectScriptContent = makeSdkInjectScript({
+      space,
+      bindings,
     })
-  }, [code])
 
-  const envString = env ? JSON.stringify(env) : "{}"
+    const [importMap, setImportMap] = useState<string>("")
 
-  const rootHeight = height
-    ? typeof height === "number"
-      ? `${height}px`
-      : height
-    : "unset"
+    const defaultPropsString = JSON.stringify(defaultProps)
 
-  useEffect(() => {
-    if (!iframeRef.current) return
+    useEffect(() => {
+      if (!code.length) {
+        return
+      }
+      const { thirdPartyLibs, uiLibs } = getAllLibs(code)
+      setDependencies(thirdPartyLibs)
+      setUiComponents(uiLibs)
+      generateImportMap(thirdPartyLibs, uiLibs).then(({ importMap }) => {
+        setImportMap(importMap)
+        setIsLoading(false)
+      })
+    }, [code])
 
-    const html = `
+    const envString = env ? JSON.stringify(env) : "{}"
+
+    const rootHeight = height
+      ? typeof height === "number"
+        ? `${height}px`
+        : height
+      : "unset"
+
+    useEffect(() => {
+      if (!iframeRef.current) return
+
+      const html = `
       <!DOCTYPE html>
       <html class="${theme}">
         <head>
@@ -162,64 +174,69 @@ export const BlockRenderer = React.forwardRef<
       </html>
     `
 
-    iframeRef.current.srcdoc = html
-  }, [
-    compiledCode,
-    dependencies,
-    uiComponents,
-    importMap,
-    env,
-    height,
-    defaultPropsString,
-    theme,
-  ])
+      iframeRef.current.srcdoc = html
+    }, [
+      compiledCode,
+      dependencies,
+      uiComponents,
+      importMap,
+      env,
+      height,
+      defaultPropsString,
+      theme,
+    ])
 
-  useEffect(() => {
-    if (!iframeRef.current) return
-    iframeRef.current.contentWindow?.postMessage(
-      { type: "theme-change", theme },
-      "*"
+    useEffect(() => {
+      if (!iframeRef.current) return
+      iframeRef.current.contentWindow?.postMessage(
+        { type: "theme-change", theme },
+        "*"
+      )
+    }, [theme])
+
+    // 添加 useImperativeHandle
+    useImperativeHandle(
+      ref,
+      () => ({
+        getHeight: () => {
+          if (!iframeRef.current) return 0
+          return (
+            iframeRef.current.contentWindow?.document.getElementById("root")
+              ?.offsetHeight || 0
+          )
+        },
+      }),
+      []
     )
-  }, [theme])
 
-  // 添加 useImperativeHandle
-  useImperativeHandle(
-    ref,
-    () => ({
-      getHeight: () => {
-        if (!iframeRef.current) return 0
-        return (
-          iframeRef.current.contentWindow?.document.getElementById("root")
-            ?.offsetHeight || 0
-        )
-      },
-    }),
-    []
-  )
+    const style = {
+      border: "none",
+      width: width
+        ? typeof width === "number"
+          ? `${width}px`
+          : width
+        : "100%",
+      height: height
+        ? typeof height === "number"
+          ? `${height}px`
+          : height
+        : "100%",
+    }
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center" style={style}>
+          <LogoLoading />
+        </div>
+      )
+    }
 
-  const style = {
-    border: "none",
-    width: width ? (typeof width === "number" ? `${width}px` : width) : "100%",
-    height: height
-      ? typeof height === "number"
-        ? `${height}px`
-        : height
-      : "100%",
-  }
-  if (isLoading) {
     return (
-      <div className="flex items-center justify-center" style={style}>
-        <LogoLoading />
-      </div>
+      <iframe
+        ref={iframeRef}
+        title="preview"
+        sandbox="allow-scripts allow-same-origin"
+        style={style}
+      />
     )
   }
-
-  return (
-    <iframe
-      ref={iframeRef}
-      title="preview"
-      sandbox="allow-scripts allow-same-origin"
-      style={style}
-    />
-  )
-})
+)

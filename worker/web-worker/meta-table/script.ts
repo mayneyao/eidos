@@ -1,4 +1,4 @@
-import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object"
+import { JsonSchema7ObjectType } from "zod-to-json-schema"
 
 import { ScriptTableName } from "@/lib/sqlite/const"
 
@@ -59,6 +59,11 @@ export interface IScript {
       }
     }
   }
+  // FIXME: there are too many fields in this table, we need to refactor it
+  bindings?: Record<string, {
+    type: 'table'
+    value: string
+  }>
 }
 
 export class ScriptTable
@@ -83,6 +88,7 @@ export class ScriptTable
         env_map TEXT,
         fields_map TEXT,
         enabled BOOLEAN DEFAULT 0,
+        bindings TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -95,6 +101,7 @@ export class ScriptTable
     "env_map",
     "fields_map",
     "prompt_config",
+    "bindings",
   ]
 
   del(id: string): Promise<boolean> {

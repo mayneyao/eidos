@@ -24,6 +24,8 @@ const space = await eidos.currentSpace.table("tableId").rows.query({
 })
 ```
 
+{{bindings}}
+
 Here are some commonly used APIs:
 
 ```ts

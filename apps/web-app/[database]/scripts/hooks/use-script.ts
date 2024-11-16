@@ -19,8 +19,8 @@ export const useScript = () => {
     await sqlite.deleteScript(id)
     console.log("deleteScript", id)
   }
-  const updateScript = async (script: IScript) => {
-    if (!sqlite) return
+  const updateScript = async (script: Partial<IScript>) => {
+    if (!sqlite || !script.id) return
     await sqlite.script.set(script.id, script)
     console.log("updateScript", script)
   }

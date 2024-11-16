@@ -48,6 +48,7 @@ export const BlockApp = forwardRef<BlockRendererRef, { url: string }>(
         code={block?.ts_code ?? ""}
         compiledCode={block?.code ?? ""}
         env={block?.env_map}
+        bindings={block?.bindings}
         defaultProps={props}
       />
     )

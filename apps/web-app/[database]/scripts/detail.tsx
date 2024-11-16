@@ -11,7 +11,6 @@ import {
 
 import { cn } from "@/lib/utils"
 import { compileCode } from "@/lib/v3/compiler"
-import remixPrompt from "@/lib/v3/prompts/remix.md?raw"
 import { openCursor } from "@/lib/web/schema"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
@@ -35,6 +34,7 @@ import { usePlayground } from "@/apps/desktop/hooks"
 import { ExtensionConfig } from "./config/config"
 import { getEditorLanguage } from "./helper"
 import { useEditableElement } from "./hooks/use-editable-element"
+import { useRemixPrompt } from "./hooks/use-remix-prompt"
 import { useScript } from "./hooks/use-script"
 
 const CodeEditor = lazy(() => import("./editor/code-editor"))
@@ -152,7 +152,10 @@ export const ScriptDetailPage = () => {
       }
     },
   })
-  const handleRemixCode = useCallback(() => {
+  const { getRemixPrompt } = useRemixPrompt()
+
+  const handleRemixCode = useCallback(async () => {
+    const remixPrompt = await getRemixPrompt(script.bindings)
     initializePlayground(space, script.id, [
       {
         name: "index.jsx",
@@ -297,6 +300,7 @@ export const ScriptDetailPage = () => {
                           code={script.ts_code || ""}
                           compiledCode={script.code || ""}
                           env={script.env_map}
+                          bindings={script.bindings}
                         />
                       )}
                     </div>
@@ -305,7 +309,7 @@ export const ScriptDetailPage = () => {
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="settings">
+          <TabsContent value="settings" className="h-full overflow-y-auto">
             <ExtensionConfig />
           </TabsContent>
         </>
