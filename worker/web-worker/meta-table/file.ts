@@ -303,7 +303,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
    * @param parentPath Parent path array, defaults to ["spaces", <space>, "files"]
    * @returns Uploaded file info
    */
-  public async uploadFile(
+  public async upload(
     fileData: ArrayBuffer | string, // ArrayBuffer or base64 string
     fileName: string,
     mimeType: string,

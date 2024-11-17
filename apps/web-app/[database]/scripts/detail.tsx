@@ -58,7 +58,7 @@ export const ScriptDetailPage = () => {
   const handleSave = useCallback(
     (value: any, key: string) => {
       updateScript({
-        ...script,
+        id: script.id,
         [key]: value,
       })
       revalidator.revalidate()
@@ -79,7 +79,7 @@ export const ScriptDetailPage = () => {
       if (code !== script.code || ts_code !== script.ts_code) {
         setEditorContent(ts_code || code)
         await updateScript({
-          ...script,
+          id: script.id,
           code,
           ts_code,
         })
