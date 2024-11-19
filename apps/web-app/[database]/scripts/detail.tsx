@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import { BlendIcon, Copy } from "lucide-react"
+import { useTheme } from "next-themes"
 import {
   useLoaderData,
   useNavigate,
@@ -78,6 +79,7 @@ export const ScriptDetailPage = () => {
     },
     [revalidator, script, toast, updateScript]
   )
+  const { theme } = useTheme()
 
   const { space } = useCurrentPathInfo()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -294,6 +296,7 @@ export const ScriptDetailPage = () => {
                         value={editorContent}
                         onSave={onSubmit}
                         language={language}
+                        theme={theme === "dark" ? "vs-dark" : "light"}
                         customCompile={
                           script.type === "m_block"
                             ? blockCodeCompile

@@ -49,11 +49,18 @@ export interface CodeEditorProps {
   onSave?: (code: string, ts_code?: string) => void
   language?: string
   customCompile?: (code: string) => Promise<string>
+  theme?: "vs-dark" | "light"
 }
 
 export const CodeEditor = forwardRef(
   (
-    { value, onSave, language = "javascript", customCompile }: CodeEditorProps,
+    {
+      value,
+      onSave,
+      language = "javascript",
+      customCompile,
+      theme = "light",
+    }: CodeEditorProps,
     ref
   ) => {
     const monaco = useMonaco()
@@ -201,6 +208,7 @@ export const CodeEditor = forwardRef(
           height="100%"
           width="100%"
           value={value}
+          theme={theme}
           options={{
             minimap: { enabled: false },
             wordWrap: "on",
