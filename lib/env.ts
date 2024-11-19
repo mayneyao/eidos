@@ -1,8 +1,7 @@
 export const logger = console // TODO: remove this
-export const EIDOS_VERSION = "0.9.1"
+export const EIDOS_VERSION = "0.10.0"
 export const isDevMode = Boolean(import.meta.env?.DEV)
-export const isSelfHosted = import.meta.env?.VITE_EIDOS_SELF_HOSTED === "true"
-export const isInkServiceMode =
-  import.meta.env?.VITE_EIDOS_SERVICE_MODE === "ink"
-export const isDesktopMode = Boolean(import.meta.env?.VITE_EIDOS_SERVICE_MODE === "desktop")
-export const isStagingMode = import.meta.env.MODE === "staging"
+export const isSelfHosted = import.meta.env?.MODE === "self-host"
+export const isInkServiceMode = import.meta.env?.MODE === "ink"
+export const isDesktopMode = import.meta.env?.MODE === "desktop"
+export const isStagingMode = import.meta.env?.MODE === "staging"

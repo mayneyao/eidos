@@ -146,6 +146,10 @@ export function NodeItem({
         </PopoverContent>
       </Popover>
       <ContextMenuContent className="w-64">
+        {/* <ContextMenuItem onClick={() => navigator.clipboard.writeText(node.id)}>
+          <CopyIcon className="pr-2" />
+          {t("node.menu.copyId")}
+        </ContextMenuItem> */}
         <ContextMenuItem onClick={handleDeleteTable}>
           <Trash2Icon className="pr-2" /> {t("common.delete")}
         </ContextMenuItem>

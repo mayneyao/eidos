@@ -1,0 +1,70 @@
+{
+    "appId": "space.eidos.desktop",
+    "productName": "Eidos",
+    "directories": {
+        "output": "dist-app"
+    },
+    "publish": [
+        {
+            "provider": "github",
+            "owner": "mayneyao",
+            "repo": "eidos"
+        }
+    ],
+    "npmRebuild": true,
+    "generateUpdatesFilesForAllChannels": true,
+    "files": [
+        "dist/**/*",
+        "dist-electron/**/*",
+        "dist-simple/**/*",
+        "package.json"
+    ],
+    "extraResources": [
+        {
+            "from": "dist-simple",
+            "to": "dist-simple",
+            "filter": [
+                "**/*"
+            ]
+        }
+    ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "win": {
+        "target": [
+            "nsis",
+            "zip"
+        ],
+        "icon": "dist/logo.png"
+    },
+    "afterSign": "scripts/notarize.cjs",
+    "mac": {
+        "target": [
+            {
+                "target": "dmg",
+                "arch": [
+                    "x64",
+                    "arm64"
+                ]
+            },
+            {
+                "target": "zip",
+                "arch": [
+                    "x64",
+                    "arm64"
+                ]
+            }
+        ],
+        "icon": "dist/logo.icns",
+        "hardenedRuntime": true,
+        "gatekeeperAssess": false,
+        "entitlements": "electron/build/entitlements.mac.plist",
+        "entitlementsInherit": "electron/build/entitlements.mac.plist",
+        "notarize": false
+    },
+    "linux": {
+        "target": [
+            "AppImage",
+            "zip"
+        ]
+    }
+}

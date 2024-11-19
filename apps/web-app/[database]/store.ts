@@ -36,6 +36,7 @@ interface IAppsState {
   setApps: (apps: string[]) => void
   addApp: (app: string) => void
   deleteApp: (app: string) => void
+  deleteByIndex: (index: number) => void
 }
 
 export const useAppsStore = create<IAppsState>()(
@@ -46,6 +47,8 @@ export const useAppsStore = create<IAppsState>()(
       addApp: (app) => set((state) => ({ apps: [...state.apps, app] })),
       deleteApp: (app) =>
         set((state) => ({ apps: state.apps.filter((a) => a !== app) })),
+      deleteByIndex: (index) =>
+        set((state) => ({ apps: state.apps.filter((_, i) => i !== index) })),
     }),
     {
       name: 'space-apps-storage',

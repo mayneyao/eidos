@@ -1,7 +1,11 @@
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Settings,
+  Trash2
+} from "lucide-react"
 import { useState } from "react"
-import { ArrowUpRight, Settings, Trash2 } from "lucide-react"
 
-import { useExtensionNavigate } from "@/hooks/use-extension-navigate"
 import { Button } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import {
@@ -12,6 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { useExtensionNavigate } from "@/hooks/use-extension-navigate"
+import { getBlockIdFromUrl } from "@/lib/utils"
 
 export const BlockContextMenu = ({
   url,
@@ -78,12 +84,30 @@ export const BlockContextMenu = ({
     navigate(url)
   }
 
+  const handleOpenInNewWindow = (e: Event) => {
+    const [id, space] = getBlockIdFromUrl(url).split("@")
+    let newUrl = `/${space}/standalone-blocks/${id}`
+    // add params to the url
+    const _url = new URL(url)
+    const searchParams = _url.searchParams.toString()
+    if (searchParams) {
+      newUrl += `?${searchParams}`
+    }
+    window.open(newUrl)
+  }
+
   return (
     <>
       <ContextMenuItem onSelect={handleGoToBlock}>
-        <ArrowUpRight className="mr-2 h-4 w-4" />
+        <ArrowLeft className="mr-2 h-4 w-4" />
         <span>Go to Block</span>
       </ContextMenuItem>
+
+      <ContextMenuItem onSelect={handleOpenInNewWindow}>
+        <ArrowUpRight className="mr-2 h-4 w-4" />
+        <span>Open Standalone</span>
+      </ContextMenuItem>
+
       <ContextMenuItem onSelect={handleConfigBlock}>
         <Settings className="mr-2 h-4 w-4" />
         <span>Config</span>

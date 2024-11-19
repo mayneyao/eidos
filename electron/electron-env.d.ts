@@ -33,5 +33,6 @@ interface Window {
         openFolder: (folder: string) => Promise<void>
         isDataFolderSet: boolean
         reloadApp: () => Promise<void>
+        initializePlayground: (space: string, blockId: string, files: PlaygroundFile[]) => Promise<string>
     }
 }

@@ -62,13 +62,34 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
     });
 
     // 
-    app.get('/:space/files/:filename', async (c) => {
-        const { space, filename } = c.req.param()
-        const pathname = `/${space}/files/${filename}`
+    app.get('/:space/files/*', async (c) => {
+        const space = c.req.param('space');
+        const fullPath = c.req.path;
+        const filePath = fullPath.replace(`/${space}/files/`, '');
+        const pathname = `/${space}/files/${filePath}`;
+
         const file = getSpaceFileFromPath(pathname)
         const headers = new Headers()
         headers.append("Content-Type", file.type)
         headers.append("Cross-Origin-Embedder-Policy", "require-corp")
+        headers.append("Accept-Ranges", "bytes")
+
+        const rangeHeader = c.req.header('range')
+        if (rangeHeader) {
+            const match = rangeHeader.match(/bytes=(\d+)-(\d*)/)
+            if (match) {
+                const start = parseInt(match[1])
+                const end = match[2] ? parseInt(match[2]) : file.size - 1
+                const chunk = file.slice(start, end + 1)
+
+                headers.append("Content-Range", `bytes ${start}-${end}/${file.size}`)
+                headers.append("Content-Length", String(chunk.size))
+                return new Response(chunk, {
+                    status: 206,
+                    headers
+                })
+            }
+        }
 
         return new Response(file, { headers })
     })

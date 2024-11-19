@@ -55,7 +55,7 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
   }
 
   getCellContent(rawData: string): FileCell {
-    const data = rawData?.split(",") ?? []
+    const data = rawData?.split(",").filter(Boolean) ?? []
     return {
       kind: GridCellKind.Custom,
       data: {

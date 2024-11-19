@@ -2,13 +2,13 @@ import React from "react"
 import ReactDOM from "react-dom/client"
 import { RouterProvider, createBrowserRouter, redirect } from "react-router-dom"
 
-import "@/locales/i18n"
-import { DownloadPage } from "@/components/landing/download"
 import SettingsStoragePage from "@/apps/desktop/settings/storage/page"
 import NodePage from "@/apps/web-app/[database]/[node]/page"
 import EverydayPage from "@/apps/web-app/[database]/everyday/[day]/page"
 import EverydayHomePage from "@/apps/web-app/[database]/everyday/page"
 import { FileManager } from "@/apps/web-app/[database]/files/page"
+import { DownloadPage } from "@/components/landing/download"
+import "@/locales/i18n"
 // space
 import SpaceHomePage from "@/apps/web-app/[database]/page"
 import { LandingPage } from "@/apps/web-app/page"
@@ -36,6 +36,7 @@ import { ErrorBoundary } from "../web-app/error"
 import { LabPage } from "../web-app/lab"
 import { LicenseManagePage } from "../web-app/license-manage/page"
 import { DevtoolsPage } from "../web-app/settings/dev/page"
+import BlockPage from "./[database]/standalone-blocks/page"
 import { DesktopSpaceLayout } from "./[database]/layout"
 // extensions
 import RootLayout from "./layout"
@@ -128,6 +129,15 @@ const router = createBrowserRouter([
           {
             index: true,
             element: <SpaceHomePage />,
+          },
+          {
+            path: "standalone-blocks",
+            children: [
+              {
+                path: ":id",
+                element: <BlockPage />,
+              },
+            ],
           },
           {
             path: "settings",

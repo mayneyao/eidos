@@ -294,4 +294,55 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       }
     }
   }
+
+  /**
+   * Upload a file to EFS with specified parent path
+   * @param fileData File data as ArrayBuffer or base64 string
+   * @param fileName Original file name
+   * @param mimeType File mime type
+   * @param parentPath Parent path array, defaults to ["spaces", <space>, "files"]
+   * @returns Uploaded file info
+   */
+  public async upload(
+    fileData: ArrayBuffer | string, // ArrayBuffer or base64 string
+    fileName: string,
+    mimeType: string,
+    parentPath?: string[]
+  ): Promise<IFile & { publicUrl: string }> {
+    const space = this.dataSpace.dbName
+    const rootPath = ["spaces", space, "files"]
+    const basePath = [...rootPath, ...(parentPath || [])]
+
+    if (!this.dataSpace.efsManager) {
+      throw new Error("file manager not found")
+    }
+
+    const fileId = getUuid()
+    // 将数据转换为 File 对象
+    const blob = typeof fileData === 'string'
+      ? new Blob([Buffer.from(fileData, 'base64')], { type: mimeType })
+      : new Blob([fileData], { type: mimeType })
+    const file = new File([blob], fileName, { type: mimeType })
+
+    const paths = await this.dataSpace.efsManager.addFile(basePath, file)
+
+    if (!paths) {
+      throw new Error("add file failed")
+    }
+
+    const path = paths.join("/")
+    const fileInfo: IFile = {
+      id: fileId,
+      name: fileName,
+      size: file.size,
+      mime: mimeType,
+      path,
+    }
+
+    const fileObj = await this.add(fileInfo)
+    return {
+      ...fileObj,
+      publicUrl: this.dataSpace.efsManager.getFileUrlByPath(path),
+    }
+  }
 }

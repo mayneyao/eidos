@@ -8,6 +8,7 @@ import { createWindow } from './window-manager/createWindow';
 import { getAppConfig } from './config';
 import { log } from 'electron-log';
 import { AppUpdater } from './updater';
+import { initializePlayground } from './file-system/manager';
 
 export let win: BrowserWindow | null
 let appUpdater: AppUpdater;
@@ -120,6 +121,10 @@ ipcMain.handle('check-for-updates', () => {
 
 ipcMain.handle('quit-and-install', () => {
     appUpdater.quitAndInstall();
+});
+
+ipcMain.handle('initialize-playground', (event, space, blockId, files) => {
+    return initializePlayground(space, blockId, files)
 });
 
 

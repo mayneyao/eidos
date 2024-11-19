@@ -1,6 +1,8 @@
-import { Suspense, lazy, useCallback, useRef, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
+import { BlendIcon, Copy } from "lucide-react"
+import { useTheme } from "next-themes"
 import {
   useLoaderData,
   useNavigate,
@@ -8,9 +10,12 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
+import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { compileCode } from "@/lib/v3/compiler"
+import { openCursor } from "@/lib/web/schema"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -21,16 +26,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { BlockRenderer } from "@/components/block-renderer/block-renderer"
+import { usePlayground } from "@/apps/desktop/hooks"
 
 import { ExtensionConfig } from "./config/config"
 import { getEditorLanguage } from "./helper"
 import { useEditableElement } from "./hooks/use-editable-element"
+import { useRemixPrompt } from "./hooks/use-remix-prompt"
 import { useScript } from "./hooks/use-script"
 
 const CodeEditor = lazy(() => import("./editor/code-editor"))
@@ -40,38 +48,28 @@ export const ScriptDetailPage = () => {
   const { deleteScript, enableScript, disableScript, updateScript } =
     useScript()
   const router = useNavigate()
-  const editorRef = useRef<{ save: () => void }>(null)
+  const editorRef = useRef<{ save: () => void; layout: () => void }>(null)
   const revalidator = useRevalidator()
   const language = getEditorLanguage(script)
+  const [editorContent, setEditorContent] = useState(
+    script.ts_code || script.code
+  )
+
+  useEffect(() => {
+    setEditorContent(script.ts_code || script.code)
+  }, [script])
 
   useMount(() => {
     revalidator.revalidate()
-  })
-
-  const handleSave = useCallback(
-    (value: any, key: string) => {
-      updateScript({
-        ...script,
-        [key]: value,
-      })
-      revalidator.revalidate()
-    },
-    [revalidator, script, updateScript]
-  )
-  const { ref: nameRef } = useEditableElement({
-    onSave: (value) => handleSave(value, "name"),
-  })
-
-  const { ref: descRef } = useEditableElement({
-    onSave: (value) => handleSave(value, "description"),
   })
 
   const { toast } = useToast()
   const onSubmit = useCallback(
     async (code: string, ts_code?: string) => {
       if (code !== script.code || ts_code !== script.ts_code) {
+        setEditorContent(ts_code || code)
         await updateScript({
-          ...script,
+          id: script.id,
           code,
           ts_code,
         })
@@ -83,6 +81,7 @@ export const ScriptDetailPage = () => {
     },
     [revalidator, script, toast, updateScript]
   )
+  const { theme } = useTheme()
 
   const { space } = useCurrentPathInfo()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -123,6 +122,58 @@ export const ScriptDetailPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get("tab") || "basic"
 
+  const handleCopyCode = useCallback(() => {
+    const codeToCopy = script.ts_code || script.code
+    navigator.clipboard.writeText(codeToCopy)
+    toast({
+      title: "Code copied to clipboard",
+      duration: 2000,
+    })
+  }, [script.ts_code, script.code, toast])
+
+  const { initializePlayground } = usePlayground({
+    onChange: (filename, content, spaceName, blockId) => {
+      if (spaceName !== space || blockId !== script.id) {
+        return
+      }
+      if (filename === "index.jsx") {
+        blockCodeCompile(content).then((code) => {
+          onSubmit(code, content)
+        })
+      }
+    },
+  })
+  const { getRemixPrompt } = useRemixPrompt()
+
+  const handleRemixCode = useCallback(async () => {
+    const remixPrompt = await getRemixPrompt(script.bindings)
+    initializePlayground(space, script.id, [
+      {
+        name: "index.jsx",
+        content: script.ts_code || script.code,
+      },
+      {
+        name: ".cursorrules",
+        content: remixPrompt,
+      },
+    ]).then((path) => {
+      if (!path) {
+        return
+      }
+      const url = openCursor(path)
+      window.open(url, "_blank")
+    })
+  }, [space, script.id, initializePlayground])
+
+  const [showPreview, setShowPreview] = useState(true)
+
+  const handlePreviewToggle = useCallback((checked: boolean) => {
+    setShowPreview(checked)
+    requestAnimationFrame(() => {
+      editorRef.current?.layout()
+    })
+  }, [])
+
   return (
     <Tabs
       value={activeTab}
@@ -144,9 +195,12 @@ export const ScriptDetailPage = () => {
         <>
           <TabsContent value="basic" className="h-full w-full">
             <div className="flex h-full flex-col gap-4">
-              <div className="flex justify-between">
-                <h2 className="mb-2 flex items-end  gap-2 text-xl font-semibold">
-                  <span ref={nameRef}>{script.name}</span> ({script.version})
+              <div className="flex justify-between items-center">
+                <h2 className="mb-1 flex items-end  gap-2 text-xl font-semibold">
+                  <span className="max-w-[24rem] truncate" title={script.name}>
+                    {script.name}
+                  </span>
+                  ({script.version})
                   <Switch
                     checked={script.enabled}
                     onCheckedChange={(checked) =>
@@ -155,12 +209,27 @@ export const ScriptDetailPage = () => {
                   ></Switch>
                 </h2>
                 <div className="flex items-center gap-2">
+                  {script.type === "m_block" && (
+                    <div className="flex items-center gap-2">
+                      <Label
+                        htmlFor="preview"
+                        className="text-sm text-muted-foreground"
+                      >
+                        Preview
+                      </Label>
+                      <Switch
+                        id="preview"
+                        checked={showPreview}
+                        onCheckedChange={handlePreviewToggle}
+                      />
+                    </div>
+                  )}
                   <Dialog
                     open={showDeleteDialog}
                     onOpenChange={setShowDeleteDialog}
                   >
                     <DialogTrigger asChild>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="xs">
                         Delete
                       </Button>
                     </DialogTrigger>
@@ -188,12 +257,32 @@ export const ScriptDetailPage = () => {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
-                  <Button type="submit" onClick={manualSave} size="sm">
+                  <Button variant="outline" size="xs" onClick={handleCopyCode}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy
+                  </Button>
+
+                  {script.type === "m_block" && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={handleRemixCode}
+                      disabled={!isDesktopMode}
+                    >
+                      <BlendIcon className="mr-2 h-4 w-4" />
+                      Remix{" "}
+                      {!isDesktopMode && (
+                        <Badge variant="secondary">Desktop Only</Badge>
+                      )}
+                    </Button>
+                  )}
+
+                  <Button type="submit" onClick={manualSave} size="xs">
                     Update
                   </Button>
                 </div>
               </div>
-              <p ref={descRef} className=" w-full">
+              <p className="w-full truncate" title={script.description}>
                 {script.description}
               </p>
               <Separator />
@@ -213,9 +302,10 @@ export const ScriptDetailPage = () => {
                     >
                       <CodeEditor
                         ref={editorRef}
-                        value={script.ts_code || script.code}
+                        value={editorContent}
                         onSave={onSubmit}
                         language={language}
+                        theme={theme === "dark" ? "vs-dark" : "light"}
                         customCompile={
                           script.type === "m_block"
                             ? blockCodeCompile
@@ -225,7 +315,7 @@ export const ScriptDetailPage = () => {
                     </Suspense>
                   </div>
 
-                  {script.type === "m_block" && (
+                  {script.type === "m_block" && showPreview && (
                     <div className="flex-1">
                       {!script.code ? (
                         <div className="flex h-full flex-col items-center justify-center gap-4">
@@ -242,6 +332,7 @@ export const ScriptDetailPage = () => {
                           code={script.ts_code || ""}
                           compiledCode={script.code || ""}
                           env={script.env_map}
+                          bindings={script.bindings}
                         />
                       )}
                     </div>
@@ -250,7 +341,7 @@ export const ScriptDetailPage = () => {
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="settings">
+          <TabsContent value="settings" className="h-full overflow-y-auto">
             <ExtensionConfig />
           </TabsContent>
         </>

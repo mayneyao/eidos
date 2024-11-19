@@ -707,8 +707,19 @@ export class DataSpace {
     return this.doc.search(query)
   }
 
+
+  public async createTable(fields: Array<{
+    name: string
+    type: FieldType
+  }>, name: string) {
+    const { createTableSql, tableId } = TableManager.generateCreateTableSql(fields)
+    console.log("create table sql: ", createTableSql)
+    await this.createTableViaSchema(tableId, name, createTableSql)
+    return tableId
+  }
+
   @timeit(100)
-  public async createTable(
+  public async createTableViaSchema(
     id: string,
     name: string,
     tableSchema: string,

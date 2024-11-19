@@ -214,3 +214,8 @@ export const getBlockIdFromUrl = (url: string) => {
     return ""
   }
 }
+
+export const isStandaloneBlocksPath = (pathname: string) => {
+  // /:space/standalone-blocks/:id
+  return /^\/[\w-]+\/standalone-blocks\/\w+$/.test(pathname)
+}

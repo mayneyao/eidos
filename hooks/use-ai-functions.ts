@@ -144,6 +144,10 @@ export const useAIFunctions = () => {
         const url = `/${database}/${docId}}`
         console.log(doc, url)
         return url
+      case "createTable":
+        const { name: tableName, fields } = parameters
+        const tableId = await sqlite?.createTable(fields, tableName)
+        return tableId
       default:
         throw new Error(`function ${name} not supported auto run`)
     }

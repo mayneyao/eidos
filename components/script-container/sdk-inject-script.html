@@ -1,5 +1,5 @@
 <script type="module">
-  const makeSpaceProxy = (space) => {
+  const makeSpaceProxy = (space, bindings = {}) => {
     return new Proxy(
       {},
       {
@@ -28,8 +28,46 @@
             })
           }
           // const r = await currentSpace.table("91ba4dd2ad4447cf943db88dbb861323").rows.query()
-          if (method == "table") {
+          if (bindings[method]) {
+            const tableId = bindings[method].value
+            return new Proxy(
+              {},
+              {
+                get(target, subMethod) {
+                  if (subMethod == "rows") {
+                    return new Proxy(
+                      {},
+                      {
+                        get(target, method) {
+                          return function (params) {
+                            const [_params, ...rest] = arguments
+                            send({
+                              method: `table(${tableId}).rows.${method}`,
+                              params: [_params, ...rest],
+                              space,
+                            })
+                            return onCallBack()
+                          }
+                        },
+                      }
+                    )
+                  }
+                  return function (params) {
+                    const [_params, ...rest] = arguments
+                    send({
+                      method: `table("${tableId}").${subMethod}`,
+                      params: [_params, ...rest],
+                      space,
+                    })
+                    return onCallBack()
+                  }
+                },
+              }
+            )
+          }
+          if (method == "table" || /^[A-Z][A-Za-z0-9_]*$/.test(method)) {
             return function (id) {
+              const tableId = /^[A-Z]/.test(method) ? method : id;
               return new Proxy(
                 {},
                 {
@@ -42,7 +80,7 @@
                             return function (params) {
                               const [_params, ...rest] = arguments
                               send({
-                                method: `table(${id}).rows.${method}`,
+                                method: `table(${tableId}).rows.${method}`,
                                 params: [_params, ...rest],
                                 space,
                               })
@@ -64,7 +102,7 @@
                   },
                 }
               )
-            }
+            }()
           }
           if (
             [
@@ -143,13 +181,12 @@
     {
       get: (target, prop) => {
         if (prop === "space") {
-          // eidos.space(spaceId)
-          return (space) => {
-            return makeSpaceProxy(space)
+          return (space, bindings) => {
+            return makeSpaceProxy(space, bindings)
           }
         }
         if (prop === "currentSpace") {
-          return makeSpaceProxy("${{currentSpace}}")
+          return makeSpaceProxy("${{currentSpace}}", window.__EIDOS_BINDINGS__ || {})
         }
         if (prop === "utils") {
           return {

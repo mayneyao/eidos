@@ -60,7 +60,7 @@ const DefaultAppInfoMap: Record<
 export const RightPanelNav = () => {
   const { setIsRightPanelOpen, currentAppIndex, setCurrentAppIndex, setApps } =
     useSpaceAppStore()
-  const { apps, addApp, deleteApp } = useAppsStore()
+  const { apps, addApp, deleteByIndex } = useAppsStore()
   const { space } = useCurrentPathInfo()
   const { t } = useTranslation()
   const handleAppChange = (index: number) => {
@@ -144,7 +144,7 @@ export const RightPanelNav = () => {
                         <ContextMenuContent>
                           <ContextMenuItem
                             onClick={() => {
-                              deleteApp(app)
+                              deleteByIndex(index)
                               setCurrentAppIndex(0)
                             }}
                           >

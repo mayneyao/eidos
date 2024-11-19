@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "private": true,
   "type": "module",
   "description": "Eidos is an extensible framework for managing your personal data throughout your lifetime in one place.",
@@ -29,81 +29,12 @@
     "major": "node scripts/version.cjs major",
     "test": "vitest",
     "start-electron": "electron .",
-    "pkg:desktop": "cross-env BUILD_MODE=1 electron-builder --publish never",
+    "pkg:desktop": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.json",
+    "pkg:desktop:dev": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.dev.json",
     "postinstall": "electron-builder install-app-deps"
   },
   "start": "electron .",
   "main": "dist-electron/main.js",
-  "build": {
-    "appId": "space.eidos.desktop",
-    "productName": "Eidos",
-    "directories": {
-      "output": "dist-app"
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "mayneyao",
-        "repo": "eidos"
-      }
-    ],
-    "npmRebuild": true,
-    "generateUpdatesFilesForAllChannels": true,
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "dist-simple/**/*",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "dist-simple",
-        "to": "dist-simple",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-    "win": {
-      "target": [
-        "nsis",
-        "zip"
-      ],
-      "icon": "dist/logo.png"
-    },
-    "afterSign": "scripts/notarize.cjs",
-    "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "icon": "dist/logo.icns",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "electron/build/entitlements.mac.plist",
-      "entitlementsInherit": "electron/build/entitlements.mac.plist",
-      "notarize": false
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "zip"
-      ]
-    }
-  },
   "dependencies": {
     "@ai-sdk/openai": "^0.0.45",
     "@aws-crypto/sha256-browser": "^5.2.0",
