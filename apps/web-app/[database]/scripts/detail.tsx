@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useRef, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import { BlendIcon, Copy } from "lucide-react"
@@ -51,26 +51,12 @@ export const ScriptDetailPage = () => {
     script.ts_code || script.code
   )
 
+  useEffect(() => {
+    setEditorContent(script.ts_code || script.code)
+  }, [script])
+
   useMount(() => {
     revalidator.revalidate()
-  })
-
-  const handleSave = useCallback(
-    (value: any, key: string) => {
-      updateScript({
-        id: script.id,
-        [key]: value,
-      })
-      revalidator.revalidate()
-    },
-    [revalidator, script, updateScript]
-  )
-  const { ref: nameRef } = useEditableElement({
-    onSave: (value) => handleSave(value, "name"),
-  })
-
-  const { ref: descRef } = useEditableElement({
-    onSave: (value) => handleSave(value, "description"),
   })
 
   const { toast } = useToast()
@@ -194,7 +180,10 @@ export const ScriptDetailPage = () => {
             <div className="flex h-full flex-col gap-4">
               <div className="flex justify-between">
                 <h2 className="mb-2 flex items-end  gap-2 text-xl font-semibold">
-                  <span ref={nameRef}>{script.name}</span> ({script.version})
+                  <span className="max-w-[24rem] truncate" title={script.name}>
+                    {script.name}
+                  </span>
+                  ({script.version})
                   <Switch
                     checked={script.enabled}
                     onCheckedChange={(checked) =>
@@ -208,7 +197,7 @@ export const ScriptDetailPage = () => {
                     onOpenChange={setShowDeleteDialog}
                   >
                     <DialogTrigger asChild>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="xs">
                         Delete
                       </Button>
                     </DialogTrigger>
@@ -236,22 +225,28 @@ export const ScriptDetailPage = () => {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
-                  <Button variant="outline" size="sm" onClick={handleCopyCode}>
+                  <Button variant="outline" size="xs" onClick={handleCopyCode}>
                     <Copy className="mr-2 h-4 w-4" />
                     Copy
                   </Button>
 
-                  <Button variant="outline" size="sm" onClick={handleRemixCode}>
-                    <BlendIcon className="mr-2 h-4 w-4" />
-                    Remix
-                  </Button>
+                  {script.type === "m_block" && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={handleRemixCode}
+                    >
+                      <BlendIcon className="mr-2 h-4 w-4" />
+                      Remix
+                    </Button>
+                  )}
 
-                  <Button type="submit" onClick={manualSave} size="sm">
+                  <Button type="submit" onClick={manualSave} size="xs">
                     Update
                   </Button>
                 </div>
               </div>
-              <p ref={descRef} className=" w-full">
+              <p className="w-full truncate" title={script.description}>
                 {script.description}
               </p>
               <Separator />

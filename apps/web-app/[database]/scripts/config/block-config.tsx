@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
-import { Check, Plus, Trash2 } from "lucide-react"
+import { Check, Pencil, Plus, Trash2 } from "lucide-react"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -47,24 +47,25 @@ export const BlockConfig = () => {
   const [newBindingValue, setNewBindingValue] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [newBindingType, setNewBindingType] = useState<"table">("table")
+  const [editingEnvKeys, setEditingEnvKeys] = useState<Set<string>>(new Set())
+  const [editingValues, setEditingValues] = useState<Record<string, string>>({})
 
   const revalidator = useRevalidator()
   const { toast } = useToast()
   const { updateScript } = useScript()
 
-  const handleSave = async () => {
+  const updateWithToast = async (
+    newEnvMap = envMap,
+    newBindings = bindings
+  ) => {
     try {
-      const payload = {
+      await updateScript({
         id: block.id,
-        env_map: envMap,
-        bindings: { ...bindings },
-      }
-
-      await updateScript(payload)
-      revalidator.revalidate()
-      toast({
-        title: "Block Updated Successfully",
+        env_map: newEnvMap,
+        bindings: newBindings,
       })
+      revalidator.revalidate()
+      toast({ title: "Block Updated Successfully" })
     } catch (error) {
       toast({
         title: "Failed to update block",
@@ -76,18 +77,30 @@ export const BlockConfig = () => {
 
   const handleAddEnv = () => {
     if (!newEnvKey.trim()) return
-    setEnvMap({
-      ...envMap,
-      [newEnvKey]: newEnvValue,
+    setEnvMap((prev) => {
+      const newMap = { ...prev, [newEnvKey]: newEnvValue }
+      updateWithToast(newMap)
+      return newMap
     })
     setNewEnvKey("")
     setNewEnvValue("")
   }
 
   const handleRemoveEnv = (key: string) => {
-    const newEnvMap = { ...envMap }
-    delete newEnvMap[key]
-    setEnvMap(newEnvMap)
+    setEnvMap((prev) => {
+      const newMap = { ...prev }
+      delete newMap[key]
+      updateWithToast(newMap)
+      return newMap
+    })
+  }
+
+  const handleEnvValueChange = (key: string, value: string) => {
+    setEnvMap((prev) => {
+      const newMap = { ...prev, [key]: value }
+      updateWithToast(newMap)
+      return newMap
+    })
   }
 
   const handleBulkAdd = () => {
@@ -108,27 +121,46 @@ export const BlockConfig = () => {
     })
 
     setEnvMap(newEnvMap)
+    updateWithToast(newEnvMap)
     setBulkEnvInput("")
     setIsDialogOpen(false)
   }
 
   const handleAddBinding = () => {
     if (!newBindingKey.trim()) return
-    setBindings({
-      ...bindings,
-      [newBindingKey]: {
-        type: newBindingType,
-        value: newBindingValue,
-      },
+    setBindings((prev) => {
+      const newBindings = {
+        ...prev,
+        [newBindingKey]: {
+          type: newBindingType,
+          value: newBindingValue,
+        },
+      }
+      updateWithToast(envMap, newBindings)
+      return newBindings
     })
     setNewBindingKey("")
     setNewBindingValue("")
   }
 
   const handleRemoveBinding = (key: string) => {
-    const newBindings = { ...bindings }
-    delete newBindings[key]
-    setBindings(newBindings)
+    setBindings((prev) => {
+      const newBindings = { ...prev }
+      delete newBindings[key]
+      updateWithToast(envMap, newBindings)
+      return newBindings
+    })
+  }
+
+  const handleBindingValueChange = (key: string, value: string) => {
+    setBindings((prev) => {
+      const newBindings = {
+        ...prev,
+        [key]: { type: "table" as const, value },
+      }
+      updateWithToast(envMap, newBindings)
+      return newBindings
+    })
   }
 
   return (
@@ -147,15 +179,47 @@ export const BlockConfig = () => {
               <div key={key} className="flex items-center gap-2">
                 <Input value={key} disabled className="w-[200px]" />
                 <Input
-                  value={value}
-                  onChange={(e) =>
-                    setEnvMap({
-                      ...envMap,
+                  value={editingEnvKeys.has(key) ? editingValues[key] : value}
+                  disabled={!editingEnvKeys.has(key)}
+                  onChange={(e) => {
+                    setEditingValues((prev) => ({
+                      ...prev,
                       [key]: e.target.value,
-                    })
-                  }
+                    }))
+                  }}
                   className="w-[200px]"
                 />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    if (editingEnvKeys.has(key)) {
+                      handleEnvValueChange(key, editingValues[key])
+                      setEditingEnvKeys((prev) => {
+                        const next = new Set(prev)
+                        next.delete(key)
+                        return next
+                      })
+                      setEditingValues((prev) => {
+                        const next = { ...prev }
+                        delete next[key]
+                        return next
+                      })
+                    } else {
+                      setEditingEnvKeys((prev) => new Set(prev).add(key))
+                      setEditingValues((prev) => ({
+                        ...prev,
+                        [key]: value,
+                      }))
+                    }
+                  }}
+                >
+                  {editingEnvKeys.has(key) ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Pencil className="h-4 w-4" />
+                  )}
+                </Button>
                 <Button
                   variant="outline"
                   size="icon"
@@ -235,13 +299,7 @@ export const BlockConfig = () => {
                 <TableSelector
                   value={binding.value}
                   onSelect={(value) => {
-                    setBindings({
-                      ...bindings,
-                      [key]: {
-                        type: "table",
-                        value,
-                      },
-                    })
+                    handleBindingValueChange(key, value)
                   }}
                 />
                 <Button
@@ -288,12 +346,6 @@ export const BlockConfig = () => {
           </div>
         </CardContent>
       </Card>
-
-      <div className="flex">
-        <Button onClick={handleSave} className="w-32">
-          Save
-        </Button>
-      </div>
     </div>
   )
 }
