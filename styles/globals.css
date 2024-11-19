@@ -20,7 +20,7 @@
 /* fix prism code wrap */
 pre[class*="language-"],
 code[class*="language-"] {
-  white-space: normal !important;
+  /* white-space: normal !important; */
   overflow: auto;
   word-break: break-word !important;
 }

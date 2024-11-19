@@ -8,7 +8,7 @@ import {
   useState,
 } from "react"
 import eidosTypes from "@eidos.space/types/index.d.ts?raw"
-import Editor, { loader, useMonaco } from "@monaco-editor/react"
+import Editor, { DiffEditor, loader, useMonaco } from "@monaco-editor/react"
 import { useSize } from "ahooks"
 import { debounce } from "lodash"
 import * as monaco from "monaco-editor"
@@ -17,6 +17,7 @@ import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
 import ts from "typescript/lib/typescript"
 
 import { useSpaceAppStore } from "../../store"
+import { useEditorStore } from "../stores/editor-store"
 import scriptTypes from "./script-global-types?raw"
 import reactTypes from "/node_modules/@types/react/index.d.ts?raw"
 
@@ -50,6 +51,7 @@ export interface CodeEditorProps {
   language?: string
   customCompile?: (code: string) => Promise<string>
   theme?: "vs-dark" | "light"
+  scriptId?: string
 }
 
 export const CodeEditor = forwardRef(
@@ -60,12 +62,16 @@ export const CodeEditor = forwardRef(
       language = "javascript",
       customCompile,
       theme = "light",
+      scriptId,
     }: CodeEditorProps,
     ref
   ) => {
     const monaco = useMonaco()
     const [code, setCode] = useState<string | undefined>(value)
+    const editorRef = useRef<monaco.editor.IStandaloneCodeEditor>()
+    const { scriptCodeMap, setScriptCodeMap, setActiveTab } = useEditorStore()
 
+    const toApplyCode = scriptId ? scriptCodeMap[scriptId] : undefined
     useEffect(() => {
       setCode(value)
     }, [value])
@@ -202,36 +208,89 @@ export const CodeEditor = forwardRef(
       resetEditorLayout()
     }, [size, resetEditorLayout, isAiOpen, isExtAppOpen])
 
+    const handleAcceptChanges = useCallback(() => {
+      if (toApplyCode) {
+        handleSave(toApplyCode)
+        if (scriptId) {
+          setScriptCodeMap(scriptId, "")
+          setActiveTab("preview")
+        }
+      }
+    }, [toApplyCode, handleSave, scriptId, setScriptCodeMap])
+
     return (
-      <div className="h-full w-full" ref={monacoEl}>
-        <Editor
-          height="100%"
-          width="100%"
-          value={value}
-          theme={theme}
-          options={{
-            minimap: { enabled: false },
-            wordWrap: "on",
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-          }}
-          language={language === "typescriptreact" ? "typescript" : language}
-          onChange={(value) => {
-            setCode(value)
-          }}
-          onMount={(editor, monaco) => {
-            editor.onKeyDown((e) => {
-              if (
-                e.keyCode === monaco.KeyCode.KeyS &&
-                (e.ctrlKey || e.metaKey)
-              ) {
-                e.preventDefault()
-                const code = editor.getValue()
-                handleSave(code)
-              }
-            })
-          }}
-        />
+      <div className="h-full w-full relative" ref={monacoEl}>
+        {toApplyCode && (
+          <div className="absolute top-2 right-2 z-10">
+            <button
+              onClick={handleAcceptChanges}
+              className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+            >
+              Accept Changes
+            </button>
+          </div>
+        )}
+        {toApplyCode ? (
+          <DiffEditor
+            height="100%"
+            width="100%"
+            original={code || ""}
+            modified={toApplyCode}
+            theme={theme}
+            options={{
+              minimap: { enabled: false },
+              wordWrap: "on",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              readOnly: false,
+            }}
+            language={language === "typescriptreact" ? "typescript" : language}
+            onMount={(editor, monaco) => {
+              const modifiedEditor = editor.getModifiedEditor()
+              editorRef.current = modifiedEditor
+              modifiedEditor.onKeyDown((e) => {
+                if (
+                  e.keyCode === monaco.KeyCode.KeyS &&
+                  (e.ctrlKey || e.metaKey)
+                ) {
+                  e.preventDefault()
+                  const code = modifiedEditor.getValue()
+                  handleSave(code)
+                }
+              })
+            }}
+          />
+        ) : (
+          <Editor
+            height="100%"
+            width="100%"
+            value={value}
+            theme={theme}
+            options={{
+              minimap: { enabled: false },
+              wordWrap: "on",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+            }}
+            language={language === "typescriptreact" ? "typescript" : language}
+            onChange={(value) => {
+              setCode(value)
+            }}
+            onMount={(editor, monaco) => {
+              editorRef.current = editor
+              editor.onKeyDown((e) => {
+                if (
+                  e.keyCode === monaco.KeyCode.KeyS &&
+                  (e.ctrlKey || e.metaKey)
+                ) {
+                  e.preventDefault()
+                  const code = editor.getValue()
+                  handleSave(code)
+                }
+              })
+            }}
+          />
+        )}
       </div>
     )
   }

@@ -62,5 +62,5 @@ export async function handleOpenAI(
     }
   }
   const result = await streamText(request)
-  return result.toAIStreamResponse()
+  return result.toDataStreamResponse()
 }

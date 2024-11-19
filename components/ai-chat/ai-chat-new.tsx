@@ -89,7 +89,6 @@ export default function Chat() {
 
   const { getConfigByModel, hasAvailableModels } = useAiConfig()
   const { messages, setMessages, reload, append, isLoading, stop } = useChat({
-    maxToolRoundtrips: 3,
     onToolCall: async ({ toolCall }) => {
       const res = await handleToolsCall(toolCall.toolName, toolCall.args)
       console.log("toolCall", toolCall, res)

@@ -1,5 +1,6 @@
-import { ChatRequest, FunctionCallHandler, nanoid } from "ai"
+import { ChatRequest } from "ai"
 import OpenAI from "openai"
+import { nanoid } from "nanoid"
 
 import { IField } from "@/lib/store/interface"
 
@@ -87,37 +88,38 @@ ${context.currentDocMarkdown}
   return systemPrompt
 }
 
-type IGetFunctionCallHandler = (handleFunctionCall: any) => FunctionCallHandler
+type IGetFunctionCallHandler = (handleFunctionCall: any) => any
 export const getFunctionCallHandler: IGetFunctionCallHandler =
-  (handleFunctionCall: any) => async (chatMessages, functionCall) => {
-    const { name, arguments: argumentsStr } = functionCall
-    if (!name) return
-    let argumentsObj
-    try {
-      argumentsObj = argumentsStr ? JSON.parse(argumentsStr) : {}
-    } catch (error) {
-      throw new Error(`invalid arguments: ${argumentsStr}`)
-    }
-    const functionParamsSchema = functionParamsSchemaMap[name]
-    const { success } = functionParamsSchema.safeParse(argumentsObj)
-    if (!success) {
-      throw new Error(`invalid arguments: ${argumentsStr}`)
-    }
-    console.log(
-      `function_call: ${name}, arguments: ${JSON.stringify(argumentsObj)}`
-    )
-    const funCallResp = await handleFunctionCall(name, argumentsObj)
+  (handleFunctionCall: any) =>
+    async (chatMessages: any[], functionCall: any) => {
+      const { name, arguments: argumentsStr } = functionCall
+      if (!name) return
+      let argumentsObj
+      try {
+        argumentsObj = argumentsStr ? JSON.parse(argumentsStr) : {}
+      } catch (error) {
+        throw new Error(`invalid arguments: ${argumentsStr}`)
+      }
+      const functionParamsSchema = functionParamsSchemaMap[name]
+      const { success } = functionParamsSchema.safeParse(argumentsObj)
+      if (!success) {
+        throw new Error(`invalid arguments: ${argumentsStr}`)
+      }
+      console.log(
+        `function_call: ${name}, arguments: ${JSON.stringify(argumentsObj)}`
+      )
+      const funCallResp = await handleFunctionCall(name, argumentsObj)
 
-    const functionResponse: ChatRequest = {
-      messages: [
-        ...chatMessages,
-        {
-          id: nanoid(),
-          name,
-          role: "function" as const,
-          content: JSON.stringify(funCallResp),
-        },
-      ],
+      const functionResponse: ChatRequest = {
+        messages: [
+          ...chatMessages,
+          {
+            id: nanoid(),
+            name,
+            role: "function" as const,
+            content: JSON.stringify(funCallResp),
+          },
+        ],
+      }
+      return functionResponse
     }
-    return functionResponse
-  }

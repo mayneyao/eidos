@@ -1,4 +1,4 @@
-import { handleGoogleAI } from "./google"
+// import { handleGoogleAI } from "./google"
 import { IData } from "./interface"
 import { handleOpenAI } from "./openai"
 import { handleWebLLM } from "./webllm"
@@ -9,7 +9,7 @@ export default async function handle(event: FetchEvent) {
   const { type } = data
   switch (type) {
     case "google":
-      return handleGoogleAI(data)
+      // return handleGoogleAI(data)
     case "openai":
       return handleOpenAI(data)
     default:
