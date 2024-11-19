@@ -79,12 +79,10 @@ export class WindowManager {
             const currentDomain = new URL(this.win.webContents.getURL()).origin;
             const newDomain = new URL(url).origin;
             const pathname = new URL(url).pathname;
-
             if (currentDomain === newDomain) {
                 if (isStandaloneBlocksPath(pathname)) {
-                    // 更像移动端的尺寸 
                     new BrowserWindow({
-                        width: 450,
+                        width: 512,
                         height: 800,
                         webPreferences: defaultViewOptions.webPreferences
                     }).loadURL(url);
@@ -102,14 +100,12 @@ export class WindowManager {
         });
     }
 
-    // 打开一个新的 tab
     openTab(url: string, view: WebContentsView): void {
         this.openTabs.set(url, view);
         this.currentTab = url;
         this.broadcastTabsUpdate();
     }
 
-    // 关闭一个 tab
     closeTab(url: string): void {
         this.openTabs.delete(url);
         if (this.currentTab === url) {
@@ -117,7 +113,6 @@ export class WindowManager {
         }
         this.broadcastTabsUpdate();
     }
-    // 切换到一个已经打开的 tab
     switchTab(url: string): void {
         if (this.openTabs.has(url)) {
             this.currentTab = url;
@@ -127,12 +122,10 @@ export class WindowManager {
         }
     }
 
-    // 获取当前 tab
     getCurrentTab(): string | null {
         return this.currentTab;
     }
 
-    // 获取所有已经打开的 tab
     getOpenTabs(): string[] {
         return Array.from(this.openTabs.keys());
     }
