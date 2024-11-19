@@ -10,10 +10,12 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
+import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { compileCode } from "@/lib/v3/compiler"
 import { openCursor } from "@/lib/web/schema"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -155,6 +157,9 @@ export const ScriptDetailPage = () => {
         content: remixPrompt,
       },
     ]).then((path) => {
+      if (!path) {
+        return
+      }
       const url = openCursor(path)
       window.open(url, "_blank")
     })
@@ -262,9 +267,13 @@ export const ScriptDetailPage = () => {
                       variant="outline"
                       size="xs"
                       onClick={handleRemixCode}
+                      disabled={!isDesktopMode}
                     >
                       <BlendIcon className="mr-2 h-4 w-4" />
-                      Remix
+                      Remix{" "}
+                      {!isDesktopMode && (
+                        <Badge variant="secondary">Desktop Only</Badge>
+                      )}
                     </Button>
                   )}
 

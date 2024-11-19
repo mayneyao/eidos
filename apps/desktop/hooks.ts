@@ -1,3 +1,4 @@
+import { isDesktopMode } from "@/lib/env"
 import { useEffect, useState } from "react"
 
 export const useDataFolderCheck = () => {
@@ -26,10 +27,16 @@ interface PlaygroundOptions {
 export const usePlayground = ({ onChange }: PlaygroundOptions) => {
 
     const initializePlayground = async (space: string, blockId: string, files: PlaygroundFile[]) => {
+        if (!isDesktopMode) {
+            return
+        }
         return await window.eidos.initializePlayground(space, blockId, files)
     }
 
     useEffect(() => {
+        if (!isDesktopMode) {
+            return
+        }
         const handlePlaygroundFileChanged = (event: any, data: { filename: string, content: string, space: string, blockId: string }) => {
             onChange(data.filename, data.content, data.space, data.blockId)
         }
