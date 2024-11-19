@@ -21,8 +21,6 @@ You can directly call the global object `eidos`, which provides many APIs to fet
 const space = await eidos.currentSpace.table("tableId").rows.query({
   {
     title: "123"
-  },{
-    limit: 100,
   }
 })
 ```
@@ -59,6 +57,18 @@ query(filter?: Record<string, any>, options?: {
 #### API Reference
 
 ```jsx
+
+interface IFile {
+  id: string
+  name: string
+  path: string
+  size: number
+  mime: string
+  publicUrl: string
+  created_at?: string
+  is_vectorized?: boolean // whether the file is vectorized, when file is vectorized, it will be stored in `eidos__embeddings` table
+}
+
 /**
  * Upload a file to EFS with specified parent path
  * @param fileData File data as ArrayBuffer or base64 string
@@ -72,15 +82,7 @@ public async upload(
   fileName: string,
   mimeType: string,
   parentPath?: string[]
-): Promise<IFile & { publicUrl: string }>;
+): Promise<IFile>;
 
-interface IFile {
-  id: string
-  name: string
-  path: string
-  size: number
-  mime: string
-  created_at?: string
-  is_vectorized?: boolean // whether the file is vectorized, when file is vectorized, it will be stored in `eidos__embeddings` table
-}
+
 ```

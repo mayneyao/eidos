@@ -26,24 +26,76 @@ export enum FieldValueType {
 }
 
 export const FIELD_VALUE_TYPE_MAP = {
-  [FieldType.Title]: FieldValueType.String,
-  [FieldType.Text]: FieldValueType.String,
-  [FieldType.Number]: FieldValueType.Number,
-  [FieldType.Checkbox]: FieldValueType.Boolean,
-  [FieldType.Date]: FieldValueType.String,
-  [FieldType.File]: FieldValueType.String,
-  [FieldType.MultiSelect]: FieldValueType.String,
-  [FieldType.Rating]: FieldValueType.Number,
-  [FieldType.Select]: FieldValueType.String,
-  [FieldType.URL]: FieldValueType.String,
-  [FieldType.Formula]: FieldValueType.String,
-  [FieldType.Link]: FieldValueType.String,
-  [FieldType.Lookup]: FieldValueType.String,
-  [FieldType.CreatedTime]: FieldValueType.String,
-  [FieldType.CreatedBy]: FieldValueType.String,
-  [FieldType.LastEditedTime]: FieldValueType.String,
-  [FieldType.LastEditedBy]: FieldValueType.String,
+  [FieldType.Title]: {
+    valueType: FieldValueType.String,
+    example: "Hello World",
+  },
+  [FieldType.Text]: {
+    valueType: FieldValueType.String,
+    example: "Some text",
+  },
+  [FieldType.Number]: {
+    valueType: FieldValueType.Number,
+    example: 42,
+  },
+  [FieldType.Checkbox]: {
+    valueType: FieldValueType.Boolean,
+    example: true,
+  },
+  [FieldType.Date]: {
+    valueType: FieldValueType.String,
+    example: "2024-03-20",
+  },
+  [FieldType.File]: {
+    valueType: FieldValueType.String,
+    example: "/path/to/file or https://example.com/file",
+  },
+  [FieldType.MultiSelect]: {
+    valueType: FieldValueType.String,
+    example: "Option 1, Option 2",
+  },
+  [FieldType.Rating]: {
+    valueType: FieldValueType.Number,
+    example: 5,
+  },
+  [FieldType.Select]: {
+    valueType: FieldValueType.String,
+    example: "Selected Option",
+  },
+  [FieldType.URL]: {
+    valueType: FieldValueType.String,
+    example: "https://example.com",
+  },
+  [FieldType.Formula]: {
+    valueType: FieldValueType.String,
+    example: "value based on other fields",
+  },
+  [FieldType.Link]: {
+    valueType: FieldValueType.String,
+    example: "Record ID, split by comma if multiple",
+  },
+  [FieldType.Lookup]: {
+    valueType: FieldValueType.String,
+    example: "Lookup Value",
+  },
+  [FieldType.CreatedTime]: {
+    valueType: FieldValueType.String,
+    example: "2024-03-20 10:30:00",
+  },
+  [FieldType.CreatedBy]: {
+    valueType: FieldValueType.String,
+    example: "user id",
+  },
+  [FieldType.LastEditedTime]: {
+    valueType: FieldValueType.String,
+    example: "2024-03-20 10:30:00",
+  },
+  [FieldType.LastEditedBy]: {
+    valueType: FieldValueType.String,
+    example: "user id",
+  },
 }
+
 
 // copy from glide-data-grid
 export enum GridCellKind {

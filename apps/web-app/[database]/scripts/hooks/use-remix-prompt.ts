@@ -18,9 +18,9 @@ here are some tables you can use:
         for (const [key, value] of Object.entries(bindings ?? {})) {
             const fields = await sqlite?.column.list({ table_name: getRawTableNameById(value.value) })
             bindingsPrompt += `### ${key}\n`
-            bindingsPrompt += `| Field | Type | Value Type |\n|--------|------|------------|\n`
+            bindingsPrompt += `| Field | Type | Value Type | Example |\n|--------|------|------------|------|\n`
             fields?.forEach((field) => {
-                bindingsPrompt += `| ${field.name} | ${field.type} | ${FIELD_VALUE_TYPE_MAP[field.type]} |\n`
+                bindingsPrompt += `| ${field.name} | ${field.type} | ${FIELD_VALUE_TYPE_MAP[field.type].valueType} | ${FIELD_VALUE_TYPE_MAP[field.type].example} |\n`
             })
             bindingsPrompt += '\n'
         }
