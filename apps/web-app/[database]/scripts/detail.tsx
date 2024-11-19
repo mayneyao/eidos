@@ -23,6 +23,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
@@ -44,7 +45,7 @@ export const ScriptDetailPage = () => {
   const { deleteScript, enableScript, disableScript, updateScript } =
     useScript()
   const router = useNavigate()
-  const editorRef = useRef<{ save: () => void }>(null)
+  const editorRef = useRef<{ save: () => void; layout: () => void }>(null)
   const revalidator = useRevalidator()
   const language = getEditorLanguage(script)
   const [editorContent, setEditorContent] = useState(
@@ -157,6 +158,15 @@ export const ScriptDetailPage = () => {
     })
   }, [space, script.id, initializePlayground])
 
+  const [showPreview, setShowPreview] = useState(true)
+
+  const handlePreviewToggle = useCallback((checked: boolean) => {
+    setShowPreview(checked)
+    requestAnimationFrame(() => {
+      editorRef.current?.layout()
+    })
+  }, [])
+
   return (
     <Tabs
       value={activeTab}
@@ -178,8 +188,8 @@ export const ScriptDetailPage = () => {
         <>
           <TabsContent value="basic" className="h-full w-full">
             <div className="flex h-full flex-col gap-4">
-              <div className="flex justify-between">
-                <h2 className="mb-2 flex items-end  gap-2 text-xl font-semibold">
+              <div className="flex justify-between items-center">
+                <h2 className="mb-1 flex items-end  gap-2 text-xl font-semibold">
                   <span className="max-w-[24rem] truncate" title={script.name}>
                     {script.name}
                   </span>
@@ -192,6 +202,21 @@ export const ScriptDetailPage = () => {
                   ></Switch>
                 </h2>
                 <div className="flex items-center gap-2">
+                  {script.type === "m_block" && (
+                    <div className="flex items-center gap-2">
+                      <Label
+                        htmlFor="preview"
+                        className="text-sm text-muted-foreground"
+                      >
+                        Preview
+                      </Label>
+                      <Switch
+                        id="preview"
+                        checked={showPreview}
+                        onCheckedChange={handlePreviewToggle}
+                      />
+                    </div>
+                  )}
                   <Dialog
                     open={showDeleteDialog}
                     onOpenChange={setShowDeleteDialog}
@@ -278,7 +303,7 @@ export const ScriptDetailPage = () => {
                     </Suspense>
                   </div>
 
-                  {script.type === "m_block" && (
+                  {script.type === "m_block" && showPreview && (
                     <div className="flex-1">
                       {!script.code ? (
                         <div className="flex h-full flex-col items-center justify-center gap-4">

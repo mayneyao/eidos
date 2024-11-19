@@ -14,11 +14,11 @@ import { debounce } from "lodash"
 import * as monaco from "monaco-editor"
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker"
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
-import reactTypes from "/node_modules/@types/react/index.d.ts?raw"
 import ts from "typescript/lib/typescript"
 
 import { useSpaceAppStore } from "../../store"
 import scriptTypes from "./script-global-types?raw"
+import reactTypes from "/node_modules/@types/react/index.d.ts?raw"
 
 function compile(source: string) {
   const result = ts.transpileModule(source, {
@@ -82,6 +82,19 @@ export const CodeEditor = forwardRef(
       [language, onSave, customCompile]
     )
 
+    const resetEditorLayout = useCallback(() => {
+      monaco?.editor.getEditors().forEach((editor) => {
+        editor.layout({ width: 0, height: 0 })
+        if (!editor || !monacoEl?.current) {
+          return
+        }
+        const rect = monacoEl.current?.getBoundingClientRect()
+        if (rect) {
+          editor.layout({ width: rect.width, height: rect.height })
+        }
+      })
+    }, [monaco?.editor])
+
     // parent component can call handleSave directly
     useImperativeHandle(
       ref,
@@ -91,8 +104,11 @@ export const CodeEditor = forwardRef(
             handleSave?.(code)
           }
         },
+        layout: () => {
+          resetEditorLayout()
+        },
       }),
-      [code, handleSave]
+      [code, handleSave, resetEditorLayout]
     )
 
     useEffect(() => {
@@ -166,18 +182,6 @@ export const CodeEditor = forwardRef(
     const monacoEl = useRef<HTMLDivElement>(null)
 
     const size = useSize(monacoEl)
-    const resetEditorLayout = useCallback(() => {
-      monaco?.editor.getEditors().forEach((editor) => {
-        editor.layout({ width: 0, height: 0 })
-        if (!editor || !monacoEl?.current) {
-          return
-        }
-        const rect = monacoEl.current?.getBoundingClientRect()
-        if (rect) {
-          editor.layout({ width: rect.width, height: rect.height })
-        }
-      })
-    }, [monaco?.editor])
 
     useLayoutEffect(() => {
       const debounced = debounce(resetEditorLayout, 100)
