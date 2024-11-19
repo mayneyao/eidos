@@ -191,7 +191,7 @@ const config = defineConfig({
     proxy: {
       "/server/api": "http://localhost:8788",
       "/api/chat": "http://localhost:13127",
-      '^/[^/]+/files/[^/]+$': {
+      '^/[^/]+/files/': {
         target: 'http://localhost:13127',
         changeOrigin: true,
         rewrite: (path) => path,

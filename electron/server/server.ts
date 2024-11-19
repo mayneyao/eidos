@@ -62,9 +62,12 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
     });
 
     // 
-    app.get('/:space/files/:filename', async (c) => {
-        const { space, filename } = c.req.param()
-        const pathname = `/${space}/files/${filename}`
+    app.get('/:space/files/*', async (c) => {
+        const space = c.req.param('space');
+        const fullPath = c.req.path;
+        const filePath = fullPath.replace(`/${space}/files/`, '');
+        const pathname = `/${space}/files/${filePath}`;
+
         const file = getSpaceFileFromPath(pathname)
         const headers = new Headers()
         headers.append("Content-Type", file.type)
