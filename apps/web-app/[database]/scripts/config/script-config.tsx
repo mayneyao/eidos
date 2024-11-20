@@ -26,6 +26,7 @@ import { getRawTableNameById } from "@/lib/utils"
 
 import { useTablesUiColumns } from "../hooks/use-all-table-fields"
 import { useScript } from "../hooks/use-script"
+import { Bindings } from "./Bindings"
 
 export const ScriptConfig = () => {
   const script = useLoaderData() as IScript
@@ -42,11 +43,30 @@ export const ScriptConfig = () => {
   const revalidator = useRevalidator()
   const { toast } = useToast()
 
+  const [bindings, setBindings] = useState<
+    Record<string, { type: "table"; value: string }>
+  >(script.bindings || {})
+
   const tables = useMemo(() => {
     return Object.values(fieldsMap || {}).map((fieldMap) => fieldMap.name)
   }, [fieldsMap])
   const { uiColumnsMap } = useTablesUiColumns(tables, space)
   const { updateScript } = useScript()
+
+  const handleUpdateBindings = async (
+    newBindings: Record<string, { type: "table"; value: string }>
+  ) => {
+    setBindings(newBindings)
+    await updateScript({
+      ...script,
+      bindings: newBindings,
+    })
+    revalidator.revalidate()
+    toast({
+      title: "Bindings Updated Successfully",
+    })
+  }
+
   const handleSave = async () => {
     await updateScript({
       ...script,
@@ -179,6 +199,7 @@ export const ScriptConfig = () => {
           </CardContent>
         </Card>
       )}
+
       {Boolean(script.envs?.length) && (
         <>
           <Card>
@@ -216,7 +237,7 @@ export const ScriptConfig = () => {
           </Card>
         </>
       )}
-
+      <Bindings bindings={bindings} onUpdateBindings={handleUpdateBindings} />
       <div className="mt-4">
         <Button onClick={handleSave}>Update</Button>
       </div>
