@@ -1,0 +1,60 @@
+.slash-command-menu {
+  position: absolute;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.command-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.command-item:hover {
+  background: #f5f5f5;
+}
+
+.command-name {
+  font-weight: bold;
+}
+
+.command-description {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.editor-container {
+  position: relative;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin: 20px auto;
+}
+
+/* 关键样式：使 ContentEditable 区域可以接收输入 */
+.ContentEditable__root {
+  min-height: 100px;
+  padding: 16px;
+  outline: none;
+  position: relative;
+}
+
+/* 让编辑器接收焦点时有一个视觉反馈 */
+.ContentEditable__root:focus {
+  border-color: #1a73e8;
+}
+
+/* 占位符样式 */
+.Placeholder__root {
+  color: #999;
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  pointer-events: none;
+  user-select: none;
+}
