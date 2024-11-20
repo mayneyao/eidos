@@ -1,6 +1,8 @@
 import { motion } from "framer-motion"
+import { BlocksIcon } from "lucide-react"
+import { Link } from "react-router-dom"
 
-import { MessageIcon, VercelIcon } from "./icons"
+import { MessageIcon } from "./icons"
 
 export const Overview = () => {
   return (
@@ -14,36 +16,16 @@ export const Overview = () => {
     >
       <div className="rounded-xl p-6 flex flex-col gap-8 leading-relaxed text-center max-w-xl">
         <p className="flex flex-row justify-center gap-4 items-center">
-          <VercelIcon size={32} />
+          <BlocksIcon className="w-9 h-9" />
           <span>+</span>
           <MessageIcon size={32} />
         </p>
         <p>
-          This is an{" "}
-          <a
-            className="font-medium underline underline-offset-4"
-            href="https://github.com/vercel/ai-chatbot"
-            target="_blank"
-          >
-            open source
-          </a>{" "}
-          chatbot template built with Next.js and the AI SDK by Vercel. It uses
-          the{" "}
-          <code className="rounded-md bg-muted px-1 py-0.5">streamText</code>{" "}
-          function in the server and the{" "}
-          <code className="rounded-md bg-muted px-1 py-0.5">useChat</code> hook
-          on the client to create a seamless chat experience.
-        </p>
-        <p>
-          You can learn more about the AI SDK by visiting the{" "}
-          <a
-            className="font-medium underline underline-offset-4"
-            href="https://sdk.vercel.ai/docs"
-            target="_blank"
-          >
-            docs
-          </a>
-          .
+          Build your own extensions with AI. This will use your configured{" "}
+          <Link to="/settings/ai#model-preferences" className="underline">
+            coding model
+          </Link>{" "}
+          to generate code.
         </p>
       </div>
     </motion.div>

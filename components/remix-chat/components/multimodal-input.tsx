@@ -25,9 +25,9 @@ import { PreviewAttachment } from "./preview-attachment"
 
 const suggestedActions = [
   {
-    title: "What is the weather",
-    label: "in San Francisco?",
-    action: "What is the weather in San Francisco?",
+    title: "Change the color of all buttons",
+    label: "to red",
+    action: "Change the color of all buttons to red",
   },
   {
     title: "Help me draft an essay",

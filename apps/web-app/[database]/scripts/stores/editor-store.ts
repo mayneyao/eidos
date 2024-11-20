@@ -19,6 +19,12 @@ interface EditorStore {
     setChatHistory: (history: Array<Message>) => void
     addChatMessage: (message: Message) => void
     clearChatHistory: () => void
+
+    isRemixMode: boolean
+    setIsRemixMode: (mode: boolean) => void
+
+    layoutMode: 'full' | 'chat-preview' | 'chat-code' | 'code-preview'
+    setLayoutMode: (mode: 'full' | 'chat-preview' | 'chat-code' | 'code-preview') => void
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -37,4 +43,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
         chatHistory: [...state.chatHistory, message]
     })),
     clearChatHistory: () => set({ chatHistory: [] }),
+    isRemixMode: false,
+    setIsRemixMode: (mode) => set({ isRemixMode: mode }),
+    layoutMode: 'full',
+    setLayoutMode: (mode) => set({ layoutMode: mode }),
 }))

@@ -1,28 +1,53 @@
 import { memo } from "react"
+import { PlayIcon } from "lucide-react"
 import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 
+import { Button } from "@/components/ui/button"
+import { useEditorStore } from "@/apps/web-app/[database]/scripts/stores/editor-store"
+
 const NonMemoizedMarkdown = ({ children }: { children: string }) => {
+  const { setScriptCodeMap } = useEditorStore()
+
   const components: Partial<Components> = {
     // @ts-expect-error
     code: ({ node, inline, className, children, ...props }) => {
       const match = /language-(\w+)/.exec(className || "")
+      const language = match?.[1]
 
-      return !inline && match ? (
-        // @ts-expect-error
+      if (inline || !match) {
+        return (
+          <code
+            className={`${className} text-sm bg-zinc-100 dark:bg-zinc-800 py-0.5 px-1 rounded-md`}
+            {...props}
+          >
+            {children}
+          </code>
+        )
+      }
+
+      if (language === "jsx" || language === "tsx") {
+        return (
+          <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 mt-2 flex items-center gap-2">
+            <span className="text-sm">index.jsx</span>
+            <Button
+              className="py-1 px-2 h-fit text-muted-foreground ml-auto"
+              variant="outline"
+              onClick={() => setScriptCodeMap("current", children as string)}
+            >
+              <PlayIcon className="w-4 h-4" />
+            </Button>
+          </div>
+        )
+      }
+
+      return (
         <pre
-          {...props}
+          {...(props as React.HTMLAttributes<HTMLPreElement>)}
           className={`${className} text-sm w-[80dvw] md:max-w-[500px] overflow-x-scroll bg-zinc-100 p-3 rounded-lg mt-2 dark:bg-zinc-800`}
         >
           <code className={match[1]}>{children}</code>
         </pre>
-      ) : (
-        <code
-          className={`${className} text-sm bg-zinc-100 dark:bg-zinc-800 py-0.5 px-1 rounded-md`}
-          {...props}
-        >
-          {children}
-        </code>
       )
     },
     ol: ({ node, children, ...props }) => {

@@ -559,7 +559,10 @@ export class DataSpace {
   public async listScripts(status: ScriptStatus = "all") {
     const query =
       status === "all" ? undefined : { enabled: status === "enabled" }
-    return this.script.list(query)
+    return this.script.list(query, {
+      orderBy: "created_at",
+      order: "DESC",
+    })
   }
 
   public async getScript(id: string) {

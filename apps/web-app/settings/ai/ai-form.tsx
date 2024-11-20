@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
+import { useLocation } from "react-router-dom"
 
 import { isDesktopMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,7 @@ export function AIConfigForm() {
   const { reset } = form
   const { testModel } = useModelTest()
   const { t } = useTranslation()
+  const location = useLocation()
 
   useEffect(() => {
     reset(aiConfig)
@@ -63,6 +65,10 @@ export function AIConfigForm() {
     onSubmit(form.getValues())
   }
 
+  const getCardClassName = (cardId: string) => {
+    return location.hash === `#${cardId}` ? "ring" : ""
+  }
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -72,7 +78,7 @@ export function AIConfigForm() {
             setModels={updateModels}
           />
         )}
-        <Card>
+        <Card id="provider" className={getCardClassName("provider")}>
           <CardHeader>
             <CardTitle>{t("settings.ai.provider")}</CardTitle>
             <CardDescription>
@@ -94,7 +100,10 @@ export function AIConfigForm() {
             />
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          id="model-preferences"
+          className={getCardClassName("model-preferences")}
+        >
           <CardHeader>
             <CardTitle>{t("settings.ai.modelPreferences")}</CardTitle>
             <CardDescription>

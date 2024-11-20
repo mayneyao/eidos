@@ -1,5 +1,5 @@
 import { IScript } from "@/worker/web-worker/meta-table/script"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 
@@ -52,4 +52,18 @@ export const useScript = () => {
     enableScript,
     disableScript,
   }
+}
+
+export const useScriptById = (id: string) => {
+  const { sqlite } = useSqlite()
+  const [script, setScript] = useState<IScript | null>(null)
+  useEffect(() => {
+    if (!sqlite) return
+    const fetchScript = async () => {
+      const script = await sqlite.script.get(id)
+      setScript(script)
+    }
+    fetchScript()
+  }, [sqlite, id])
+  return script
 }

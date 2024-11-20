@@ -96,7 +96,7 @@ export const useModelTest = () => {
                     try {
                         const code = await generateText({
                             model: openai.chat(config.modelId),
-                            prompt: `Write a function that takes a list of numbers and returns the sum of the numbers.`,
+                            prompt: `just write a function that takes a list of numbers and returns the sum of the numbers. don't include any other text.`,
                         })
                         console.log(code)
                         toast({
