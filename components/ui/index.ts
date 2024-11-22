@@ -98,8 +98,11 @@ import toggleCode from "./toggle?raw";
 import toggleGroupCode from "./toggle-group?raw";
 import alertCode from "./alert?raw";
 import accordionCode from "./accordion?raw";
+import useToastCode from "./use-toast?raw";
+
 
 export const uiConfig = {
+    "use-toast": useToastCode,
     accordion: accordionCode,
     alert: alertCode,
     "alert-dialog": alertDialogCode,
