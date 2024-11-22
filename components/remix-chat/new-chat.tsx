@@ -1,18 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import type { Attachment, ChatRequestOptions, Message } from "ai"
+import { useState } from "react"
+import type { Attachment, Message } from "ai"
 import { useChat } from "ai/react"
 import { AnimatePresence } from "framer-motion"
 import { useSWRConfig } from "swr"
 import { useWindowSize } from "usehooks-ts"
 
-import scriptPrompt from "@/lib/v3/prompts/built-in-remix-prompt-for-script.md?raw"
-import builtInRemixPrompt from "@/lib/v3/prompts/built-in-remix-prompt.md?raw"
 import { useAiConfig } from "@/hooks/use-ai-config"
-import { useMblock } from "@/hooks/use-mblock"
-import { useRemixPrompt } from "@/apps/web-app/[database]/scripts/hooks/use-remix-prompt"
-import { useEditorStore } from "@/apps/web-app/[database]/scripts/stores/editor-store"
 
 import { Block, type UIBlock } from "./components/block"
 import { BlockStreamHandler } from "./components/block-stream-handler"
@@ -22,31 +17,17 @@ import { Overview } from "./components/overview"
 import { useScrollToBottom } from "./components/use-scroll-to-bottom"
 import type { Vote } from "./interface"
 
-export function Chat({
+export function NewChat({
   id,
-  scriptId,
   initialMessages,
   selectedModelId,
 }: {
   id: string
-  scriptId: string
   initialMessages: Array<Message>
   selectedModelId: string
 }) {
   const { mutate } = useSWRConfig()
   const { codingModel, getConfigByModel } = useAiConfig()
-  const script = useMblock(scriptId)
-  const [remixPrompt, setRemixPrompt] = useState("")
-  const { getRemixPrompt } = useRemixPrompt()
-  const { setChatHistory } = useEditorStore()
-
-  useEffect(() => {
-    getRemixPrompt(
-      script?.bindings,
-      script?.ts_code || script?.code,
-      script?.type === "script" ? scriptPrompt : builtInRemixPrompt
-    ).then(setRemixPrompt)
-  }, [script?.bindings, script?.ts_code, script?.code])
 
   const {
     messages,
@@ -61,7 +42,7 @@ export function Chat({
   } = useChat({
     body: {
       ...getConfigByModel(codingModel!),
-      systemPrompt: remixPrompt,
+      // systemPrompt: '',
       id,
       model: codingModel,
     },
@@ -69,23 +50,11 @@ export function Chat({
     onFinish: () => {
       setMessages((currentMessages) => {
         console.log("messages:", currentMessages)
-        setChatHistory(currentMessages)
+        // setChatHistory(currentMessages)
         return currentMessages
       })
     },
   })
-
-  const myHandleSubmit = useCallback(
-    (
-      event?: {
-        preventDefault?: () => void
-      },
-      chatRequestOptions?: ChatRequestOptions
-    ) => {
-      handleSubmit(event, chatRequestOptions)
-    },
-    [handleSubmit]
-  )
 
   const { width: windowWidth = 1920, height: windowHeight = 1080 } =
     useWindowSize()
@@ -153,10 +122,9 @@ export function Chat({
         <form className="flex mx-auto px-4 pb-4 md:pb-6 gap-2 w-full md:max-w-3xl sticky bottom-0 inset-x-0 bg-background">
           <MultimodalInput
             chatId={id}
-            type={script?.type ?? "script"}
             input={input}
             setInput={setInput}
-            handleSubmit={myHandleSubmit}
+            handleSubmit={handleSubmit}
             isLoading={isLoading}
             stop={stop}
             attachments={attachments}

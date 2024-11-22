@@ -28,8 +28,7 @@ export const useExtensionStore = create<ExtensionsState>()((set) => ({
 }))
 
 // get ext info from package.json file
-export const getExtInfo = async (file: File): Promise<ExtensionType | null> => {
-  const packageJsonText = await file.text()
+export const getExtInfo = async (packageJsonText: string): Promise<ExtensionType | null> => {
   try {
     const packageJsonObj = JSON.parse(packageJsonText)
     const { id, name, version, description, displayMode } =
@@ -60,7 +59,7 @@ export const useExtensions = () => {
       extensionDirs
         .filter((dir) => !dir.name.startsWith("."))
         .map(async (dir) => {
-          const packageJson = await efsManager.getFile([
+          const packageJson = await efsManager.getFileText([
             "extensions",
             "apps",
             dir.name,
@@ -103,9 +102,11 @@ export const useExtensions = () => {
   ) => {
     let parentPath = _parentPath || ["extensions", "apps"]
     if (!_parentPath) {
-      const packageJsonHandle = await dirHandle.getFileHandle("package.json")
-      const packageJsonFile = await packageJsonHandle.getFile()
-      const extensionInfo = await getExtInfo(packageJsonFile)
+      const packageJsonText = await efsManager.getFileText([
+        ...parentPath,
+        "package.json",
+      ])
+      const extensionInfo = await getExtInfo(packageJsonText)
       if (!extensionInfo) {
         toast({
           title: "Invalid extension package.json",

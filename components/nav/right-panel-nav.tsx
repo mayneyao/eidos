@@ -5,9 +5,11 @@ import {
   PlusIcon,
   ToyBrickIcon,
   Trash2,
+  MoreHorizontalIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
+import { useState, useEffect, useRef } from "react"
 
 import { cn, getBlockIdFromUrl } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -112,10 +114,30 @@ export const RightPanelNav = () => {
     setApps(newApps)
   }
 
+  const [visibleCount, setVisibleCount] = useState(5)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const updateVisibleCount = () => {
+      if (!containerRef.current) return
+      const containerWidth = containerRef.current.offsetWidth
+      const availableWidth = containerWidth - 100
+      const possibleCount = Math.floor(availableWidth / 40)
+      setVisibleCount(Math.max(1, possibleCount))
+    }
+
+    const resizeObserver = new ResizeObserver(updateVisibleCount)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => resizeObserver.disconnect()
+  }, [])
+
   return (
-    <div className="flex gap-2 justify-between w-full">
-      <div className="flex gap-2">
-        {apps.map((app, index) => {
+    <div className="flex gap-2 justify-between w-full" ref={containerRef}>
+      <div className="flex gap-2 overflow-hidden">
+        {apps.slice(0, visibleCount).map((app, index) => {
           const appInfo = getAppInfo(app)
           const { icon: Icon, title, description, shortcut } = appInfo ?? {}
           const isCurrentApp = index === currentAppIndex
@@ -186,6 +208,35 @@ export const RightPanelNav = () => {
             </TooltipProvider>
           )
         })}
+
+        {apps.length > visibleCount && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="xs" variant="ghost" className="rounded-b-none">
+                <MoreHorizontalIcon className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {apps.slice(visibleCount).map((app, index) => {
+                const appInfo = getAppInfo(app)
+                const { icon: Icon, title } = appInfo ?? {}
+                const actualIndex = index + visibleCount
+
+                return (
+                  <DropdownMenuItem
+                    key={app}
+                    onClick={() => handleAppChange(actualIndex)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      <span>{title}</span>
+                    </div>
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -10,7 +10,7 @@ export const useRemixPrompt = () => {
     const { sqlite } = useSqlite()
 
     let bindingsPrompt = `
-If a table is named MUSIC, you can use \`eidos.currentSpace.MUSIC.rows.query\` to query the table directly.
+If a table is named MY_TABLE, you can use \`eidos.currentSpace.MY_TABLE.rows.query\` to query the table directly.
 
 here are some tables you can use:
 `

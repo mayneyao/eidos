@@ -19,6 +19,7 @@ import { BlockRenderer } from "@/components/block-renderer/block-renderer"
 import { Chat } from "../../../../components/remix-chat/chat"
 import { ExtensionToolbar } from "./components/extension-toolbar"
 import { ExtensionConfig } from "./config/config"
+import { ScriptSandbox } from "./editor/script-sandbox"
 import { getEditorLanguage } from "./helper"
 import { useScript } from "./hooks/use-script"
 import { useEditorStore } from "./stores/editor-store"
@@ -48,6 +49,8 @@ export const ScriptDetailPage = () => {
       compileCode(currentDraftCode).then((result) => {
         setCurrentCompiledDraftCode(result.code)
       })
+    } else {
+      setCurrentCompiledDraftCode(script.code)
     }
   }, [currentDraftCode])
 
@@ -58,8 +61,12 @@ export const ScriptDetailPage = () => {
   const showChat = layoutMode === "full" || layoutMode.includes("chat")
 
   useEffect(() => {
+    setCurrentCompiledDraftCode(script.code)
+  }, [script.code])
+
+  useEffect(() => {
     setEditorContent(script.ts_code || script.code)
-  }, [script])
+  }, [script.ts_code, script.code])
 
   useMount(() => {
     revalidator.revalidate()
@@ -80,6 +87,20 @@ export const ScriptDetailPage = () => {
           title: "Code Updated Successfully",
         })
       }
+      if (script.type === "script") {
+        const sandbox = new ScriptSandbox()
+        try {
+          const exportsCommands = await sandbox.extractExports(code)
+          if (exportsCommands) {
+            await updateScript({
+              id: script.id,
+              commands: exportsCommands,
+            })
+          }
+        } finally {
+          sandbox.destroy()
+        }
+      }
     },
     [revalidator, script, toast, updateScript]
   )
@@ -88,6 +109,10 @@ export const ScriptDetailPage = () => {
   const manualSave = () => {
     editorRef.current?.save()
   }
+
+  useEffect(() => {
+    editorRef.current?.layout()
+  }, [layoutMode])
 
   const blockCodeCompile = async (ts_code: string) => {
     const result = await compileCode(ts_code)
@@ -105,7 +130,10 @@ export const ScriptDetailPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get("tab") || "basic"
 
-  const { chatHistory, isRemixMode } = useEditorStore()
+  const { chatHistory, isRemixMode, clearChatHistory } = useEditorStore()
+  useEffect(() => {
+    clearChatHistory()
+  }, [script.id])
 
   return (
     <Tabs
@@ -135,7 +163,7 @@ export const ScriptDetailPage = () => {
               <div role="content" className="grow overflow-hidden min-h-0">
                 <div className={cn("flex gap-4 h-full")}>
                   {showChat && (
-                    <div className="flex-1 h-full overflow-y-auto">
+                    <div className="flex-1 h-full overflow-y-auto border-r">
                       <Chat
                         id={script.id}
                         scriptId={script.id}
@@ -156,6 +184,7 @@ export const ScriptDetailPage = () => {
                           value={editorContent}
                           onSave={onSubmit}
                           language={language}
+                          bindings={script.bindings}
                           scriptId={script.id}
                           theme={theme === "dark" ? "vs-dark" : "light"}
                           customCompile={
@@ -167,6 +196,7 @@ export const ScriptDetailPage = () => {
                       </Suspense>
                     </div>
                   )}
+
                   {showPreview && (
                     <div className="flex-1 h-full">
                       {!script.code ? (

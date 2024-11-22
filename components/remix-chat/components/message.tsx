@@ -42,8 +42,18 @@ export const PreviewMessage = ({
         )}
       >
         {message.role === "assistant" && (
-          <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
-            <SparklesIcon size={14} />
+          <div className="relative size-8 shrink-0">
+            {isLoading && (
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full animate-spin-slow" />
+            )}
+            <div
+              className={cx(
+                "absolute inset-0 bg-background rounded-full flex items-center justify-center",
+                isLoading ? "inset-[2px]" : "ring-1 ring-border"
+              )}
+            >
+              <SparklesIcon size={14} />
+            </div>
           </div>
         )}
 

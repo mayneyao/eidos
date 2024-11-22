@@ -4,10 +4,11 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react"
-import eidosTypes from "@eidos.space/types/index.d.ts?raw"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 import Editor, { DiffEditor, loader, useMonaco } from "@monaco-editor/react"
 import { useSize } from "ahooks"
 import { debounce } from "lodash"
@@ -17,6 +18,7 @@ import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
 import ts from "typescript/lib/typescript"
 
 import { useSpaceAppStore } from "../../store"
+import { getDynamicPrompt } from "../helper"
 import { useEditorStore } from "../stores/editor-store"
 import scriptTypes from "./script-global-types?raw"
 import reactTypes from "/node_modules/@types/react/index.d.ts?raw"
@@ -52,6 +54,7 @@ export interface CodeEditorProps {
   customCompile?: (code: string) => Promise<string>
   theme?: "vs-dark" | "light"
   scriptId?: string
+  bindings?: IScript["bindings"]
 }
 
 export const CodeEditor = forwardRef(
@@ -63,6 +66,7 @@ export const CodeEditor = forwardRef(
       customCompile,
       theme = "light",
       scriptId,
+      bindings,
     }: CodeEditorProps,
     ref
   ) => {
@@ -76,8 +80,9 @@ export const CodeEditor = forwardRef(
       setCode(value)
     }, [value])
 
+    const dynamicPrompt = useMemo(() => getDynamicPrompt(bindings), [bindings])
     const handleSave = useCallback(
-      (code: string) => {
+      async (code: string) => {
         setCode(code)
         if (language === "typescript" || language === "typescriptreact") {
           if (customCompile) {
@@ -127,20 +132,24 @@ export const CodeEditor = forwardRef(
     useEffect(() => {
       if (monaco && language !== "markdown") {
         if (language === "javascript") {
-          // validation settings
+          // 修改 JavaScript 的诊断选项
           monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-            noSemanticValidation: true,
+            noSemanticValidation: false, // 改为 false 以启用语义验证
             noSyntaxValidation: false,
           })
 
-          // compiler options
           monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
             target: monaco.languages.typescript.ScriptTarget.ESNext,
             allowNonTsExtensions: true,
+            moduleResolution:
+              monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+            module: monaco.languages.typescript.ModuleKind.ESNext,
+            allowJs: true,
+            checkJs: true,
           })
 
           monaco.languages.typescript.javascriptDefaults.addExtraLib(
-            `${eidosTypes}\ndeclare const eidos: import("@eidos.space/types").Eidos;`,
+            `${dynamicPrompt}\ndeclare const eidos: import("@eidos.space/types").Eidos;`,
             "ts:filename/eidos.d.ts"
           )
           monaco.languages.typescript.javascriptDefaults.addExtraLib(
@@ -149,11 +158,12 @@ export const CodeEditor = forwardRef(
           )
         }
         if (language === "typescript" || language === "typescriptreact") {
-          // validation settings
+          // 修改 TypeScript 的诊断选项
           monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-            noSemanticValidation: true,
+            noSemanticValidation: false, // 改为 false 以启用语义验证
             noSyntaxValidation: false,
           })
+
           const tsxConfig =
             language === "typescriptreact"
               ? {
@@ -168,10 +178,13 @@ export const CodeEditor = forwardRef(
                   typeRoots: ["node_modules/@types"],
                 }
               : {}
-          // compiler options
+
+          // 添加更多编译器选项
           monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
             target: monaco.languages.typescript.ScriptTarget.ESNext,
             allowNonTsExtensions: true,
+            strict: true, // 启用严格模式
+            noImplicitAny: false, // 允许隐式的 any 类型
             ...tsxConfig,
           })
 
@@ -182,7 +195,7 @@ export const CodeEditor = forwardRef(
             )
           }
           monaco.languages.typescript.typescriptDefaults.addExtraLib(
-            `${eidosTypes}\ndeclare const eidos: import("@eidos.space/types").Eidos;`,
+            `${dynamicPrompt}\ndeclare const eidos: import("@eidos.space/types").Eidos;`,
             "ts:filename/eidos.d.ts"
           )
           monaco.languages.typescript.typescriptDefaults.addExtraLib(
@@ -191,7 +204,8 @@ export const CodeEditor = forwardRef(
           )
         }
       }
-    }, [language, monaco])
+    }, [language, monaco, dynamicPrompt])
+
     const monacoEl = useRef<HTMLDivElement>(null)
 
     const size = useSize(monacoEl)

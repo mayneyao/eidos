@@ -6,27 +6,14 @@ import {
   ChevronDownIcon,
   FilterIcon,
   FunctionSquareIcon,
-  RotateCcwIcon,
   ShapesIcon,
   SparkleIcon,
   SquareCodeIcon,
   ToyBrickIcon,
 } from "lucide-react"
-import { Link, useLoaderData, useRevalidator } from "react-router-dom"
+import { useLoaderData, useRevalidator } from "react-router-dom"
 
-import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
@@ -50,6 +38,8 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 
+import { NewExtensionButton } from "./components/NewExtensionButton"
+import { ScriptCard } from "./components/ScriptCard"
 import { useAllApps } from "./hooks/use-all-apps"
 import { useAllBlocks } from "./hooks/use-all-blocks"
 import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
@@ -105,6 +95,7 @@ export const ScriptPage = () => {
   const { space } = useCurrentPathInfo()
   const [filter, setFilter] = useState("All")
   const [searchTerm, setSearchTerm] = useState("")
+  const [showEnabledOnly, setShowEnabledOnly] = useState(false)
 
   const blocks = useAllBlocks()
   const apps = useAllApps()
@@ -153,8 +144,13 @@ export const ScriptPage = () => {
       )
     }
 
+    // Add enabled filter
+    if (showEnabledOnly) {
+      filtered = filtered.filter((script) => script.enabled)
+    }
+
     return filtered
-  }, [filter, _scripts, searchTerm])
+  }, [filter, _scripts, searchTerm, showEnabledOnly])
 
   const { deleteScript, enableScript, disableScript, updateScript, addScript } =
     useScript()
@@ -164,7 +160,6 @@ export const ScriptPage = () => {
     revalidator.revalidate()
   })
 
-  const { handleCreateNewScript } = useNewScript()
   const handleDelete = async (id: string) => {
     await deleteScript(id)
     revalidator.revalidate()
@@ -220,39 +215,22 @@ export const ScriptPage = () => {
   return (
     <ScrollArea className="h-full w-full p-2 pt-0">
       <div className="flex w-full justify-between p-2 pt-1">
-        <div className="flex">
-          <Button
-            className=" rounded-r-none"
-            size="xs"
-            onClick={() => handleCreateNewScript()}
-          >
-            New
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="h-7 rounded-r-md bg-primary p-1 text-primary-foreground hover:opacity-70">
-              <ChevronDownIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuLabel>
-                New Extension With Different Template
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleCreateNewScript("udf")}>
-                UDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleCreateNewScript("prompt")}>
-                Prompt
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handleCreateNewScript("m_block")}
-              >
-                Micro Block <Badge variant="secondary">New</Badge>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <NewExtensionButton />
 
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Label
+              className="text-sm text-muted-foreground"
+              htmlFor="enabled-only"
+            >
+              Enabled Only
+            </Label>
+            <Switch
+              id="enabled-only"
+              checked={showEnabledOnly}
+              onCheckedChange={setShowEnabledOnly}
+            />
+          </div>
           <Input
             className="h-[28px] w-[200px]"
             placeholder="Search extension..."
@@ -295,92 +273,18 @@ export const ScriptPage = () => {
         </div>
       </div>
       <Separator />
-      <div className="grid w-full grid-cols-1 gap-4 p-4 md:grid-cols-2 2xl:grid-cols-3">
-        {filterExts.map((script) => {
-          const Icon = IconMap[script.type]
-          return (
-            <div
-              key={script.id}
-              className="overflow-hidden rounded-lg border shadow-md transition-shadow duration-200 hover:shadow-lg"
-            >
-              <div className="p-4">
-                <div className="flex  items-baseline justify-between">
-                  <h2 className="mb-2 flex items-center gap-1 truncate text-xl font-semibold">
-                    <Icon className="shrink-0" />
-                    {script.name}({script.version})
-                  </h2>
-                  {script.type !== "app" && (
-                    <Switch
-                      checked={script.enabled}
-                      onCheckedChange={(checked) =>
-                        handleToggleEnabled(script, checked)
-                      }
-                    ></Switch>
-                  )}
-                  {/* {script.type === "app" && (
-                    <Link to={`/${space}/apps/${script.id}`}>
-                      <Button size="sm" variant="outline">
-                        Open
-                      </Button>
-                    </Link>
-                  )} */}
-                </div>
-                <p className="h-[50px]">{script.description}</p>
-
-                <div
-                  className={cn("flex items-end justify-between", {
-                    "opacity-0 pointer-events-none": ["block", "app"].includes(
-                      script.type
-                    ),
-                  })}
-                >
-                  <div className="flex gap-2">
-                    <Link to={`/${space}/extensions/${script.id}`}>
-                      <Button className="mt-4" variant="outline">
-                        Details
-                      </Button>
-                    </Link>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" className="ml-4 mt-4">
-                          Remove
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            Are you sure you want to delete this script?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. all data related to
-                            this will be deleted.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(script.id)}
-                          >
-                            Continue
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                  {Boolean(dirHandle) && scriptId === script.id && (
-                    <Button
-                      onClick={handleReload}
-                      variant="ghost"
-                      title="Reload Local Script"
-                    >
-                      <RotateCcwIcon></RotateCcwIcon>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
+      <div className="grid w-full grid-cols-1 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+        {filterExts.map((script) => (
+          <ScriptCard
+            key={script.id}
+            script={script}
+            space={space}
+            onDelete={handleDelete}
+            onToggleEnabled={handleToggleEnabled}
+            showReload={Boolean(dirHandle) && scriptId === script.id}
+            onReload={handleReload}
+          />
+        ))}
       </div>
     </ScrollArea>
   )

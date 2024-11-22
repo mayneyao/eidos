@@ -3,6 +3,8 @@ import z from "zod"
 import { toast } from "@/components/ui/use-toast"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { generateId, proxyURL } from "@/lib/utils"
+import eidosTypes from "@eidos.space/types/index.d.ts?raw"
+
 
 export const PromptEnableCheck = z.object({
   model: z.string().refine((value) => value.trim() !== "", {
@@ -108,4 +110,39 @@ export const getScriptFromV0 = async (link: string): Promise<IScript> => {
     code: '',
   }
   return script
+}
+
+
+export const getDynamicPrompt = (bindings: IScript["bindings"]) => {
+  const replaceText = `table(id: string): TableManager;`
+  const bindingText = Object.entries(bindings || {})
+    .map(([key, value]) => {
+      return `${key}: TableManager;`
+    })
+    .join("\n")
+  const replaced = eidosTypes.replace(replaceText, replaceText + "\n" + bindingText)
+  return replaced
+}
+
+
+
+
+export const getSuggestedActions = (type: IScript["type"]) => {
+  switch (type) {
+    case "m_block":
+      return [
+        {
+          title: "Change all buttons",
+          label: "to red",
+          action: "Change all buttons to red",
+        },
+        {
+          title: "Make a music player looks like ",
+          label: "Spotify",
+          action: "Make a music player looks like Spotify",
+        },
+      ]
+    default:
+      return []
+  }
 }

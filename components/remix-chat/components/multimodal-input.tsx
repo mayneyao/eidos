@@ -10,6 +10,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 import type { Attachment, ChatRequestOptions, CreateMessage, Message } from "ai"
 import cx from "classnames"
 import { motion } from "framer-motion"
@@ -17,24 +18,20 @@ import { toast } from "sonner"
 import { useLocalStorage, useWindowSize } from "usehooks-ts"
 
 import { sanitizeUIMessages } from "@/lib/utils"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { getSuggestedActions } from "@/apps/web-app/[database]/scripts/helper"
 
 import { ArrowUpIcon, PaperclipIcon, StopIcon } from "./icons"
 import { PreviewAttachment } from "./preview-attachment"
 
-const suggestedActions = [
-  {
-    title: "Change the color of all buttons",
-    label: "to red",
-    action: "Change the color of all buttons to red",
-  },
-  {
-    title: "Help me draft an essay",
-    label: "about Silicon Valley",
-    action: "Help me draft a short essay about Silicon Valley",
-  },
-]
+// Add helper function to generate random file names
+const generateRandomFileName = (extension: string) => {
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substring(2, 8)
+  return `pasted-image-${timestamp}-${random}${extension}`
+}
 
 export function MultimodalInput({
   chatId,
@@ -49,6 +46,7 @@ export function MultimodalInput({
   append,
   handleSubmit,
   className,
+  type,
 }: {
   chatId: string
   input: string
@@ -70,6 +68,7 @@ export function MultimodalInput({
     chatRequestOptions?: ChatRequestOptions
   ) => void
   className?: string
+  type: IScript["type"]
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { width } = useWindowSize()
@@ -88,6 +87,7 @@ export function MultimodalInput({
       }px`
     }
   }
+  const suggestedActions = getSuggestedActions(type)
 
   const [localStorageInput, setLocalStorageInput] = useLocalStorage("input", "")
 
@@ -136,29 +136,25 @@ export function MultimodalInput({
     width,
     chatId,
   ])
+  const { sqlite } = useSqlite()
 
   const uploadFile = async (file: File) => {
-    const formData = new FormData()
-    formData.append("file", file)
-
     try {
-      const response = await fetch("/api/files/upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const { url, pathname, contentType } = data
-
-        return {
-          url,
-          name: pathname,
-          contentType: contentType,
-        }
+      if (!sqlite) {
+        throw new Error("sqlite not found")
       }
-      const { error } = await response.json()
-      toast.error(error)
+      const response = await sqlite?.file.upload(
+        await file.arrayBuffer(),
+        file.name,
+        file.type,
+        ["_chat"]
+      )
+      const { mime, name, publicUrl } = response
+      return {
+        url: publicUrl,
+        name: name,
+        contentType: mime,
+      }
     } catch (error) {
       toast.error("Failed to upload file, please try again!")
     }
@@ -175,7 +171,7 @@ export function MultimodalInput({
         const uploadedAttachments = await Promise.all(uploadPromises)
         const successfullyUploadedAttachments = uploadedAttachments.filter(
           (attachment) => attachment !== undefined
-        )
+        ) as Array<Attachment>
 
         setAttachments((currentAttachments) => [
           ...currentAttachments,
@@ -183,6 +179,49 @@ export function MultimodalInput({
         ])
       } catch (error) {
         console.error("Error uploading files!", error)
+      } finally {
+        setUploadQueue([])
+      }
+    },
+    [setAttachments]
+  )
+
+  const handlePaste = useCallback(
+    async (event: React.ClipboardEvent) => {
+      const items = event.clipboardData?.items
+      if (!items) return
+
+      const imageFiles = Array.from(items)
+        .filter((item) => item.type.startsWith("image/"))
+        .map((item) => {
+          const file = item.getAsFile()
+          if (!file) return null
+
+          // Generate random name for pasted image
+          const extension =
+            file.name === "image.png" ? ".png" : `.${file.type.split("/")[1]}`
+          const newFileName = generateRandomFileName(extension)
+          return new File([file], newFileName, { type: file.type })
+        })
+        .filter((file): file is File => file !== null)
+
+      if (imageFiles.length === 0) return
+
+      setUploadQueue(imageFiles.map((file) => file.name))
+
+      try {
+        const uploadPromises = imageFiles.map((file) => uploadFile(file))
+        const uploadedAttachments = await Promise.all(uploadPromises)
+        const successfullyUploadedAttachments = uploadedAttachments.filter(
+          (attachment) => attachment !== undefined
+        ) as Array<Attachment>
+
+        setAttachments((currentAttachments) => [
+          ...currentAttachments,
+          ...successfullyUploadedAttachments,
+        ])
+      } catch (error) {
+        console.error("Error uploading pasted images!", error)
       } finally {
         setUploadQueue([])
       }
@@ -260,6 +299,7 @@ export function MultimodalInput({
         placeholder="Send a message..."
         value={input}
         onChange={handleInput}
+        onPaste={handlePaste}
         className={cx(
           "min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl text-base bg-muted",
           className
