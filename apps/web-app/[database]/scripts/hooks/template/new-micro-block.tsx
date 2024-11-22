@@ -21,7 +21,7 @@ export default function MyBlock() {
       <Button onClick={handleClick}>get nodes</Button>
       <hr />
       {treeNodes.map((node) => (
-        <div key={node.id}>{node.name}</div>
+        <div key={node.id}>{node.name || "Untitled"}</div>
       ))}
     </div>
   )
