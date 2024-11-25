@@ -1,4 +1,5 @@
 import { ChevronDownIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,35 +27,34 @@ const ScriptTooltip = ({ children }: { children: React.ReactNode }) => {
 
 export const NewExtensionButton = () => {
   const { handleCreateNewScript } = useNewScript()
+  const { t } = useTranslation()
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button size="xs">
-          New <ChevronDownIcon className="ml-1 h-4 w-4" />
+          {t('common.new')} <ChevronDownIcon className="ml-1 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="overflow-visible">
-        <DropdownMenuLabel>Create New Extension</DropdownMenuLabel>
+        <DropdownMenuLabel>{t('extension.createNew')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="group relative"
           onClick={() => handleCreateNewScript("m_block")}
         >
-          Micro Block <Badge variant="secondary">New</Badge>
+          {t('extension.microBlock')} <Badge variant="secondary">{t('common.badge.new')}</Badge>
           <ScriptTooltip>
-            UI components for customized data display and interaction. Can be
-            referenced in documents, covers, and right panels
+            {t('extension.microBlockDescription')}
           </ScriptTooltip>
         </DropdownMenuItem>
         <DropdownMenuItem
           className="group relative"
           onClick={() => handleCreateNewScript()}
         >
-          Script
+          {t('extension.script')}
           <ScriptTooltip>
-            For custom data processing logic, triggered through the control
-            panel (<kbd>⌘+K</kbd>), can also be used as table Actions
+            {t('extension.scriptDescription')}
           </ScriptTooltip>
         </DropdownMenuItem>
 
@@ -62,19 +62,21 @@ export const NewExtensionButton = () => {
           className="group relative"
           onClick={() => handleCreateNewScript("udf")}
         >
-          UDF
+          {t('extension.udf')}
           <ScriptTooltip>
-            Use JavaScript to create custom calculation functions for use in
-            table Formula fields. If you're not comfortable with SQL
-            expressions, you can use UDF to implement custom calculation logic
+            {t('extension.udfDescription')}
+            <br />
+            <span className="text-red-400">
+              {t('extension.udfWarning')}
+            </span>
           </ScriptTooltip>
         </DropdownMenuItem>
         <DropdownMenuItem
           className="group relative"
           onClick={() => handleCreateNewScript("prompt")}
         >
-          Prompt
-          <ScriptTooltip>Templates for AI model interactions</ScriptTooltip>
+          {t('extension.prompt')}
+          <ScriptTooltip>{t('extension.promptDescription')}</ScriptTooltip>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

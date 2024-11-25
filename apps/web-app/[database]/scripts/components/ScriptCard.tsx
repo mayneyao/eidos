@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { useTranslation } from "react-i18next"
 
 const IconMap = {
   script: SquareCodeIcon,
@@ -51,6 +52,7 @@ export const ScriptCard = ({
   showReload,
   onReload,
 }: ScriptCardProps) => {
+  const { t } = useTranslation()
   const Icon = IconMap[script.type]
 
   return (
@@ -62,7 +64,7 @@ export const ScriptCard = ({
             <h3 className="text-lg font-semibold tracking-tight">
               {script.name}{" "}
               <span className="text-sm text-muted-foreground">
-                v{script.version}
+                {t("extension.version", { version: script.version })}
               </span>
             </h3>
             <p className="text-sm text-muted-foreground">
@@ -82,29 +84,28 @@ export const ScriptCard = ({
         <div className="flex items-center gap-2">
           <Link to={`/${space}/extensions/${script.id}`}>
             <Button size="xs" variant="outline">
-              Details
+              {t("extension.details")}
             </Button>
           </Link>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button size="xs" variant="ghost">
-                Delete
+                {t("common.delete")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
-                  Are you sure you want to delete this script?
+                  {t("extension.deleteScriptConfirm")}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. All data related to this will be
-                  deleted.
+                  {t("extension.deleteScriptDescription")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                 <AlertDialogAction onClick={() => onDelete(script.id)}>
-                  Continue
+                  {t("common.continue")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -123,7 +124,7 @@ export const ScriptCard = ({
               onClick={onReload}
               variant="ghost"
               size="icon"
-              title="Reload Local Script"
+              title={t("extension.reloadLocalScript")}
             >
               <RotateCcwIcon className="h-4 w-4" />
             </Button>

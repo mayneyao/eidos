@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Check, Pencil, Plus, Trash2 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -28,6 +29,7 @@ export const EnvironmentVariables = ({
   envMap,
   onUpdateEnvMap,
 }: EnvironmentVariablesProps) => {
+  const { t } = useTranslation()
   const [newEnvKey, setNewEnvKey] = useState("")
   const [newEnvValue, setNewEnvValue] = useState("")
   const [bulkEnvInput, setBulkEnvInput] = useState("")
@@ -79,9 +81,9 @@ export const EnvironmentVariables = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Environment Variables</CardTitle>
+        <CardTitle>{t("extension.config.environmentVariables")}</CardTitle>
         <CardDescription>
-          Configure environment variables for this block
+          {t("extension.config.environmentVariablesDescription")}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -165,21 +167,21 @@ export const EnvironmentVariables = ({
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">Bulk Add</Button>
+                <Button variant="outline">{t("extension.config.bulkAdd")}</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Bulk Add Environment Variables</DialogTitle>
+                  <DialogTitle>{t("extension.config.bulkAddTitle")}</DialogTitle>
                 </DialogHeader>
                 <div className="flex flex-col gap-4">
                   <Textarea
-                    placeholder="Enter multiple environment variables&#10;Format: KEY=VALUE&#10;Example:&#10;DB_HOST=localhost&#10;DB_PORT=5432"
+                    placeholder={t("extension.config.bulkAddPlaceholder")}
                     value={bulkEnvInput}
                     onChange={(e) => setBulkEnvInput(e.target.value)}
                     className="min-h-[200px]"
                   />
                   <Button onClick={handleBulkAdd} className="self-end">
-                    Add Variables
+                    {t("extension.config.addVariables")}
                   </Button>
                 </div>
               </DialogContent>

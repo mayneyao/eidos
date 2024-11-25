@@ -33,8 +33,10 @@ import { usePlayground } from "@/apps/desktop/hooks"
 import { useRemixPrompt } from "../hooks/use-remix-prompt"
 import { useScript } from "../hooks/use-script"
 import { useEditorStore } from "../stores/editor-store"
+import { useTranslation } from "react-i18next"
 
 export const ExtensionToolbar = () => {
+  const { t } = useTranslation()
   const script = useLoaderData() as IScript
   const { deleteScript, updateScript } = useScript()
   const router = useNavigate()
@@ -56,11 +58,11 @@ export const ExtensionToolbar = () => {
         })
         revalidator.revalidate()
         toast({
-          title: "Code Updated Successfully",
+          title: t("extension.toolbar.codeUpdated"),
         })
       }
     },
-    [revalidator, script, toast, updateScript]
+    [revalidator, script, toast, updateScript, t]
   )
 
   const { space } = useCurrentPathInfo()
@@ -86,10 +88,10 @@ export const ExtensionToolbar = () => {
     const codeToCopy = script.ts_code || script.code
     navigator.clipboard.writeText(codeToCopy)
     toast({
-      title: "Code copied to clipboard",
+      title: t("extension.toolbar.codeCopied"),
       duration: 2000,
     })
-  }, [script.ts_code, script.code, toast])
+  }, [script.ts_code, script.code, toast, t])
 
   const { initializePlayground } = usePlayground({
     onChange: (filename, content, spaceName, blockId) => {
@@ -144,71 +146,62 @@ export const ExtensionToolbar = () => {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogTrigger asChild>
           <Button variant="ghost" size="xs">
-            Delete
+            {t("extension.toolbar.delete")}
           </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Script</DialogTitle>
+            <DialogTitle>{t("extension.toolbar.deleteConfirmTitle")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{script.name}"? This action
-              cannot be undone.
+              {t("extension.toolbar.deleteConfirmDescription", { name: script.name })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteDialog(false)}
-            >
-              Cancel
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              {t("common.cancel")}
             </Button>
             <Button variant="destructive" onClick={handleDeleteScript}>
-              Delete
+              {t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       <Button variant="outline" size="xs" onClick={handleCopyCode}>
         <Copy className="mr-2 h-4 w-4" />
-        Copy
+        {t("extension.toolbar.copy")}
       </Button>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="xs">
             <LayoutDashboard className="mr-2 h-4 w-4" />
-            Layout
+            {t("extension.toolbar.layout")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem onClick={() => setLayoutMode("full")}>
-            Full View
+            {t("extension.toolbar.layoutFull")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setLayoutMode("chat-preview")}>
-            Chat + Preview
+            {t("extension.toolbar.layoutChatPreview")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setLayoutMode("chat-code")}>
-            Chat + Code
+            {t("extension.toolbar.layoutChatCode")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setLayoutMode("code-preview")}>
-            Code + Preview
+            {t("extension.toolbar.layoutCodePreview")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       {script.type === "m_block" && (
-        <Button
-          size="xs"
-          onClick={handleOpenInCursor}
-          disabled={!isDesktopMode}
-        >
+        <Button size="xs" onClick={handleOpenInCursor} disabled={!isDesktopMode}>
           <BlendIcon className="mr-2 h-4 w-4" />
-          Edit in Cursor
-          {!isDesktopMode && <Badge variant="secondary">Desktop Only</Badge>}
+          {t("extension.toolbar.editInCursor")}
+          {!isDesktopMode && (
+            <Badge variant="secondary">{t("extension.toolbar.desktopOnly")}</Badge>
+          )}
         </Button>
       )}
-      {/* <Button type="submit" onClick={manualSave} size="xs">
-        Update
-      </Button> */}
     </div>
   )
 }

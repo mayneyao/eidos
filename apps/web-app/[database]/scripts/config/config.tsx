@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useLoaderData, useRevalidator } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,6 +26,7 @@ export const ExtensionConfig = () => {
   const revalidator = useRevalidator()
   const { toast } = useToast()
   const { updateScript } = useScript()
+  const { t } = useTranslation()
 
   const [formData, setFormData] = useState<Partial<IScript>>({
     name: script.name,
@@ -72,19 +74,19 @@ export const ExtensionConfig = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div>
-            <CardTitle>Basic Information</CardTitle>
-            <CardDescription>Configure basic settings</CardDescription>
+            <CardTitle>{t("extension.config.basicInfo")}</CardTitle>
+            <CardDescription>{t("extension.config.basicInfoDescription")}</CardDescription>
           </div>
           {hasChanges() && (
             <div className="flex items-center gap-2">
               <p className="text-sm text-muted-foreground">
-                You have unsaved changes
+                {t("extension.config.unsavedChanges")}
               </p>
               <Button variant="outline" size="xs" onClick={resetForm}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button size="xs" onClick={handleSubmit}>
-                Save Changes
+                {t("common.update")}
               </Button>
             </div>
           )}
@@ -105,7 +107,7 @@ export const ExtensionConfig = () => {
             </div>
             <div className="grid grid-cols-4 items-center gap-2">
               <label htmlFor="name" className="text-sm font-medium">
-                Name
+                {t("common.name")}
               </label>
               <Input
                 id="name"
@@ -118,7 +120,7 @@ export const ExtensionConfig = () => {
             </div>
             <div className="grid grid-cols-4 items-center gap-2">
               <label htmlFor="description" className="text-sm font-medium">
-                Description
+                {t("common.description")}
               </label>
               <Textarea
                 id="description"
