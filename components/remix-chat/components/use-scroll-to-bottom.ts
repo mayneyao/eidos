@@ -12,8 +12,15 @@ export function useScrollToBottom<T extends HTMLElement>(): [
     const end = endRef.current;
 
     if (container && end) {
-      const observer = new MutationObserver(() => {
-        end.scrollIntoView({ behavior: 'instant', block: 'end' });
+      const observer = new MutationObserver((mutations) => {
+        const isDetailsToggle = mutations.some(mutation => 
+          mutation.target instanceof Element && 
+          (mutation.target.closest('details') !== null)
+        );
+
+        if (!isDetailsToggle) {
+          end.scrollIntoView({ behavior: 'instant', block: 'end' });
+        }
       });
 
       observer.observe(container, {

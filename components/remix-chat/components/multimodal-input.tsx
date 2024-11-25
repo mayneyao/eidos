@@ -68,7 +68,7 @@ export function MultimodalInput({
     chatRequestOptions?: ChatRequestOptions
   ) => void
   className?: string
-  type: IScript["type"]
+  type?: IScript["type"]
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { width } = useWindowSize()
@@ -87,7 +87,7 @@ export function MultimodalInput({
       }px`
     }
   }
-  const suggestedActions = getSuggestedActions(type)
+  const suggestedActions = getSuggestedActions(type ?? "script")
 
   const [localStorageInput, setLocalStorageInput] = useLocalStorage("input", "")
 

@@ -6,9 +6,7 @@ export class AppUpdater {
     constructor(private mainWindow: BrowserWindow) {
         log.transports.file.level = 'info';
         autoUpdater.logger = log;
-
-        autoUpdater.allowPrerelease = true;
-
+        // autoUpdater.allowPrerelease = true;
         this.setupAutoUpdater();
     }
 
