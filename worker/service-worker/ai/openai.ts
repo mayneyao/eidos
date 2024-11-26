@@ -15,7 +15,7 @@ import { IData } from "./interface";
 export async function handleOpenAI(
   data: IData,
   ctx?: {
-    getDataspace: (space: string) => Promise<DataSpace>
+    getDataspace: (space: string) => Promise<DataSpace | null>
   }
 ) {
   // only use functions on desktop app
@@ -57,7 +57,7 @@ export async function handleOpenAI(
     return new Response('No user message found', { status: 400 });
   }
 
-  const dataspace = await ctx?.getDataspace(space)
+  const dataspace = space && await ctx?.getDataspace(space)
 
   if (dataspace) {
     const chat = await getChatById(id, dataspace);

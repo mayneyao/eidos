@@ -6,7 +6,7 @@ import { handleWebLLM } from "./webllm"
 
 export const pathname = "/api/chat"
 export default async function handle(event: FetchEvent, ctx?: {
-  getDataspace: (space: string) => Promise<DataSpace>
+  getDataspace: (space: string) => Promise<DataSpace | null>
 }) {
   const data = (await event.request.json()) as IData
   const { type } = data

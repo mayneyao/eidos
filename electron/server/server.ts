@@ -58,7 +58,7 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
             request: c.req,
             respondWith: (response: Response) => response,
         } as unknown as FetchEvent, {
-            getDataspace: (space) => getOrSetDataSpace(space)
+            getDataspace: (space) => space ? getOrSetDataSpace(space) : Promise.resolve(null)
         });
         return response;
     });
