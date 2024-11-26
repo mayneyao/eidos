@@ -45,6 +45,8 @@ import { RowsManager } from "./sdk/rows"
 import { TableManager } from "./sdk/table"
 import { withSqlite3AllUDF } from "./udf"
 import { BaseServerDatabase } from "@/lib/sqlite/interface"
+import { ChatTable } from "./meta-table/chat"
+import { MessageTable } from "./meta-table/message"
 
 export type EidosTable =
   | DocTable
@@ -75,6 +77,8 @@ export class DataSpace {
   column: ColumnTable
   reference: ReferenceTable
   embedding: EmbeddingTable
+  chat: ChatTable
+  message: MessageTable
   file: FileTable
   dataChangeTrigger: DataChangeTrigger
   linkRelationUpdater: LinkRelationUpdater
@@ -148,6 +152,7 @@ export class DataSpace {
       this,
       context.setInterval
     )
+    // meta table
     this.doc = new DocTable(this)
     this.action = new ActionTable(this)
     this.script = new ScriptTable(this)
@@ -157,6 +162,8 @@ export class DataSpace {
     this.column = new ColumnTable(this)
     this.embedding = new EmbeddingTable(this)
     this.reference = new ReferenceTable(this)
+    this.chat = new ChatTable(this)
+    this.message = new MessageTable(this)
     //
     this.allTables = [
       this.doc,
@@ -168,6 +175,8 @@ export class DataSpace {
       this.embedding,
       this.file,
       this.reference,
+      this.chat,
+      this.message,
     ]
     this.initMetaTable()
 
@@ -559,7 +568,10 @@ export class DataSpace {
   public async listScripts(status: ScriptStatus = "all") {
     const query =
       status === "all" ? undefined : { enabled: status === "enabled" }
-    return this.script.list(query)
+    return this.script.list(query, {
+      orderBy: "created_at",
+      order: "DESC",
+    })
   }
 
   public async getScript(id: string) {

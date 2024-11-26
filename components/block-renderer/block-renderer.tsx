@@ -61,6 +61,13 @@ export const BlockRenderer = React.forwardRef<
         return
       }
       const { thirdPartyLibs, uiLibs } = getAllLibs(code)
+      // preload some libs
+      thirdPartyLibs.push(
+        "@radix-ui/react-toast",
+        "class-variance-authority",
+        "lucide-react"
+      )
+      uiLibs.push("toast", "toaster", "use-toast")
       setDependencies(thirdPartyLibs)
       setUiComponents(uiLibs)
       generateImportMap(thirdPartyLibs, uiLibs).then(({ importMap }) => {
@@ -117,8 +124,9 @@ export const BlockRenderer = React.forwardRef<
         <body>
           <div id="root" style="height: ${rootHeight}"></div>
           <script type="module">
-            import React from 'react';
+            import * as React from 'react';
             import { createRoot } from 'react-dom/client';
+            import { Toaster } from "@/components/ui/toaster"
             
             let retryCount = 0;
             const maxRetries = 3;
@@ -149,9 +157,17 @@ export const BlockRenderer = React.forwardRef<
                 }
 
                 const root = createRoot(document.getElementById('root'));
-                root.render(React.createElement(MyComponent, ${JSON.stringify(
-                  defaultProps
-                )}));
+                root.render(React.createElement(
+                  React.Fragment,
+                  null,
+                  [
+                    React.createElement(MyComponent, ${JSON.stringify(
+                      defaultProps
+                    )}),
+                    React.createElement('div', { id: 'portal-root' }),
+                    React.createElement(Toaster)
+                  ]
+                ));
               } catch (err) {
                 if (retryCount < maxRetries) {
                   retryCount++;

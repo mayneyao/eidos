@@ -7,7 +7,6 @@ import { DocTableName } from "@/lib/sqlite/const"
 import { BaseTable, BaseTableImpl } from "./base"
 import { _convertMarkdown2State } from "@/hooks/use-doc-editor"
 
-declare var self: DedicatedWorkerGlobalScope
 
 export interface IDoc {
   id: string

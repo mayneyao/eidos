@@ -274,6 +274,11 @@ export class EidosFileSystemManager {
     return file
   }
 
+  getFileText = async (_paths: string[]) => {
+    const file = await this.getFile(_paths)
+    return await file.text()
+  }
+
   getDocContent = async (_paths: string[]) => {
     const file = await this.getFile(_paths)
     return await file.text()

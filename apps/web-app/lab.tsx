@@ -1,4 +1,5 @@
 import { fileChecksum } from "@/lib/web/crypto"
+import { CommandInputEditor } from "@/components/command-editor/Editor"
 
 export const LabPage = () => {
   // fileChecksum
@@ -6,7 +7,7 @@ export const LabPage = () => {
     if (!file) {
       return
     }
-    
+
     // time it takes to calculate the hash
     console.time("fileChecksum")
     const hash = await fileChecksum(file)
@@ -16,6 +17,8 @@ export const LabPage = () => {
 
   return (
     <div>
+      <CommandInputEditor />
+
       <input
         type="file"
         onChange={(e) => handleFileUpload(e.target.files?.[0])}

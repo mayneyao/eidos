@@ -10,11 +10,15 @@ export const useRemixPrompt = () => {
     const { sqlite } = useSqlite()
 
     let bindingsPrompt = `
-If a table is named MUSIC, you can use \`eidos.currentSpace.MUSIC.rows.query\` to query the table directly.
+If a table is named MY_TABLE, you can use \`eidos.currentSpace.MY_TABLE.rows.query\` to query the table directly.
 
 here are some tables you can use:
 `
-    const getRemixPrompt = async (bindings?: Record<string, { type: "table", value: string }>) => {
+    const getRemixPrompt = async (
+        bindings?: Record<string, { type: "table", value: string }>,
+        userCode?: string,
+        defaultPrompt?: string
+    ) => {
         for (const [key, value] of Object.entries(bindings ?? {})) {
             const fields = await sqlite?.column.list({ table_name: getRawTableNameById(value.value) })
             bindingsPrompt += `### ${key}\n`
@@ -24,7 +28,14 @@ here are some tables you can use:
             })
             bindingsPrompt += '\n'
         }
-        return remixPrompt.replace("{{bindings}}", bindingsPrompt)
+        let prompt = defaultPrompt ?? remixPrompt
+        return prompt.replace("{{bindings}}", bindingsPrompt).replace("{{userCode}}", `
+            <userCode>
+            \`\`\`jsx
+            ${userCode}
+            \`\`\`
+            </userCode>
+            ` ?? "")
     }
     return {
         getRemixPrompt

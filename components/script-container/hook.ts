@@ -20,8 +20,9 @@ export const useScriptFunction = () => {
     code: string
     command: string
     id: string
+    bindings?: Record<string, any>
   }) => {
-    const { input, context, code, id, command = "default" } = props
+    const { input, context, code, id, command = "default", bindings } = props
     const channel = new MessageChannel()
     scriptContainerRef?.current?.contentWindow?.postMessage(
       {
@@ -32,6 +33,7 @@ export const useScriptFunction = () => {
           command,
           code,
           id,
+          bindings,
         },
       },
       "*",

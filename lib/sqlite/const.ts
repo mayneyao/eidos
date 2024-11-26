@@ -31,3 +31,9 @@ export const EmbeddingTableName = `eidos__embeddings`
 
 // store field reference relation
 export const ReferenceTableName = `eidos__references`
+
+// store chat
+export const ChatTableName = `eidos__chats`
+
+// store message
+export const MessageTableName = `eidos__messages`

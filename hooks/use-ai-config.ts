@@ -50,10 +50,15 @@ export const useAiConfig = () => {
     }
   }, [aiConfig])
 
+  const codingModel = useMemo(() => {
+    return aiConfig.codingModel
+  }, [aiConfig])
+
   return {
     getConfigByModel,
     hasAvailableModels,
     findFirstAvailableModel,
-    findAvailableModel
+    findAvailableModel,
+    codingModel,
   }
 }

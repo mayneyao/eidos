@@ -71,12 +71,25 @@ module.exports = {
             backgroundPosition: "0% 50%",
           },
         },
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+        "border-pulse": {
+          "0%, 100%": { borderColor: "var(--border)", opacity: 1 },
+          "50%": { borderColor: "var(--border)", opacity: 0.5 },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         gradient: "gradient 8s linear infinite",
         "border-flicker": "border-flicker 3s linear infinite",
+        shimmer: "shimmer 1.5s ease-in-out infinite",
+        "border-pulse": "border-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        gradientBorder: "gradientBorder 3s linear infinite",
+        'spin-slow': 'spin 3s linear infinite',
+        'spin-slower': 'spin 6s linear infinite',
       },
       typography: {
         DEFAULT: {

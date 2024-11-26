@@ -66,8 +66,8 @@
             )
           }
           if (method == "table" || /^[A-Z][A-Za-z0-9_]*$/.test(method)) {
-            return function (id) {
-              const tableId = /^[A-Z]/.test(method) ? method : id;
+            return (function (id) {
+              const tableId = /^[A-Z]/.test(method) ? method : id
               return new Proxy(
                 {},
                 {
@@ -102,7 +102,7 @@
                   },
                 }
               )
-            }()
+            })()
           }
           if (
             [
@@ -186,7 +186,10 @@
           }
         }
         if (prop === "currentSpace") {
-          return makeSpaceProxy("${{currentSpace}}", window.__EIDOS_BINDINGS__ || {})
+          return makeSpaceProxy(
+            "${{currentSpace}}",
+            window.__EIDOS_BINDINGS__ || {}
+          )
         }
         if (prop === "utils") {
           return {
@@ -213,7 +216,10 @@
     const { type, data } = event.data
     const port = event.ports[0]
     if (type === "ScriptFunctionCall") {
-      const { input, context, code, command } = data
+      const { input, context, code, command, bindings } = data
+      for (const key in bindings) {
+        window.__EIDOS_BINDINGS__ = bindings
+      }
       try {
         const module = await loadScriptFunction(code)
         const res = await module[command](input, context)

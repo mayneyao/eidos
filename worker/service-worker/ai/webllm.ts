@@ -2,9 +2,11 @@ import type {
   ChatCompletionChunk,
   ChatCompletionRequestStreaming,
 } from "@mlc-ai/web-llm"
-import { OpenAIStream, StreamingTextResponse } from "ai"
 
 import { tools } from "@/lib/ai/functions"
+import { openai } from '@ai-sdk/openai';
+import { streamText } from 'ai';
+
 
 declare var self: ServiceWorkerGlobalScope
 
@@ -18,9 +20,9 @@ export async function handleWebLLM(req: any) {
     messages: [
       systemPrompt?.length
         ? {
-            role: "system" as const,
-            content: systemPrompt,
-          }
+          role: "system" as const,
+          content: systemPrompt,
+        }
         : undefined,
       ...messages,
     ].filter(Boolean),
@@ -60,6 +62,5 @@ export async function handleWebLLM(req: any) {
       }
     },
   }
-  const stream = OpenAIStream(asyncIterable as any)
-  return new StreamingTextResponse(stream)
+
 }

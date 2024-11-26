@@ -1,5 +1,5 @@
 {
-    "extends": "./electron-builder.json",
+    "extends": "./electron/electron-builder.json",
     "afterSign": null,
     "mac": {
         "hardenedRuntime": false,

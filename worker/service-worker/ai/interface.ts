@@ -9,4 +9,7 @@ export interface IData {
   systemPrompt: string
   model: string
   modelId: string
+  id: string // chat id
+  space: string // dataspace name
+  projectId?: string
 }

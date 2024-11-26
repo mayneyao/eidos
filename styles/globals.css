@@ -9,6 +9,8 @@
   /* Thumb and track colors */
 }
 
+
+
 #root {
   overflow: hidden;
 }
@@ -20,7 +22,7 @@
 /* fix prism code wrap */
 pre[class*="language-"],
 code[class*="language-"] {
-  white-space: normal !important;
+  /* white-space: normal !important; */
   overflow: auto;
   word-break: break-word !important;
 }
@@ -37,14 +39,12 @@ html {
   z-index: 9;
 }
 
-
 #title-bar-mac {
   margin-top: env(titlebar-area-y, 0);
   height: env(titlebar-area-height, 32px);
   width: env(titlebar-area-width, 100%);
   z-index: 9;
 }
-
 
 .drag-region {
   -webkit-app-region: drag;

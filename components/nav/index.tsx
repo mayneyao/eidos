@@ -1,19 +1,24 @@
 import { Menu, PanelRightIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
+import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
+import { Button } from "@/components/ui/button"
 import { isDesktopMode } from "@/lib/env"
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/web/helper"
-import { Button } from "@/components/ui/button"
-import { useSidebar } from "@/components/ui/sidebar"
-import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
 
 import { BreadCrumb } from "./breadcrumb"
 import { NavDropdownMenu } from "./dropdown-menu"
 import { NavStatus } from "./nav-status"
 
-export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
+export const Nav = ({
+  showMenu = true,
+  children,
+}: {
+  showMenu?: boolean
+  children?: React.ReactNode
+}) => {
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
   const {
@@ -72,9 +77,7 @@ export const Nav = ({ showMenu = true }: { showMenu?: boolean }) => {
         </Button>
       )}
 
-      <div className="hidden md:block">
-        <BreadCrumb />
-      </div>
+      <div className="hidden md:block">{children || <BreadCrumb />}</div>
       <div className="h-full grow" id="drag-region" />
       <div className="mr-3 flex items-center justify-between gap-2">
         <NavStatus />

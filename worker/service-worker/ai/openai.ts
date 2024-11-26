@@ -5,17 +5,21 @@ import { allFunctions } from "@/lib/ai/functions";
 
 // import { queryEmbedding } from "../routes/lib"
 import { isDesktopMode } from "@/lib/env";
+import { uuidv7 } from "@/lib/utils";
+import { DataSpace } from "@/worker/web-worker/DataSpace";
+import { ChatMessage } from "@/worker/web-worker/meta-table/message";
+import { getChatById, getMostRecentUserMessage, saveChat, saveMessages } from "./helper";
 import { IData } from "./interface";
 
 
 export async function handleOpenAI(
   data: IData,
-  options?: {
-    useFunctions: boolean
+  ctx?: {
+    getDataspace: (space: string) => Promise<DataSpace>
   }
 ) {
   // only use functions on desktop app
-  const { useFunctions = isDesktopMode } = options || {}
+  const useFunctions = isDesktopMode
   const {
     messages,
     apiKey,
@@ -23,6 +27,9 @@ export async function handleOpenAI(
     systemPrompt,
     model: modelAndProvider,
     // currentPreviewFile,
+    space,
+    id,
+    projectId,
   } = data
 
   const model = modelAndProvider.split("@")[0]
@@ -44,6 +51,34 @@ export async function handleOpenAI(
     ]
   }
 
+  const coreMessages = convertToCoreMessages(newMsgs);
+  const userMessage = getMostRecentUserMessage(coreMessages);
+  if (!userMessage) {
+    return new Response('No user message found', { status: 400 });
+  }
+
+  const dataspace = await ctx?.getDataspace(space)
+
+  if (dataspace) {
+    const chat = await getChatById(id, dataspace);
+    console.log("userMessage", {
+      userMessage,
+      space,
+      id,
+      chat,
+    })
+    if (!chat) {
+      // const title = await generateTitleFromUserMessage({ message: userMessage as CoreUserMessage, model: openai(model ?? "gpt-3.5-turbo-0125") });
+      await saveChat({ id, projectId }, dataspace);
+    }
+
+    await saveMessages({
+      messages: [
+        { ...userMessage, id: uuidv7(), chat_id: id } as ChatMessage,
+      ],
+    }, dataspace);
+  }
+
   const _tools: Record<string, CoreTool> = {}
   allFunctions.forEach((f) => {
     _tools[f.name] = {
@@ -51,9 +86,26 @@ export async function handleOpenAI(
       parameters: f.schema
     }
   })
+
   let request: Parameters<typeof streamText>[0] = {
     model: openai(model ?? "gpt-3.5-turbo-0125"),
-    messages: convertToCoreMessages(newMsgs as any),
+    messages: coreMessages,
+    onFinish: async ({ text }) => {
+      try {
+        if (dataspace) {
+          await saveMessages({
+            messages: [{
+              id: uuidv7(),
+              chat_id: id,
+              role: "assistant",
+              content: text,
+            }],
+          }, dataspace);
+        }
+      } catch (error) {
+        console.error('Failed to save chat');
+      }
+    },
   }
   if (useFunctions) {
     request = {
@@ -61,6 +113,6 @@ export async function handleOpenAI(
       tools: _tools,
     }
   }
-  const result = await streamText(request)
-  return result.toAIStreamResponse()
+  const result = streamText(request)
+  return result.toDataStreamResponse()
 }

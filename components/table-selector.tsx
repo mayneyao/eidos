@@ -19,12 +19,12 @@ export const TableSelector = ({
   return (
     <Select onValueChange={onSelect} value={value}>
       <SelectTrigger className="w-[200px]">
-        <SelectValue placeholder="选择一个表格..." />
+        <SelectValue placeholder="select a table..." />
       </SelectTrigger>
       <SelectContent>
         {tables.map((table) => (
           <SelectItem key={table.id} value={table.id}>
-            {table.name ?? "Untitled"}
+            {table.name || "Untitled"}
           </SelectItem>
         ))}
       </SelectContent>

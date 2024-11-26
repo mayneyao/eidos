@@ -26,8 +26,11 @@ import { getRawTableNameById } from "@/lib/utils"
 
 import { useTablesUiColumns } from "../hooks/use-all-table-fields"
 import { useScript } from "../hooks/use-script"
+import { Bindings } from "./Bindings"
+import { useTranslation } from "react-i18next"
 
 export const ScriptConfig = () => {
+  const { t } = useTranslation()
   const script = useLoaderData() as IScript
   const allNodes = useAllNodes()
   const allTables = allNodes.filter((node) => node.type === "table")
@@ -42,11 +45,30 @@ export const ScriptConfig = () => {
   const revalidator = useRevalidator()
   const { toast } = useToast()
 
+  const [bindings, setBindings] = useState<
+    Record<string, { type: "table"; value: string }>
+  >(script.bindings || {})
+
   const tables = useMemo(() => {
     return Object.values(fieldsMap || {}).map((fieldMap) => fieldMap.name)
   }, [fieldsMap])
   const { uiColumnsMap } = useTablesUiColumns(tables, space)
   const { updateScript } = useScript()
+
+  const handleUpdateBindings = async (
+    newBindings: Record<string, { type: "table"; value: string }>
+  ) => {
+    setBindings(newBindings)
+    await updateScript({
+      ...script,
+      bindings: newBindings,
+    })
+    revalidator.revalidate()
+    toast({
+      title: "Bindings Updated Successfully",
+    })
+  }
+
   const handleSave = async () => {
     await updateScript({
       ...script,
@@ -95,8 +117,8 @@ export const ScriptConfig = () => {
       {Boolean(script.tables?.length) && (
         <Card>
           <CardHeader>
-            <CardTitle>Table Map</CardTitle>
-            <CardDescription>This script need to bind tables</CardDescription>
+            <CardTitle>{t("extension.config.tableMap")}</CardTitle>
+            <CardDescription>{t("extension.config.tableMapDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
             {script.tables?.map((table) => {
@@ -112,13 +134,13 @@ export const ScriptConfig = () => {
                       }
                     >
                       <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Bind Table" />
+                        <SelectValue placeholder={t("extension.config.bindTable")} />
                       </SelectTrigger>
                       <SelectContent>
                         {allTables.map((table) => {
                           return (
                             <SelectItem value={table.id} key={table.id}>
-                              {table.name || "Untitled"}
+                              {table.name || t("common.untitled")}
                             </SelectItem>
                           )
                         })}
@@ -127,7 +149,9 @@ export const ScriptConfig = () => {
                   </div>
                   {fieldsMap?.[table.name] && (
                     <div className="ml-8">
-                      <h2 className="mb-2 text-lg font-medium">Field Map</h2>
+                      <h2 className="mb-2 text-lg font-medium">
+                        {t("extension.config.fieldMap")}
+                      </h2>
                       {table.fields.map((field) => {
                         return (
                           <div key={field.name}>
@@ -179,13 +203,14 @@ export const ScriptConfig = () => {
           </CardContent>
         </Card>
       )}
+
       {Boolean(script.envs?.length) && (
         <>
           <Card>
             <CardHeader>
-              <CardTitle>Environment Variables</CardTitle>
+              <CardTitle>{t("extension.config.environmentVariables")}</CardTitle>
               <CardDescription>
-                This script need to configure environment variables
+                {t("extension.config.scriptNeedsEnvVars")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -216,9 +241,9 @@ export const ScriptConfig = () => {
           </Card>
         </>
       )}
-
+      <Bindings bindings={bindings} onUpdateBindings={handleUpdateBindings} />
       <div className="mt-4">
-        <Button onClick={handleSave}>Update</Button>
+        <Button onClick={handleSave}>{t("common.update")}</Button>
       </div>
     </div>
   )

@@ -12,7 +12,7 @@ type LLMCallInput = {
   msgIndex: number
 }
 
-type Input = Record<string, any> & LLMCallInput
+type Input<T = Record<string, any>> = T & LLMCallInput
 
 type CallType = "TableAction" | "ChatAction" | "CmdkAction"
 

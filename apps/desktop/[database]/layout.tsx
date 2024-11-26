@@ -1,7 +1,18 @@
-import { useLocalStorageState } from "ahooks"
 import { Suspense, lazy, useEffect } from "react"
-import { Outlet, useLocation, useNavigate } from "react-router-dom"
+import { useLocalStorageState } from "ahooks"
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom"
 
+import { EidosDataEventChannelName } from "@/lib/const"
+import { useAppRuntimeStore } from "@/lib/store/runtime-store"
+import { cn, isStandaloneBlocksPath } from "@/lib/utils"
+import { useActivation } from "@/hooks/use-activation"
+import { useEidosFileSystemManager } from "@/hooks/use-fs"
+import { useSqlite } from "@/hooks/use-sqlite"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 import { BlockApp } from "@/components/block-renderer/block-app"
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
@@ -10,17 +21,7 @@ import { Nav } from "@/components/nav"
 import { RightPanelNav } from "@/components/nav/right-panel-nav"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
-import { useActivation } from "@/hooks/use-activation"
-import { useEidosFileSystemManager } from "@/hooks/use-fs"
-import { useSqlite } from "@/hooks/use-sqlite"
-import { EidosDataEventChannelName } from "@/lib/const"
-import { useAppRuntimeStore } from "@/lib/store/runtime-store"
-import { cn, isStandaloneBlocksPath } from "@/lib/utils"
+import { ScriptBreadcrumb } from "@/apps/web-app/[database]/scripts/components/extension-breadcrumb"
 
 import { useLayoutInit } from "../../web-app/[database]/hook"
 import { useAppsStore, useSpaceAppStore } from "../../web-app/[database]/store"
@@ -38,6 +39,8 @@ export function DesktopSpaceLayout() {
   const navigate = useNavigate()
   const { isActivated } = useActivation()
   const isBlocksPath = isStandaloneBlocksPath(useLocation().pathname)
+
+  const { scriptId } = useParams()
 
   useLayoutInit()
   const { efsManager } = useEidosFileSystemManager()
@@ -117,7 +120,9 @@ export function DesktopSpaceLayout() {
               minSize={50}
             >
               <div className="flex flex-col h-full min-w-0">
-                <Nav />
+                <Nav>
+                  {scriptId && <ScriptBreadcrumb scriptId={scriptId} />}
+                </Nav>
                 <div
                   id="main-content"
                   className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
