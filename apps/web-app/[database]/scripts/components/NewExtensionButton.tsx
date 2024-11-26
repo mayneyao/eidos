@@ -62,7 +62,7 @@ export const NewExtensionButton = () => {
           className="group relative"
           onClick={() => handleCreateNewScript("udf")}
         >
-          {t('extension.udf')}
+          {t('extension.udf')} <Badge variant="secondary">{t('common.badge.alpha')}</Badge>
           <ScriptTooltip>
             {t('extension.udfDescription')}
             <br />

@@ -11,6 +11,8 @@
     "common.apiKey": "API 密钥",
     "common.areYouAbsolutelySure": "您确定要这样做吗？",
     "common.badge.new": "新特性",
+    "common.badge.alpha": "Alpha",
+    "common.badge.beta": "Beta",
     "common.cancel": "取消",
     "common.continue": "继续",
     "common.delete": "删除",

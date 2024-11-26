@@ -11,6 +11,8 @@
     "common.apiKey": "API Key",
     "common.areYouAbsolutelySure": "Are you absolutely sure?",
     "common.badge.new": "New",
+    "common.badge.alpha": "Alpha",
+    "common.badge.beta": "Beta",
     "common.cancel": "Cancel",
     "common.continue": "Continue",
     "common.delete": "Delete",
