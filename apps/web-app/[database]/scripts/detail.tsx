@@ -59,7 +59,7 @@ export const ScriptDetailPage = () => {
     (layoutMode === "full" || layoutMode.includes("preview")) &&
     script.type === "m_block"
   const showCode = layoutMode === "full" || layoutMode.includes("code")
-  const showChat = layoutMode === "full" || layoutMode.includes("chat")
+  const showChat = (layoutMode === "full" || layoutMode.includes("chat")) && (script.type !== "prompt" && script.type !== "udf")
 
   useEffect(() => {
     setCurrentCompiledDraftCode(script.code)

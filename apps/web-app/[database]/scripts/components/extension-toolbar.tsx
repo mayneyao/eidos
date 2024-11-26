@@ -69,6 +69,8 @@ export const ExtensionToolbar = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const { layoutMode, setLayoutMode } = useEditorStore()
 
+  const disableChatLayout = script.type == "udf" || script.type == "prompt"
+
   const handleDeleteScript = async () => {
     await deleteScript(script.id)
     setShowDeleteDialog(false)
@@ -179,13 +181,13 @@ export const ExtensionToolbar = () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuItem onClick={() => setLayoutMode("full")}>
+          <DropdownMenuItem onClick={() => setLayoutMode("full")} disabled={disableChatLayout}>
             {t("extension.toolbar.layoutFull")}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setLayoutMode("chat-preview")}>
+          <DropdownMenuItem onClick={() => setLayoutMode("chat-preview")} disabled={disableChatLayout}>
             {t("extension.toolbar.layoutChatPreview")}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setLayoutMode("chat-code")}>
+          <DropdownMenuItem onClick={() => setLayoutMode("chat-code")} disabled={disableChatLayout}>
             {t("extension.toolbar.layoutChatCode")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setLayoutMode("code-preview")}>
