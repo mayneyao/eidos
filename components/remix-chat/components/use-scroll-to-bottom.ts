@@ -13,12 +13,13 @@ export function useScrollToBottom<T extends HTMLElement>(): [
 
     if (container && end) {
       const observer = new MutationObserver((mutations) => {
-        const isDetailsToggle = mutations.some(mutation => 
-          mutation.target instanceof Element && 
-          (mutation.target.closest('details') !== null)
+        const shouldIgnore = mutations.some(mutation =>
+          mutation.target instanceof Element &&
+          (mutation.target.closest('details') !== null ||
+            mutation.target.closest('[role="message-actions"]') !== null)
         );
 
-        if (!isDetailsToggle) {
+        if (!shouldIgnore) {
           end.scrollIntoView({ behavior: 'instant', block: 'end' });
         }
       });

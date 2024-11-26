@@ -31,6 +31,11 @@ export class BaseTableImpl<T = any> {
     return data
   }
 
+  async del(id: string, db = this.dataSpace.db): Promise<boolean> {
+    this.dataSpace.syncExec2(`DELETE FROM ${this.name} WHERE id = ?;`, [id], db)
+    return true
+  }
+
   async delBy(data: Partial<T>, db = this.dataSpace.db): Promise<boolean> {
     const { deleteKPlaceholder, values } = this.transformData(data)
     this.dataSpace.syncExec2(
@@ -77,7 +82,7 @@ export class BaseTableImpl<T = any> {
     }
   }
 
-  async add(data: T, db = this.dataSpace.db): Promise<T> {
+  async add(data: Partial<T>, db = this.dataSpace.db): Promise<T> {
     const { insertKPlaceholder, insertVPlaceholder, values } =
       this.transformData(data)
     this.dataSpace.syncExec2(
@@ -85,7 +90,7 @@ export class BaseTableImpl<T = any> {
       values,
       db
     )
-    return data
+    return data as T
   }
 
   async set(id: string, data: Partial<T>): Promise<boolean> {
@@ -98,7 +103,7 @@ export class BaseTableImpl<T = any> {
   }
 
   public async list(
-    query?: Record<string, any>,
+    query?: Partial<T>,
     opts?: {
       limit?: number
       offset?: number

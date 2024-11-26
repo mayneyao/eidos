@@ -2,9 +2,12 @@ import { motion } from "framer-motion"
 import { BlocksIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
+import { useAiConfig } from "@/hooks/use-ai-config"
+
 import { MessageIcon } from "./icons"
 
 export const Overview = () => {
+  const { codingModel, findFirstAvailableModel } = useAiConfig()
   return (
     <motion.div
       key="overview"
@@ -23,10 +26,20 @@ export const Overview = () => {
         <p>
           Build your own extensions with AI. This will use your configured{" "}
           <Link to="/settings/ai#model-preferences" className="underline">
-            coding model
+            coding model({codingModel ?? findFirstAvailableModel()})
           </Link>{" "}
           to generate code.
         </p>
+        {!codingModel && (
+          <p className="text-sm text-gray-500">
+            No coding model selected. It will use the first available model.
+            Please select a coding model in the{" "}
+            <Link to="/settings/ai#model-preferences" className="underline">
+              settings
+            </Link>{" "}
+            for better results.
+          </p>
+        )}
       </div>
     </motion.div>
   )

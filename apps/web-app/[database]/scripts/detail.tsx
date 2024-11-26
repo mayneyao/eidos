@@ -21,6 +21,7 @@ import { ExtensionToolbar } from "./components/extension-toolbar"
 import { ExtensionConfig } from "./config/config"
 import { ScriptSandbox } from "./editor/script-sandbox"
 import { getEditorLanguage } from "./helper"
+import { useExtensionChatHistory } from "./hooks/use-extension-chat-history"
 import { useScript } from "./hooks/use-script"
 import { useEditorStore } from "./stores/editor-store"
 
@@ -130,10 +131,7 @@ export const ScriptDetailPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get("tab") || "basic"
 
-  const { chatHistory, isRemixMode, clearChatHistory } = useEditorStore()
-  useEffect(() => {
-    clearChatHistory()
-  }, [script.id])
+  const { chatHistory, chatId } = useExtensionChatHistory(script.id)
 
   return (
     <Tabs
@@ -165,7 +163,7 @@ export const ScriptDetailPage = () => {
                   {showChat && (
                     <div className="flex-1 h-full overflow-y-auto border-r">
                       <Chat
-                        id={script.id}
+                        id={chatId}
                         scriptId={script.id}
                         initialMessages={chatHistory}
                         selectedModelId={""}

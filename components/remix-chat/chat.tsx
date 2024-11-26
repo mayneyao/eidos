@@ -10,6 +10,7 @@ import { useWindowSize } from "usehooks-ts"
 import scriptPrompt from "@/lib/v3/prompts/built-in-remix-prompt-for-script.md?raw"
 import builtInRemixPrompt from "@/lib/v3/prompts/built-in-remix-prompt.md?raw"
 import { useAiConfig } from "@/hooks/use-ai-config"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useMblock } from "@/hooks/use-mblock"
 import { useRemixPrompt } from "@/apps/web-app/[database]/scripts/hooks/use-remix-prompt"
 import { useEditorStore } from "@/apps/web-app/[database]/scripts/stores/editor-store"
@@ -34,7 +35,8 @@ export function Chat({
   selectedModelId: string
 }) {
   const { mutate } = useSWRConfig()
-  const { codingModel, getConfigByModel } = useAiConfig()
+  const { codingModel, getConfigByModel, findFirstAvailableModel } =
+    useAiConfig()
   const script = useMblock(scriptId)
   const [remixPrompt, setRemixPrompt] = useState("")
   const { getRemixPrompt } = useRemixPrompt()
@@ -48,6 +50,7 @@ export function Chat({
     ).then(setRemixPrompt)
   }, [script?.bindings, script?.ts_code, script?.code])
 
+  const { space } = useCurrentPathInfo()
   const {
     messages,
     setMessages,
@@ -60,10 +63,12 @@ export function Chat({
     data: streamingData,
   } = useChat({
     body: {
-      ...getConfigByModel(codingModel!),
+      ...getConfigByModel(codingModel ?? findFirstAvailableModel()),
       systemPrompt: remixPrompt,
       id,
       model: codingModel,
+      space,
+      projectId: scriptId,
     },
     initialMessages,
     onFinish: () => {
@@ -125,6 +130,7 @@ export function Chat({
             <PreviewMessage
               key={message.id}
               chatId={id}
+              projectId={scriptId}
               message={message}
               block={block}
               setBlock={setBlock}

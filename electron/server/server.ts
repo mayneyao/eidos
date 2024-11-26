@@ -57,7 +57,9 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
         const response = await aiHandler({
             request: c.req,
             respondWith: (response: Response) => response,
-        } as unknown as FetchEvent);
+        } as unknown as FetchEvent, {
+            getDataspace: (space) => getOrSetDataSpace(space)
+        });
         return response;
     });
 

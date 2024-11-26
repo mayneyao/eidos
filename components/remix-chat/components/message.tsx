@@ -16,6 +16,7 @@ import { Weather } from "./weather"
 
 export const PreviewMessage = ({
   chatId,
+  projectId,
   message,
   block,
   setBlock,
@@ -23,6 +24,7 @@ export const PreviewMessage = ({
   isLoading,
 }: {
   chatId: string
+  projectId: string
   message: Message
   block: UIBlock
   setBlock: Dispatch<SetStateAction<UIBlock>>
@@ -142,6 +144,7 @@ export const PreviewMessage = ({
           <MessageActions
             key={`action-${message.id}`}
             chatId={chatId}
+            projectId={projectId}
             message={message}
             vote={vote}
             isLoading={isLoading}

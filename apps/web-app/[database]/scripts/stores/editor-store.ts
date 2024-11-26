@@ -15,6 +15,8 @@ interface EditorStore {
     scriptCodeMap: Record<string, string>
     setScriptCodeMap: (id: string, code: string) => void
 
+    chatId: string
+    setChatId: (id: string) => void
     chatHistory: Array<Message>
     setChatHistory: (history: Array<Message>) => void
     addChatMessage: (message: Message) => void
@@ -30,6 +32,8 @@ interface EditorStore {
 export const useEditorStore = create<EditorStore>((set) => ({
     activeTab: 'preview',
     setActiveTab: (tab) => set({ activeTab: tab }),
+    chatId: '',
+    setChatId: (id) => set({ chatId: id }),
     disablePreview: false,
     setDisablePreview: (disable) => set({ disablePreview: disable }),
     isRemixDone: false,

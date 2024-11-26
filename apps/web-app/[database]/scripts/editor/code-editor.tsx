@@ -76,6 +76,7 @@ export const CodeEditor = forwardRef(
     const { scriptCodeMap, setScriptCodeMap, setActiveTab } = useEditorStore()
 
     const toApplyCode = scriptId ? scriptCodeMap[scriptId] : undefined
+
     useEffect(() => {
       setCode(value)
     }, [value])
@@ -232,15 +233,27 @@ export const CodeEditor = forwardRef(
       }
     }, [toApplyCode, handleSave, scriptId, setScriptCodeMap])
 
+    const handleRejectChanges = useCallback(() => {
+      if (scriptId) {
+        setScriptCodeMap(scriptId, "")
+      }
+    }, [scriptId, setScriptCodeMap])
+
     return (
       <div className="h-full w-full relative" ref={monacoEl}>
         {toApplyCode && (
-          <div className="absolute top-2 right-2 z-10">
+          <div className="absolute top-2 right-2 z-10 flex flex-row gap-2">
             <button
               onClick={handleAcceptChanges}
               className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
             >
               Accept Changes
+            </button>
+            <button
+              onClick={handleRejectChanges}
+              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+            >
+              Reject Changes
             </button>
           </div>
         )}

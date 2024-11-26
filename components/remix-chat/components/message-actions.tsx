@@ -1,25 +1,27 @@
-import { useState } from "react"
 import type { Message } from "ai"
 import { EyeIcon, EyeOffIcon, PlayIcon } from "lucide-react"
+import { useState } from "react"
 import { toast } from "sonner"
 import { useSWRConfig } from "swr"
 import { useCopyToClipboard } from "usehooks-ts"
 
-import { getCodeFromMarkdown } from "@/lib/markdown"
+import { useEditorStore } from "@/apps/web-app/[database]/scripts/stores/editor-store"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { useEditorStore } from "@/apps/web-app/[database]/scripts/stores/editor-store"
+import { getCodeFromMarkdown } from "@/lib/markdown"
 
 import type { Vote } from "../interface"
 import { CopyIcon } from "./icons"
 
 export function MessageActions({
   chatId,
+  projectId,
   message,
   vote,
   isLoading,
 }: {
   chatId: string
+  projectId: string
   message: Message
   vote: Vote | undefined
   isLoading: boolean
@@ -38,8 +40,9 @@ export function MessageActions({
     const indexJsxCode = codeBlocks.find(
       (code) => code.lang === "jsx" || code.lang === "typescript"
     )?.code
+    console.log("indexJsxCode", indexJsxCode)
     if (indexJsxCode) {
-      setScriptCodeMap(chatId, indexJsxCode)
+      setScriptCodeMap(projectId, indexJsxCode)
       setLayoutMode("full")
     }
   }
@@ -58,7 +61,7 @@ export function MessageActions({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex flex-row gap-2">
+      <div className="flex flex-row gap-2" role="message-actions">
         <Button
           className="py-1 px-2 h-fit text-muted-foreground"
           variant="outline"

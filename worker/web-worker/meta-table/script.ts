@@ -19,6 +19,8 @@ export interface IPromptConfig {
   actions?: string[]
 }
 
+
+// aka extension
 export interface IScript {
   id: string
   name: string
