@@ -31,7 +31,8 @@
     "start-electron": "electron .",
     "pkg:desktop": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.json",
     "pkg:desktop:dev": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.dev.json",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "download-libsimple": "node scripts/download-libsimple.cjs"
   },
   "start": "electron .",
   "main": "dist-electron/main.js",

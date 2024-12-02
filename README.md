@@ -51,11 +51,10 @@ Get the app from: https://eidos.space/download
 
 ### desktop app
 
-Download [libsimple](https://github.com/wangfenjin/simple) first, see more details at [workflows](./.github/workflows/build-and-release-desktop-app.yml)
-
 1. Clone the repository `git clone git@github.com:mayneyao/eidos.git`
 2. Run `pnpm install` to install dependencies
-3. Run `pnpm dev:desktop`
+3. Run `pnpm download-libsimple` to download libsimple
+4. Run `pnpm dev:desktop`
 
 ## How to deploy your own
 
