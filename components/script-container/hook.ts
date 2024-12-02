@@ -13,7 +13,7 @@ interface IScriptContext {
 }
 
 export const useScriptFunction = () => {
-  const { scriptContainerRef } = useAppRuntimeStore()
+  const { scriptContainerRef, setRunningCommand } = useAppRuntimeStore()
   const callFunction = async (props: {
     input: IScriptInput
     context: IScriptContext
@@ -23,6 +23,7 @@ export const useScriptFunction = () => {
     bindings?: Record<string, any>
   }) => {
     const { input, context, code, id, command = "default", bindings } = props
+    setRunningCommand(command)
     const channel = new MessageChannel()
     scriptContainerRef?.current?.contentWindow?.postMessage(
       {
@@ -44,8 +45,10 @@ export const useScriptFunction = () => {
         const { type, data } = event.data
         if (type === "ScriptFunctionCallResponse") {
           resolve(data)
+          setRunningCommand(null)
         } else if (type === "ScriptFunctionCallError") {
           reject(data)
+          setRunningCommand(null)
         }
       }
     })
