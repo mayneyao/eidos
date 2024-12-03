@@ -74,11 +74,33 @@ function getTopLevelNodeKeys(editor: LexicalEditor): string[] {
 function getBlockElement(
   anchorElem: HTMLElement,
   editor: LexicalEditor,
-  event: MouseEvent
+  event: MouseEvent,
+  draggedElement?: HTMLElement
 ): HTMLElement | null {
   const anchorElementRect = anchorElem.getBoundingClientRect()
-  const topLevelNodeKeys = getTopLevelNodeKeys(editor)
+  const target = event.target as HTMLElement
+  
+  // 检查是否点击了列表项
+  if (target.tagName === 'LI') {
+    if (draggedElement && draggedElement.contains(target)) {
+      return null
+    }
+    return target as HTMLElement
+  }
+  
+  // 如果点击的是列表项的子元素，向上查找最近的列表项
+  let currentElement = target
+  while (currentElement && currentElement !== anchorElem) {
+    if (currentElement.tagName === 'LI') {
+      if (draggedElement && draggedElement.contains(currentElement)) {
+        return null
+      }
+      return currentElement as HTMLElement
+    }
+    currentElement = currentElement.parentElement as HTMLElement
+  }
 
+  const topLevelNodeKeys = getTopLevelNodeKeys(editor)
   let blockElem: HTMLElement | null = null
 
   editor.getEditorState().read(() => {
@@ -108,7 +130,28 @@ function getBlockElement(
       } = rect.contains(point)
 
       if (result) {
-        blockElem = elem
+        // 如果找到的是列表，尝试找到具体的列表项
+        if (elem.tagName === 'UL' || elem.tagName === 'OL') {
+          const listItems = elem.getElementsByTagName('LI')
+          for (const li of listItems) {
+            const liRect = Rect.fromDOM(li as HTMLElement)
+            const {
+              result: liResult,
+            } = liRect.contains(point)
+            if (liResult) {
+              blockElem = li as HTMLElement
+              break
+            }
+          }
+          if (!blockElem) {
+            blockElem = elem
+          }
+        } else {
+          blockElem = elem
+        }
+        if (draggedElement && draggedElement.contains(blockElem)) {
+          blockElem = null
+        }
         prevIndex = index
         break
       }
@@ -119,7 +162,6 @@ function getBlockElement(
         } else if (isOnBottomSide) {
           direction = Downward
         } else {
-          // stop search block element
           direction = Infinity
         }
       }
@@ -287,6 +329,8 @@ function useDraggableBlockMenu(
 
   useEffect(() => {
     function onDragover(event: DragEvent): boolean {
+      console.log("onDragover called")
+
       if (!isDraggingBlockRef.current) {
         return false
       }
@@ -298,7 +342,7 @@ function useDraggableBlockMenu(
       if (!isHTMLElement(target)) {
         return false
       }
-      const targetBlockElem = getBlockElement(anchorElem, editor, event)
+      const targetBlockElem = getBlockElement(anchorElem, editor, event, draggableBlockElem || undefined)
       const targetLineElem = targetLineRef.current
       if (targetBlockElem === null || targetLineElem === null) {
         return false
@@ -326,7 +370,7 @@ function useDraggableBlockMenu(
       if (!isHTMLElement(target)) {
         return false
       }
-      const targetBlockElem = getBlockElement(anchorElem, editor, event)
+      const targetBlockElem = getBlockElement(anchorElem, editor, event, draggableBlockElem || undefined)
       if (!targetBlockElem) {
         return false
       }
@@ -339,6 +383,12 @@ function useDraggableBlockMenu(
       }
       const { top, height } = targetBlockElem.getBoundingClientRect()
       const shouldInsertAfter = pageY - top > height / 2
+
+      // Show the target line
+      if (targetLineRef.current) {
+        setTargetLine(targetLineRef.current, targetBlockElem, pageY, anchorElem)
+      }
+
       if (shouldInsertAfter) {
         targetNode.insertAfter(draggedNode)
       } else {
@@ -355,7 +405,7 @@ function useDraggableBlockMenu(
         (event) => {
           return onDragover(event)
         },
-        COMMAND_PRIORITY_LOW
+        COMMAND_PRIORITY_HIGH
       ),
       editor.registerCommand(
         DROP_COMMAND,
@@ -365,7 +415,7 @@ function useDraggableBlockMenu(
         COMMAND_PRIORITY_HIGH
       )
     )
-  }, [anchorElem, editor])
+  }, [anchorElem, editor, draggableBlockElem])
 
   function onDragStart(event: ReactDragEvent<HTMLDivElement>): void {
     const dataTransfer = event.dataTransfer
