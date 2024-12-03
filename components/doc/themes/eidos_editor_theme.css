@@ -286,6 +286,7 @@ code::before {
   list-style-position: inside;
 }
 .eidos_editor_theme__ol2 {
+  margin: 0!important;
   padding: 0;
   padding: 0 1rem !important;
   padding-left: 0.75rem !important;
@@ -314,19 +315,16 @@ code::before {
   list-style-position: inside;
 }
 .eidos_editor_theme__ul {
-  padding: 0;
+  padding: 0!important;
   margin: 0 !important;
   list-style-position: inside;
-  padding-left: 0.75rem !important;
+  /* padding-left: 0.75rem !important; */
 }
 
 ul .eidos_editor_theme__listItem {
   position: relative;
-  padding-left: 8px;
-  padding-right: 8px;
-  padding-left: 24px;
+  padding-left: 1.5rem;
   margin: 0 !important;
-  /* padding-right: 24px; */
   list-style-type: none;
   outline: none;
 }
@@ -341,7 +339,7 @@ ul
   border-radius: 6px;
   background-color: currentColor;
   top: 12px;
-  left: 0;
+  left: 6px;
   cursor: pointer;
   display: block;
   background-size: cover;
