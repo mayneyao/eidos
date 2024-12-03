@@ -1,6 +1,6 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useKeyPress } from 'ahooks'
-import { $getNodeByKey, $getSelection, $isRangeSelection } from "lexical"
+import { $getNodeByKey, $getSelection, $isRangeSelection, $isRootNode, LexicalNode } from "lexical"
 import { useCallback, useEffect, useState } from "react"
 
 import { findFirstBlockElement, getSelectedNode } from "../utils/getSelectedNode"
@@ -50,6 +50,7 @@ export function useKeyboardSelection() {
             }
 
             let node = $getNodeByKey(currentNodeKey)
+            const oldNode = node
             if (!node) return
             const blockNode = findFirstBlockElement(node)
             if (blockNode) {
@@ -82,8 +83,12 @@ export function useKeyboardSelection() {
                     }
                 }
 
-                const nodeToSelect = nextNode || node
-                const nodeKey = nodeToSelect.getKey()
+                let nodeToSelect: LexicalNode = nextNode || node
+
+                if ($isRootNode(nodeToSelect)) {
+                    nodeToSelect = oldNode!
+                }
+                const nodeKey = nodeToSelect?.getKey()
                 setCurrentNodeKey(nodeKey)
                 selectedKeySet.add(nodeKey)
                 highlightNode(nodeKey)
@@ -110,7 +115,7 @@ export function useKeyboardSelection() {
                     }
                 }
 
-                if (nextNode) {
+                if (nextNode && !$isRootNode(nextNode)) {
                     const nextNodeKey = nextNode.getKey()
                     setCurrentNodeKey(nextNodeKey)
                     selectedKeySet.add(nextNodeKey)

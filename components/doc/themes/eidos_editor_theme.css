@@ -280,8 +280,7 @@ code::before {
   background-color: #ffbbbb !important;
 }
 .eidos_editor_theme__ol1 {
-  padding: 0;
-  padding-left: 0.75rem !important;
+  padding: 0!important;
   margin: 0 !important;
   list-style-position: inside;
 }
@@ -321,11 +320,35 @@ code::before {
   /* padding-left: 0.75rem !important; */
 }
 
+ol {
+  list-style: none;
+  counter-reset: list-counter;
+  width: 100%;
+}
+
+ol .eidos_editor_theme__listItem {
+  counter-increment: list-counter;
+  display: flex;
+  align-items: flex-start;
+}
+
+ol .eidos_editor_theme__listItem::before {
+  content: counter(list-counter) ".";
+  margin-left: -4px;
+  margin-right:  4px;
+  min-width: 1rem;     /* 保证数字有固定宽度 */
+}
+
 ul .eidos_editor_theme__listItem {
   position: relative;
   padding-left: 1.5rem;
   margin: 0 !important;
   list-style-type: none;
+  outline: none;
+}
+ol .eidos_editor_theme__listItem {
+  position: relative;
+  margin: 0 !important;
   outline: none;
 }
 
