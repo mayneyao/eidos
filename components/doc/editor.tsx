@@ -50,6 +50,7 @@ interface EditorProps {
   coverComponent?: React.ReactNode
   propertyComponent?: React.ReactNode
   plugins?: React.ReactNode
+  disableExtPlugins?: boolean
 }
 
 export function InnerEditor(props: EditorProps) {
@@ -118,7 +119,7 @@ export function InnerEditor(props: EditorProps) {
             )}
 
             <AIEditorPlugin />
-            <AllPlugins />
+            <AllPlugins disableExtPlugins={props.disableExtPlugins} />
             {props.plugins}
             <NewMentionsPlugin currentDocId={props.docId!} />
             {props.autoFocus && <AutoFocusPlugin />}

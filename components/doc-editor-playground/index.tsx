@@ -7,11 +7,14 @@ import * as LexicalUtils from "@lexical/utils"
 import * as Lexical from "lexical"
 
 import { InnerEditor } from "../doc/editor"
+import { Label } from "../ui/label"
+import { Switch } from "../ui/switch"
 
 const SCRIPT_ELEMENT_ID = "playground-ext-plugin-loader"
 
 export function DocEditorPlayground({ code }: { code: string }) {
   const [loading, setLoading] = useState(true)
+  const [disableExtPlugins, setDisableExtPlugins] = useState(true)
   useEffect(() => {
     setLoading(true)
     ;(window as any)["__REACT"] = React
@@ -32,7 +35,10 @@ export function DocEditorPlayground({ code }: { code: string }) {
     const pluginUrl = URL.createObjectURL(pluginBlob)
     const scriptContent = `
       import MyPlugin from "${pluginUrl}"
-      window.__DOC_EXT_PLUGINS = [MyPlugin]
+      window.__DOC_EXT_PLUGINS_PLAYGROUND = [{
+        name: "MyPlugin",
+        plugin: MyPlugin
+      }]
     `
     const existingScript = document.getElementById(SCRIPT_ELEMENT_ID)
     if (existingScript) {
@@ -42,7 +48,7 @@ export function DocEditorPlayground({ code }: { code: string }) {
     script.innerHTML = scriptContent
     document.body.appendChild(script)
     setTimeout(() => {
-      const MyPlugin = (window as any).__DOC_EXT_PLUGINS?.[0]
+      const MyPlugin = (window as any).__DOC_EXT_PLUGINS_PLAYGROUND?.[0]
       if (MyPlugin) {
         setLoading(false)
       }
@@ -52,13 +58,30 @@ export function DocEditorPlayground({ code }: { code: string }) {
   if (loading) {
     return <div>Loading Plugin...</div>
   }
-  const plugin = (window as any).__DOC_EXT_PLUGINS?.[0]
+  const plugin = (window as any).__DOC_EXT_PLUGINS_PLAYGROUND?.[0]
   if (!plugin) {
     return <div>No plugin found</div>
   }
   return (
-    <div className="px-8 py-4">
-      <InnerEditor isEditable plugins={React.createElement(plugin)} />
-    </div>
+    <>
+      <div role="toolbar">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="disable-ext-plugins">Disable Other Ext Plugins</Label>
+          <Switch
+            id="disable-ext-plugins"
+            checked={disableExtPlugins}
+            onCheckedChange={setDisableExtPlugins}
+          />
+        </div>
+      </div>
+      <hr className="my-2" />
+      <div className="px-8 py-4 w-full">
+        <InnerEditor
+          isEditable
+          plugins={React.createElement(plugin.plugin)}
+          disableExtPlugins={disableExtPlugins}
+        />
+      </div>
+    </>
   )
 }
