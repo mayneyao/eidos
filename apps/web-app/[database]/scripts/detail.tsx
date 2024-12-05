@@ -134,9 +134,10 @@ export const ScriptDetailPage = () => {
   const compile = async () => {
     const ts_code = script.ts_code
     if (ts_code) {
-      const result = await compileCode(ts_code)
-      console.log("result", result)
-      onSubmit(result.code, ts_code)
+      const compileMethod =
+        script.type === "doc_plugin" ? lexicalCodeCompile : blockCodeCompile
+      const result = await compileMethod(ts_code)
+      onSubmit(result, ts_code)
     }
   }
 

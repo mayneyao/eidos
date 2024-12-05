@@ -12,6 +12,30 @@ import { Switch } from "../ui/switch"
 
 const SCRIPT_ELEMENT_ID = "playground-ext-plugin-loader"
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }> {
+  state = { hasError: false, error: null as Error | null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("Error caught by ErrorBoundary:", error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 text-red-500">
+          Plugin Error: {this.state.error?.message || "Something went wrong"}
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+
 export function DocEditorPlayground({ code }: { code: string }) {
   const [loading, setLoading] = useState(true)
   const [disableExtPlugins, setDisableExtPlugins] = useState(true)
@@ -63,7 +87,7 @@ export function DocEditorPlayground({ code }: { code: string }) {
     return <div>No plugin found</div>
   }
   return (
-    <>
+    <ErrorBoundary>
       <div role="toolbar">
         <div className="flex items-center gap-2">
           <Label htmlFor="disable-ext-plugins">Disable Other Ext Plugins</Label>
@@ -82,6 +106,6 @@ export function DocEditorPlayground({ code }: { code: string }) {
           disableExtPlugins={disableExtPlugins}
         />
       </div>
-    </>
+    </ErrorBoundary>
   )
 }
