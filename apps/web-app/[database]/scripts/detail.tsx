@@ -10,11 +10,13 @@ import {
 
 import { cn } from "@/lib/utils"
 import { compileCode } from "@/lib/v3/compiler"
+import { compileLexicalCode } from "@/lib/v3/lexical-compiler"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { BlockRenderer } from "@/components/block-renderer/block-renderer"
+import { DocEditorPlayground } from "@/components/doc-editor-playground"
 
 import { Chat } from "../../../../components/remix-chat/chat"
 import { ExtensionToolbar } from "./components/extension-toolbar"
@@ -47,7 +49,9 @@ export const ScriptDetailPage = () => {
 
   useEffect(() => {
     if (currentDraftCode) {
-      compileCode(currentDraftCode).then((result) => {
+      const compileMethod =
+        script.type === "doc_plugin" ? compileLexicalCode : compileCode
+      compileMethod(currentDraftCode).then((result) => {
         setCurrentCompiledDraftCode(result.code)
       })
     } else {
@@ -57,9 +61,12 @@ export const ScriptDetailPage = () => {
 
   const showPreview =
     (layoutMode === "full" || layoutMode.includes("preview")) &&
-    script.type === "m_block"
+    (script.type === "m_block" || script.type === "doc_plugin")
   const showCode = layoutMode === "full" || layoutMode.includes("code")
-  const showChat = (layoutMode === "full" || layoutMode.includes("chat")) && (script.type !== "prompt" && script.type !== "udf")
+  const showChat =
+    (layoutMode === "full" || layoutMode.includes("chat")) &&
+    script.type !== "prompt" &&
+    script.type !== "udf"
 
   useEffect(() => {
     setCurrentCompiledDraftCode(script.code)
@@ -119,6 +126,11 @@ export const ScriptDetailPage = () => {
     const result = await compileCode(ts_code)
     return result.code
   }
+  const lexicalCodeCompile = async (ts_code: string) => {
+    const result = await compileLexicalCode(ts_code)
+    return result.code
+  }
+
   const compile = async () => {
     const ts_code = script.ts_code
     if (ts_code) {
@@ -188,6 +200,8 @@ export const ScriptDetailPage = () => {
                           customCompile={
                             script.type === "m_block"
                               ? blockCodeCompile
+                              : script.type === "doc_plugin"
+                              ? lexicalCodeCompile
                               : undefined
                           }
                         />
@@ -209,14 +223,21 @@ export const ScriptDetailPage = () => {
                         </div>
                       ) : (
                         <div className="h-full">
-                          <BlockRenderer
-                            code={script.ts_code || ""}
-                            compiledCode={
-                              currentCompiledDraftCode || script.code || ""
-                            }
-                            env={script.env_map}
-                            bindings={script.bindings}
-                          />
+                          {script.type === "doc_plugin" && (
+                            <DocEditorPlayground
+                              code={currentCompiledDraftCode || script.code}
+                            />
+                          )}
+                          {script.type === "m_block" && (
+                            <BlockRenderer
+                              code={script.ts_code || ""}
+                              compiledCode={
+                                currentCompiledDraftCode || script.code || ""
+                              }
+                              env={script.env_map}
+                              bindings={script.bindings}
+                            />
+                          )}
                         </div>
                       )}
                     </div>

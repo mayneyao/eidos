@@ -112,6 +112,8 @@
     "extension.prompt": "Prompt",
     "extension.promptDescription": "Templates for AI model interactions",
     "extension.reloadLocalScript": "Reload Local Script",
+    "extension.docPlugin": "Doc Plugin",
+    "extension.docPluginDescription": "Customize document content and behavior",
     "extension.script": "Script",
     "extension.scriptDescription": "For custom data processing logic, triggered through the control panel (⌘+K), can also be used as table Actions",
     "extension.toolbar.codeCopied": "Code copied to clipboard",

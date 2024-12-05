@@ -33,7 +33,7 @@ export const getEditorLanguage = (
     return "markdown"
   }
 
-  if (script.type === "m_block") {
+  if (script.type === "m_block" || script.type === "doc_plugin") {
     return "typescriptreact"
   }
   if (script.ts_code) {

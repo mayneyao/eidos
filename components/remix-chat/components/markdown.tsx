@@ -21,9 +21,15 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
       }
 
       if (language === "jsx" || language === "tsx") {
+        const code = children?.toString()
+        const linesCount = code?.split("\n").length
         return (
           <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 mt-2 flex items-center gap-2">
-            <span className="text-sm">index.jsx</span>
+            <span className="text-sm">index.jsx </span>{" "}
+            <span className="text-xs text-green-600">+{linesCount}</span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              lines
+            </span>
           </div>
         )
       }
