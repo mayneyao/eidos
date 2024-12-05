@@ -19,7 +19,7 @@ export async function handleOpenAI(
   }
 ) {
   // only use functions on desktop app
-  const useFunctions = isDesktopMode
+  let useFunctions = isDesktopMode
   const {
     messages,
     apiKey,
@@ -30,7 +30,11 @@ export async function handleOpenAI(
     space,
     id,
     projectId,
+    useTools
   } = data
+  if (useTools != null) {
+    useFunctions = useTools
+  }
 
   const model = modelAndProvider.split("@")[0]
   const openai = createOpenAI({
@@ -111,6 +115,7 @@ export async function handleOpenAI(
     request = {
       ...request,
       tools: _tools,
+      toolChoice: "auto",
     }
   }
   const result = streamText(request)
