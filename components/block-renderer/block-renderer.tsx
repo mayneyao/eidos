@@ -82,7 +82,7 @@ export const BlockRenderer = React.forwardRef<
       ? typeof height === "number"
         ? `${height}px`
         : height
-      : "unset"
+      : "min-content"
 
     useEffect(() => {
       if (!iframeRef.current) return
@@ -250,7 +250,7 @@ export const BlockRenderer = React.forwardRef<
       <iframe
         ref={iframeRef}
         title="preview"
-        sandbox="allow-scripts allow-same-origin"
+        sandbox="allow-scripts allow-same-origin allow-popups"
         style={style}
       />
     )

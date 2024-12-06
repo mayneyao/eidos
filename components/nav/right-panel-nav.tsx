@@ -1,15 +1,15 @@
+import { useEffect, useRef, useState } from "react"
 import {
   BotIcon,
   LucideIcon,
+  MoreHorizontalIcon,
   PanelRightIcon,
   PlusIcon,
   ToyBrickIcon,
   Trash2,
-  MoreHorizontalIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
-import { useState, useEffect, useRef } from "react"
 
 import { cn, getBlockIdFromUrl } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -73,7 +73,7 @@ export const RightPanelNav = () => {
     setCurrentAppIndex(apps.length) // Set focus to the newly added app
   }
 
-  const mblocks = useAllMblocks()
+  const { mblocks } = useAllMblocks()
   const getAppInfo = (app: string) => {
     if (app.startsWith("block://")) {
       const id = getBlockIdFromUrl(app)
