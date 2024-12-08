@@ -126,7 +126,7 @@ code::before {
   overflow-y: scroll;
   table-layout: fixed;
   width: calc(100% - 25px);
-  margin: 4px 0!important;
+  margin: 4px 0 !important;
 }
 .eidos_editor_theme__tableSelected {
   outline: 2px solid rgb(60, 132, 244);
@@ -280,12 +280,12 @@ code::before {
   background-color: #ffbbbb !important;
 }
 .eidos_editor_theme__ol1 {
-  padding: 0!important;
+  padding: 0 !important;
   margin: 0 !important;
   list-style-position: inside;
 }
 .eidos_editor_theme__ol2 {
-  margin: 0!important;
+  margin: 0 !important;
   padding: 0;
   padding: 0 1rem !important;
   padding-left: 0.75rem !important;
@@ -314,7 +314,7 @@ code::before {
   list-style-position: inside;
 }
 .eidos_editor_theme__ul {
-  padding: 0!important;
+  padding: 0 !important;
   margin: 0 !important;
   list-style-position: inside;
   /* padding-left: 0.75rem !important; */
@@ -327,16 +327,16 @@ ol {
 }
 
 ol .eidos_editor_theme__listItem {
-  counter-increment: list-counter;
+  counter-increment: none;
   display: flex;
   align-items: flex-start;
 }
 
 ol .eidos_editor_theme__listItem::before {
-  content: counter(list-counter) ".";
+  content: attr(value) ".";
   margin-left: -4px;
-  margin-right:  4px;
-  min-width: 1rem;     /* 保证数字有固定宽度 */
+  margin-right: 4px;
+  min-width: 1rem;
 }
 
 ul .eidos_editor_theme__listItem {
@@ -528,4 +528,8 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
 .eidos_editor_theme__embedBlockFocus {
   outline: 1px solid hsl(var(--primary));
   background-color: hsl(var(--secondary));
+}
+
+.eidos_editor_theme__listItem > [data-lexical-decorator]:first-child {
+  padding-top: 10px;
 }

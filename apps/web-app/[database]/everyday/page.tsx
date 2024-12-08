@@ -47,7 +47,7 @@ export default function EverydayPage() {
 
   return (
     <ScrollArea className="mx-auto flex w-full">
-      <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert xl:prose-xl xs:p-5">
+      <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert  xs:p-5">
         <div className="hidden md:block">
           <div className="flex cursor-pointer select-none gap-2">
             {years.map((_year) => {

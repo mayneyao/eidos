@@ -33,7 +33,7 @@ export default function EverydayPage() {
   }
 
   return (
-    <div className="prose mx-auto w-full p-4 pt-0 lg:prose-xl xl:prose-2xl">
+    <div className="prose mx-auto w-full p-4 pt-0">
       <Editor
         isEditable
         title={day}
