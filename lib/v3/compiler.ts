@@ -1,22 +1,7 @@
-// import { initialize, transform } from "esbuild";
-import { initialize, transform } from "esbuild-wasm";
-
 import { uiConfig } from "@/components/ui";
 import { generateCacheKey, getCache, hasCache, setCache } from "./cache";
-export let compilerInitialized = false
-export const initializeCompiler = async () => {
-  if (compilerInitialized) return
-  try {
-    await initialize({
-      worker: true,
-      wasmURL: "https://esm.sh/esbuild-wasm@0.24.0/esbuild.wasm",
-    });
-  } catch (error) {
-    console.error(error)
-    compilerInitialized = false
-  }
-  compilerInitialized = true
-};
+import { compilerInitialized, initializeCompiler, transform } from "./esbuild";
+
 
 interface CompileOptions {
   uiLibCode?: string;
@@ -25,7 +10,6 @@ interface CompileOptions {
 interface CompileResult {
   code: string;
   error: string | null;
-  dependencies?: string[];
 }
 
 export const compileCode = async (

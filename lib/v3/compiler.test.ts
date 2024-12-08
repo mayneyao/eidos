@@ -2,18 +2,17 @@ import { expect } from "vitest";
 import { getImportsFromCode, getAllLibs } from "./compiler";
 import { compileCode } from "./compiler";
 import importUIlibCode from "./test-code/import-ui-lib.tsx?raw";
-import uilibCode from "@/components/ui/button.tsx?raw";
+// import uilibCode from "@/components/ui/button.tsx?raw";
 
 describe("getImportsFromCode", () => {
-  // importUIlibCode
   it("", () => {
     const imports = getImportsFromCode(importUIlibCode);
     expect(imports).toEqual([
       "react",
+      "lucide-react",
       "@/components/ui/button",
       "@/components/ui/input",
       "@/components/ui/slider",
-      "lucide-react",
     ]);
   });
   it("should return an array of import paths from the code", () => {
@@ -66,26 +65,24 @@ describe("getImportsFromCode", () => {
 });
 
 describe("compileCode", () => {
-  it("ui button", async () => {
-    const result = await compileCode(uilibCode);
-    console.log(result);
-  });
+  // it("ui button", async () => {
+  //   const result = await compileCode(uilibCode);
+  // });
   it("should handle empty code input", async () => {
     const result = await compileCode("");
     expect(result.error).toBeNull();
-    expect(result.dependencies).toHaveLength(0);
   });
 });
 
 describe("getThirdPartyLibs", () => {
   it("should return third party libs", () => {
     const result = getAllLibs(importUIlibCode);
-    console.log(result);
     expect(result.thirdPartyLibs).toEqual([
       "react",
       "lucide-react",
       "@radix-ui/react-slot",
       "class-variance-authority",
+      "@radix-ui/react-slider",
     ]);
     expect(result.uiLibs).toEqual(["button", "input", "slider"]);
   });

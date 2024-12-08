@@ -8,6 +8,24 @@
   top: 0;
   width: 60px;
   will-change: transform;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  /* 确保菜单始终在正确的层级 */
+  z-index: 2;
+  /* 防止菜单被其他元素裁剪 */
+  overflow: visible;
+  /* 确保菜单位置计算基于边界框 */
+  transform-origin: left center;
+}
+
+*:hover > .draggable-block-menu {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.draggable-block-menu-container {
+  position: static;
+  pointer-events: none;
 }
 
 .draggable-block-menu .icon {
@@ -35,13 +53,13 @@
   background-repeat: no-repeat;
 }
 
-.draggable-block-menu:active {
-  cursor: grabbing;
+.draggable-block-menu > div:hover {
+  opacity: 0.7;
+  background-color: hsl(var(--secondary));
 }
 
-.draggable-block-menu > div:hover {
-  opacity: 0.5;
-  background-color: hsl(var(--secondary));
+.draggable-block-menu:active {
+  cursor: grabbing;
 }
 
 .draggable-block-target-line {

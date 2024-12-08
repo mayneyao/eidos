@@ -26,7 +26,7 @@ export interface IScript {
   name: string
   // block is static code stored in local file system
   // m_block is mini or macro block, just a piece of code snippet stored in database
-  type: "script" | "udf" | "prompt" | "block" | "app" | "m_block"
+  type: "script" | "udf" | "prompt" | "block" | "app" | "m_block" | "doc_plugin"
   description: string
   version: string
   code: string

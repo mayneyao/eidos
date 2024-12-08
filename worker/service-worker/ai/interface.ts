@@ -12,4 +12,5 @@ export interface IData {
   id: string // chat id
   space: string // dataspace name
   projectId?: string
+  useTools?: boolean
 }
