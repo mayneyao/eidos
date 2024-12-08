@@ -6,15 +6,8 @@
  *
  */
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react"
-import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { ContentEditable } from "@lexical/react/LexicalContentEditable"
-import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary"
-import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
-import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer"
-import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection"
 import { mergeRegister } from "@lexical/utils"
 import {
@@ -34,36 +27,24 @@ import {
   type LexicalEditor,
   type NodeKey,
 } from "lexical"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 
+import { FileSelector } from "@/components/file-selector"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { FileSelector } from "@/components/file-selector"
 
 import "./ImageNode.css"
-import { DOMAINS } from "@/lib/const"
 
-import { $isImageNode } from "./ImageNode"
+import { cn } from "@/lib/utils"
+
 // import { useSettings } from "../context/SettingsContext"
 // import { useSharedHistoryContext } from "../context/SharedHistoryContext"
-import ImageResizer from "./ImageResizer"
 
-const imageCache = new Set()
-
-function useSuspenseImage(src: string) {
-  if (!imageCache.has(src)) {
-    throw new Promise((resolve) => {
-      const img = new Image()
-      img.src = src
-      img.onload = () => {
-        imageCache.add(src)
-        resolve(null)
-      }
-    })
-  }
-}
+import { $isImageNode } from "./ImageNode"
+import { LazyImage } from "./LazyImage"
 
 function ImagePlaceholder(props: { nodeKey: string }) {
   const { nodeKey } = props
@@ -98,52 +79,6 @@ function ImagePlaceholder(props: { nodeKey: string }) {
         />
       </PopoverContent>
     </Popover>
-  )
-}
-
-const getDisplayURL = (url: string) => {
-  try {
-    const urlObj = new URL(url)
-    if (urlObj.host === window.location.host) {
-      return url
-    }
-    return DOMAINS.IMAGE_PROXY + "/?url=" + url
-  } catch (error) {
-    return url
-  }
-}
-
-function LazyImage({
-  altText,
-  className,
-  imageRef,
-  src,
-  width,
-  height,
-  maxWidth,
-}: {
-  altText: string
-  className: string | null
-  height: "inherit" | number
-  imageRef: { current: null | HTMLImageElement }
-  maxWidth: number
-  src: string
-  width: "inherit" | number
-}): JSX.Element {
-  const displaySrc = getDisplayURL(src)
-  useSuspenseImage(displaySrc)
-  return (
-    <img
-      className={className ?? ""}
-      src={displaySrc}
-      alt={altText}
-      ref={imageRef}
-      style={{
-        height,
-        width,
-      }}
-      draggable="false"
-    />
   )
 }
 
@@ -325,99 +260,39 @@ export default function ImageComponent({
     onEscape,
     setSelected,
   ])
-
-  const setShowCaption = () => {
-    editor.update(() => {
-      const node = $getNodeByKey(nodeKey)
-      if ($isImageNode(node)) {
-        node.setShowCaption(true)
-      }
-    })
-  }
-
-  const onResizeEnd = (
-    nextWidth: "inherit" | number,
-    nextHeight: "inherit" | number
-  ) => {
-    // Delay hiding the resize bars for click case
-    setTimeout(() => {
-      setIsResizing(false)
-    }, 200)
-
-    editor.update(() => {
-      const node = $getNodeByKey(nodeKey)
-      if ($isImageNode(node)) {
-        node.setWidthAndHeight(nextWidth, nextHeight)
-      }
-    })
-  }
-
-  const onResizeStart = () => {
-    setIsResizing(true)
-  }
-
-  // const { historyState } = useSharedHistoryContext()
-  //   const {
-  //     settings: { showNestedEditorTreeView },
-  //   } = useSettings()
-
-  const draggable = isSelected && $isNodeSelection(selection) && !isResizing
   const isFocused = isSelected || isResizing
+  const isListItem = imageRef.current?.closest("li") !== null
   return (
     <Suspense fallback={null}>
       <>
-        <div draggable={draggable} className="not-prose w-full">
+        <div className="not-prose w-full relative">
           {src.length == 0 ? (
             <ImagePlaceholder nodeKey={nodeKey} />
           ) : (
-            <LazyImage
-              className={
-                isFocused
-                  ? `focused ${$isNodeSelection(selection) ? "draggable" : ""}`
-                  : null
-              }
-              src={src}
-              altText={altText}
-              imageRef={imageRef}
-              width={width}
-              height={height}
-              maxWidth={maxWidth}
-            />
+            <div
+              className={cn("flex items-center", {
+                "ring-2 ring-gray-500 ": isFocused,
+                "justify-center": !isListItem,
+              })}
+            >
+              <LazyImage
+                className={""}
+                src={src}
+                altText={altText}
+                imageRef={imageRef}
+                width={width}
+                height={height}
+                maxWidth={maxWidth}
+                nodeKey={nodeKey}
+                editor={editor}
+                isResizing={isResizing}
+                setIsResizing={setIsResizing}
+                showCaption={showCaption}
+                caption={caption}
+              />
+            </div>
           )}
         </div>
-        {showCaption && (
-          <div className="image-caption-container">
-            <LexicalNestedComposer initialEditor={caption}>
-              <AutoFocusPlugin />
-              <LinkPlugin />
-              {/* <HistoryPlugin externalHistoryState={historyState} /> */}
-              <RichTextPlugin
-                contentEditable={
-                  <ContentEditable className="ImageNode__contentEditable" />
-                }
-                placeholder={
-                  <div className="ImageNode__placeholder">
-                    Enter a caption...
-                  </div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-            </LexicalNestedComposer>
-          </div>
-        )}
-        {resizable && $isNodeSelection(selection) && isFocused && (
-          <ImageResizer
-            showCaption={showCaption}
-            setShowCaption={setShowCaption}
-            editor={editor}
-            buttonRef={buttonRef}
-            imageRef={imageRef}
-            // maxWidth={maxWidth}
-            onResizeStart={onResizeStart}
-            onResizeEnd={onResizeEnd}
-            captionsEnabled={captionsEnabled}
-          />
-        )}
       </>
     </Suspense>
   )

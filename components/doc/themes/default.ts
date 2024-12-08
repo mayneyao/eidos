@@ -51,7 +51,7 @@ const theme: EditorThemeClasses = {
     h5: "eidos_editor_theme__h5",
     h6: "eidos_editor_theme__h6",
   },
-  image: "editor-image",
+  image: "editor-image !my-[2px]",
   indent: "eidos_editor_theme__indent",
   inlineImage: "inline-editor-image",
   link: "eidos_editor_theme__link",
