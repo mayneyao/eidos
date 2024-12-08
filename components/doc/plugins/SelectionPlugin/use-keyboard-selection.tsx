@@ -3,8 +3,8 @@ import { useKeyPress } from 'ahooks'
 import { $getNodeByKey, $getSelection, $isRangeSelection, $isRootNode, LexicalNode } from "lexical"
 import { useCallback, useEffect, useState } from "react"
 
-import { findFirstBlockElement, getSelectedNode } from "../utils/getSelectedNode"
-import { useEditorInstance } from "./editor-instance-context"
+import { findFirstBlockElement, getSelectedNode } from "../../utils/getSelectedNode"
+import { useEditorInstance } from "../../hooks/editor-instance-context"
 
 export function useKeyboardSelection() {
     const { setIsSelecting: setGlobalIsSelecting, isSelecting: isGlobalSelecting } = useEditorInstance()
