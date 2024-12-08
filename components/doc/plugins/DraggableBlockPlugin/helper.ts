@@ -248,8 +248,32 @@ export function $moveNode(
     editor: LexicalEditor,
     event?: MouseEvent
 ) {
+
+
+    // Handle node type conversions
+    let toBeMovedNode: LexicalNode = draggedNode
+
+    // Convert to list if needed
+    if (targetNode.__type !== "listitem" && draggedNode.__type === "listitem") {
+        const parentList = draggedNode.getParent() as ListNode
+        const listType: ListType = parentList?.__type === "list" ?
+            parentList.getListType() : "bullet"
+
+        const listNode = $createListNode(listType)
+        listNode.append(draggedNode)
+        toBeMovedNode = listNode
+    }
+
+    // Convert to list item if needed
+    if (draggedNode.__type !== "listitem" && targetNode.__type === "listitem") {
+        const listItemNode = $createListItemNode()
+        listItemNode.append(draggedNode)
+        toBeMovedNode = listItemNode
+    }
+
+
     // Handle list item indentation case
-    if (draggedNode.__type === "listitem" &&
+    if (toBeMovedNode.__type === "listitem" &&
         (targetNode.__type === "list" || targetNode.__type === "listitem")) {
 
         if ($isListItemNode(targetNode) && event) {
@@ -265,34 +289,13 @@ export function $moveNode(
 
                     // Insert and indent the dragged node
                     shouldInsertAfter ?
-                        targetNode.insertAfter(draggedNode) :
-                        targetNode.insertBefore(draggedNode);
-                    (draggedNode as ListItemNode).setIndent((draggedNode as ListItemNode).getIndent() + 1)
+                        targetNode.insertAfter(toBeMovedNode) :
+                        targetNode.insertBefore(toBeMovedNode);
+                    (toBeMovedNode as ListItemNode).setIndent((toBeMovedNode as ListItemNode).getIndent() + 1)
                     return
                 }
             }
         }
-    }
-
-    // Handle node type conversions
-    let toBeMovedNode: LexicalNode = draggedNode
-
-    // Convert to list if needed
-    if (targetNode.__type !== "list" && draggedNode.__type === "listitem") {
-        const parentList = draggedNode.getParent() as ListNode
-        const listType: ListType = parentList?.__type === "list" ?
-            parentList.getListType() : "bullet"
-
-        const listNode = $createListNode(listType)
-        listNode.append(draggedNode)
-        toBeMovedNode = listNode
-    }
-
-    // Convert to list item if needed
-    if (draggedNode.__type !== "listitem" && targetNode.__type === "listitem") {
-        const listItemNode = $createListItemNode()
-        listItemNode.append(draggedNode)
-        toBeMovedNode = listItemNode
     }
 
     // Perform the insertion
