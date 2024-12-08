@@ -250,7 +250,7 @@ export const BlockRenderer = React.forwardRef<
       <iframe
         ref={iframeRef}
         title="preview"
-        sandbox="allow-scripts allow-same-origin allow-popups"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
         style={style}
       />
     )

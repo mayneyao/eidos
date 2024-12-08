@@ -21,6 +21,7 @@ import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import { DatabasePlugin } from "./DatabasePlugin"
 import DragDropPaste from "./DragDropPaste"
+import AdvancedListPlugin from "./DraggableBlockPlugin/advanced-list"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ImagesPlugin from "./ImagesPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
@@ -50,6 +51,7 @@ export const AllPlugins = ({
   ] as Transformer[]
   return (
     <>
+      <AdvancedListPlugin />
       <HorizontalRulePlugin />
       <TableOfContentsPlugin />
       <SQLPlugin />
