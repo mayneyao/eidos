@@ -1,28 +1,36 @@
-import { ReactNode } from "react"
 import { TextMatchTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
+  DecoratorBlockNode,
+  SerializedDecoratorBlockNode,
+} from "@lexical/react/LexicalDecoratorBlockNode"
+import {
   $applyNodeReplacement,
-  DecoratorNode,
   EditorConfig,
+  ElementFormatType,
   LexicalEditor,
   LexicalNode,
   NodeKey,
+  Spread,
 } from "lexical"
 
 import { markdownLinkInfoMap } from "../../plugins/const"
-import { BookmarkComponent } from "./BookmarkComponent"
+import { BookmarkComponent } from "./component"
 
-export interface BookmarkPayload {
+export type BookmarkPayload = {
   url: string
   title?: string
   description?: string
   image?: string
   fetched?: boolean
-  key?: NodeKey
 }
 
-export class BookmarkNode extends DecoratorNode<ReactNode> {
+export type SerializedBookmarkNode = Spread<
+  BookmarkPayload,
+  SerializedDecoratorBlockNode
+>
+
+export class BookmarkNode extends DecoratorBlockNode {
   __url: string
   __title?: string
   __description?: string
@@ -32,21 +40,26 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
   isKeyboardSelectable(): boolean {
     return true
   }
+
   static getType(): string {
     return "bookmark"
   }
 
   static clone(node: BookmarkNode): BookmarkNode {
-    return new BookmarkNode(node.exportJSON())
+    return new BookmarkNode(node.exportJSON(), node.__format, node.getKey())
   }
 
   getTextContent(): string {
     return `[${this.getUrl()}](${this.getUrl()})`
   }
 
-  constructor(payload: BookmarkPayload) {
-    const { url, title, description, image, key } = payload
-    super(key)
+  constructor(
+    payload: BookmarkPayload,
+    format?: ElementFormatType,
+    key?: NodeKey
+  ) {
+    const { url, title, description, image } = payload
+    super(format, key)
     this.__url = url
     this.__title = title
     this.__description = description
@@ -71,7 +84,7 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
+  decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
     const data = this.exportJSON()
     const nodeKey = this.getKey()
     const embedBlockTheme = config.theme.embedBlock || {}
@@ -81,14 +94,19 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
       focus: embedBlockTheme.focus || "",
     }
     return (
-      <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
+      <BlockWithAlignableContents
+        format={this.__format}
+        className={className}
+        nodeKey={nodeKey}
+      >
         <BookmarkComponent {...data} nodeKey={nodeKey} />
       </BlockWithAlignableContents>
     )
   }
 
-  static importJSON(data: any): BookmarkNode {
+  static importJSON(data: SerializedBookmarkNode): BookmarkNode {
     const node = $createBookmarkNode(data)
+    node.setFormat(data.format)
     return node
   }
 
@@ -101,9 +119,9 @@ export class BookmarkNode extends DecoratorNode<ReactNode> {
     writable.__image = payload.image
   }
 
-  exportJSON() {
+  exportJSON(): SerializedBookmarkNode {
     return {
-      key: this.getKey(),
+      ...super.exportJSON(),
       url: this.__url,
       title: this.__title,
       description: this.__description,
@@ -129,7 +147,7 @@ export async function $getUrlMetaData(
   url: string
 ): Promise<BookmarkPayload & { error?: string }> {
   if (!url) {
-    return { url, title: url }
+    return { url, title: url } as BookmarkPayload
   }
   // timeout 3s for fetch
   const controller = new AbortController()
@@ -143,13 +161,13 @@ export async function $getUrlMetaData(
     const json = await data.json()
     return json
   } catch (e) {
-    return { url, title: url }
+    return { url, title: url } as BookmarkPayload
   } finally {
     clearTimeout(timeout)
   }
 }
 
-export const BOOKMARK: TextMatchTransformer = {
+export const BOOKMARK_NODE_TRANSFORMER: TextMatchTransformer = {
   dependencies: [BookmarkNode],
   export: (node) => {
     // not working as expected
@@ -169,8 +187,7 @@ export const BOOKMARK: TextMatchTransformer = {
       const data = markdownLinkInfoMap.get(src) || {
         url: src,
       }
-      console.log("data", data)
-      const bookmarkNode = $createBookmarkNode(data)
+      const bookmarkNode = $createBookmarkNode(data as BookmarkPayload)
       textNode.replace(bookmarkNode)
     } catch (error) {}
   },

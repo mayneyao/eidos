@@ -26,7 +26,7 @@ import {
   $isBookmarkNode,
   BookmarkNode,
   BookmarkPayload,
-} from "../../nodes/BookmarkNode"
+} from "./node"
 import { $createYouTubeNode } from "../../nodes/YoutubeNode"
 import { getSelectedNode } from "../../utils/getSelectedNode"
 import { validateUrl } from "../../utils/url"

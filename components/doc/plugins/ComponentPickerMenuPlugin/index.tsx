@@ -32,7 +32,6 @@ import {
 import {
   AudioLinesIcon,
   BaselineIcon,
-  BookMarkedIcon,
   CaseSensitiveIcon,
   CodeIcon,
   Heading1Icon,
@@ -62,7 +61,6 @@ import { bgColors, fgColors } from "../const"
 import "./index.css"
 import { BuiltInBlocks } from "../../blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
-import { INSERT_BOOKMARK_COMMAND } from "../BookmarkPlugin"
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
@@ -83,7 +81,6 @@ const IconMap: Record<string, JSX.Element> = {
   text: <CaseSensitiveIcon className="h-5 w-5" />,
   hr: <MinusSquareIcon className="h-5 w-5" />,
   sql: <VariableIcon className="h-5 w-5" />,
-  bookmark: <BookMarkedIcon className="h-5 w-5" />,
 }
 
 class ComponentPickerOption extends MenuOption {
@@ -185,13 +182,16 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         .map((n: string) => parseInt(n, 10))
 
       options.push(
-        new ComponentPickerOption(t("doc.menu.insertTable", { rows, columns }), {
-          icon: <i className="icon table" />,
-          keywords: ["table"],
-          onSelect: () =>
-            // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
-            editor.dispatchCommand(INSERT_TABLE_COMMAND, { columns, rows }),
-        })
+        new ComponentPickerOption(
+          t("doc.menu.insertTable", { rows, columns }),
+          {
+            icon: <i className="icon table" />,
+            keywords: ["table"],
+            onSelect: () =>
+              // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
+              editor.dispatchCommand(INSERT_TABLE_COMMAND, { columns, rows }),
+          }
+        )
       )
     } else if (partialTableMatch) {
       const rows = parseInt(partialTableMatch[0], 10)
@@ -199,13 +199,19 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
       options.push(
         ...Array.from({ length: 5 }, (_, i) => i + 1).map(
           (columns) =>
-            new ComponentPickerOption(t("doc.menu.insertTable", { rows, columns }), {
-              icon: <i className="icon table" />,
-              keywords: ["table"],
-              onSelect: () =>
-                // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
-                editor.dispatchCommand(INSERT_TABLE_COMMAND, { columns, rows }),
-            })
+            new ComponentPickerOption(
+              t("doc.menu.insertTable", { rows, columns }),
+              {
+                icon: <i className="icon table" />,
+                keywords: ["table"],
+                onSelect: () =>
+                  // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
+                  editor.dispatchCommand(INSERT_TABLE_COMMAND, {
+                    columns,
+                    rows,
+                  }),
+              }
+            )
         )
       )
     }
@@ -314,14 +320,6 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
           keywords: block.keywords,
           onSelect: () => block.onSelect(editor),
         })
-      }),
-      new ComponentPickerOption(t("doc.menu.bookmark"), {
-        icon: IconMap["bookmark"],
-        keywords: ["bookmark"],
-        onSelect: () =>
-          editor.dispatchCommand(INSERT_BOOKMARK_COMMAND, {
-            url: "",
-          }),
       }),
       new ComponentPickerOption(t("doc.menu.tableOfContent"), {
         icon: <TocIcon />,

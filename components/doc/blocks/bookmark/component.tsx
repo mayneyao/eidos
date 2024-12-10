@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import { $isBookmarkNode, BookmarkPayload } from "."
+import { $isBookmarkNode, BookmarkPayload } from "./node"
 import "./style.css"
 import { useState } from "react"
 

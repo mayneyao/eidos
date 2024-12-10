@@ -16,7 +16,6 @@ import { useEnabledExtDocPlugins } from "../hooks/use-ext-plugins"
 import { AIToolsPlugin } from "./AIToolsPlugin"
 // import { AIToolsPlugin } from "./AIToolsPlugin"
 import AutoLinkPlugin from "./AutoLinkPlugin"
-import { BookmarkPlugin } from "./BookmarkPlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import { DatabasePlugin } from "./DatabasePlugin"
@@ -76,7 +75,6 @@ export const AllPlugins = ({
       <ComponentPickerMenuPlugin />
       <MarkdownShortcutPlugin transformers={__allTransformers} />
       <FloatingLinkEditorPlugin />
-      <BookmarkPlugin />
       {BuiltInBlocks.map((block) => (
         <block.plugin key={block.name} />
       ))}
