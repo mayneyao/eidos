@@ -6,6 +6,7 @@
  *
  */
 
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection"
@@ -27,24 +28,22 @@ import {
   type LexicalEditor,
   type NodeKey,
 } from "lexical"
-import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 
-import { FileSelector } from "@/components/file-selector"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { FileSelector } from "@/components/file-selector"
 
-import "./ImageNode.css"
-
+import "./style.css"
 import { cn } from "@/lib/utils"
 
+import { LazyImage } from "./LazyImage"
 // import { useSettings } from "../context/SettingsContext"
 // import { useSharedHistoryContext } from "../context/SharedHistoryContext"
 
-import { $isImageNode } from "./ImageNode"
-import { LazyImage } from "./LazyImage"
+import { $isImageNode } from "./node"
 
 function ImagePlaceholder(props: { nodeKey: string }) {
   const { nodeKey } = props

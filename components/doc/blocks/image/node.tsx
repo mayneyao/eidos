@@ -27,7 +27,7 @@ import {
 
 const ImageComponent = React.lazy(
   // @ts-ignore
-  () => import("./ImageComponent")
+  () => import("./component")
 )
 
 export interface ImagePayload {
@@ -261,7 +261,7 @@ export function $isImageNode(
   return node instanceof ImageNode
 }
 
-export const IMAGE: TextMatchTransformer = {
+export const IMAGE_NODE_TRANSFORMER: TextMatchTransformer = {
   dependencies: [ImageNode],
   export: (node) => {
     if (!$isImageNode(node)) {

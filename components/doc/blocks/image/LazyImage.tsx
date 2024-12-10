@@ -9,7 +9,7 @@ import { $getNodeByKey, type LexicalEditor, type NodeKey } from "lexical"
 
 import { DOMAINS } from "@/lib/const"
 
-import { $isImageNode } from "./ImageNode"
+import { $isImageNode } from "./node"
 
 const imageCache = new Set()
 

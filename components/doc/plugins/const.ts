@@ -11,7 +11,6 @@ import {
   Transformer,
 } from "@lexical/markdown"
 
-import { IMAGE } from "@/components/doc/nodes/ImageNode/ImageNode"
 import { SQL_NODE_TRANSFORMER } from "@/components/doc/nodes/SQLNode"
 
 import { BuiltInBlocks } from "../blocks"
@@ -25,7 +24,6 @@ export const allTransformers = [
   HIGHLIGHT,
   INLINE_CODE,
   // IMAGE => Bookmarks  this order is important
-  IMAGE,
   LINK,
   ORDERED_LIST,
   QUOTE,

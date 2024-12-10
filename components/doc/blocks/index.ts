@@ -5,8 +5,11 @@ import audioBlock from './audio';
 import fileBlock from './file';
 import customBlock from './custom';
 import bookmarkBlock from './bookmark';
+import imageBlock from './image';
 
 export const BuiltInBlocks: DocBlock[] = [
+    // transform order: image > bookmark 
+    imageBlock,
     audioBlock,
     videoBlock,
     fileBlock,

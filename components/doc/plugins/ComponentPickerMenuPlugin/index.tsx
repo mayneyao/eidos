@@ -61,7 +61,6 @@ import { bgColors, fgColors } from "../const"
 import "./index.css"
 import { BuiltInBlocks } from "../../blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
-import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
 import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
 
@@ -75,7 +74,6 @@ const IconMap: Record<string, JSX.Element> = {
   cl: <ListChecksIcon className="h-5 w-5" />,
   quote: <QuoteIcon className="h-5 w-5" />,
   code: <CodeIcon className="h-5 w-5" />,
-  image: <ImageIcon className="h-5 w-5" />,
   audio: <AudioLinesIcon className="h-5 w-5" />,
   database: <SheetIcon className="h-5 w-5" />,
   text: <CaseSensitiveIcon className="h-5 w-5" />,
@@ -302,15 +300,6 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         keywords: ["horizontal rule", "divider", "hr"],
         onSelect: () =>
           editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
-      }),
-      new ComponentPickerOption(t("doc.menu.image"), {
-        icon: IconMap["image"],
-        keywords: ["image", "img"],
-        onSelect: () =>
-          editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-            src: "",
-            altText: "",
-          }),
       }),
       ...BuiltInBlocks.map((block) => {
         const iconName = block.icon

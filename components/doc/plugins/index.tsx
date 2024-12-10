@@ -22,7 +22,6 @@ import { DatabasePlugin } from "./DatabasePlugin"
 import DragDropPaste from "./DragDropPaste"
 import AdvancedListPlugin from "./DraggableBlockPlugin/advanced-list"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
-import ImagesPlugin from "./ImagesPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { SQLPlugin } from "./SQLPlugin"
 import { ShortcutPlugin } from "./ShortcutPlugin"
@@ -69,7 +68,6 @@ export const AllPlugins = ({
       <LinkPlugin />
       <ShortcutPlugin />
       <AutoLinkPlugin />
-      <ImagesPlugin />
       <DragDropPaste />
       <LexicalClickableLinkPlugin />
       <ComponentPickerMenuPlugin />

@@ -6,17 +6,15 @@ import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 // import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 
-import { BookmarkNode } from "./BookmarkNode"
 import { CardNode } from "./CardNode"
 import { DatabaseTableNode } from "./DatabaseTableNode"
-import { ImageNode } from "./ImageNode/ImageNode"
 import { MentionNode } from "./MentionNode/MentionNode"
 // custom node
+import { BuiltInBlocks } from "../blocks"
 import { SQLNode } from "./SQLNode"
 import { SyncBlock } from "./SyncBlock/SyncBlock"
 import { TableOfContentsNode } from "./TableOfContentsNode"
 import { YouTubeNode } from "./YoutubeNode"
-import { BuiltInBlocks } from "../blocks"
 
 export const AllNodes = [
   HorizontalRuleNode,
@@ -29,8 +27,6 @@ export const AllNodes = [
   AutoLinkNode,
   LinkNode,
   SQLNode,
-  BookmarkNode,
-  ImageNode,
   HashtagNode,
   MentionNode,
   DatabaseTableNode,
