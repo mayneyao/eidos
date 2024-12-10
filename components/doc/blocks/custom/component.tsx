@@ -90,7 +90,7 @@ export const CustomBlockComponent = (props: {
   }, [props.url, props.nodeKey])
 
   const { height, setHeight, handleMouseDown } = useResizable({
-    initialHeight: props.height || 300,
+    initialHeight: props.height || 100,
     nodeKey: props.nodeKey,
     editor,
     isSelecting,
@@ -106,7 +106,7 @@ export const CustomBlockComponent = (props: {
       const height = blockRef.current?.getHeight()
       if (height) {
         const padding = 20
-        const safeHeight = Math.max(height + padding, 100)
+        const safeHeight = Math.max(height + padding, 30)
         editor.update(() => {
           const node = $getNodeByKey(props.nodeKey)
           if ($isCustomBlockNode(node)) {
@@ -139,7 +139,7 @@ export const CustomBlockComponent = (props: {
 
   return (
     <div
-      className="w-full ring-1 ring-gray-200 rounded-sm p-2 relative"
+      className="w-full  p-2 relative hover:ring-1 hover:ring-gray-200 rounded-sm min-h-[30px]"
       style={{
         height: `${height}px`,
         pointerEvents: isSelecting ? "none" : "auto",

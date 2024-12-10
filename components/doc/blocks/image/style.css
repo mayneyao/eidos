@@ -16,10 +16,8 @@
   display: block;
   position: relative;
   outline: 0px;
-  padding: 10px;
   user-select: text;
   font-size: 12px;
-  width: calc(100% - 20px);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -82,10 +80,7 @@ div.editor-image {
   right: 0;
   padding: 0;
   margin: 0;
-  border-top: 1px solid #fff;
-  background-color: rgba(255, 255, 255, 0.9);
   min-width: 100px;
-  color: #000;
   overflow: hidden;
 }
 

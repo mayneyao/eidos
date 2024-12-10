@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useKeyPress } from "ahooks"
-import { $getNodeByKey, $getRoot, LexicalNode } from "lexical"
+import {
+  $getNearestNodeFromDOMNode,
+  $getNodeByKey,
+  $getRoot,
+  LexicalNode,
+} from "lexical"
 
-import { useEditorInstance } from "./editor-instance-context"
+import { useEditorInstance } from "../../hooks/editor-instance-context"
 
 type BoxStyle = {
   display: string
@@ -43,7 +48,7 @@ export function useMouseSelection(
     setGlobalIsSelecting(isSelecting)
   }
 
-  const clearSelectedKetSet = () => {
+  const clearSelectedKeySet = () => {
     setSelectedKeySet(new Set())
   }
   useKeyPress(["delete", "backspace"], (e) => {
@@ -57,7 +62,7 @@ export function useMouseSelection(
           const node = $getNodeByKey(key) as LexicalNode
           node?.remove()
         })
-        clearSelectedKetSet()
+        clearSelectedKeySet()
       })
     }
   })
@@ -70,6 +75,18 @@ export function useMouseSelection(
           const key = child.getKey()
           const element = editor.getElementByKey(key)
           element?.setAttribute("data-key", key)
+        })
+        editor.read(() => {
+          const elements = getSelectionItems()
+          elements.forEach((element) => {
+            if (element.getAttribute("data-key")) {
+              return
+            }
+            const node = $getNearestNodeFromDOMNode(element)
+            if (node) {
+              element.setAttribute("data-key", node.getKey())
+            }
+          })
         })
       })
     })
@@ -203,7 +220,7 @@ export function useMouseSelection(
         ;(box as HTMLElement).style.backgroundColor = ""
         ;(box as HTMLElement).style.userSelect = ""
       })
-      clearSelectedKetSet()
+      clearSelectedKeySet()
     }
 
     if (container) {

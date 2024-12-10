@@ -49,6 +49,8 @@ interface EditorProps {
   topComponent?: React.ReactNode
   coverComponent?: React.ReactNode
   propertyComponent?: React.ReactNode
+  plugins?: React.ReactNode
+  disableExtPlugins?: boolean
 }
 
 export function InnerEditor(props: EditorProps) {
@@ -117,15 +119,18 @@ export function InnerEditor(props: EditorProps) {
             )}
 
             <AIEditorPlugin />
-            <AllPlugins />
+            <AllPlugins disableExtPlugins={props.disableExtPlugins} />
+            {props.plugins}
             <NewMentionsPlugin currentDocId={props.docId!} />
             {props.autoFocus && <AutoFocusPlugin />}
             {props.docId && (
-              <EidosAutoSavePlugin
-                docId={props.docId}
-                isEditable={props.isEditable}
-                disableManuallySave={props.disableManuallySave}
-              />
+              <>
+                <EidosAutoSavePlugin
+                  docId={props.docId}
+                  isEditable={props.isEditable}
+                  disableManuallySave={props.disableManuallySave}
+                />
+              </>
             )}
 
             {floatingAnchorElem && (

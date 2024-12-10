@@ -1,3 +1,4 @@
+import React, { useCallback, useEffect, useMemo } from "react"
 import { $isListItemNode } from "@lexical/list"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
@@ -15,9 +16,8 @@ import {
   LexicalCommand,
   PASTE_COMMAND,
   TextNode,
-  createCommand
+  createCommand,
 } from "lexical"
-import React, { useCallback, useEffect, useMemo } from "react"
 import ReactDOM from "react-dom"
 
 import {
@@ -26,7 +26,7 @@ import {
   $isBookmarkNode,
   BookmarkNode,
   BookmarkPayload,
-} from "../../nodes/BookmarkNode"
+} from "./node"
 import { $createYouTubeNode } from "../../nodes/YoutubeNode"
 import { getSelectedNode } from "../../utils/getSelectedNode"
 import { validateUrl } from "../../utils/url"
@@ -154,12 +154,11 @@ export function BookmarkPlugin({
           const selection = $getSelection()
           const bookmarkNode = $createBookmarkNode(payload)
           if ($isRangeSelection(selection)) {
-            // $insertNodes([bookmarkNode])
             const node = getSelectedNode(selection)
             if ($isListItemNode(node)) {
               node.append(bookmarkNode)
             } else {
-              $insertNodeToNearestRoot(bookmarkNode)
+              selection.insertNodes([bookmarkNode])
             }
           } else {
             $insertNodeToNearestRoot(bookmarkNode)

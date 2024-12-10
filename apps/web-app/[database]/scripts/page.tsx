@@ -3,9 +3,9 @@ import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import {
   AppWindowIcon,
-  ChevronDownIcon,
   FilterIcon,
   FunctionSquareIcon,
+  PencilRulerIcon,
   ShapesIcon,
   SparkleIcon,
   SquareCodeIcon,
@@ -15,15 +15,6 @@ import { useLoaderData, useRevalidator } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -43,17 +34,17 @@ import { ScriptCard } from "./components/ScriptCard"
 import { useAllApps } from "./hooks/use-all-apps"
 import { useAllBlocks } from "./hooks/use-all-blocks"
 import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
-import { useNewScript } from "./hooks/use-new-script"
 import { useScript } from "./hooks/use-script"
 import { InstallScript } from "./install"
 
-const IconMap = {
+export const IconMap = {
   script: SquareCodeIcon,
   udf: FunctionSquareIcon,
   prompt: SparkleIcon,
   block: ShapesIcon,
   m_block: ToyBrickIcon,
   app: AppWindowIcon,
+  doc_plugin: PencilRulerIcon,
 }
 
 const extensionTypes = [
@@ -89,6 +80,11 @@ const extensionTypes = [
     name: "Micro Block",
     icon: ToyBrickIcon,
   },
+  {
+    id: "doc_plugin",
+    name: "Doc Plugin",
+    icon: PencilRulerIcon,
+  },
 ]
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
@@ -102,7 +98,9 @@ export const ScriptPage = () => {
   const _scripts = useMemo(() => {
     return [
       ...scripts.filter((script) =>
-        ["script", "udf", "prompt", "m_block"].includes(script.type)
+        ["script", "udf", "prompt", "m_block", "doc_plugin"].includes(
+          script.type
+        )
       ),
       ...blocks.map((block) => ({
         id: block,

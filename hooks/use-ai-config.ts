@@ -7,29 +7,43 @@ export const useAiConfig = () => {
   const { aiConfig } = useAIConfigStore()
 
   const findFirstAvailableModel = useCallback(() => {
+    if (!aiConfig.llmProviders?.length) {
+      return ''
+    }
     const provider = aiConfig.llmProviders[0]
-    const model = provider?.models.split(",")[0]
+    const models = provider?.models?.split(',')
+    const model = models?.[0]?.trim()
+    if (!model) {
+      return ''
+    }
     return `${model}@${provider.name}`
   }, [aiConfig])
 
   const getConfigByModel = useCallback(
     (model: string) => {
-      const [modelId, provider] = model.split("@")
+      if (!model?.includes('@')) {
+        return {
+          baseUrl: '/',
+          apiKey: '',
+          modelId: model || '',
+        }
+      }
+      const [modelId, provider] = model.split('@')
       const llmProvider = aiConfig.llmProviders.find(
-        (item) => item.name.toLowerCase() === provider?.toLowerCase()
+        (item) => item?.name?.toLowerCase() === provider?.toLowerCase()
       )
       if (llmProvider) {
         return {
-          baseUrl: llmProvider.baseUrl,
-          apiKey: llmProvider.apiKey,
-          modelId,
+          baseUrl: llmProvider.baseUrl || '/',
+          apiKey: llmProvider.apiKey || '',
+          modelId: modelId || '',
           type: llmProvider.type,
         }
       }
       return {
-        baseUrl: "/",
-        apiKey: "",
-        modelId,
+        baseUrl: '/',
+        apiKey: '',
+        modelId: modelId || '',
       }
     },
     [aiConfig]

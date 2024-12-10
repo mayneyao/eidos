@@ -1,9 +1,10 @@
 import { ReactNode, createContext, useContext, useState } from "react"
+import { IScript } from "@/worker/web-worker/meta-table/script"
 
 import { useAllMblocks } from "@/apps/web-app/[database]/scripts/hooks/use-all-mblocks"
 
 interface EditorInstanceContextType {
-  mblocks: ReturnType<typeof useAllMblocks>
+  mblocks: IScript[]
   isSelecting: boolean
   setIsSelecting: (value: boolean) => void
   selectedKeys: Set<string>
@@ -19,7 +20,7 @@ const EditorInstanceContext = createContext<EditorInstanceContextType>({
 })
 
 export function EditorInstanceProvider({ children }: { children: ReactNode }) {
-  const mblocks = useAllMblocks()
+  const { mblocks } = useAllMblocks()
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState(new Set<string>())
 
