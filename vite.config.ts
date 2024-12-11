@@ -6,8 +6,7 @@ import { visualizer } from "rollup-plugin-visualizer"
 import { Plugin, PluginOption, defineConfig } from "vite"
 import electron from 'vite-plugin-electron/simple'
 import { VitePWA } from "vite-plugin-pwa"
-import wasm from "vite-plugin-wasm";
-import topLevelAwait from "vite-plugin-top-level-await";
+
 
 
 
@@ -64,7 +63,6 @@ const config = defineConfig({
   plugins: [
     htmlPlugin(),
     react(),
-    wasm(), topLevelAwait(),
     {
       name: 'clean-dist-electron',
       buildStart() {
