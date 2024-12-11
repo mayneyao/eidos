@@ -175,11 +175,11 @@ export function Editor(props: EditorProps) {
   }, [props.title])
 
   return (
-    <div className="doc-editor-area flex w-full h-full flex-col">
+    <div className="doc-editor-area flex w-full flex-col">
       {props.coverComponent}
       <div
         className={cn(
-          "prose mx-auto h-full w-full flex-col px-5 dark:prose-invert sm:px-12",
+          "prose mx-auto w-full flex-col px-5 dark:prose-invert sm:px-12",
           props.className
         )}
         id="eidos-editor-container"

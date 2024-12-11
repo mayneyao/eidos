@@ -103,7 +103,12 @@ export function LazyImage({
         const newWidth =
           direction === "right" ? startWidth + dx : startWidth - dx
 
-        const constrainedWidth = Math.min(Math.max(newWidth, 100), maxWidth)
+        const editorElement = editor.getRootElement()
+        const containerWidth = editorElement?.offsetWidth || maxWidth
+        const constrainedWidth = Math.min(
+          Math.max(newWidth, 100),
+          containerWidth
+        )
         const newHeight = Math.round(constrainedWidth * aspectRatio)
 
         editor.update(() => {
@@ -130,7 +135,7 @@ export function LazyImage({
   )
 
   return (
-    <div>
+    <>
       <div className="relative inline-block group">
         <img
           className={className ?? ""}
@@ -202,6 +207,6 @@ export function LazyImage({
           </LexicalNestedComposer>
         </div>
       )}
-    </div>
+    </>
   )
 }
