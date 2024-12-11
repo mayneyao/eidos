@@ -6,6 +6,7 @@ blocks/
     component.tsx
     node.tsx
     plugin.ts
+    index.ts
 ```
 
 ## Core concepts

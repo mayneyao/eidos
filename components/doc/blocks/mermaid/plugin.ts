@@ -1,8 +1,8 @@
-import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { $insertNodeToNearestRoot } from "@lexical/utils"
 import { COMMAND_PRIORITY_EDITOR, LexicalCommand, createCommand } from "lexical"
+import { useEffect } from "react"
 
+import { $insertDecoratorBlockNode } from "../helper"
 import { $createMermaidNode, MermaidNode } from "./node"
 
 export const INSERT_MERMAID_COMMAND: LexicalCommand<string> = createCommand()
@@ -20,7 +20,7 @@ export function MermaidPlugin(): JSX.Element | null {
       INSERT_MERMAID_COMMAND,
       (payload) => {
         const node = $createMermaidNode(payload)
-        $insertNodeToNearestRoot(node)
+        $insertDecoratorBlockNode(node)
         return true
       },
       COMMAND_PRIORITY_EDITOR

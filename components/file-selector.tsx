@@ -36,7 +36,7 @@ export function FileSelector(props: {
   hideGallery?: boolean
   showBlock?: boolean
 }) {
-  const allMblocks = useAllMblocks()
+  const { mblocks: allMblocks } = useAllMblocks()
   const { files } = useFiles()
   const { efsManager } = useEidosFileSystemManager()
   const { database } = useParams()
@@ -117,9 +117,7 @@ export function FileSelector(props: {
           {!props.hideGallery && (
             <TabsTrigger value="gallery">Gallery</TabsTrigger>
           )}
-          {props.showBlock && (
-            <TabsTrigger value="block">Block</TabsTrigger>
-          )}
+          {props.showBlock && <TabsTrigger value="block">Block</TabsTrigger>}
           <TabsTrigger value="upload">Load</TabsTrigger>
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
@@ -184,10 +182,12 @@ export function FileSelector(props: {
       )}
       {props.showBlock && (
         <TabsContent value="block">
-          <ScrollArea className={cn({
-            "h-[600px]": !props.height,
-            [`h-[${props.height}px]`]: props.height,
-          })}>
+          <ScrollArea
+            className={cn({
+              "h-[600px]": !props.height,
+              [`h-[${props.height}px]`]: props.height,
+            })}
+          >
             <div className="grid grid-cols-4 gap-4">
               {allMblocks.map((block) => (
                 <div

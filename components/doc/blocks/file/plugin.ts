@@ -4,6 +4,7 @@ import { $insertNodeToNearestRoot } from "@lexical/utils"
 import { COMMAND_PRIORITY_EDITOR, LexicalCommand, createCommand } from "lexical"
 
 import { $createFileNode, FileNode } from "./node"
+import { $insertDecoratorBlockNode } from "../helper"
 
 export const INSERT_FILE_COMMAND: LexicalCommand<{ src: string, fileName: string }> = createCommand()
 
@@ -20,7 +21,7 @@ export const FilePlugin = () => {
             INSERT_FILE_COMMAND,
             (payload) => {
                 const fileNode = $createFileNode(payload)
-                $insertNodeToNearestRoot(fileNode)
+                $insertDecoratorBlockNode(fileNode)
                 return true
             },
             COMMAND_PRIORITY_EDITOR

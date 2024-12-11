@@ -7,6 +7,7 @@ import { AnimatePresence } from "framer-motion"
 import { useSWRConfig } from "swr"
 import { useWindowSize } from "usehooks-ts"
 
+import docPluginPrompt from "@/lib/v3/prompts/built-in-remix-prompt-for-doc-plugin.md?raw"
 import scriptPrompt from "@/lib/v3/prompts/built-in-remix-prompt-for-script.md?raw"
 import builtInRemixPrompt from "@/lib/v3/prompts/built-in-remix-prompt.md?raw"
 import { useAiConfig } from "@/hooks/use-ai-config"
@@ -46,7 +47,11 @@ export function Chat({
     getRemixPrompt(
       script?.bindings,
       script?.ts_code || script?.code,
-      script?.type === "script" ? scriptPrompt : builtInRemixPrompt
+      script?.type === "script"
+        ? scriptPrompt
+        : script?.type === "doc_plugin"
+        ? docPluginPrompt
+        : builtInRemixPrompt
     ).then(setRemixPrompt)
   }, [script?.bindings, script?.ts_code, script?.code])
 
@@ -69,6 +74,7 @@ export function Chat({
       model: codingModel,
       space,
       projectId: scriptId,
+      useTools: false,
     },
     initialMessages,
     onFinish: () => {

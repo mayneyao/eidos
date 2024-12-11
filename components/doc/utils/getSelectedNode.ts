@@ -6,7 +6,22 @@
  *
  */
 import { $isAtNodeEnd } from "@lexical/selection"
-import { ElementNode, RangeSelection, TextNode } from "lexical"
+import { ElementNode, RangeSelection, TextNode, LexicalNode } from "lexical"
+
+export function findFirstBlockElement(node: LexicalNode): ElementNode | null {
+  let current: LexicalNode | null = node;
+  while (current) {
+    if (current.getType() === 'paragraph' ||
+      current.getType() === 'heading' ||
+      current.getType() === 'list' ||
+      current.getType() === 'listitem' ||
+      current.getType() === 'quote') {
+      return current as ElementNode;
+    }
+    current = current.getParent();
+  }
+  return null;
+}
 
 export function getSelectedNode(
   selection: RangeSelection

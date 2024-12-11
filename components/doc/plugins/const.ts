@@ -11,12 +11,11 @@ import {
   Transformer,
 } from "@lexical/markdown"
 
-import { IMAGE } from "@/components/doc/nodes/ImageNode/ImageNode"
-import { SQL_NODE_TRANSFORMER } from "@/components/doc/nodes/SQLNode"
 
-import { BOOKMARK, BookmarkPayload } from "../nodes/BookmarkNode"
-import { HR } from "./MarkdownTransformers"
+
 import { BuiltInBlocks } from "../blocks"
+import { BookmarkPayload } from "../blocks/bookmark/node"
+import { HR } from "./MarkdownTransformers"
 
 export const allTransformers = [
   CHECK_LIST,
@@ -25,13 +24,10 @@ export const allTransformers = [
   HIGHLIGHT,
   INLINE_CODE,
   // IMAGE => Bookmarks  this order is important
-  IMAGE,
-  BOOKMARK,
   LINK,
   ORDERED_LIST,
   QUOTE,
   HR,
-  SQL_NODE_TRANSFORMER,
   ...TRANSFORMERS,
   ...BuiltInBlocks.map((block) => block.transform).filter(Boolean),
 ] as Transformer[]

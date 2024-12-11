@@ -7,6 +7,9 @@ import { Plugin, PluginOption, defineConfig } from "vite"
 import electron from 'vite-plugin-electron/simple'
 import { VitePWA } from "vite-plugin-pwa"
 
+
+
+
 const serviceMode = process.env.EIDOS_SERVICE_MODE || 'web-app'
 
 const iconPath = path.resolve(__dirname, "icons.json")

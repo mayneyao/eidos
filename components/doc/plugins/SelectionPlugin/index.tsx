@@ -1,10 +1,18 @@
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { createPortal } from "react-dom"
 
-import { useMouseSelection } from "../../hooks/useSelection"
+import { useKeyboardSelection } from "./use-keyboard-selection"
+import { useMouseSelection } from "./use-mouse-selection"
 
 export const SelectionPlugin = () => {
-  const [editor] = useLexicalComposerContext()
-  const getSelectionItems = () => document.querySelectorAll(".editor-input > *")
+  const getSelectionItems = () =>
+    document.querySelectorAll(
+      ".editor-input > *:not(ul):not(ol), .editor-input > ul > li, .editor-input > ol > li"
+    )
   const { boxStyle } = useMouseSelection(getSelectionItems)
-  return <div id="selection-box" style={boxStyle}></div>
+  useKeyboardSelection()
+
+  return createPortal(
+    <div id="selection-box" style={boxStyle} />,
+    document.querySelector(".doc-editor-area") || document.body
+  )
 }

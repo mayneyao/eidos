@@ -6,7 +6,6 @@
  *
  */
 
-import { useCallback, useMemo, useState } from "react"
 import { $createCodeNode } from "@lexical/code"
 import {
   INSERT_CHECK_LIST_COMMAND,
@@ -32,13 +31,12 @@ import {
 import {
   AudioLinesIcon,
   BaselineIcon,
-  BookMarkedIcon,
   CaseSensitiveIcon,
   CodeIcon,
+  FileQuestionIcon,
   Heading1Icon,
   Heading2Icon,
   Heading3Icon,
-  ImageIcon,
   ListChecksIcon,
   ListIcon,
   ListOrderedIcon,
@@ -47,25 +45,20 @@ import {
   SheetIcon,
   SparklesIcon,
   VariableIcon,
-  icons,
+  icons
 } from "lucide-react"
+import { useCallback, useMemo, useState } from "react"
 import * as ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
-import { TocIcon } from "@/components/icons/toc"
 
-import { useModal } from "../../hooks/useModal"
-import { SelectDatabaseTableDialog } from "../DatabasePlugin/SelectDatabaseTableDialog"
-import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
-import { bgColors, fgColors } from "../const"
-import "./index.css"
 import { BuiltInBlocks } from "../../blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
-import { INSERT_BOOKMARK_COMMAND } from "../BookmarkPlugin"
-import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
-import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
+import { useModal } from "../../hooks/useModal"
+import { bgColors, fgColors } from "../const"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
+import "./index.css"
 
 const IconMap: Record<string, JSX.Element> = {
   h1: <Heading1Icon className="h-5 w-5" />,
@@ -77,13 +70,11 @@ const IconMap: Record<string, JSX.Element> = {
   cl: <ListChecksIcon className="h-5 w-5" />,
   quote: <QuoteIcon className="h-5 w-5" />,
   code: <CodeIcon className="h-5 w-5" />,
-  image: <ImageIcon className="h-5 w-5" />,
   audio: <AudioLinesIcon className="h-5 w-5" />,
   database: <SheetIcon className="h-5 w-5" />,
   text: <CaseSensitiveIcon className="h-5 w-5" />,
   hr: <MinusSquareIcon className="h-5 w-5" />,
   sql: <VariableIcon className="h-5 w-5" />,
-  bookmark: <BookMarkedIcon className="h-5 w-5" />,
 }
 
 class ComponentPickerOption extends MenuOption {
@@ -185,13 +176,16 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         .map((n: string) => parseInt(n, 10))
 
       options.push(
-        new ComponentPickerOption(t("doc.menu.insertTable", { rows, columns }), {
-          icon: <i className="icon table" />,
-          keywords: ["table"],
-          onSelect: () =>
-            // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
-            editor.dispatchCommand(INSERT_TABLE_COMMAND, { columns, rows }),
-        })
+        new ComponentPickerOption(
+          t("doc.menu.insertTable", { rows, columns }),
+          {
+            icon: <i className="icon table" />,
+            keywords: ["table"],
+            onSelect: () =>
+              // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
+              editor.dispatchCommand(INSERT_TABLE_COMMAND, { columns, rows }),
+          }
+        )
       )
     } else if (partialTableMatch) {
       const rows = parseInt(partialTableMatch[0], 10)
@@ -199,13 +193,19 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
       options.push(
         ...Array.from({ length: 5 }, (_, i) => i + 1).map(
           (columns) =>
-            new ComponentPickerOption(t("doc.menu.insertTable", { rows, columns }), {
-              icon: <i className="icon table" />,
-              keywords: ["table"],
-              onSelect: () =>
-                // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
-                editor.dispatchCommand(INSERT_TABLE_COMMAND, { columns, rows }),
-            })
+            new ComponentPickerOption(
+              t("doc.menu.insertTable", { rows, columns }),
+              {
+                icon: <i className="icon table" />,
+                keywords: ["table"],
+                onSelect: () =>
+                  // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
+                  editor.dispatchCommand(INSERT_TABLE_COMMAND, {
+                    columns,
+                    rows,
+                  }),
+              }
+            )
         )
       )
     }
@@ -297,59 +297,14 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         onSelect: () =>
           editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
       }),
-      new ComponentPickerOption(t("doc.menu.image"), {
-        icon: IconMap["image"],
-        keywords: ["image", "img"],
-        onSelect: () =>
-          editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-            src: "",
-            altText: "",
-          }),
-      }),
-      ...BuiltInBlocks.map((block) => {
+      ...BuiltInBlocks.filter((block) => !block.hiddenInMenu).map((block) => {
         const iconName = block.icon
-        const BlockIcon = (icons as any)[iconName]
+        const BlockIcon = (icons as any)[iconName] ?? FileQuestionIcon
         return new ComponentPickerOption(block.name, {
           icon: <BlockIcon className="h-5 w-5" />,
           keywords: block.keywords,
           onSelect: () => block.onSelect(editor),
         })
-      }),
-      new ComponentPickerOption(t("doc.menu.bookmark"), {
-        icon: IconMap["bookmark"],
-        keywords: ["bookmark"],
-        onSelect: () =>
-          editor.dispatchCommand(INSERT_BOOKMARK_COMMAND, {
-            url: "",
-          }),
-      }),
-      new ComponentPickerOption(t("doc.menu.tableOfContent"), {
-        icon: <TocIcon />,
-        keywords: ["table of content", "toc"],
-        onSelect: () => editor.dispatchCommand(INSERT_TOC_COMMAND, undefined),
-      }),
-      new ComponentPickerOption(t("doc.menu.query"), {
-        icon: IconMap["sql"],
-        keywords: ["query", "sql"],
-        onSelect: () =>
-          showModal(t("doc.menu.insertSqlQuery"), (onClose) => (
-            <SqlQueryDialog activeEditor={editor} onClose={onClose} />
-          )),
-      }),
-      new ComponentPickerOption(t("doc.menu.databaseTable"), {
-        icon: IconMap["database"],
-        keywords: ["database", "table"],
-        disabled: true,
-        onSelect: () => {
-          // disable for now
-          return
-          showModal(t("doc.menu.insertDatabaseTable"), (onClose) => (
-            <SelectDatabaseTableDialog
-              activeEditor={editor}
-              onClose={onClose}
-            />
-          ))
-        },
       }),
       ...bgColors.map(({ name, value }) => {
         return new ComponentPickerOption(t("doc.menu.background", { name }), {

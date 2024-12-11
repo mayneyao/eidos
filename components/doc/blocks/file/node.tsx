@@ -1,12 +1,14 @@
-import { ReactNode } from "react"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
-  DecoratorNode,
+  DecoratorBlockNode,
+  SerializedDecoratorBlockNode,
+} from "@lexical/react/LexicalDecoratorBlockNode"
+import {
   EditorConfig,
+  ElementFormatType,
   LexicalEditor,
   LexicalNode,
   NodeKey,
-  SerializedLexicalNode,
   Spread,
 } from "lexical"
 
@@ -17,10 +19,10 @@ export type SerializedFileNode = Spread<
     src: string
     fileName: string
   },
-  SerializedLexicalNode
+  SerializedDecoratorBlockNode
 >
 
-export class FileNode extends DecoratorNode<ReactNode> {
+export class FileNode extends DecoratorBlockNode {
   __src: string
   __fileName: string
 
@@ -29,11 +31,16 @@ export class FileNode extends DecoratorNode<ReactNode> {
   }
 
   static clone(node: FileNode): FileNode {
-    return new FileNode(node.__src, node.__fileName, node.__key)
+    return new FileNode(node.__src, node.__fileName, node.__format, node.__key)
   }
 
-  constructor(src: string, fileName: string, key?: NodeKey) {
-    super(key)
+  constructor(
+    src: string,
+    fileName: string,
+    format?: ElementFormatType,
+    key?: NodeKey
+  ) {
+    super(format, key)
     this.__src = src
     this.__fileName = fileName
   }
@@ -61,11 +68,13 @@ export class FileNode extends DecoratorNode<ReactNode> {
       src: data.src,
       fileName: data.fileName,
     })
+    node.setFormat(data.format)
     return node
   }
 
-  exportJSON() {
+  exportJSON(): SerializedFileNode {
     return {
+      ...super.exportJSON(),
       src: this.__src,
       fileName: this.__fileName,
       type: "file",
@@ -73,15 +82,18 @@ export class FileNode extends DecoratorNode<ReactNode> {
     }
   }
 
-  decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
-    const nodeKey = this.getKey()
+  decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
     const embedBlockTheme = config.theme.embedBlock || {}
     const className = {
       base: embedBlockTheme.base || "",
       focus: embedBlockTheme.focus || "",
     }
     return (
-      <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
+      <BlockWithAlignableContents
+        format={this.__format}
+        className={className}
+        nodeKey={this.__key}
+      >
         <FileComponent
           url={this.__src}
           fileName={this.__fileName}

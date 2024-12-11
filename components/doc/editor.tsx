@@ -18,12 +18,11 @@ import { EditorInstanceProvider } from "./hooks/editor-instance-context"
 import { useLoadingExtBlocks } from "./hooks/use-all-nodes"
 import { ExtBlock } from "./hooks/use-ext-blocks"
 import { useEditorStore } from "./hooks/useEditorContext"
-import { AllNodes } from "./nodes"
+import { getAllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
 import { EidosAutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
-import NewMentionsPlugin from "./plugins/MentionsPlugin"
 import { SafeBottomPaddingPlugin } from "./plugins/SafeBottomPaddingPlugin"
 import { SelectionPlugin } from "./plugins/SelectionPlugin"
 import defaultTheme from "./themes/default"
@@ -49,6 +48,8 @@ interface EditorProps {
   topComponent?: React.ReactNode
   coverComponent?: React.ReactNode
   propertyComponent?: React.ReactNode
+  plugins?: React.ReactNode
+  disableExtPlugins?: boolean
 }
 
 export function InnerEditor(props: EditorProps) {
@@ -74,7 +75,7 @@ export function InnerEditor(props: EditorProps) {
       },
       // Any custom nodes go here
       nodes: [
-        ...AllNodes,
+        ...getAllNodes(),
         ...(((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []).map(
           (block) => block.node
         ),
@@ -85,7 +86,7 @@ export function InnerEditor(props: EditorProps) {
 
   return (
     <LexicalComposer initialConfig={initConfig}>
-      <EditorInstanceProvider>
+      <EditorInstanceProvider docId={props.docId ?? null}>
         <div
           className={cn("editor-container w-full", props.className)}
           ref={ref}
@@ -117,15 +118,17 @@ export function InnerEditor(props: EditorProps) {
             )}
 
             <AIEditorPlugin />
-            <AllPlugins />
-            <NewMentionsPlugin currentDocId={props.docId!} />
+            <AllPlugins disableExtPlugins={props.disableExtPlugins} />
+            {props.plugins}
             {props.autoFocus && <AutoFocusPlugin />}
             {props.docId && (
-              <EidosAutoSavePlugin
-                docId={props.docId}
-                isEditable={props.isEditable}
-                disableManuallySave={props.disableManuallySave}
-              />
+              <>
+                <EidosAutoSavePlugin
+                  docId={props.docId}
+                  isEditable={props.isEditable}
+                  disableManuallySave={props.disableManuallySave}
+                />
+              </>
             )}
 
             {floatingAnchorElem && (
@@ -176,7 +179,7 @@ export function Editor(props: EditorProps) {
       {props.coverComponent}
       <div
         className={cn(
-          "prose mx-auto h-full w-full flex-col px-5 dark:prose-invert sm:px-12",
+          "prose mx-auto w-full flex-col px-5 dark:prose-invert sm:px-12",
           props.className
         )}
         id="eidos-editor-container"

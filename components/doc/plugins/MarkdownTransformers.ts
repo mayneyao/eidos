@@ -4,16 +4,11 @@ import {
   $isHorizontalRuleNode,
   HorizontalRuleNode,
 } from "@lexical/react/LexicalHorizontalRuleNode"
-import { $insertNodeToNearestRoot } from "@lexical/utils"
 import {
-  $createParagraphNode,
   $getEditor,
-  $getRoot,
-  $insertNodes,
-  LexicalNode,
+  LexicalNode
 } from "lexical"
 
-import { $createCardNode, $isCardNode } from "../nodes/CardNode"
 
 export const HR: ElementTransformer = {
   dependencies: [HorizontalRuleNode],
@@ -37,34 +32,6 @@ export const HR: ElementTransformer = {
     if (editor._config.namespace === "eidos-notes") {
       // disable this feature for now
       return;
-      if (!isImport) {
-        const container = $createCardNode()
-        const root = $getRoot()
-        const children = root.getChildren()
-        let lineIndex = children.findIndex((child, index) => child === line)
-        let prevNode = children[lineIndex - 1]
-
-        const nodes2append: LexicalNode[] = []
-        while (
-          prevNode &&
-          !$isHorizontalRuleNode(prevNode) &&
-          !$isCardNode(prevNode)
-        ) {
-          nodes2append.unshift(prevNode)
-          lineIndex--
-          prevNode = children[lineIndex]
-        }
-        if (nodes2append.length > 0) {
-          nodes2append.forEach((node) => {
-            container.append(node)
-          })
-        }
-        if (container.getChildren().length > 0) {
-          line.selectNext()
-          $insertNodeToNearestRoot(container)
-          line.remove()
-        }
-      }
     } else {
       line.selectNext()
     }

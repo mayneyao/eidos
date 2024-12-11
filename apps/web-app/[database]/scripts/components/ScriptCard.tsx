@@ -1,16 +1,10 @@
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import {
-  AppWindowIcon,
-  FunctionSquareIcon,
-  RotateCcwIcon,
-  ShapesIcon,
-  SparkleIcon,
-  SquareCodeIcon,
-  ToyBrickIcon,
+  RotateCcwIcon
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
-import { cn } from "@/lib/utils"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,16 +18,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { useTranslation } from "react-i18next"
-
-const IconMap = {
-  script: SquareCodeIcon,
-  udf: FunctionSquareIcon,
-  prompt: SparkleIcon,
-  block: ShapesIcon,
-  m_block: ToyBrickIcon,
-  app: AppWindowIcon,
-}
+import { cn } from "@/lib/utils"
+import { IconMap } from "../page"
 
 interface ScriptCardProps {
   script: IScript

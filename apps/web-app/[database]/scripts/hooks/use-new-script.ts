@@ -6,6 +6,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { useScript } from "./use-script"
 import mblockTemplate from "./template/new-micro-block?raw"
+import docPluginTemplate from "./template/new-doc-plugin?raw"
 
 export const useNewScript = () => {
   const { addScript } = useScript()
@@ -13,7 +14,7 @@ export const useNewScript = () => {
   const { space } = useCurrentPathInfo()
 
   const handleCreateNewScript = async (
-    template: "script" | "udf" | "m_block" | "prompt" = "script"
+    template: "script" | "udf" | "m_block" | "prompt" | "doc_plugin" = "script"
   ) => {
     const newScriptId = generateId()
     const newScript: IScript = {
@@ -71,11 +72,24 @@ export const useNewScript = () => {
       code: ``,
     }
 
+    const docPluginScript: IScript = {
+      id: newScriptId,
+      name: `New Doc Plugin - ${newScriptId}`,
+      commands: [],
+      type: "doc_plugin",
+      description: "Doc Plugin Description",
+      version: "0.0.1",
+      ts_code: docPluginTemplate,
+      // leave code empty, so it will be generated when first saved
+      code: ``,
+    }
+
     const templateMap = {
       script: newScript,
       udf: newUDFScript,
       prompt: promptScript,
       m_block: mBlockScript,
+      doc_plugin: docPluginScript,
     }
 
     const script = templateMap[template]

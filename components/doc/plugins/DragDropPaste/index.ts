@@ -22,7 +22,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useFileSystem } from "@/hooks/use-files"
 import { getDragFileUrl } from "@/components/file-manager/helper"
 
-import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin"
+import { INSERT_IMAGE_COMMAND } from "../../blocks/image/plugin"
 import { INSERT_AUDIO_FILE_COMMAND } from "../../blocks/audio/plugin"
 import { INSERT_VIDEO_FILE_COMMAND } from "../../blocks/video/plugin"
 import { INSERT_FILE_COMMAND } from "../../blocks/file/plugin"
