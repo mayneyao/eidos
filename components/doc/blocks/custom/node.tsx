@@ -1,13 +1,15 @@
-import { ReactNode } from "react"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
-  DecoratorNode,
+  DecoratorBlockNode,
+  SerializedDecoratorBlockNode,
+} from "@lexical/react/LexicalDecoratorBlockNode"
+import {
   EditorConfig,
+  ElementFormatType,
   LexicalEditor,
   LexicalNode,
   NodeKey,
-  SerializedLexicalNode,
-  Spread,
+  Spread
 } from "lexical"
 
 import { CustomBlockComponent } from "./component"
@@ -17,10 +19,10 @@ export type SerializedCustomBlockNode = Spread<
     url: string
     height?: number
   },
-  SerializedLexicalNode
+  SerializedDecoratorBlockNode
 >
 
-export class CustomBlockNode extends DecoratorNode<ReactNode> {
+export class CustomBlockNode extends DecoratorBlockNode {
   __url: string
   __height?: number
 
@@ -29,11 +31,21 @@ export class CustomBlockNode extends DecoratorNode<ReactNode> {
   }
 
   static clone(node: CustomBlockNode): CustomBlockNode {
-    return new CustomBlockNode(node.__url, node.__height, node.__key)
+    return new CustomBlockNode(
+      node.__url,
+      node.__height,
+      node.__format,
+      node.__key
+    )
   }
 
-  constructor(url: string, height?: number, key?: NodeKey) {
-    super(key)
+  constructor(
+    url: string,
+    height?: number,
+    format?: ElementFormatType,
+    key?: NodeKey
+  ) {
+    super(format, key)
     this.__url = url
     this.__height = height
   }
@@ -63,6 +75,7 @@ export class CustomBlockNode extends DecoratorNode<ReactNode> {
 
   exportJSON() {
     return {
+      ...super.exportJSON(),
       url: this.__url,
       height: this.__height,
       type: "custom",
@@ -70,15 +83,18 @@ export class CustomBlockNode extends DecoratorNode<ReactNode> {
     }
   }
 
-  decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
-    const nodeKey = this.getKey()
+  decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
     const embedBlockTheme = config.theme.embedBlock || {}
     const className = {
       base: embedBlockTheme.base || "",
       focus: embedBlockTheme.focus || "",
     }
     return (
-      <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
+      <BlockWithAlignableContents
+        format={this.__format}
+        className={className}
+        nodeKey={this.__key}
+      >
         <CustomBlockComponent
           url={this.__url}
           nodeKey={this.__key}

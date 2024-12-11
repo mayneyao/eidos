@@ -6,17 +6,12 @@ import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 // import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 
-import { CardNode } from "./CardNode"
-import { DatabaseTableNode } from "./DatabaseTableNode"
-import { MentionNode } from "./MentionNode/MentionNode"
-// custom node
-import { BuiltInBlocks } from "../blocks"
-import { SQLNode } from "./SQLNode"
-import { SyncBlock } from "./SyncBlock/SyncBlock"
-import { TableOfContentsNode } from "./TableOfContentsNode"
-import { YouTubeNode } from "./YoutubeNode"
+// Change this import to be more specific and avoid circular dependencies
+import { getBuiltInNodes } from "./blocks"
 
-export const AllNodes = [
+
+
+export const getAllNodes = () => [
   HorizontalRuleNode,
   HeadingNode,
   ListNode,
@@ -26,18 +21,12 @@ export const AllNodes = [
   CodeHighlightNode,
   AutoLinkNode,
   LinkNode,
-  SQLNode,
   HashtagNode,
-  MentionNode,
-  DatabaseTableNode,
   // TableNode,
   // TableCellNode,
   // TableRowNode,
-  TableOfContentsNode,
-  CardNode,
   // custom embed node
-  YouTubeNode,
   // block
-  SyncBlock,
-  ...BuiltInBlocks.map(block => block.node)
+  ...getBuiltInNodes()
 ]
+

@@ -4,7 +4,7 @@ import { DecoratorNode, EditorConfig, LexicalEditor, NodeKey } from "lexical"
 
 import { nodeInfoMap } from "@/components/ai-chat/ai-input-editor"
 
-import { MentionComponent } from "./MentionComponent"
+import { MentionComponent } from "./component"
 
 export class MentionNode extends DecoratorNode<ReactNode> {
   __id: string

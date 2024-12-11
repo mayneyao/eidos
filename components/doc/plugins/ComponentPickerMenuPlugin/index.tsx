@@ -6,7 +6,6 @@
  *
  */
 
-import { useCallback, useMemo, useState } from "react"
 import { $createCodeNode } from "@lexical/code"
 import {
   INSERT_CHECK_LIST_COMMAND,
@@ -34,10 +33,10 @@ import {
   BaselineIcon,
   CaseSensitiveIcon,
   CodeIcon,
+  FileQuestionIcon,
   Heading1Icon,
   Heading2Icon,
   Heading3Icon,
-  ImageIcon,
   ListChecksIcon,
   ListIcon,
   ListOrderedIcon,
@@ -46,23 +45,20 @@ import {
   SheetIcon,
   SparklesIcon,
   VariableIcon,
-  icons,
+  icons
 } from "lucide-react"
+import { useCallback, useMemo, useState } from "react"
 import * as ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
-import { TocIcon } from "@/components/icons/toc"
 
-import { useModal } from "../../hooks/useModal"
-import { SelectDatabaseTableDialog } from "../DatabasePlugin/SelectDatabaseTableDialog"
-import { SqlQueryDialog } from "../SQLPlugin/SqlQueryDialog"
-import { bgColors, fgColors } from "../const"
-import "./index.css"
 import { BuiltInBlocks } from "../../blocks"
 import { useExtBlocks } from "../../hooks/use-ext-blocks"
-import { INSERT_TOC_COMMAND } from "../TableOfContentsPlugin"
+import { useModal } from "../../hooks/useModal"
+import { bgColors, fgColors } from "../const"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
+import "./index.css"
 
 const IconMap: Record<string, JSX.Element> = {
   h1: <Heading1Icon className="h-5 w-5" />,
@@ -301,42 +297,14 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         onSelect: () =>
           editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
       }),
-      ...BuiltInBlocks.map((block) => {
+      ...BuiltInBlocks.filter((block) => !block.hiddenInMenu).map((block) => {
         const iconName = block.icon
-        const BlockIcon = (icons as any)[iconName]
+        const BlockIcon = (icons as any)[iconName] ?? FileQuestionIcon
         return new ComponentPickerOption(block.name, {
           icon: <BlockIcon className="h-5 w-5" />,
           keywords: block.keywords,
           onSelect: () => block.onSelect(editor),
         })
-      }),
-      new ComponentPickerOption(t("doc.menu.tableOfContent"), {
-        icon: <TocIcon />,
-        keywords: ["table of content", "toc"],
-        onSelect: () => editor.dispatchCommand(INSERT_TOC_COMMAND, undefined),
-      }),
-      new ComponentPickerOption(t("doc.menu.query"), {
-        icon: IconMap["sql"],
-        keywords: ["query", "sql"],
-        onSelect: () =>
-          showModal(t("doc.menu.insertSqlQuery"), (onClose) => (
-            <SqlQueryDialog activeEditor={editor} onClose={onClose} />
-          )),
-      }),
-      new ComponentPickerOption(t("doc.menu.databaseTable"), {
-        icon: IconMap["database"],
-        keywords: ["database", "table"],
-        disabled: true,
-        onSelect: () => {
-          // disable for now
-          return
-          showModal(t("doc.menu.insertDatabaseTable"), (onClose) => (
-            <SelectDatabaseTableDialog
-              activeEditor={editor}
-              onClose={onClose}
-            />
-          ))
-        },
       }),
       ...bgColors.map(({ name, value }) => {
         return new ComponentPickerOption(t("doc.menu.background", { name }), {

@@ -26,10 +26,10 @@ import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useEmbedding } from "@/hooks/use-embedding"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { useToast } from "@/components/ui/use-toast"
-import { MentionNode } from "@/components/doc/nodes/MentionNode/MentionNode"
+import { MentionNode } from "@/components/doc/blocks/mention/node"
 import NewMentionsPlugin, {
   MentionPluginProps,
-} from "@/components/doc/plugins/MentionsPlugin"
+} from "@/components/doc/blocks/mention/plugin"
 import { allTransformers } from "@/components/doc/plugins/const"
 import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
 

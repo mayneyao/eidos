@@ -4,7 +4,7 @@ import { $getRoot, BaseSelection, RootNode } from "lexical"
 
 import { _getDocMarkdown } from "@/hooks/use-doc-editor"
 
-import { AllNodes } from "../nodes"
+import { getAllNodes } from "../nodes"
 import { allTransformers } from "../plugins/const"
 
 /**
@@ -20,8 +20,8 @@ export function getMarkdownFromSelection(selection: BaseSelection | null) {
   //   nodes are a list of nodes, each node has parent. prev, next. rebuild a node tree
 
   const editor = createHeadlessEditor({
-    nodes: AllNodes,
-    onError: () => {},
+    nodes: getAllNodes(),
+    onError: () => { },
   })
   const _nodes = nodes.map((node) => node.exportJSON())
 
@@ -63,5 +63,5 @@ export function getMarkdownFromSelection(selection: BaseSelection | null) {
         discrete: true,
       }
     )
-  } catch (error) {}
+  } catch (error) { }
 }

@@ -20,6 +20,10 @@ import {
 } from "lexical"
 import ReactDOM from "react-dom"
 
+import { getSelectedNode } from "../../utils/getSelectedNode"
+import { validateUrl } from "../../utils/url"
+import { $insertDecoratorBlockNode } from "../helper"
+import { INSERT_YOUTUBE_COMMAND } from "../youtube/plugin"
 import {
   $createBookmarkNode,
   $getUrlMetaData,
@@ -27,17 +31,11 @@ import {
   BookmarkNode,
   BookmarkPayload,
 } from "./node"
-import { $createYouTubeNode } from "../../nodes/YoutubeNode"
-import { getSelectedNode } from "../../utils/getSelectedNode"
-import { validateUrl } from "../../utils/url"
 
 export type InsertBookmarkPayload = Readonly<BookmarkPayload>
 
 export const INSERT_BOOKMARK_COMMAND: LexicalCommand<InsertBookmarkPayload> =
   createCommand("INSERT_BOOKMARK_COMMAND")
-
-export const INSERT_YOUTUBE_COMMAND: LexicalCommand<{ videoId: string }> =
-  createCommand("INSERT_YOUTUBE_COMMAND")
 
 // extends MenuOption to get some ux sugar
 class LinkOptTypeaheadOption extends MenuOption {
@@ -151,38 +149,8 @@ export function BookmarkPlugin({
       editor.registerCommand<InsertBookmarkPayload>(
         INSERT_BOOKMARK_COMMAND,
         (payload) => {
-          const selection = $getSelection()
           const bookmarkNode = $createBookmarkNode(payload)
-          if ($isRangeSelection(selection)) {
-            const node = getSelectedNode(selection)
-            if ($isListItemNode(node)) {
-              node.append(bookmarkNode)
-            } else {
-              selection.insertNodes([bookmarkNode])
-            }
-          } else {
-            $insertNodeToNearestRoot(bookmarkNode)
-          }
-          return true
-        },
-        COMMAND_PRIORITY_EDITOR
-      ),
-      editor.registerCommand<{ videoId: string }>(
-        INSERT_YOUTUBE_COMMAND,
-        (payload) => {
-          const selection = $getSelection()
-          const youtubeNode = $createYouTubeNode(payload.videoId)
-          if ($isRangeSelection(selection)) {
-            // $insertNodes([youtubeNode])
-            const node = getSelectedNode(selection)
-            if ($isListItemNode(node)) {
-              node.append(youtubeNode)
-            } else {
-              $insertNodeToNearestRoot(youtubeNode)
-            }
-          } else {
-            $insertNodeToNearestRoot(youtubeNode)
-          }
+          $insertDecoratorBlockNode(bookmarkNode)
           return true
         },
         COMMAND_PRIORITY_EDITOR

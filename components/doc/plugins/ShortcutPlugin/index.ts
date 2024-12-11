@@ -22,7 +22,7 @@ export function ShortcutPlugin() {
           if ($isListItemNode(node)) {
             const parent = node.getParent() as ListNode
             if (parent.getListType() === "check") {
-              ;(node as ListItemNode).toggleChecked()
+              ; (node as ListItemNode).toggleChecked()
             }
           } else if ($isListItemNode(node.getParent())) {
             const parent = node.getParent() as ListItemNode

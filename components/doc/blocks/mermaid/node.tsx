@@ -2,17 +2,29 @@ import { ReactNode } from "react"
 import { TextMatchTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
-  DecoratorNode,
+  DecoratorBlockNode,
+  SerializedDecoratorBlockNode,
+} from "@lexical/react/LexicalDecoratorBlockNode"
+import {
   EditorConfig,
+  ElementFormatType,
   ElementNode,
   LexicalEditor,
   LexicalNode,
   NodeKey,
+  Spread,
 } from "lexical"
 
 import { Mermaid } from "./component"
 
-export class MermaidNode extends DecoratorNode<ReactNode> {
+export type SerializedMermaidNode = Spread<
+  {
+    text: string
+  },
+  SerializedDecoratorBlockNode
+>
+
+export class MermaidNode extends DecoratorBlockNode {
   __text: string
 
   static getType(): string {
@@ -20,11 +32,11 @@ export class MermaidNode extends DecoratorNode<ReactNode> {
   }
 
   static clone(node: MermaidNode): MermaidNode {
-    return new MermaidNode(node.__text, node.__key)
+    return new MermaidNode(node.__text, node.__format, node.__key)
   }
 
-  constructor(text: string, key?: NodeKey) {
-    super(key)
+  constructor(text: string, format?: ElementFormatType, key?: NodeKey) {
+    super(format, key)
     this.__text = text
   }
 
@@ -41,33 +53,43 @@ export class MermaidNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  exportJSON(): any {
+  exportJSON(): SerializedMermaidNode {
     return {
-      type: MermaidNode.getType(),
-      __text: this.__text,
+      ...super.exportJSON(),
+      text: this.__text,
+      type: "mermaid",
+      version: 1,
     }
   }
 
-  static importJSON(_serializedNode: any) {
-    return new MermaidNode(_serializedNode.__text)
+  static importJSON(serializedNode: SerializedMermaidNode): MermaidNode {
+    const node = $createMermaidNode(serializedNode.text)
+    node.setFormat(serializedNode.format)
+    return node
   }
 
-  decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
+  decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
     if (this.__text.length === 0 || this.__text == null) {
       return <div>Empty Mermaid text</div>
     }
-    const nodeKey = this.getKey()
     const embedBlockTheme = config.theme.embedBlock || {}
-
     const className = {
       base: embedBlockTheme.base || "",
       focus: embedBlockTheme.focus || "",
     }
     return (
-      <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
+      <BlockWithAlignableContents
+        format={this.__format}
+        className={className}
+        nodeKey={this.__key}
+      >
         <Mermaid text={this.__text} nodeKey={this.__key} />
       </BlockWithAlignableContents>
     )
+  }
+
+  getTextContent(): string {
+    return this.__text
   }
 }
 

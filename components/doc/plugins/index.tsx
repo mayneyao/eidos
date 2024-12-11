@@ -18,14 +18,11 @@ import { AIToolsPlugin } from "./AIToolsPlugin"
 import AutoLinkPlugin from "./AutoLinkPlugin"
 import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
-import { DatabasePlugin } from "./DatabasePlugin"
 import DragDropPaste from "./DragDropPaste"
 import AdvancedListPlugin from "./DraggableBlockPlugin/advanced-list"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
-import { SQLPlugin } from "./SQLPlugin"
 import { ShortcutPlugin } from "./ShortcutPlugin"
-import { TableOfContentsPlugin } from "./TableOfContentsPlugin"
 import { allTransformers } from "./const"
 
 export const AllPlugins = ({
@@ -51,13 +48,10 @@ export const AllPlugins = ({
     <>
       <AdvancedListPlugin />
       <HorizontalRulePlugin />
-      <TableOfContentsPlugin />
-      <SQLPlugin />
       <CodeHighlightPlugin />
       <HistoryPlugin />
       <HashtagPlugin />
       <ListPlugin />
-      <DatabasePlugin />
       {/* <TablePlugin /> */}
       {/* TabIndentationPlugin let you type `Tab` to indent a list item, ListMaxIndentLevelPlugin let you control the max indent level */}
       <TabIndentationPlugin />

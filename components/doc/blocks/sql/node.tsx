@@ -1,75 +1,81 @@
+import { ReactNode } from "react"
 import { ElementTransformer } from "@lexical/markdown"
 import {
   DecoratorNode,
-  type LexicalNode,
-  type NodeKey
+  LexicalNode,
+  NodeKey,
+  SerializedLexicalNode,
+  Spread,
 } from "lexical"
-import { ReactNode } from "react"
 
 import { SQLComponent } from "./component"
 
+export type SerializedSQLNode = Spread<
+  {
+    sql: string
+  },
+  SerializedLexicalNode
+>
+
 export class SQLNode extends DecoratorNode<ReactNode> {
-  sql: string
+  __sql: string
 
   static getType(): string {
-    return "SQL"
+    return "sql"
   }
 
   static clone(node: SQLNode): SQLNode {
-    return new SQLNode(node.sql, node.__key)
-  }
-
-  static importJSON(serializedNode: any): SQLNode {
-    const node = $createSQLNode(serializedNode.sql)
-    // node.setFormat(serializedNode.format)
-    return node
-  }
-
-  exportJSON(): any {
-    return {
-      type: "SQL",
-      version: 1,
-      sql: this.sql,
-    }
+    return new SQLNode(node.__sql, node.__key)
   }
 
   constructor(sql: string, key?: NodeKey) {
     super(key)
-    this.sql = sql
-  }
-
-  getTextContent(): string {
-    return this.sql
+    this.__sql = sql
   }
 
   setSQL(sql: string): void {
     const writable = this.getWritable()
-    writable.sql = sql
+    writable.__sql = sql
+  }
+
+  createDOM(): HTMLElement {
+    return document.createElement("span")
   }
 
   updateDOM(): false {
     return false
   }
 
-  createDOM(): HTMLElement {
-    const node = document.createElement("span")
-    // node.style.display = "inline-block"
+  static importJSON(data: SerializedSQLNode): SQLNode {
+    const node = $createSQLNode(data.sql)
     return node
   }
 
-  decorate(): JSX.Element {
-    console.log(this.sql, this.__key)
-    return <SQLComponent sql={this.sql} nodeKey={this.__key} />
-  }
-  canInsertTextBefore(): boolean {
-    return false
+  exportJSON(): SerializedSQLNode {
+    return {
+      sql: this.__sql,
+      type: "sql",
+      version: 1,
+    }
   }
 
-  canInsertTextAfter(): boolean {
-    return false
+  decorate(): ReactNode {
+    return <SQLComponent sql={this.__sql} nodeKey={this.__key} />
+  }
+
+  getTextContent(): string {
+    return this.__sql
   }
 
   isInline(): boolean {
+    return true
+  }
+
+  isIsolated(): boolean {
+    return true
+  }
+
+  isKeyboardSelectable(): boolean {
     return true
   }
 }
@@ -79,7 +85,7 @@ export function $createSQLNode(sql: string): SQLNode {
 }
 
 export function $isSQLNode(
-  node: SQLNode | LexicalNode | null | undefined
+  node: LexicalNode | null | undefined
 ): node is SQLNode {
   return node instanceof SQLNode
 }
@@ -90,7 +96,7 @@ export const SQL_NODE_TRANSFORMER: ElementTransformer = {
     if (!$isSQLNode(node)) {
       return null
     }
-    return `<query sql="${node.sql}" />`
+    return `<query sql="${node.getTextContent()}" />`
   },
   regExp: /<query sql="([^"]+?)"\s?\/>\s?$/,
   replace: (textNode, _1, match) => {

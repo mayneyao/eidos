@@ -1,12 +1,14 @@
-import { ReactNode } from "react"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
-  DecoratorNode,
+  DecoratorBlockNode,
+  SerializedDecoratorBlockNode,
+} from "@lexical/react/LexicalDecoratorBlockNode"
+import {
   EditorConfig,
+  ElementFormatType,
   LexicalEditor,
   LexicalNode,
   NodeKey,
-  SerializedLexicalNode,
   Spread,
 } from "lexical"
 
@@ -16,10 +18,10 @@ export type SerializedVideoNode = Spread<
   {
     src: string
   },
-  SerializedLexicalNode
+  SerializedDecoratorBlockNode
 >
 
-export class VideoNode extends DecoratorNode<ReactNode> {
+export class VideoNode extends DecoratorBlockNode {
   __src: string
 
   static getType(): string {
@@ -27,11 +29,11 @@ export class VideoNode extends DecoratorNode<ReactNode> {
   }
 
   static clone(node: VideoNode): VideoNode {
-    return new VideoNode(node.__src, node.__key)
+    return new VideoNode(node.__src, node.__format, node.__key)
   }
 
-  constructor(src: string, key?: NodeKey) {
-    super(key)
+  constructor(src: string, format?: ElementFormatType, key?: NodeKey) {
+    super(format, key)
     this.__src = src
   }
 
@@ -50,26 +52,31 @@ export class VideoNode extends DecoratorNode<ReactNode> {
 
   static importJSON(data: SerializedVideoNode): VideoNode {
     const node = $createVideoNode(data.src)
+    node.setFormat(data.format)
     return node
   }
 
-  exportJSON() {
+  exportJSON(): SerializedVideoNode {
     return {
+      ...super.exportJSON(),
       src: this.__src,
       type: "video",
       version: 1,
     }
   }
 
-  decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
-    const nodeKey = this.getKey()
+  decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
     const embedBlockTheme = config.theme.embedBlock || {}
     const className = {
       base: embedBlockTheme.base || "",
       focus: embedBlockTheme.focus || "",
     }
     return (
-      <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
+      <BlockWithAlignableContents
+        format={this.__format}
+        className={className}
+        nodeKey={this.__key}
+      >
         <VideoComponent url={this.__src} nodeKey={this.__key} />
       </BlockWithAlignableContents>
     )

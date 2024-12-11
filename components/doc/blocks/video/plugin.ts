@@ -3,6 +3,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $insertNodeToNearestRoot } from "@lexical/utils"
 import { COMMAND_PRIORITY_EDITOR, LexicalCommand, createCommand } from "lexical"
 import { $createVideoNode, VideoNode } from "./node"
+import { $insertDecoratorBlockNode } from "../helper"
 
 
 export const INSERT_VIDEO_FILE_COMMAND: LexicalCommand<string> = createCommand()
@@ -20,7 +21,7 @@ export const VideoPlugin = () => {
       INSERT_VIDEO_FILE_COMMAND,
       (payload) => {
         const VideoNode = $createVideoNode(payload)
-        $insertNodeToNearestRoot(VideoNode)
+        $insertDecoratorBlockNode(VideoNode)
         return true
       },
       COMMAND_PRIORITY_EDITOR

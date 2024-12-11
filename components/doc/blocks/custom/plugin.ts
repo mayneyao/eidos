@@ -1,8 +1,8 @@
-import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { $insertNodeToNearestRoot } from "@lexical/utils"
 import { COMMAND_PRIORITY_EDITOR, LexicalCommand, createCommand } from "lexical"
+import { useEffect } from "react"
 
+import { $insertDecoratorBlockNode } from "../helper"
 import { $createCustomBlockNode, CustomBlockNode } from "./node"
 
 export const INSERT_CUSTOM_BLOCK_COMMAND: LexicalCommand<string> = createCommand()
@@ -20,7 +20,7 @@ export const CustomBlockPlugin = () => {
             INSERT_CUSTOM_BLOCK_COMMAND,
             (payload) => {
                 const customBlockNode = $createCustomBlockNode(payload)
-                $insertNodeToNearestRoot(customBlockNode)
+                $insertDecoratorBlockNode(customBlockNode)
                 return true
             },
             COMMAND_PRIORITY_EDITOR

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 import { AIEditorPlugin } from "@/components/doc/plugins/AIEditorPlugin"
 
 import { useEditorStore } from "./hooks/useEditorContext"
-import { AllNodes } from "./nodes"
+import { getAllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
@@ -32,7 +32,7 @@ const editorConfig: any = {
     console.error(error)
   },
   // Any custom nodes go here
-  nodes: AllNodes,
+  nodes: getAllNodes(),
 }
 
 interface EditorProps {

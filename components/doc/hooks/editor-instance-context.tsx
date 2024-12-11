@@ -9,6 +9,7 @@ interface EditorInstanceContextType {
   setIsSelecting: (value: boolean) => void
   selectedKeys: Set<string>
   setSelectedKeys: (keys: Set<string>) => void
+  docId: string | null
 }
 
 const EditorInstanceContext = createContext<EditorInstanceContextType>({
@@ -17,9 +18,16 @@ const EditorInstanceContext = createContext<EditorInstanceContextType>({
   setIsSelecting: () => {},
   selectedKeys: new Set(),
   setSelectedKeys: () => {},
+  docId: null,
 })
 
-export function EditorInstanceProvider({ children }: { children: ReactNode }) {
+export function EditorInstanceProvider({
+  children,
+  docId,
+}: {
+  children: ReactNode
+  docId: string | null
+}) {
   const { mblocks } = useAllMblocks()
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState(new Set<string>())
@@ -30,6 +38,7 @@ export function EditorInstanceProvider({ children }: { children: ReactNode }) {
     setIsSelecting,
     selectedKeys,
     setSelectedKeys,
+    docId,
   }
 
   return (

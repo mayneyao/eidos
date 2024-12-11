@@ -25,9 +25,10 @@ import { $getSelection, $insertNodes, RangeSelection, TextNode } from "lexical"
 
 import { shortenId, uuidv7 } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { useEditorInstance } from "@/components/doc/hooks/editor-instance-context"
 
-import { $createMentionNode } from "../../nodes/MentionNode/MentionNode"
-import { $createSyncBlock } from "../../nodes/SyncBlock/SyncBlockComponent"
+import { $createSyncBlockNode } from "../../sync/node"
+import { $createMentionNode } from "../node"
 import { MentionTypeaheadOption } from "./MentionTypeaheadOption"
 import { MentionsTypeaheadMenuItem } from "./MentionsTypeaheadMenuItem"
 import { getPossibleQueryMatch } from "./helper"
@@ -38,13 +39,13 @@ const SUGGESTION_LIST_LENGTH_LIMIT = 5
 
 export interface MentionPluginProps {
   onOptionSelectCallback?: (selectedOption: MentionTypeaheadOption) => void
-  currentDocId?: string
   placement?: Placement
 }
 
 export default function NewMentionsPlugin(
   props: MentionPluginProps
 ): JSX.Element | null {
+  const { docId } = useEditorInstance()
   const placement = props.placement || "bottom-start"
   const middleware = [flip(), shift()]
   if (placement == "top-start") {
@@ -58,15 +59,15 @@ export default function NewMentionsPlugin(
   })
 
   const [editor] = useLexicalComposerContext()
+  const currentDocId = docId ?? undefined
 
   const [queryString, setQueryString] = useState<string | null>(null)
 
   const results = useMentionLookupService(
     queryString,
-    Boolean(props.currentDocId),
-    props.currentDocId
+    Boolean(docId),
+    currentDocId
   )
-  const { currentDocId } = props
   const { createDoc } = useSqlite()
 
   const checkForSlashTriggerMatch = useBasicTypeaheadTriggerMatch("/", {
@@ -139,7 +140,7 @@ export default function NewMentionsPlugin(
     editor.update(() => {
       const selection = $getSelection()
       const selectedNode = (selection as RangeSelection).anchor.getNode()
-      const mentionNode = $createSyncBlock(nodeId)
+      const mentionNode = $createSyncBlockNode(nodeId)
       selectedNode.replace(mentionNode)
     })
   }

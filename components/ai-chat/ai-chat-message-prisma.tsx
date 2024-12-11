@@ -13,7 +13,7 @@ import {
 } from "react-marked-renderer"
 
 import MermaidRenderer from "../doc/blocks/mermaid/MermaidRenderer"
-import { MentionComponent } from "../doc/nodes/MentionNode/MentionComponent"
+import { MentionComponent } from "../doc/blocks/mention/component"
 import { useSpeak, useSpeakStore } from "./webspeech/hooks"
 
 export const AIMessage = ({

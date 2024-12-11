@@ -15,4 +15,5 @@ export interface DocBlock {
     }
     createNode: (args: any) => any
     markdownLanguage?: string
+    hiddenInMenu?: boolean
 }

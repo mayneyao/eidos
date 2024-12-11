@@ -6,22 +6,22 @@ import { isDayPageId } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/hooks/use-query-node"
 
-import { InnerEditor } from "../../editor"
-import { SyncBlock } from "./SyncBlock"
+// import { InnerEditor } from "../../editor"
 
 export const SyncBlockComponent = (props: { id: string }) => {
   const [node, setNode] = useState<ITreeNode | null>(null)
   const { space } = useCurrentPathInfo()
-  // TODO: pass from props
   const { getNode } = useQueryNode()
   const { id } = props
   const router = useNavigate()
+
   const onClick = () => {
     if (isDayPageId(id)) {
       return router(`/${space}/everyday/${id}`)
     }
     router(`/${space}/${id}`)
   }
+
   useEffect(() => {
     if (isDayPageId(id)) {
       setNode({
@@ -40,24 +40,15 @@ export const SyncBlockComponent = (props: { id: string }) => {
     <div className="rounded-sm ring-purple-300 hover:ring">
       {node?.type === "doc" ||
         (node?.type === "day" && (
-          <InnerEditor
-            isEditable={node.is_locked ? false : true}
-            docId={node.id}
-            disableSelectionPlugin
-            disableSafeBottomPaddingPlugin
-            className={"prose max-w-full dark:prose-invert"}
-          />
+          <div>to be done</div>
+          // <InnerEditor
+          //   isEditable={node.is_locked ? false : true}
+          //   docId={node.id}
+          //   disableSelectionPlugin
+          //   disableSafeBottomPaddingPlugin
+          //   className={"prose max-w-full dark:prose-invert"}
+          // />
         ))}
     </div>
   )
-}
-
-export function $createSyncBlock(id: string): SyncBlock {
-  return new SyncBlock(id)
-}
-
-export function $isSyncBlock(
-  node: SyncBlock | null | undefined
-): node is SyncBlock {
-  return node instanceof SyncBlock
 }

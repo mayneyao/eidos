@@ -18,12 +18,11 @@ import { EditorInstanceProvider } from "./hooks/editor-instance-context"
 import { useLoadingExtBlocks } from "./hooks/use-all-nodes"
 import { ExtBlock } from "./hooks/use-ext-blocks"
 import { useEditorStore } from "./hooks/useEditorContext"
-import { AllNodes } from "./nodes"
+import { getAllNodes } from "./nodes"
 import { AllPlugins } from "./plugins"
 import { EidosAutoSavePlugin } from "./plugins/AutoSavePlugin"
 import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
-import NewMentionsPlugin from "./plugins/MentionsPlugin"
 import { SafeBottomPaddingPlugin } from "./plugins/SafeBottomPaddingPlugin"
 import { SelectionPlugin } from "./plugins/SelectionPlugin"
 import defaultTheme from "./themes/default"
@@ -76,7 +75,7 @@ export function InnerEditor(props: EditorProps) {
       },
       // Any custom nodes go here
       nodes: [
-        ...AllNodes,
+        ...getAllNodes(),
         ...(((window as any).__DOC_EXT_BLOCKS as ExtBlock[]) || []).map(
           (block) => block.node
         ),
@@ -87,7 +86,7 @@ export function InnerEditor(props: EditorProps) {
 
   return (
     <LexicalComposer initialConfig={initConfig}>
-      <EditorInstanceProvider>
+      <EditorInstanceProvider docId={props.docId ?? null}>
         <div
           className={cn("editor-container w-full", props.className)}
           ref={ref}
@@ -121,7 +120,6 @@ export function InnerEditor(props: EditorProps) {
             <AIEditorPlugin />
             <AllPlugins disableExtPlugins={props.disableExtPlugins} />
             {props.plugins}
-            <NewMentionsPlugin currentDocId={props.docId!} />
             {props.autoFocus && <AutoFocusPlugin />}
             {props.docId && (
               <>
@@ -177,7 +175,7 @@ export function Editor(props: EditorProps) {
   }, [props.title])
 
   return (
-    <div className="doc-editor-area flex w-full flex-col">
+    <div className="doc-editor-area flex w-full h-full flex-col">
       {props.coverComponent}
       <div
         className={cn(

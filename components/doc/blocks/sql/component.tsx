@@ -4,25 +4,17 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $getNodeByKey } from "lexical"
 
 import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-import { $isSQLNode, SQLNode } from "."
+import { $isSQLNode, SQLNode } from "./node"
 import { useModal } from "../../hooks/useModal"
-import { SqlQueryDialog } from "../../plugins/SQLPlugin/SqlQueryDialog"
-import { getQueryResultText } from "../../utils/sql"
+import { SqlQueryDialog } from "./dialog"
 import { QueryResultType, getQueryResultType } from "./helper"
 
-type SQLProps = Readonly<{
+type SQLProps = {
   sql: string
   nodeKey: string
-}>
+}
 
 const SqlTable = ({
   data,
@@ -41,17 +33,17 @@ const SqlTable = ({
           onClick={handleClick}
           variant="ghost"
           size="sm"
-          className="  select-none"
+          className="select-none"
         >
           SQL Query
         </Button>
-        <span className=" opacity-50">{sql}</span>
+        <span className="opacity-50">{sql}</span>
       </div>
       <Table className="my-0">
         <TableHeader>
           <TableRow>
             {keys.map((key) => (
-              <TableHead className="  whitespace-nowrap" key={key}>
+              <TableHead className="whitespace-nowrap" key={key}>
                 {key}
               </TableHead>
             ))}
@@ -61,7 +53,7 @@ const SqlTable = ({
           {data.map((item, index) => (
             <TableRow key={index}>
               {keys.map((key) => (
-                <TableCell className="  whitespace-nowrap" key={key}>
+                <TableCell className="whitespace-nowrap" key={key}>
                   {item[key]}
                 </TableCell>
               ))}
@@ -89,11 +81,11 @@ const List = ({
           onClick={handleClick}
           variant="ghost"
           size="sm"
-          className="  select-none"
+          className="select-none"
         >
           SQL Query
         </Button>
-        <span className=" opacity-50">{sql}</span>
+        <span className="opacity-50">{sql}</span>
       </div>
       <div className="flex cursor-pointer flex-col">
         {data.map((item, index) => (
@@ -125,11 +117,11 @@ const Card = ({
           onClick={handleClick}
           variant="ghost"
           size="sm"
-          className="  select-none"
+          className="select-none"
         >
           SQL Query
         </Button>
-        <span className=" opacity-50">{sql}</span>
+        <span className="opacity-50">{sql}</span>
       </div>
       <div className="grid grid-cols-2 gap-2 p-2 px-4">
         {Object.entries(data).map(([key, value]) => (
@@ -163,7 +155,6 @@ export function SQLComponent({ sql, nodeKey }: SQLProps) {
   const updateSql = (sql: string) => {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey) as SQLNode
-      console.log(node, nodeKey)
       if ($isSQLNode(node)) {
         node.setSQL(sql)
       }
@@ -189,7 +180,7 @@ export function SQLComponent({ sql, nodeKey }: SQLProps) {
           className="inline-block cursor-pointer rounded-sm px-1 text-purple-500 hover:bg-secondary"
           onClick={handleClick}
         >
-          {getQueryResultText(res)}
+          {res[0]?.[Object.keys(res[0])[0]]}
         </span>
       )}
       {renderType === QueryResultType.CARD && (

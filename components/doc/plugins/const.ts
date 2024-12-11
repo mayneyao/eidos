@@ -11,7 +11,7 @@ import {
   Transformer,
 } from "@lexical/markdown"
 
-import { SQL_NODE_TRANSFORMER } from "@/components/doc/nodes/SQLNode"
+
 
 import { BuiltInBlocks } from "../blocks"
 import { BookmarkPayload } from "../blocks/bookmark/node"
@@ -28,7 +28,6 @@ export const allTransformers = [
   ORDERED_LIST,
   QUOTE,
   HR,
-  SQL_NODE_TRANSFORMER,
   ...TRANSFORMERS,
   ...BuiltInBlocks.map((block) => block.transform).filter(Boolean),
 ] as Transformer[]

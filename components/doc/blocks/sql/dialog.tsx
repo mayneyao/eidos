@@ -4,7 +4,7 @@ import { LexicalEditor } from "lexical"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-import { INSERT_SQL_COMMAND } from "."
+import { INSERT_SQL_COMMAND } from "./plugin"
 
 interface SqlQueryDialogProps {
   activeEditor: LexicalEditor
@@ -19,7 +19,6 @@ export const SqlQueryDialog = (props: SqlQueryDialogProps) => {
   const { activeEditor, onClose } = props
 
   const handleQuery = () => {
-    // when handleSqlChange is not provided, we call handleSqlChange to update the sql in the parent component
     if (props.handleSqlChange) {
       props.handleSqlChange(sql)
     } else {
@@ -27,6 +26,7 @@ export const SqlQueryDialog = (props: SqlQueryDialogProps) => {
     }
     onClose()
   }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       handleQuery()
@@ -41,6 +41,7 @@ export const SqlQueryDialog = (props: SqlQueryDialogProps) => {
       setSql(Placeholder)
     }
   }
+
   return (
     <div className="flex gap-2">
       <Input
@@ -52,4 +53,4 @@ export const SqlQueryDialog = (props: SqlQueryDialogProps) => {
       <Button onClick={handleQuery}>Query</Button>
     </div>
   )
-}
+} 

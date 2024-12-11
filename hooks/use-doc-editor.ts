@@ -16,7 +16,6 @@ import zip from "lodash/zip"
 import { getAllLinks } from "@/lib/markdown"
 import { getSqliteProxy } from "@/lib/sqlite/channel"
 import { efsManager } from "@/lib/storage/eidos-file-system"
-import { AllNodes } from "@/components/doc/nodes"
 import { $getUrlMetaData } from "@/components/doc/blocks/bookmark/node"
 import {
   allTransformers,
@@ -24,12 +23,13 @@ import {
 } from "@/components/doc/plugins/const"
 import { CodeNode } from "@lexical/code"
 import { $createMermaidNode } from "@/components/doc/blocks/mermaid/node"
+import { getAllNodes } from "@/components/doc/nodes"
 
 export const _getDocMarkdown = async (
   articleEditorStateJSON: string
 ): Promise<string> => {
   const editor = createHeadlessEditor({
-    nodes: AllNodes,
+    nodes: getAllNodes(),
     onError: () => { },
   })
   try {
@@ -93,7 +93,7 @@ export const _convertEmail2State = async (
 export const _convertHtml2State = async (html: string): Promise<string> => {
   return new Promise((resolve) => {
     const editor = createHeadlessEditor({
-      nodes: AllNodes,
+      nodes: getAllNodes(),
       onError: () => { },
     })
 
@@ -136,7 +136,7 @@ export const _convertMarkdown2State = async (
   })
   return new Promise((resolve) => {
     const editor = createHeadlessEditor({
-      nodes: AllNodes,
+      nodes: getAllNodes(),
       onError: () => { },
     })
 
