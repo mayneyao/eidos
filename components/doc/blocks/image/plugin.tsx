@@ -29,6 +29,7 @@ import {
 } from "lexical"
 
 import { CAN_USE_DOM } from "../../utils/dom"
+import { $insertDecoratorBlockNode } from "../helper"
 import { $createImageNode, $isImageNode, ImageNode, ImagePayload } from "./node"
 
 export type InsertImagePayload = Readonly<ImagePayload>
@@ -56,10 +57,7 @@ export default function ImagesPlugin({
         INSERT_IMAGE_COMMAND,
         (payload) => {
           const imageNode = $createImageNode(payload)
-          $insertNodes([imageNode])
-          if ($isRootOrShadowRoot(imageNode.getParentOrThrow())) {
-            $wrapNodeInElement(imageNode, $createParagraphNode).selectEnd()
-          }
+          $insertDecoratorBlockNode(imageNode)
           return true
         },
         COMMAND_PRIORITY_EDITOR

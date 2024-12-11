@@ -7,11 +7,15 @@
  */
 
 import * as React from "react"
-import { Suspense } from "react"
 import { TextMatchTransformer } from "@lexical/markdown"
+import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
+import {
+  DecoratorBlockNode,
+  SerializedDecoratorBlockNode,
+} from "@lexical/react/LexicalDecoratorBlockNode"
 import {
   $applyNodeReplacement,
-  DecoratorNode,
+  ElementFormatType,
   createEditor,
   type DOMConversionMap,
   type DOMConversionOutput,
@@ -21,7 +25,6 @@ import {
   type LexicalNode,
   type NodeKey,
   type SerializedEditor,
-  type SerializedLexicalNode,
   type Spread,
 } from "lexical"
 
@@ -61,10 +64,10 @@ export type SerializedImageNode = Spread<
     src: string
     width?: number
   },
-  SerializedLexicalNode
+  SerializedDecoratorBlockNode
 >
 
-export class ImageNode extends DecoratorNode<JSX.Element> {
+export class ImageNode extends DecoratorBlockNode {
   __src: string
   __altText: string
   __width: "inherit" | number
@@ -72,7 +75,6 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   __maxWidth: number
   __showCaption: boolean
   __caption: LexicalEditor
-  // Captions cannot yet be used within editor cells
   __captionsEnabled: boolean
 
   static getType(): string {
@@ -89,6 +91,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
       node.__showCaption,
       node.__caption,
       node.__captionsEnabled,
+      node.__format,
       node.__key
     )
   }
@@ -104,6 +107,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
       src,
       width,
     })
+    node.setFormat(serializedNode.format)
     const nestedEditor = node.__caption
     const editorState = nestedEditor.parseEditorState(caption.editorState)
     if (!editorState.isEmpty()) {
@@ -139,9 +143,10 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
     showCaption?: boolean,
     caption?: LexicalEditor,
     captionsEnabled?: boolean,
+    format?: ElementFormatType,
     key?: NodeKey
   ) {
-    super(key)
+    super(format, key)
     this.__src = src
     this.__altText = altText
     this.__maxWidth = maxWidth
@@ -154,6 +159,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 
   exportJSON(): SerializedImageNode {
     return {
+      ...super.exportJSON(),
       altText: this.getAltText(),
       caption: this.__caption.toJSON(),
       height: this.__height === "inherit" ? 0 : this.__height,
@@ -186,14 +192,8 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   }
 
   // View
-
-  createDOM(config: EditorConfig): HTMLElement {
+  createDOM(): HTMLElement {
     const div = document.createElement("div")
-    const theme = config.theme
-    const className = theme.image
-    if (className !== undefined) {
-      div.className = className
-    }
     return div
   }
 
@@ -209,9 +209,19 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
     return this.__altText
   }
 
-  decorate(): JSX.Element {
+  decorate(editor: LexicalEditor, config: EditorConfig): JSX.Element {
+    const embedBlockTheme = config.theme.embedBlock || {}
+    const className = {
+      base: embedBlockTheme.base || "",
+      focus: embedBlockTheme.focus || "",
+    }
+
     return (
-      <Suspense fallback={null}>
+      <BlockWithAlignableContents
+        format={this.__format}
+        className={className}
+        nodeKey={this.__key}
+      >
         <ImageComponent
           src={this.__src}
           altText={this.__altText}
@@ -224,7 +234,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
           captionsEnabled={this.__captionsEnabled}
           resizable={true}
         />
-      </Suspense>
+      </BlockWithAlignableContents>
     )
   }
 }
@@ -238,8 +248,9 @@ export function $createImageNode({
   width,
   showCaption,
   caption,
+  format,
   key,
-}: ImagePayload): ImageNode {
+}: ImagePayload & { format?: ElementFormatType }): ImageNode {
   return $applyNodeReplacement(
     new ImageNode(
       src,
@@ -250,6 +261,7 @@ export function $createImageNode({
       showCaption,
       caption,
       captionsEnabled,
+      format,
       key
     )
   )

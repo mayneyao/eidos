@@ -8,16 +8,12 @@
 
 import {
     $getRoot,
-    LexicalEditor,
-    LexicalNode
+    LexicalEditor
 } from "lexical"
 
 
 import { Point } from "../../utils/point"
-import { $createListItemNode, $isListItemNode, ListItemNode, ListNode } from "@lexical/list"
-import { $createListNode } from "@lexical/list"
 import { Rect } from "../../utils/rect"
-import { ListType } from "@lexical/list"
 
 const SPACE = 4
 const TARGET_LINE_HALF_HEIGHT = 2
@@ -55,7 +51,7 @@ export function getBlockElement(
     const anchorElementRect = anchorElem.getBoundingClientRect()
     const target = event.target as HTMLElement
 
-    if (target.tagName === "LI") {
+    if (target.tagName === "LI" || target.hasAttribute('data-lexical-decorator')) {
         if (draggedElement && draggedElement.contains(target)) {
             return null
         }
@@ -64,7 +60,7 @@ export function getBlockElement(
 
     let currentElement = target
     while (currentElement && currentElement !== anchorElem) {
-        if (currentElement.tagName === "LI") {
+        if (currentElement.tagName === "LI" || currentElement.hasAttribute('data-lexical-decorator')) {
             if (draggedElement && draggedElement.contains(currentElement)) {
                 return null
             }
@@ -241,65 +237,3 @@ export function hideTargetLine(targetLineElem: HTMLElement | null) {
 }
 
 
-export function $moveNode(
-    draggedNode: LexicalNode,
-    targetNode: LexicalNode,
-    shouldInsertAfter: boolean,
-    editor: LexicalEditor,
-    event?: MouseEvent
-) {
-
-
-    // Handle node type conversions
-    let toBeMovedNode: LexicalNode = draggedNode
-
-    // Convert to list if needed
-    if (targetNode.__type !== "listitem" && draggedNode.__type === "listitem") {
-        const parentList = draggedNode.getParent() as ListNode
-        const listType: ListType = parentList?.__type === "list" ?
-            parentList.getListType() : "bullet"
-
-        const listNode = $createListNode(listType)
-        listNode.append(draggedNode)
-        toBeMovedNode = listNode
-    }
-
-    // Convert to list item if needed
-    if (draggedNode.__type !== "listitem" && targetNode.__type === "listitem") {
-        const listItemNode = $createListItemNode()
-        listItemNode.append(draggedNode)
-        toBeMovedNode = listItemNode
-    }
-
-
-    // Handle list item indentation case
-    if (toBeMovedNode.__type === "listitem" &&
-        (targetNode.__type === "list" || targetNode.__type === "listitem")) {
-
-        if ($isListItemNode(targetNode) && event) {
-            const targetElement = editor.getElementByKey(targetNode.getKey())
-            if (targetElement) {
-                const { left, top, height } = targetElement.getBoundingClientRect()
-                const bulletWidth = 20
-                const isFirstItem = targetElement.getAttribute('value') === '1'
-
-                // Check if we should indent the list item
-                if ((!isFirstItem || event.clientY - top > height / 2) &&
-                    (event.clientX - left) > bulletWidth) {
-
-                    // Insert and indent the dragged node
-                    shouldInsertAfter ?
-                        targetNode.insertAfter(toBeMovedNode) :
-                        targetNode.insertBefore(toBeMovedNode);
-                    (toBeMovedNode as ListItemNode).setIndent((toBeMovedNode as ListItemNode).getIndent() + 1)
-                    return
-                }
-            }
-        }
-    }
-
-    // Perform the insertion
-    shouldInsertAfter ?
-        targetNode.insertAfter(toBeMovedNode) :
-        targetNode.insertBefore(toBeMovedNode)
-}

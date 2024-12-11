@@ -328,14 +328,13 @@ ol {
 
 ol .eidos_editor_theme__listItem {
   counter-increment: none;
-  display: flex;
-  align-items: flex-start;
+  display: block;
 }
 
 ol .eidos_editor_theme__listItem::before {
   content: attr(value) ".";
   margin-left: -4px;
-  margin-right: 4px;
+  margin-right: 10px;
   min-width: 1rem;
 }
 

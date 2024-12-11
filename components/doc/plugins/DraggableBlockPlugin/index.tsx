@@ -35,8 +35,8 @@ import {
 import { CustomBlockMenu } from "../../blocks/custom/menu"
 import { FileMenu } from "../../blocks/file/menu"
 import { isHTMLElement } from "../../utils/guard"
+import { $moveNode } from "./$moveNode"
 import {
-  $moveNode,
   DRAG_DATA_FORMAT,
   getBlockElement,
   hideTargetLine,
@@ -121,19 +121,20 @@ function useDraggableBlockMenu(
 
   useEffect(() => {
     function onDragover(event: DragEvent): boolean {
-      console.log("onDragover called")
-
       if (!isDraggingBlockRef.current) {
         return false
       }
+
       const [isFileTransfer] = eventFiles(event)
       if (isFileTransfer) {
         return false
       }
+
       const { pageY, target } = event
       if (!isHTMLElement(target)) {
         return false
       }
+
       const targetBlockElem = getBlockElement(
         anchorElem,
         editor,
@@ -141,12 +142,15 @@ function useDraggableBlockMenu(
         draggableBlockElem || undefined
       )
       const targetLineElem = targetLineRef.current
+
       if (targetBlockElem === null || targetLineElem === null) {
         return false
       }
-      setTargetLine(targetLineElem, targetBlockElem, pageY, anchorElem, event)
-      // Prevent default event to be able to trigger onDrop events
+
       event.preventDefault()
+      event.stopPropagation()
+
+      setTargetLine(targetLineElem, targetBlockElem, pageY, anchorElem, event)
       return true
     }
 
@@ -154,19 +158,27 @@ function useDraggableBlockMenu(
       if (!isDraggingBlockRef.current) {
         return false
       }
+
+      event.preventDefault()
+      event.stopPropagation()
+
       const [isFileTransfer] = eventFiles(event)
       if (isFileTransfer) {
         return false
       }
+
       const { target, dataTransfer, pageY } = event
       const dragData = dataTransfer?.getData(DRAG_DATA_FORMAT) || ""
+
       const draggedNode = $getNodeByKey(dragData)
       if (!draggedNode) {
         return false
       }
+
       if (!isHTMLElement(target)) {
         return false
       }
+
       const targetBlockElem = getBlockElement(
         anchorElem,
         editor,
@@ -176,6 +188,7 @@ function useDraggableBlockMenu(
       if (!targetBlockElem) {
         return false
       }
+
       const targetNode = $getNearestNodeFromDOMNode(targetBlockElem)
       if (!targetNode) {
         return false
@@ -187,7 +200,6 @@ function useDraggableBlockMenu(
       const { top, height } = targetBlockElem.getBoundingClientRect()
       const shouldInsertAfter = pageY - top > height / 2
 
-      // Show the target line
       if (targetLineRef.current) {
         setTargetLine(
           targetLineRef.current,
@@ -197,26 +209,23 @@ function useDraggableBlockMenu(
           event
         )
       }
+
       $moveNode(draggedNode, targetNode, shouldInsertAfter, editor, event)
       setDraggableBlockElem(null)
+
+      isDraggingBlockRef.current = false
+      hideTargetLine(targetLineRef.current)
+
       return true
     }
 
     return mergeRegister(
       editor.registerCommand(
         DRAGOVER_COMMAND,
-        (event) => {
-          return onDragover(event)
-        },
+        onDragover,
         COMMAND_PRIORITY_HIGH
       ),
-      editor.registerCommand(
-        DROP_COMMAND,
-        (event) => {
-          return onDrop(event)
-        },
-        COMMAND_PRIORITY_HIGH
-      )
+      editor.registerCommand(DROP_COMMAND, onDrop, COMMAND_PRIORITY_HIGH)
     )
   }, [anchorElem, editor, draggableBlockElem])
 
@@ -273,7 +282,15 @@ function useDraggableBlockMenu(
 
   return createPortal(
     <>
-      <div ref={menuRef} className="draggable-block-menu flex gap-1">
+      <div
+        ref={menuRef}
+        className="draggable-block-menu flex gap-1"
+        style={{
+          position: "absolute",
+          pointerEvents: "auto",
+          zIndex: 100,
+        }}
+      >
         <div className={isEditable ? "add-icon" : ""} onClick={addNodeBelow} />
         <DropdownMenu
           open={isContextMenuOpen}
@@ -283,11 +300,24 @@ function useDraggableBlockMenu(
             <div></div>
           </DropdownMenuTrigger>
           <div
-            className={isEditable ? "icon" : ""}
-            draggable={true}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
+            className={`${isEditable ? "icon" : ""}`}
+            draggable={isEditable}
+            onDragStart={(event) => {
+              event.stopPropagation()
+              onDragStart(event)
+            }}
+            onDragEnd={(event) => {
+              event.stopPropagation()
+              onDragEnd()
+            }}
             onClick={handleClick}
+            style={{
+              touchAction: "none",
+              position: "relative",
+              width: "24px",
+              height: "24px",
+              display: "block",
+            }}
           />
           <DropdownMenuContent
             align="center"
@@ -321,7 +351,11 @@ function useDraggableBlockMenu(
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="draggable-block-target-line" ref={targetLineRef} />
+      <div
+        className="draggable-block-target-line"
+        ref={targetLineRef}
+        style={{ pointerEvents: "none" }}
+      />
     </>,
     anchorElem
   )

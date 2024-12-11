@@ -268,12 +268,7 @@ export default function ImageComponent({
           {src.length == 0 ? (
             <ImagePlaceholder nodeKey={nodeKey} />
           ) : (
-            <div
-              className={cn("flex items-center", {
-                "ring-2 ring-gray-500 ": isFocused,
-                "justify-center": !isListItem,
-              })}
-            >
+            <div className={cn("flex items-center justify-center")}>
               <LazyImage
                 className={""}
                 src={src}
