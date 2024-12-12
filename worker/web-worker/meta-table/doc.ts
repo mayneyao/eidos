@@ -183,7 +183,7 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
     id: string
     text: string | Email
     type: "html" | "markdown" | "email"
-    mode?: "replace" | "append"
+    mode?: "replace" | "append" | "prepend"
   }) {
     const { id, text, type, mode = "replace" } = data
     switch (type) {
@@ -237,7 +237,7 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
     id: string,
     content: string,
     markdown: string,
-    mode: "replace" | "append" = "replace"
+    mode: "replace" | "append" | "prepend" = "replace"
   ) {
     let is_day_page = /^\d{4}-\d{2}-\d{2}$/.test(id)
     const res = await this.get(id)
@@ -257,6 +257,14 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
               is_day_page,
               content,
               markdown,
+            })
+            break
+          case "prepend":
+            await this.set(id, {
+              id,
+              is_day_page,
+              content: DocTable.mergeState(content, res.content),
+              markdown: markdown + "\n" + res.markdown,
             })
             break
           case "append":
