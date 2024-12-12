@@ -659,7 +659,8 @@ export class DataSpace {
     docId: string,
     mdStr: string,
     parent_id?: string,
-    title?: string
+    title?: string,
+    mode?: "replace" | "append" | "prepend"
   ) {
     return this.createOrUpdateDoc({
       docId,
@@ -667,6 +668,7 @@ export class DataSpace {
       type: "markdown",
       parent_id,
       title,
+      mode
     })
   }
 
@@ -676,7 +678,7 @@ export class DataSpace {
     type: "html" | "markdown" | "email"
     parent_id?: string
     title?: string
-    mode?: "replace" | "append"
+    mode?: "replace" | "append" | "prepend"
   }) {
     if (isDayPageId(data.docId)) {
       return this.doc.createOrUpdate({
