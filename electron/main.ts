@@ -9,10 +9,12 @@ import { getAppConfig } from './config';
 import { log } from 'electron-log';
 import { AppUpdater } from './updater';
 import { initializePlayground } from './file-system/manager';
+import { ProtocolHandler } from './protocol-handler';
 
 export let win: BrowserWindow | null
 let appUpdater: AppUpdater;
 let tray: Tray | null
+let protocolHandler: ProtocolHandler;
 
 export const PORT = 13127;
 
@@ -166,9 +168,38 @@ function destroyTray() {
     }
 }
 
+if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient('eidos', process.execPath, [path.resolve(process.argv[1])])
+    }
+} else {
+    app.setAsDefaultProtocolClient('eidos')
+}
+
+app.on('open-url', (event, url) => {
+    event.preventDefault();
+    if (protocolHandler) {
+        protocolHandler.handleUrl(url);
+    }
+});
+
+app.on('second-instance', (event, commandLine) => {
+    const protocolUrl = commandLine.find(arg => arg.startsWith('eidos://'));
+    if (protocolUrl && protocolHandler) {
+        protocolHandler.handleUrl(protocolUrl);
+    }
+    
+    if (win) {
+        if (win.isMinimized()) win.restore();
+        win.focus();
+    }
+});
+
 app.whenReady().then(() => {
-    win = createWindow()
+    win = createWindow();
     createTray();
+    
+    protocolHandler = new ProtocolHandler(win);
 
     win.on('close', (event) => {
         if (!forceQuit) {
