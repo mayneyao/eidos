@@ -84,13 +84,15 @@ export const useWorker = () => {
       return res
     }
 
+    const requestHandler = async (event: any, requestId: string, arg: any) => {
+      // console.log('request-from-main', requestId, arg)
+      const result = await handle(new MessageEvent('message', { data: arg }))
+      // console.log('response-from-main', requestId, result)
+      window.eidos.send(`response-${requestId}`, result);
+    }
+    let listenerId: string | undefined;
     if (isDesktopMode) {
-      window.eidos.on('request-from-main', async (event, requestId, arg) => {
-        console.log('request-from-main', requestId, arg)
-        const result = await handle(new MessageEvent('message', { data: arg }))
-        console.log('response-from-main', requestId, result)
-        window.eidos.send(`response-${requestId}`, result);
-      });
+      listenerId = window.eidos.on('request-from-main', requestHandler);
       window.eidos.on(EidosMessageChannelName, async (event, arg) => {
         await handle(new MessageEvent('message', { data: arg }))
       });
@@ -101,6 +103,9 @@ export const useWorker = () => {
     }
     return () => {
       if (isDesktopMode) {
+        if (listenerId) {
+          window.eidos.off('request-from-main', listenerId);
+        }
       } else {
         const worker = getWorker()
         worker.removeEventListener("message", handle)

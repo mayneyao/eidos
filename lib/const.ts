@@ -61,7 +61,7 @@ export enum DataUpdateSignalType {
 export const EidosDataEventChannelName = "eidos-data-event"
 export const EidosSharedEnvChannelName = "eidos-shared-env"
 export const EidosMessageChannelName = "eidos-message"
-
+export const EidosProtocolUrlChannelName = "eidos-protocol-url"
 // TODO: replace hard-coded link
 export const DOMAINS = {
   IMAGE_PROXY: "https://proxy.eidos.space",

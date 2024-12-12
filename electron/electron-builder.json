@@ -66,5 +66,9 @@
             "AppImage",
             "zip"
         ]
+    },
+    "protocols": {
+        "name": "eidos",
+        "schemes": ["eidos"]
     }
 }

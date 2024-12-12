@@ -7,6 +7,8 @@ import { ConfigManager } from './config/index';
 import { PlaygroundFile } from './file-system/manager';
 import nodeAdapter from './lib/node-adapter';
 
+type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void;
+
 async function main() {
   const userConfigPath = (await ipcRenderer.invoke('get-user-config-path'));
   const userDataPath = (await ipcRenderer.invoke('get-app-config')).dataFolder;
@@ -14,15 +16,54 @@ async function main() {
   const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath)
   const configManager = new ConfigManager(userConfigPath);
 
+  const listenerMap = new Map<string, Map<string, IpcListener>>();
+  let listenerIdCounter = 0;
+
   // --------- Expose some API to the Renderer process ---------
   contextBridge.exposeInMainWorld('eidos', {
-    on(...args: Parameters<typeof ipcRenderer.on>) {
-      const [channel, listener] = args
-      return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
+    on(channel: string, listener: IpcListener) {
+      if (!listenerMap.has(channel)) {
+        listenerMap.set(channel, new Map());
+      }
+      
+      const channelListeners = listenerMap.get(channel)!;
+      const listenerId = `listener_${++listenerIdCounter}`;
+      
+      // 检查是否已存在
+      if (channelListeners.has(listenerId)) {
+        console.log(`Listener already exists for ${channel}, total: ${channelListeners.size}`);
+        return;
+      }
+      
+      const wrappedListener = (event: Electron.IpcRendererEvent, ...args: any[]) => {
+        console.log(`Executing listener for ${channel}, id: ${listenerId}`);
+        listener(event, ...args);
+      };
+      
+      channelListeners.set(listenerId, wrappedListener);
+      console.log(`Added listener for ${channel}, total listeners: ${channelListeners.size}, id: ${listenerId}`);
+      ipcRenderer.on(channel, wrappedListener);
+
+      // 返回listenerId，以便后续移除监听器时使用
+      return listenerId;
     },
-    off(...args: Parameters<typeof ipcRenderer.off>) {
-      const [channel, ...omit] = args
-      return ipcRenderer.off(channel, ...omit)
+    
+    off(channel: string, listenerId: string) {
+      const channelListeners = listenerMap.get(channel);
+      if (!channelListeners) {
+        console.log(`No listeners map for channel: ${channel}`);
+        return;
+      }
+      
+      const wrappedListener = channelListeners.get(listenerId);
+      
+      if (wrappedListener) {
+        channelListeners.delete(listenerId);
+        ipcRenderer.removeListener(channel, wrappedListener);
+        console.log(`Removed listener for ${channel}, remaining: ${channelListeners.size}, id: ${listenerId}`);
+      } else {
+        console.log(`Failed to find listener for ${channel}, id: ${listenerId}`);
+      }
     },
     send(...args: Parameters<typeof ipcRenderer.send>) {
       const [channel, ...omit] = args
@@ -55,6 +96,7 @@ async function main() {
     // You can expose other APIs you need here.
     // ...
   })
+
 }
 
 main()

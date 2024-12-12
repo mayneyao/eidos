@@ -57,9 +57,11 @@ export function DesktopSpaceLayout() {
     const handler = (event: any, data: any) => {
       dataEventChannel.postMessage(data)
     }
-    window.eidos.on(EidosDataEventChannelName, handler)
+    let listenerId = window.eidos.on(EidosDataEventChannelName, handler)
     return () => {
-      window.eidos.off(EidosDataEventChannelName, handler)
+      if (listenerId) {
+        window.eidos.off(EidosDataEventChannelName, listenerId)
+      }
     }
   }, [])
 

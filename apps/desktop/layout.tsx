@@ -13,10 +13,13 @@ import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeUpdater } from "@/components/theme-updater"
 
+import { useProtocolUrl } from "./hooks"
+
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
   const { isSidebarOpen } = useAppStoreBase()
 
+  useProtocolUrl()
   useEffect(() => {
     if (!isInitialized) {
       initWorker()
