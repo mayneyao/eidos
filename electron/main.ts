@@ -1,15 +1,15 @@
 import { MsgType } from '@/lib/const';
 import { handleFunctionCall } from '@/lib/rpc';
-import { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage, shell } from 'electron';
-import path from 'path';
-import { getDataSpace, getOrSetDataSpace } from './data-space';
-import { startServer } from './server/server';
-import { createWindow } from './window-manager/createWindow';
-import { getAppConfig } from './config';
+import { BrowserWindow, Menu, Tray, app, dialog, ipcMain, nativeImage, shell } from 'electron';
 import { log } from 'electron-log';
-import { AppUpdater } from './updater';
+import path from 'path';
+import { getAppConfig } from './config';
+import { getDataSpace, getOrSetDataSpace } from './data-space';
 import { initializePlayground } from './file-system/manager';
 import { ProtocolHandler } from './protocol-handler';
+import { startServer } from './server/server';
+import { AppUpdater } from './updater';
+import { createWindow } from './window-manager/createWindow';
 
 export let win: BrowserWindow | null
 let appUpdater: AppUpdater;
@@ -51,11 +51,16 @@ ipcMain.handle('get-user-config-path', () => {
 
 ipcMain.handle('sqlite-msg', async (event, payload) => {
     let dataSpace = getDataSpace()
+    const { space, dbName } = payload.data
+    const spaceId = space || dbName
     if (!dataSpace) {
         log('not found data space')
         const { space, dbName } = payload.data
         dataSpace = await getOrSetDataSpace(dbName || space)
         log('switch to data space', dataSpace.dbName)
+    } else if (spaceId !== dataSpace.dbName) {
+        log('switch to data space', dataSpace.dbName)
+        dataSpace = await getOrSetDataSpace(dbName || space)
     }
     const res = await handleFunctionCall(payload.data, dataSpace)
     return res
@@ -188,7 +193,7 @@ app.on('second-instance', (event, commandLine) => {
     if (protocolUrl && protocolHandler) {
         protocolHandler.handleUrl(protocolUrl);
     }
-    
+
     if (win) {
         if (win.isMinimized()) win.restore();
         win.focus();
@@ -198,7 +203,7 @@ app.on('second-instance', (event, commandLine) => {
 app.whenReady().then(() => {
     win = createWindow();
     createTray();
-    
+
     protocolHandler = new ProtocolHandler(win);
 
     win.on('close', (event) => {

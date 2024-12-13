@@ -2,7 +2,7 @@ import "@/styles/globals.css"
 import { useEffect } from "react"
 import { Outlet } from "react-router-dom"
 
-import { useAppStore, useAppStoreBase } from "@/lib/store/app-store"
+import { useAppStoreBase } from "@/lib/store/app-store"
 import { useWorker } from "@/hooks/use-worker"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
@@ -13,7 +13,7 @@ import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeUpdater } from "@/components/theme-updater"
 
-import { useProtocolUrl } from "./hooks"
+import { useProtocolUrl } from "./hooks/useProtocolUrl"
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
