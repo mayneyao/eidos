@@ -45,14 +45,14 @@ export const useUpdateStatus = () => {
             }
         };
 
-        window.eidos.on('update-status', (event, status: UpdateStatus, data?: any) => {
+        let listenerId = window.eidos.on('update-status', (event, status: UpdateStatus, data?: any) => {
             handleUpdateStatus(status, data);
         });
 
         return () => {
-            window.eidos.off('update-status', (event, status: UpdateStatus, data?: any) => {
-                handleUpdateStatus(status, data);
-            });
+            if (listenerId) {
+                window.eidos.off('update-status', listenerId);
+            }
         };
     }, []);
 

@@ -23,7 +23,7 @@ async function main() {
   contextBridge.exposeInMainWorld('eidos', {
     on(channel: string, listener: IpcListener) {
       if (typeof channel !== 'string' || typeof listener !== 'function') {
-        throw new Error('Invalid parameters');
+        throw new Error('Invalid parameters for add listener for channel: ' + channel);
       }
       if (!listenerMap.has(channel)) {
         listenerMap.set(channel, new Map());
@@ -48,7 +48,7 @@ async function main() {
 
     off(channel: string, listenerId: string) {
       if (typeof channel !== 'string' || typeof listenerId !== 'string') {
-        throw new Error('Invalid parameters');
+        throw new Error('Invalid parameters for remove listener for channel: ' + channel);
       }
 
       const channelListeners = listenerMap.get(channel);

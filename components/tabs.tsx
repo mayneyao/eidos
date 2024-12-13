@@ -30,22 +30,28 @@ export const TabManager: React.FC = () => {
       setCurrentTab(tab)
     }
 
-    window.eidos.on("tabs-updated", (event, tabs: string[]) => {
-      console.log("tabs-updated", tabs)
-      handleTabsUpdated(tabs)
-    })
-    window.eidos.on("current-tab-updated", (event, tab: string) => {
-      console.log("current-tab-updated", tab)
-      handleCurrentTabUpdated(tab)
-    })
+    let listenerId1 = window.eidos.on(
+      "tabs-updated",
+      (event, tabs: string[]) => {
+        console.log("tabs-updated", tabs)
+        handleTabsUpdated(tabs)
+      }
+    )
+    let listenerId2 = window.eidos.on(
+      "current-tab-updated",
+      (event, tab: string) => {
+        console.log("current-tab-updated", tab)
+        handleCurrentTabUpdated(tab)
+      }
+    )
 
     return () => {
-      window.eidos.off("tabs-updated", (event, tabs: string[]) =>
-        handleTabsUpdated(tabs)
-      )
-      window.eidos.off("current-tab-updated", (event, tab: string) =>
-        handleCurrentTabUpdated(tab)
-      )
+      if (listenerId1) {
+        window.eidos.off("tabs-updated", listenerId1)
+      }
+      if (listenerId2) {
+        window.eidos.off("current-tab-updated", listenerId2)
+      }
     }
   }, [setTabs, setCurrentTab])
   const tabNodes = Array.from(openTabs)

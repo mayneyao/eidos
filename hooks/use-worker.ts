@@ -91,11 +91,12 @@ export const useWorker = () => {
       window.eidos.send(`response-${requestId}`, result);
     }
     let listenerId: string | undefined;
+    let listenerId2: string | undefined;
     if (isDesktopMode) {
       listenerId = window.eidos.on('request-from-main', requestHandler);
-      window.eidos.on(EidosMessageChannelName, async (event, arg) => {
+      listenerId2 = window.eidos.on(EidosMessageChannelName, async (event, arg) => {
         await handle(new MessageEvent('message', { data: arg }))
-      });
+      }) as unknown as string;
       setInitialized(true)
     } else {
       const worker = getWorker()
@@ -105,6 +106,9 @@ export const useWorker = () => {
       if (isDesktopMode) {
         if (listenerId) {
           window.eidos.off('request-from-main', listenerId);
+        }
+        if (listenerId2) {
+          window.eidos.off(EidosMessageChannelName, listenerId2);
         }
       } else {
         const worker = getWorker()
