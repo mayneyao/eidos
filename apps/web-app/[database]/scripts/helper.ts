@@ -137,9 +137,25 @@ export const getSuggestedActions = (type: IScript["type"]) => {
           action: "Change all buttons to red",
         },
         {
-          title: "Make a music player looks like ",
-          label: "Spotify",
-          action: "Make a music player looks like Spotify",
+          title: "Show latest 10 issues",
+          label: "from mayneyao/eidos",
+          action: "Show latest 10 issues from mayneyao/eidos GitHub repository",
+        },
+      ]
+    case "script":
+      return [
+        {
+          title: "Show top 10 hacker news",
+          label: "in notification",
+          action: "Show top 10 hacker news in notification",
+        },
+      ]
+    case "doc_plugin":
+      return [
+        {
+          title: "Emoji converter",
+          label: "change :D to 🤣",
+          action: "Make a Emoji converter plugin, which can change all :D to 🤣",
         },
       ]
     default:

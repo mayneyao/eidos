@@ -1,11 +1,13 @@
-import { useCallback } from "react"
+import React, { useCallback } from "react"
 
 import { EidosMessageChannelName, MsgType } from "@/lib/const"
 import { getEmbeddingWorker } from "@/lib/embedding/worker"
+import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { getWorker } from "@/lib/sqlite/worker"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useToast } from "@/components/ui/use-toast"
+import { Markdown } from "@/components/remix-chat/components/markdown"
 
 import {
   _convertEmail2State,
@@ -15,7 +17,6 @@ import {
 } from "./use-doc-editor"
 import { useSqliteStore } from "./use-sqlite"
 import { useCurrentUser } from "./user-current-user"
-import { isInkServiceMode, isDesktopMode } from "@/lib/env"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
@@ -51,7 +52,7 @@ export const useWorker = () => {
         case MsgType.Notify:
           toast({
             title: data.title,
-            description: data.description,
+            description: React.createElement(Markdown, { children: data.description }),
           })
           break
         case MsgType.BlockUIMsg:
@@ -86,17 +87,20 @@ export const useWorker = () => {
 
     const requestHandler = async (event: any, requestId: string, arg: any) => {
       // console.log('request-from-main', requestId, arg)
-      const result = await handle(new MessageEvent('message', { data: arg }))
+      const result = await handle(new MessageEvent("message", { data: arg }))
       // console.log('response-from-main', requestId, result)
-      window.eidos.send(`response-${requestId}`, result);
+      window.eidos.send(`response-${requestId}`, result)
     }
-    let listenerId: string | undefined;
-    let listenerId2: string | undefined;
+    let listenerId: string | undefined
+    let listenerId2: string | undefined
     if (isDesktopMode) {
-      listenerId = window.eidos.on('request-from-main', requestHandler);
-      listenerId2 = window.eidos.on(EidosMessageChannelName, async (event, arg) => {
-        await handle(new MessageEvent('message', { data: arg }))
-      }) as unknown as string;
+      listenerId = window.eidos.on("request-from-main", requestHandler)
+      listenerId2 = window.eidos.on(
+        EidosMessageChannelName,
+        async (event, arg) => {
+          await handle(new MessageEvent("message", { data: arg }))
+        }
+      ) as unknown as string
       setInitialized(true)
     } else {
       const worker = getWorker()
@@ -105,10 +109,10 @@ export const useWorker = () => {
     return () => {
       if (isDesktopMode) {
         if (listenerId) {
-          window.eidos.off('request-from-main', listenerId);
+          window.eidos.off("request-from-main", listenerId)
         }
         if (listenerId2) {
-          window.eidos.off(EidosMessageChannelName, listenerId2);
+          window.eidos.off(EidosMessageChannelName, listenerId2)
         }
       } else {
         const worker = getWorker()
