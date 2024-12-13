@@ -122,11 +122,10 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
   }
   async listAllDayPages() {
     const res = await this.dataSpace.exec2(
-      `SELECT * FROM ${this.name} WHERE is_day_page = 1 ORDER BY id DESC`
+      `SELECT id FROM ${this.name} WHERE is_day_page = 1 AND markdown != '' ORDER BY id DESC`
     )
     return res.map((item: any) => ({
       id: item.id,
-      content: item.content,
     }))
   }
 
