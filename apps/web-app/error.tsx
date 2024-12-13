@@ -1,4 +1,6 @@
+import { CopyIcon, RefreshCcw } from "lucide-react"
 import { Link, useRouteError } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { DOMAINS } from "@/lib/const"
 import { Button } from "@/components/ui/button"
@@ -7,15 +9,15 @@ import { useToast } from "@/components/ui/use-toast"
 
 export function ErrorBoundary() {
   let error = useRouteError()
-  console.error(error)
   const { toast } = useToast()
+  const { t } = useTranslation()
 
   const handleCopyErrorMessages = () => {
     const messages = String((error as any).stack || error)
     if (messages) {
       navigator.clipboard.writeText(messages)
       toast({
-        title: "Error messages copied",
+        title: t("common.error.messagesCopied"),
       })
     }
   }
@@ -29,32 +31,34 @@ export function ErrorBoundary() {
   return (
     <div className="flex h-screen w-screen items-center justify-center">
       <Toaster />
-      <div className="flex flex-col  items-center gap-2">
-        <h1 className=" text-lg font-bold">Oops! Something went wrong 🤯</h1>
+      <div className="flex flex-col items-center gap-2 container">
+        <h1 className="text-lg font-bold">{t("common.error.somethingWentWrong")}</h1>
         {isStoragePermissionError ? (
           <>
             <p>
-              The browser blocked the permission request. Please check the
-              browser settings and allow the permission.{" "}
+              {t("common.error.storagePermissionBlocked")}
             </p>
             <p>
               <Link to="/settings/storage">
-                <Button size="xs"> Granting the permission</Button> again will
-                fix the issue.
+                <Button size="xs">{t("settings.storage.grantPermission")}</Button>
+                {t("common.error.willFixIssue")}
               </Link>
             </p>
           </>
         ) : (
-          <p>
-            <Link to="/settings/storage">
-              <Button size="xs"> Granting the permission</Button> again may fix
-              the issue.
-            </Link>
-          </p>
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-red-500">
+              {error instanceof Error ? error.message : t("common.error.unknown")}
+            </p>
+            <Button onClick={() => window.location.reload()} size="xs">
+              <RefreshCcw className="w-4 h-4 mr-2" />
+              {t("common.error.reloadPage")}
+            </Button>
+          </div>
         )}
 
         <p>
-          Please try again later. If the problem persists, please join our{" "}
+          {t("common.error.tryAgainLater")}{" "}
           <Link
             to={DOMAINS.DISCORD_INVITE}
             target="_blank"
@@ -62,11 +66,20 @@ export function ErrorBoundary() {
           >
             discord
           </Link>{" "}
-          for help. Provide the{" "}
+          {t("common.or")}{" "}
+          <Link
+            to={DOMAINS.GITHUB_ISSUES}
+            target="_blank"
+            className="text-blue-500"
+          >
+            {t("common.error.createIssue")}
+          </Link>{" "}
+          {t("common.error.forHelp")}{" "}
           <Button size="xs" variant="outline" onClick={handleCopyErrorMessages}>
-            error message
+            <CopyIcon className="w-4 h-4 mr-2" />
+            {t("common.error.message")}
           </Button>{" "}
-          for better assistance.
+          {t("common.error.forBetterAssistance")}
         </p>
       </div>
     </div>

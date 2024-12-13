@@ -15,5 +15,5 @@ export default {
         create: () => void 0
     },
     createNode: $createMentionNode,
-    hasChildren: true
+    hiddenInMenu: true
 } as DocBlock;
