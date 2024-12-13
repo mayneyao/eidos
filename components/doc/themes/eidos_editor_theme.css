@@ -188,7 +188,7 @@ code::before {
 }
 
 .eidos_editor_theme__tableCellHeader {
-  background-color: #f2f3f5;
+  background-color: hsl(var(--secondary));
   text-align: start;
 }
 
