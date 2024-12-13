@@ -149,7 +149,7 @@ export function LazyImage({
           }}
           draggable="false"
         />
-        <button
+        {/* <button
           onClick={setShowCaption}
           className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 hover:bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
           title="Add caption"
@@ -170,7 +170,7 @@ export function LazyImage({
             <path d="M21 14H3" />
             <path d="M17 18H3" />
           </svg>
-        </button>
+        </button> */}
         <div
           role="left-handle"
           className="absolute left-[4px] top-1/2 -translate-y-1/2 w-2 h-12 rounded-lg cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity duration-200"

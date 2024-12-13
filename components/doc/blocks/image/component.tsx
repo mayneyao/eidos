@@ -281,7 +281,7 @@ export default function ImageComponent({
                 editor={editor}
                 isResizing={isResizing}
                 setIsResizing={setIsResizing}
-                showCaption={showCaption}
+                showCaption={false}
                 caption={caption}
               />
             </div>
