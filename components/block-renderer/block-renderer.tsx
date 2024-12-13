@@ -165,7 +165,8 @@ export const BlockRenderer = React.forwardRef<
                       defaultProps
                     )}),
                     React.createElement('div', { id: 'portal-root' }),
-                    React.createElement(Toaster)
+                    // toaster has bug now
+                    // React.createElement(Toaster)
                   ]
                 ));
               } catch (err) {
