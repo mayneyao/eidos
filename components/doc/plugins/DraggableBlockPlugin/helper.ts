@@ -51,7 +51,11 @@ export function getBlockElement(
     const anchorElementRect = anchorElem.getBoundingClientRect()
     const target = event.target as HTMLElement
 
-    if (target.tagName === "LI" || target.hasAttribute('data-lexical-decorator')) {
+    if (
+        target.tagName === "LI" || 
+        target.tagName === "TABLE" || 
+        target.hasAttribute('data-lexical-decorator')
+    ) {
         if (draggedElement && draggedElement.contains(target)) {
             return null
         }
@@ -60,7 +64,11 @@ export function getBlockElement(
 
     let currentElement = target
     while (currentElement && currentElement !== anchorElem) {
-        if (currentElement.tagName === "LI" || currentElement.hasAttribute('data-lexical-decorator')) {
+        if (
+            currentElement.tagName === "LI" || 
+            currentElement.tagName === "TABLE" || 
+            currentElement.hasAttribute('data-lexical-decorator')
+        ) {
             if (draggedElement && draggedElement.contains(currentElement)) {
                 return null
             }
