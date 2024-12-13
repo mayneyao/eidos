@@ -393,7 +393,6 @@ export const useSqlite = (dbName?: string) => {
   ) => {
     if (!sqlWorker) return
     await sqlWorker.updateDoc(docId, content, markdown)
-    console.log("doc updated", docId)
   }
 
   const getDoc = useCallback(

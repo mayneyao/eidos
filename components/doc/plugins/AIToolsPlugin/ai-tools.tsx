@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { $convertFromMarkdownString, Transformer } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useClickAway, useKeyPress } from "ahooks"
@@ -6,22 +5,24 @@ import { useChat } from "ai/react"
 import {
   $createParagraphNode,
   $getRoot,
-  $isParagraphNode,
-  RangeSelection,
+  $isTextNode,
+  LexicalNode,
+  RangeSelection
 } from "lexical"
+import * as Icons from "lucide-react"
 import {
   ChevronRightIcon,
   LucideIcon,
   PauseIcon,
   RefreshCcwIcon,
 } from "lucide-react"
-import * as Icons from "lucide-react"
+import { useCallback, useMemo, useRef, useState } from "react"
 
-import { getCodeFromMarkdown } from "@/lib/markdown"
-import { generateId, getBlockUrl, uuidv7 } from "@/lib/utils"
-import { compileCode } from "@/lib/v3/compiler"
-import builtInRemixPrompt from "@/lib/v3/prompts/built-in-remix-prompt.md?raw"
-import { useAiConfig } from "@/hooks/use-ai-config"
+import { useAllMblocks } from "@/apps/web-app/[database]/scripts/hooks/use-all-mblocks"
+import { useScript } from "@/apps/web-app/[database]/scripts/hooks/use-script"
+import { useUserPrompts } from "@/components/ai-chat/hooks"
+import { BlockRenderer } from "@/components/block-renderer/block-renderer"
+import { Loading } from "@/components/loading"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -41,12 +42,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "@/components/ui/use-toast"
-import { useUserPrompts } from "@/components/ai-chat/hooks"
-import { BlockRenderer } from "@/components/block-renderer/block-renderer"
-import { Loading } from "@/components/loading"
-import { PreviewMessage } from "@/components/remix-chat/components/message"
-import { useAllMblocks } from "@/apps/web-app/[database]/scripts/hooks/use-all-mblocks"
-import { useScript } from "@/apps/web-app/[database]/scripts/hooks/use-script"
+import { useAiConfig } from "@/hooks/use-ai-config"
+import { getCodeFromMarkdown } from "@/lib/markdown"
+import { generateId, getBlockUrl, uuidv7 } from "@/lib/utils"
+import { compileCode } from "@/lib/v3/compiler"
+import builtInRemixPrompt from "@/lib/v3/prompts/built-in-remix-prompt.md?raw"
 
 import { $createCustomBlockNode } from "../../blocks/custom/node"
 import { useAllDocBlocks } from "../../hooks/use-all-doc-blocks"
@@ -149,7 +149,8 @@ export function AITools({
         editor.focus()
         const paragraphNode = $createParagraphNode()
         $convertFromMarkdownString(text, __allTransformers, paragraphNode)
-        return paragraphNode
+        console.log("paragraphNode", paragraphNode)
+        return paragraphNode.getChildren()
       }
       switch (action) {
         case AIActionEnum.INSERT_BELOW:
@@ -171,8 +172,8 @@ export function AITools({
           }
           editor.update(() => {
             const selection = selectionRef.current
-            const paragraphNode = scriptId
-              ? $createCustomBlockNode(getBlockUrl(scriptId))
+            const generatedNodes = scriptId
+              ? [$createCustomBlockNode(getBlockUrl(scriptId))]
               : createParagraphNode()
             if (selection) {
               const newSelection = selection.clone()
@@ -183,20 +184,25 @@ export function AITools({
               } catch (error) {}
               if (node) {
                 try {
-                  node.getParent()?.insertAfter(paragraphNode)
+                  const parent = node.getParent()
+                  if (parent) {
+                    let currentNode: LexicalNode = parent
+                    for (const node of generatedNodes) {
+                      currentNode.insertAfter(node)
+                      currentNode = node
+                    }
+                  }
                 } catch (error) {
-                  node.insertAfter(paragraphNode)
-                }
-                if ($isParagraphNode(paragraphNode)) {
-                  paragraphNode.select()
+                  const root = $getRoot()
+                  root.append(...generatedNodes)
                 }
               } else {
                 const root = $getRoot()
-                root.append(paragraphNode)
+                root.append(...generatedNodes)
               }
             } else {
               const root = $getRoot()
-              root.append(paragraphNode)
+              root.append(...generatedNodes)
             }
             $transformExtCodeBlock(allBlocks)
           })
@@ -210,11 +216,14 @@ export function AITools({
           editor.update(() => {
             const selection = selectionRef.current
             const text = aiResult
-            const paragraphNode = createParagraphNode()
+            const generatedNodes = createParagraphNode()
             if (selection) {
               const [start, end] = selection.getStartEndPoints() || []
               const isOneLine = start?.key === end?.key
-              if (isOneLine) {
+              const isGeneratedNodesOnlyATextNode =
+                generatedNodes.length === 1 && $isTextNode(generatedNodes[0])
+              if (isOneLine && isGeneratedNodesOnlyATextNode) {
+                // replace part or all of the text
                 selection.insertText(text)
               } else {
                 // FIXME: remove selected nodes and replace with new nodes
@@ -222,7 +231,7 @@ export function AITools({
               }
             } else {
               const root = $getRoot()
-              root.append(paragraphNode)
+              root.append(...generatedNodes)
             }
           })
           setIsFinished(true)

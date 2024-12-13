@@ -630,12 +630,16 @@ export class DataSpace {
         is_day_page: isDayPage,
       })
     } else {
-      await this.doc.set(docId, {
-        id: docId,
-        content,
-        markdown,
-        is_day_page: isDayPage,
-      })
+      // only update when content or markdown changed
+      if (res.content !== content || res.markdown !== markdown) {
+        console.log("doc really changed", docId)
+        await this.doc.set(docId, {
+          id: docId,
+          content,
+          markdown,
+          is_day_page: isDayPage,
+        })
+      }
     }
   }
 
