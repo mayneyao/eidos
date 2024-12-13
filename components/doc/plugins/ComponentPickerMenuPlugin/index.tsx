@@ -6,6 +6,7 @@
  *
  */
 
+import { useCallback, useMemo, useState } from "react"
 import { $createCodeNode } from "@lexical/code"
 import {
   INSERT_CHECK_LIST_COMMAND,
@@ -44,10 +45,10 @@ import {
   QuoteIcon,
   SheetIcon,
   SparklesIcon,
+  TableIcon,
   VariableIcon,
-  icons
+  icons,
 } from "lucide-react"
-import { useCallback, useMemo, useState } from "react"
 import * as ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 
@@ -75,6 +76,7 @@ const IconMap: Record<string, JSX.Element> = {
   text: <CaseSensitiveIcon className="h-5 w-5" />,
   hr: <MinusSquareIcon className="h-5 w-5" />,
   sql: <VariableIcon className="h-5 w-5" />,
+  table: <TableIcon className="h-5 w-5" />,
 }
 
 class ComponentPickerOption extends MenuOption {
@@ -179,11 +181,14 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         new ComponentPickerOption(
           t("doc.menu.insertTable", { rows, columns }),
           {
-            icon: <i className="icon table" />,
+            icon: <TableIcon className="h-5 w-5" />,
             keywords: ["table"],
             onSelect: () =>
-              // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
-              editor.dispatchCommand(INSERT_TABLE_COMMAND, { columns, rows }),
+              editor.dispatchCommand(INSERT_TABLE_COMMAND, {
+                columns: columns.toString(),
+                rows: rows.toString(),
+                includeHeaders: false,
+              }),
           }
         )
       )
@@ -196,13 +201,13 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
             new ComponentPickerOption(
               t("doc.menu.insertTable", { rows, columns }),
               {
-                icon: <i className="icon table" />,
+                icon: <TableIcon className="h-5 w-5" />,
                 keywords: ["table"],
                 onSelect: () =>
-                  // @ts-ignore Correct types, but since they're dynamic TS doesn't like it.
                   editor.dispatchCommand(INSERT_TABLE_COMMAND, {
-                    columns,
-                    rows,
+                    columns: columns.toString(),
+                    rows: rows.toString(),
+                    includeHeaders: false,
                   }),
               }
             )
@@ -296,6 +301,16 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         keywords: ["horizontal rule", "divider", "hr"],
         onSelect: () =>
           editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
+      }),
+      new ComponentPickerOption(t("doc.menu.table"), {
+        icon: IconMap["table"],
+        keywords: ["table"],
+        onSelect: () =>
+          editor.dispatchCommand(INSERT_TABLE_COMMAND, {
+            columns: "3",
+            rows: "3",
+            includeHeaders: false,
+          }),
       }),
       ...BuiltInBlocks.filter((block) => !block.hiddenInMenu).map((block) => {
         const iconName = block.icon

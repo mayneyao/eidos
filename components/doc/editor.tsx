@@ -25,6 +25,8 @@ import { DraggableBlockPlugin } from "./plugins/DraggableBlockPlugin"
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin"
 import { SafeBottomPaddingPlugin } from "./plugins/SafeBottomPaddingPlugin"
 import { SelectionPlugin } from "./plugins/SelectionPlugin"
+import TableCellActionMenuPlugin from "./plugins/TableActionMenuPlugin"
+import TableHoverActionsPlugin from "./plugins/TableHoverActionsPlugin"
 import defaultTheme from "./themes/default"
 
 interface EditorProps {
@@ -137,6 +139,8 @@ export function InnerEditor(props: EditorProps) {
                 <FloatingTextFormatToolbarPlugin
                   anchorElem={floatingAnchorElem}
                 />
+                <TableHoverActionsPlugin anchorElem={floatingAnchorElem} />
+                <TableCellActionMenuPlugin anchorElem={floatingAnchorElem} />
               </>
             )}
           </div>

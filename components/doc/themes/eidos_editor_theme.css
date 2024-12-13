@@ -12,18 +12,22 @@ code::before {
   margin: 1rem 0;
   border-radius: 0.5rem;
 }
+
 .eidos_editor_theme__ltr {
   text-align: left;
 }
+
 .eidos_editor_theme__rtl {
   text-align: right;
 }
+
 .eidos_editor_theme__paragraph {
   margin: 0;
   position: relative;
   margin-top: 2px !important;
   margin-bottom: 2px !important;
 }
+
 .eidos_editor_theme__quote {
   margin: 0 !important;
   font-size: 15px;
@@ -33,65 +37,81 @@ code::before {
   border-left-style: solid;
   padding-left: 16px;
 }
+
 .eidos_editor_theme__h1 {
   font-size: 24px;
   color: rgb(5, 5, 5);
   font-weight: 400;
 }
+
 .eidos_editor_theme__h2 {
   font-size: 15px;
   color: rgb(101, 103, 107);
   font-weight: 700;
   /* text-transform: uppercase; */
 }
+
 .eidos_editor_theme__h3 {
   font-size: 12px;
   /* text-transform: uppercase; */
 }
+
 .eidos_editor_theme__indent {
   --lexical-indent-base-value: 40px;
 }
+
 .eidos_editor_theme__textBold {
   font-weight: bold;
 }
+
 .eidos_editor_theme__textItalic {
   font-style: italic;
 }
+
 .eidos_editor_theme__textUnderline {
   text-decoration: underline;
 }
+
 .eidos_editor_theme__textStrikethrough {
   text-decoration: line-through;
 }
+
 .eidos_editor_theme__textUnderlineStrikethrough {
   text-decoration: underline line-through;
 }
+
 .eidos_editor_theme__textSubscript {
   font-size: 0.8em;
   vertical-align: sub !important;
 }
+
 .eidos_editor_theme__textSuperscript {
   font-size: 0.8em;
   vertical-align: super;
 }
+
 .eidos_editor_theme__textCode {
   background-color: hsl(var(--secondary));
   padding: 1px 0.25rem;
   font-family: Menlo, Consolas, Monaco, monospace;
   font-size: 94%;
 }
+
 .eidos_editor_theme__hashtag {
   background-color: rgba(88, 144, 255, 0.15);
   border-bottom: 1px solid rgba(88, 144, 255, 0.3);
 }
+
 .eidos_editor_theme__link {
   color: rgb(33, 111, 219);
   text-decoration: none;
 }
+
 .eidos_editor_theme__link:hover {
   text-decoration: underline;
   cursor: pointer;
 }
+
 .eidos_editor_theme__code {
   background-color: hsl(var(--secondary));
   font-family: Menlo, Consolas, Monaco, monospace;
@@ -106,6 +126,7 @@ code::before {
   position: relative;
   tab-size: 2;
 }
+
 .eidos_editor_theme__code:before {
   content: attr(data-gutter);
   position: absolute;
@@ -119,6 +140,7 @@ code::before {
   text-align: right;
   min-width: 25px;
 }
+
 .eidos_editor_theme__table {
   border-collapse: collapse;
   border-spacing: 0;
@@ -128,11 +150,13 @@ code::before {
   width: calc(100% - 25px);
   margin: 4px 0 !important;
 }
+
 .eidos_editor_theme__tableSelected {
   outline: 2px solid rgb(60, 132, 244);
 }
+
 .eidos_editor_theme__tableCell {
-  border: 1px solid #bbb;
+  border: 1px solid hsl(var(--border));
   min-width: 75px;
   vertical-align: top;
   text-align: start;
@@ -141,6 +165,7 @@ code::before {
   cursor: default;
   outline: none;
 }
+
 .eidos_editor_theme__tableCellSortedIndicator {
   display: block;
   opacity: 0.5;
@@ -149,8 +174,9 @@ code::before {
   left: 0;
   width: 100%;
   height: 4px;
-  background-color: #999;
+  background-color: hsl(var(--muted-foreground));
 }
+
 .eidos_editor_theme__tableCellResizer {
   position: absolute;
   right: -4px;
@@ -160,13 +186,16 @@ code::before {
   z-index: 10;
   top: 0;
 }
+
 .eidos_editor_theme__tableCellHeader {
   background-color: #f2f3f5;
   text-align: start;
 }
+
 .eidos_editor_theme__tableCellSelected {
   background-color: #c9dbf0;
 }
+
 .eidos_editor_theme__tableCellPrimarySelected {
   border: 2px solid rgb(60, 132, 244);
   display: block;
@@ -177,74 +206,78 @@ code::before {
   top: -1px;
   z-index: 2;
 }
+
 .eidos_editor_theme__tableCellEditing {
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
   border-radius: 3px;
 }
+
 .eidos_editor_theme__tableAddColumns {
   position: absolute;
   top: 0;
   width: 20px;
-  background-color: #eee;
+  background-color: hsl(var(--secondary));
   height: 100%;
   right: 0;
   animation: table-controls 0.2s ease;
   border: 0;
   cursor: pointer;
 }
+
 .eidos_editor_theme__tableAddColumns:after {
-  background-image: url(/images/icons/plus.svg);
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  display: block;
-  content: " ";
-  position: absolute;
-  top: 0;
-  left: 0;
+  content: "+";
+  display: flex;
+  justify-content: center;
+  align-items: center;
   width: 100%;
   height: 100%;
   opacity: 0.4;
+  font-size: 20px;
+  font-weight: bold;
 }
+
 .eidos_editor_theme__tableAddColumns:hover {
-  background-color: #c9dbf0;
+  background-color: hsl(var(--accent));
 }
+
 .eidos_editor_theme__tableAddRows {
   position: absolute;
   bottom: -25px;
   width: calc(100% - 25px);
-  background-color: #eee;
+  background-color: hsl(var(--secondary));
   height: 20px;
   left: 0;
   animation: table-controls 0.2s ease;
   border: 0;
   cursor: pointer;
 }
+
 .eidos_editor_theme__tableAddRows:after {
-  background-image: url(/images/icons/plus.svg);
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  display: block;
-  content: " ";
-  position: absolute;
-  top: 0;
-  left: 0;
+  content: "+";
+  display: flex;
+  justify-content: center;
+  align-items: center;
   width: 100%;
   height: 100%;
   opacity: 0.4;
+  font-size: 20px;
+  font-weight: bold;
 }
+
 .eidos_editor_theme__tableAddRows:hover {
-  background-color: #c9dbf0;
+  background-color: hsl(var(--accent));
 }
+
 @keyframes table-controls {
   0% {
     opacity: 0;
   }
+
   100% {
     opacity: 1;
   }
 }
+
 .eidos_editor_theme__tableCellResizeRuler {
   display: block;
   position: absolute;
@@ -253,6 +286,7 @@ code::before {
   height: 100%;
   top: 0;
 }
+
 .eidos_editor_theme__tableCellActionButtonContainer {
   display: block;
   right: 5px;
@@ -262,28 +296,33 @@ code::before {
   width: 20px;
   height: 20px;
 }
+
 .eidos_editor_theme__tableCellActionButton {
-  background-color: #eee;
+  background-color: hsl(var(--secondary));
   display: block;
   border: 0;
   border-radius: 20px;
   width: 20px;
   height: 20px;
-  color: #222;
+  color: hsl(var(--foreground));
   cursor: pointer;
 }
+
 .eidos_editor_theme__tableCellActionButton:hover {
-  background-color: #ddd;
+  background-color: hsl(var(--accent));
 }
+
 .eidos_editor_theme__characterLimit {
   display: inline;
   background-color: #ffbbbb !important;
 }
+
 .eidos_editor_theme__ol1 {
   padding: 0 !important;
   margin: 0 !important;
   list-style-position: inside;
 }
+
 .eidos_editor_theme__ol2 {
   margin: 0 !important;
   padding: 0;
@@ -292,6 +331,7 @@ code::before {
   list-style-type: upper-alpha;
   list-style-position: inside;
 }
+
 .eidos_editor_theme__ol3 {
   padding: 0;
   padding-left: 0.75rem !important;
@@ -299,6 +339,7 @@ code::before {
   list-style-type: lower-alpha;
   list-style-position: inside;
 }
+
 .eidos_editor_theme__ol4 {
   padding: 0;
   padding-left: 0.75rem !important;
@@ -306,6 +347,7 @@ code::before {
   list-style-type: upper-roman;
   list-style-position: inside;
 }
+
 .eidos_editor_theme__ol5 {
   padding: 0;
   padding-left: 0.75rem !important;
@@ -313,6 +355,7 @@ code::before {
   list-style-type: lower-roman;
   list-style-position: inside;
 }
+
 .eidos_editor_theme__ul {
   padding: 0 !important;
   margin: 0 !important;
@@ -345,16 +388,14 @@ ul .eidos_editor_theme__listItem {
   list-style-type: none;
   outline: none;
 }
+
 ol .eidos_editor_theme__listItem {
   position: relative;
   margin: 0 !important;
   outline: none;
 }
 
-ul
-  li.eidos_editor_theme__listItem:not(
-    .eidos_editor_theme__listItemUnchecked
-  ):not(.eidos_editor_theme__listItemChecked):before {
+ul li.eidos_editor_theme__listItem:not(.eidos_editor_theme__listItemUnchecked):not(.eidos_editor_theme__listItemChecked):before {
   content: "";
   width: 6px;
   height: 6px;
@@ -373,20 +414,18 @@ ul li.eidos_editor_theme__listItem[role="checkbox"]:before {
   top: 6px;
 }
 
-ul
-  li.eidos_editor_theme__listItem[role="checkbox"]
-  > div
-  > .eidos_editor_theme__embedBlock {
+ul li.eidos_editor_theme__listItem[role="checkbox"]>div>.eidos_editor_theme__embedBlock {
   padding-top: 6px;
 }
 
-ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
+ul li.eidos_editor_theme__listItem[role="checkbox"]>.editor-image {
   top: 6px;
 }
 
 .eidos_editor_theme__nestedListItem::before {
   display: none !important;
 }
+
 .eidos_editor_theme__listItemChecked,
 .eidos_editor_theme__listItemUnchecked {
   position: relative;
@@ -397,6 +436,7 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
   list-style-type: none;
   outline: none;
 }
+
 .eidos_editor_theme__listItemChecked {
   text-decoration: line-through;
 }
@@ -415,6 +455,7 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
 }
 
 @media (max-width: 1280px) {
+
   .eidos_editor_theme__listItemUnchecked:before,
   .eidos_editor_theme__listItemChecked:before {
     top: 6px;
@@ -422,6 +463,7 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
 }
 
 @media (min-width: 1280px) {
+
   .eidos_editor_theme__listItemUnchecked:before,
   .eidos_editor_theme__listItemChecked:before {
     top: 10px;
@@ -433,21 +475,25 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
   left: auto;
   right: 0;
 }
+
 .eidos_editor_theme__listItemUnchecked:focus:before,
 .eidos_editor_theme__listItemChecked:focus:before {
   box-shadow: 0 0 0 2px #a6cdfe;
   border-radius: 2px;
 }
+
 .eidos_editor_theme__listItemUnchecked:before {
   border: 1px solid #999;
   border-radius: 2px;
 }
+
 .eidos_editor_theme__listItemChecked:before {
   border: 1px solid rgb(61, 135, 245);
   border-radius: 2px;
   background-color: #3d87f5;
   background-repeat: no-repeat;
 }
+
 .eidos_editor_theme__listItemChecked:after {
   content: "";
   cursor: pointer;
@@ -463,9 +509,11 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
   transform: rotate(45deg);
   border-width: 0 2px 2px 0;
 }
+
 .eidos_editor_theme__nestedListItem {
   list-style-type: none;
 }
+
 .eidos_editor_theme__nestedListItem:before,
 .eidos_editor_theme__nestedListItem:after {
   display: none;
@@ -509,26 +557,31 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
   border-bottom: 2px solid rgba(255, 212, 0, 0.3);
   padding-bottom: 2px;
 }
+
 .eidos_editor_theme__markOverlap {
   background: rgba(255, 212, 0, 0.3);
   border-bottom: 2px solid rgba(255, 212, 0, 0.7);
 }
+
 .eidos_editor_theme__mark.selected {
   background: rgba(255, 212, 0, 0.5);
   border-bottom: 2px solid rgba(255, 212, 0, 1);
 }
+
 .eidos_editor_theme__markOverlap.selected {
   background: rgba(255, 212, 0, 0.7);
   border-bottom: 2px solid rgba(255, 212, 0, 0.7);
 }
+
 .eidos_editor_theme__embedBlock {
   user-select: none;
 }
+
 .eidos_editor_theme__embedBlockFocus {
   outline: 1px solid hsl(var(--primary));
   background-color: hsl(var(--secondary));
 }
 
-.eidos_editor_theme__listItem > [data-lexical-decorator]:first-child {
+.eidos_editor_theme__listItem>[data-lexical-decorator]:first-child {
   padding-top: 10px;
 }

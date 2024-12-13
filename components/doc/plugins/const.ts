@@ -15,9 +15,10 @@ import {
 
 import { BuiltInBlocks } from "../blocks"
 import { BookmarkPayload } from "../blocks/bookmark/node"
-import { HR } from "./MarkdownTransformers"
+import { HR, TABLE } from "./MarkdownTransformers"
 
 export const allTransformers = [
+  TABLE,
   CHECK_LIST,
   CODE,
   HEADING,

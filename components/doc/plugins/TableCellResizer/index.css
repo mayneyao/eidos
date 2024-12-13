@@ -1,0 +1,9 @@
+.TableCellResizer__resizer {
+  position: fixed;
+  z-index: 10000;
+}
+
+.TableCellResizer__ui {
+  position: fixed;
+  z-index: 10000;
+}

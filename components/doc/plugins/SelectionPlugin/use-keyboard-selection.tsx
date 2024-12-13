@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { $isTableCellNode, $isTableSelection } from "@lexical/table"
 import { useKeyPress } from "ahooks"
 import {
   $getNodeByKey,
@@ -15,6 +16,17 @@ import {
   findFirstBlockElement,
   getSelectedNode,
 } from "../../utils/getSelectedNode"
+
+const isInsideTable = (node: LexicalNode): boolean => {
+  let current: LexicalNode | null = node
+  while (current) {
+    if ($isTableCellNode(current)) {
+      return true
+    }
+    current = current.getParent()
+  }
+  return false
+}
 
 export function useKeyboardSelection() {
   const {
@@ -52,6 +64,18 @@ export function useKeyboardSelection() {
       }
 
       editor.update(() => {
+        const selection = $getSelection()
+        if ($isTableSelection(selection)) {
+          return false
+        }
+
+        const currentNode = currentNodeKey
+          ? $getNodeByKey(currentNodeKey)
+          : null
+        if (currentNode && isInsideTable(currentNode)) {
+          return false
+        }
+
         if (!currentNodeKey) {
           const selection = $getSelection()
           if (!$isRangeSelection(selection)) return false
@@ -176,6 +200,9 @@ export function useKeyboardSelection() {
       if ($isRangeSelection(selection)) {
         editor.blur()
         let node = getSelectedNode(selection)
+        if (isInsideTable(node)) {
+          return
+        }
         const blockNode = findFirstBlockElement(node)
         if (blockNode) {
           node = blockNode

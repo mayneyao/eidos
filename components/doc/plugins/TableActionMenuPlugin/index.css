@@ -1,0 +1,130 @@
+.table-cell-action-button-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  will-change: transform;
+  z-index: 100;
+}
+.table-cell-active {
+  background-color: #f0f0f0;
+  border: 1px solid #000;
+}
+.table-cell-action-button-container.table-cell-action-button-container--active {
+  pointer-events: auto;
+  opacity: 1;
+}
+.table-cell-action-button-container.table-cell-action-button-container--inactive {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.table-cell-action-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 0;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border-radius: 15px;
+  color: #222;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.dropdown {
+  z-index: 100;
+  display: block;
+  box-shadow: 0 12px 28px 0 rgba(0, 0, 0, 0.2), 0 2px 4px 0 rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  min-height: 40px;
+  max-height: 80vh;
+  background-color: hsl(var(--background));
+  overflow-y: auto;
+}
+
+.dropdown hr {
+  margin: 2px 8px;
+  height: 1px;
+}
+.dropdown .item {
+  margin: 0 8px 0 8px;
+  padding: 8px;
+  cursor: pointer;
+  line-height: 16px;
+  font-size: 15px;
+  display: flex;
+  align-content: center;
+  flex-direction: row;
+  flex-shrink: 0;
+  justify-content: space-between;
+  border-radius: 8px;
+  border: 0;
+  max-width: 250px;
+  min-width: 100px;
+  align-items: center;
+}
+
+.dropdown .item.wide {
+  align-items: center;
+  width: 248px;
+}
+
+.dropdown .item.wide .icon-text-container {
+  display: flex;
+
+  .text {
+    min-width: 120px;
+  }
+}
+
+.dropdown .item .shortcut {
+  color: #939393;
+  align-self: flex-end;
+}
+
+.dropdown .item .active {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  background-size: contain;
+}
+
+.dropdown .item:first-child {
+  margin-top: 8px;
+}
+
+.dropdown .item:last-child {
+  margin-bottom: 8px;
+}
+
+.dropdown .item:hover {
+  background-color: hsl(var(--muted));
+}
+
+.dropdown .item .text {
+  display: flex;
+  line-height: 20px;
+  flex-grow: 1;
+  min-width: 150px;
+}
+
+.dropdown .item .icon {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  user-select: none;
+  margin-right: 12px;
+  line-height: 16px;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.dropdown .divider {
+  width: auto;
+  background-color: hsl(var(--muted));
+  margin: 4px 8px;
+  height: 1px;
+}
