@@ -22,49 +22,68 @@ async function main() {
   // --------- Expose some API to the Renderer process ---------
   contextBridge.exposeInMainWorld('eidos', {
     on(channel: string, listener: IpcListener) {
+      if (typeof channel !== 'string' || typeof listener !== 'function') {
+        throw new Error('Invalid parameters');
+      }
       if (!listenerMap.has(channel)) {
         listenerMap.set(channel, new Map());
       }
-      
+
       const channelListeners = listenerMap.get(channel)!;
       const listenerId = `listener_${++listenerIdCounter}`;
-      
-      // 检查是否已存在
-      if (channelListeners.has(listenerId)) {
-        console.log(`Listener already exists for ${channel}, total: ${channelListeners.size}`);
-        return;
-      }
-      
+
       const wrappedListener = (event: Electron.IpcRendererEvent, ...args: any[]) => {
-        console.log(`Executing listener for ${channel}, id: ${listenerId}`);
-        listener(event, ...args);
+        try {
+          listener(event, ...args);
+        } catch (error) {
+          console.error(`Error in listener for ${channel}:`, error);
+        }
       };
-      
+
       channelListeners.set(listenerId, wrappedListener);
-      console.log(`Added listener for ${channel}, total listeners: ${channelListeners.size}, id: ${listenerId}`);
       ipcRenderer.on(channel, wrappedListener);
 
-      // 返回listenerId，以便后续移除监听器时使用
       return listenerId;
     },
-    
+
     off(channel: string, listenerId: string) {
-      const channelListeners = listenerMap.get(channel);
-      if (!channelListeners) {
-        console.log(`No listeners map for channel: ${channel}`);
-        return;
+      if (typeof channel !== 'string' || typeof listenerId !== 'string') {
+        throw new Error('Invalid parameters');
       }
-      
+
+      const channelListeners = listenerMap.get(channel);
+      if (!channelListeners) return;
+
       const wrappedListener = channelListeners.get(listenerId);
-      
-      if (wrappedListener) {
-        channelListeners.delete(listenerId);
-        ipcRenderer.removeListener(channel, wrappedListener);
-        console.log(`Removed listener for ${channel}, remaining: ${channelListeners.size}, id: ${listenerId}`);
-      } else {
-        console.log(`Failed to find listener for ${channel}, id: ${listenerId}`);
+      if (!wrappedListener) return;
+
+      channelListeners.delete(listenerId);
+      ipcRenderer.removeListener(channel, wrappedListener);
+
+      if (channelListeners.size === 0) {
+        listenerMap.delete(channel);
       }
     },
+
+    removeAllListeners(channel?: string) {
+      if (channel) {
+        const channelListeners = listenerMap.get(channel);
+        if (channelListeners) {
+          for (const [_, listener] of channelListeners) {
+            ipcRenderer.removeListener(channel, listener);
+          }
+          listenerMap.delete(channel);
+        }
+      } else {
+        for (const [channel, listeners] of listenerMap) {
+          for (const [_, listener] of listeners) {
+            ipcRenderer.removeListener(channel, listener);
+          }
+        }
+        listenerMap.clear();
+      }
+    },
+
     send(...args: Parameters<typeof ipcRenderer.send>) {
       const [channel, ...omit] = args
       return ipcRenderer.send(channel, ...omit)

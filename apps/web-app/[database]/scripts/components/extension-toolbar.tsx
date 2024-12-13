@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
-import { BlendIcon, ChevronDownIcon, Copy, LayoutDashboard } from "lucide-react"
+import { BlendIcon, Copy, LayoutDashboard } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom"
 
 import { isDesktopMode } from "@/lib/env"
@@ -26,14 +27,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
-import { usePlayground } from "@/apps/desktop/hooks"
-
-// 添加这个 import
+import { usePlayground } from "@/apps/desktop/hooks/usePlayground"
 
 import { useRemixPrompt } from "../hooks/use-remix-prompt"
 import { useScript } from "../hooks/use-script"
 import { useEditorStore } from "../stores/editor-store"
-import { useTranslation } from "react-i18next"
 
 export const ExtensionToolbar = () => {
   const { t } = useTranslation()
@@ -153,13 +151,20 @@ export const ExtensionToolbar = () => {
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("extension.toolbar.deleteConfirmTitle")}</DialogTitle>
+            <DialogTitle>
+              {t("extension.toolbar.deleteConfirmTitle")}
+            </DialogTitle>
             <DialogDescription>
-              {t("extension.toolbar.deleteConfirmDescription", { name: script.name })}
+              {t("extension.toolbar.deleteConfirmDescription", {
+                name: script.name,
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+            >
               {t("common.cancel")}
             </Button>
             <Button variant="destructive" onClick={handleDeleteScript}>
@@ -181,13 +186,22 @@ export const ExtensionToolbar = () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuItem onClick={() => setLayoutMode("full")} disabled={disableChatLayout}>
+          <DropdownMenuItem
+            onClick={() => setLayoutMode("full")}
+            disabled={disableChatLayout}
+          >
             {t("extension.toolbar.layoutFull")}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setLayoutMode("chat-preview")} disabled={disableChatLayout}>
+          <DropdownMenuItem
+            onClick={() => setLayoutMode("chat-preview")}
+            disabled={disableChatLayout}
+          >
             {t("extension.toolbar.layoutChatPreview")}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setLayoutMode("chat-code")} disabled={disableChatLayout}>
+          <DropdownMenuItem
+            onClick={() => setLayoutMode("chat-code")}
+            disabled={disableChatLayout}
+          >
             {t("extension.toolbar.layoutChatCode")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setLayoutMode("code-preview")}>
@@ -196,11 +210,17 @@ export const ExtensionToolbar = () => {
         </DropdownMenuContent>
       </DropdownMenu>
       {script.type === "m_block" && (
-        <Button size="xs" onClick={handleOpenInCursor} disabled={!isDesktopMode}>
+        <Button
+          size="xs"
+          onClick={handleOpenInCursor}
+          disabled={!isDesktopMode}
+        >
           <BlendIcon className="mr-2 h-4 w-4" />
           {t("extension.toolbar.editInCursor")}
           {!isDesktopMode && (
-            <Badge variant="secondary">{t("extension.toolbar.desktopOnly")}</Badge>
+            <Badge variant="secondary">
+              {t("extension.toolbar.desktopOnly")}
+            </Badge>
           )}
         </Button>
       )}

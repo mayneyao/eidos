@@ -1,8 +1,8 @@
-import { CalendarIcon } from "@radix-ui/react-icons"
 import { useState } from "react"
+import { CalendarIcon } from "@radix-ui/react-icons"
 import { useNavigate, useParams } from "react-router-dom"
 
-import { Editor } from "@/components/doc/editor"
+import { getLocalDate, isWeekNodeId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -10,10 +10,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { getLocalDate, isWeekNodeId } from "@/lib/utils"
+import { Editor } from "@/components/doc/editor"
 
 import { WeekPage } from "../[week]/page"
 import { useDays } from "../hooks"
+
 // import Timeline from "../timeline"
 
 export default function EverydayPage() {
