@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
-import { BlendIcon, Copy, LayoutDashboard } from "lucide-react"
+import { BlendIcon, Copy } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom"
 
@@ -20,12 +20,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
 import { usePlayground } from "@/apps/desktop/hooks/usePlayground"
 
@@ -65,9 +59,6 @@ export const ExtensionToolbar = () => {
 
   const { space } = useCurrentPathInfo()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const { layoutMode, setLayoutMode } = useEditorStore()
-
-  const disableChatLayout = script.type == "udf" || script.type == "prompt"
 
   const handleDeleteScript = async () => {
     await deleteScript(script.id)
@@ -178,37 +169,6 @@ export const ExtensionToolbar = () => {
         {t("extension.toolbar.copy")}
       </Button>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="xs">
-            <LayoutDashboard className="mr-2 h-4 w-4" />
-            {t("extension.toolbar.layout")}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem
-            onClick={() => setLayoutMode("full")}
-            disabled={disableChatLayout}
-          >
-            {t("extension.toolbar.layoutFull")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => setLayoutMode("chat-preview")}
-            disabled={disableChatLayout}
-          >
-            {t("extension.toolbar.layoutChatPreview")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => setLayoutMode("chat-code")}
-            disabled={disableChatLayout}
-          >
-            {t("extension.toolbar.layoutChatCode")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setLayoutMode("code-preview")}>
-            {t("extension.toolbar.layoutCodePreview")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
       {script.type === "m_block" && (
         <Button
           size="xs"

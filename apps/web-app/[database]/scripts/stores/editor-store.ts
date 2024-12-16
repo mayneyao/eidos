@@ -3,6 +3,9 @@ import type { Message } from 'ai'
 
 type EditorTab = 'preview' | 'editor'
 
+// 更新布局模式的类型
+type LayoutMode = 'code' | 'preview'
+
 interface EditorStore {
     activeTab: EditorTab
     setActiveTab: (tab: EditorTab) => void
@@ -25,8 +28,8 @@ interface EditorStore {
     isRemixMode: boolean
     setIsRemixMode: (mode: boolean) => void
 
-    layoutMode: 'full' | 'chat-preview' | 'chat-code' | 'code-preview'
-    setLayoutMode: (mode: 'full' | 'chat-preview' | 'chat-code' | 'code-preview') => void
+    layoutMode: LayoutMode
+    setLayoutMode: (mode: LayoutMode) => void
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -49,6 +52,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
     clearChatHistory: () => set({ chatHistory: [] }),
     isRemixMode: false,
     setIsRemixMode: (mode) => set({ isRemixMode: mode }),
-    layoutMode: 'full',
+    layoutMode: 'code',
     setLayoutMode: (mode) => set({ layoutMode: mode }),
 }))

@@ -16,7 +16,10 @@ export function useScrollToBottom<T extends HTMLElement>(): [
         const shouldIgnore = mutations.some(mutation =>
           mutation.target instanceof Element &&
           (mutation.target.closest('details') !== null ||
-            mutation.target.closest('[role="message-actions"]') !== null)
+            mutation.target.closest('[role="message-actions"]') !== null ||
+            (mutation.type === 'attributes' && 
+             mutation.attributeName === 'class' &&
+             mutation.target.parentElement?.closest('pre') !== null))
         );
 
         if (!shouldIgnore) {

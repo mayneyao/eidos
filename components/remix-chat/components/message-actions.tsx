@@ -1,5 +1,5 @@
 import type { Message } from "ai"
-import { EyeIcon, EyeOffIcon, PlayIcon } from "lucide-react"
+import { EyeIcon, EyeOffIcon, PlayIcon, RefreshCwIcon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { useSWRConfig } from "swr"
@@ -19,12 +19,16 @@ export function MessageActions({
   message,
   vote,
   isLoading,
+  onRegenerate,
+  isLastMessage,
 }: {
   chatId: string
   projectId: string
   message: Message
   vote: Vote | undefined
   isLoading: boolean
+  onRegenerate?: () => void
+  isLastMessage?: boolean
 }) {
   const { mutate } = useSWRConfig()
   const [_, copyToClipboard] = useCopyToClipboard()
@@ -43,7 +47,7 @@ export function MessageActions({
     console.log("indexJsxCode", indexJsxCode)
     if (indexJsxCode) {
       setScriptCodeMap(projectId, indexJsxCode)
-      setLayoutMode("full")
+      setLayoutMode("code")
     }
   }
 
@@ -53,8 +57,10 @@ export function MessageActions({
     )?.code
     if (isPreviewEnabled) {
       setScriptCodeMap("current", "")
+      setLayoutMode("code")
     } else if (indexJsxCode) {
       setScriptCodeMap("current", indexJsxCode)
+      setLayoutMode("preview")
     }
     setIsPreviewEnabled(!isPreviewEnabled)
   }
@@ -62,6 +68,15 @@ export function MessageActions({
   return (
     <TooltipProvider delayDuration={0}>
       <div className="flex flex-row gap-2" role="message-actions">
+        {isLastMessage && message.role === "assistant" && (
+          <Button
+            className="py-1 px-2 h-fit text-muted-foreground"
+            variant="outline"
+            onClick={onRegenerate}
+          >
+            <RefreshCwIcon className="w-4 h-4" />
+          </Button>
+        )}
         <Button
           className="py-1 px-2 h-fit text-muted-foreground"
           variant="outline"

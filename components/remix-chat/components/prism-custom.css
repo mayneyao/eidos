@@ -1,0 +1,6 @@
+code[class*="language-"],
+pre[class*="language-"] {
+  font-size: 0.75rem !important;  /* text-xs 对应的大小 */
+  line-height: 1.25rem !important;  /* leading-5 对应的大小 */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+} 

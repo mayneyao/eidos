@@ -22,6 +22,8 @@ export const PreviewMessage = ({
   setBlock,
   vote,
   isLoading,
+  onRegenerate,
+  isLastMessage,
 }: {
   chatId: string
   projectId: string
@@ -30,6 +32,8 @@ export const PreviewMessage = ({
   setBlock: Dispatch<SetStateAction<UIBlock>>
   vote: Vote | undefined
   isLoading: boolean
+  onRegenerate?: () => void
+  isLastMessage?: boolean
 }) => {
   return (
     <motion.div
@@ -59,10 +63,17 @@ export const PreviewMessage = ({
           </div>
         )}
 
-        <div className="flex flex-col gap-2 w-full">
+        <div className="flex flex-col gap-2 w-full min-w-0">
           {message.content && (
-            <div className="flex flex-col gap-4">
-              <Markdown>{message.content as string}</Markdown>
+            <div
+              className={cx(
+                "flex flex-col gap-4 w-full",
+                message.role === "user" ? "break-all" : "break-words"
+              )}
+            >
+              <div className="w-full [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_pre]:rounded-lg">
+                <Markdown>{message.content as string}</Markdown>
+              </div>
             </div>
           )}
 
@@ -148,6 +159,8 @@ export const PreviewMessage = ({
             message={message}
             vote={vote}
             isLoading={isLoading}
+            onRegenerate={onRegenerate}
+            isLastMessage={isLastMessage}
           />
         </div>
       </div>

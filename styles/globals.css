@@ -25,6 +25,9 @@ code[class*="language-"] {
   /* white-space: normal !important; */
   overflow: auto;
   word-break: break-word !important;
+  font-size: 0.75rem !important;
+  line-height: 1.25rem !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
 }
 
 html {

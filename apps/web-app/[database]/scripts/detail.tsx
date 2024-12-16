@@ -29,6 +29,28 @@ import { useEditorStore } from "./stores/editor-store"
 
 const CodeEditor = lazy(() => import("./editor/code-editor"))
 
+const PreviewToggle = ({
+  onClick,
+  showPreview,
+}: {
+  onClick: () => void
+  showPreview: boolean
+}) => {
+  return (
+    <Button variant="ghost" size="sm" onClick={onClick} className="gap-2">
+      {showPreview ? (
+        <>
+          <span>Show Code</span>
+        </>
+      ) : (
+        <>
+          <span>Show Preview</span>
+        </>
+      )}
+    </Button>
+  )
+}
+
 export const ScriptDetailPage = () => {
   const script = useLoaderData() as IScript
   const { updateScript } = useScript()
@@ -39,13 +61,16 @@ export const ScriptDetailPage = () => {
     script.ts_code || script.code
   )
 
-  const { layoutMode, scriptCodeMap } = useEditorStore()
+  const { layoutMode, setLayoutMode, scriptCodeMap } = useEditorStore()
 
   const currentDraftCode = scriptCodeMap["current"]
 
   const [currentCompiledDraftCode, setCurrentCompiledDraftCode] = useState(
     script.code
   )
+
+  // 只有 文档插件和 m_block 有 preview 模式
+  const isPreviewMode = layoutMode === "preview" && (script.type === "doc_plugin" || script.type === "m_block")
 
   useEffect(() => {
     if (currentDraftCode) {
@@ -57,16 +82,9 @@ export const ScriptDetailPage = () => {
     } else {
       setCurrentCompiledDraftCode(script.code)
     }
-  }, [currentDraftCode])
+  }, [currentDraftCode, setLayoutMode])
 
-  const showPreview =
-    (layoutMode === "full" || layoutMode.includes("preview")) &&
-    (script.type === "m_block" || script.type === "doc_plugin")
-  const showCode = layoutMode === "full" || layoutMode.includes("code")
-  const showChat =
-    (layoutMode === "full" || layoutMode.includes("chat")) &&
-    script.type !== "prompt" &&
-    script.type !== "udf"
+  const showChat = script.type !== "prompt" && script.type !== "udf"
 
   useEffect(() => {
     setCurrentCompiledDraftCode(script.code)
@@ -159,7 +177,19 @@ export const ScriptDetailPage = () => {
           <TabsTrigger value="basic">Basic</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </div>
-        {activeTab === "basic" && <ExtensionToolbar />}
+        {activeTab === "basic" && (
+          <div className="flex items-center gap-2">
+            {(script.type === "m_block" || script.type === "doc_plugin") && (
+              <PreviewToggle
+                showPreview={isPreviewMode}
+                onClick={() =>
+                  setLayoutMode(isPreviewMode ? "code" : "preview")
+                }
+              />
+            )}
+            <ExtensionToolbar />
+          </div>
+        )}
       </TabsList>
 
       {revalidator.state === "loading" ? (
@@ -174,7 +204,7 @@ export const ScriptDetailPage = () => {
               <div role="content" className="grow overflow-hidden min-h-0">
                 <div className={cn("flex gap-4 h-full")}>
                   {showChat && (
-                    <div className="flex-1 h-full overflow-y-auto border-r">
+                    <div className="w-2/5 h-full overflow-y-auto border-r">
                       <Chat
                         id={chatId}
                         scriptId={script.id}
@@ -183,8 +213,9 @@ export const ScriptDetailPage = () => {
                       />
                     </div>
                   )}
-                  {showCode && (
-                    <div className="flex-1 h-full">
+
+                  <div className="flex-1 h-full">
+                    {!isPreviewMode ? (
                       <Suspense
                         fallback={
                           <Skeleton className="h-[20px] w-[100px] rounded-full" />
@@ -207,42 +238,40 @@ export const ScriptDetailPage = () => {
                           }
                         />
                       </Suspense>
-                    </div>
-                  )}
-
-                  {showPreview && (
-                    <div className="flex-1 h-full">
-                      {!script.code ? (
-                        <div className="flex h-full flex-col items-center justify-center gap-4">
-                          <p className="text-muted-foreground">
-                            No preview available. Build first to see the
-                            preview.
-                          </p>
-                          <Button onClick={compile} size="sm">
-                            Build
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="h-full">
-                          {script.type === "doc_plugin" && (
-                            <DocEditorPlayground
-                              code={currentCompiledDraftCode || script.code}
-                            />
-                          )}
-                          {script.type === "m_block" && (
-                            <BlockRenderer
-                              code={script.ts_code || ""}
-                              compiledCode={
-                                currentCompiledDraftCode || script.code || ""
-                              }
-                              env={script.env_map}
-                              bindings={script.bindings}
-                            />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    ) : (
+                      <>
+                        {!script.code ? (
+                          <div className="flex h-full flex-col items-center justify-center gap-4">
+                            <p className="text-muted-foreground">
+                              No preview available. Build first to see the
+                              preview.
+                            </p>
+                            <Button onClick={compile} size="sm">
+                              Build
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="h-full">
+                            {script.type === "doc_plugin" && (
+                              <DocEditorPlayground
+                                code={currentCompiledDraftCode || script.code}
+                              />
+                            )}
+                            {script.type === "m_block" && (
+                              <BlockRenderer
+                                code={script.ts_code || ""}
+                                compiledCode={
+                                  currentCompiledDraftCode || script.code || ""
+                                }
+                                env={script.env_map}
+                                bindings={script.bindings}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

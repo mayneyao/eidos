@@ -66,6 +66,7 @@ export function Chat({
     isLoading,
     stop,
     data: streamingData,
+    reload
   } = useChat({
     body: {
       ...getConfigByModel(codingModel ?? findFirstAvailableModel()),
@@ -123,6 +124,10 @@ export function Chat({
 
   const [attachments, setAttachments] = useState<Array<Attachment>>([])
 
+  const handleRegenerate = useCallback(async () => {
+    await reload()
+  }, [reload])
+
   return (
     <>
       <div className="flex flex-col min-w-0 h-full bg-background relative">
@@ -141,11 +146,9 @@ export function Chat({
               block={block}
               setBlock={setBlock}
               isLoading={isLoading && messages.length - 1 === index}
-              vote={
-                votes
-                  ? votes.find((vote) => vote.messageId === message.id)
-                  : undefined
-              }
+              vote={votes?.find((vote) => vote.messageId === message.id)}
+              onRegenerate={handleRegenerate}
+              isLastMessage={index === messages.length - 1}
             />
           ))}
 

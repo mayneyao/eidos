@@ -1,13 +1,26 @@
-import { memo } from "react"
+import { memo, useEffect, useState } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
+import Prism from "prismjs"
+import "prismjs/themes/prism-tomorrow.css"
+import "./prism-custom.css"
+import "prismjs/components/prism-typescript"
+import "prismjs/components/prism-javascript"
+import "prismjs/components/prism-jsx"
+import "prismjs/components/prism-tsx"
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 
 const NonMemoizedMarkdown = ({ children }: { children: string }) => {
+  useEffect(() => {
+    Prism.highlightAll()
+  }, [children])
+
   const components: Partial<Components> = {
     // @ts-expect-error
     code: ({ node, inline, className, children, ...props }) => {
       const match = /language-(\w+)/.exec(className || "")
       const language = match?.[1]
+      const [isCollapsed, setIsCollapsed] = useState(true)
 
       if (inline || !match) {
         return (
@@ -24,12 +37,27 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
         const code = children?.toString()
         const linesCount = code?.split("\n").length
         return (
-          <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 mt-2 flex items-center gap-2">
-            <span className="text-sm">index.jsx </span>{" "}
-            <span className="text-xs text-green-600">+{linesCount}</span>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              lines
-            </span>
+          <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 mt-2">
+            <div 
+              className="flex items-center gap-2 p-1 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors" 
+              onClick={() => setIsCollapsed(!isCollapsed)}
+            >
+              <span className="text-xs">index.{language}</span>
+              <span className="text-xs text-green-600">+{linesCount}</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                lines
+              </span>
+              {isCollapsed ? (
+                <ChevronDownIcon className="w-3.5 h-3.5 ml-auto text-zinc-500" />
+              ) : (
+                <ChevronUpIcon className="w-3.5 h-3.5 ml-auto text-zinc-500" />
+              )}
+            </div>
+            <div className={isCollapsed ? 'hidden' : ''}>
+              <pre className="!m-0">
+                <code className={`language-${language}`}>{children}</code>
+              </pre>
+            </div>
           </div>
         )
       }
@@ -37,9 +65,9 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
       return (
         <pre
           {...(props as React.HTMLAttributes<HTMLPreElement>)}
-          className={`${className} text-sm w-[80dvw] md:max-w-[500px] overflow-x-scroll bg-zinc-100 p-3 rounded-lg mt-2 dark:bg-zinc-800`}
+          className={`${className} w-[80dvw] md:max-w-[500px] overflow-x-scroll bg-zinc-100 p-3 rounded-lg mt-2 dark:bg-zinc-800`}
         >
-          <code className={match[1]}>{children}</code>
+          <code className={`language-${language}`}>{children}</code>
         </pre>
       )
     },
