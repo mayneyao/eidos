@@ -1,23 +1,45 @@
 import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { EventEmitter } from 'events';
 
 
-export class ConfigManager {
+
+export interface AppConfig {
+    // the folder where the data is stored
+    dataFolder: string;
+    // the api agent config
+    apiAgentConfig: {
+        url: string;
+        enabled: boolean;
+    };
+}
+
+
+const emptyConfig: AppConfig = {
+    dataFolder: '',
+    apiAgentConfig: {
+        url: '',
+        enabled: false,
+    },
+};
+
+export class ConfigManager extends EventEmitter {
     private configPath: string;
-    private config: { [key: string]: any };
+    private config: AppConfig;
 
     constructor(configPath: string) {
+        super();
         this.configPath = configPath;
         this.config = this.loadConfig();
     }
 
-    private loadConfig(): { [key: string]: any } {
+    private loadConfig(): AppConfig {
         if (fs.existsSync(this.configPath)) {
             const rawData = fs.readFileSync(this.configPath, 'utf-8');
             return JSON.parse(rawData);
         }
-        return {};
+        return emptyConfig;
     }
 
     private saveConfig(): void {
@@ -25,28 +47,27 @@ export class ConfigManager {
         fs.writeFileSync(this.configPath, rawData, 'utf-8');
     }
 
-    public get(key: string): any {
+    public get(key: keyof AppConfig): any {
         return this.config[key];
     }
 
-    public set(key: string, value: any): void {
+    public set(key: keyof AppConfig, value: any): void {
+        const oldValue = this.config[key];
         this.config[key] = value;
         this.saveConfig();
+        console.log('configChanged', { key, oldValue, newValue: value });
+        this.emit('configChanged', { key, oldValue, newValue: value });
     }
 
 }
 
+let configManagerInstance: ConfigManager | null = null;
 
-export function getAppConfig(): {
-    dataFolder: string;
-} {
-    const userDataPath = app.getPath('userData');
-    const configFilePath = path.join(userDataPath, 'config.json');
-
-    if (fs.existsSync(configFilePath)) {
-        return JSON.parse(fs.readFileSync(configFilePath, 'utf-8'));
-    } else {
-        // Handle the case where the config file does not exist
-        return { dataFolder: '' }; // Return a default configuration or handle as needed
+export function getConfigManager(): ConfigManager {
+    if (!configManagerInstance) {
+        const userDataPath = app.getPath('userData');
+        const configFilePath = path.join(userDataPath, 'config.json');
+        configManagerInstance = new ConfigManager(configFilePath);
     }
+    return configManagerInstance;
 }

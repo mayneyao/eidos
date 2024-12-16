@@ -3,13 +3,14 @@ import { handleFunctionCall } from '@/lib/rpc';
 import { BrowserWindow, Menu, Tray, app, dialog, ipcMain, nativeImage, shell } from 'electron';
 import { log } from 'electron-log';
 import path from 'path';
-import { getAppConfig } from './config';
 import { getDataSpace, getOrSetDataSpace } from './data-space';
 import { initializePlayground } from './file-system/manager';
 import { ProtocolHandler } from './protocol-handler';
 import { startServer } from './server/server';
 import { AppUpdater } from './updater';
 import { createWindow } from './window-manager/createWindow';
+import { initApiAgent, getApiAgentStatus } from './server/api-agent';
+import { getConfigManager } from './config';
 
 export let win: BrowserWindow | null
 let appUpdater: AppUpdater;
@@ -33,16 +34,24 @@ process.env.VITE_PUBLIC = app.isPackaged
     ? process.env.DIST
     : path.join(process.env.DIST, '../public')
 
-startServer({ dist: process.env.DIST, port: PORT })
 
+startServer({ dist: process.env.DIST, port: PORT });
 
 if (!app.requestSingleInstanceLock()) {
     app.quit()
     process.exit(0)
 }
 
-ipcMain.handle('get-app-config', () => {
-    return getAppConfig();
+ipcMain.handle('get-app-data-folder', () => {
+    return getConfigManager().get('dataFolder');
+});
+
+ipcMain.handle('get-config', (event, key) => {
+    return getConfigManager().get(key);
+});
+
+ipcMain.handle('set-config', (event, key, value) => {
+    getConfigManager().set(key, value);
 });
 
 ipcMain.handle('get-user-config-path', () => {
@@ -220,6 +229,11 @@ app.whenReady().then(() => {
     });
     appUpdater = new AppUpdater(win);
     appUpdater.checkForUpdates();
+    initApiAgent();
+
+    ipcMain.handle('get-api-agent-status', () => {
+        return getApiAgentStatus();
+    });
 });
 
 app.on('activate', () => {

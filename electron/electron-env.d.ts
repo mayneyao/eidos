@@ -37,5 +37,7 @@ interface Window {
         isDataFolderSet: boolean
         reloadApp: () => Promise<void>
         initializePlayground: (space: string, blockId: string, files: PlaygroundFile[]) => Promise<string>
+        getApiAgentStatus: () => Promise<import('./server/api-agent').ApiAgentStatus>
+        onApiAgentStatusChanged: (callback: (status: import('./server/api-agent').ApiAgentStatus) => void) => () => void
     }
 }

@@ -3,15 +3,16 @@ import { SpaceFileSystem } from '@/lib/storage/space';
 import { contextBridge, ipcRenderer } from 'electron';
 import { getOriginPrivateDirectory } from 'native-file-system-adapter';
 
-import { ConfigManager } from './config/index';
+import { AppConfig, ConfigManager } from './config/index';
 import { PlaygroundFile } from './file-system/manager';
 import nodeAdapter from './lib/node-adapter';
+import { ApiAgentStatus } from './server/api-agent';
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void;
 
 async function main() {
   const userConfigPath = (await ipcRenderer.invoke('get-user-config-path'));
-  const userDataPath = (await ipcRenderer.invoke('get-app-config')).dataFolder;
+  const userDataPath = (await ipcRenderer.invoke('get-app-data-folder'));
   const openTabs = await ipcRenderer.invoke('get-open-tabs') as string[]
   const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath)
   const configManager = new ConfigManager(userConfigPath);
@@ -104,8 +105,8 @@ async function main() {
     efsManager: new EidosFileSystemManager(dirHandle as any),
     spaceFileSystem: new SpaceFileSystem(dirHandle as any),
     config: {
-      get: (key: string) => configManager.get(key),
-      set: (key: string, value: any) => configManager.set(key, value),
+      get: (key: keyof AppConfig) => ipcRenderer.invoke('get-config', key),
+      set: (key: keyof AppConfig, value: any) => ipcRenderer.invoke('set-config', key, value),
     },
     isDataFolderSet: !!configManager.get('dataFolder'),
     selectFolder: () => ipcRenderer.invoke('select-folder'),
@@ -114,6 +115,18 @@ async function main() {
     initializePlayground: (space: string, blockId: string, files: PlaygroundFile[]) => ipcRenderer.invoke('initialize-playground', space, blockId, files),
     // You can expose other APIs you need here.
     // ...
+
+    // Add these new properties to eidos object
+    onApiAgentStatusChanged: (callback: (status: ApiAgentStatus) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: ApiAgentStatus) => callback(status);
+      ipcRenderer.on('api-agent-status-changed', listener);
+      
+      return () => {
+        console.log('remove listener')
+        ipcRenderer.removeListener('api-agent-status-changed', listener);
+      };
+    },
+    getApiAgentStatus: () => ipcRenderer.invoke('get-api-agent-status'),
   })
 
 }

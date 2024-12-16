@@ -1,7 +1,7 @@
 import { EidosFileSystemManager } from '@/lib/storage/eidos-file-system'
 import { getOriginPrivateDirectory } from 'native-file-system-adapter'
 import nodeAdapter from 'native-file-system-adapter/src/adapters/node'
-import { getAppConfig } from '../config'
+import { getConfigManager } from '../config'
 import path from 'path';
 import fs from 'fs/promises';
 import { watch } from 'fs';
@@ -13,7 +13,7 @@ export interface PlaygroundFile {
 }
 
 export async function getEidosFileSystemManager() {
-    const userDataPath = getAppConfig().dataFolder
+    const userDataPath = getConfigManager().get('dataFolder')
     const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath)
     return new EidosFileSystemManager(dirHandle as any)
 }
@@ -68,7 +68,7 @@ export async function initializePlayground(
     blockId: string,
     files: PlaygroundFile[]
 ) {
-    const userDataPath = getAppConfig().dataFolder
+    const userDataPath = getConfigManager().get('dataFolder')
     const playgroundPath = path.join(userDataPath, "playground", `${space}-${blockId}`)
 
     // 清理旧的 watcher
