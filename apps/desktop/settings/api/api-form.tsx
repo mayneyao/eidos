@@ -148,7 +148,15 @@ export function ApiForm() {
 
             <div className="space-y-4 rounded-lg border p-4">
               <h3 className="text-lg font-medium flex items-center gap-2">
-                {t("settings.api.forwarding")}
+                <div className="flex items-center gap-2">
+                  {t("settings.api.forwarding")}
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
+                    {t("common.badge.alpha")}
+                  </span>
+                  {/* <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
+                    {t("common.badge.pro")}
+                  </span> */}
+                </div>
                 {apiStatus.connected ? (
                   <CableIcon className="h-5 w-5 text-green-500" />
                 ) : (
