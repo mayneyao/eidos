@@ -122,12 +122,43 @@ export const BlockRenderer = React.forwardRef<
               margin: 0;
               padding: 0;
             }
+
+            #loading {
+              position: fixed;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background-color: hsl(var(--background));
+              transition: opacity 0.2s;
+            }
+
+            .spinner {
+              height: 3rem;
+              width: 3rem;
+              animation: spin 1s linear infinite;
+              border: 4px solid hsl(var(--primary));
+              border-top-color: transparent;
+              border-radius: 50%;
+            }
+
+            @keyframes spin {
+              to {
+                transform: rotate(360deg);
+              }
+            }
           </style>
           <script>
             tailwind.config = ${JSON.stringify(twConfig)};
           </script>
         </head>
         <body>
+          <div id="loading">
+            <div class="spinner"></div>
+          </div>
           <div id="root" style="height: ${rootHeight}"></div>
           <script type="module">
             import React from 'react';
@@ -180,12 +211,21 @@ export const BlockRenderer = React.forwardRef<
                     ]
                   )
                 );
+
+                document.getElementById('loading').style.opacity = '0';
+                setTimeout(() => {
+                  document.getElementById('loading').style.display = 'none';
+                }, 200);
+
               } catch (err) {
                 console.error('Execution error:', err);
                 console.error('Error stack:', err.stack);
                 if (retryCount < maxRetries) {
                   retryCount++;
                   console.log(\`Retrying... Attempt \${retryCount} of \${maxRetries}\`);
+                  const loadingEl = document.getElementById('loading');
+                  loadingEl.style.opacity = '1';
+                  loadingEl.style.display = 'flex';
                   setTimeout(executeCode, 1000); 
                   return;
                 }
@@ -196,11 +236,14 @@ export const BlockRenderer = React.forwardRef<
                 errorElement.style.fontFamily = 'monospace';
                 errorElement.textContent = \`\${err.message}\\n\${err.stack}\`;
                 document.body.appendChild(errorElement);
+                
+                document.getElementById('loading').style.display = 'none';
               }
             };
 
             executeCode().catch(err => {
               console.error('Top level error:', err);
+              document.getElementById('loading').style.display = 'none';
             });
           </script>
         </body>
