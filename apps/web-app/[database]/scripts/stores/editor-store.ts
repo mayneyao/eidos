@@ -30,6 +30,12 @@ interface EditorStore {
 
     layoutMode: LayoutMode
     setLayoutMode: (mode: LayoutMode) => void
+
+    chatHistoryMap: Map<string, Message[]>
+    setChatHistoryMap: (map: Map<string, Message[]>) => void
+
+    chatTitles: Map<string, string>
+    setChatTitles: (titles: Map<string, string>) => void
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -54,4 +60,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
     setIsRemixMode: (mode) => set({ isRemixMode: mode }),
     layoutMode: 'code',
     setLayoutMode: (mode) => set({ layoutMode: mode }),
+    chatHistoryMap: new Map(),
+    setChatHistoryMap: (map) => set({ chatHistoryMap: map }),
+    chatTitles: new Map(),
+    setChatTitles: (titles) => set({ chatTitles: titles }),
 }))

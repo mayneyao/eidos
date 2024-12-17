@@ -24,6 +24,9 @@ export async function getChatById(id: string, dataspace: DataSpace) {
 export async function saveChat(data: { id: string, title?: string, projectId?: string }, dataspace: DataSpace) {
     await dataspace.chat.add({ id: data.id, title: data.title, project_id: data.projectId })
 }
+export async function updateChatTitle(id: string, title: string, dataspace: DataSpace) {
+    await dataspace.chat.set(id, { title })
+}
 
 export async function saveMessages(messages: { messages: ChatMessage[] }, dataspace: DataSpace) {
     await dataspace.message.add(messages.messages[0])

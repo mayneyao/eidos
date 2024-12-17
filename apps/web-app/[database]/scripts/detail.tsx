@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
-import { Code, Eye } from "lucide-react"
+import { Code, Eye, MessageSquare, Plus, Search } from "lucide-react"
 import { useTheme } from "next-themes"
 import {
   useLoaderData,
@@ -9,17 +9,25 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
-import { cn } from "@/lib/utils"
+import { cn, uuidv7 } from "@/lib/utils"
 import { compileCode } from "@/lib/v3/compiler"
 import { compileLexicalCode } from "@/lib/v3/lexical-compiler"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { BlockRenderer } from "@/components/block-renderer/block-renderer"
 import { DocEditorPlayground } from "@/components/doc-editor-playground"
 
-import { Chat } from "../../../../components/remix-chat/chat"
+import { ChatSidebar } from "./components/chat"
+import { Header } from "./components/chat/header"
+import { useChatHeader } from "./components/chat/use-chat-header"
 import { ExtensionToolbar } from "./components/extension-toolbar"
 import { ExtensionConfig } from "./config/config"
 import { ScriptSandbox } from "./editor/script-sandbox"
@@ -43,10 +51,10 @@ const PreviewToggle = ({
       size="sm"
       onClick={onClick}
       className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-      title={showPreview ? "Show Code" : "Show Preview"}
+      title="Toggle view mode"
     >
-      <span>{showPreview ? "Preview Mode" : "Code Mode"}</span>
-      {showPreview ? <Code className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      <span>{showPreview ? "Preview" : "Code"}</span>
+      {showPreview ? <Eye className="h-4 w-4" /> : <Code className="h-4 w-4" />}
     </Button>
   )
 }
@@ -163,7 +171,19 @@ export const ScriptDetailPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get("tab") || "basic"
 
-  const { chatHistory, chatId } = useExtensionChatHistory(script.id)
+  const { setChatId, chatTitles } = useEditorStore()
+  const { chatId, chatHistoryMap, setChatHistoryMap, setChatHistory } =
+    useExtensionChatHistory(script.id)
+
+  const { chatIds, sortedChats, createNewChat, switchChat, deleteChat } =
+    useChatHeader({
+      scriptId: script.id,
+      chatId,
+      chatHistoryMap,
+      setChatHistoryMap,
+      setChatId,
+      setChatHistory,
+    })
 
   return (
     <Tabs
@@ -174,9 +194,20 @@ export const ScriptDetailPage = () => {
       className="flex h-full w-full flex-col overflow-hidden p-2 px-4 pt-0"
     >
       <TabsList className="flex w-full border-b justify-between">
-        <div>
+        <div className="flex items-center gap-2">
           <TabsTrigger value="basic">Basic</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
+          {showChat && activeTab === "basic" && (
+            <Header
+              chatId={chatId}
+              sortedChats={sortedChats}
+              chatTitles={chatTitles}
+              chatIds={chatIds}
+              createNewChat={createNewChat}
+              switchChat={switchChat}
+              deleteChat={deleteChat}
+            />
+          )}
         </div>
         {activeTab === "basic" && (
           <div className="flex items-center gap-2">
@@ -203,77 +234,85 @@ export const ScriptDetailPage = () => {
           >
             <div className="flex h-full flex-col gap-4">
               <div role="content" className="grow overflow-hidden min-h-0">
-                <div className={cn("flex gap-4 h-full")}>
+                <ResizablePanelGroup direction="horizontal" className="h-full">
                   {showChat && (
-                    <div className="w-2/5 h-full overflow-y-auto border-r">
-                      <Chat
-                        id={chatId}
-                        scriptId={script.id}
-                        initialMessages={chatHistory}
-                        selectedModelId={""}
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex-1 h-full">
-                    {!isPreviewMode ? (
-                      <Suspense
-                        fallback={
-                          <Skeleton className="h-[20px] w-[100px] rounded-full" />
-                        }
+                    <>
+                      <ResizablePanel
+                        defaultSize={30}
+                        minSize={20}
+                        maxSize={50}
                       >
-                        <CodeEditor
-                          ref={editorRef}
-                          value={editorContent}
-                          onSave={onSubmit}
-                          language={language}
-                          bindings={script.bindings}
+                        <ChatSidebar
                           scriptId={script.id}
-                          theme={theme === "dark" ? "vs-dark" : "light"}
-                          customCompile={
-                            script.type === "m_block"
-                              ? blockCodeCompile
-                              : script.type === "doc_plugin"
-                              ? lexicalCodeCompile
-                              : undefined
-                          }
+                          createNewChat={createNewChat}
                         />
-                      </Suspense>
-                    ) : (
-                      <>
-                        {!script.code ? (
-                          <div className="flex h-full flex-col items-center justify-center gap-4">
-                            <p className="text-muted-foreground">
-                              No preview available. Build first to see the
-                              preview.
-                            </p>
-                            <Button onClick={compile} size="sm">
-                              Build
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="h-full">
-                            {script.type === "doc_plugin" && (
-                              <DocEditorPlayground
-                                code={currentCompiledDraftCode || script.code}
-                              />
-                            )}
-                            {script.type === "m_block" && (
-                              <BlockRenderer
-                                code={script.ts_code || ""}
-                                compiledCode={
-                                  currentCompiledDraftCode || script.code || ""
-                                }
-                                env={script.env_map}
-                                bindings={script.bindings}
-                              />
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
+                      </ResizablePanel>
+                      <ResizableHandle withHandle />
+                    </>
+                  )}
+                  <ResizablePanel>
+                    <div className="h-full">
+                      {!isPreviewMode ? (
+                        <Suspense
+                          fallback={
+                            <Skeleton className="h-[20px] w-[100px] rounded-full" />
+                          }
+                        >
+                          <CodeEditor
+                            ref={editorRef}
+                            value={editorContent}
+                            onSave={onSubmit}
+                            language={language}
+                            bindings={script.bindings}
+                            scriptId={script.id}
+                            theme={theme === "dark" ? "vs-dark" : "light"}
+                            customCompile={
+                              script.type === "m_block"
+                                ? blockCodeCompile
+                                : script.type === "doc_plugin"
+                                ? lexicalCodeCompile
+                                : undefined
+                            }
+                          />
+                        </Suspense>
+                      ) : (
+                        <>
+                          {!script.code ? (
+                            <div className="flex h-full flex-col items-center justify-center gap-4">
+                              <p className="text-muted-foreground">
+                                No preview available. Build first to see the
+                                preview.
+                              </p>
+                              <Button onClick={compile} size="sm">
+                                Build
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="h-full">
+                              {script.type === "doc_plugin" && (
+                                <DocEditorPlayground
+                                  code={currentCompiledDraftCode || script.code}
+                                />
+                              )}
+                              {script.type === "m_block" && (
+                                <BlockRenderer
+                                  code={script.ts_code || ""}
+                                  compiledCode={
+                                    currentCompiledDraftCode ||
+                                    script.code ||
+                                    ""
+                                  }
+                                  env={script.env_map}
+                                  bindings={script.bindings}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </ResizablePanel>
+                </ResizablePanelGroup>
               </div>
             </div>
           </TabsContent>

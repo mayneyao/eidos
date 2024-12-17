@@ -299,7 +299,7 @@ export function MultimodalInput({
         placeholder="Send a message..."
         value={input}
         onChange={handleInput}
-        onPaste={handlePaste}
+        // onPaste={handlePaste}
         className={cx(
           "min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl text-base bg-muted",
           className
@@ -343,7 +343,7 @@ export function MultimodalInput({
         </Button>
       )}
 
-      <Button
+      {/* <Button
         className="rounded-full p-1.5 h-fit absolute bottom-2 right-11 m-0.5 dark:border-zinc-700"
         onClick={(event) => {
           event.preventDefault()
@@ -353,7 +353,7 @@ export function MultimodalInput({
         disabled={isLoading}
       >
         <PaperclipIcon size={14} />
-      </Button>
+      </Button> */}
     </div>
   )
 }

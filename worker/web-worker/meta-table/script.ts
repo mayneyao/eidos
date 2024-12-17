@@ -106,9 +106,13 @@ export class ScriptTable
     "bindings",
   ]
 
-  del(id: string): Promise<boolean> {
-    this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])
-    return Promise.resolve(true)
+  async del(id: string): Promise<boolean> {
+    await this.dataSpace.db.transaction(async () => {
+      await this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])
+      const chatIds = await this.dataSpace.chat.getChatIdsByProjectId(id)
+      await Promise.all(chatIds.map(chatId => this.dataSpace.chat.delete(chatId)))
+    })
+    return true
   }
 
   async enable(id: string): Promise<boolean> {

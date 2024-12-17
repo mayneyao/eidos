@@ -1,5 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { CoreTool, convertToCoreMessages, streamText } from "ai";
+import { CoreTool, CoreUserMessage, convertToCoreMessages, streamText } from "ai";
 
 import { allFunctions } from "@/lib/ai/functions";
 
@@ -8,7 +8,7 @@ import { isDesktopMode } from "@/lib/env";
 import { uuidv7 } from "@/lib/utils";
 import { DataSpace } from "@/worker/web-worker/DataSpace";
 import { ChatMessage } from "@/worker/web-worker/meta-table/message";
-import { getChatById, getMostRecentUserMessage, saveChat, saveMessages } from "./helper";
+import { generateTitleFromUserMessage, getChatById, getMostRecentUserMessage, saveChat, saveMessages, updateChatTitle } from "./helper";
 import { IData } from "./interface";
 
 
@@ -72,8 +72,12 @@ export async function handleOpenAI(
       chat,
     })
     if (!chat) {
-      // const title = await generateTitleFromUserMessage({ message: userMessage as CoreUserMessage, model: openai(model ?? "gpt-3.5-turbo-0125") });
-      await saveChat({ id, projectId }, dataspace);
+      const title = await generateTitleFromUserMessage({ message: userMessage as CoreUserMessage, model: openai(model ?? "gpt-3.5-turbo-0125") });
+      await saveChat({ id, projectId, title }, dataspace);
+    }
+    if (!chat?.title) {
+      const title = await generateTitleFromUserMessage({ message: userMessage as CoreUserMessage, model: openai(model ?? "gpt-3.5-turbo-0125") });
+      await updateChatTitle(id, title, dataspace);
     }
 
     await saveMessages({
