@@ -69,7 +69,8 @@ export const ScriptDetailPage = () => {
     script.ts_code || script.code
   )
 
-  const { layoutMode, setLayoutMode, scriptCodeMap } = useEditorStore()
+  const { layoutMode, setLayoutMode, scriptCodeMap, setScriptCodeMap } =
+    useEditorStore()
 
   const currentDraftCode = scriptCodeMap["current"]
 
@@ -90,6 +91,10 @@ export const ScriptDetailPage = () => {
       })
     } else {
       setCurrentCompiledDraftCode(script.code)
+    }
+
+    return () => {
+      setScriptCodeMap("current", "")
     }
   }, [currentDraftCode, setLayoutMode])
 
