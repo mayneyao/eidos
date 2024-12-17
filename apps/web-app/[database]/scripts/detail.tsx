@@ -288,7 +288,7 @@ export const ScriptDetailPage = () => {
                               </Button>
                             </div>
                           ) : (
-                            <div className="h-full">
+                            <div className="h-full p-2">
                               {script.type === "doc_plugin" && (
                                 <DocEditorPlayground
                                   code={currentCompiledDraftCode || script.code}

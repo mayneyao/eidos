@@ -134,21 +134,23 @@ export const BlockRenderer = React.forwardRef<
               justify-content: center;
               background-color: hsl(var(--background));
               transition: opacity 0.2s;
+              font-family: monospace;
+              font-size: 16px;
             }
 
-            .spinner {
-              height: 3rem;
-              width: 3rem;
-              animation: spin 1s linear infinite;
-              border: 4px solid hsl(var(--primary));
-              border-top-color: transparent;
-              border-radius: 50%;
+            #loading::after {
+              content: '...';
+              animation: dots 1.5s steps(4, end) infinite;
+              width: 1.5em;
+              display: inline-block;
+              text-align: left;
             }
 
-            @keyframes spin {
-              to {
-                transform: rotate(360deg);
-              }
+            @keyframes dots {
+              0%, 20% { content: ''; }
+              40% { content: '.'; }
+              60% { content: '..'; }
+              80%, 100% { content: '...'; }
             }
           </style>
           <script>
@@ -156,9 +158,7 @@ export const BlockRenderer = React.forwardRef<
           </script>
         </head>
         <body>
-          <div id="loading">
-            <div class="spinner"></div>
-          </div>
+          <div id="loading">Loading</div>
           <div id="root" style="height: ${rootHeight}"></div>
           <script type="module">
             import React from 'react';
