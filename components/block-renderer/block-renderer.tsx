@@ -98,6 +98,12 @@ export const BlockRenderer = React.forwardRef<
             window.process = {
               env: ${envString}
             };
+            window.addEventListener('error', function(e) {
+              console.error('Runtime error:', e);
+            });
+            window.addEventListener('unhandledrejection', function(e) {
+              console.error('Unhandled Promise Rejection:', e);
+            });
             window.addEventListener('message', (event) => {
               if (event.data.type === 'theme-change') {
                 document.documentElement.className = event.data.theme;
@@ -124,7 +130,7 @@ export const BlockRenderer = React.forwardRef<
         <body>
           <div id="root" style="height: ${rootHeight}"></div>
           <script type="module">
-            import * as React from 'react';
+            import React from 'react';
             import { createRoot } from 'react-dom/client';
             import { Toaster } from "@/components/ui/toaster"
             
@@ -156,22 +162,30 @@ export const BlockRenderer = React.forwardRef<
                   throw new Error("Make sure to export a default component or a function");
                 }
 
-                const root = createRoot(document.getElementById('root'));
-                root.render(React.createElement(
-                  React.Fragment,
-                  null,
-                  [
-                    React.createElement(MyComponent, ${JSON.stringify(
-                      defaultProps
-                    )}),
-                    React.createElement('div', { id: 'portal-root' }),
-                    // toaster has bug now
-                    // React.createElement(Toaster)
-                  ]
-                ));
+                const rootElement = document.getElementById('root');
+                if (!rootElement) {
+                  throw new Error("Root element not found");
+                }
+
+                const root = createRoot(rootElement);
+                const props = ${defaultPropsString};
+                
+                root.render(
+                  React.createElement(
+                    React.StrictMode,
+                    null,
+                    [
+                      React.createElement(MyComponent, props),
+                      React.createElement(Toaster)
+                    ]
+                  )
+                );
               } catch (err) {
+                console.error('Execution error:', err);
+                console.error('Error stack:', err.stack);
                 if (retryCount < maxRetries) {
                   retryCount++;
+                  console.log(\`Retrying... Attempt \${retryCount} of \${maxRetries}\`);
                   setTimeout(executeCode, 1000); 
                   return;
                 }
@@ -180,12 +194,14 @@ export const BlockRenderer = React.forwardRef<
                 errorElement.style.color = 'red';
                 errorElement.style.padding = '1rem';
                 errorElement.style.fontFamily = 'monospace';
-                errorElement.textContent = err.message;
+                errorElement.textContent = \`\${err.message}\\n\${err.stack}\`;
                 document.body.appendChild(errorElement);
               }
             };
 
-            executeCode();
+            executeCode().catch(err => {
+              console.error('Top level error:', err);
+            });
           </script>
         </body>
       </html>

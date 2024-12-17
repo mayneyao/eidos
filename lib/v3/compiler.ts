@@ -80,18 +80,27 @@ export async function generateImportMap(
   uiLibs: string[]
 ) {
   const moduleRegistry = new Map();
+  const REACT_VERSION = '18.3.1';
+  
   const imports: Record<string, string> = {
-    react: "https://esm.sh/react@18.3.1",
-    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    'react': `https://esm.sh/stable/react@${REACT_VERSION}`,
+    'react/jsx-runtime': `https://esm.sh/stable/react@${REACT_VERSION}/jsx-runtime`,
+    'react-dom': `https://esm.sh/stable/react-dom@${REACT_VERSION}`,
+    'react-dom/client': `https://esm.sh/stable/react-dom@${REACT_VERSION}/client`,
     clsx: "https://esm.sh/clsx@2.1.1",
     "tailwind-merge": "https://esm.sh/tailwind-merge",
     "@/lib/utils": utilsUrl,
   };
 
+  // 处理第三方库
   thirdPartyLibs.forEach((dep) => {
-    // skip react and react-dom
     if (dep === "react" || dep === "react-dom") return;
-    imports[dep] = `https://esm.sh/${dep}`;
+    
+    if (dep.startsWith('@radix-ui/')) {
+      imports[dep] = `https://esm.sh/${dep}?external=react&alias=react@${REACT_VERSION}`;
+    } else {
+      imports[dep] = `https://esm.sh/${dep}?deps=react@${REACT_VERSION}`;
+    }
   });
 
   for (const dep of uiLibs) {
@@ -125,10 +134,16 @@ export async function generateImportMap(
 
   const importMapScript = `
   <script type="importmap">
-    ${JSON.stringify({ imports })}
+    ${JSON.stringify({ imports }, null, 2)}
   </script>
   `;
 
+  console.debug('Import Map:', JSON.stringify({
+    thirdPartyLibs,
+    uiLibs,
+    imports,
+    importMapScript
+  }, null, 2));
 
   return {
     importMap: importMapScript,
