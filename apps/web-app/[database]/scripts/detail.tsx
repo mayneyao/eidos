@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
+import { Code, Eye } from "lucide-react"
 import { useTheme } from "next-themes"
 import {
   useLoaderData,
@@ -37,16 +38,15 @@ const PreviewToggle = ({
   showPreview: boolean
 }) => {
   return (
-    <Button variant="ghost" size="sm" onClick={onClick} className="gap-2">
-      {showPreview ? (
-        <>
-          <span>Show Code</span>
-        </>
-      ) : (
-        <>
-          <span>Show Preview</span>
-        </>
-      )}
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
+      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      title={showPreview ? "Show Code" : "Show Preview"}
+    >
+      <span>{showPreview ? "Preview Mode" : "Code Mode"}</span>
+      {showPreview ? <Code className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
     </Button>
   )
 }
@@ -69,8 +69,9 @@ export const ScriptDetailPage = () => {
     script.code
   )
 
-  // 只有 文档插件和 m_block 有 preview 模式
-  const isPreviewMode = layoutMode === "preview" && (script.type === "doc_plugin" || script.type === "m_block")
+  const isPreviewMode =
+    layoutMode === "preview" &&
+    (script.type === "doc_plugin" || script.type === "m_block")
 
   useEffect(() => {
     if (currentDraftCode) {
