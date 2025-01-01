@@ -14,9 +14,8 @@
 
 ## Features
 
-- Everything runs inside your local machine.
-- Offline Support: Access your data without an internet connection. Data is stored locally for blazing-fast performance.
-- AI Features: Deeply integrated with LLM for AI-powered capabilities. Translate, summarize, and interact with your data within Eidos. AI works even offline.
+- Offline Support: Everything runs inside your local machine. Access your data without an internet connection. Data is stored locally for blazing-fast performance.
+- AI Features: Deeply integrated with LLM for AI-powered capabilities. Translate, summarize, and interact with your data within Eidos.
 - Extensible: Customize Eidos to suit your needs.
 
   - Prompt: Speed up your workflow with the Prompt extension. No coding required.
@@ -66,9 +65,9 @@ If you want to deploy your own, see more details at [self-hosting](./docs/self-h
 
 | Version | Features                        | Domain          | Range   | Status |
 | ------- | ------------------------------- | --------------- | ------- | ------ |
-| 0.13    | Document core refactor          | Document,Base   |         | Plan   |
-| 0.12    | Table core refactor             | Table,Base      | 2024-12 | Plan   |
-| 0.11    | Extension generation via chat   | AI,Extension    | 2024-11 | ✅ ⬆️  |
+| 0.13    | Table core refactor             | Table,Base      |         | Plan   |
+| 0.12    | Document core refactor          | Document,Base   | 2024-12 | ✅⬆️  |
+| 0.11    | Extension generation via chat   | AI,Extension    | 2024-11 | ✅     |
 | 0.10    | Micro blocks editing via Cursor | AI,Extension    | 2024-11 | ✅     |
 | 0.9     | Micro block components          | AI,Extension    | 2024-11 | ✅     |
 | 0.8     | i18n support                    | General         | 2024-10 | ✅     |
