@@ -191,6 +191,20 @@
             window.__EIDOS_BINDINGS__ || {}
           )
         }
+        if (prop === "script") {
+          return {
+            call: (...args) => {
+              return createFunction("callScript")(...args)
+            },
+          }
+        }
+        if (prop === "AI" || prop === "ai") {
+          return {
+            generateText: (...args) => {
+              return createFunction("generateText")(...args)
+            },
+          }
+        }
         if (prop === "utils") {
           return {
             tableHighlightRow: (...args) => {

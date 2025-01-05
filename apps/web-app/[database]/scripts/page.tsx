@@ -3,6 +3,7 @@ import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import {
   AppWindowIcon,
+  CodeIcon,
   FilterIcon,
   FunctionSquareIcon,
   PencilRulerIcon,
@@ -45,6 +46,7 @@ export const IconMap = {
   m_block: ToyBrickIcon,
   app: AppWindowIcon,
   doc_plugin: PencilRulerIcon,
+  py_script: CodeIcon,
 }
 
 const extensionTypes = [
@@ -64,6 +66,11 @@ const extensionTypes = [
     id: "script",
     name: "Script",
     icon: SquareCodeIcon,
+  },
+  {
+    id: "py_script",
+    name: "Py Script",
+    icon: CodeIcon,
   },
   {
     id: "udf",
@@ -98,9 +105,14 @@ export const ScriptPage = () => {
   const _scripts = useMemo(() => {
     return [
       ...scripts.filter((script) =>
-        ["script", "udf", "prompt", "m_block", "doc_plugin"].includes(
-          script.type
-        )
+        [
+          "script",
+          "udf",
+          "prompt",
+          "m_block",
+          "doc_plugin",
+          "py_script",
+        ].includes(script.type)
       ),
       ...blocks.map((block) => ({
         id: block,

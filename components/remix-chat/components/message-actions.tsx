@@ -21,6 +21,7 @@ export function MessageActions({
   isLoading,
   onRegenerate,
   isLastMessage,
+  hideApply,
 }: {
   chatId: string
   projectId: string
@@ -29,6 +30,7 @@ export function MessageActions({
   isLoading: boolean
   onRegenerate?: () => void
   isLastMessage?: boolean
+  hideApply?: boolean
 }) {
   const { mutate } = useSWRConfig()
   const [_, copyToClipboard] = useCopyToClipboard()
@@ -87,7 +89,7 @@ export function MessageActions({
         >
           <CopyIcon />
         </Button>
-        {codeBlocks.length > 0 && (
+        {codeBlocks.length > 0 && !hideApply && (
           <>
             <Button
               className="py-1 px-2 h-fit text-muted-foreground"

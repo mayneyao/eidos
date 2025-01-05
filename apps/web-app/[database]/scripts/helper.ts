@@ -28,9 +28,13 @@ export const checkPromptEnable = (data: unknown) => {
 
 export const getEditorLanguage = (
   script: IScript
-): "markdown" | "typescript" | "javascript" | "typescriptreact" => {
+): "markdown" | "typescript" | "javascript" | "typescriptreact" | "python" => {
   if (script.type === "prompt") {
     return "markdown"
+  }
+
+  if (script.type === "py_script") {
+    return "python"
   }
 
   if (script.type === "m_block" || script.type === "doc_plugin") {

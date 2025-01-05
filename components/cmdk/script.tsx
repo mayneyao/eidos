@@ -35,7 +35,7 @@ export const ScriptList = () => {
 
   const scripts = useMemo(() => {
     return _scripts.filter((script) => {
-      return script.type === "script"
+      return script.type === "script" || script.type === "py_script"
     })
   }, [_scripts])
 
@@ -68,7 +68,7 @@ export const ScriptList = () => {
     }, 0)
   }, [])
 
-  useKeyPress("Enter", () => {
+  useKeyPress("Enter", async () => {
     if (currentAction) {
       console.log("executing command: " + input)
       const realParams: Record<string, any> = ActionExecutor.getParams(input)
@@ -86,6 +86,9 @@ export const ScriptList = () => {
         code: currentAction.code,
         id: currentAction.id,
         bindings: currentAction.bindings,
+        type: currentAction.type,
+      }).then((res) => {
+        console.log("res", res)
       })
       setInput("")
       setCmdkOpen(false)

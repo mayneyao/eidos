@@ -3,10 +3,15 @@ import { useCallback } from "react"
 import { MsgType } from "@/lib/const"
 import { uuidv7 } from "@/lib/utils"
 
-import { getSqliteChannel } from "@/lib/sqlite/channel"
-import { useExtensions } from "./use-extensions"
+import { callScriptById } from "@/components/script-container/helper"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useEidosFileSystemManager } from "@/hooks/use-fs"
-import { isDesktopMode } from "@/lib/env"
+import { getSqliteChannel, getSqliteProxy } from "@/lib/sqlite/channel"
+import { generateText } from "ai"
+import { useExtensions } from "./use-extensions"
+import { useAiConfig } from "@/hooks/use-ai-config"
+import { createOpenAI } from "@ai-sdk/openai"
+
 
 export enum ExtMsgType {
   // incoming msg
@@ -47,6 +52,9 @@ const shouldHandle = (event: MessageEvent, source: ExtensionSourceType) => {
 
 export const useExtMsg = (source: ExtensionSourceType) => {
   const { getExtensionIndex } = useExtensions()
+
+  const { space: database } = useCurrentPathInfo()
+  const { getConfigByModel } = useAiConfig()
 
   const { efsManager } = useEidosFileSystemManager()
   const handleMsg = useCallback(
@@ -105,6 +113,30 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                 event.ports[0].postMessage({
                   type: ExtMsgType.scriptCallMainResp,
                   data: blob,
+                })
+              })
+              break
+            case "callScript":
+              const [scriptId, input] = _args
+              const sqlWorker = getSqliteProxy(database, "")
+              callScriptById(scriptId, input, sqlWorker).then((res) => {
+                event.ports[0].postMessage({
+                  type: ExtMsgType.scriptCallMainResp,
+                  data: res,
+                })
+              })
+              break
+            case "generateText":
+              const payload = _args[0]
+              const config = getConfigByModel(payload.model)
+              const openai = createOpenAI(config)
+              generateText({
+                model: openai(config.modelId),
+                prompt: payload.prompt,
+              }).then((res) => {
+                event.ports[0].postMessage({
+                  type: ExtMsgType.scriptCallMainResp,
+                  data: res,
                 })
               })
               break

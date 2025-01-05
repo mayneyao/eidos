@@ -117,9 +117,23 @@ export function MultimodalInput({
 
   const submitForm = useCallback(() => {
     // window.history.replaceState({}, "", `/chat/${chatId}`)
+    // Convert attachments to FileList
+    const dataTransfer = new DataTransfer()
 
+    attachments.forEach(async (attachment) => {
+      try {
+        const response = await fetch(attachment.url)
+        const blob = await response.blob()
+        const file = new File([blob], attachment.name ?? "untitled", {
+          type: attachment.contentType,
+        })
+        dataTransfer.items.add(file)
+      } catch (error) {
+        console.error("Error converting attachment to file:", error)
+      }
+    })
     handleSubmit(undefined, {
-      experimental_attachments: attachments,
+      experimental_attachments: dataTransfer.files,
     })
 
     setAttachments([])
@@ -343,7 +357,7 @@ export function MultimodalInput({
         </Button>
       )}
 
-      {/* <Button
+      <Button
         className="rounded-full p-1.5 h-fit absolute bottom-2 right-11 m-0.5 dark:border-zinc-700"
         onClick={(event) => {
           event.preventDefault()
@@ -353,7 +367,7 @@ export function MultimodalInput({
         disabled={isLoading}
       >
         <PaperclipIcon size={14} />
-      </Button> */}
+      </Button>
     </div>
   )
 }

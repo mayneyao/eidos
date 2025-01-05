@@ -167,6 +167,7 @@
     "prosemirror-schema-list": "^1.4.1",
     "prosemirror-state": "^1.4.3",
     "prosemirror-view": "^1.36.0",
+    "pyodide": "^0.27.0",
     "react": "^18.2.0",
     "react-day-picker": "^8.8.0",
     "react-dnd": "^16.0.1",
@@ -191,6 +192,7 @@
     "sort-by": "^1.2.0",
     "swr": "^2.2.5",
     "tailwindcss-animate": "^1.0.6",
+    "unpdf": "^0.12.1",
     "usehooks-ts": "^3.1.0",
     "utf-8-validate": "^6.0.3",
     "uuid": "^9.0.0",
@@ -256,8 +258,8 @@
     "tsx": "^3.12.7",
     "typescript": "^5.3.3",
     "vite": "^5.4.6",
-    "vite-plugin-pwa": "^0.20.1",
     "vite-plugin-electron": "^0.28.7",
+    "vite-plugin-pwa": "^0.20.1",
     "vitest": "^2.0.3",
     "workbox-window": "^7.0.0"
   },
@@ -274,5 +276,6 @@
         "vue"
       ]
     }
-  }
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

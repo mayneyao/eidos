@@ -47,6 +47,7 @@ import { withSqlite3AllUDF } from "./udf"
 import { BaseServerDatabase } from "@/lib/sqlite/interface"
 import { ChatTable } from "./meta-table/chat"
 import { MessageTable } from "./meta-table/message"
+import { Email } from "postal-mime"
 
 export type EidosTable =
   | DocTable
@@ -572,6 +573,9 @@ export class DataSpace {
       orderBy: "created_at",
       order: "DESC",
     })
+  }
+  public async callScript(id: string, input: Record<string, any>) {
+    return await this.script.call(id, input)
   }
 
   public async getScript(id: string) {
@@ -1204,4 +1208,16 @@ export class DataSpace {
       },
     })
   }
+
+  /**
+   * 往指定邮箱发送邮件时，会被 cloudflare worker 拦截，
+   * worker 再转发到 api-agent，最后 api-agent 调用 currentSpace.email() 方法
+   * @param email 
+   */
+  public email(email: Email) {
+    // 根据邮件内容转发给可以处理邮件的 script
+    // 1. find email handler script
+    // 2. call email handler script
+  }
+
 }

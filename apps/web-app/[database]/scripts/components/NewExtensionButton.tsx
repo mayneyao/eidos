@@ -62,6 +62,15 @@ export const NewExtensionButton = () => {
           {t("extension.script")}
           <ScriptTooltip>{t("extension.scriptDescription")}</ScriptTooltip>
         </DropdownMenuItem>
+        <DropdownMenuItem
+          className="group relative"
+          onClick={() => handleCreateNewScript("py_script")}
+        >
+          {t("extension.pythonScript")}
+          <ScriptTooltip>
+            {t("extension.pythonScriptDescription")}
+          </ScriptTooltip>
+        </DropdownMenuItem>
 
         <DropdownMenuItem
           className="group relative"

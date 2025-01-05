@@ -122,6 +122,7 @@ export async function handleOpenAI(
       toolChoice: "auto",
     }
   }
+  console.log("request", JSON.stringify(request, null, 2))
   const result = streamText(request)
   return result.toDataStreamResponse()
 }

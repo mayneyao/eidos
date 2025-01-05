@@ -126,7 +126,7 @@ export const CellEditor = ({
           <SelectEditor
             value={value}
             onChange={run}
-            options={(field as IField<SelectProperty>).property.options || []}
+            options={(field as IField<SelectProperty>).property?.options || []}
             isEditing={_isEditing}
           />
         )
@@ -135,7 +135,7 @@ export const CellEditor = ({
           <MultiSelectEditor
             value={value}
             onChange={run}
-            options={(field as IField<SelectProperty>).property.options || []}
+            options={(field as IField<SelectProperty>).property?.options || []}
             isEditing={_isEditing}
           />
         )
