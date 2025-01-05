@@ -132,6 +132,68 @@ export const CodeEditor = forwardRef(
 
     useEffect(() => {
       if (monaco && language !== "markdown") {
+        if (language === "python") {
+          // Python语言配置
+          monaco.languages.register({ id: "python" })
+          monaco.languages.setMonarchTokensProvider("python", {
+            // 基本的Python语法高亮规则
+            keywords: [
+              "False",
+              "None",
+              "True",
+              "and",
+              "as",
+              "assert",
+              "async",
+              "await",
+              "break",
+              "class",
+              "continue",
+              "def",
+              "del",
+              "elif",
+              "else",
+              "except",
+              "finally",
+              "for",
+              "from",
+              "global",
+              "if",
+              "import",
+              "in",
+              "is",
+              "lambda",
+              "nonlocal",
+              "not",
+              "or",
+              "pass",
+              "raise",
+              "return",
+              "try",
+              "while",
+              "with",
+              "yield",
+            ],
+            tokenizer: {
+              root: [
+                [
+                  /[a-zA-Z_]\w*/,
+                  {
+                    cases: {
+                      "@keywords": "keyword",
+                      "@default": "identifier",
+                    },
+                  },
+                ],
+                [/#.*$/, "comment"],
+                [/".*?"/, "string"],
+                [/'.*?'/, "string"],
+                [/\d+/, "number"],
+              ],
+            },
+          })
+        }
+
         if (language === "javascript") {
           // 修改 JavaScript 的诊断选项
           monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({

@@ -1,18 +1,16 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
-import { Code, Eye, MessageSquare, Plus, Search } from "lucide-react"
+import { Code, Eye } from "lucide-react"
 import { useTheme } from "next-themes"
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import {
   useLoaderData,
   useRevalidator,
   useSearchParams,
 } from "react-router-dom"
 
-import { cn, uuidv7 } from "@/lib/utils"
-import { compileCode } from "@/lib/v3/compiler"
-import { compileLexicalCode } from "@/lib/v3/lexical-compiler"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { BlockRenderer } from "@/components/block-renderer/block-renderer"
+import { DocEditorPlayground } from "@/components/doc-editor-playground"
 import { Button } from "@/components/ui/button"
 import {
   ResizableHandle,
@@ -22,8 +20,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import { BlockRenderer } from "@/components/block-renderer/block-renderer"
-import { DocEditorPlayground } from "@/components/doc-editor-playground"
+import { compileCode } from "@/lib/v3/compiler"
+import { compileLexicalCode } from "@/lib/v3/lexical-compiler"
 
 import { ChatSidebar } from "./components/chat"
 import { Header } from "./components/chat/header"
@@ -158,6 +156,9 @@ export const ScriptDetailPage = () => {
     const result = await compileCode(ts_code)
     return result.code
   }
+  const pythonCodeCompile = async (code: string) => {
+    return code
+  }
   const lexicalCodeCompile = async (ts_code: string) => {
     const result = await compileLexicalCode(ts_code)
     return result.code
@@ -167,7 +168,11 @@ export const ScriptDetailPage = () => {
     const ts_code = script.ts_code
     if (ts_code) {
       const compileMethod =
-        script.type === "doc_plugin" ? lexicalCodeCompile : blockCodeCompile
+        script.type === "doc_plugin"
+          ? lexicalCodeCompile
+          : script.type === "py_script"
+          ? pythonCodeCompile
+          : blockCodeCompile
       const result = await compileMethod(ts_code)
       onSubmit(result, ts_code)
     }
@@ -276,6 +281,8 @@ export const ScriptDetailPage = () => {
                                 ? blockCodeCompile
                                 : script.type === "doc_plugin"
                                 ? lexicalCodeCompile
+                                : script.type === "py_script"
+                                ? pythonCodeCompile
                                 : undefined
                             }
                           />

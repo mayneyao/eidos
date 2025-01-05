@@ -210,7 +210,7 @@ const config = defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@sqlite.org/sqlite-wasm", "whisper-webgpu"],
+    exclude: ["@sqlite.org/sqlite-wasm", "whisper-webgpu", "pyodide"],
   },
 })
 

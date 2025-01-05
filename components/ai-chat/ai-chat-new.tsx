@@ -26,10 +26,19 @@ import {
   useUserPrompts,
 } from "./hooks"
 import "./index.css"
+import { useWindowSize } from "usehooks-ts"
+
+import { UIBlock } from "../remix-chat/components/block"
+import {
+  PreviewMessage,
+  ThinkingMessage,
+} from "../remix-chat/components/message"
+import { useScrollToBottom } from "../remix-chat/components/use-scroll-to-bottom"
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore, useReloadModel } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
 import { useSpeak } from "./webspeech/hooks"
+import { Attachment } from "ai"
 
 const promptKeys = Object.keys(sysPrompts).slice(0, 1)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
@@ -102,6 +111,7 @@ export default function Chat() {
       ...getConfigByModel(aiModel),
       systemPrompt,
       model: aiModel, // model@provider
+      useTools: false,
     },
   })
 
@@ -135,10 +145,14 @@ export default function Chat() {
     } as any)
   }
 
+  const [messagesContainerRef, messagesEndRef] =
+    useScrollToBottom<HTMLDivElement>()
+
   const cleanMessages = useCallback(() => {
     setMessages([])
     setContextNodes([])
     setContextEmbeddings([])
+    setAttachments([])
   }, [setMessages])
 
   const appendHiddenMessage = useCallback(
@@ -154,53 +168,63 @@ export default function Chat() {
     [setMessages, messages]
   )
 
+  const { width: windowWidth = 1920, height: windowHeight = 1080 } =
+    useWindowSize()
+
+  const [block, setBlock] = useState<UIBlock>({
+    documentId: "init",
+    content: "",
+    title: "",
+    status: "idle",
+    isVisible: false,
+    boundingBox: {
+      top: windowHeight / 4,
+      left: windowWidth / 4,
+      width: 250,
+      height: 50,
+    },
+  })
+
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+
   return (
     <div
-      className="relative flex h-full w-full shrink-0 flex-col gap-2 overflow-auto p-2 pt-1"
+      className="relative flex h-full w-full flex-col overflow-hidden"
       ref={divRef}
     >
-      <ScrollArea className="grow" ref={chatContainerRef}>
-        <div className="flex grow flex-col gap-2 p-3 pb-[100px]">
-          {!hasAvailableModels && (
-            <p className="p-2">
-              you need to set up LLMs in{" "}
-              <span>
-                <Link to="/settings/ai" className="text-cyan-500">
-                  settings
-                </Link>
-              </span>{" "}
-              first
-            </p>
-          )}
-          {messages.map((message, i) => {
-            const m = message
-            if (
-              (m.role === "user" || m.role == "assistant") &&
-              m.content &&
-              !(m as any).hidden
-            ) {
-              return (
-                <AIChatMessage
-                  key={i}
-                  msgIndex={i}
-                  message={message}
-                  messages={messages}
-                  handleRunCode={handleManualRun}
-                />
-              )
-            }
-          })}
-          <div>{progress?.text}</div>
-          <div className="flex w-full justify-center">
-            {isLoading && (
-              <div ref={loadingRef}>
-                <Loader2 className="h-5 w-5 animate-spin" />
-              </div>
-            )}
-          </div>
-        </div>
-      </ScrollArea>
-      <div className="relative shrink-0">
+      <div
+        ref={messagesContainerRef}
+        className="flex flex-1 flex-col min-w-0 gap-6 overflow-auto px-2 pt-4"
+      >
+        {/* {messages.length === 0 && <Overview />} */}
+
+        {messages.map((message, index) => (
+          <PreviewMessage
+            key={message.id}
+            chatId={"demo"}
+            projectId={"demo"}
+            message={message}
+            block={block}
+            setBlock={setBlock}
+            isLoading={isLoading && messages.length - 1 === index}
+            vote={undefined}
+            onRegenerate={reload}
+            isLastMessage={index === messages.length - 1}
+          />
+        ))}
+
+        {isLoading &&
+          messages.length > 0 &&
+          messages[messages.length - 1].role === "user" && <ThinkingMessage />}
+
+        <div
+          ref={messagesEndRef}
+          className="flex-shrink-0 h-32 w-6"
+          aria-hidden="true"
+        />
+      </div>
+
+      <div className="sticky bottom-0 bg-background p-4">
         <div className="flex items-center justify-between">
           {experiment.enableRAG && (
             <div className="flex min-w-[200px]  gap-2">
@@ -229,7 +253,7 @@ export default function Chat() {
                 onValueChange={setAIModel as any}
                 value={aiModel}
                 size="xs"
-                className="max-w-[100px]"
+                className="max-w-[150px]"
                 localModels={aiConfig.localModels}
               />
             </div>
@@ -263,7 +287,7 @@ export default function Chat() {
         </div>
         <div
           id="circle"
-          className=" absolute right-0 top-0 z-10 ml-0 h-1 rounded-sm bg-green-300 opacity-50"
+          className="absolute right-0 top-0 z-10 ml-0 h-1 rounded-sm bg-green-300 opacity-50"
         ></div>
         <AIInputEditor
           enableRAG={withSpaceData}
@@ -273,6 +297,8 @@ export default function Chat() {
           append={append}
           appendHiddenMessage={appendHiddenMessage}
           isLoading={isLoading}
+          attachments={attachments}
+          setAttachments={setAttachments}
         />
       </div>
     </div>
