@@ -409,5 +409,13 @@
     "settings.api.localExample": "Local API Example",
     "settings.api.networkExample": "Network API Example",
     "common.copied": "Copied",
-    "settings.api.settingsUpdated": "API settings updated"
+    "settings.api.settingsUpdated": "API settings updated",
+    "extension.config.dependencies": "Dependencies",
+    "extension.config.dependenciesDescription": "Configure Python package dependencies for this script. You can use built-in packages from Pyodide or install pure Python packages from PyPI.",
+    "extension.config.dependenciesBuiltInNote": "Note: Some packages are built into Pyodide and are available by default. Check the",
+    "extension.config.dependenciesBuiltInLink": "built-in package list",
+    "extension.config.dependenciesPyPINote": "You can also install pure Python packages with wheels from PyPI.",
+    "extension.config.dependencyPlaceholder": "e.g. requests==2.31.0",
+    "extension.config.addDependency": "Add Dependency",
+    "extension.config.removeDependency": "Remove Dependency"
 }

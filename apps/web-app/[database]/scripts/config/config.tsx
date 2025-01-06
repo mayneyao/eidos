@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
-import { useLoaderData, useRevalidator } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { useLoaderData, useRevalidator } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -75,7 +75,9 @@ export const ExtensionConfig = () => {
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div>
             <CardTitle>{t("extension.config.basicInfo")}</CardTitle>
-            <CardDescription>{t("extension.config.basicInfoDescription")}</CardDescription>
+            <CardDescription>
+              {t("extension.config.basicInfoDescription")}
+            </CardDescription>
           </div>
           {hasChanges() && (
             <div className="flex items-center gap-2">
@@ -150,7 +152,9 @@ export const ExtensionConfig = () => {
       </Card>
 
       {script.type === "prompt" && <PromptConfig />}
-      {script.type === "script" && <ScriptConfig />}
+      {(script.type === "script" || script.type === "py_script") && (
+        <ScriptConfig />
+      )}
       {script.type === "m_block" && <BlockConfig />}
     </div>
   )

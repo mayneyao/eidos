@@ -16,7 +16,7 @@ export const makeSdkInjectScript = ({
     return res
 }
 
-interface IPythonScriptCallProps {
+export interface IPythonScriptCallProps {
     input: Record<string, any>
     context: {
         tables: any
@@ -31,6 +31,7 @@ interface IPythonScriptCallProps {
     command: string
     id: string
     bindings?: Record<string, any>
+    dependencies?: string[]
 }
 
 export const callPythonScript = (props: IPythonScriptCallProps): Promise<any> => {
@@ -71,5 +72,6 @@ export const callScriptById = async (id: string, input: Record<string, any>, sql
             env: {},
         },
         command: 'main',
+        dependencies: script.dependencies,
     })
 }
