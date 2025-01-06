@@ -171,19 +171,20 @@ export const getDaysByYearWeek = (weekNodeId: string) => {
   const year = parseInt(weekNodeId.slice(0, 4))
   const week = parseInt(weekNodeId.slice(6))
 
-  // Find the first day of the year
-  const firstDayOfYear = new Date(year, 0, 1)
-
-  // Find the first Monday of the year
-  const firstMonday = new Date(year, 0, 1 + (8 - firstDayOfYear.getDay()) % 7)
-
+  // Get Jan 4 for the year (always in week 1 by ISO)
+  const jan4th = new Date(year, 0, 4)
+  
+  // Get Monday of week 1
+  const firstWeekMonday = new Date(jan4th)
+  firstWeekMonday.setDate(jan4th.getDate() - (jan4th.getDay() || 7) + 1)
+  
   // Calculate the start date of the requested week
-  const startDate = new Date(firstMonday.getTime())
-  startDate.setDate(firstMonday.getDate() + (week - 1) * 7)
+  const startDate = new Date(firstWeekMonday)
+  startDate.setDate(firstWeekMonday.getDate() + (week - 1) * 7)
 
   const days = []
   for (let i = 0; i < 7; i++) {
-    const date = new Date(startDate.getTime())
+    const date = new Date(startDate)
     date.setDate(startDate.getDate() + i)
     days.push(getLocalDate(date))
   }

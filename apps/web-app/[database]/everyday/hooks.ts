@@ -52,8 +52,15 @@ export const useAllDays = (spaceName: string) => {
         setHasNextPage(false)
         return
       }
-      setDays((days) => {
-        return [...days, ...res]
+      setDays((prevDays) => {
+        const existingIds = new Set(prevDays.map((d: IDay) => d.id))
+        const newDays = res.filter((d: IDay) => !existingIds.has(d.id))
+        
+        const mergedDays = [...prevDays, ...newDays].sort((a, b) => {
+          return new Date(b.id).getTime() - new Date(a.id).getTime()
+        })
+        
+        return mergedDays
       })
       setCurrentPage(currentPage + 1)
       if (res.length < EachPageSize) {
@@ -67,15 +74,18 @@ export const useAllDays = (spaceName: string) => {
     sqlite?.listDays(0).then(async (days) => {
       const existDays = days.map((d: any) => d.id)
       const todayIndex = existDays.indexOf(today)
-      let _days: IDay[] = days
-      if (todayIndex == -1) {
-        _days = [
-          {
-            id: today,
-          },
-          ...days,
-        ]
+      let _days: IDay[] = [...days]
+      
+      if (todayIndex === -1) {
+        _days.push({
+          id: today,
+        })
       }
+      
+      _days.sort((a, b) => {
+        return new Date(b.id).getTime() - new Date(a.id).getTime()
+      })
+      
       setDays(_days)
     })
   }, [spaceName, sqlite])
