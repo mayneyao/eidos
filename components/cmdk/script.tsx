@@ -87,6 +87,7 @@ export const ScriptList = () => {
         id: currentAction.id,
         bindings: currentAction.bindings,
         type: currentAction.type,
+        dependencies: currentAction.dependencies,
       }).then((res) => {
         console.log("res", res)
       })

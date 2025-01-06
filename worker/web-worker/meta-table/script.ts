@@ -66,6 +66,8 @@ export interface IScript {
     type: 'table'
     value: string
   }>
+  // for py_script
+  dependencies?: string[]
 }
 
 export class ScriptTable
@@ -91,6 +93,7 @@ export class ScriptTable
         fields_map TEXT,
         enabled BOOLEAN DEFAULT 0,
         bindings TEXT,
+        dependencies TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -104,6 +107,7 @@ export class ScriptTable
     "fields_map",
     "prompt_config",
     "bindings",
+    "dependencies",
   ]
 
   async del(id: string): Promise<boolean> {

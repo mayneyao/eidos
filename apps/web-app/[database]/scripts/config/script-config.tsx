@@ -49,6 +49,12 @@ export const ScriptConfig = () => {
     Record<string, { type: "table"; value: string }>
   >(script.bindings || {})
 
+  console.log(script)
+  const [dependencies, setDependencies] = useState<string[]>(
+    script.dependencies || []
+  )
+  const [newDependency, setNewDependency] = useState("")
+
   const tables = useMemo(() => {
     return Object.values(fieldsMap || {}).map((fieldMap) => fieldMap.name)
   }, [fieldsMap])
@@ -74,6 +80,7 @@ export const ScriptConfig = () => {
       ...script,
       fields_map: fieldsMap,
       env_map: envMap,
+      dependencies: script.type === "py_script" ? dependencies : undefined,
     })
     revalidator.revalidate()
     toast({
@@ -110,6 +117,17 @@ export const ScriptConfig = () => {
       },
     }
     setFieldsMap(newFieldsMap)
+  }
+
+  const handleAddDependency = () => {
+    if (newDependency.trim()) {
+      setDependencies([...dependencies, newDependency.trim()])
+      setNewDependency("")
+    }
+  }
+
+  const handleRemoveDependency = (index: number) => {
+    setDependencies(dependencies.filter((_, i) => i !== index))
   }
 
   return (
@@ -241,6 +259,70 @@ export const ScriptConfig = () => {
           </Card>
         </>
       )}
+
+      {script.type === "py_script" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("extension.config.dependencies")}</CardTitle>
+            <CardDescription>
+              {t("extension.config.dependenciesDescription")}
+              <div className="mt-2 text-sm">
+                <p>
+                  {t("extension.config.dependenciesBuiltInNote")}{" "}
+                  <a
+                    href="https://pyodide.org/en/stable/usage/packages-in-pyodide.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {t("extension.config.dependenciesBuiltInLink")}
+                  </a>
+                </p>
+                <p className="mt-1">
+                  {t("extension.config.dependenciesPyPINote")}
+                </p>
+              </div>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder={t("extension.config.dependencyPlaceholder")}
+                  value={newDependency}
+                  onChange={(e) => setNewDependency(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleAddDependency()
+                    }
+                  }}
+                />
+                <Button onClick={handleAddDependency}>
+                  {t("extension.config.addDependency")}
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {dependencies.map((dep, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between gap-2 rounded-md border p-2"
+                  >
+                    <span>{dep}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveDependency(index)}
+                    >
+                      {t("extension.config.removeDependency")}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Bindings bindings={bindings} onUpdateBindings={handleUpdateBindings} />
       <div className="mt-4">
         <Button onClick={handleSave}>{t("common.update")}</Button>

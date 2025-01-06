@@ -1,3 +1,4 @@
+import { IPythonScriptCallProps } from '@/components/script-container/helper';
 import { loadPyodide, PyodideInterface } from 'pyodide'
 
 
@@ -5,12 +6,7 @@ declare const self: Worker
 
 interface PyodideMessage {
     type: 'PythonScriptCall' | 'PythonScriptInstall'
-    payload: {
-        code?: string;
-        packages?: string[];
-        input?: any;
-        context?: any;
-    };
+    payload: IPythonScriptCallProps;
 }
 
 type PyodideResponseType = 'PythonScriptCallResponse' | 'PythonScriptCallError'
@@ -95,12 +91,12 @@ self.onmessage = async (event: MessageEvent<PyodideMessage>) => {
 
         switch (type) {
             case 'PythonScriptInstall': {
-                if (!payload.packages || !payload.packages.length) {
+                if (!payload.dependencies || !payload.dependencies.length) {
                     throw new Error('No packages specified for installation')
                 }
                 const micropip = pyodide.pyimport('micropip')
 
-                const installResults = await Promise.all(payload.packages.map(async pkg => {
+                const installResults = await Promise.all(payload.dependencies.map(async pkg => {
                     try {
                         try {
                             pyodide.pyimport(pkg);
@@ -127,9 +123,14 @@ self.onmessage = async (event: MessageEvent<PyodideMessage>) => {
                 if (!payload.code) {
                     throw new Error('No code provided for execution')
                 }
+                const { input, context, dependencies } = payload
+                console.log('dependencies', dependencies)
+                if (dependencies && dependencies.length) {
+                    await Promise.all(dependencies.map(pkg => pyodide.loadPackage(pkg)))
+                }
                 let code = `${payload.code}\nmain`
                 const main = await pyodide.runPythonAsync(code)
-                const { input, context } = payload
+
                 let result = await main(input, context);
 
                 console.log(result)

@@ -255,7 +255,7 @@
     "settings.api.enableDescription": "启用后，您可以通过下面的网络地址访问本地 API",
     "settings.api.endpoints": "API 端点",
     "settings.api.example": "示例代码",
-    "settings.api.exampleDescription": "��取指定日期的 Markdown 内容的示例代码。这个示例会获取 <1>{{space}}</1> 空间在 <2>{{date}}</2> 的日志内容。将日期参数替换为你想要获取的日期（格式：YYYY-MM-DD）。",
+    "settings.api.exampleDescription": "取指定日期的 Markdown 内容的示例代码。这个示例会获取 <1>{{space}}</1> 空间在 <2>{{date}}</2> 的日志内容。将日期参数替换为你想要获取的日期（格式：YYYY-MM-DD）。",
     "settings.api.forwarding": "API 转发",
     "settings.api.localEndpoint": "本地 API 端点",
     "settings.api.localEndpointDescription": "桌面版提供了一个可以直接使用的本地 API 端点。",
@@ -406,5 +406,13 @@
     "table.view.typeDescription": "用于此表格的视图类型。",
     "table.view.where": "当",
     "common.copied": "已复制",
-    "settings.api.settingsUpdated": "API 设置已更新"
+    "settings.api.settingsUpdated": "API 设置已更新",
+    "extension.config.dependencies": "依赖项",
+    "extension.config.dependenciesDescription": "配置此脚本的 Python 包依赖。您可以使用 Pyodide 内置的包或从 PyPI 安装纯 Python 包。",
+    "extension.config.dependenciesBuiltInNote": "注意：某些包是 Pyodide 内置的，默认可用。查看",
+    "extension.config.dependenciesBuiltInLink": "内置包列表",
+    "extension.config.dependenciesPyPINote": "您也可以从 PyPI 安装带有 wheels 的纯 Python 包。",
+    "extension.config.dependencyPlaceholder": "例如：requests==2.31.0",
+    "extension.config.addDependency": "添加依赖",
+    "extension.config.removeDependency": "移除依赖"
 }

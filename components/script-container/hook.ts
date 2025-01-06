@@ -23,6 +23,7 @@ export const useScriptFunction = () => {
     command: string
     id: string
     bindings?: Record<string, any>
+    dependencies?: string[]
     type?: string
   }) => {
     const { command = "default" } = props
