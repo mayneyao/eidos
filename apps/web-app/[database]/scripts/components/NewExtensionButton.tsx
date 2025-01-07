@@ -36,7 +36,7 @@ export const NewExtensionButton = () => {
           {t("common.new")} <ChevronDownIcon className="ml-1 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="overflow-visible">
+      <DropdownMenuContent className="overflow-visible" align="start">
         <DropdownMenuLabel>{t("extension.createNew")}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -44,7 +44,6 @@ export const NewExtensionButton = () => {
           onClick={() => handleCreateNewScript("m_block")}
         >
           {t("extension.microBlock")}{" "}
-          <Badge variant="secondary">{t("common.badge.new")}</Badge>
           <ScriptTooltip>{t("extension.microBlockDescription")}</ScriptTooltip>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -66,7 +65,11 @@ export const NewExtensionButton = () => {
           className="group relative"
           onClick={() => handleCreateNewScript("py_script")}
         >
-          {t("extension.pythonScript")}
+          {t("extension.pythonScript")}{" "}
+          <Badge variant="secondary">{t("common.badge.alpha")}</Badge>
+          <Badge variant="default" className="bg-primary">
+            {t("common.badge.new")}
+          </Badge>
           <ScriptTooltip>
             {t("extension.pythonScriptDescription")}
           </ScriptTooltip>

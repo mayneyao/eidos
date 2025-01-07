@@ -414,5 +414,9 @@
     "extension.config.dependenciesPyPINote": "您也可以从 PyPI 安装带有 wheels 的纯 Python 包。",
     "extension.config.dependencyPlaceholder": "例如：requests==2.31.0",
     "extension.config.addDependency": "添加依赖",
-    "extension.config.removeDependency": "移除依赖"
+    "extension.config.removeDependency": "移除依赖",
+    "extension.docPlugin": "文档插件",
+    "extension.docPluginDescription": "自定义文档内容和行为",
+    "extension.pythonScript": "Python 脚本",
+    "extension.pythonScriptDescription": "使用 Python 编写自定义数据处理逻辑，可以通过控制面板(⌘+K)触发，也可以用作表格操作"
 }

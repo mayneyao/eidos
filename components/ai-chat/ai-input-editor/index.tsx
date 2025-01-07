@@ -17,7 +17,7 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { Attachment, ChatRequestOptions, CreateMessage } from "ai"
 import { Message } from "ai/react"
 import { $getRoot } from "lexical"
-import React, { useEffect, useImperativeHandle, useRef, useState } from "react"
+import React, { useEffect, useImperativeHandle, useRef } from "react"
 import { useTranslation } from "react-i18next"
 
 import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
@@ -26,13 +26,9 @@ import NewMentionsPlugin, {
   MentionPluginProps,
 } from "@/components/doc/blocks/mention/plugin"
 import { allTransformers } from "@/components/doc/plugins/const"
-import { PaperclipIcon } from "@/components/remix-chat/components/icons"
-import { PreviewAttachment } from "@/components/remix-chat/components/preview-attachment"
-import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { useEmbedding } from "@/hooks/use-embedding"
 import { useHnsw } from "@/hooks/use-hnsw"
-import { useSqlite } from "@/hooks/use-sqlite"
 import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { ITreeNode } from "@/lib/store/ITreeNode"
 import { pdfToMarkdown } from "@/lib/web/pdf"
@@ -57,6 +53,7 @@ interface InputEditorProps {
   setContextEmbeddings?: (embeddings: IEmbedding[]) => void
   attachments?: Attachment[]
   setAttachments?: (attachments: Attachment[]) => void
+  uploadQueue?: string[]
 }
 
 export const nodeInfoMap = new Map<string, ITreeNode>()
@@ -94,6 +91,7 @@ export const AIInputEditor = ({
   setContextEmbeddings,
   attachments = [],
   setAttachments = () => {},
+  uploadQueue = [],
 }: InputEditorProps) => {
   const { t } = useTranslation()
   const initialConfig: InitialConfigType = {
@@ -248,97 +246,18 @@ export const AIInputEditor = ({
     setContextNodes?.([...nodeInfoMap.values()])
   }
 
-  const { sqlite } = useSqlite()
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [uploadQueue, setUploadQueue] = useState<Array<string>>([])
-
-  const uploadFile = async (file: File) => {
-    try {
-      if (!sqlite) {
-        throw new Error("sqlite not found")
-      }
-      const response = await sqlite?.file.upload(
-        await file.arrayBuffer(),
-        file.name,
-        file.type,
-        ["_chat"]
-      )
-      const { mime, name, publicUrl } = response
-      return {
-        url: publicUrl,
-        name: name,
-        contentType: mime,
-      }
-    } catch (error) {
-      toast({
-        title: "Failed to upload file, please try again!",
-      })
-      throw error
-    }
-  }
-
-  const handleFileChange = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = Array.from(event.target.files || [])
-    setUploadQueue(files.map((file) => file.name))
-
-    try {
-      const uploadPromises = files.map((file) => uploadFile(file))
-      const uploadedAttachments = await Promise.all(uploadPromises)
-      const successfulAttachments = uploadedAttachments.filter(
-        (a) => a !== undefined
-      )
-
-      setAttachments([...attachments, ...successfulAttachments])
-    } catch (error) {
-      console.error("Error uploading files!", error)
-    } finally {
-      setUploadQueue([])
-    }
-  }
-
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <div className="relative">
-        {(attachments.length > 0 || uploadQueue.length > 0) && (
-          <div className="flex flex-row gap-2 overflow-x-scroll items-end mb-2">
-            {attachments.map((attachment) => (
-              <PreviewAttachment key={attachment.url} attachment={attachment} />
-            ))}
-            {uploadQueue.map((filename) => (
-              <PreviewAttachment
-                key={filename}
-                attachment={{
-                  url: "",
-                  name: filename,
-                  contentType: "",
-                }}
-                isUploading={true}
-              />
-            ))}
-          </div>
-        )}
-
-        <input
-          type="file"
-          className="fixed -top-4 -left-4 size-0.5 opacity-0 pointer-events-none"
-          ref={fileInputRef}
-          multiple
-          onChange={handleFileChange}
-          tabIndex={-1}
-        />
-
         <RichTextPlugin
           contentEditable={
             <ContentEditable
-              className=" h-auto min-h-[100px] rounded-sm border-none bg-gray-100 p-2 outline-none dark:bg-gray-800"
+              className="h-auto min-h-[100px] rounded-sm border-none bg-gray-100 p-2 outline-none dark:bg-gray-800"
               onKeyDownCapture={handleEnterPress}
             />
           }
           placeholder={
-            <div className=" pointer-events-none absolute left-3 top-2 text-xs opacity-60">
+            <div className="pointer-events-none absolute left-3 top-2 text-xs opacity-60">
               {t("aiChat.inputEditor.typeYourMessageHere")}
               <br />
               {t("aiChat.inputEditor.pressSlashToSwitchPrompt")}
@@ -347,18 +266,6 @@ export const AIInputEditor = ({
           }
           ErrorBoundary={LexicalErrorBoundary}
         />
-
-        <Button
-          className="rounded-full p-1.5 h-fit absolute bottom-2 right-11 m-0.5 dark:border-zinc-700"
-          onClick={(event) => {
-            event.preventDefault()
-            fileInputRef.current?.click()
-          }}
-          variant="outline"
-          disabled={isLoading}
-        >
-          <PaperclipIcon size={14} />
-        </Button>
 
         <NewMentionsPlugin
           onOptionSelectCallback={handleNodeInsert}
