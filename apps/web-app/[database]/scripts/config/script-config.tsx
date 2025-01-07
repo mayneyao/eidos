@@ -49,7 +49,6 @@ export const ScriptConfig = () => {
     Record<string, { type: "table"; value: string }>
   >(script.bindings || {})
 
-  console.log(script)
   const [dependencies, setDependencies] = useState<string[]>(
     script.dependencies || []
   )

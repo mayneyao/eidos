@@ -44,8 +44,8 @@ export const ScriptCard = ({
   return (
     <div className="group relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow transition-all hover:shadow-lg flex flex-col min-h-[160px]">
       <div className="flex flex-col space-y-1.5 p-4">
-        <div className="flex items-center gap-2">
-          <Icon className="h-10 w-10 shrink-0 opacity-70" />
+        <div className="flex items-start gap-3">
+          <Icon className="h-8 w-8 shrink-0 opacity-70 mt-1" />
           <div>
             <h3 className="text-lg font-semibold tracking-tight">
               {script.name}{" "}
