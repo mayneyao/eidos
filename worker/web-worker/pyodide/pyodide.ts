@@ -1,5 +1,6 @@
 import { IPythonScriptCallProps } from '@/components/script-container/helper';
 import { loadPyodide, PyodideInterface } from 'pyodide'
+import { analyzePythonImports } from './analyze-imports';
 
 
 declare const self: Worker
@@ -123,18 +124,51 @@ self.onmessage = async (event: MessageEvent<PyodideMessage>) => {
                 if (!payload.code) {
                     throw new Error('No code provided for execution')
                 }
-                const { input, context, dependencies } = payload
-                console.log('dependencies', dependencies)
-                if (dependencies && dependencies.length) {
-                    await Promise.all(dependencies.map(pkg => pyodide.loadPackage(pkg)))
+                
+                // 使用导入的分析函数
+                const imports = await analyzePythonImports(pyodide, payload.code)
+                console.log('Detected imports:', imports)
+                
+                // Combine explicit dependencies with detected third-party imports
+                const allDependencies = new Set([
+                    ...(payload.dependencies || []),
+                    ...(imports.thirdParty || [])
+                ])
+                
+                // Install all required packages
+                if (allDependencies.size > 0) {
+                    const micropip = pyodide.pyimport('micropip')
+                    await Promise.all([...allDependencies].map(async pkg => {
+                        try {
+                            try {
+                                pyodide.pyimport(pkg)
+                                console.log(`Package ${pkg} already loaded`)
+                            } catch {
+                                await micropip.install(pkg)
+                                console.log(`Package ${pkg} installed`)
+                            }
+                        } catch (error) {
+                            console.warn(`Failed to install package ${pkg}:`, error)
+                        }
+                    }))
                 }
-                let code = `${payload.code}\nmain`
+
+                let code = payload.code
+                const hasMainFunction = /^\s*def\s+main\s*\(/m.test(code)
+                if (hasMainFunction) {
+                    code = `${code}\nmain`
+                }
+
                 const main = await pyodide.runPythonAsync(code)
 
-                let result = await main(input, context);
+                let result
+                if (hasMainFunction) {
+                    result = await main(payload.input, payload.context);
+                } else {
+                    result = main;
+                }
 
                 console.log(result)
-                // 通过port发送响应
                 port.postMessage({
                     type: 'PythonScriptCallResponse',
                     data: {
@@ -142,7 +176,10 @@ self.onmessage = async (event: MessageEvent<PyodideMessage>) => {
                         time: Date.now() - startTime
                     }
                 });
-                result.destroy()
+
+                if (typeof result.destroy === 'function') {
+                    result.destroy()
+                }
                 break;
             }
 
