@@ -1,6 +1,7 @@
 "use client"
 
 import { Link, useLocation } from "react-router-dom"
+import { LucideIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
@@ -10,6 +11,7 @@ interface SidebarNavProps extends React.HTMLAttributes<HTMLElement> {
     href: string
     title: string
     disabled?: boolean
+    icon?: LucideIcon
   }[]
 }
 
@@ -30,12 +32,11 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
           key={item.href}
           to={item.href}
           className={cn(
-            "whitespace-nowrap",
             buttonVariants({ variant: "ghost" }),
             pathname === item.href
               ? "bg-muted hover:bg-muted"
-              : "hover:bg-transparent hover:underline",
-            "justify-start",
+              : "hover:bg-transparent",
+            "justify-start whitespace-nowrap",
             {
               "cursor-not-allowed": item.disabled,
               "pointer-events-none": item.disabled,
@@ -43,6 +44,9 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
             }
           )}
         >
+          {item.icon && (
+            <item.icon className="mr-2 h-4 w-4" />
+          )}
           {item.title}
         </Link>
       ))}

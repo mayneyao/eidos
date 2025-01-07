@@ -211,6 +211,13 @@ app.on('second-instance', (event, commandLine) => {
 
 app.whenReady().then(() => {
     win = createWindow();
+    const configManager = getConfigManager();
+
+    configManager.on('configChanged', ({ key, newValue }: { key: string, newValue: unknown }) => {
+        if (key === 'security') {
+            console.log('security changed', newValue)
+        }
+    });
     createTray();
 
     protocolHandler = new ProtocolHandler(win);
