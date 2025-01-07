@@ -14,16 +14,15 @@
 
 ## Features
 
+- Out-of-the-box Notion-like documents and databases
 - Offline Support: Everything runs inside your local machine. Access your data without an internet connection. Data is stored locally for blazing-fast performance.
 - AI Features: Deeply integrated with LLM for AI-powered capabilities. Translate, summarize, and interact with your data within Eidos.
-- Extensible: Customize Eidos to suit your needs.
+- Extensible: Customize Eidos to suit your needs. Write extension code manually or use AI to generate extension code
 
-  - Prompt: Speed up your workflow with the Prompt extension. No coding required.
-  - UDF: Use JavaScript to customize Formula functions.
-  - Script: Create powerful data processing logic with TypeScript/JavaScript.
-  - App: Build your own app using any preferred framework. (POC)
-  - Block: Extend documents with custom blocks.(POC)
-  - Field: Extend tables with custom fields.(Soon)
+  - Micro block: UI components for customized data display and interaction. Can be referenced in documents, covers, and right panels
+  - Doc Plugin: Customize document editor behavior
+  - Script: Create powerful data processing logic with TypeScript/JavaScript/Python.
+  - UDF: Use JavaScript to create custom calculation functions for use in table Formula fields.
 
 - Developer Friendly:
 
