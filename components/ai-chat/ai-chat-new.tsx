@@ -1,21 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { useChat } from "ai/react"
-import { Loader2, Paintbrush, PauseIcon, RefreshCcwIcon } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Paintbrush, PaperclipIcon, PauseIcon, RefreshCcwIcon } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { ITreeNode } from "@/lib/store/ITreeNode"
-import { useAppStore } from "@/lib/store/app-store"
-import { useAiConfig } from "@/hooks/use-ai-config"
-import { useAIFunctions } from "@/hooks/use-ai-functions"
-import { Button } from "@/components/ui/button"
 import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
 import { useExperimentConfigStore } from "@/apps/web-app/settings/experiment/store"
+import { Button } from "@/components/ui/button"
+import { useAiConfig } from "@/hooks/use-ai-config"
+import { useAIFunctions } from "@/hooks/use-ai-functions"
+import { ITreeNode } from "@/lib/store/ITreeNode"
+import { useAppStore } from "@/lib/store/app-store"
 
+import { useWindowSize } from "usehooks-ts"
 import { Label } from "../ui/label"
-import { ScrollArea } from "../ui/scroll-area"
 import { Switch } from "../ui/switch"
-import { AIChatMessage } from "./ai-chat-message"
 import { AIModelSelect } from "./ai-chat-model-select"
 import { AIChatPromptSelect } from "./ai-chat-prompt-select"
 import { AIInputEditor } from "./ai-input-editor"
@@ -26,7 +24,6 @@ import {
   useUserPrompts,
 } from "./hooks"
 import "./index.css"
-import { useWindowSize } from "usehooks-ts"
 
 import { UIBlock } from "../remix-chat/components/block"
 import {
@@ -34,11 +31,12 @@ import {
   ThinkingMessage,
 } from "../remix-chat/components/message"
 import { useScrollToBottom } from "../remix-chat/components/use-scroll-to-bottom"
+import { AIChatAttachments } from './ai-chat-attachments'
+import { useAttachments } from './hooks/use-attachments'
 import { useAIChatSettingsStore } from "./settings/ai-chat-settings-store"
 import { useLoadingStore, useReloadModel } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
 import { useSpeak } from "./webspeech/hooks"
-import { Attachment } from "ai"
 
 const promptKeys = Object.keys(sysPrompts).slice(0, 1)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
@@ -185,7 +183,13 @@ export default function Chat() {
     },
   })
 
-  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const {
+    attachments,
+    setAttachments,
+    uploadQueue,
+    fileInputRef,
+    handleFileChange
+  } = useAttachments()
 
   return (
     <div
@@ -224,7 +228,21 @@ export default function Chat() {
         />
       </div>
 
+      <input
+        type="file"
+        className="fixed -top-4 -left-4 size-0.5 opacity-0 pointer-events-none"
+        ref={fileInputRef}
+        multiple
+        onChange={handleFileChange}
+        tabIndex={-1}
+      />
+
       <div className="sticky bottom-0 bg-background p-4">
+        <AIChatAttachments 
+          attachments={attachments}
+          uploadQueue={uploadQueue}
+        />
+
         <div className="flex items-center justify-between">
           {experiment.enableRAG && (
             <div className="flex min-w-[200px]  gap-2">
@@ -258,16 +276,19 @@ export default function Chat() {
               />
             </div>
             <div className="flex items-center gap-1">
-              {/* <AIChatSettings /> */}
               {isLoading && (
                 <Button onClick={stop} variant="ghost" size="sm">
                   <PauseIcon className="h-5 w-5" />
                 </Button>
               )}
-
-              {/* <Suspense fallback={<Loading />}>
-              <Whisper setText={setSpeechText} />
-            </Suspense> */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+              >
+                <PaperclipIcon className="h-5 w-5" />
+              </Button>
               <Button
                 variant="ghost"
                 onClick={() => reload()}
@@ -279,9 +300,6 @@ export default function Chat() {
               <Button variant="ghost" onClick={cleanMessages} size="sm">
                 <Paintbrush className="h-5 w-5" />
               </Button>
-              {/* <Button variant="ghost" size="sm">
-              <SendIcon className="h-5 w-5 opacity-60"></SendIcon>
-            </Button> */}
             </div>
           </div>
         </div>
@@ -299,6 +317,7 @@ export default function Chat() {
           isLoading={isLoading}
           attachments={attachments}
           setAttachments={setAttachments}
+          uploadQueue={uploadQueue}
         />
       </div>
     </div>

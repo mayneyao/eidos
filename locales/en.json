@@ -417,5 +417,7 @@
     "extension.config.dependenciesPyPINote": "You can also install pure Python packages with wheels from PyPI.",
     "extension.config.dependencyPlaceholder": "e.g. requests==2.31.0",
     "extension.config.addDependency": "Add Dependency",
-    "extension.config.removeDependency": "Remove Dependency"
+    "extension.config.removeDependency": "Remove Dependency",
+    "extension.pythonScript": "Script(Python)",
+    "extension.pythonScriptDescription": "For custom data processing logic using Python, triggered through the control panel (⌘+K), can also be used as table Actions"
 }
