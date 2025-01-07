@@ -13,6 +13,10 @@ export interface AppConfig {
         url: string;
         enabled: boolean;
     };
+    // Security configuration
+    security: {
+        webSecurity: boolean;
+    };
 }
 
 
@@ -21,6 +25,9 @@ const emptyConfig: AppConfig = {
     apiAgentConfig: {
         url: '',
         enabled: false,
+    },
+    security: {
+        webSecurity: true,
     },
 };
 

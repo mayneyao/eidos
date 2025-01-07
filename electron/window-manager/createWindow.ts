@@ -3,12 +3,14 @@ import os from "node:os";
 import path from 'path';
 import { PORT } from '../main';
 import { WindowManager } from './wm';
+import { getConfigManager } from '../config';
 
 const defaultViewOptions: WebContentsViewConstructorOptions = {
     webPreferences: {
         preload: path.join(__dirname, './preload.mjs'),
         nodeIntegration: true,
         contextIsolation: true,
+        webSecurity: getConfigManager().get('security')?.webSecurity ?? true,
     }
 }
 

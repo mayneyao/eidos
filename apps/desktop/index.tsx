@@ -41,6 +41,7 @@ import { DesktopSpaceLayout } from "./[database]/layout"
 import BlockPage from "./[database]/standalone-blocks/page"
 // extensions
 import RootLayout from "./layout"
+import SettingsSecurityPage from "./settings/security/page"
 
 const router = createBrowserRouter([
   {
@@ -105,6 +106,10 @@ const router = createBrowserRouter([
           {
             path: "experiment",
             element: <SettingsExperimentPage />,
+          },
+          {
+            path: "security",
+            element: <SettingsSecurityPage />,
           },
           {
             path: "backup",

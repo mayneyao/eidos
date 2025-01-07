@@ -1,7 +1,16 @@
 "use client"
 
 import { useKeyPress } from "ahooks"
-import { Minimize2 } from "lucide-react"
+import { 
+  Minimize2,
+  Settings,
+  Bot,
+  Cable,
+  Database,
+  Palette,
+  Cloud,
+  Shield
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Outlet } from "react-router-dom"
 
@@ -17,32 +26,38 @@ const sidebarNavItems = [
   {
     titleKey: "settings.general",
     href: "/settings",
+    icon: Settings
   },
   {
     titleKey: "settings.ai",
     href: "/settings/ai",
+    icon: Bot
   },
   {
     titleKey: "settings.api",
     href: "/settings/api",
+    icon: Cable
   },
   {
     titleKey: "settings.storage",
     href: "/settings/storage",
+    icon: Database
   },
   {
     titleKey: "settings.appearance",
     href: "/settings/appearance",
+    icon: Palette
   },
   {
     titleKey: "settings.sync",
     href: "/settings/sync",
     disabled: true,
+    icon: Cloud
   },
   {
     titleKey: "settings.security",
     href: "/settings/security",
-    disabled: true,
+    icon: Shield
   },
   // {
   //   titleKey: "settings.experiment",
