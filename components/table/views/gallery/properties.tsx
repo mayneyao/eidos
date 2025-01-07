@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { z } from "zod"
 import { useTranslation } from "react-i18next"
+import { z } from "zod"
+import { FileText, Columns, Grid3X3, ToyBrickIcon, ImageIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -19,6 +20,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
+import { useAllMblocks } from "@/apps/web-app/[database]/scripts/hooks/use-all-mblocks"
 
 import { useFileFields, useView, useViewOperation } from "../../hooks"
 
@@ -42,27 +44,91 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
       coverPreview: view?.properties?.coverPreview || "content",
     },
   })
+  const { mblocks } = useAllMblocks()
+
   const [popoverOpen, setPopoverOpen] = useState(false)
   const { t } = useTranslation()
 
   const onSubmit = (data: IGalleryViewProperties) => console.log(data)
   const fileFields = useFileFields()
 
-  const coverPreviewItems = [
-    {
-      value: "content",
-      label: t("table.view.gallery.content"),
-    },
-    ...fileFields.map((field) => ({
+  const coverPreviewItems = {
+    content: [
+      {
+        value: "content",
+        label: t("table.view.gallery.content"),
+      },
+    ],
+    fields: fileFields.map((field) => ({
       value: field.table_column_name,
       label: field.name,
       type: "field",
     })),
-  ]
+    mblocks: mblocks.map((mblock) => ({
+      value: `block://${mblock.id}`,
+      label: mblock.name,
+      type: "mblock",
+    })),
+  }
 
-  const displayCoverPreview = coverPreviewItems.find(
-    (item) => item.value === form.watch("coverPreview")
-  )?.label
+  const displayCoverPreview = [
+    ...coverPreviewItems.content,
+    ...coverPreviewItems.fields,
+    ...coverPreviewItems.mblocks,
+  ].find((item) => item.value === form.watch("coverPreview"))?.label
+
+  const handleItemClick = (value: string) => {
+    form.setValue("coverPreview", value)
+    setPopoverOpen(false)
+    updateView(props.viewId, {
+      properties: {
+        ...view.properties,
+        coverPreview: value,
+      },
+    })
+  }
+
+  const PreviewButton = ({ 
+    item 
+  }: { 
+    item: { 
+      value: string; 
+      label: string; 
+      type?: string 
+    } 
+  }) => {
+    const getIcon = () => {
+      if (item.value === 'content') return <FileText className="mr-2 h-4 w-4" />
+      if (item.type === 'field') return <ImageIcon className="mr-2 h-4 w-4" />
+      if (item.type === 'mblock') return <ToyBrickIcon className="mr-2 h-4 w-4" />
+      return null
+    }
+
+    return (
+      <Button
+        onClick={() => handleItemClick(item.value)}
+        variant="ghost"
+        className="justify-start"
+        size="sm"
+      >
+        {getIcon()}
+        {item.label}
+      </Button>
+    )
+  }
+
+  const PreviewSection = ({ 
+    items, 
+    showDivider 
+  }: { 
+    items: Array<{ value: string; label: string }>;
+    showDivider?: boolean 
+  }) => (
+    <>
+      {showDivider && <hr className="my-1" />}
+      {items.map(item => <PreviewButton key={item.value} item={item} />)}
+    </>
+  )
 
   return (
     <Form {...form}>
@@ -109,26 +175,13 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
                     }
                   >
                     <div className="flex flex-col">
-                      {coverPreviewItems.map((item) => (
-                        <Button
-                          key={item.value}
-                          onClick={() => {
-                            form.setValue("coverPreview", item.value)
-                            setPopoverOpen(false)
-                            updateView(props.viewId, {
-                              properties: {
-                                ...view.properties,
-                                coverPreview: item.value,
-                              },
-                            })
-                          }}
-                          variant="ghost"
-                          className="justify-start"
-                          size="sm"
-                        >
-                          {item.label}
-                        </Button>
-                      ))}
+                      <PreviewSection items={coverPreviewItems.content} />
+                      {coverPreviewItems.fields.length > 0 && (
+                        <PreviewSection items={coverPreviewItems.fields} showDivider />
+                      )}
+                      {coverPreviewItems.mblocks.length > 0 && (
+                        <PreviewSection items={coverPreviewItems.mblocks} showDivider />
+                      )}
                     </div>
                   </PopoverContent>
                 </Popover>

@@ -1,11 +1,7 @@
 import { MoveDiagonalIcon, MoveUpRightIcon, Trash2Icon } from "lucide-react"
 
-import { FileField } from "@/lib/fields/file"
-import { IField } from "@/lib/store/interface"
-import { shortenId } from "@/lib/utils"
-import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
-import { useGoto } from "@/hooks/use-goto"
-import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { useRowDataOperation } from "@/components/doc-property/hook"
+import { ScriptContextMenu } from "@/components/table/views/grid/script-context-menu"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -18,11 +14,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { useRowDataOperation } from "@/components/doc-property/hook"
-import { InnerEditor } from "@/components/doc/editor"
-import { ScriptContextMenu } from "@/components/table/views/grid/script-context-menu"
+import { useCurrentSubPage } from "@/hooks/use-current-sub-page"
+import { useGoto } from "@/hooks/use-goto"
+import { useSqlite, useSqliteStore } from "@/hooks/use-sqlite"
+import { IField } from "@/lib/store/interface"
+import {
+  shortenId
+} from "@/lib/utils"
 
 import { CellEditor } from "../../cell-editor"
+import { GalleryCardCover } from "./gallery-card-cover"
 import { IGalleryViewProperties } from "./properties"
 
 interface ICardProps<T> {
@@ -30,13 +31,6 @@ interface ICardProps<T> {
   rowIndex: number
   style: React.CSSProperties
   data: T
-}
-
-const getCoverUrl = (row: any, coverField?: IField) => {
-  if (!coverField) return ""
-  const field = new FileField(coverField)
-  const cv = row[coverField.table_column_name]
-  return field.getCellContent(cv).data.displayData[0]
 }
 
 export interface IGalleryCardProps {
@@ -114,44 +108,24 @@ export const GalleryCard = ({
       goto(space, shortId)
     }
   }
-  const coverUrl = getCoverUrl(item, coverField)
   const fieldKeys = showFields
     .filter(
       (k) => k.table_column_name != "_id" && k.table_column_name != "title"
     )
     .map((k) => k.table_column_name)
 
-  const showContent =
-    properties?.coverPreview == undefined ||
-    properties?.coverPreview === "content"
   return (
     <ContextMenu>
       <ContextMenuTrigger>
         <div style={style} className="p-[8px]">
           <div className="h-full rounded-md border-t shadow-md dark:border-gray-800 dark:bg-gray-800 ">
             <div className="flex h-[200px] w-full items-center border-b">
-              {properties?.coverPreview?.startsWith("cl_") && (
-                <img
-                  src={coverUrl}
-                  alt=""
-                  className="h-[200px] w-full object-cover"
-                />
-              )}
-              {showContent && (
-                <div className="h-[200px] w-full overflow-hidden object-cover">
-                  <InnerEditor
-                    docId={shortenId(item._id)}
-                    namespace="eidos-notes-home-page"
-                    isEditable={false}
-                    placeholder=""
-                    disableSelectionPlugin
-                    disableSafeBottomPaddingPlugin
-                    disableUpdateTitle
-                    disableManuallySave
-                    className="prose-sm ml-0  !h-[200px] bg-gray-50 p-2 dark:bg-gray-700"
-                  />
-                </div>
-              )}
+              <GalleryCardCover
+                item={item}
+                coverField={coverField}
+                coverPreview={properties?.coverPreview || ""}
+                rawIdNameMap={rawIdNameMap}
+              />
             </div>
             <div className="prose p-[8px] dark:prose-invert">
               <div
