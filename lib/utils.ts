@@ -261,6 +261,15 @@ export const getBlockIdFromUrl = (url: string) => {
   }
 }
 
+export const getBlockUrlWithParams = (id: string, params: Record<string, any>) => {
+  const blockUrl = getBlockUrl(id)
+  const blockUrlWithParams = new URL(blockUrl)
+  Object.entries(params).forEach(([key, value]) => {
+    blockUrlWithParams.searchParams.set(key, value)
+  })
+  return blockUrlWithParams.toString()
+}
+
 export const isStandaloneBlocksPath = (pathname: string) => {
   // /:space/standalone-blocks/:id
   return /^\/[\w-]+\/standalone-blocks\/\w+$/.test(pathname)
