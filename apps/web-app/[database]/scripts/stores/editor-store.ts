@@ -51,11 +51,47 @@ export const useEditorStore = create<EditorStore>((set) => ({
     setScriptCodeMap: (id, code) =>
         set((state) => ({ scriptCodeMap: { ...state.scriptCodeMap, [id]: code } })),
     chatHistory: [],
-    setChatHistory: (history) => set({ chatHistory: history }),
-    addChatMessage: (message) => set((state) => ({
-        chatHistory: [...state.chatHistory, message]
-    })),
-    clearChatHistory: () => set({ chatHistory: [] }),
+    setChatHistory: (history) => set((state) => {
+        const processedHistory = history.map(msg => ({
+            ...msg,
+            createdAt: msg.createdAt ? (msg.createdAt instanceof Date ? msg.createdAt : new Date(msg.createdAt)) : new Date()
+        }))
+
+        const newChatHistoryMap = new Map(state.chatHistoryMap)
+        if (state.chatId) {
+            newChatHistoryMap.set(state.chatId, processedHistory)
+        }
+        return {
+            chatHistory: processedHistory,
+            chatHistoryMap: newChatHistoryMap
+        }
+    }),
+    addChatMessage: (message) => set((state) => {
+        const processedMessage = {
+            ...message,
+            createdAt: message.createdAt ? (message.createdAt instanceof Date ? message.createdAt : new Date(message.createdAt)) : new Date()
+        }
+        
+        const newHistory = [...state.chatHistory, processedMessage]
+        const newChatHistoryMap = new Map(state.chatHistoryMap)
+        if (state.chatId) {
+            newChatHistoryMap.set(state.chatId, newHistory)
+        }
+        return {
+            chatHistory: newHistory,
+            chatHistoryMap: newChatHistoryMap
+        }
+    }),
+    clearChatHistory: () => set((state) => {
+        const newChatHistoryMap = new Map(state.chatHistoryMap)
+        if (state.chatId) {
+            newChatHistoryMap.delete(state.chatId)
+        }
+        return {
+            chatHistory: [],
+            chatHistoryMap: newChatHistoryMap
+        }
+    }),
     isRemixMode: false,
     setIsRemixMode: (mode) => set({ isRemixMode: mode }),
     layoutMode: 'code',
