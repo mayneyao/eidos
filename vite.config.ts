@@ -74,7 +74,7 @@ const config = defineConfig({
         srcDir: "apps/web-app",
         filename: "sw.ts",
         strategies: "injectManifest",
-        injectManifest: {
+        injectManifest: {          
           // 7MB
           maximumFileSizeToCacheInBytes: 7 * 1024 * 1024,
           globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
@@ -211,6 +211,9 @@ const config = defineConfig({
   },
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm", "whisper-webgpu", "pyodide"],
+  },
+  worker: {
+    format: 'es', // Use ES modules format for workers
   },
 })
 
