@@ -1,20 +1,18 @@
-import { useMemo, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import {
   AppWindowIcon,
-  CodeIcon,
   FilterIcon,
   FunctionSquareIcon,
   PencilRulerIcon,
   ShapesIcon,
   SparkleIcon,
   SquareCodeIcon,
-  ToyBrickIcon,
+  ToyBrickIcon
 } from "lucide-react"
+import { useMemo, useState } from "react"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,6 +27,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 
 import { NewExtensionButton } from "./components/NewExtensionButton"
 import { ScriptCard } from "./components/ScriptCard"
@@ -37,17 +36,6 @@ import { useAllBlocks } from "./hooks/use-all-blocks"
 import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
 import { useScript } from "./hooks/use-script"
 import { InstallScript } from "./install"
-
-export const IconMap = {
-  script: SquareCodeIcon,
-  udf: FunctionSquareIcon,
-  prompt: SparkleIcon,
-  block: ShapesIcon,
-  m_block: ToyBrickIcon,
-  app: AppWindowIcon,
-  doc_plugin: PencilRulerIcon,
-  py_script: CodeIcon,
-}
 
 const extensionTypes = [
   {
@@ -69,8 +57,8 @@ const extensionTypes = [
   },
   {
     id: "py_script",
-    name: "Py Script",
-    icon: CodeIcon,
+    name: "Script(Python)",
+    icon: SquareCodeIcon,
   },
   {
     id: "udf",
@@ -93,6 +81,11 @@ const extensionTypes = [
     icon: PencilRulerIcon,
   },
 ]
+
+export const IconMap = Object.fromEntries(
+  extensionTypes.map(({ id, icon }) => [id, icon])
+) as Record<string, (typeof extensionTypes)[number]["icon"]>
+
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IScript[]
   const { space } = useCurrentPathInfo()

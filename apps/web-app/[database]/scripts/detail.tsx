@@ -1,16 +1,16 @@
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
 import { useMount } from "ahooks"
 import { Code, Eye } from "lucide-react"
 import { useTheme } from "next-themes"
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import {
   useLoaderData,
   useRevalidator,
   useSearchParams,
 } from "react-router-dom"
 
-import { BlockRenderer } from "@/components/block-renderer/block-renderer"
-import { DocEditorPlayground } from "@/components/doc-editor-playground"
+import { compileCode } from "@/lib/v3/compiler"
+import { compileLexicalCode } from "@/lib/v3/lexical-compiler"
 import { Button } from "@/components/ui/button"
 import {
   ResizableHandle,
@@ -20,8 +20,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import { compileCode } from "@/lib/v3/compiler"
-import { compileLexicalCode } from "@/lib/v3/lexical-compiler"
+import { BlockRenderer } from "@/components/block-renderer/block-renderer"
+import { DocEditorPlayground } from "@/components/doc-editor-playground"
 
 import { ChatSidebar } from "./components/chat"
 import { Header } from "./components/chat/header"
@@ -96,7 +96,10 @@ export const ScriptDetailPage = () => {
     }
   }, [currentDraftCode, setLayoutMode])
 
-  const showChat = script.type !== "prompt" && script.type !== "udf"
+  const showChat =
+    script.type !== "prompt" &&
+    script.type !== "udf" &&
+    script.type !== "py_script"
 
   useEffect(() => {
     setCurrentCompiledDraftCode(script.code)
