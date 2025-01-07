@@ -5,7 +5,6 @@ import { chunk } from "lodash"
 import zip from "lodash/zip"
 
 import { DocLoader } from "@/lib/ai/doc_loader/doc"
-import { PDFLoader } from "@/lib/ai/doc_loader/pdf"
 import { LLMBaseVendor } from "@/lib/ai/llm_vendors/base"
 import { getHnswIndex } from "@/lib/ai/vec_search"
 import { EmbeddingTableName } from "@/lib/sqlite/const"
@@ -143,19 +142,19 @@ export class EmbeddingManager {
     switch (type) {
       case "file":
         // pdf
-        loader = new PDFLoader()
-        const file = await this.dataSpace.getFileById(id)
-        if (!file) {
-          console.warn("file not found")
-          return
-        }
-        if (file.is_vectorized) {
-          console.warn("file is already vectorized")
-          return
-        }
-        pages = await loader.load(file.path)
-        await embedding(pages)
-        await this.dataSpace.updateFileVectorized(id, true)
+        // loader = new PDFLoader()
+        // const file = await this.dataSpace.getFileById(id)
+        // if (!file) {
+        //   console.warn("file not found")
+        //   return
+        // }
+        // if (file.is_vectorized) {
+        //   console.warn("file is already vectorized")
+        //   return
+        // }
+        // pages = await loader.load(file.path)
+        // await embedding(pages)
+        // await this.dataSpace.updateFileVectorized(id, true)
         break
       case "doc":
         loader = new DocLoader(this.dataSpace)

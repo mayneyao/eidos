@@ -31,7 +31,6 @@ import { useEmbedding } from "@/hooks/use-embedding"
 import { useHnsw } from "@/hooks/use-hnsw"
 import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
 import { ITreeNode } from "@/lib/store/ITreeNode"
-import { pdfToMarkdown } from "@/lib/web/pdf"
 
 import { AutoEditable } from "./plugins/auto-editable"
 import { SwitchPromptPlugin } from "./plugins/switch-prompt"
@@ -188,20 +187,9 @@ export const AIInputEditor = ({
               const response = await fetch(attachment.url)
               const blob = await response.blob()
 
-              // 如果是 PDF 文件，转换为图片
               if (attachment.contentType === "application/pdf") {
-                try {
-                  // 首先转换为 Markdown
-                  const markdownContent = await pdfToMarkdown(blob)
-                  console.log("markdownContent", markdownContent)
-                } catch (error) {
-                  console.error("Error processing PDF:", error)
-                  // 如果转换失败，保持原样返回
-                  return attachment
-                }
+                throw new Error("PDF is not supported")
               }
-
-              // 其他文件类型保持原来的处理方式
               const dataUri = await new Promise<string>((resolve) => {
                 const reader = new FileReader()
                 reader.onloadend = () => resolve(reader.result as string)
