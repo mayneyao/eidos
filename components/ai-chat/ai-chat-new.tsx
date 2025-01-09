@@ -109,7 +109,7 @@ export default function Chat() {
       ...getConfigByModel(aiModel),
       systemPrompt,
       model: aiModel, // model@provider
-      useTools: false,
+      useTools: true,
     },
   })
 
