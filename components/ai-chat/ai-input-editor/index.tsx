@@ -1,3 +1,4 @@
+import React, { useEffect, useImperativeHandle, useRef } from "react"
 import { IEmbedding } from "@/worker/web-worker/meta-table/embedding"
 import { LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
@@ -16,21 +17,20 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { Attachment, ChatRequestOptions, CreateMessage } from "ai"
 import { Message } from "ai/react"
-import { $getRoot } from "lexical"
-import React, { useEffect, useImperativeHandle, useRef } from "react"
+import { $getRoot, $getSelection, $isRangeSelection, createCommand } from "lexical"
 import { useTranslation } from "react-i18next"
 
-import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
+import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
+import { ITreeNode } from "@/lib/store/ITreeNode"
+import { useEmbedding } from "@/hooks/use-embedding"
+import { useHnsw } from "@/hooks/use-hnsw"
+import { useToast } from "@/components/ui/use-toast"
 import { MentionNode } from "@/components/doc/blocks/mention/node"
 import NewMentionsPlugin, {
   MentionPluginProps,
 } from "@/components/doc/blocks/mention/plugin"
 import { allTransformers } from "@/components/doc/plugins/const"
-import { useToast } from "@/components/ui/use-toast"
-import { useEmbedding } from "@/hooks/use-embedding"
-import { useHnsw } from "@/hooks/use-hnsw"
-import { BGEM3 } from "@/lib/ai/llm_vendors/bge"
-import { ITreeNode } from "@/lib/store/ITreeNode"
+import { useAIConfigStore } from "@/apps/web-app/settings/ai/store"
 
 import { AutoEditable } from "./plugins/auto-editable"
 import { SwitchPromptPlugin } from "./plugins/switch-prompt"
@@ -79,6 +79,32 @@ const AIInputEditorDataPlugin = React.forwardRef((props, ref) => {
 })
 
 const appendedEmbeddingMap = new Map<string, IEmbedding>()
+
+function PlainTextPastePlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(() => {
+    return editor.registerCommand(
+      createCommand('PASTE_COMMAND'),
+      (event: ClipboardEvent) => {
+        event.preventDefault()
+        
+        const selection = $getSelection()
+        if (!$isRangeSelection(selection)) return false
+
+        const text = event.clipboardData?.getData('text/plain')
+        if (text) {
+          selection.insertText(text)
+        }
+
+        return true
+      },
+      1 // Priority 1
+    )
+  }, [editor])
+
+  return null
+}
 
 export const AIInputEditor = ({
   disabled,
@@ -254,7 +280,7 @@ export const AIInputEditor = ({
           }
           ErrorBoundary={LexicalErrorBoundary}
         />
-
+        <PlainTextPastePlugin />
         <NewMentionsPlugin
           onOptionSelectCallback={handleNodeInsert}
           placement="top-start"
