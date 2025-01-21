@@ -60,6 +60,7 @@ import { useModal } from "../../hooks/useModal"
 import { bgColors, fgColors } from "../const"
 import { useBasicTypeaheadTriggerMatch } from "./hook"
 import "./index.css"
+import { useKeyPress } from "ahooks"
 
 const IconMap: Record<string, JSX.Element> = {
   h1: <Heading1Icon className="h-5 w-5" />,
@@ -394,6 +395,24 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
       : baseOptions
   }, [editor, extBlocks, getDynamicOptions, queryString, showModal, t])
 
+  useKeyPress("esc", () => {
+    editor.update(() => {
+      const selection = $getSelection()
+      if ($isRangeSelection(selection)) {
+        const anchor = selection.anchor
+        const node = anchor.getNode()
+        if ($isTextNode(node)) {
+          const textContent = node.getTextContent()
+          const lastChar = textContent[anchor.offset - 1]
+          if (lastChar === "/" || lastChar === "、") {
+            node.spliceText(anchor.offset - 1, 1, "")
+          }
+        }
+      }
+    })
+    setQueryString(null)
+  })
+
   const onSelectOption = useCallback(
     (
       selectedOption: ComponentPickerOption,
@@ -420,11 +439,14 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
         onSelectOption={onSelectOption}
         triggerFn={checkForTriggerMatch}
         options={options}
+        onClose={() => {
+          setQueryString(null)
+        }}
         menuRenderFn={(
           anchorElementRef,
           { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }
-        ) =>
-          anchorElementRef.current && options.length
+        ) => {
+          return anchorElementRef.current && options.length
             ? ReactDOM.createPortal(
                 <div className="typeahead-popover component-picker-menu">
                   <ul>
@@ -448,7 +470,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
                 anchorElementRef.current
               )
             : null
-        }
+        }}
       />
     </>
   )
