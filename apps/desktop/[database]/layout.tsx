@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom"
 import { EidosDataEventChannelName } from "@/lib/const"
 import { useAppRuntimeStore } from "@/lib/store/runtime-store"
 import { cn, isStandaloneBlocksPath } from "@/lib/utils"
+import { isWindowsDesktop } from "@/lib/web/helper"
 import { useActivation } from "@/hooks/use-activation"
 import { useEidosFileSystemManager } from "@/hooks/use-fs"
 import { useSqlite } from "@/hooks/use-sqlite"
@@ -25,7 +26,6 @@ import { ScriptBreadcrumb } from "@/apps/web-app/[database]/scripts/components/e
 
 import { useLayoutInit } from "../../web-app/[database]/hook"
 import { useAppsStore, useSpaceAppStore } from "../../web-app/[database]/store"
-import { isWindowsDesktop } from "@/lib/web/helper"
 
 const WebLLM = lazy(() => import("@/components/ai-chat/webllm"))
 
@@ -139,15 +139,19 @@ export function DesktopSpaceLayout() {
                 <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
                 <ResizablePanel
                   defaultSize={rightPanelSize}
-                  minSize={30}
+                  minSize={35}
                   maxSize={50}
+                  className="min-w-[450px]"
                   onResize={(size) => setRightPanelSize(size)}
                 >
-                  <div className={
-                    cn("mx-3 flex justify-end !h-[38px] items-center shrink-0", {
-                      'pr-[100px]': isWindowsDesktop && isRightPanelOpen,
-                    })
-                  }>
+                  <div
+                    className={cn(
+                      "mx-3 flex justify-end !h-[38px] items-center shrink-0",
+                      {
+                        "pr-[100px]": isWindowsDesktop && isRightPanelOpen,
+                      }
+                    )}
+                  >
                     <RightPanelNav />
                   </div>
                   <div className="grow border-t h-[calc(100%-38px)] overflow-y-auto">
