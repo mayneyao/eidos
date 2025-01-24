@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   filter TEXT,
   order_map TEXT,
   hidden_fields TEXT,
+  position REAL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -29,11 +30,15 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
 
   JSONFields = ["properties", "filter", "order_map", "hidden_fields"]
   async add(data: IView): Promise<IView> {
+    const nextPosition = await this.getNextRowId()
     await this.dataSpace.exec2(
-      `INSERT INTO ${this.name} (id,name,type,table_id,query) VALUES (? , ? , ? , ? , ?);`,
-      [data.id, data.name, data.type, data.table_id, data.query]
+      `INSERT INTO ${this.name} (id,name,type,table_id,query,position) VALUES (? , ? , ? , ? , ?, ?);`,
+      [data.id, data.name, data.type, data.table_id, data.query, nextPosition]
     )
-    return data
+    return {
+      ...data,
+      position: nextPosition,
+    }
   }
 
   async del(id: string): Promise<boolean> {
@@ -130,5 +135,118 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       rowIds
     )
     return result
+  }
+
+  private async getNextRowId(): Promise<number> {
+    const res = await this.dataSpace.exec2(
+      `SELECT max(rowid) as maxId from ${this.name};`
+    )
+    return res[0].maxId + 1
+  }
+
+  public async getPosition(props: {
+    tableId: string
+    targetId: string
+    targetDirection: "up" | "down"
+  }): Promise<number> {
+    const { tableId, targetId, targetDirection } = props
+    const POSITION_GAP = 1000 // 定义一个合适的间隔值
+
+    const views = await this.list(
+      { table_id: tableId },
+      {
+        orderBy: "position",
+        order: "ASC",
+      }
+    )
+
+    const targetIndex = views.findIndex((view) => view.id === targetId)
+    const prevIndex = targetDirection === "up" ? targetIndex - 1 : targetIndex
+    const nextIndex = targetDirection === "up" ? targetIndex : targetIndex + 1
+    const prevView = views[prevIndex]
+    const nextView = views[nextIndex]
+
+    if (prevIndex === -1) {
+      return (nextView?.position || POSITION_GAP) - POSITION_GAP
+    }
+
+    if (!nextView) {
+      return prevView.position + POSITION_GAP
+    }
+
+    return (prevView.position + nextView.position) / 2
+  }
+
+  public async updatePosition(id: string, position: number): Promise<void> {
+    await this.dataSpace.exec2(
+      `UPDATE ${this.name} SET position = ? WHERE id = ?`,
+      [position, id]
+    )
+  }
+
+  /**
+   * Update view position when dragging
+   * @param dragId The id of the view being dragged
+   * @param targetId The id of the target view
+   * @param direction The direction relative to target ("up" | "down")
+   * @param tableId The table id that these views belong to
+   */
+  public async movePosition(props: {
+    dragId: string
+    targetId: string
+    direction: "up" | "down"
+    tableId: string
+  }): Promise<void> {
+    const { dragId, targetId, direction, tableId } = props
+
+
+    // Don't do anything if dragging onto itself
+    if (dragId === targetId) {
+      return
+    }
+
+    try {
+      // Get new position
+      const newPosition = await this.getPosition({
+        tableId,
+        targetId,
+        targetDirection: direction
+      })
+      console.log(newPosition, dragId)
+
+      // Update the position in database
+      await this.updatePosition(dragId, newPosition)
+    } catch (error) {
+      console.error("Failed to move view position:", error)
+      throw new Error("Failed to update view position")
+    }
+  }
+
+  /**
+   * Batch reorder views
+   * @param viewIds Array of view ids in desired order (first = highest position)
+   */
+  public async reorderViews(viewIds: string[]): Promise<void> {
+    if (viewIds.length === 0) return
+
+    try {
+      await this.dataSpace.db.transaction(async (db) => {
+        // Start from a high number and decrease for each item
+        // This ensures proper ordering while maintaining gaps for future insertions
+        let position = viewIds.length * 1000
+
+        for (const id of viewIds) {
+          this.dataSpace.syncExec2(
+            `UPDATE ${this.name} SET position = ? WHERE id = ?`,
+            [position, id],
+            db
+          )
+          position -= 1000
+        }
+      })
+    } catch (error) {
+      console.error("Failed to reorder views:", error)
+      throw new Error("Failed to reorder views")
+    }
   }
 }

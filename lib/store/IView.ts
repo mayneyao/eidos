@@ -17,6 +17,7 @@ export interface IView<T = any> {
   filter?: FilterValueType
   order_map?: Record<string, number>
   hidden_fields?: string[]
+  position?: number
 }
 
 export interface IGridViewProperties {

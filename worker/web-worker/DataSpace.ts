@@ -476,7 +476,10 @@ export class DataSpace {
 
   // views
   public async listViews(tableId: string) {
-    return await this.view.list({ table_id: tableId })
+    return await this.view.list({ table_id: tableId }, {
+      order: 'ASC',
+      orderBy: 'position'
+    })
   }
 
   public async addView(view: IView) {

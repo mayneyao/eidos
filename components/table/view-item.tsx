@@ -1,7 +1,9 @@
-import { useContext, useState } from "react"
+import { useContext, useState, useEffect } from "react"
 import { LayoutGridIcon, LayoutListIcon, Table2Icon } from "lucide-react"
 import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 import { IView, ViewTypeEnum } from "@/lib/store/IView"
 import { cn } from "@/lib/utils"
@@ -56,7 +58,24 @@ export const ViewItem = ({
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const { isReadOnly } = useContext(TableContext)
 
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: view.id,
+    animateLayoutChanges: () => false,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
   const Icon = ViewIconMap[view.type]
+  
   const handleOpen = () => {
     if (isActive && !isReadOnly) {
       setOpen(!open)
@@ -76,21 +95,33 @@ export const ViewItem = ({
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <DropdownMenu onOpenChange={handleOpen} open={open}>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                onClick={() => jump2View(view.id)}
-                size="sm"
-                className={cn({
-                  "opacity-60": !isActive,
-                  "border-b-2 border-primary  rounded-b-none": isActive,
-                  "animate-border-flicker": loading,
-                })}
+              <div
+                ref={setNodeRef}
+                style={style}
+                className="flex items-center"
               >
-                <div className="flex items-center gap-1">
-                  <Icon className="h-4 w-4" />
-                  <span className="select-none">{view.name}</span>
-                </div>
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => jump2View(view.id)}
+                  className={cn({
+                    "opacity-60": !isActive,
+                    "border-b-2 border-primary rounded-b-none": isActive,
+                    "animate-border-flicker": loading,
+                  })}
+                >
+                  <div className="flex items-center gap-1">
+                    <div
+                      {...attributes}
+                      {...listeners}
+                      className="flex items-center"
+                    >
+                      <Icon className="h-4 w-4 cursor-grab active:cursor-grabbing" />
+                    </div>
+                    <span className="select-none">{view.name}</span>
+                  </div>
+                </Button>
+              </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem onSelect={handleEdit} disabled={isReadOnly}>
@@ -124,21 +155,33 @@ export const ViewItem = ({
           </DialogContent>
         </Dialog>
       ) : (
-        <Button
-          variant="ghost"
-          onClick={() => jump2View(view.id)}
-          size="sm"
-          className={cn({
-            "opacity-60": !isActive,
-            "border-b-2 border-primary  rounded-b-none": isActive,
-            "animate-border-flicker": loading,
-          })}
+        <div
+          ref={setNodeRef}
+          style={style}
+          className="flex items-center"
         >
-          <div className="flex items-center gap-1">
-            <Icon className="h-4 w-4" />
-            <span className="select-none">{view.name}</span>
-          </div>
-        </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => jump2View(view.id)}
+            className={cn({
+              "opacity-60": !isActive,
+              "border-b-2 border-primary rounded-b-none": isActive,
+              "animate-border-flicker": loading,
+            })}
+          >
+            <div className="flex items-center gap-1">
+              <div
+                {...attributes}
+                {...listeners}
+                className="flex items-center"
+              >
+                <Icon className="h-4 w-4 cursor-grab active:cursor-grabbing" />
+              </div>
+              <span className="select-none">{view.name}</span>
+            </div>
+          </Button>
+        </div>
       )}
       {editDialogOpen &&
         ReactDOM.createPortal(

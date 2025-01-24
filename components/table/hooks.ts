@@ -102,11 +102,28 @@ export const useViewOperation = () => {
     [updateView]
   )
 
+  const moveViewPosition = useCallback(
+    async (dragId: string, targetId: string, direction: "up" | "down") => {
+      if (sqlite) {
+        await sqlite.view.movePosition({
+          dragId,
+          targetId,
+          direction,
+          tableId,
+        })
+        await updateViews()
+      }
+    },
+    [sqlite, tableId, updateViews]
+  )
+
+
   return {
     addView,
     delView,
     updateView,
     addSort,
+    moveViewPosition,
   }
 }
 
