@@ -1,7 +1,7 @@
 "use client"
 
 import { useKeyPress } from "ahooks"
-import { 
+import {
   Minimize2,
   Settings,
   Bot,
@@ -21,6 +21,8 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarNav } from "@/apps/web-app/settings/components/sidebar-nav"
 
 import { useLastOpened } from "../[database]/hook"
+import { cn } from "@/lib/utils"
+import { isWindowsDesktop } from "@/lib/web/helper"
 
 const sidebarNavItems = [
   {
@@ -81,6 +83,12 @@ export default function SettingsLayout() {
 
   return (
     <ScrollArea className="h-[100vh] w-full">
+      <div className={
+        cn("h-8 fixed drag-region z-0", {
+          'w-[calc(100vw-100px)]': isWindowsDesktop,
+        })
+      } >
+      </div>
       <div className="grid w-full grid-cols-5 ">
         <div className="col-span-1" />
         <div className="col-span-5 space-y-6 p-4 pb-16 md:block md:p-10 xl:col-span-3">

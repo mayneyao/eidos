@@ -42,6 +42,7 @@ export function createWindow(url?: string) {
                 ...baseWindowConfig,
                 // backgroundMaterial: isWindows11 ? "mica" : undefined,
                 autoHideMenuBar: true,
+                frame: false
             };
             break;
         default:
@@ -67,5 +68,26 @@ export function createWindow(url?: string) {
         // win.loadFile(path.join(process.env.DIST, 'index.html'))
         win.loadURL(`http://localhost:${PORT}`);
     }
+
+    ipcMain.on('window-control', (_, action: string) => {
+        switch (action) {
+            case 'minimize':
+                win.minimize()
+                break
+            case 'maximize':
+                win.maximize()
+                break
+            case 'unmaximize':
+                win.unmaximize()
+                break
+            case 'close':
+                win.close()
+                break
+        }
+    })
+
+    win.on('maximize', () => win.webContents.send('window-state-changed', 'maximized'))
+    win.on('unmaximize', () => win.webContents.send('window-state-changed', 'restored'))
+
     return win;
 }

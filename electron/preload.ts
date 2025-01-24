@@ -113,6 +113,21 @@ async function main() {
     openFolder: (folder: string) => ipcRenderer.invoke('open-folder', folder),
     reloadApp: () => ipcRenderer.invoke('reload-app'),
     initializePlayground: (space: string, blockId: string, files: PlaygroundFile[]) => ipcRenderer.invoke('initialize-playground', space, blockId, files),
+    minimizeWindow: () => ipcRenderer.send('window-control', 'minimize'),
+    maximizeWindow: () => ipcRenderer.send('window-control', 'maximize'),
+    unmaximizeWindow: () => ipcRenderer.send('window-control', 'unmaximize'),
+    closeWindow: () => ipcRenderer.send('window-control', 'close'),
+
+    onWindowStateChange: (callback: (state: 'maximized' | 'restored') => void) => {
+      const listener = (_: any, state: string) => {
+        if (state === 'maximized' || state === 'restored') {
+          callback(state);
+        }
+      };
+      ipcRenderer.on('window-state-changed', listener);
+      return () => ipcRenderer.removeListener('window-state-changed', listener);
+    },
+
     // You can expose other APIs you need here.
     // ...
 

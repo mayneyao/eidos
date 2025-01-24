@@ -14,6 +14,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeUpdater } from "@/components/theme-updater"
 
 import { useProtocolUrl } from "./hooks/useProtocolUrl"
+import { WindowControls } from '@/components/window-controls'
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
@@ -35,9 +36,11 @@ export default function RootLayout() {
           id="drag-region"
         ></div>
         {/* APP MODEL， a sidebar and main */}
+
         <div className="flex h-screen w-screen overflow-auto">
           <Outlet />
         </div>
+        <WindowControls />
         <CommandDialogDemo />
         <ShortCuts />
       </SidebarProvider>
