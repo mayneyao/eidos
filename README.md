@@ -102,7 +102,7 @@ Eidos based on the following open-source projects:
 ### desktop app
 
 - [electron](https://github.com/electron/electron) - Build cross-platform desktop apps
-- [libsimple](https://github.com/wangfenjin/libsimple) - a sqlite extension for full-text search for CJK languages
+- [libsimple](https://github.com/wangfenjin/simple) - a sqlite extension for full-text search for CJK languages
 
 ## License
 
