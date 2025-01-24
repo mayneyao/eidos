@@ -36,6 +36,13 @@ interface Window {
         openFolder: (folder: string) => Promise<void>
         isDataFolderSet: boolean
         reloadApp: () => Promise<void>
+        // 窗口控制方法
+        minimizeWindow: () => void
+        maximizeWindow: () => void
+        unmaximizeWindow: () => void
+        closeWindow: () => void
+        // 窗口状态事件
+        onWindowStateChange: (callback: (state: 'maximized' | 'restored') => void) => () => void
         initializePlayground: (space: string, blockId: string, files: PlaygroundFile[]) => Promise<string>
         getApiAgentStatus: () => Promise<import('./server/api-agent').ApiAgentStatus>
         onApiAgentStatusChanged: (callback: (status: import('./server/api-agent').ApiAgentStatus) => void) => () => void

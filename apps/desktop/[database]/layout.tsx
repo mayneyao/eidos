@@ -25,6 +25,7 @@ import { ScriptBreadcrumb } from "@/apps/web-app/[database]/scripts/components/e
 
 import { useLayoutInit } from "../../web-app/[database]/hook"
 import { useAppsStore, useSpaceAppStore } from "../../web-app/[database]/store"
+import { isWindowsDesktop } from "@/lib/web/helper"
 
 const WebLLM = lazy(() => import("@/components/ai-chat/webllm"))
 
@@ -142,7 +143,11 @@ export function DesktopSpaceLayout() {
                   maxSize={50}
                   onResize={(size) => setRightPanelSize(size)}
                 >
-                  <div className="mx-3 flex justify-end !h-[38px] items-center shrink-0">
+                  <div className={
+                    cn("mx-3 flex justify-end !h-[38px] items-center shrink-0", {
+                      'pr-[100px]': isWindowsDesktop && isRightPanelOpen,
+                    })
+                  }>
                     <RightPanelNav />
                   </div>
                   <div className="grow border-t h-[calc(100%-38px)] overflow-y-auto">

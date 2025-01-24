@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { isDesktopMode } from "@/lib/env"
 import { useAppStore } from "@/lib/store/app-store"
 import { cn } from "@/lib/utils"
-import { isMac } from "@/lib/web/helper"
+import { isMac, isWindowsDesktop } from "@/lib/web/helper"
 
 import { BreadCrumb } from "./breadcrumb"
 import { NavDropdownMenu } from "./dropdown-menu"
@@ -71,7 +71,7 @@ export const Nav = ({
           variant="ghost"
           size="xs"
           onClick={toggleSidebar}
-          // className="hidden md:block"
+        // className="hidden md:block"
         >
           <Menu className="h-5 w-5" />
         </Button>
@@ -79,7 +79,11 @@ export const Nav = ({
 
       <div className="hidden md:block">{children || <BreadCrumb />}</div>
       <div className="h-full grow" id="drag-region" />
-      <div className="mr-3 flex items-center justify-between gap-2">
+      <div className={
+        cn("mr-3 flex items-center justify-between gap-2", {
+          'pr-[100px]': isWindowsDesktop && !isRightPanelOpen,
+        })
+      }>
         <NavStatus />
         <NavDropdownMenu />
         {isDesktopMode && !isRightPanelOpen && (
