@@ -418,6 +418,7 @@
     "table.view.gallery.content": "Content",
     "table.view.gallery.coverPreview": "Cover preview",
     "table.view.gallery.hideEmptyFields": "Hide empty fields",
+    "table.view.gallery.none": "None",
     "table.view.grid": "Grid",
     "table.view.noFilterRule": "There is no filter rule, add one",
     "table.view.noSortRule": "There is no sort rule, add one",

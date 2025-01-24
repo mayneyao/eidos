@@ -1,9 +1,16 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  BanIcon,
+  Columns,
+  FileText,
+  Grid3X3,
+  ImageIcon,
+  ToyBrickIcon,
+} from "lucide-react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
-import { FileText, Columns, Grid3X3, ToyBrickIcon, ImageIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -41,7 +48,7 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       hideEmptyFields: view?.properties?.hideEmptyFields,
-      coverPreview: view?.properties?.coverPreview || "content",
+      coverPreview: view?.properties?.coverPreview,
     },
   })
   const { mblocks } = useAllMblocks()
@@ -54,6 +61,10 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
 
   const coverPreviewItems = {
     content: [
+      {
+        value: null,
+        label: t("table.view.gallery.none"),
+      },
       {
         value: "content",
         label: t("table.view.gallery.content"),
@@ -71,13 +82,14 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
     })),
   }
 
-  const displayCoverPreview = [
-    ...coverPreviewItems.content,
-    ...coverPreviewItems.fields,
-    ...coverPreviewItems.mblocks,
-  ].find((item) => item.value === form.watch("coverPreview"))?.label
+  const displayCoverPreview =
+    [
+      ...coverPreviewItems.content,
+      ...coverPreviewItems.fields,
+      ...coverPreviewItems.mblocks,
+    ].find((item) => item.value === form.watch("coverPreview"))?.label || "None"
 
-  const handleItemClick = (value: string) => {
+  const handleItemClick = (value: string | null) => {
     form.setValue("coverPreview", value)
     setPopoverOpen(false)
     updateView(props.viewId, {
@@ -88,20 +100,21 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
     })
   }
 
-  const PreviewButton = ({ 
-    item 
-  }: { 
-    item: { 
-      value: string; 
-      label: string; 
-      type?: string 
-    } 
+  const PreviewButton = ({
+    item,
+  }: {
+    item: {
+      value: string | null
+      label: string
+      type?: string
+    }
   }) => {
     const getIcon = () => {
-      if (item.value === 'content') return <FileText className="mr-2 h-4 w-4" />
-      if (item.type === 'field') return <ImageIcon className="mr-2 h-4 w-4" />
-      if (item.type === 'mblock') return <ToyBrickIcon className="mr-2 h-4 w-4" />
-      return null
+      if (item.value === "content") return <FileText className="mr-2 h-4 w-4" />
+      if (item.type === "field") return <ImageIcon className="mr-2 h-4 w-4" />
+      if (item.type === "mblock")
+        return <ToyBrickIcon className="mr-2 h-4 w-4" />
+      return <BanIcon className="mr-2 h-4 w-4" />
     }
 
     return (
@@ -117,16 +130,18 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
     )
   }
 
-  const PreviewSection = ({ 
-    items, 
-    showDivider 
-  }: { 
-    items: Array<{ value: string; label: string }>;
-    showDivider?: boolean 
+  const PreviewSection = ({
+    items,
+    showDivider,
+  }: {
+    items: Array<{ value: string | null; label: string }>
+    showDivider?: boolean
   }) => (
     <>
       {showDivider && <hr className="my-1" />}
-      {items.map(item => <PreviewButton key={item.value} item={item} />)}
+      {items.map((item) => (
+        <PreviewButton key={item.value} item={item} />
+      ))}
     </>
   )
 
@@ -168,7 +183,7 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
                     {displayCoverPreview}
                   </PopoverTrigger>
                   <PopoverContent
-                    className="p-1"
+                    className="p-1 max-h-[300px] overflow-y-auto"
                     align="end"
                     container={
                       document.querySelector("#view-editor") as HTMLElement
@@ -177,10 +192,16 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
                     <div className="flex flex-col">
                       <PreviewSection items={coverPreviewItems.content} />
                       {coverPreviewItems.fields.length > 0 && (
-                        <PreviewSection items={coverPreviewItems.fields} showDivider />
+                        <PreviewSection
+                          items={coverPreviewItems.fields}
+                          showDivider
+                        />
                       )}
                       {coverPreviewItems.mblocks.length > 0 && (
-                        <PreviewSection items={coverPreviewItems.mblocks} showDivider />
+                        <PreviewSection
+                          items={coverPreviewItems.mblocks}
+                          showDivider
+                        />
                       )}
                     </div>
                   </PopoverContent>

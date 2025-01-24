@@ -10,7 +10,7 @@ import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
 } from "@lexical/markdown"
-import { $getRoot, $insertNodes, $nodesOfType } from "lexical"
+import { $getRoot, $insertNodes, $nodesOfType, LexicalEditor } from "lexical"
 import zip from "lodash/zip"
 
 import { getAllLinks } from "@/lib/markdown"
@@ -25,13 +25,22 @@ import { CodeNode } from "@lexical/code"
 import { $createMermaidNode } from "@/components/doc/blocks/mermaid/node"
 import { getAllNodes } from "@/components/doc/nodes"
 
+let editor: LexicalEditor
+
+export const getHeadlessEditor = () => {
+  if (!editor) {
+    editor = createHeadlessEditor({
+      nodes: getAllNodes(),
+      onError: () => { },
+    })
+  }
+  return editor
+}
+
 export const _getDocMarkdown = async (
   articleEditorStateJSON: string
 ): Promise<string> => {
-  const editor = createHeadlessEditor({
-    nodes: getAllNodes(),
-    onError: () => { },
-  })
+  const editor = getHeadlessEditor()
   try {
     const state = editor.parseEditorState(articleEditorStateJSON)
     if (state.isEmpty()) {
