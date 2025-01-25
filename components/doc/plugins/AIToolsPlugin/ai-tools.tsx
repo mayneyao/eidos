@@ -1,3 +1,4 @@
+import { useCallback, useMemo, useRef, useState } from "react"
 import { $convertFromMarkdownString, Transformer } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useClickAway, useKeyPress } from "ahooks"
@@ -7,7 +8,7 @@ import {
   $getRoot,
   $isTextNode,
   LexicalNode,
-  RangeSelection
+  RangeSelection,
 } from "lexical"
 import * as Icons from "lucide-react"
 import {
@@ -16,13 +17,13 @@ import {
   PauseIcon,
   RefreshCcwIcon,
 } from "lucide-react"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 
-import { useAllMblocks } from "@/apps/web-app/[database]/scripts/hooks/use-all-mblocks"
-import { useScript } from "@/apps/web-app/[database]/scripts/hooks/use-script"
-import { useUserPrompts } from "@/components/ai-chat/hooks"
-import { BlockRenderer } from "@/components/block-renderer/block-renderer"
-import { Loading } from "@/components/loading"
+import { getCodeFromMarkdown } from "@/lib/markdown"
+import { generateId, getBlockUrl, uuidv7 } from "@/lib/utils"
+import { compileCode } from "@/lib/v3/compiler"
+import builtInRemixPrompt from "@/lib/v3/prompts/built-in-remix-prompt.md?raw"
+import { useAiConfig } from "@/hooks/use-ai-config"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -42,11 +43,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "@/components/ui/use-toast"
-import { useAiConfig } from "@/hooks/use-ai-config"
-import { getCodeFromMarkdown } from "@/lib/markdown"
-import { generateId, getBlockUrl, uuidv7 } from "@/lib/utils"
-import { compileCode } from "@/lib/v3/compiler"
-import builtInRemixPrompt from "@/lib/v3/prompts/built-in-remix-prompt.md?raw"
+import { useUserPrompts } from "@/components/ai-chat/hooks"
+import { BlockRenderer } from "@/components/block-renderer/block-renderer"
+import { Loading } from "@/components/loading"
+import { useAllMblocks } from "@/apps/web-app/[database]/scripts/hooks/use-all-mblocks"
+import { useScript } from "@/apps/web-app/[database]/scripts/hooks/use-script"
 
 import { $createCustomBlockNode } from "../../blocks/custom/node"
 import { useAllDocBlocks } from "../../hooks/use-all-doc-blocks"
@@ -107,12 +108,20 @@ export function AITools({
     findAvailableModel,
     codingModel,
   } = useAiConfig()
+  const { t } = useTranslation()
 
   const isMakeItRealRef = useRef(false)
   const isMakeItReal = () => isMakeItRealRef.current
 
   const { addScript } = useScript()
   const { messages, setMessages, reload, isLoading, stop } = useChat({
+    onError(error) {
+      console.log("error:", error)
+      toast({
+        title: error.message || t("common.error.tryAgainLater"),
+        description: t("common.error.modelLimitation"),
+      })
+    },
     onFinish(message) {
       setAiResult(message.content)
       if (isMakeItReal()) {
