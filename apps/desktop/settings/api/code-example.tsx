@@ -22,7 +22,7 @@ const getExampleCodes = (space: string, endpoint: string, date: string) => ({
       "method": "getDocMarkdown",
       "params": ["${date}"]
     }'`,
-  javascript: `fetch("${endpoint}", {
+  javascript: `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -33,13 +33,9 @@ const getExampleCodes = (space: string, endpoint: string, date: string) => ({
     params: ["${date}"],
   }),
 })
-  .then((response) => response.json())
-  .then((data) => {
-    console.log(data)
-  })
-  .catch((error) => {
-    console.error("Error:", error)
-  })`,
+const data = await response.json()
+console.log(data)
+`,
 
   python: `import requests
 
@@ -68,11 +64,11 @@ function highlightCode(code: string) {
         '<span class="text-purple-500">$1</span>'
       )
       .replace(
-        /\b(fetch|then|catch|console|JSON)\b/g,
+        /\b(fetch|then|catch|console|JSON|async|await)\b/g,
         '<span class="text-blue-500">$1</span>'
       )
       .replace(
-        /\b(const|let|var|function)\b/g,
+        /\b(const|let|var|function|try)\b/g,
         '<span class="text-purple-500">$1</span>'
       )
       .replace(

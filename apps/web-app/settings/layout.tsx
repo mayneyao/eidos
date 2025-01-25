@@ -40,6 +40,7 @@ const sidebarNavItems = [
     titleKey: "settings.api",
     href: "/settings/api",
     icon: Cable,
+    isAlpha: true,
   },
   {
     titleKey: "settings.storage",

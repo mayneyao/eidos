@@ -1,7 +1,8 @@
 "use client"
 
-import { Link, useLocation } from "react-router-dom"
 import { LucideIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { Link, useLocation } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
@@ -12,6 +13,7 @@ interface SidebarNavProps extends React.HTMLAttributes<HTMLElement> {
     title: string
     disabled?: boolean
     icon?: LucideIcon
+    isAlpha?: boolean
   }[]
 }
 
@@ -19,6 +21,7 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
   const location = useLocation()
   const pathname = location.pathname
 
+  const { t } = useTranslation()
   return (
     <nav
       className={cn(
@@ -44,10 +47,13 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
             }
           )}
         >
-          {item.icon && (
-            <item.icon className="mr-2 h-4 w-4" />
-          )}
+          {item.icon && <item.icon className="mr-2 h-4 w-4" />}
           {item.title}
+          {item.isAlpha && (
+            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
+              {t("common.badge.alpha")}
+            </span>
+          )}
         </Link>
       ))}
     </nav>
