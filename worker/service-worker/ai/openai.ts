@@ -1,5 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { CoreTool, CoreUserMessage, convertToCoreMessages, streamText } from "ai";
+import { createDeepSeek } from '@ai-sdk/deepseek';
+import { CoreTool, CoreUserMessage, LanguageModelV1, convertToCoreMessages, streamText } from "ai";
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 import { allFunctions } from "@/lib/ai/functions";
 
@@ -11,6 +13,31 @@ import { ChatMessage } from "@/worker/web-worker/meta-table/message";
 import { generateTitleFromUserMessage, getChatById, getMostRecentUserMessage, saveChat, saveMessages, updateChatTitle } from "./helper";
 import { IData } from "./interface";
 
+function getProvider(data: {
+  apiKey?: string,
+  baseUrl?: string,
+  type: IData['type']
+
+}) {
+  const { apiKey, baseUrl, type = 'openai' } = data
+  const config: any = {
+    apiKey
+  }
+  if (baseUrl) {
+    config.baseUrl = baseUrl
+  }
+  switch (type) {
+    case 'deepseek':
+      return createDeepSeek(config)
+    case 'openai':
+      return createOpenAI(config)
+    default:
+      return createOpenAICompatible({
+        baseURL: baseUrl,
+        apiKey
+      })
+  }
+}
 
 export async function handleOpenAI(
   data: IData,
@@ -30,16 +57,18 @@ export async function handleOpenAI(
     space,
     id,
     projectId,
-    useTools
+    useTools,
+    textModel
   } = data
   if (useTools != null) {
     useFunctions = useTools
   }
 
   const model = modelAndProvider.split("@")[0]
-  const openai = createOpenAI({
-    apiKey: apiKey,
-    baseURL: baseUrl,
+  const provider = getProvider({
+    apiKey,
+    baseUrl,
+    type: data.type
   })
 
   const lastMsg = messages[messages.length - 1]
@@ -63,8 +92,21 @@ export async function handleOpenAI(
 
   const dataspace = space && await ctx?.getDataspace(space)
 
+  const llmodelForTextTask = textModel && getProvider({
+    apiKey: textModel.apiKey,
+    baseUrl: textModel.baseUrl,
+    type: textModel.type
+  })(textModel.modelId.split("@")[0]) as LanguageModelV1
+
+  const llmodel = provider(model ?? "gpt-3.5-turbo-0125") as LanguageModelV1
   if (dataspace) {
     const chat = await getChatById(id, dataspace);
+    const getTitle = () => {
+      if (llmodelForTextTask) {
+        return generateTitleFromUserMessage({ message: userMessage as CoreUserMessage, model: llmodelForTextTask })
+      }
+      return 'untitle'
+    }
     console.log("userMessage", {
       userMessage,
       space,
@@ -72,11 +114,11 @@ export async function handleOpenAI(
       chat,
     })
     if (!chat) {
-      const title = await generateTitleFromUserMessage({ message: userMessage as CoreUserMessage, model: openai(model ?? "gpt-3.5-turbo-0125") });
+      const title = await getTitle();
       await saveChat({ id, projectId, title }, dataspace);
     }
     if (!chat?.title) {
-      const title = await generateTitleFromUserMessage({ message: userMessage as CoreUserMessage, model: openai(model ?? "gpt-3.5-turbo-0125") });
+      const title = await getTitle();
       await updateChatTitle(id, title, dataspace);
     }
 
@@ -96,7 +138,7 @@ export async function handleOpenAI(
   })
 
   let request: Parameters<typeof streamText>[0] = {
-    model: openai(model ?? "gpt-3.5-turbo-0125"),
+    model: llmodel,
     messages: coreMessages,
     onFinish: async ({ text }) => {
       try {

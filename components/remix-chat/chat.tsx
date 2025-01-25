@@ -13,8 +13,10 @@ import builtInRemixPrompt from "@/lib/v3/prompts/built-in-remix-prompt.md?raw"
 import { useAiConfig } from "@/hooks/use-ai-config"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useMblock } from "@/hooks/use-mblock"
+import { useToast } from "@/components/ui/use-toast"
 import { useRemixPrompt } from "@/apps/web-app/[database]/scripts/hooks/use-remix-prompt"
 import { useEditorStore } from "@/apps/web-app/[database]/scripts/stores/editor-store"
+import { TaskType } from "@/apps/web-app/settings/ai/hooks"
 
 import { Block, type UIBlock } from "./components/block"
 import { BlockStreamHandler } from "./components/block-stream-handler"
@@ -36,12 +38,17 @@ export function Chat({
   selectedModelId: string
 }) {
   const { mutate } = useSWRConfig()
-  const { codingModel, getConfigByModel, findFirstAvailableModel } =
-    useAiConfig()
+  const {
+    codingModel,
+    getConfigByModel,
+    findFirstAvailableModel,
+    findAvailableModel,
+  } = useAiConfig()
   const script = useMblock(scriptId)
   const [remixPrompt, setRemixPrompt] = useState("")
   const { getRemixPrompt } = useRemixPrompt()
   const { setChatHistory } = useEditorStore()
+  const { toast } = useToast()
 
   useEffect(() => {
     getRemixPrompt(
@@ -54,8 +61,12 @@ export function Chat({
         : builtInRemixPrompt
     ).then(setRemixPrompt)
   }, [script?.bindings, script?.ts_code, script?.code])
+  const [aiModel, setAIModel] = useState(
+    codingModel ?? findFirstAvailableModel()
+  )
 
   const { space } = useCurrentPathInfo()
+  const textModel = findAvailableModel(TaskType.Translation)
   const {
     messages,
     setMessages,
@@ -66,16 +77,19 @@ export function Chat({
     isLoading,
     stop,
     data: streamingData,
-    reload
+    reload,
   } = useChat({
     body: {
-      ...getConfigByModel(codingModel ?? findFirstAvailableModel()),
+      ...getConfigByModel(aiModel),
       systemPrompt: remixPrompt,
       id,
-      model: codingModel,
+      model: aiModel,
       space,
       projectId: scriptId,
       useTools: false,
+      textModel: textModel
+        ? getConfigByModel(findAvailableModel(TaskType.Translation))
+        : undefined,
     },
     initialMessages,
     onFinish: () => {
@@ -84,6 +98,19 @@ export function Chat({
         setChatHistory(currentMessages)
         return currentMessages
       })
+    },
+    onError: (error) => {
+      console.error("Chat error:", error)
+      toast({
+        title: "Error",
+        description: error.message || "An error occurred during the chat",
+        variant: "destructive",
+      })
+    },
+    onResponse: (response) => {
+      if (!response.ok) {
+        console.error("Response not ok:", response.statusText)
+      }
     },
   })
 
@@ -135,7 +162,7 @@ export function Chat({
           ref={messagesContainerRef}
           className="flex flex-col min-w-0 gap-6 flex-1 pt-4 pb-[120px]"
         >
-          {messages.length === 0 && <Overview />}
+          {messages.length === 0 && <Overview aiModel={aiModel} />}
 
           {messages.map((message, index) => (
             <PreviewMessage
@@ -179,6 +206,8 @@ export function Chat({
             messages={messages}
             setMessages={setMessages}
             append={append}
+            aiModel={aiModel}
+            setAIModel={setAIModel}
           />
         </form>
       </div>

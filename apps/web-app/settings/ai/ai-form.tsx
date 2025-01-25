@@ -46,7 +46,6 @@ export function AIConfigForm() {
   }, [aiConfig, reset])
 
   function onSubmit(data: AIFormValues) {
-    console.log(data)
     setAiConfig(data)
     // data.token = "sk-**********"
     toast({

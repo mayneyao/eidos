@@ -425,5 +425,11 @@
     "table.view.query": "查询",
     "table.view.queryDescription": "用于此视图的 SQL 查询。",
     "table.view.typeDescription": "用于此表格的视图类型。",
-    "table.view.where": "当"
+    "table.view.where": "当",
+    "settings.ai.provider.name": "名称",
+    "settings.ai.provider.type": "类型",
+    "settings.ai.provider.actions": "操作",
+    "settings.ai.provider.confirmDelete": "确认删除",
+    "settings.ai.provider.deleteConfirmation": "您确定要删除 {name} 吗？此操作无法撤销。",
+    "settings.ai.provider.confirmDeleteButton": "确认删除"
 }

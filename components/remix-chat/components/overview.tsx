@@ -6,8 +6,7 @@ import { useAiConfig } from "@/hooks/use-ai-config"
 
 import { MessageIcon } from "./icons"
 
-export const Overview = () => {
-  const { codingModel, findFirstAvailableModel } = useAiConfig()
+export const Overview = ({ aiModel }: { aiModel: string }) => {
   return (
     <motion.div
       key="overview"
@@ -26,11 +25,11 @@ export const Overview = () => {
         <p>
           Build your own extensions with AI. This will use your configured{" "}
           <Link to="/settings/ai#model-preferences" className="underline">
-            coding model({codingModel ?? findFirstAvailableModel()})
+            coding model({aiModel})
           </Link>{" "}
           to generate code.
         </p>
-        {!codingModel && (
+        {!aiModel && (
           <p className="text-sm text-gray-500">
             No coding model selected. It will use the first available model.
             Please select a coding model in the{" "}

@@ -170,7 +170,7 @@ export const LLMProviderForm = ({
                 <Input
                   {...field}
                   autoComplete="off"
-                  placeholder="openai/ollama/groq/moonshoot..."
+                  placeholder="openai/deepseek/groq/openrouter..."
                 />
               </FormControl>
               <FormMessage />
@@ -193,8 +193,9 @@ export const LLMProviderForm = ({
                     <SelectValue placeholder={t("settings.ai.providerType")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="google">Google</SelectItem>
+                    <SelectItem value="openai">OpenAI Compatible</SelectItem>
+                    <SelectItem value="deepseek">Deepseek</SelectItem>
+                    {/* <SelectItem value="google">Google</SelectItem> */}
                   </SelectContent>
                 </Select>
               </FormControl>

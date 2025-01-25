@@ -21,6 +21,7 @@ import { sanitizeUIMessages } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { AIModelSelect } from "@/components/ai-chat/ai-chat-model-select"
 import { getSuggestedActions } from "@/apps/web-app/[database]/scripts/helper"
 
 import { ArrowUpIcon, PaperclipIcon, StopIcon } from "./icons"
@@ -47,6 +48,8 @@ export function MultimodalInput({
   handleSubmit,
   className,
   type,
+  aiModel,
+  setAIModel,
 }: {
   chatId: string
   input: string
@@ -69,6 +72,8 @@ export function MultimodalInput({
   ) => void
   className?: string
   type?: IScript["type"]
+  aiModel: string
+  setAIModel: (value: string) => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { width } = useWindowSize()
@@ -315,7 +320,7 @@ export function MultimodalInput({
         onChange={handleInput}
         // onPaste={handlePaste}
         className={cx(
-          "min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl text-base bg-muted",
+          "min-h-[48px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl text-base bg-muted pb-8",
           className
         )}
         rows={3}
@@ -333,41 +338,52 @@ export function MultimodalInput({
         }}
       />
 
-      {isLoading ? (
-        <Button
-          className="rounded-full p-1.5 h-fit absolute bottom-2 right-2 m-0.5 border dark:border-zinc-600"
-          onClick={(event) => {
-            event.preventDefault()
-            stop()
-            setMessages((messages) => sanitizeUIMessages(messages))
-          }}
-        >
-          <StopIcon size={14} />
-        </Button>
-      ) : (
-        <Button
-          className="rounded-full p-1.5 h-fit absolute bottom-2 right-2 m-0.5 border dark:border-zinc-600"
-          onClick={(event) => {
-            event.preventDefault()
-            submitForm()
-          }}
-          disabled={input.length === 0 || uploadQueue.length > 0}
-        >
-          <ArrowUpIcon size={14} />
-        </Button>
-      )}
+      <div className="h-fit absolute bottom-0 flex  items-center justify-between w-full p-1.5">
+        <AIModelSelect
+          onValueChange={setAIModel}
+          value={aiModel}
+          size="xs"
+          noBorder
+          className="max-w-[200px] bg-transparent"
+        />
+        <div className="flex gap-2">
+          <Button
+            className="rounded-full h-fit  m-0.5 dark:border-zinc-700"
+            onClick={(event) => {
+              event.preventDefault()
+              fileInputRef.current?.click()
+            }}
+            variant="outline"
+            disabled={isLoading}
+          >
+            <PaperclipIcon size={14} />
+          </Button>
 
-      <Button
-        className="rounded-full p-1.5 h-fit absolute bottom-2 right-11 m-0.5 dark:border-zinc-700"
-        onClick={(event) => {
-          event.preventDefault()
-          fileInputRef.current?.click()
-        }}
-        variant="outline"
-        disabled={isLoading}
-      >
-        <PaperclipIcon size={14} />
-      </Button>
+          {isLoading ? (
+            <Button
+              className="rounded-full  h-fit  m-0.5 border dark:border-zinc-600"
+              onClick={(event) => {
+                event.preventDefault()
+                stop()
+                setMessages((messages) => sanitizeUIMessages(messages))
+              }}
+            >
+              <StopIcon size={14} />
+            </Button>
+          ) : (
+            <Button
+              className="rounded-full h-fit m-0.5 border dark:border-zinc-600"
+              onClick={(event) => {
+                event.preventDefault()
+                submitForm()
+              }}
+              disabled={input.length === 0 || uploadQueue.length > 0}
+            >
+              <ArrowUpIcon size={14} />
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

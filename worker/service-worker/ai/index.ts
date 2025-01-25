@@ -13,6 +13,7 @@ export default async function handle(event: FetchEvent, ctx?: {
   switch (type) {
     case "google":
     // return handleGoogleAI(data)
+    case "deepseek":
     case "openai":
       return handleOpenAI(data, ctx)
     default:

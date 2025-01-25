@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { IScript } from "@/worker/web-worker/meta-table/script"
-import { useMount } from "ahooks"
+import { useLocalStorageState, useMount } from "ahooks"
 import { Code, Eye } from "lucide-react"
 import { useTheme } from "next-themes"
 import {
@@ -66,6 +66,11 @@ export const ScriptDetailPage = () => {
   const [editorContent, setEditorContent] = useState(
     script.ts_code || script.code
   )
+
+  const [extensionRightPanelSize, setExtensionRightPanelSize] =
+    useLocalStorageState<number>("extension-right-panel-size", {
+      defaultValue: 30,
+    })
 
   const { layoutMode, setLayoutMode, scriptCodeMap, setScriptCodeMap } =
     useEditorStore()
@@ -251,19 +256,25 @@ export const ScriptDetailPage = () => {
                   {showChat && (
                     <>
                       <ResizablePanel
-                        defaultSize={30}
+                        defaultSize={extensionRightPanelSize}
                         minSize={20}
                         maxSize={50}
+                        className="min-w-[400px]"
+                        onResize={(size) => {
+                          setExtensionRightPanelSize(size)
+                        }}
                       >
                         <ChatSidebar
                           scriptId={script.id}
                           createNewChat={createNewChat}
                         />
                       </ResizablePanel>
-                      <ResizableHandle withHandle />
+                      <ResizableHandle />
                     </>
                   )}
-                  <ResizablePanel>
+                  <ResizablePanel
+                    defaultSize={100 - (extensionRightPanelSize ?? 30)}
+                  >
                     <div className="h-full">
                       {!isPreviewMode ? (
                         <Suspense

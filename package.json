@@ -37,7 +37,9 @@
   "start": "electron .",
   "main": "dist-electron/main.js",
   "dependencies": {
+    "@ai-sdk/deepseek": "^0.1.3",
     "@ai-sdk/openai": "^0.0.45",
+    "@ai-sdk/openai-compatible": "^0.1.3",
     "@aws-crypto/sha256-browser": "^5.2.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
@@ -105,7 +107,7 @@
     "@uiw/react-heat-map": "^2.2.1",
     "@xenova/transformers": "^2.17.1",
     "ahooks": "^3.7.8",
-    "ai": "^4.0.4",
+    "ai": "^4.1.5",
     "aws-sdk": "^2.1526.0",
     "aws4fetch": "^1.0.17",
     "better-sqlite3": "^11.2.1",

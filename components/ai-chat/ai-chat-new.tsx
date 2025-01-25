@@ -45,8 +45,6 @@ import { useLoadingStore, useReloadModel } from "./webllm/hooks"
 import { WEB_LLM_MODELS } from "./webllm/models"
 import { useSpeak } from "./webspeech/hooks"
 
-// 添加 i18n 导入
-
 const promptKeys = Object.keys(sysPrompts).slice(0, 1)
 const localModels = WEB_LLM_MODELS.map((item) => `${item.model_id}`)
 
