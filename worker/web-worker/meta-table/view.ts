@@ -30,14 +30,14 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
 
   JSONFields = ["properties", "filter", "order_map", "hidden_fields"]
   async add(data: IView): Promise<IView> {
-    const nextPosition = await this.getNextRowId()
+    const position = await this.getLastPosition() + 1
     await this.dataSpace.exec2(
       `INSERT INTO ${this.name} (id,name,type,table_id,query,position) VALUES (? , ? , ? , ? , ?, ?);`,
-      [data.id, data.name, data.type, data.table_id, data.query, nextPosition]
+      [data.id, data.name, data.type, data.table_id, data.query, position]
     )
     return {
       ...data,
-      position: nextPosition,
+      position,
     }
   }
 
@@ -137,11 +137,11 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     return result
   }
 
-  private async getNextRowId(): Promise<number> {
+  private async getLastPosition(): Promise<number> {
     const res = await this.dataSpace.exec2(
-      `SELECT max(rowid) as maxId from ${this.name};`
+      `SELECT COALESCE(MAX(position), 0) as maxPosition from ${this.name};`
     )
-    return res[0].maxId + 1
+    return res[0].maxPosition
   }
 
   public async getPosition(props: {
@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     targetDirection: "up" | "down"
   }): Promise<number> {
     const { tableId, targetId, targetDirection } = props
-    const POSITION_GAP = 1000 // 定义一个合适的间隔值
+    const POSITION_GAP = 1 // 使用 1 作为基本间隔
 
     const views = await this.list(
       { table_id: tableId },
@@ -167,14 +167,23 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     const nextView = views[nextIndex]
 
     if (prevIndex === -1) {
-      return (nextView?.position || POSITION_GAP) - POSITION_GAP
+      return nextView ? nextView.position - POSITION_GAP : 1
     }
 
     if (!nextView) {
       return prevView.position + POSITION_GAP
     }
 
-    return (prevView.position + nextView.position) / 2
+    if (nextView.position - prevView.position <= 1) {
+      const viewsToReorder = [...views]
+      let position = 1
+      for (const view of viewsToReorder) {
+        await this.updatePosition(view.id, position++)
+      }
+      return this.getPosition(props)
+    }
+
+    return Math.floor((prevView.position + nextView.position) / 2)
   }
 
   public async updatePosition(id: string, position: number): Promise<void> {

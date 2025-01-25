@@ -2,18 +2,21 @@
 
 import { useKeyPress } from "ahooks"
 import {
-  Minimize2,
-  Settings,
   Bot,
   Cable,
-  Database,
-  Palette,
   Cloud,
-  Shield
+  Database,
+  Minimize2,
+  Palette,
+  Settings,
+  Shield,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Outlet } from "react-router-dom"
 
+import { isDesktopMode } from "@/lib/env"
+import { cn } from "@/lib/utils"
+import { isWindowsDesktop } from "@/lib/web/helper"
 import { useGoto } from "@/hooks/use-goto"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -21,45 +24,44 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarNav } from "@/apps/web-app/settings/components/sidebar-nav"
 
 import { useLastOpened } from "../[database]/hook"
-import { cn } from "@/lib/utils"
-import { isWindowsDesktop } from "@/lib/web/helper"
 
 const sidebarNavItems = [
   {
     titleKey: "settings.general",
     href: "/settings",
-    icon: Settings
+    icon: Settings,
   },
   {
     titleKey: "settings.ai",
     href: "/settings/ai",
-    icon: Bot
+    icon: Bot,
   },
   {
     titleKey: "settings.api",
     href: "/settings/api",
-    icon: Cable
+    icon: Cable,
   },
   {
     titleKey: "settings.storage",
     href: "/settings/storage",
-    icon: Database
+    icon: Database,
   },
   {
     titleKey: "settings.appearance",
     href: "/settings/appearance",
-    icon: Palette
+    icon: Palette,
   },
   {
     titleKey: "settings.sync",
     href: "/settings/sync",
     disabled: true,
-    icon: Cloud
+    icon: Cloud,
   },
   {
     titleKey: "settings.security",
     href: "/settings/security",
-    icon: Shield
+    icon: Shield,
+    disabled: !isDesktopMode,
   },
   // {
   //   titleKey: "settings.experiment",
@@ -83,12 +85,11 @@ export default function SettingsLayout() {
 
   return (
     <ScrollArea className="h-[100vh] w-full">
-      <div className={
-        cn("h-8 fixed drag-region z-0", {
-          'w-[calc(100vw-100px)]': isWindowsDesktop,
-        })
-      } >
-      </div>
+      <div
+        className={cn("h-8 fixed drag-region z-0", {
+          "w-[calc(100vw-100px)]": isWindowsDesktop,
+        })}
+      ></div>
       <div className="grid w-full grid-cols-5 ">
         <div className="col-span-1" />
         <div className="col-span-5 space-y-6 p-4 pb-16 md:block md:p-10 xl:col-span-3">
