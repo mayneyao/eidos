@@ -84,9 +84,9 @@ export const InstallScript = () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <Link to={`/${space}/extensions/store`}>
+          {/* <Link to={`/${space}/extensions/store`}>
             <DropdownMenuItem>From Store</DropdownMenuItem>
-          </Link>
+          </Link> */}
           <DropdownMenuItem onClick={() => setOpen(true)}>
             From Github
           </DropdownMenuItem>
