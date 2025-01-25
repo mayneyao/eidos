@@ -74,19 +74,7 @@ export const ScriptConfig = () => {
     })
   }
 
-  const handleSave = async () => {
-    await updateScript({
-      ...script,
-      fields_map: fieldsMap,
-      env_map: envMap,
-      dependencies: script.type === "py_script" ? dependencies : undefined,
-    })
-    revalidator.revalidate()
-    toast({
-      title: "Script Updated Successfully",
-    })
-  }
-  const handleTableChange = (tableName: string, tableId: string) => {
+  const handleTableChange = async (tableName: string, tableId: string) => {
     const newFieldsMap = {
       ...fieldsMap,
       [tableName]: {
@@ -98,9 +86,21 @@ export const ScriptConfig = () => {
       },
     }
     setFieldsMap(newFieldsMap)
+    
+    // Auto save after change
+    await updateScript({
+      ...script,
+      fields_map: newFieldsMap,
+      env_map: envMap,
+      dependencies: script.type === "py_script" ? dependencies : undefined,
+    })
+    revalidator.revalidate()
+    toast({
+      title: "Script Updated Successfully",
+    })
   }
 
-  const handleFieldChange = (
+  const handleFieldChange = async (
     tableName: string,
     fieldName: string,
     value: string
@@ -116,17 +116,76 @@ export const ScriptConfig = () => {
       },
     }
     setFieldsMap(newFieldsMap)
+
+    // Auto save after change
+    await updateScript({
+      ...script,
+      fields_map: newFieldsMap,
+      env_map: envMap,
+      dependencies: script.type === "py_script" ? dependencies : undefined,
+    })
+    revalidator.revalidate()
+    toast({
+      title: "Script Updated Successfully",
+    })
   }
 
-  const handleAddDependency = () => {
+  const handleAddDependency = async () => {
     if (newDependency.trim()) {
-      setDependencies([...dependencies, newDependency.trim()])
+      const newDependencies = [...dependencies, newDependency.trim()]
+      setDependencies(newDependencies)
       setNewDependency("")
+
+      // Auto save after adding dependency
+      await updateScript({
+        ...script,
+        fields_map: fieldsMap,
+        env_map: envMap,
+        dependencies: script.type === "py_script" ? newDependencies : undefined,
+      })
+      revalidator.revalidate()
+      toast({
+        title: "Script Updated Successfully",
+      })
     }
   }
 
-  const handleRemoveDependency = (index: number) => {
-    setDependencies(dependencies.filter((_, i) => i !== index))
+  const handleRemoveDependency = async (index: number) => {
+    const newDependencies = dependencies.filter((_, i) => i !== index)
+    setDependencies(newDependencies)
+
+    // Auto save after removing dependency
+    await updateScript({
+      ...script,
+      fields_map: fieldsMap,
+      env_map: envMap,
+      dependencies: script.type === "py_script" ? newDependencies : undefined,
+    })
+    revalidator.revalidate()
+    toast({
+      title: "Script Updated Successfully",
+    })
+  }
+
+  // Add new handler for env changes
+  const handleEnvChange = async (envName: string, value: string) => {
+    const newEnvMap = {
+      ...envMap,
+      [envName]: value,
+    }
+    setEnvMap(newEnvMap)
+
+    // Auto save after env change
+    await updateScript({
+      ...script,
+      fields_map: fieldsMap,
+      env_map: newEnvMap,
+      dependencies: script.type === "py_script" ? dependencies : undefined,
+    })
+    revalidator.revalidate()
+    toast({
+      title: "Script Updated Successfully",
+    })
   }
 
   return (
@@ -242,12 +301,7 @@ export const ScriptConfig = () => {
                       <Input
                         className="w-[200px]"
                         value={envMap?.[env.name] ?? ""}
-                        onChange={(e) => {
-                          setEnvMap({
-                            ...envMap,
-                            [env.name]: e.target.value,
-                          })
-                        }}
+                        onChange={(e) => handleEnvChange(env.name, e.target.value)}
                         disabled={env.readonly}
                       />
                     </div>
@@ -323,9 +377,6 @@ export const ScriptConfig = () => {
       )}
 
       <Bindings bindings={bindings} onUpdateBindings={handleUpdateBindings} />
-      <div className="mt-4">
-        <Button onClick={handleSave}>{t("common.update")}</Button>
-      </div>
     </div>
   )
 }
