@@ -4,6 +4,8 @@ import type { Dispatch, SetStateAction } from "react"
 import type { Message } from "ai"
 import cx from "classnames"
 import { motion } from "framer-motion"
+import { BookOpenTextIcon } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import type { Vote } from "../interface"
 import type { UIBlock } from "./block"
@@ -81,13 +83,19 @@ export const PreviewMessage = ({
             <div className="flex flex-col gap-4">
               {message.toolInvocations.map((toolInvocation) => {
                 const { toolName, toolCallId, state, args } = toolInvocation
-
                 if (state === "result") {
                   const { result } = toolInvocation
 
                   return (
                     <div key={toolCallId}>
-                      {toolName === "getWeather" ? (
+                      {toolName === "createDoc" ? (
+                        <div>
+                          <Link to={result} className="p-1 flex gap-2 text-blue-400">
+                            <BookOpenTextIcon></BookOpenTextIcon>
+                            {args.title}
+                          </Link>
+                        </div>
+                      ) : toolName === "getWeather" ? (
                         <Weather weatherAtLocation={result} />
                       ) : toolName === "createDocument" ? (
                         <DocumentToolResult
