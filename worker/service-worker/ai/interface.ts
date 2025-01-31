@@ -1,3 +1,4 @@
+import { LLMProvider } from "@/apps/web-app/settings/ai/store"
 import type { Message } from "ai"
 
 export interface IData {
@@ -12,7 +13,7 @@ export interface IData {
   space: string // dataspace name
   projectId?: string
   useTools?: boolean
-  type?: 'openai' | 'deepseek' | 'openai-compatible' | string
+  type?: LLMProvider['type']
   textModel?: {
     baseUrl: string;
     apiKey: string;

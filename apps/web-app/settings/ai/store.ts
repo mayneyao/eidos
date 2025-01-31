@@ -6,7 +6,7 @@ import { createJSONStorage, persist } from "zustand/middleware"
 import { indexedDBStorage } from "@/lib/storage/indexeddb"
 
 export const llmProviderSchema = z.object({
-  type: z.enum(["openai", "google", "deepseek"]).default("openai"),
+  type: z.enum(["openai", "google", "deepseek", "groq"]).default("openai"),
   name: z.string(),
   apiKey: z.string().optional(),
   baseUrl: z.string().url().optional().or(z.literal('')),

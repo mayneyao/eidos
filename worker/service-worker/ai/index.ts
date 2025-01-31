@@ -14,6 +14,7 @@ export default async function handle(event: FetchEvent, ctx?: {
     case "google":
     // return handleGoogleAI(data)
     case "deepseek":
+    case "groq":
     case "openai":
       return handleOpenAI(data, ctx)
     default:

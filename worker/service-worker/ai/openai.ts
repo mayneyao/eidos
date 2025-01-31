@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createDeepSeek } from '@ai-sdk/deepseek';
 import { CoreTool, CoreUserMessage, LanguageModelV1, convertToCoreMessages, extractReasoningMiddleware, smoothStream, streamText, wrapLanguageModel } from "ai";
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { createGroq } from '@ai-sdk/groq';
 
 import { allFunctions } from "@/lib/ai/functions";
 
@@ -29,6 +30,8 @@ function getProvider(data: {
   switch (type) {
     case 'deepseek':
       return createDeepSeek(config)
+    case 'groq':
+      return createGroq(config)
     case 'openai':
       return createOpenAI(config)
     default:
