@@ -75,13 +75,18 @@ const utilsBlob = new Blob([utilsCode], {
 });
 const utilsUrl = URL.createObjectURL(utilsBlob);
 
+const uiLibDeps = new Set([
+  '@radix-ui/*',
+  'recharts'
+])
+
 export async function generateImportMap(
   thirdPartyLibs: string[],
   uiLibs: string[]
 ) {
   const moduleRegistry = new Map();
   const REACT_VERSION = '18.3.1';
-  
+
   const imports: Record<string, string> = {
     'react': `https://esm.sh/stable/react@${REACT_VERSION}`,
     'react/jsx-runtime': `https://esm.sh/stable/react@${REACT_VERSION}/jsx-runtime`,
@@ -92,11 +97,19 @@ export async function generateImportMap(
     "@/lib/utils": utilsUrl,
   };
 
-  // 处理第三方库
   thirdPartyLibs.forEach((dep) => {
     if (dep === "react" || dep === "react-dom") return;
     
-    if (dep.startsWith('@radix-ui/')) {
+    // Check if the dependency matches any pattern in uiLibDeps
+    const shouldExternalizeReact = Array.from(uiLibDeps).some(pattern => {
+      if (pattern.endsWith('*')) {
+        const prefix = pattern.slice(0, -1);
+        return dep.startsWith(prefix);
+      }
+      return dep === pattern;
+    });
+
+    if (shouldExternalizeReact) {
       imports[dep] = `https://esm.sh/${dep}?external=react&alias=react@${REACT_VERSION}`;
     } else {
       imports[dep] = `https://esm.sh/${dep}?deps=react@${REACT_VERSION}`;
