@@ -22,8 +22,17 @@ export function useScrollToBottom<T extends HTMLElement>(): [
              mutation.target.parentElement?.closest('pre') !== null))
         );
 
-        if (!shouldIgnore) {
-          end.scrollIntoView({ behavior: 'instant', block: 'end' });
+        const isUserMessage = mutations.some(mutation => {
+          const target = mutation.target;
+          if (target instanceof Element) {
+            const messageElement = target.closest('[data-message-role="user"]');
+            return messageElement !== null;
+          }
+          return false;
+        });
+
+        if (!shouldIgnore && isUserMessage) {
+          end.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
       });
 

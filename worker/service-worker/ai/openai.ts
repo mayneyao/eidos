@@ -1,6 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createDeepSeek } from '@ai-sdk/deepseek';
-import { CoreTool, CoreUserMessage, LanguageModelV1, convertToCoreMessages, streamText } from "ai";
+import { CoreTool, CoreUserMessage, LanguageModelV1, convertToCoreMessages, extractReasoningMiddleware, smoothStream, streamText, wrapLanguageModel } from "ai";
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 import { allFunctions } from "@/lib/ai/functions";
@@ -138,7 +138,14 @@ export async function handleOpenAI(
   })
 
   let request: Parameters<typeof streamText>[0] = {
-    model: llmodel,
+    model: wrapLanguageModel({
+      model: llmodel,
+      middleware: extractReasoningMiddleware({ tagName: 'think' })
+    }),
+    experimental_transform: smoothStream({
+      delayInMs: 20,
+      chunking: 'line'
+    }),
     messages: coreMessages,
     onFinish: async ({ text }) => {
       try {
@@ -166,5 +173,7 @@ export async function handleOpenAI(
   }
   console.log("request", JSON.stringify(request, null, 2))
   const result = streamText(request)
-  return result.toDataStreamResponse()
+  return result.toDataStreamResponse({
+    sendReasoning: true
+  })
 }
