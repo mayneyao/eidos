@@ -32,7 +32,7 @@ export function useScrollToBottom<T extends HTMLElement>(): [
         });
 
         if (!shouldIgnore && isUserMessage) {
-          end.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          end.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       });
 

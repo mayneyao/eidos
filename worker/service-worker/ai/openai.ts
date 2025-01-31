@@ -1,8 +1,5 @@
-import { createOpenAI } from "@ai-sdk/openai";
-import { createDeepSeek } from '@ai-sdk/deepseek';
-import { CoreTool, CoreUserMessage, LanguageModelV1, convertToCoreMessages, extractReasoningMiddleware, smoothStream, streamText, wrapLanguageModel } from "ai";
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { createGroq } from '@ai-sdk/groq';
+import { getProvider } from "@/lib/ai/helper";
+import { CoreTool, CoreUserMessage, LanguageModelV1, convertToCoreMessages, createDataStreamResponse, extractReasoningMiddleware, smoothStream, streamText, wrapLanguageModel } from "ai";
 
 import { allFunctions } from "@/lib/ai/functions";
 
@@ -13,34 +10,6 @@ import { DataSpace } from "@/worker/web-worker/DataSpace";
 import { ChatMessage } from "@/worker/web-worker/meta-table/message";
 import { generateTitleFromUserMessage, getChatById, getMostRecentUserMessage, saveChat, saveMessages, updateChatTitle } from "./helper";
 import { IData } from "./interface";
-
-function getProvider(data: {
-  apiKey?: string,
-  baseUrl?: string,
-  type: IData['type']
-
-}) {
-  const { apiKey, baseUrl, type = 'openai' } = data
-  const config: any = {
-    apiKey
-  }
-  if (baseUrl) {
-    config.baseUrl = baseUrl
-  }
-  switch (type) {
-    case 'deepseek':
-      return createDeepSeek(config)
-    case 'groq':
-      return createGroq(config)
-    case 'openai':
-      return createOpenAI(config)
-    default:
-      return createOpenAICompatible({
-        baseURL: baseUrl,
-        apiKey
-      })
-  }
-}
 
 export async function handleOpenAI(
   data: IData,
@@ -139,44 +108,55 @@ export async function handleOpenAI(
       parameters: f.schema
     }
   })
-
-  let request: Parameters<typeof streamText>[0] = {
-    model: wrapLanguageModel({
-      model: llmodel,
-      middleware: extractReasoningMiddleware({ tagName: 'think' })
-    }),
-    experimental_transform: smoothStream({
-      delayInMs: 20,
-      chunking: 'line'
-    }),
-    messages: coreMessages,
-    onFinish: async ({ text }) => {
-      try {
-        if (dataspace) {
-          await saveMessages({
-            messages: [{
-              id: uuidv7(),
-              chat_id: id,
-              role: "assistant",
-              content: text,
-            }],
-          }, dataspace);
-        }
-      } catch (error) {
-        console.error('Failed to save chat');
+  // immediately start streaming (solves RAG issues with status, etc.)
+  return createDataStreamResponse({
+    execute: dataStream => {
+      dataStream.writeData('initialized call');
+      let request: Parameters<typeof streamText>[0] = {
+        model: wrapLanguageModel({
+          model: llmodel,
+          middleware: extractReasoningMiddleware({ tagName: 'think' })
+        }),
+        experimental_transform: smoothStream({
+          delayInMs: 20,
+          chunking: 'line'
+        }),
+        messages: coreMessages,
+        onFinish: async ({ text }) => {
+          try {
+            if (dataspace) {
+              await saveMessages({
+                messages: [{
+                  id: uuidv7(),
+                  chat_id: id,
+                  role: "assistant",
+                  content: text,
+                }],
+              }, dataspace);
+            }
+          } catch (error) {
+            console.error('Failed to save chat');
+          }
+        },
       }
+      if (useFunctions) {
+        request = {
+          ...request,
+          tools: _tools,
+          toolChoice: "auto",
+        }
+      }
+      const result = streamText(request)
+      result.mergeIntoDataStream(dataStream, {
+        sendReasoning: true
+      });
     },
-  }
-  if (useFunctions) {
-    request = {
-      ...request,
-      tools: _tools,
-      toolChoice: "auto",
-    }
-  }
-  console.log("request", JSON.stringify(request, null, 2))
-  const result = streamText(request)
-  return result.toDataStreamResponse({
-    sendReasoning: true
-  })
+
+    onError: error => {
+      // Error messages are masked by default for security reasons.
+      // If you want to expose the error message to the client, you can do so here:
+      return error instanceof Error ? error.message : String(error);
+    },
+  });
+
 }

@@ -94,6 +94,7 @@ export const PreviewMessage = ({
                   "leading-relaxed whitespace-pre-wrap overflow-hidden transition-all duration-200",
                   isReasoningExpanded ? "max-h-[1000px]" : "max-h-0"
                 )}
+                onClick={(e) => e.stopPropagation()}
               >
                 {message.reasoning}
               </div>

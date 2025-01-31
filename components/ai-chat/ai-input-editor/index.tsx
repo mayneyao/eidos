@@ -262,7 +262,7 @@ export const AIInputEditor = ({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className="relative">
+      <div className="relative max-h-[200px] overflow-y-auto">
         <RichTextPlugin
           contentEditable={
             <ContentEditable

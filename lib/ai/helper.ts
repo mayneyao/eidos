@@ -1,12 +1,18 @@
-import type { ModelRecord } from "@mlc-ai/web-llm"
+import type { ModelRecord } from "@mlc-ai/web-llm";
 
 import {
   WEB_LLM_MODELS,
   modelLibURLPrefix,
   modelVersion,
-} from "@/components/ai-chat/webllm/models"
+} from "@/components/ai-chat/webllm/models";
 
-import { efsManager } from "../storage/eidos-file-system"
+import { efsManager } from "../storage/eidos-file-system";
+
+import { LLMProvider } from "@/apps/web-app/settings/ai/store";
+import { createDeepSeek } from '@ai-sdk/deepseek';
+import { createGroq } from '@ai-sdk/groq';
+import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 export type Model = (typeof WEB_LLM_MODELS)[0]
 
@@ -106,5 +112,32 @@ export const downloadWebLLM = async (
     await downloadModelFile(modelsDir, record.dataPath)
     downloadedBytes += record.nbytes
     cb?.(downloadedBytes / fileList.metadata.ParamBytes)
+  }
+}
+
+export function getProvider(data: {
+  apiKey?: string,
+  baseUrl?: string,
+  type?: LLMProvider['type']
+}) {
+  const { apiKey, baseUrl, type = 'openai' } = data
+  const config: any = {
+    apiKey
+  }
+  if (baseUrl) {
+    config.baseUrl = baseUrl
+  }
+  switch (type) {
+    case 'deepseek':
+      return createDeepSeek(config)
+    case 'groq':
+      return createGroq(config)
+    case 'openai':
+      return createOpenAI(config)
+    default:
+      return createOpenAICompatible({
+        baseURL: baseUrl,
+        apiKey
+      })
   }
 }
