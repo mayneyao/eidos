@@ -74,6 +74,7 @@
     "doc.addIcon": "Add Icon",
     "doc.changeCover": "Change cover",
     "doc.coverImage": "Cover image",
+    "doc.generateTitle": "Generate Title",
     "doc.hideProperties": "Hide Properties",
     "doc.menu.background": "Background {{name}}",
     "doc.menu.bookmark": "Bookmark",

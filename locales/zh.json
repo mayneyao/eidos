@@ -74,6 +74,7 @@
     "doc.addIcon": "添加图标",
     "doc.changeCover": "更改封面",
     "doc.coverImage": "封面图片",
+    "doc.generateTitle": "生成标题",
     "doc.hideProperties": "隐藏属性",
     "doc.menu.background": "背景 {{name}}",
     "doc.menu.bookmark": "书签",

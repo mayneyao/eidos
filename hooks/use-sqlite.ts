@@ -403,6 +403,14 @@ export const useSqlite = (dbName?: string) => {
     },
     [sqlWorker]
   )
+  const getDocMarkdown = useCallback(
+    async (docId: string) => {
+      if (!sqlWorker) return
+      const doc = await sqlWorker.getDocMarkdown(docId)
+      return doc
+    },
+    [sqlWorker]
+  )
 
   const addNode2List = useCallback(
     (node: ITreeNode) => {
@@ -610,6 +618,7 @@ export const useSqlite = (dbName?: string) => {
     updateDoc,
     renameNode,
     getDoc,
+    getDocMarkdown,
     deleteNode,
     restoreNode,
     toggleNodeFullWidth,

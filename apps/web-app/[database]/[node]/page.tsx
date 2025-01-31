@@ -1,6 +1,7 @@
 import { useEffect } from "react"
-import { useParams } from "react-router-dom"
+import { Wand2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { useParams } from "react-router-dom"
 
 import {
   DataUpdateSignalType,
@@ -16,12 +17,14 @@ import { useNode } from "@/hooks/use-nodes"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useUiColumns } from "@/hooks/use-ui-columns"
 import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui/use-toast"
 import { DocProperty } from "@/components/doc-property"
 import { Editor } from "@/components/doc/editor"
 import { FolderTree } from "@/components/folder"
 import { Table } from "@/components/table"
 
 import { DefaultColors } from "../../../../components/file-selector"
+import { useGenerateTitle } from "./hooks/use-generate-title"
 import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
 import { NodeRestore } from "./node-restore"
@@ -42,6 +45,8 @@ export const NodeComponent = ({
 
   const { getEmoji } = useEmoji()
   const { updateIcon, updateCover, updateHideProperties } = useNode()
+  const { generateTitle, isLoading: isTitleGenerating } = useGenerateTitle()
+  const { getDocMarkdown } = useSqlite()
 
   useEffect(() => {
     const bc = new BroadcastChannel(EidosDataEventChannelName)
@@ -93,6 +98,26 @@ export const NodeComponent = ({
   }
   const isReadOnly = node.is_locked || isInkServiceMode
 
+  const handleGenerateTitle = async () => {
+    if (!node?.id) return
+
+    const docContent = await getDocMarkdown(node.id)
+    if (!docContent) return
+    try {
+      const newTitle = await generateTitle(docContent)
+      console.log("newTitle", newTitle)
+      if (newTitle) {
+        await updateNodeName(node.id, newTitle)
+      }
+    } catch (error) {
+      console.error("Failed to generate title:", error)
+      toast({
+        title: t("common.error"),
+        description: t("common.error.tryAgainLater"),
+      })
+    }
+  }
+
   return (
     <>
       <NodeRestore node={node} />
@@ -130,19 +155,30 @@ export const NodeComponent = ({
                 <>
                   {!node.icon && (
                     <Button size="xs" variant="ghost" onClick={handleAddIcon}>
-                      {t('doc.addIcon')}
+                      {t("doc.addIcon")}
                     </Button>
                   )}
                   {!node.cover && (
                     <Button size="xs" variant="ghost" onClick={handleAddCover}>
-                      {t('doc.addCover')}
+                      {t("doc.addCover")}
                     </Button>
                   )}
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={handleGenerateTitle}
+                    disabled={isTitleGenerating}
+                  >
+                    <Wand2 className="mr-1 h-3 w-3" />
+                    {t("doc.generateTitle")}
+                  </Button>
                 </>
               )}
               {parentNode?.type === "table" && (
                 <Button size="xs" variant="ghost" onClick={toggleProperties}>
-                  {node.hide_properties ? t('doc.showProperties') : t('doc.hideProperties')}
+                  {node.hide_properties
+                    ? t("doc.showProperties")
+                    : t("doc.hideProperties")}
                 </Button>
               )}
             </div>
