@@ -48,6 +48,7 @@ import { BaseServerDatabase } from "@/lib/sqlite/interface"
 import { ChatTable } from "./meta-table/chat"
 import { MessageTable } from "./meta-table/message"
 import { Email } from "postal-mime"
+import { TableFullTextSearch } from "./data-pipeline/TableFullTextSearch"
 
 export type EidosTable =
   | DocTable
@@ -99,6 +100,8 @@ export class DataSpace {
 
   // for auto migration
   hasMigrated = false
+  private tableFullTextSearch: TableFullTextSearch
+
   constructor(config: {
     db: EidosDatabase
     activeUndoManager: boolean
@@ -200,6 +203,8 @@ export class DataSpace {
     // other
     this.undoRedoManager = new SQLiteUndoRedo(this)
     this.activeUndoManager = activeUndoManager
+
+    this.tableFullTextSearch = new TableFullTextSearch(this)
   }
 
   // close db
@@ -1221,6 +1226,15 @@ export class DataSpace {
     // 根据邮件内容转发给可以处理邮件的 script
     // 1. find email handler script
     // 2. call email handler script
+  }
+
+  // Add new public methods for FTS functionality
+  public async createTableFTS(tableName: string, temporary: boolean = false) {
+    return await this.tableFullTextSearch.createDynamicFTS(tableName, temporary)
+  }
+
+  public async searchTableFTS(tableName: string, query: string, viewId: string) {
+    return await this.tableFullTextSearch.search(tableName, query, viewId)
   }
 
 }

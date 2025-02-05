@@ -20,7 +20,8 @@ import {
   arrayMove,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { ChevronDownIcon, PlusIcon } from "lucide-react"
+import { useKeyPress } from "ahooks"
+import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import {
   createSearchParams,
@@ -49,11 +50,14 @@ import {
 import { NodeComponent } from "@/apps/web-app/[database]/[node]/page"
 
 import { Button } from "../ui/button"
+import { Input } from "../ui/input"
 import { TableContext, useCurrentView, useViewOperation } from "./hooks"
 import { ViewField } from "./view-field/view-field"
 import { ViewFilter } from "./view-filter"
 import { ViewItem } from "./view-item"
 import { ViewSort } from "./view-sort"
+import { useSearch } from "./hooks/use-search"
+import { TableSearch } from "./search"
 
 const Views = ({
   views,
@@ -158,6 +162,7 @@ export const ViewToolbar = (props: {
   //   ref2.current
   // )
 
+
   const { isEmbed } = props
   const { updateViews, views } = useTableOperation(tableName!, space)
   const navigate = useNavigate()
@@ -169,6 +174,9 @@ export const ViewToolbar = (props: {
     tableName,
     viewId,
   })
+
+  useSearch(currentView?.id)
+
   const [searchParams] = useSearchParams()
   const sharePeerId = searchParams.get("peerId")
   const { addRow } = useTableOperation(tableName, space)
@@ -177,6 +185,38 @@ export const ViewToolbar = (props: {
   const tableId = getTableIdByRawTableName(tableName)
   const { subPageId, setSubPage, clearSubPage } = useCurrentSubPage()
   const { t } = useTranslation()
+
+  // Use context instead
+  const { searchQuery, setSearchQuery, showSearch, setShowSearch } = useContext(TableContext)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // 当显示搜索框时自动聚焦
+  useEffect(() => {
+    if (showSearch) {
+      searchInputRef.current?.focus()
+    }
+  }, [showSearch])
+
+  // Update search related handlers to use context
+  const handleClickOutside = useCallback(
+    (event: MouseEvent) => {
+      if (
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target as Node) &&
+        searchQuery === ""
+      ) {
+        setShowSearch(false)
+      }
+    },
+    [searchQuery, setShowSearch]
+  )
+
+  useEffect(() => {
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [handleClickOutside])
 
   const handleAddRow = async () => {
     const uuid = uuidv7()
@@ -261,6 +301,18 @@ export const ViewToolbar = (props: {
     [tableName, updateViews]
   )
 
+  useKeyPress("esc", () => {
+    if (showSearch) {
+      setShowSearch(false)
+      setSearchQuery("")
+    }
+  })
+
+  useKeyPress(["ctrl.f", "meta.f"], (event) => {
+    event.preventDefault()
+    setShowSearch(true)
+  })
+
   return (
     <div ref={ref}>
       <div className="ml-2 flex items-center justify-between border-b pb-1">
@@ -285,6 +337,7 @@ export const ViewToolbar = (props: {
           ref={ref2}
         >
           <div className="flex gap-1">
+            <TableSearch />
             <ViewFilter view={currentView} />
             <ViewSort view={currentView} />
             <ViewField view={currentView} />

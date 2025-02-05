@@ -67,7 +67,7 @@ export class CsvImportAndExport extends BaseImportAndExport {
     const tableId = uuidv4().split("-").join("")
     let tm = new TableManager(tableId, dataSpace)
     let rows2Create: any[] = []
-    const batchSize = 10000
+    const batchSize = 50000
     const start = performance.now()
     dataSpace.blockUIMsg("Analyzing file...")
     const types = await this.guessColumnType(file.content)
@@ -132,18 +132,31 @@ CREATE TABLE ${rawTableName} (
     dataSpace.db.exec("PRAGMA locking_mode = EXCLUSIVE;")
     dataSpace.db.exec("PRAGMA temp_store = MEMORY;")
 
-    for (const record of records) {
-      rows2Create.push(record)
-      if (rows2Create.length === batchSize) {
-        await tm.rows.batchSyncCreate(rows2Create, fieldMap)
-        dataSpace.blockUIMsg("Importing data...", {
-          progress: (rows2Create.length / records.length) * 100,
-        })
-        rows2Create = []
-      }
-    }
-    if (rows2Create.length > 0) {
+    // Add throttle for UI updates
+    let lastUIUpdate = Date.now()
+    const UI_UPDATE_INTERVAL = 500 // Update UI every 500ms
+
+    // Optimize batch processing
+    let processedRows = 0
+    const totalRows = records.length
+
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize)
+      rows2Create = batch
       await tm.rows.batchSyncCreate(rows2Create, fieldMap)
+      
+      processedRows += batch.length
+      
+      // Throttle UI updates
+      const now = Date.now()
+      if (now - lastUIUpdate >= UI_UPDATE_INTERVAL) {
+        dataSpace.blockUIMsg("Importing data...", {
+          progress: (processedRows / totalRows) * 100,
+        })
+        lastUIUpdate = now
+        // Add a small delay to allow UI updates
+        await new Promise(resolve => setTimeout(resolve, 10))
+      }
     }
     const end = performance.now()
     console.log("import csv file done", end - start)

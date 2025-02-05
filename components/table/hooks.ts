@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  PropsWithChildren,
 } from "react"
 import { SelectFromStatement, parseFirst, toSql } from "pgsql-ast-parser"
 import { useSearchParams } from "react-router-dom"
@@ -19,17 +20,52 @@ import { useTableFields, useTableOperation } from "@/hooks/use-table"
 import { getShowColumns } from "./helper"
 import { isInkServiceMode } from "@/lib/env"
 
-export const TableContext = createContext<{
-  tableName: string
-  space: string
-  viewId?: string
-  isReadOnly?: boolean
-}>({
-  tableName: "",
-  space: "",
-  viewId: undefined,
-  isReadOnly: true,
+// 定义搜索结果的类型
+export interface SearchMatch {
+    column: string
+    snippet: string
+}
+
+export interface SearchResult {
+    row: Record<string, any>
+    matches: SearchMatch[]
+    rowIndex: number
+}
+
+interface TableContextType {
+    tableName: string
+    space: string
+    viewId?: string
+    isReadOnly?: boolean
+    searchQuery: string
+    setSearchQuery: (query: string) => void
+    showSearch: boolean
+    setShowSearch: (show: boolean) => void
+    searchResults: SearchResult[] | null
+    setSearchResults: (results: SearchResult[] | null) => void
+    currentSearchIndex: number
+    setCurrentSearchIndex: (value: number | ((prev: number) => number)) => void
+    searchTime: number
+    setSearchTime: (time: number) => void
+}
+
+export const TableContext = createContext<TableContextType>({
+    tableName: "",
+    space: "",
+    viewId: undefined,
+    isReadOnly: true,
+    searchQuery: "",
+    setSearchQuery: () => {},
+    showSearch: false,
+    setShowSearch: () => {},
+    searchResults: null,
+    setSearchResults: () => {},
+    currentSearchIndex: 0,
+    setCurrentSearchIndex: (value: number | ((prev: number) => number)) => {},
+    searchTime: 0,
+    setSearchTime: () => {},
 })
+
 
 export const useViewOperation = () => {
   const { tableName, space } = useContext(TableContext)
@@ -191,4 +227,31 @@ export const useFileFields = () => {
   return useMemo(() => {
     return fields.filter((field) => field.type === FieldType.File)
   }, [fields])
+}
+
+export const useTableSearch = () => {
+    const [searchQuery, setSearchQuery] = useState("")
+    const [showSearch, setShowSearch] = useState(false)
+    const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
+    const [currentSearchIndex, setCurrentSearchIndex] = useState(0)
+    const [searchTime, setSearchTime] = useState(0)
+    const clearSearch = useCallback(() => {
+        setSearchQuery("")
+        setShowSearch(false)
+        setSearchResults(null)
+    }, [])
+
+    return {
+        searchQuery,
+        setSearchQuery,
+        showSearch, 
+        setShowSearch,
+        searchResults,
+        setSearchResults,
+        clearSearch,
+        currentSearchIndex,
+        setCurrentSearchIndex,
+        searchTime,
+        setSearchTime
+    }
 }
