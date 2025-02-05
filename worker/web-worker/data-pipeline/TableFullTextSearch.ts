@@ -1,3 +1,4 @@
+import { isDesktopMode } from "@/lib/env";
 import { DataSpace } from "../DataSpace";
 
 export class TableFullTextSearch {
@@ -5,6 +6,9 @@ export class TableFullTextSearch {
 
     async createDynamicFTS(tableName: string, temporary: boolean = false) {
         const tableInfo = await this.dataspace.db.selectObjects(`PRAGMA table_info(${tableName})`);
+        if (!isDesktopMode) {
+            throw new Error('Full text search is not supported in web mode');
+        }
 
         const columns = tableInfo
             .map((col: any) => col.name)
@@ -15,10 +19,13 @@ export class TableFullTextSearch {
 
         const createFtsSql = `
         CREATE VIRTUAL TABLE IF NOT EXISTS ${ftsTableName}
-        USING fts5(${columns}, content='${tableName}', tokenize='unicode61');
+        USING fts5(${columns}, content='${tableName}', tokenize = 'simple');
         `;
 
         await this.dataspace.db.exec(createFtsSql);
+
+        const syncDataSql = `INSERT INTO ${ftsTableName}(${columns}) SELECT ${columns} FROM ${tableName};`;
+        await this.dataspace.db.exec(syncDataSql);
 
         if (!temporary) {
             const triggerSqls = [
@@ -43,30 +50,75 @@ export class TableFullTextSearch {
         console.log(`FTS table ${ftsTableName} created for ${tableName}`);
     }
 
+    /**
+     * 全文搜索指定的表，返回匹配到的行，并且明确的指出匹配到的列
+     * @param tableName 
+     * @param query 
+     * @param limit 
+     * @param offset 
+     * @returns 包含匹配行数据和匹配列信息的结果
+     */
     async search(tableName: string, query: string, limit: number = 100, offset: number = 0) {
+        if (!isDesktopMode) {
+            throw new Error('Full text search is not supported in web mode');
+        }
         const ftsTableName = `fts_${tableName}`;
 
-        const tableExists = await this.dataspace.syncExec2(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [ftsTableName]);
-        if (!tableExists) {
-            throw new Error(`FTS table for ${tableName} does not exist. Please create it first.`);
-        }
-        console.log(`FTS table for ${tableName} exists.`);
+        // 检查 FTS 表是否存在
+        const tableExists = await this.dataspace.db.selectObjects(
+            `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+            [ftsTableName]
+        );
 
-        const searchSql = `
-        SELECT ${tableName}.*, rank
-        FROM ${tableName}
-        JOIN (
-            SELECT rowid, rank
+        if (tableExists.length === 0) {
+            // 如果FTS表不存在，先创建它
+            await this.createDynamicFTS(tableName);
+        }
+
+        // 获取表的列信息
+        const tableInfo = await this.dataspace.db.selectObjects(`PRAGMA table_info(${tableName})`);
+        const columns = tableInfo
+            .map((col: any) => col.name)
+            .filter((name: any) => name.toLowerCase() !== 'rowid');
+
+
+        const sql = `
+            SELECT 
+                *,
+                snippet(${ftsTableName}, -1, '<<', '>>', '...', 64) as snippet
             FROM ${ftsTableName}
             WHERE ${ftsTableName} MATCH ?
             ORDER BY rank
             LIMIT ? OFFSET ?
-        ) AS fts ON ${tableName}.rowid = fts.rowid
-        ORDER BY rank
         `;
 
-        const results = await this.dataspace.syncExec2(searchSql, [query, limit, offset]);
-        return results;
+        console.log(sql, [query, limit, offset]);
+        const results = await this.dataspace.db.selectObjects(sql, [query, limit, offset]);
+
+        // 处理结果，解析匹配信息
+        return results.map((row: any) => {
+            const snippet = row.snippet;
+            delete row.snippet;
+
+            // 解析匹配内容，这里简单地根据 snippet 匹配各个列的内容
+            const matches = [];
+            if (snippet) {
+                for (const col of columns) {
+                    const colContent = row[col]?.toString() || '';
+                    if (colContent.includes(snippet.replace(/<<|>>/g, ''))) {
+                        matches.push({
+                            column: col,
+                            snippet: snippet
+                        });
+                    }
+                }
+            }
+
+            return {
+                row,
+                matches
+            };
+        });
     }
 
     // async searchFTS(tableName: string, query: string) { ... }
