@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       const newQuery = replaceWithFindIndexQuery(query, rowId)
       const result = await this.dataSpace.exec2(newQuery)
       console.log("result", query, result)
+      return result[0]._index_in_view as number
     } catch (error) {
       console.error(error)
     } finally {

@@ -51,74 +51,123 @@ export class TableFullTextSearch {
     }
 
     /**
-     * 全文搜索指定的表，返回匹配到的行，并且明确的指出匹配到的列
-     * @param tableName 
-     * @param query 
-     * @param limit 
-     * @param offset 
-     * @returns 包含匹配行数据和匹配列信息的结果
+     * 基于视图条件进行全文搜索
+     * @param tableName 表名
+     * @param query 搜索关键词
+     * @param viewId 视图ID
      */
-    async search(tableName: string, query: string, limit: number = 100, offset: number = 0) {
+    async search(tableName: string, query: string, viewId: string) {
         if (!isDesktopMode) {
             throw new Error('Full text search is not supported in web mode');
         }
+
+        const startTime = performance.now();
         const ftsTableName = `fts_${tableName}`;
 
-        // 检查 FTS 表是否存在
-        const tableExists = await this.dataspace.db.selectObjects(
-            `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
-            [ftsTableName]
-        );
+        try {
+            // 检查 FTS 表是否存在
+            const tableExists = await this.dataspace.db.selectObjects(
+                `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+                [ftsTableName]
+            );
 
-        if (tableExists.length === 0) {
-            // 如果FTS表不存在，先创建它
-            await this.createDynamicFTS(tableName);
-        }
+            if (tableExists.length === 0) {
+                await this.createDynamicFTS(tableName);
+            }
 
-        // 获取表的列信息
-        const tableInfo = await this.dataspace.db.selectObjects(`PRAGMA table_info(${tableName})`);
-        const columns = tableInfo
-            .map((col: any) => col.name)
-            .filter((name: any) => name.toLowerCase() !== 'rowid');
+            // 获取视图
+            const view = await this.dataspace.view.get(viewId);
+            if (!view?.query) {
+                throw new Error(`View ${viewId} not found or has no query`);
+            }
 
+            // 获取表的列信息
+            const tableInfo = await this.dataspace.db.selectObjects(`PRAGMA table_info(${tableName})`);
+            const columns = tableInfo
+                .map((col: any) => col.name)
+                .filter((name: any) => name.toLowerCase() !== 'rowid');
 
-        const sql = `
-            SELECT 
-                *,
-                snippet(${ftsTableName}, -1, '<<', '>>', '...', 64) as snippet
-            FROM ${ftsTableName}
-            WHERE ${ftsTableName} MATCH ?
-            ORDER BY rank
-            LIMIT ? OFFSET ?
-        `;
+            // 为每一列生成单独的 snippet
+            const snippetSelects = columns
+                .map((col, idx) => `snippet(${ftsTableName}, ${idx}, '<<', '>>', '...', 64) as snippet_${col}`)
+                .join(', ');
 
-        console.log(sql, [query, limit, offset]);
-        const results = await this.dataspace.db.selectObjects(sql, [query, limit, offset]);
+            // 获取匹配的 rowid 和每列的 snippet
+            const matchSql = `
+                SELECT 
+                    rowid,
+                    ${snippetSelects}
+                FROM ${ftsTableName}
+                WHERE ${ftsTableName} MATCH ?
+            `;
 
-        // 处理结果，解析匹配信息
-        return results.map((row: any) => {
-            const snippet = row.snippet;
-            delete row.snippet;
-
-            // 解析匹配内容，这里简单地根据 snippet 匹配各个列的内容
-            const matches = [];
-            if (snippet) {
-                for (const col of columns) {
-                    const colContent = row[col]?.toString() || '';
-                    if (colContent.includes(snippet.replace(/<<|>>/g, ''))) {
-                        matches.push({
-                            column: col,
-                            snippet: snippet
-                        });
-                    }
+            const matchingInfo = await this.dataspace.db.selectObjects(matchSql, [query]);
+            if (matchingInfo.length === 0) {
+                return {
+                    results: [],
+                    searchTime: -1,
+                    totalMatches: 0
                 }
             }
 
+            const rowidList = matchingInfo.map((r: any) => r.rowid).join(',');
+            
+            // 使用子查询保留原始视图的排序，确保选择 rowid
+            let modifiedViewQuery = `
+                WITH original_view AS (
+                    SELECT ${tableName}.rowid, v.*, ROW_NUMBER() OVER () as row_index
+                    FROM (${view.query}) v
+                    JOIN ${tableName} ON ${tableName}._id = v._id
+                )
+                SELECT * FROM original_view 
+                WHERE rowid IN (${rowidList})
+            `;
+
+            console.log('Search SQL:', modifiedViewQuery);
+            const results = await this.dataspace.db.selectObjects(modifiedViewQuery);
+
+            // 处理结果，解析匹配信息
+            const processedResults = results.map((row: any) => {
+                const matchInfo = matchingInfo.find((m: any) => m.rowid === row.rowid);
+                const rowIndex = row.row_index - 1;
+                delete row.row_index;
+
+                const matches = [];
+                if (matchInfo) {
+                    // 检查每一列的 snippet
+                    for (const col of columns) {
+                        const snippetKey = `snippet_${col}`;
+                        const snippet = matchInfo[snippetKey];
+                        
+                        // 如果 snippet 包含高亮标记，说明这一列有匹配
+                        if (snippet && snippet.includes('<<')) {
+                            matches.push({
+                                column: col,
+                                snippet: snippet
+                            });
+                        }
+                    }
+                }
+
+                return {
+                    row,
+                    matches,
+                    rowIndex
+                };
+            });
+
+            const endTime = performance.now();
+            const searchTime = endTime - startTime;
+
             return {
-                row,
-                matches
+                results: processedResults,
+                searchTime: Math.round(searchTime), // 返回整数毫秒数
+                totalMatches: matchingInfo.length
             };
-        });
+        } catch (error) {
+            console.error('Search error:', error);
+            throw error;
+        }
     }
 
     // async searchFTS(tableName: string, query: string) { ... }

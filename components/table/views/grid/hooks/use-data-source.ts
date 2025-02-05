@@ -13,6 +13,8 @@ import { columnsHandleMap } from "../helper"
 import { RowEditedCallback } from "./use-async-data"
 import { useColumns } from "./use-col"
 import { useLookupContext } from "./use-lookup-context"
+import { useSqlite } from "@/hooks/use-sqlite"
+import { getTableIdByRawTableName } from "@/lib/utils"
 
 export const useDataSource = (tableName: string, databaseName: string) => {
   const { updateCell, updateFieldProperty } = useTableOperation(
@@ -23,10 +25,20 @@ export const useDataSource = (tableName: string, databaseName: string) => {
     space: databaseName,
     tableName: tableName,
   })
+  const { sqlite } = useSqlite()
   const { userMap } = useUserMap()
   const { uiColumns } = useUiColumns(tableName, databaseName)
   const { contextMap } = useLookupContext(tableName, databaseName)
   const { showColumns } = useColumns(uiColumns, currentView)
+
+
+  const findRowIndexInView = useCallback((rowId: string) => {
+    if (!sqlite) {
+      return Promise.resolve(-1)
+    }
+    const rowIndex = sqlite?.view.findRowIndexInQuery(getTableIdByRawTableName(tableName), rowId, currentView.query)
+    return rowIndex
+  }, [currentView, tableName])
 
   const getFieldContext = useCallback(
     (field: IField) => {
@@ -138,5 +150,6 @@ export const useDataSource = (tableName: string, databaseName: string) => {
   return {
     toCell,
     onEdited,
+    findRowIndexInView
   }
 }

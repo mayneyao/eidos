@@ -2,6 +2,7 @@ import DataEditor, {
   DataEditorProps,
   DataEditorRef,
   HeaderClickedEventArgs,
+  Item,
 } from "@glideapps/glide-data-grid"
 
 import { useSpaceAppStore } from "@/apps/web-app/[database]/store"
@@ -43,6 +44,7 @@ import { getWorker } from "@/lib/sqlite/worker"
 
 import { TwinkleSparkle } from "../../../loading"
 import { getScrollbarWidth } from "./helper"
+import { useSearchResults } from "./hooks/use-search-results"
 import { darkTheme, lightTheme } from "./theme"
 
 const defaultConfig: Partial<DataEditorProps> = {
@@ -77,7 +79,6 @@ interface IGridProps {
 }
 
 export default function GridView(props: IGridProps) {
-  const [showSearch, setShowSearch] = React.useState(false)
   const { tableName, databaseName } = props
   const { theme } = useTheme()
   const _theme = theme === "light" ? lightTheme : darkTheme
@@ -108,7 +109,7 @@ export default function GridView(props: IGridProps) {
     tableName,
     databaseName
   )
-  const { toCell } = useDataSource(tableName, databaseName)
+  const { toCell, findRowIndexInView } = useDataSource(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
   const { onColumnResize, columns, showColumns, onColumnMoved } = useColumns(
     uiColumns,
@@ -118,6 +119,14 @@ export default function GridView(props: IGridProps) {
   const getFieldByIndex = useCallback(
     (index: number) => {
       return showColumns[index]
+    },
+    [showColumns]
+  )
+  const getColumnIndexByColumnName = useCallback(
+    (columnName: string) => {
+      return (
+        showColumns.findIndex((c) => c.table_column_name === columnName) + 1
+      )
     },
     [showColumns]
   )
@@ -149,6 +158,66 @@ export default function GridView(props: IGridProps) {
     useTableAppStore()
   const [isAItoolsOpen, setIsAItoolsOpen] = React.useState(false)
 
+  // Get search state from context
+  const { searchQuery, showSearch } = useContext(TableContext)
+  const { formattedSearchResults, currentSearchIndex, setCurrentSearchIndex } =
+    useSearchResults(getColumnIndexByColumnName)
+
+  // Add state for search highlight
+  const [searchHighlightRegion, setSearchHighlightRegion] = React.useState<
+    DataEditorProps["highlightRegions"]
+  >([])
+
+  // when show search is false, clear search highlight
+  useEffect(() => {
+    if (!showSearch) {
+      setSearchHighlightRegion([])
+    }
+  }, [showSearch])
+
+  // Update the onSearchResultsChanged function
+  const onSearchResultsChanged = useCallback(
+    (results: readonly Item[], navIndex: number) => {
+      setCurrentSearchIndex(navIndex)
+      if (results.length > 0 && navIndex >= 0 && navIndex < results.length) {
+        const result = results[navIndex]
+        setTimeout(() => {
+          if (glideDataGridRef.current) {
+            glideDataGridRef.current.scrollTo(result[0] - 1, result[1])
+
+            setTimeout(() => {
+              glideDataGridRef.current?.scrollTo(result[0] - 1, result[1])
+
+              setSearchHighlightRegion([
+                {
+                  color: "rgba(255, 255, 0, 0.3)",
+                  range: {
+                    x: result[0] - 1,
+                    y: result[1],
+                    width: 1,
+                    height: 1,
+                  },
+                },
+              ])
+            }, 50)
+          }
+        }, 0)
+      }
+    },
+    [setCurrentSearchIndex]
+  )
+
+  useEffect(() => {
+    if (showSearch) {
+      onSearchResultsChanged(formattedSearchResults, currentSearchIndex)
+    }
+  }, [
+    showSearch,
+    searchQuery,
+    formattedSearchResults,
+    currentSearchIndex,
+    onSearchResultsChanged,
+  ])
   useEffect(() => {
     const worker = getWorker()
     function subscribeHighlightRow(e: MessageEvent<any>) {
@@ -260,8 +329,14 @@ export default function GridView(props: IGridProps) {
       ...(highlights ?? []),
       ...(aiHighlightRegions ?? []),
       ...(customHighlightRegions ?? []),
+      ...(searchHighlightRegion ?? []),
     ]
-  }, [highlights, aiHighlightRegions, customHighlightRegions])
+  }, [
+    highlights,
+    aiHighlightRegions,
+    customHighlightRegions,
+    searchHighlightRegion,
+  ])
 
   const { showAILoading, positionStyle } = useMemo(() => {
     if (aiHighlightRegions?.length) {
@@ -285,10 +360,10 @@ export default function GridView(props: IGridProps) {
     }
   }, [aiHighlightRegions])
 
-  useKeyPress(["ctrl.f", "meta.f"], (e) => {
-    e.preventDefault()
-    setShowSearch(!showSearch)
-  })
+  // useKeyPress(["ctrl.f", "meta.f"], (e) => {
+  //   e.preventDefault()
+  //   setShowSearch(!showSearch)
+  // })
 
   useKeyPress("alt.i", (e) => {
     if (e.metaKey) return
@@ -324,6 +399,9 @@ export default function GridView(props: IGridProps) {
           {Boolean(uiColumns.length) && (
             <DataEditor
               {...config}
+              // showSearch={false}
+              // searchValue={searchQuery}
+              searchResults={formattedSearchResults}
               getCellsForSelection={getCellsForSelection}
               onVisibleRegionChanged={onVisibleRegionChanged}
               customRenderers={customCells}
@@ -333,7 +411,6 @@ export default function GridView(props: IGridProps) {
               onDrop={onDrop}
               onDragOverCell={onDragOverCell}
               highlightRegions={highlightRegions}
-              // showSearch={showSearch}
               gridSelection={selection}
               onItemHovered={onItemHovered}
               // getRowThemeOverride={getRowThemeOverride}
@@ -369,6 +446,7 @@ export default function GridView(props: IGridProps) {
               onCellEdited={onCellEdited}
               onCellsEdited={onCellsEdited}
               onRowAppended={isReadOnly ? undefined : handleAddRow}
+              // onSearchResultsChanged={onSearchResultsChanged}
             />
           )}
         </GridContextMenu>
