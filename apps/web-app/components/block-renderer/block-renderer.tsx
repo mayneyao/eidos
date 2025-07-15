@@ -115,7 +115,7 @@ export const BlockRenderer = React.forwardRef<
     useEffect(() => {
       if (!iframeRef.current) return
       if (isDesktopMode) {
-        iframeRef.current.src = `http://${blockId}.ext.${space}.eidos.localhost:13127/`
+        iframeRef.current.src = `http://${blockId}.block.${space}.eidos.localhost:13127/`
         return
       }
 

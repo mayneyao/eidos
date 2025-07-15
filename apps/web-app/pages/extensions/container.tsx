@@ -23,7 +23,7 @@ export function ExtensionContainer({
   const reloadIframe = () => {
     if (containerRef.current) {
       containerRef.current.src = ""
-      containerRef.current.src = `https://${ext}.ext.eidos.space`
+      containerRef.current.src = `https://${ext}.block.eidos.space`
     }
   }
 
@@ -35,7 +35,7 @@ export function ExtensionContainer({
   return (
     <iframe
       ref={containerRef}
-      src={`https://${ext}.ext.eidos.space`}
+      src={`https://${ext}.block.eidos.space`}
       frameBorder="0"
       className="flex h-full w-full"
     ></iframe>

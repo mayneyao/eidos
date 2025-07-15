@@ -16,8 +16,8 @@ import { ServerBlock } from './server-block';
 
 type Ctx = Context<BlankEnv, "*", {}>;
 
-// curl http://287c3686-f1e1-4b10-965e-2daa35a422fc.ext.25-w19.eidos.localhost:13127/
-// Middleware to intercept <extensionId>.ext.<spaceId>.eidos.localhost requests
+// curl http://287c3686-f1e1-4b10-965e-2daa35a422fc.block.25-w19.eidos.localhost:13127/
+// Middleware to intercept <extensionId>.block.<spaceId>.eidos.localhost requests
 
 // server static files from dist/compiled-ui at path /ui
 export const interceptExtensionRequest = (dist: string, port: number) => async (c: Ctx, next: any) => {
@@ -71,9 +71,9 @@ export const interceptExtensionRequest = (dist: string, port: number) => async (
 
 
 
-    // Regex to match <extensionId>.ext.<spaceId>.eidos.localhost
-    // myext.ext.25-w19.eidos.localhost
-    const match = hostname.match(/^([a-zA-Z0-9-]+)\.ext\.(.*)\.eidos\.localhost$/);
+    // Regex to match <extensionId>.block.<spaceId>.eidos.localhost
+    // myext.block.25-w19.eidos.localhost
+    const match = hostname.match(/^([a-zA-Z0-9-]+)\.block\.(.*)\.eidos\.localhost$/);
 
     if (match) {
         const extensionId = match[1];

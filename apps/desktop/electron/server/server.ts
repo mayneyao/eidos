@@ -28,7 +28,7 @@ app.use('*', async (c, next) => {
         try {
             const originUrl = new URL(requestOrigin);
             // Allow requests from *.eidos.localhost
-            // e.g. http://3ujmmomr.ext.25-w19.eidos.localhost:13127
+            // e.g. http://3ujmmomr.block.25-w19.eidos.localhost:13127
             if (originUrl.hostname.endsWith('.eidos.localhost')) {
                 isAllowedOrigin = true;
                 c.header('Access-Control-Allow-Origin', requestOrigin);

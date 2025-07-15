@@ -30,7 +30,7 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
   const { currentThemeName } = useThemeStore()
   const allThemes = useAllThemes()
 
-  const baseUrl = `http://${blockId}.ext.${space}.eidos.localhost:13127/`
+  const baseUrl = `http://${blockId}.block.${space}.eidos.localhost:13127/`
   const fullUrl = extraPath ? `${baseUrl}${extraPath}` : baseUrl
 
   const [extUrl, setExtUrl] = useState<string>(
@@ -82,7 +82,7 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
 
   // Update URL when props change (without rerender trigger)
   useEffect(() => {
-    const newBaseUrl = `http://${blockId}.ext.${space}.eidos.localhost:13127/`
+    const newBaseUrl = `http://${blockId}.block.${space}.eidos.localhost:13127/`
     const newFullUrl = extraPath ? `${newBaseUrl}${extraPath}` : newBaseUrl
     const url = extraPath
       ? newFullUrl
@@ -95,7 +95,7 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
   // Update URL when props change (with rerender trigger)
   useEffect(() => {
     if (rerenderOnDefaultPropsChange && !extraPath) {
-      const newBaseUrl = `http://${blockId}.ext.${space}.eidos.localhost:13127/`
+      const newBaseUrl = `http://${blockId}.block.${space}.eidos.localhost:13127/`
       const url = serializePropsToUrl(defaultProps, newBaseUrl)
       if (url !== extUrl) {
         setExtUrl(url)

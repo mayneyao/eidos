@@ -58,7 +58,7 @@ Shadcn/ui's LLM-friendly architecture facilitates AI-assisted development, enabl
 block components execute in browser environments similar to standard React components. In Eidos Desktop, each block runs in an isolated domain:
 
 ```
-<extid>.ext.<spaceId>.eidos.localhost:13127
+<extid>.block.<spaceId>.eidos.localhost:13127
 ```
 
 ## 5. Extension Types and Specifications
@@ -141,7 +141,7 @@ Extension nodes provide custom node types beyond the default document and table 
 When rendering as an extNode, the block will default to accessing the following URL structure:
 
 ```
-<extid>.ext.<spaceId>.eidos.localhost:13127/<nodeid>
+<extid>.block.<spaceId>.eidos.localhost:13127/<nodeid>
 ```
 
 This URL pattern enables isolated execution of extension nodes within the Eidos Desktop environment while maintaining proper scoping to the specific space and node.

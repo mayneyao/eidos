@@ -112,7 +112,7 @@ The handlers are integrated into the Eidos server at multiple levels:
 
 1. `proxy.eidos.localhost` → ProxyHandler (Main Server)
 2. `sandbox.<spaceId>.eidos.localhost` → ScriptSandboxHandler (Extension Server)
-3. `<extensionId>.ext.<spaceId>.eidos.localhost` → Extension Handler (Extension Server)
+3. `<extensionId>.block.<spaceId>.eidos.localhost` → Extension Handler (Extension Server)
 
 ## Error Handling
 

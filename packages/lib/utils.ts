@@ -251,14 +251,14 @@ export const isStandaloneBlocksPath = (pathname: string) => {
 }
 
 export const isExtensionURL = (url: string) => {
-  // extension <extensionId>.ext.<spaceId>.eidos.localhost:13127/
-  // 287c3686-f1e1-4b10-965e-2daa35a422fc.ext.25-w19.eidos.localhost:13127
+  // extension <extensionId>.block.<spaceId>.eidos.localhost:13127/
+  // 287c3686-f1e1-4b10-965e-2daa35a422fc.block.25-w19.eidos.localhost:13127
   return url.endsWith('.eidos.localhost:13127')
 }
 
 /**
  * 
- * @param url http://287c3686-f1e1-4b10-965e-2daa35a422fc.ext.25-w19.eidos.localhost:13127
+ * @param url http://287c3686-f1e1-4b10-965e-2daa35a422fc.block.25-w19.eidos.localhost:13127
  * return {
  *  id: '287c3686-f1e1-4b10-965e-2daa35a422fc',
  *  space: '25-w19',
@@ -276,7 +276,7 @@ export const getInfoFromExtensionUrl = (url: string) => {
 
 export const getExtensionUrl = (id: string, space: string, searchParams?: Record<string, string>) => {
   const standaloneBlockUrl = new URL(
-    `http://${id}.ext.${space}.eidos.localhost:13127`
+    `http://${id}.block.${space}.eidos.localhost:13127`
   )
   let newUrl = standaloneBlockUrl.toString()
   const searchParamsString = new URLSearchParams(searchParams).toString()
