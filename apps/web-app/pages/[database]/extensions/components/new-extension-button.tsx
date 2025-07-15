@@ -1,4 +1,13 @@
-import { ChevronDownIcon, CodeIcon, ToyBrickIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  CodeIcon,
+  DatabaseIcon,
+  GridIcon,
+  PuzzleIcon,
+  ToyBrickIcon,
+  WrenchIcon,
+  ZapIcon,
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Badge } from "@/components/ui/badge"
@@ -42,22 +51,21 @@ export const NewExtensionButton = () => {
 
         {/* Script Extensions */}
         <DropdownMenuLabel className="flex items-center text-xs text-muted-foreground">
-          <CodeIcon className="mr-2 h-3 w-3" />
           Script
         </DropdownMenuLabel>
         <DropdownMenuItem
           className="group relative"
           onClick={() => handleCreateNewExtension("tool")}
         >
+          <WrenchIcon className="mr-2 h-4 w-4" />
           {t("extension.tool")}
-          <ExtensionTooltip>
-            {t("extension.toolDescription")}
-          </ExtensionTooltip>
+          <ExtensionTooltip>{t("extension.toolDescription")}</ExtensionTooltip>
         </DropdownMenuItem>
         <DropdownMenuItem
           className="group relative"
           onClick={() => handleCreateNewExtension("tableAction")}
         >
+          <ZapIcon className="mr-2 h-4 w-4" />
           {t("extension.tableAction")}
           <ExtensionTooltip>
             {t("extension.tableActionDescription")}
@@ -67,6 +75,7 @@ export const NewExtensionButton = () => {
           className="group relative"
           onClick={() => handleCreateNewExtension("udf")}
         >
+          <DatabaseIcon className="mr-2 h-4 w-4" />
           {t("extension.udf")}{" "}
           <Badge variant="secondary">{t("common.badge.alpha")}</Badge>
           <ExtensionTooltip>
@@ -75,18 +84,28 @@ export const NewExtensionButton = () => {
             <span className="text-red-400">{t("extension.udfWarning")}</span>
           </ExtensionTooltip>
         </DropdownMenuItem>
+        <DropdownMenuItem
+          className="group relative"
+          onClick={() => handleCreateNewExtension("emptyScript")}
+        >
+          <CodeIcon className="mr-2 h-4 w-4" />
+          Empty Script
+          <ExtensionTooltip>
+            Create an empty script extension with no template code
+          </ExtensionTooltip>
+        </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 
         {/* Block Extensions */}
         <DropdownMenuLabel className="flex items-center text-xs text-muted-foreground">
-          <ToyBrickIcon className="mr-2 h-3 w-3" />
           Block
         </DropdownMenuLabel>
         <DropdownMenuItem
           className="group relative"
           onClick={() => handleCreateNewExtension("tableView")}
         >
+          <GridIcon className="mr-2 h-4 w-4" />
           {t("extension.tableView")}
           <ExtensionTooltip>
             {t("extension.tableViewDescription")}
@@ -96,12 +115,23 @@ export const NewExtensionButton = () => {
           className="group relative"
           onClick={() => handleCreateNewExtension("extNode")}
         >
+          <PuzzleIcon className="mr-2 h-4 w-4" />
           {t("extension.extNode")}
           <Badge variant="default" className="bg-primary">
             {t("common.badge.new")}
           </Badge>
           <ExtensionTooltip>
             {t("extension.extNodeDescription")}
+          </ExtensionTooltip>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="group relative"
+          onClick={() => handleCreateNewExtension("emptyBlock")}
+        >
+          <ToyBrickIcon className="mr-2 h-4 w-4" />
+          Empty Block
+          <ExtensionTooltip>
+            Create an empty block extension with no template code
           </ExtensionTooltip>
         </DropdownMenuItem>
       </DropdownMenuContent>

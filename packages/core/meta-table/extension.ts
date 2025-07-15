@@ -13,6 +13,26 @@ import { BaseTableImpl } from "./base";
 // Re-export types for backward compatibility
 export type { ExtensionStatus, IExtension, TableViewMeta };
 
+/**
+ * Extension statistics interface
+ */
+export interface ExtensionStats {
+  scripts: {
+    total: number
+    tool: number
+    tableAction: number
+    udf: number
+    others: number // Empty scripts (no meta)
+  }
+  blocks: {
+    total: number
+    tableView: number
+    extNode: number
+    others: number // Empty blocks (no meta)
+  }
+  total: number
+}
+
 
 export class ExtensionTable
   extends BaseTableImpl<IExtension>
@@ -424,6 +444,135 @@ export class ExtensionTable
 
     const res = await this.dataSpace.exec2(sql, params)
     return res[0]?.count || 0
+  }
+
+  /**
+   * Get comprehensive extension statistics
+   */
+  async getExtensionStats(status: ExtensionStatus = "all"): Promise<ExtensionStats> {
+    const params: any[] = []
+    let whereClause = "WHERE 1=1"
+
+    if (status === "enabled") {
+      whereClause += " AND enabled = ?"
+      params.push(1)
+    } else if (status === "disabled") {
+      whereClause += " AND enabled = ?"
+      params.push(0)
+    }
+
+    // Get script statistics
+    const scriptStats = await this.dataSpace.exec2(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN meta IS NOT NULL AND meta != '' AND JSON_VALID(meta) = 1 AND JSON_EXTRACT(meta, '$.type') = 'tool' THEN 1 ELSE 0 END) as tool,
+        SUM(CASE WHEN meta IS NOT NULL AND meta != '' AND JSON_VALID(meta) = 1 AND JSON_EXTRACT(meta, '$.type') = 'tableAction' THEN 1 ELSE 0 END) as tableAction,
+        SUM(CASE WHEN meta IS NOT NULL AND meta != '' AND JSON_VALID(meta) = 1 AND JSON_EXTRACT(meta, '$.type') = 'udf' THEN 1 ELSE 0 END) as udf,
+        SUM(CASE WHEN meta IS NULL OR meta = '' OR JSON_VALID(meta) = 0 THEN 1 ELSE 0 END) as others
+      FROM ${this.name}
+      ${whereClause} AND type = 'script'
+    `, params)
+
+    // Get block statistics
+    const blockStats = await this.dataSpace.exec2(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN meta IS NOT NULL AND meta != '' AND JSON_VALID(meta) = 1 AND JSON_EXTRACT(meta, '$.type') = 'tableView' THEN 1 ELSE 0 END) as tableView,
+        SUM(CASE WHEN meta IS NOT NULL AND meta != '' AND JSON_VALID(meta) = 1 AND JSON_EXTRACT(meta, '$.type') = 'extNode' THEN 1 ELSE 0 END) as extNode,
+        SUM(CASE WHEN meta IS NULL OR meta = '' OR JSON_VALID(meta) = 0 THEN 1 ELSE 0 END) as others
+      FROM ${this.name}
+      ${whereClause} AND type = 'block'
+    `, params)
+
+    // Get total count
+    const totalStats = await this.dataSpace.exec2(`
+      SELECT COUNT(*) as total FROM ${this.name} ${whereClause}
+    `, params)
+
+    const scriptRow = scriptStats[0] || { total: 0, tool: 0, tableAction: 0, udf: 0, others: 0 }
+    const blockRow = blockStats[0] || { total: 0, tableView: 0, extNode: 0, others: 0 }
+    const totalRow = totalStats[0] || { total: 0 }
+
+    return {
+      scripts: {
+        total: scriptRow.total || 0,
+        tool: scriptRow.tool || 0,
+        tableAction: scriptRow.tableAction || 0,
+        udf: scriptRow.udf || 0,
+        others: scriptRow.others || 0,
+      },
+      blocks: {
+        total: blockRow.total || 0,
+        tableView: blockRow.tableView || 0,
+        extNode: blockRow.extNode || 0,
+        others: blockRow.others || 0,
+      },
+      total: totalRow.total || 0,
+    }
+  }
+
+  /**
+   * Get count for a specific extension meta type
+   */
+  async getExtensionCountByMetaType(
+    extensionType: "script" | "block",
+    metaType: string,
+    status: ExtensionStatus = "all"
+  ): Promise<number> {
+    const params: any[] = [extensionType]
+    let sql = `SELECT COUNT(*) as count FROM ${this.name} WHERE type = ?`
+
+    if (metaType === "others") {
+      // Count extensions with no meta or invalid meta
+      sql += " AND (meta IS NULL OR meta = '' OR JSON_VALID(meta) = 0)"
+    } else {
+      // Count extensions with specific meta type
+      sql += " AND meta IS NOT NULL AND meta != '' AND JSON_VALID(meta) = 1 AND JSON_EXTRACT(meta, '$.type') = ?"
+      params.push(metaType)
+    }
+
+    if (status === "enabled") {
+      sql += " AND enabled = ?"
+      params.push(1)
+    } else if (status === "disabled") {
+      sql += " AND enabled = ?"
+      params.push(0)
+    }
+
+    const res = await this.dataSpace.exec2(sql, params)
+    return res[0]?.count || 0
+  }
+
+  /**
+   * Get extensions by meta type (including "others" for empty extensions)
+   */
+  async getExtensionsByMetaType(
+    extensionType: "script" | "block",
+    metaType: string,
+    status: ExtensionStatus = "all"
+  ): Promise<IExtension[]> {
+    const params: any[] = [extensionType]
+    let sql = `SELECT * FROM ${this.name} WHERE type = ?`
+
+    if (metaType === "others") {
+      // Get extensions with no meta or invalid meta
+      sql += " AND (meta IS NULL OR meta = '' OR JSON_VALID(meta) = 0)"
+    } else {
+      // Get extensions with specific meta type
+      sql += " AND meta IS NOT NULL AND meta != '' AND JSON_VALID(meta) = 1 AND JSON_EXTRACT(meta, '$.type') = ?"
+      params.push(metaType)
+    }
+
+    if (status === "enabled") {
+      sql += " AND enabled = ?"
+      params.push(1)
+    } else if (status === "disabled") {
+      sql += " AND enabled = ?"
+      params.push(0)
+    }
+
+    const res = await this.dataSpace.exec2(sql, params)
+    return res.map((item: any) => this.toJson(item))
   }
 
   /**

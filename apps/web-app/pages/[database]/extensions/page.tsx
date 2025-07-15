@@ -1,32 +1,35 @@
+import { useMemo, useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import { useMount } from "ahooks"
 import {
   ChevronDownIcon,
   ChevronRightIcon,
-  FileIcon,
-  FunctionSquareIcon,
-  SquareCodeIcon,
+  CodeIcon,
+  DatabaseIcon,
+  GridIcon,
+  PuzzleIcon,
   ToyBrickIcon,
   WrenchIcon,
+  ZapIcon,
 } from "lucide-react"
-import { useMemo, useState } from "react"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 import { BooleanParam, StringParam, useQueryParam } from "use-query-params"
 
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useExtension } from "@/apps/web-app/hooks/use-extension"
-import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
+import { EIDOS_SPACE_BASE_URL } from "@/lib/const"
+import { cn, getExtensionUrl } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
-import { EIDOS_SPACE_BASE_URL } from "@/lib/const"
-import { cn, getExtensionUrl } from "@/lib/utils"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useExtension } from "@/apps/web-app/hooks/use-extension"
+import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 
 import { useAppsStore, useSpaceAppStore } from "../store"
 import { ExtensionListItem } from "./components/extension-list-item"
 import { NewExtensionButton } from "./components/new-extension-button"
+import { useExtensionStats } from "./hooks/use-extension-stats"
 import { useDirHandleStore, useLocalScript } from "./hooks/use-local-script"
 
 interface ExtensionCategory {
@@ -39,7 +42,7 @@ interface ExtensionCategory {
 interface ExtensionType {
   id: string
   name: string
-  icon: typeof SquareCodeIcon
+  icon: typeof CodeIcon
   category: "script" | "block"
 }
 
@@ -47,7 +50,7 @@ export const extensionCategories: ExtensionCategory[] = [
   {
     id: "script",
     name: "Script",
-    icon: SquareCodeIcon,
+    icon: CodeIcon,
     items: [
       {
         id: "tool",
@@ -58,13 +61,19 @@ export const extensionCategories: ExtensionCategory[] = [
       {
         id: "tableAction",
         name: "Table Actions",
-        icon: FunctionSquareIcon,
+        icon: ZapIcon,
         category: "script",
       },
       {
         id: "udf",
         name: "UDFs",
-        icon: FunctionSquareIcon,
+        icon: DatabaseIcon,
+        category: "script",
+      },
+      {
+        id: "script-others",
+        name: "Others",
+        icon: CodeIcon,
         category: "script",
       },
     ],
@@ -77,13 +86,19 @@ export const extensionCategories: ExtensionCategory[] = [
       {
         id: "tableView",
         name: "Table Views",
-        icon: ToyBrickIcon,
+        icon: GridIcon,
         category: "block",
       },
       {
         id: "extNode",
         name: "Extension Nodes",
-        icon: FileIcon,
+        icon: PuzzleIcon,
+        category: "block",
+      },
+      {
+        id: "block-others",
+        name: "Others",
+        icon: ToyBrickIcon,
         category: "block",
       },
     ],
@@ -104,19 +119,21 @@ export const extensionTypesMap = extensionCategories.reduce(
 // Export IconMap for extension types
 export const IconMap = {
   // New architecture types
-  script: SquareCodeIcon,
+  script: CodeIcon,
   block: ToyBrickIcon,
   // Meta types
   tool: WrenchIcon,
-  tableAction: FunctionSquareIcon,
-  udf: FunctionSquareIcon,
-  tableView: ToyBrickIcon,
-  extNode: FileIcon,
+  tableAction: ZapIcon,
+  udf: DatabaseIcon,
+  tableView: GridIcon,
+  extNode: PuzzleIcon,
+  "script-others": CodeIcon,
+  "block-others": ToyBrickIcon,
   // Fallback
   ...Object.fromEntries(
     Object.entries(extensionTypesMap).map(([id, type]) => [id, type.icon])
   ),
-} as Record<string, typeof SquareCodeIcon>
+} as Record<string, typeof CodeIcon>
 
 // Tree folder state management
 interface FolderState {
@@ -127,6 +144,7 @@ interface FolderState {
 export const ScriptPage = () => {
   const scripts = useLoaderData() as IExtension[]
   const { space } = useCurrentPathInfo()
+  const { stats } = useExtensionStats("all")
 
   const [filter, setFilter] = useQueryParam("filter", StringParam)
   const [searchTerm, setSearchTerm] = useQueryParam("searchTerm", StringParam)
@@ -167,19 +185,11 @@ export const ScriptPage = () => {
 
   // Helper functions for categorizing extensions
   const isScriptType = (script: IExtension) => {
-    return (
-      script.type === "script" &&
-      script.meta?.type &&
-      ["tool", "tableAction", "udf"].includes(script.meta.type)
-    )
+    return script.type === "script"
   }
 
   const isBlockType = (script: IExtension) => {
-    return (
-      script.type === "block" &&
-      script.meta?.type &&
-      ["tableView", "extNode"].includes(script.meta.type)
-    )
+    return script.type === "block"
   }
 
   const _scripts = scripts
@@ -194,9 +204,29 @@ export const ScriptPage = () => {
       filtered = filtered.filter(isBlockType)
     } else {
       // Filter for specific meta type
-      filtered = filtered.filter(
-        (script) => script.meta?.type === currentFilter
-      )
+      filtered = filtered.filter((script) => {
+        if (currentFilter === "script-others") {
+          // Show script extensions with no meta or invalid meta
+          return (
+            script.type === "script" &&
+            (script.meta === undefined ||
+              script.meta === null ||
+              (typeof script.meta === "string" && script.meta === "") ||
+              (typeof script.meta === "object" && !script.meta.type))
+          )
+        }
+        if (currentFilter === "block-others") {
+          // Show block extensions with no meta or invalid meta
+          return (
+            script.type === "block" &&
+            (script.meta === undefined ||
+              script.meta === null ||
+              (typeof script.meta === "string" && script.meta === "") ||
+              (typeof script.meta === "object" && !script.meta.type))
+          )
+        }
+        return script.meta?.type === currentFilter
+      })
     }
 
     // Apply search filter
@@ -223,7 +253,6 @@ export const ScriptPage = () => {
     enableExtension,
     disableExtension,
     updateExtension,
-    addExtension,
   } = useExtension()
   const revalidator = useRevalidator()
 
@@ -329,10 +358,10 @@ export const ScriptPage = () => {
                 ) : (
                   <ChevronRightIcon size={16} />
                 )}
-                <SquareCodeIcon size={16} />
+                <CodeIcon size={16} />
                 <span className="flex-1 text-left">Scripts</span>
                 <span className="text-xs opacity-70">
-                  {_scripts.filter(isScriptType).length}
+                  {stats?.scripts.total || 0}
                 </span>
               </button>
 
@@ -343,9 +372,12 @@ export const ScriptPage = () => {
                     ?.items.map((type) => {
                       const TypeIcon = type.icon
                       const isActive = currentFilter === type.id
-                      const count = _scripts.filter(
-                        (s) => s.meta?.type === type.id
-                      ).length
+                      const count =
+                        type.id === "script-others"
+                          ? stats?.scripts.others || 0
+                          : stats?.scripts[
+                              type.id as keyof typeof stats.scripts
+                            ] || 0
 
                       if (count === 0) return null
 
@@ -393,7 +425,7 @@ export const ScriptPage = () => {
                 <ToyBrickIcon size={16} />
                 <span className="flex-1 text-left">Blocks</span>
                 <span className="text-xs opacity-70">
-                  {_scripts.filter(isBlockType).length}
+                  {stats?.blocks.total || 0}
                 </span>
               </button>
 
@@ -404,9 +436,12 @@ export const ScriptPage = () => {
                     ?.items.map((type) => {
                       const TypeIcon = type.icon
                       const isActive = currentFilter === type.id
-                      const count = _scripts.filter(
-                        (s) => s.meta?.type === type.id
-                      ).length
+                      const count =
+                        type.id === "block-others"
+                          ? stats?.blocks.others || 0
+                          : stats?.blocks[
+                              type.id as keyof typeof stats.blocks
+                            ] || 0
 
                       if (count === 0) return null
 

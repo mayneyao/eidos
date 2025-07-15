@@ -13,7 +13,8 @@ export const useNewExtension = () => {
   const { space } = useCurrentPathInfo()
 
   const handleCreateNewExtension = async (
-    template: "tool" | "udf" | "tableAction" | "tableView" | "extNode" = "tool"
+    template: "tool" | "udf" | "tableAction" | "tableView" | "extNode" | "emptyScript" | "emptyBlock" = "tool",
+    type: "script" | "block" = template === "tableView" || template === "extNode" || template === "emptyBlock" ? "block" : "script"
   ) => {
     const newScriptId = generateId()
 
@@ -22,7 +23,7 @@ export const useNewExtension = () => {
       id: newScriptId,
       slug: `tool-${newScriptId}`,
       name: `New Tool - ${newScriptId}`,
-      type: "script",
+      type: type,
       description: "Tool Description",
       version: "0.0.1",
       code: `export const meta = {
@@ -102,7 +103,7 @@ function hello(name: string) {
       id: newScriptId,
       slug: `udf-${newScriptId}`,
       name: `myTwice`,
-      type: "script",
+      type: type,
       description: "twice the input",
       version: "0.0.1",
       code: `export const meta = {
@@ -144,7 +145,7 @@ function myTwice(arg: number) {
       id: newScriptId,
       slug: `table-action-${newScriptId}`,
       name: `Toggle Checked`,
-      type: "script",
+      type: type,
       description: "Toggles the checked status of the selected record",
       version: "0.0.1",
       code: `export const meta = {
@@ -205,7 +206,7 @@ export async function toggleChecked(
       id: newScriptId,
       slug: `table-view-${newScriptId}`,
       name: `New Table View - ${newScriptId}`,
-      type: "block",
+      type: type,
       description: "Custom table view",
       version: "0.0.1",
       code: `export const meta = {
@@ -319,12 +320,40 @@ export function MyExtNode() {
       },
     }
 
+    // Empty Script Extension
+    const emptyScript: IExtension = {
+      id: newScriptId,
+      slug: `script-${newScriptId}`,
+      name: `New Script - ${newScriptId}`,
+      type: type,
+      description: "Empty script extension",
+      version: "0.0.1",
+      code: ``,
+      ts_code: ``,
+      meta: undefined,
+    }
+
+    // Empty Block Extension
+    const emptyBlock: IExtension = {
+      id: newScriptId,
+      slug: `block-${newScriptId}`,
+      name: `New Block - ${newScriptId}`,
+      type: type,
+      description: "Empty block extension",
+      version: "0.0.1",
+      code: ``,
+      ts_code: ``,
+      meta: undefined,
+    }
+
     const templateMap = {
       tool: toolScript,
       udf: udfScript,
       tableAction: tableActionScript,
       tableView: tableViewBlock,
       extNode: extNodeBlock,
+      emptyScript: emptyScript,
+      emptyBlock: emptyBlock,
     }
 
     const extension = templateMap[template]
