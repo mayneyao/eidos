@@ -141,6 +141,39 @@ export async function generateImportMap(
     };
 }
 
+/**
+ * Get external libraries from code imports
+ * - ./ are local packages
+ * - @/ prefixed packages are path-mapped local packages
+ * - Everything else are ext-libs (external libraries)
+ */
+export function getExtLibs(code: string): string[] {
+    const imports = getImportsFromCode(code);
+    const extLibs: string[] = [];
+
+    for (const importPath of imports) {
+        // Skip local packages (starting with ./)
+        if (importPath.startsWith('./') || importPath.startsWith('../')) {
+            continue;
+        }
+
+        // Skip path-mapped local packages (starting with @/)
+        if (importPath.startsWith('@/')) {
+            continue;
+        }
+
+        // Skip CSS files as they are typically handled separately
+        if (importPath.endsWith('.css')) {
+            continue;
+        }
+
+        // Everything else is considered an external library
+        extLibs.push(importPath);
+    }
+
+    return extLibs;
+}
+
 export function getAllLibs(code: string, uiComponentsDependencies: Record<string, { thirdPartyLibs: string[], uiLibs: string[] }>, processedComponents = new Set<string>()) {
     if (!code) return {
         thirdPartyLibs: [],

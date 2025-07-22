@@ -43,6 +43,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.4.1",
     "@types/ws": "^8.5.5",
+    "@vitejs/plugin-react": "^4.6.0",
     "cross-env": "^7.0.3",
     "electron": "^32.3.3",
     "electron-builder": "^24.13.3",

@@ -1,4 +1,4 @@
-import { getImportsFromCode } from './get-deps';
+import { getImportsFromCode, getExtLibs } from './get-deps';
 
 describe('getImportsFromCode', () => {
   it('should extract module names from standard import statements', () => {
@@ -116,4 +116,72 @@ describe('getImportsFromCode', () => {
     const expectedImports = ['./local.js'];
     expect(getImportsFromCode(code).sort()).toEqual(expectedImports.sort());
   });
-}); 
+});
+
+describe('getExtLibs', () => {
+  it('should extract only external libraries, excluding local and path-mapped packages', () => {
+    const code = `
+      import React from 'react';
+      import { useState } from 'react';
+      import lodash from 'lodash';
+      import './local-file.js';
+      import '../parent-file.js';
+      import { Button } from '@/components/ui/button';
+      import { utils } from '@/lib/utils';
+      import 'external-css-lib/dist/styles.css';
+      import './styles.css';
+      import axios from 'axios';
+    `;
+    const expectedExtLibs = ['react', 'lodash', 'axios'];
+    expect(getExtLibs(code).sort()).toEqual(expectedExtLibs.sort());
+  });
+
+  it('should return empty array when no external libraries are found', () => {
+    const code = `
+      import './local.js';
+      import '../parent.js';
+      import { Component } from '@/components/Component';
+      import '@/styles/global.css';
+      import './styles.css';
+    `;
+    expect(getExtLibs(code)).toEqual([]);
+  });
+
+  it('should handle scoped packages as external libraries', () => {
+    const code = `
+      import { Component } from '@mui/material';
+      import { styled } from '@emotion/styled';
+      import { Button } from '@/components/ui/button';
+      import './local.js';
+    `;
+    const expectedExtLibs = ['@mui/material', '@emotion/styled'];
+    expect(getExtLibs(code).sort()).toEqual(expectedExtLibs.sort());
+  });
+
+  it('should handle node built-in modules as external libraries', () => {
+    const code = `
+      import fs from 'fs';
+      import path from 'node:path';
+      import { createServer } from 'node:http';
+      import './local.js';
+      import { utils } from '@/lib/utils';
+    `;
+    const expectedExtLibs = ['fs', 'node:path', 'node:http'];
+    expect(getExtLibs(code).sort()).toEqual(expectedExtLibs.sort());
+  });
+
+  it('should handle dynamic imports correctly', () => {
+    const code = `
+      const react = await import('react');
+      import('./local.js');
+      import('@/components/Button');
+      const lodash = import('lodash');
+    `;
+    const expectedExtLibs = ['react', 'lodash'];
+    expect(getExtLibs(code).sort()).toEqual(expectedExtLibs.sort());
+  });
+
+  it('should handle empty code', () => {
+    expect(getExtLibs('')).toEqual([]);
+  });
+});

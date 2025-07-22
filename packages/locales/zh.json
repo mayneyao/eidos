@@ -219,7 +219,7 @@
     "extension.toolbar.layoutFull": "完整视图",
     "extension.toolbar.run": "运行",
     "extension.udf": "UDF",
-    "extension.udfDescription": "使用 JavaScript 创建用于表格公式字段的自定义计算函数。",
+    "extension.udfDescription": "创建用于表格公式字段的自定义计算函数。",
     "extension.udfWarning": "警告：使用 UDF 的表格在使用其他 SQLite 客户端查看时可能会出现问题。发布服务尚不支持 UDF。",
     "extension.version": "v{{version}}",
     "features.localFirst.description": "完全控制您的数据，支持离线使用，确保隐私和安全性",

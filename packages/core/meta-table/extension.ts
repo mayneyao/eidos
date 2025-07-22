@@ -218,7 +218,7 @@ export class ExtensionTable
   /**
    * Get all script extensions by status
    */
-  async getScriptExtensions(status: ExtensionStatus = "enabled"): Promise<IExtension[]> {
+  async getScriptExtensions(status: ExtensionStatus = "all"): Promise<IExtension[]> {
     const params: any[] = ['script']
     let sql = `SELECT * FROM ${this.name} WHERE type = ?`
 

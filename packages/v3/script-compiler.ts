@@ -3,6 +3,28 @@ import { compileCode } from "./compiler";
 import { compileLexicalCode } from "./lexical-compiler";
 import * as oxc from "oxc-transform";
 
+/**
+ * Transform relative import paths to add .js extensions for ESM compatibility
+ * @param code - Source code to transform
+ * @returns Transformed code with .js extensions added to relative imports
+ */
+function addJsExtensionsToRelativeImports(code: string): string {
+    // Transform import statements: import ... from './path' => import ... from './path.js'
+    // This regex matches import statements with relative paths (starting with ./ or ../)
+    // and adds .js extension if no extension is present
+    return code.replace(
+        /import\s+(?:[^'"]*\s+from\s+)?['"](\.[^'"]*?)['"](?=\s*;?)/g,
+        (match, importPath) => {
+            // Check if the import path already has an extension
+            if (/\.[a-zA-Z0-9]+$/.test(importPath)) {
+                return match; // Already has extension, don't modify
+            }
+            // Add .js extension for ESM compatibility
+            return match.replace(importPath, importPath + '.js');
+        }
+    );
+}
+
 export const scriptCodeCompile = async (
     sourceCode: string
 ): Promise<string> => {
@@ -11,7 +33,11 @@ export const scriptCodeCompile = async (
             'source.ts',
             sourceCode,
             {
-                typescript: {}
+                typescript: {
+                    // Use oxc's built-in rewriteImportExtensions to handle TypeScript extensions
+                    // This will rewrite .ts/.tsx extensions to .js/.jsx
+                    rewriteImportExtensions: 'rewrite'
+                }
             }
         );
 
@@ -20,13 +46,17 @@ export const scriptCodeCompile = async (
             throw new Error(errorMessages);
         }
 
-        return result.code;
+        // Additionally transform relative imports without extensions to add .js
+        // This is needed because oxc's rewriteImportExtensions only handles existing extensions
+        const transformedCode = addJsExtensionsToRelativeImports(result.code);
+
+        return transformedCode;
     } catch (err: any) {
         throw new Error(err.message)
     }
 };
 
-async function blockCodeCompile(ts_code: string): Promise<string> {
+export async function blockCodeCompile(ts_code: string): Promise<string> {
     const result = await compileCode(ts_code);
     if (result.error) {
         console.error("Error compiling block code:", result.error);
@@ -66,18 +96,7 @@ export function getCompileMethod(script: { type: string }) {
     return getCompileMethodByScriptType(script.type)
 }
 
-export function getCompileMethodByScriptType(scriptType: string) {
-    // Legacy support for old types
-    if (scriptType === "py_script") {
-        return pythonCodeCompile;
-    }
-    if (scriptType === "doc_plugin") {
-        return lexicalCodeCompile;
-    }
-    if (scriptType === "m_block") {
-        return blockCodeCompile;
-    }
-
+export function getCompileMethodByScriptType(scriptType: "script" | "block" | string) {
     // New architecture types
     if (scriptType === "script") {
         return scriptCodeCompile;
@@ -85,6 +104,4 @@ export function getCompileMethodByScriptType(scriptType: string) {
     if (scriptType === "block") {
         return blockCodeCompile;
     }
-
-    return undefined
 }

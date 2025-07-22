@@ -57,7 +57,11 @@ export const interceptExtensionRequest = (dist: string, port: number) => async (
         const getScriptCode = async (spaceId: string, scriptId: string): Promise<string | null> => {
             try {
                 const dataSpace = await getOrSetDataSpace(spaceId);
-                const extension = await dataSpace.script.get(scriptId);
+                let extension = await dataSpace.script.get(scriptId);
+                if (!extension) {
+                    // fallback to slug
+                    extension = await dataSpace.extension.getExtensionBySlug(scriptId)
+                }
                 return extension?.code || null;
             } catch (error) {
                 log(`Error getting script code for ${scriptId} in space ${spaceId}: ${error}`);

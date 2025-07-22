@@ -19,6 +19,14 @@ export interface Plugin {
   disable(): void
 }
 
+export interface ImportSuggestion {
+  label: string
+  insertText: string
+  detail?: string
+  documentation?: string
+  kind?: monaco.languages.CompletionItemKind
+}
+
 export interface PluginManagerOptions {
   enableESMResolver?: boolean
   esmResolverConfig?: {
@@ -26,6 +34,7 @@ export interface PluginManagerOptions {
     packageWhitelist?: string[]
     packageBlacklist?: string[]
     enableAutoTypeResolution?: boolean
+    customImportSuggestions?: ImportSuggestion[]
   }
 }
 
@@ -42,6 +51,7 @@ export class ESMImportResolverPlugin implements Plugin {
   private typeDefinitionManager: TypeDefinitionManager
   private monacoIntegration: MonacoIntegration
   private disposables: monaco.IDisposable[] = []
+  private customImportSuggestions: ImportSuggestion[] = []
 
   constructor(private options: PluginManagerOptions['esmResolverConfig'] = {}) {
     this.importParser = new ImportParser()
@@ -60,6 +70,11 @@ export class ESMImportResolverPlugin implements Plugin {
 
     if (options.packageBlacklist) {
       options.packageBlacklist.forEach(pkg => this.urlResolver.addToBlacklist(pkg))
+    }
+
+    // Store custom import suggestions
+    if (options.customImportSuggestions) {
+      this.customImportSuggestions = options.customImportSuggestions
     }
   }
 
@@ -143,6 +158,21 @@ export class ESMImportResolverPlugin implements Plugin {
   }
 
   /**
+   * Update custom import suggestions
+   */
+  updateCustomImportSuggestions(suggestions: ImportSuggestion[]): void {
+    this.customImportSuggestions = suggestions
+    console.log(`📝 Updated custom import suggestions: ${suggestions.length} items`)
+  }
+
+  /**
+   * Get current custom import suggestions
+   */
+  getCustomImportSuggestions(): ImportSuggestion[] {
+    return [...this.customImportSuggestions]
+  }
+
+  /**
    * Provide import completions for package names
    */
   private async provideImportCompletions(
@@ -169,38 +199,54 @@ export class ESMImportResolverPlugin implements Plugin {
       position.column
     )
 
-    // For now, provide basic suggestions
-    // In a full implementation, this would query a package registry
-    const suggestions: monaco.languages.CompletionItem[] = [
-      {
-        label: 'react',
-        kind: monaco.languages.CompletionItemKind.Module,
-        insertText: 'react',
-        detail: 'React library',
-        documentation: 'A JavaScript library for building user interfaces',
+    // Use custom import suggestions if provided, otherwise use default suggestions
+    const baseSuggestions = this.customImportSuggestions.length > 0
+      ? this.customImportSuggestions
+      : this.getDefaultImportSuggestions()
+
+    const suggestions: monaco.languages.CompletionItem[] = baseSuggestions
+      .filter((item: ImportSuggestion) => item.label.includes(partialImport))
+      .map((item: ImportSuggestion) => ({
+        label: item.label,
+        kind: item.kind || monaco.languages.CompletionItemKind.Module,
+        insertText: item.insertText,
+        detail: item.detail,
+        documentation: item.documentation,
         range: range
-      },
-      {
-        label: 'lodash',
-        kind: monaco.languages.CompletionItemKind.Module,
-        insertText: 'lodash',
-        detail: 'Lodash utility library',
-        documentation: 'A modern JavaScript utility library',
-        range: range
-      },
-      {
-        label: 'axios',
-        kind: monaco.languages.CompletionItemKind.Module,
-        insertText: 'axios',
-        detail: 'HTTP client library',
-        documentation: 'Promise based HTTP client for the browser and node.js',
-        range: range
-      }
-    ].filter(item => item.label.includes(partialImport))
+      }))
 
     return {
       suggestions
     }
+  }
+
+  /**
+   * Get default import suggestions when no custom suggestions are provided
+   */
+  private getDefaultImportSuggestions(): ImportSuggestion[] {
+    return [
+      {
+        label: 'react',
+        insertText: 'react',
+        detail: 'React library',
+        documentation: 'A JavaScript library for building user interfaces',
+        kind: monaco.languages.CompletionItemKind.Module
+      },
+      {
+        label: 'lodash',
+        insertText: 'lodash',
+        detail: 'Lodash utility library',
+        documentation: 'A modern JavaScript utility library',
+        kind: monaco.languages.CompletionItemKind.Module
+      },
+      {
+        label: 'axios',
+        insertText: 'axios',
+        detail: 'HTTP client library',
+        documentation: 'Promise based HTTP client for the browser and node.js',
+        kind: monaco.languages.CompletionItemKind.Module
+      }
+    ]
   }
 
   /**

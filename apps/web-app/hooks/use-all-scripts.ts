@@ -14,7 +14,7 @@ export const useAllScripts = () => {
     const fetchScripts = async () => {
       try {
         // Use the extension table instead of the deprecated script property
-        const scriptExtensions = await sqlite.extension.getScriptExtensions("enabled")
+        const scriptExtensions = await sqlite.extension.getScriptExtensions()
         setScripts(scriptExtensions)
       } catch (error) {
         console.error("Failed to fetch script extensions:", error)
@@ -26,3 +26,4 @@ export const useAllScripts = () => {
 
   return scripts
 }
+

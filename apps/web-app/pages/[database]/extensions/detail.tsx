@@ -21,11 +21,11 @@ import { useExtension } from "@/apps/web-app/hooks/use-extension"
 import { ExtensionPreview } from "./components/extension-preview"
 import { ExtensionToolbar } from "./components/extension-toolbar"
 import { ExtensionConfig } from "./config/common-config"
-import { ScriptSandbox } from "./editor/script-sandbox"
 import { getDescriptionFromCode, getEditorLanguage } from "./helper"
 import { useEditorStore } from "./stores/editor-store"
 
-const CodeEditor = lazy(() => import("./editor/code-editor"))
+// const CodeEditor = lazy(() => import("./editor/code-editor"))
+const SimpleCodeEditorWrapper = lazy(() => import("./editor/simple-code-editor-wrapper"))
 
 export const ExtensionDetailPage = () => {
   const script = useLoaderData() as IExtension
@@ -230,7 +230,7 @@ export const ExtensionDetailPage = () => {
                 <Skeleton className="h-[20px] w-[100px] rounded-full" />
               }
             >
-              <CodeEditor
+              <SimpleCodeEditorWrapper
                 ref={editorRef}
                 value={editorContent}
                 onSave={onSubmit}

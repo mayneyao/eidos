@@ -5,6 +5,7 @@ import { EditorArea } from "./components/editor-area"
 import { setupMonacoEnvironment } from "./monaco-setup"
 import { useMultiFileEditorStore } from "./store"
 import { type FileModel } from "./types"
+import { type ImportSuggestion, getPluginManager } from "./plugins/plugin-manager"
 
 // Configure Monaco Environment and Workers (async initialization)
 let monacoInitPromise: Promise<typeof monaco> | null = null
@@ -29,6 +30,8 @@ export interface SimpleCodeEditorProps {
   onChange?: (fileId: string, content: string) => void
   onSave?: (fileId: string, content: string) => void
   theme?: "vs-dark" | "light"
+  /** Custom import suggestions for auto-completion */
+  customImportSuggestions?: ImportSuggestion[]
 }
 
 /**
@@ -44,6 +47,7 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
   onChange,
   onSave,
   theme = "light",
+  customImportSuggestions = [],
 }) => {
   const {
     files,
@@ -107,6 +111,30 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
       }
     }
   }, [files, initialActiveFileId, onChange])
+
+  // Update custom import suggestions when they change
+  useEffect(() => {
+    if (customImportSuggestions.length > 0) {
+      console.log("Updating custom import suggestions:", customImportSuggestions.length)
+
+      // Wait for Monaco to be initialized before updating plugin
+      monacoInitPromise?.then(() => {
+        const pluginManager = getPluginManager()
+        const esmPlugin = pluginManager.getPlugin('esm-import-resolver')
+
+        if (esmPlugin && esmPlugin.isEnabled()) {
+          // Type assertion to access the updateCustomImportSuggestions method
+          const typedPlugin = esmPlugin as any
+          if (typeof typedPlugin.updateCustomImportSuggestions === 'function') {
+            typedPlugin.updateCustomImportSuggestions(customImportSuggestions)
+            console.log("✅ Custom import suggestions updated successfully")
+          }
+        }
+      }).catch((error) => {
+        console.error("❌ Failed to update custom import suggestions:", error)
+      })
+    }
+  }, [customImportSuggestions])
 
   return (
     <div className="flex-1 h-full">

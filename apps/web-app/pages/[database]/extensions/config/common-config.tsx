@@ -44,6 +44,7 @@ export const ExtensionConfig = () => {
     description: script.description || "",
     enabled: script.enabled,
     icon: script.icon || "",
+    slug: script.slug,
   })
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -53,7 +54,8 @@ export const ExtensionConfig = () => {
       formData.name !== script.name ||
       formData.description !== (script.description || "") ||
       formData.enabled !== script.enabled ||
-      formData.icon !== (script.icon || "")
+      formData.icon !== (script.icon || "") ||
+      formData.slug !== script.slug
     )
   }
 
@@ -63,6 +65,7 @@ export const ExtensionConfig = () => {
       description: script.description || "",
       enabled: script.enabled,
       icon: script.icon || "",
+      slug: script.slug,
     })
   }
 
@@ -138,6 +141,20 @@ export const ExtensionConfig = () => {
                 className="col-span-3"
                 readOnly
                 disabled
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-2">
+              <label htmlFor="slug" className="text-sm font-medium">
+                Slug
+              </label>
+              <Input
+                id="slug"
+                value={formData.slug}
+                className="col-span-3"
+                onChange={(e) =>
+                  setFormData({ ...formData, slug: e.target.value })
+                }
+                placeholder="Enter unique slug identifier"
               />
             </div>
             {/* readonly version */}

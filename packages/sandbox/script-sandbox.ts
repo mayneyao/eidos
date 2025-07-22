@@ -3,12 +3,76 @@ import { log } from 'electron-log';
 import type { Context } from 'hono';
 import type { BlankEnv } from 'hono/types';
 import { makeSdkInjectScript } from './helper';
+import { getExtLibs } from "@/packages/v3/code-tools/get-deps";
 
 // Function type for getting script code - this will be injected by the caller
 type GetScriptCodeFunction = (spaceId: string, scriptId: string) => Promise<string | null>;
 
 
 type Ctx = Context<BlankEnv, "*", {}>;
+
+/**
+ * Rewrite external library imports to use esm.sh URLs
+ */
+function rewriteExternalImports(code: string, externalLibs: string[]): string {
+    if (!externalLibs.length) {
+        return code;
+    }
+
+    let rewrittenCode = code;
+
+    // Create a set for faster lookup
+    const extLibsSet = new Set(externalLibs);
+
+    // Regex patterns for different import styles
+    const importPatterns = [
+        // import ... from "package"
+        {
+            pattern: /import\s+(?:(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)(?:\s*,\s*(?:\{[^}]*\}|\*\s+as\s+\w+|\w+))*\s+from\s+)?["']([^"']+)["']/g,
+            type: 'static'
+        },
+        // import("package")
+        {
+            pattern: /import\s*\(\s*["']([^"']+)["']\s*\)/g,
+            type: 'dynamic'
+        },
+        // require("package")
+        {
+            pattern: /require\s*\(\s*["']([^"']+)["']\s*\)/g,
+            type: 'require'
+        }
+    ];
+
+    importPatterns.forEach(({ pattern, type }) => {
+        rewrittenCode = rewrittenCode.replace(pattern, (match, packageName) => {
+            // Skip local imports (starting with ./ or ../)
+            if (packageName.startsWith('./') || packageName.startsWith('../')) {
+                return match;
+            }
+
+            // Skip path-mapped imports (starting with @/)
+            if (packageName.startsWith('@/')) {
+                return match;
+            }
+
+            // Skip CSS files
+            if (packageName.endsWith('.css')) {
+                return match;
+            }
+
+            // Check if this package is in our external libs list
+            if (extLibsSet.has(packageName)) {
+                const esmUrl = `https://esm.sh/${packageName}`;
+                console.log(`Rewriting ${type} import: ${packageName} -> ${esmUrl}`);
+                return match.replace(packageName, esmUrl);
+            }
+
+            return match;
+        });
+    });
+
+    return rewrittenCode;
+}
 
 export class ScriptSandboxHandler {
     private getScriptCode: GetScriptCodeFunction | null = null;
@@ -57,6 +121,8 @@ export class ScriptSandboxHandler {
             return c.text('Invalid script ID', 400);
         }
 
+
+
         if (!this.getScriptCode) {
             return c.text('Script code provider not configured', 500);
         }
@@ -68,11 +134,23 @@ export class ScriptSandboxHandler {
                 return c.text(`Script not found: ${scriptId}`, 404);
             }
 
+            const deps = getExtLibs(compiledCode)
+            log(`External dependencies found for ${scriptId}:`, deps);
+
+            // Rewrite external imports to use esm.sh URLs
+            const rewrittenCode = rewriteExternalImports(compiledCode, deps);
+
+            if (deps.length > 0) {
+                log(`Rewritten imports for ${scriptId}. Original length: ${compiledCode.length}, New length: ${rewrittenCode.length}`);
+            }
+
             const headers = new Headers();
             headers.append("Content-Type", 'text/javascript');
             headers.append("Cross-Origin-Embedder-Policy", "require-corp");
+            headers.append("X-Eidos-External-Libs", JSON.stringify(deps));
+            headers.append("Access-Control-Expose-Headers", "X-Eidos-External-Libs");
 
-            return c.body(compiledCode, { headers });
+            return c.body(rewrittenCode, { headers });
         } catch (error: any) {
             log(`Error serving script file ${scriptId} for space ${spaceId}: ${error.message}`);
             return c.text(`Error serving script: ${error.message}`, 500);

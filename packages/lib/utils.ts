@@ -179,8 +179,8 @@ export const getUuid = () => {
 }
 
 // generate a random id with 8 characters
-export const generateId = () => {
-  return Math.random().toString(36).substring(2, 10)
+export const generateIdV7 = () => {
+  return uuidv7().split("-").join("")
 }
 
 export const isDayPageId = (id: string | undefined) => {

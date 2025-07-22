@@ -1,38 +1,39 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Transformer } from "@lexical/markdown";
-import { $convertFromMarkdownString } from "@lexical/markdown"
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { useClickAway, useKeyPress } from "ahooks"
-import { useChat } from "ai/react"
+import { $convertFromMarkdownString } from "@lexical/markdown";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useClickAway, useKeyPress } from "ahooks";
+import { useChat } from "ai/react";
 import type {
   LexicalNode,
-  RangeSelection} from "lexical";
+  RangeSelection
+} from "lexical";
 import {
   $createParagraphNode,
   $getRoot,
   $isTextNode
-} from "lexical"
-import { PauseIcon, RefreshCcwIcon } from "lucide-react"
-import { useTranslation } from "react-i18next"
+} from "lexical";
+import { PauseIcon, RefreshCcwIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
-import { generateId, getBlockUrl, uuidv7 } from "@/lib/utils"
-import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
-import { Button } from "@/components/ui/button"
-import { toast } from "@/components/ui/use-toast"
+import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config";
 import type { ChartConfig } from "@/components/chart";
-import { Chart } from "@/components/chart"
-import { Thinking } from "@/components/thinking"
+import { Chart } from "@/components/chart";
+import { Thinking } from "@/components/thinking";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
+import { uuidv7 } from "@/lib/utils";
 
-import { $createChartNode } from "../../blocks/chart/node"
-import { $isMermaidNode } from "../../blocks/mermaid/node"
-import { useAllDocBlocks } from "../../hooks/use-all-doc-blocks"
-import { useExtBlocks } from "../../hooks/use-ext-blocks"
-import { allTransformers } from "../const"
-import { AIActionEnum, AIActionList } from "./ai-action-list"
-import { AIContentEditor } from "./ai-msg-editor"
-import { useGenerateChartConfig } from "./hooks/use-generate-chart"
-import { useUpdateLocation } from "./hooks/use-update-location"
-import { PromptList } from "./prompt-list"
+import { $createChartNode } from "../../blocks/chart/node";
+import { $isMermaidNode } from "../../blocks/mermaid/node";
+import { useAllDocBlocks } from "../../hooks/use-all-doc-blocks";
+import { useExtBlocks } from "../../hooks/use-ext-blocks";
+import { allTransformers } from "../const";
+import { AIActionEnum, AIActionList } from "./ai-action-list";
+import { AIContentEditor } from "./ai-msg-editor";
+import { useGenerateChartConfig } from "./hooks/use-generate-chart";
+import { useUpdateLocation } from "./hooks/use-update-location";
+import { PromptList } from "./prompt-list";
 
 function setPlaceholderHeight(height: number) {
   document

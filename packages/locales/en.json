@@ -223,7 +223,7 @@
     "extension.toolbar.layoutFull": "Full View",
     "extension.toolbar.run": "Run",
     "extension.udf": "UDF",
-    "extension.udfDescription": "Use JavaScript to create custom calculation functions for use in table Formula fields.",
+    "extension.udfDescription": "Create custom calculation functions for use in table Formula fields.",
     "extension.udfWarning": "Warning: Tables using UDFs may cause issues when viewing the table with other SQLite clients. Publish service does not support UDFs yet.",
     "extension.version": "v{{version}}",
     "features.localFirst.description": "Full control over your data with offline support, ensuring privacy and security",
