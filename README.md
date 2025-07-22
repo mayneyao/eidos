@@ -45,11 +45,6 @@
     <img src="./static/assets/images/eidos-extension-script-as-llm-tools.webp" alt="extension script" />
     <img src="./static/assets/images/eidos-llm-call-custom-script-tools.webp" alt="eidos ai call custom script tools" />
   </details>
-  <details>
-  <summary>
-    UDF: Use JavaScript to create custom calculation functions for use in table Formula fields.
-  </summary>
-  </details>
 
 - Open Format: You get the raw data, everything in sqlite is open.
 

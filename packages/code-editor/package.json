@@ -1,0 +1,31 @@
+{
+  "name": "@eidos.space/code-editor",
+  "version": "1.0.0",
+  "description": "Code editor package with ESM import resolver plugin",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest --run",
+    "test:watch": "vitest"
+  },
+  "type": "module",
+  "keywords": [
+    "eidos.space",
+    "code-editor",
+    "monaco",
+    "esm-resolver"
+  ],
+  "author": "mayneyao",
+  "license": "ISC",
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.52.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.1",
+    "typescript": "^5.8.3",
+    "vitest": "^2.1.9"
+  }
+}
