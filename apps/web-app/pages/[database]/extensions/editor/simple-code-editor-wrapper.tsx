@@ -140,18 +140,21 @@ export const SimpleCodeEditorWrapper = forwardRef(
       setPendingVersionUpdate,
     ])
 
-    useEffect(() => {
-      const getDeps = async () => {
+    const getDeps = useCallback(
+      async (code: string) => {
         const deps = await resolveLocalFileDependencies(
           scriptId || "current",
-          value || "",
+          code,
           getExtensionBySlug
         )
-        console.warn("deps", deps)
         return deps
-      }
-      getDeps().then(setDeps)
-    }, [value])
+      },
+      [scriptId]
+    )
+
+    useEffect(() => {
+      getDeps(value).then(setDeps)
+    }, [value, getDeps])
 
     const handleRejectChanges = useCallback(() => {
       if (scriptId) {
@@ -248,6 +251,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
           onSave={handleSave}
           theme={theme}
           onFileJump={jumpToExtension}
+          getDeps={getDeps}
           customImportSuggestions={customImportSuggestions}
         />
       </div>

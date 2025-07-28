@@ -8,7 +8,7 @@ import {
   type ImportSuggestion,
 } from "./plugins/plugin-manager"
 import { useMultiFileEditorStore } from "./store"
-import { type FileModel } from "./types"
+import { FileType, type FileModel } from "./types"
 
 // Configure Monaco Environment and Workers (async initialization)
 let monacoInitPromise: Promise<typeof monaco> | null = null
@@ -16,6 +16,12 @@ let monacoInitPromise: Promise<typeof monaco> | null = null
 // Ensure initialization only happens once
 if (!monacoInitPromise) {
   monacoInitPromise = setupMonacoEnvironment()
+}
+
+export interface ResolvedFile {
+  id: string
+  content: string
+  imports: string[]
 }
 
 export interface SimpleCodeEditorProps {
@@ -33,6 +39,7 @@ export interface SimpleCodeEditorProps {
   onChange?: (fileId: string, content: string) => void
   onSave?: (fileId: string, content: string) => void
   onFileJump?: (path: string) => void
+  getDeps?: (code: string) => Promise<ResolvedFile[]>
   theme?: "vs-dark" | "light"
   /** Custom import suggestions for auto-completion */
   customImportSuggestions?: ImportSuggestion[]
@@ -53,6 +60,7 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
   theme = "light",
   customImportSuggestions = [],
   onFileJump,
+  getDeps,
 }) => {
   const {
     files,
@@ -63,6 +71,28 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
     updateFileContent,
   } = useMultiFileEditorStore()
   const [isInitialized, setIsInitialized] = useState(false)
+
+  const getDepFiles = useCallback(
+    async (code: string) => {
+      if (getDeps) {
+        const deps = await getDeps(code)
+        const depsFiles = (deps || [])
+          .filter((dp) => dp.id !== activeFileId)
+          .map((dp) => {
+            return {
+              id: dp.id,
+              name: `${dp.id}.ts`,
+              path: `${dp.id}.ts`,
+              content: dp.content,
+              language: "typescript" as const,
+              type: FileType.File,
+            }
+          })
+        return depsFiles
+      }
+    },
+    [activeFileId, getDeps]
+  )
 
   // Initialize editor
   useEffect(() => {
@@ -157,9 +187,38 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
   const handleChange = useCallback(
     (code: string) => {
       onChange?.(activeFileId!, code)
+      
     },
     [activeFileId]
   )
+
+  // Dynamic dependency resolution when code changes
+  useEffect(() => {
+    if (!activeFileId || !getDeps) return
+
+    const activeFile = files.find(f => f.id === activeFileId)
+    if (!activeFile) return
+
+    const resolveDependencies = async () => {
+      try {
+        const depFiles = await getDepFiles(activeFile.content)
+        if (depFiles && depFiles.length > 0) {
+          // Add new dependency files to the store
+          const existingFileIds = new Set(files.map(f => f.id))
+          const newFiles = depFiles.filter(f => !existingFileIds.has(f.id))
+          
+          if (newFiles.length > 0) {
+            setFiles([...files, ...newFiles])
+            console.log(`Added ${newFiles.length} dependency files`)
+          }
+        }
+      } catch (error) {
+        console.error("Failed to resolve dependencies:", error)
+      }
+    }
+
+    resolveDependencies()
+  }, [activeFileId, files, getDepFiles, setFiles, getDeps])
 
   return (
     <div className="flex-1 h-full">
