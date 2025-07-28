@@ -73,26 +73,23 @@ We have prepared the `eidos__extnode` table for storing extension nodes. You can
     id TEXT PRIMARY KEY,
     blob BLOB,
     text TEXT,
-    path TEXT,
     type TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 ```
 
-| Field      | Type      | What it's for                           |
-| ---------- | --------- | --------------------------------------- |
-| id         | TEXT      | Unique identifier for the node          |
-| name       | TEXT      | Node name                               |
-| type       | TEXT      | Node type, e.g., `excalidraw`          |
-| blob       | BLOB      | Node content                            |
-| text       | TEXT      | Node text                               |
-| path       | TEXT      | Node path                               |
-| created_at | TIMESTAMP | Creation timestamp                      |
-| updated_at | TIMESTAMP | Last update timestamp                   |
+| Field      | Type      | What it's for                  |
+| ---------- | --------- | ------------------------------ |
+| id         | TEXT      | Unique identifier for the node |
+| name       | TEXT      | Node name                      |
+| type       | TEXT      | Node type, e.g., `excalidraw`  |
+| blob       | BLOB      | Node content                   |
+| text       | TEXT      | Node text                      |
+| created_at | TIMESTAMP | Creation timestamp             |
+| updated_at | TIMESTAMP | Last update timestamp          |
 
-We have prepared three different data fields for storing different types of data. Which field to use depends on the extension type. For example, the excalidraw extension uses the text field to store text data, because excalidraw node content is in JSON text format.
+We have prepared two different data fields for storing different types of data. Which field to use depends on the extension type. For example, the excalidraw extension uses the text field to store text data, because excalidraw node content is in JSON text format.
 
 - blob is used to store binary data, such as images, audio, video, etc.
 - text is used to store text data, such as text, Markdown, etc.
-- path is used to store path data, such as file paths, URLs, etc.

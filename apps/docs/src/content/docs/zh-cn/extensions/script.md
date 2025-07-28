@@ -58,7 +58,7 @@ export const meta = {
   },
 }
 
-function hello(name: string) {
+export function hello({ name }: { name: string }) {
   return `Hello, ${name}!`
 }
 ```

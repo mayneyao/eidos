@@ -73,7 +73,6 @@ sidebar:
     id TEXT PRIMARY KEY,
     blob BLOB,
     text TEXT,
-    path TEXT,
     type TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -87,12 +86,10 @@ sidebar:
 | type       | TEXT      | 节点类型，例如 `excalidraw` |
 | blob       | BLOB      | 节点内容                    |
 | text       | TEXT      | 节点文本                    |
-| path       | TEXT      | 节点路径                    |
 | created_at | TIMESTAMP | 创建时间                    |
 | updated_at | TIMESTAMP | 更新时间                    |
 
-我们准备了三个不同的数据字段，用于存储不同类型的数据。具体使用哪个字段取决于扩展的类型。比如 excalidraw 扩展使用 text 字段存储文本数据，因为 excalidraw 的节点内容是 JSON 格式的文本。
+我们准备了两个不同的数据字段，用于存储不同类型的数据。具体使用哪个字段取决于扩展的类型。比如 excalidraw 扩展使用 text 字段存储文本数据，因为 excalidraw 的节点内容是 JSON 格式的文本。
 
 - blob 用于存储二进制数据，例如图片、音频、视频等
 - text 用于存储文本数据，例如文本、Markdown 等
-- path 用于存储路径数据，例如文件路径、URL 等
