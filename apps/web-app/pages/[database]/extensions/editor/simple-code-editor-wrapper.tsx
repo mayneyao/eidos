@@ -1,11 +1,4 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useState,
-} from "react"
+import { forwardRef, useCallback, useEffect, useMemo, useState } from "react"
 import { SimpleCodeEditor } from "@/packages/code-editor/src/simple-code-editor"
 import { FileType, type FileModel } from "@/packages/code-editor/src/types"
 import type { IExtension } from "@/packages/core/meta-table/extension"
@@ -18,6 +11,7 @@ import ts from "typescript/lib/typescript"
 
 import { useAllScripts } from "@/hooks/use-all-scripts"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import { useSqlite } from "@/hooks/use-sqlite"
 
 import { getDynamicPrompt } from "../helper"
@@ -66,6 +60,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
     const [deps, setDeps] = useState<ResolvedFile[]>()
     const { sqlite } = useSqlite()
     const allScripts = useAllScripts()
+    const currentExtension = useExtensionByIdOrSlug(scriptId)
 
     const customImportSuggestions = useMemo(() => {
       return allScripts
@@ -78,12 +73,20 @@ export const SimpleCodeEditorWrapper = forwardRef(
         }))
     }, [allScripts])
 
-    const getExtensionBySlug = async (slug: string) => {
+    const getExtensionBySlug = async (
+      slug: string
+    ): Promise<{
+      content: string
+      ext: "ts" | "tsx"
+    } | null> => {
       const res = await sqlite?.extension.getExtensionBySlug(slug)
       if (!res) {
         return null
       }
-      return res.ts_code || null
+      return {
+        content: res.ts_code!,
+        ext: res.type === "block" ? "tsx" : "ts",
+      }
     }
     const {
       scriptCodeMap,
@@ -102,7 +105,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
         if (scriptId) {
           setUnsavedChanges(scriptId, false)
         }
-        if (language === "typescript" || language === "typescriptreact") {
+        if (language === "typescript") {
           if (customCompile) {
             customCompile(codeToSave).then((jsCode) => {
               console.log({
@@ -145,6 +148,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
         const deps = await resolveLocalFileDependencies(
           scriptId || "current",
           code,
+          ext,
           getExtensionBySlug
         )
         return deps
@@ -163,26 +167,27 @@ export const SimpleCodeEditorWrapper = forwardRef(
       }
     }, [scriptId, setScriptCodeMap, setPendingVersionUpdate])
 
+    // Determine extension based on script type: script -> .ts, block -> .tsx
+    const ext = currentExtension?.type === "block" ? "tsx" : "ts"
+    const currentFile: FileModel = {
+      id: `${scriptId || "current"}`,
+      name: `${scriptId || "current"}.${ext}`,
+      path: `${scriptId || "current"}.${ext}`,
+      content: value || "", // Use initial value, not current code state
+      language: "typescript", // Always use typescript language
+      type: FileType.File,
+    }
+
     // Convert current script and all scripts to FileModel format
     // Don't include 'code' in dependencies to avoid recreating files on every keystroke
     const files: FileModel[] = useMemo(() => {
-      const currentFile: FileModel = {
-        id: scriptId || "current",
-        name: `${scriptId || "current"}.ts`,
-        path: `${scriptId || "current"}.ts`,
-        content: value || "", // Use initial value, not current code state
-        language:
-          language === "typescriptreact" ? "typescriptreact" : "typescript",
-        type: FileType.File,
-      }
-
       const depsFiles = (deps || [])
         .filter((dp) => dp.id !== scriptId)
         .map((dp) => {
           return {
             id: dp.id,
-            name: `${dp.id}.ts`,
-            path: `${dp.id}.ts`,
+            name: `${dp.id}.${dp.ext}`,
+            path: `${dp.id}.${dp.ext}`,
             content: dp.content,
             language: "typescript" as const,
             type: FileType.File,
@@ -213,8 +218,13 @@ export const SimpleCodeEditorWrapper = forwardRef(
     )
 
     const initialOpenFiles = useMemo(() => {
-      return [scriptId || "current"]
+      return [currentFile.path]
     }, [scriptId])
+    console.warn("files", {
+      files,
+      currentExtension,
+      initialOpenFiles,
+    })
 
     return (
       <div className="h-full w-full relative">
@@ -245,7 +255,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
         <SimpleCodeEditor
           initialFiles={files}
           initialOpenFiles={initialOpenFiles}
-          initialActiveFileId={scriptId || "current"}
+          initialActiveFileId={currentFile.id}
           className="w-full h-full"
           onChange={handleEditorChange}
           onSave={handleSave}

@@ -13,7 +13,7 @@ function getLocalImportsFromCode(code: string): string[] {
     try {
         const ast: Program = parseSync("file.tsx", code).program;
 
-        function walk(node: any, visitor: (node: any) => void) {
+        const walk = (node: any, visitor: (node: any) => void) => {
             if (!node) return;
 
             visitor(node);
@@ -32,7 +32,7 @@ function getLocalImportsFromCode(code: string): string[] {
                     }
                 }
             }
-        }
+        };
 
         walk(ast, (node: any) => {
             if (node) {
@@ -143,12 +143,17 @@ function resolveImportPath(currentFileId: string, importPath: string): string {
 }
 
 export interface FileResolver {
-    (fileId: string): Promise<string | null> | string | null;
+    (fileId: string): Promise<{
+        ext: 'ts' | 'tsx',
+        content: string,
+    } | null>
+
 }
 
 export interface ResolvedFile {
     id: string;
     content: string;
+    ext: 'ts' | 'tsx',
     imports: string[];
 }
 
@@ -163,11 +168,12 @@ export interface ResolvedFile {
 export async function resolveLocalFileDependencies(
     fileId: string,
     fileContent: string,
+    ext: 'ts' | 'tsx',
     getFileContent: FileResolver
 ): Promise<ResolvedFile[]> {
     const resolvedFiles = new Map<string, ResolvedFile>();
     const processedFiles = new Set<string>();
-    const queue: Array<{ id: string; content: string }> = [{ id: fileId, content: fileContent }];
+    const queue: Array<{ id: string; content: string; ext: 'ts' | 'tsx' }> = [{ id: fileId, content: fileContent, ext }];
 
     while (queue.length > 0) {
         const current = queue.shift()!;
@@ -185,6 +191,7 @@ export async function resolveLocalFileDependencies(
         resolvedFiles.set(current.id, {
             id: current.id,
             content: current.content,
+            ext: current.ext,
             imports: localImports
         });
 
@@ -196,10 +203,10 @@ export async function resolveLocalFileDependencies(
             if (!processedFiles.has(normalizedPath)) {
                 try {
                     // Try to get the file content
-                    const importedContent = await getFileContent(normalizedPath);
+                    const importedFile = await getFileContent(normalizedPath);
 
-                    if (importedContent) {
-                        queue.push({ id: normalizedPath, content: importedContent });
+                    if (importedFile) {
+                        queue.push({ id: normalizedPath, content: importedFile.content, ext: importedFile.ext });
                     } else {
                         // Try with common extensions if the normalized path doesn't work
                         const extensions = ['.ts', '.tsx', '.js', '.jsx'];
@@ -207,9 +214,9 @@ export async function resolveLocalFileDependencies(
 
                         for (const ext of extensions) {
                             const pathWithExt = normalizedPath + ext;
-                            const contentWithExt = await getFileContent(pathWithExt);
-                            if (contentWithExt) {
-                                queue.push({ id: pathWithExt, content: contentWithExt });
+                            const fileWithExt = await getFileContent(pathWithExt);
+                            if (fileWithExt) {
+                                queue.push({ id: pathWithExt, content: fileWithExt.content, ext: fileWithExt.ext });
                                 found = true;
                                 break;
                             }
@@ -219,9 +226,9 @@ export async function resolveLocalFileDependencies(
                         if (!found) {
                             for (const ext of extensions) {
                                 const indexPath = `${normalizedPath}/index${ext}`;
-                                const indexContent = await getFileContent(indexPath);
-                                if (indexContent) {
-                                    queue.push({ id: indexPath, content: indexContent });
+                                const indexFile = await getFileContent(indexPath);
+                                if (indexFile) {
+                                    queue.push({ id: indexPath, content: indexFile.content, ext: indexFile.ext });
                                     break;
                                 }
                             }

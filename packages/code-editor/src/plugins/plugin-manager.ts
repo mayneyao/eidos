@@ -86,7 +86,7 @@ export class ESMImportResolverPlugin implements Plugin {
     try {
       // Register completion provider for ESM imports
       const completionProvider = monaco.languages.registerCompletionItemProvider(
-        ['typescript', 'javascript'],
+        ['typescript', 'javascript', 'javascriptreact'],
         {
           triggerCharacters: ['"', "'", '/'],
           provideCompletionItems: async (model, position) => {
@@ -98,7 +98,7 @@ export class ESMImportResolverPlugin implements Plugin {
 
       // Register hover provider for import information
       const hoverProvider = monaco.languages.registerHoverProvider(
-        ['typescript', 'javascript'],
+        ['typescript', 'javascript', 'javascriptreact'],
         {
           provideHover: async (model, position) => {
             return this.provideImportHover(model, position)

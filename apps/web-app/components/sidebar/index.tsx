@@ -54,8 +54,7 @@ export const SideBar = ({ className }: any) => {
   const { spaceList } = useSpace()
   const { isShareMode } = useAppRuntimeStore()
   const { currentCut } = useFolderStore()
-  const scripts = useAllExtensions(space)
-  const apps = scripts.filter((script) => script.type === "app")
+  const scripts = useAllExtensions()
 
   const { isFileManagerOpen, setFileManagerOpen } = useAppStore()
 
@@ -159,20 +158,6 @@ export const SideBar = ({ className }: any) => {
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
-                  {apps.map((app) => (
-                    <Button
-                      variant={"ghost"}
-                      size="sm"
-                      key={app.id}
-                      className="w-full justify-start font-normal"
-                      asChild
-                    >
-                      <Link to={`/${space}/apps/${app.id}`}>
-                        <AppWindowIcon className="pr-2" />
-                        {app.name}
-                      </Link>
-                    </Button>
-                  ))}
                 </div>
               )}
             </div>

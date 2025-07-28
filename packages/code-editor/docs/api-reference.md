@@ -190,7 +190,7 @@ enum FileType {
 Supported programming languages.
 
 ```typescript
-type SupportedLanguage = "typescript" | "typescriptreact" | ""
+type SupportedLanguage = "typescript" | ""
 ```
 
 ### MultiFileEditorState
@@ -293,7 +293,7 @@ function getLanguageFromPath(filePath: string): SupportedLanguage
 **Examples:**
 ```typescript
 getLanguageFromPath('file.ts')    // 'typescript'
-getLanguageFromPath('file.tsx')   // 'typescriptreact'
+getLanguageFromPath('file.tsx')   // 'typescript'
 getLanguageFromPath('file.js')    // 'typescript' (fallback)
 ```
 

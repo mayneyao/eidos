@@ -16,28 +16,17 @@ export class MonacoIntegration implements MonacoIntegrationService {
 
     types.forEach(typeDef => {
       try {
-        // Method 1: Register as node_modules structure
+        // Register as node_modules structure - this is sufficient for most cases
         const nodeModulesPath = this.createTypeFilePath(typeDef.packageName, typeDef.url)
-        const existing1 = this.registeredLibs.get(nodeModulesPath)
-        if (existing1) {
-          existing1.dispose()
+        const existing = this.registeredLibs.get(nodeModulesPath)
+        if (existing) {
+          existing.dispose()
         }
-        const disposable1 = this.addExtraLib(typeDef.content, nodeModulesPath)
-        this.registeredLibs.set(nodeModulesPath, disposable1)
-
-        // Method 2: Create a module declaration wrapper
-        const moduleDeclarationPath = `ts:filename/${typeDef.packageName}.d.ts`
-        const moduleDeclaration = this.createModuleDeclaration(typeDef.packageName, typeDef.content)
-        const existing2 = this.registeredLibs.get(moduleDeclarationPath)
-        if (existing2) {
-          existing2.dispose()
-        }
-        const disposable2 = this.addExtraLib(moduleDeclaration, moduleDeclarationPath)
-        this.registeredLibs.set(moduleDeclarationPath, disposable2)
+        const disposable = this.addExtraLib(typeDef.content, nodeModulesPath)
+        this.registeredLibs.set(nodeModulesPath, disposable)
 
         console.log(`✅ Registered types for ${typeDef.packageName}`)
         console.log(`   - Node modules: ${nodeModulesPath}`)
-        console.log(`   - Module declaration: ${moduleDeclarationPath}`)
       } catch (error) {
         console.error(`❌ Failed to register types for ${typeDef.packageName}:`, error)
       }
@@ -148,7 +137,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
   createCompletionProvider(): monaco.IDisposable {
     // Completions are handled automatically by Monaco's TypeScript service
     console.log('🔍 Completion provider ready (handled by Monaco TypeScript service)')
-    return { dispose: () => {} }
+    return { dispose: () => { } }
   }
 
   /**
@@ -157,7 +146,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
   createHoverProvider(): monaco.IDisposable {
     // Hover is handled automatically by Monaco's TypeScript service
     console.log('🔍 Hover provider ready (handled by Monaco TypeScript service)')
-    return { dispose: () => {} }
+    return { dispose: () => { } }
   }
 
   /**
@@ -166,7 +155,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
   createDefinitionProvider(): monaco.IDisposable {
     // Go-to-definition is handled automatically by Monaco's TypeScript service
     console.log('🔍 Definition provider ready (handled by Monaco TypeScript service)')
-    return { dispose: () => {} }
+    return { dispose: () => { } }
   }
 
   /**
@@ -209,14 +198,13 @@ export class MonacoIntegration implements MonacoIntegrationService {
   private createTypeFilePath(packageName: string, typeUrl: string): string {
     // Create a virtual file path that Monaco can understand
     // Use the actual package name structure for better module resolution
-    const hash = this.simpleHash(typeUrl)
-
+    // const hash = this.simpleHash(typeUrl)
     if (packageName.startsWith('@')) {
       // Scoped package: @babel/core -> node_modules/@babel/core/index.d.ts
-      return `file:///node_modules/${packageName}/index.d.ts?${hash}`
+      return `file:///node_modules/${packageName}/index.d.ts`
     } else {
       // Regular package: react -> node_modules/react/index.d.ts
-      return `file:///node_modules/${packageName}/index.d.ts?${hash}`
+      return `file:///node_modules/${packageName}/index.d.ts`
     }
   }
 
@@ -259,7 +247,7 @@ declare module "${packageName}/*" {
       setTimeout(() => {
         const models = monaco.editor.getModels()
         models.forEach(model => {
-          if (model.getLanguageId() === 'typescript' || model.getLanguageId() === 'typescriptreact') {
+          if (model.getLanguageId() === 'typescript') {
             // Trigger diagnostics update without changing content
             monaco.editor.setModelMarkers(model, 'typescript', [])
           }

@@ -70,9 +70,12 @@ export const EditorArea = ({
     }
   }, [files])
 
-  // Configure language support only once when Monaco is ready
+  // Configure language support when Monaco is ready or active file changes
   useEffect(() => {
-    if (isMonacoReady && files.length > 0) {
+    if (isMonacoReady && files.length > 0 && activeFile) {
+      console.log(`🔧 Configuring language for active file: ${activeFile.path}`)
+      console.log(`  - File language: ${activeFile.language}`)
+
       const context = {
         scriptPathMappings: {
           "@/scripts/*": ["file:///scripts/*"],
@@ -88,14 +91,23 @@ export const EditorArea = ({
           })),
       }
 
-      // Only configure language once when Monaco is ready
+      // Configure language based on active file
+      // For Monaco Editor, both .ts and .tsx files use 'typescript' language
+      // JSX support is determined by file extension, not language ID
+      const language = "typescript"
+
+      console.log(
+        `  - Resolved language: ${language} (original: ${activeFile.language})`
+      )
+
       languageConfigManagerRef.current.configureLanguage(
         monaco,
-        "typescript", // Use typescript as default
+        language,
         context
       )
+      console.warn("change editor language", { activeFile, language })
     }
-  }, [isMonacoReady]) // Remove files dependency to avoid reconfiguration
+  }, [isMonacoReady, activeFile]) // Add activeFile dependency to reconfigure on file switch
 
   // Clean up language configuration
   useEffect(() => {
@@ -105,9 +117,9 @@ export const EditorArea = ({
   }, [])
 
   const debouncedSyncContent = useCallback(
-    createEditorDebounce((scriptId: string, content: string) => {
-      syncEditorContentToVirtualFileSystem(monaco, scriptId, content)
-      console.log(`🔄 Debounced sync for ${scriptId}`)
+    createEditorDebounce((path: string, content: string) => {
+      syncEditorContentToVirtualFileSystem(monaco, path, content)
+      console.log(`🔄 Debounced sync for ${path}`)
     }, "CONTENT_SYNC"),
     []
   )
@@ -123,11 +135,11 @@ export const EditorArea = ({
         }
 
         if (activeFile) {
-          debouncedSyncContent(activeFile.id, value)
+          debouncedSyncContent(activeFile.path, value) // Use path instead of id
         }
       }
     },
-    [activeFileId, activeFile, onChange]
+    [activeFileId, activeFile, onChange, debouncedSyncContent]
   )
 
   // Handle editor mount - only setup basic editor instance
@@ -201,6 +213,16 @@ export const EditorArea = ({
     })
     disposables.push(saveAction)
 
+    // Clean up any unwanted inmemory models created by Monaco
+    const allModels = monaco.editor.getModels()
+    const inmemoryModels = allModels.filter(
+      (model) => model.uri.scheme === "inmemory"
+    )
+    if (inmemoryModels.length > 0) {
+      console.log(`Disposing ${inmemoryModels.length} unwanted inmemory models`)
+      inmemoryModels.forEach((model) => model.dispose())
+    }
+
     // Setup initial model if there's an active file
     if (activeFile) {
       console.log(`Setting initial model: ${activeFile.path}`)
@@ -222,7 +244,18 @@ export const EditorArea = ({
 
         if (model) {
           editor.setModel(model)
-          console.log(`✅ Model setup successful: ${activeFile.path}`)
+
+          // Ensure the model has the correct language
+          if (model.getLanguageId() !== activeFile.language) {
+            console.log(
+              `Setting model language to ${activeFile.language} for: ${activeFile.path}`
+            )
+            monaco.editor.setModelLanguage(model, activeFile.language)
+          }
+
+          console.log(
+            `✅ Model setup successful: ${activeFile.path}, language: ${model.getLanguageId()}`
+          )
 
           // Force trigger language service
           setTimeout(() => {
@@ -268,7 +301,10 @@ export const EditorArea = ({
         if (definitions && definitions.length > 0) {
           const definition = definitions[0]
           const targetPath = definition.fileName.replace(/^file:\/\/\//, "")
-          const fileId = files.find((f) => f.path === targetPath)?.id
+          // eidos just a definition file, ignore it
+          const fileId = files.find(
+            (f) => f.id !== "eidos" && f.path === targetPath
+          )?.id
           if (fileId) {
             onFileJump?.(fileId)
             setActiveFileId(fileId)
@@ -347,19 +383,55 @@ export const EditorArea = ({
           console.log(`Updating content for existing model: ${activeFile.path}`)
           model.setValue(activeFile.content)
         }
+
+        // Always use typescript language for both .ts and .tsx files
+        const expectedLanguage = "typescript"
+        if (model.getLanguageId() !== expectedLanguage) {
+          console.log(
+            `Updating language from ${model.getLanguageId()} to ${expectedLanguage} for: ${activeFile.path}`
+          )
+          monaco.editor.setModelLanguage(model, expectedLanguage)
+        }
       }
 
       // Set editor model
       if (model) {
         editorRef.current.editor.setModel(model)
-        console.log(`✅ Successfully set model for: ${activeFile.path}`)
+
+        // Always use typescript language for both .ts and .tsx files
+        const expectedLanguage = "typescript"
+        if (model.getLanguageId() !== expectedLanguage) {
+          console.log(
+            `Setting model language to ${expectedLanguage} for: ${activeFile.path}`
+          )
+          monaco.editor.setModelLanguage(model, expectedLanguage)
+        }
+
+        console.log(
+          `✅ Successfully set model for: ${activeFile.path}, language: ${model.getLanguageId()}`
+        )
+
+        syncEditorContentToVirtualFileSystem(
+          monaco,
+          activeFile.path,
+          activeFile.content
+        )
+
+        // Force trigger syntax highlighting by requesting language features
+        setTimeout(() => {
+          const markers = monaco.editor.getModelMarkers({ resource: model.uri })
+          console.log(
+            `Language service markers for ${activeFile.path}:`,
+            markers.length
+          )
+        }, 500)
       } else {
         console.error(`❌ Failed to create/get model for: ${activeFile.path}`)
       }
     } catch (error) {
       console.error(`Error switching to file ${activeFile.path}:`, error)
     }
-  }, [activeFile, setFileModel])
+  }, [activeFile, setFileModel, debouncedSyncContent])
 
   // If no active file, show blank state
   if (!activeFile) {
@@ -380,7 +452,8 @@ export const EditorArea = ({
       <Editor
         height="100%"
         width="100%"
-        language={activeFile.language}
+        // Don't set language here to avoid creating default model
+        // language={activeFile.language}
         // Don't set value, let model manage content
         // value={activeFile.content}
         theme={theme}

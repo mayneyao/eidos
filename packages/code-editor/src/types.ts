@@ -11,16 +11,21 @@ export enum FileType {
 /**
  * Supported language types (TypeScript only)
  */
-export type SupportedLanguage = "typescript" | "typescriptreact" | ""
+export type SupportedLanguage = "typescript" | ""
 
 /**
- * Determine language type based on file path
+ * Determine file extension based on extension type
+ * script → .ts, block → .tsx
+ */
+export function getFileExtensionFromType(extensionType: "script" | "block"): string {
+  return extensionType === "block" ? ".tsx" : ".ts"
+}
+
+/**
+ * Determine language type based on file path (always typescript)
  */
 export function getLanguageFromPath(filePath: string): SupportedLanguage {
-  if (filePath.endsWith('.tsx')) {
-    return 'typescriptreact'
-  }
-  // Default to typescript (including .ts files and other cases)
+  // Always return typescript - JSX support is handled by file extension
   return 'typescript'
 }
 

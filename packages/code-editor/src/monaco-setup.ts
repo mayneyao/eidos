@@ -15,7 +15,7 @@ export function setupMonacoEnvironment(): Promise<typeof monaco> {
   self.MonacoEnvironment = {
     getWorker(_, label) {
       console.log(`🔧 Creating worker for label: ${label}`)
-      if (label === "typescript" || label === "javascript") {
+      if (label === "typescript" || label === "javascript" || label === "javascriptreact") {
         return new tsWorker()
       }
       return new editorWorker()
@@ -26,6 +26,13 @@ export function setupMonacoEnvironment(): Promise<typeof monaco> {
 
   return loader.init().then(async (monacoInstance) => {
     console.log("✅ Monaco Editor loader initialized")
+
+    // Log available languages for debugging
+    const supportedLanguages = monacoInstance.languages.getLanguages()
+    console.log("📋 Available languages:", supportedLanguages.map(lang => lang.id).join(', '))
+
+    // Note: Monaco Editor handles JSX through TypeScript language with .tsx file extensions
+    // No need to register a separate 'typescriptreact' language
 
     // Initialize plugins after Monaco is ready
     try {
@@ -64,26 +71,28 @@ export function createModelSafely(
     return existingModel
   }
 
-  // Determine correct language based on file extension
+  // Always use typescript language - JSX support is handled by file extension
   const path = uri.path
-  let detectedLanguage = language
+  let detectedLanguage = 'typescript'
 
-  if (path.endsWith('.ts')) {
-    detectedLanguage = 'typescript'
-  } else if (path.endsWith('.tsx')) {
-    detectedLanguage = 'typescriptreact'
-  } else if (path.endsWith('.js')) {
+  // For non-TypeScript files, keep original language detection
+  if (path.endsWith('.js')) {
     detectedLanguage = 'javascript'
   } else if (path.endsWith('.jsx')) {
     detectedLanguage = 'javascriptreact'
   }
 
-  console.log(`Creating model for ${uri.toString()} with language: ${detectedLanguage} (original: ${language})`)
+  console.log(`🔍 Language detection for ${uri.toString()}:`)
+  console.log(`  - Path: ${path}`)
+  console.log(`  - Original language: ${language}`)
+  console.log(`  - Detected language: ${detectedLanguage}`)
+  console.log(`  - Is TSX file: ${path.endsWith('.tsx')}`)
 
   // Create new model
   try {
     const model = monaco.editor.createModel(content, detectedLanguage, uri)
     console.log(`Created new model: ${uri.toString()} with language: ${model.getLanguageId()}`)
+
     return model
   } catch (error) {
     console.error(`Failed to create model for ${uri.toString()}:`, error)
@@ -107,9 +116,19 @@ export function setupMonacoModels(files: FileModel[]): void {
   console.log("=== Setting up Monaco models and TypeScript configuration ===")
   console.log("File count:", files.length)
 
+  console.warn('setupMonacoModels', files)
   // Get all existing model URIs
   const existingModels = monaco.editor.getModels()
   console.log("Existing model count:", existingModels.length)
+
+  // Clean up any unwanted inmemory models
+  const inmemoryModels = existingModels.filter(model =>
+    model.uri.scheme === 'inmemory'
+  )
+  if (inmemoryModels.length > 0) {
+    console.log(`Disposing ${inmemoryModels.length} unwanted inmemory models`)
+    inmemoryModels.forEach(model => model.dispose())
+  }
 
   // Get new file URIs
   const newUris = new Set(
@@ -161,14 +180,50 @@ export function setupMonacoModels(files: FileModel[]): void {
     console.log("Setting TypeScript compiler options:", tsCompilerOptions)
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions(tsCompilerOptions)
 
-    console.log("✅ TypeScript compiler options set")
+    // TypeScript configuration handles both .ts and .tsx files
+    console.log("TypeScript configuration complete with JSX support")
 
-    // 设置诊断选项 - 优化校验频率和错误过滤
+    //     // Add React types for TSX support
+    //     const reactTypes = `
+    // declare namespace React {
+    //   interface Component<P = {}, S = {}> {}
+    //   interface FC<P = {}> {
+    //     (props: P): JSX.Element | null;
+    //   }
+    //   function createElement<P>(
+    //     type: string | FC<P>,
+    //     props?: P,
+    //     ...children: any[]
+    //   ): JSX.Element;
+    //   function Fragment(props: { children?: any }): JSX.Element;
+    // }
+
+    // declare global {
+    //   namespace JSX {
+    //     interface Element {}
+    //     interface IntrinsicElements {
+    //       [elemName: string]: any;
+    //     }
+    //   }
+    // }
+
+    // declare const React: typeof React;
+    // export = React;
+    // export as namespace React;
+    // `
+
+    // Add React types to TypeScript language service
+    // monaco.languages.typescript.typescriptDefaults.addExtraLib(
+    //   reactTypes,
+    //   'file:///node_modules/@types/react/index.d.ts'
+    // )
+
+    // console.log("✅ TypeScript compiler options and React types set")
+
     const diagnosticsOptions = {
       noSemanticValidation: false,
       noSyntaxValidation: false,
       noSuggestionDiagnostics: false,
-      // 忽略编辑过程中的常见临时错误，减少干扰
       diagnosticCodesToIgnore: [
         1108, // 'return' statement is not expected here
         1005, // '}' expected
@@ -184,7 +239,7 @@ export function setupMonacoModels(files: FileModel[]): void {
     monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(diagnosticsOptions)
 
     // Don't set JavaScript diagnostics since we only support TypeScript
-    console.log("✅ TypeScript diagnostics enabled")
+    console.log("✅ TypeScript diagnostics enabled (applies to both .ts and .tsx files)")
 
     isMonacoSetup = true
   } else {
@@ -220,7 +275,7 @@ export function setupMonacoModels(files: FileModel[]): void {
         }
 
         // Collect files that need to be added to TypeScript language service
-        if (file.language === "typescript" || file.language === "typescriptreact") {
+        if (file.language === "typescript") {
           extraLibsToAdd.push({
             content: file.content,
             filePath: `file:///${file.path}`
@@ -264,8 +319,19 @@ export function setupMonacoModels(files: FileModel[]): void {
   // Debug information
   setTimeout(() => {
     console.log("=== Monaco Editor Multi-File Setup Complete ===")
+
+    // Check for any remaining inmemory models
+    const allModels = monaco.editor.getModels()
+    const inmemoryModels = allModels.filter(model => model.uri.scheme === 'inmemory')
+    if (inmemoryModels.length > 0) {
+      console.warn(`⚠️ Found ${inmemoryModels.length} inmemory models that should be cleaned up:`)
+      inmemoryModels.forEach(model => {
+        console.warn(`  - ${model.uri.toString()}: ${model.getLanguageId()}`)
+      })
+    }
+
     console.log("All models after setup:")
-    monaco.editor.getModels().forEach((model) => {
+    allModels.forEach((model) => {
       const markers = monaco.editor.getModelMarkers({ resource: model.uri })
       console.log(`- ${model.uri.toString()}: ${model.getLanguageId()} (${markers.length} markers)`)
       if (markers.length > 0) {

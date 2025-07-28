@@ -113,7 +113,7 @@ export default function App() {
     </div>
   )
 }`,
-    language: 'typescriptreact',
+    language: 'typescript',
     type: FileType.File,
     parent: 'src-dir'
   }

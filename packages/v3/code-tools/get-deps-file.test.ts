@@ -37,14 +37,20 @@ describe('resolveLocalFileDependencies', () => {
     `
   };
 
-  const mockFileResolver: FileResolver = (fileId: string) => {
-    return mockFiles[fileId] || null;
+  const mockFileResolver: FileResolver = async (fileId: string) => {
+    const content = mockFiles[fileId];
+    if (!content) return null;
+
+    // Determine extension based on file extension
+    const ext = fileId.endsWith('.tsx') ? 'tsx' : 'ts';
+    return { ext, content };
   };
 
   it('should resolve all local file dependencies', async () => {
     const result = await resolveLocalFileDependencies(
       'main.ts',
       mockFiles['main.ts'],
+      'ts',
       mockFileResolver
     );
 
@@ -65,13 +71,18 @@ describe('resolveLocalFileDependencies', () => {
       'b.ts': `import { a } from './a';`
     };
 
-    const circularResolver: FileResolver = (fileId: string) => {
-      return circularFiles[fileId] || null;
+    const circularResolver: FileResolver = async (fileId: string) => {
+      const content = circularFiles[fileId];
+      if (!content) return null;
+
+      const ext = fileId.endsWith('.tsx') ? 'tsx' : 'ts';
+      return { ext, content };
     };
 
     const result = await resolveLocalFileDependencies(
       'a.ts',
       circularFiles['a.ts'],
+      'ts',
       circularResolver
     );
 
@@ -90,13 +101,18 @@ describe('resolveLocalFileDependencies', () => {
       'existing.ts': 'export const existing = true;'
     };
 
-    const partialResolver: FileResolver = (fileId: string) => {
-      return partialFiles[fileId] || null;
+    const partialResolver: FileResolver = async (fileId: string) => {
+      const content = partialFiles[fileId];
+      if (!content) return null;
+
+      const ext = fileId.endsWith('.tsx') ? 'tsx' : 'ts';
+      return { ext, content };
     };
 
     const result = await resolveLocalFileDependencies(
       'main.ts',
       codeWithMissingImport,
+      'ts',
       partialResolver
     );
 
@@ -117,13 +133,18 @@ describe('resolveLocalFileDependencies', () => {
       'another-dynamic.ts': 'export const anotherDynamic = true;'
     };
 
-    const dynamicResolver: FileResolver = (fileId: string) => {
-      return dynamicFiles[fileId] || null;
+    const dynamicResolver: FileResolver = async (fileId: string) => {
+      const content = dynamicFiles[fileId];
+      if (!content) return null;
+
+      const ext = fileId.endsWith('.tsx') ? 'tsx' : 'ts';
+      return { ext, content };
     };
 
     const result = await resolveLocalFileDependencies(
       'main.ts',
       dynamicImportCode,
+      'ts',
       dynamicResolver
     );
 
@@ -141,13 +162,18 @@ describe('resolveLocalFileDependencies', () => {
       'utils/index.ts': `export const utils = true;`
     };
 
-    const indexResolver: FileResolver = (fileId: string) => {
-      return indexFiles[fileId] || null;
+    const indexResolver: FileResolver = async (fileId: string) => {
+      const content = indexFiles[fileId];
+      if (!content) return null;
+
+      const ext = fileId.endsWith('.tsx') ? 'tsx' : 'ts';
+      return { ext, content };
     };
 
     const result = await resolveLocalFileDependencies(
       'main.ts',
       indexFiles['main.ts'],
+      'ts',
       indexResolver
     );
 
@@ -159,6 +185,7 @@ describe('resolveLocalFileDependencies', () => {
     const result = await resolveLocalFileDependencies(
       'empty.ts',
       '',
+      'ts',
       mockFileResolver
     );
 
@@ -171,6 +198,7 @@ describe('resolveLocalFileDependencies', () => {
     const result = await resolveLocalFileDependencies(
       'main.ts',
       mockFiles['main.ts'],
+      'ts',
       mockFileResolver
     );
 

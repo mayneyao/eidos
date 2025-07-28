@@ -1,11 +1,12 @@
 import type * as monaco from "monaco-editor"
+import { createModelSafely } from "../monaco-setup"
 
 export interface FileInfo {
   id: string
   name?: string
   description?: string
   content: string
-  language?: "typescript" | "typescriptreact"
+  language?: "typescript"
 }
 
 export interface TypeDefinitionFile {
@@ -26,54 +27,18 @@ export interface TypeScriptConfigOptions {
   // Type definition files (.d.ts)
   typeDefinitionFiles?: TypeDefinitionFile[]
 
-
-
   // Global type definitions (like Eidos SDK types)
   globalTypes?: string
 
-  // Language mode
-  language: "typescript" | "typescriptreact"
+  // Language mode (always typescript)
+  language: "typescript"
 }
 
-/**
- * Helper function to safely create models
- * Checks if model already exists, updates content if exists, otherwise creates new model
- */
-export function createModelSafely(
-  monacoInstance: typeof monaco,
-  content: string,
-  language: string,
-  uri: monaco.Uri
-): monaco.editor.ITextModel {
-  // Check if model already exists
-  const existingModel = monacoInstance.editor.getModel(uri);
-  if (existingModel) {
-    // If model exists, only update when content is different
-    if (existingModel.getValue() !== content) {
-      existingModel.setValue(content);
-      console.log(`Updated existing model: ${uri.toString()}`);
-    }
-    return existingModel;
-  }
-
-  // Create new model
-  try {
-    const model = monacoInstance.editor.createModel(content, language, uri);
-    console.log(`Created new model: ${uri.toString()}`);
-    return model;
-  } catch (error) {
-    console.error(`Error creating model for ${uri.toString()}:`, error);
-    // If creation fails, try to get model again (might have been created before error)
-    const fallbackModel = monacoInstance.editor.getModel(uri);
-    if (fallbackModel) {
-      return fallbackModel;
-    }
-    throw error;
-  }
-}
+// Note: createModelSafely function is now imported from ../monaco-setup
 
 // Track if TypeScript has been configured to avoid repeated configuration
 let isTypeScriptConfigured = false
+let lastConfiguredLanguage: "typescript" | null = null
 
 /**
  * Configure TypeScript language support
@@ -89,16 +54,29 @@ export function configureTypeScriptLanguage(
     globalTypes,
     language
   } = options
+  console.warn('options', {
+    options
+  })
   const disposables: monaco.IDisposable[] = []
 
+  // For Monaco Editor, we always use 'typescript' language for both .ts and .tsx files
+  const normalizedLanguage = "typescript"
+
+  // If language changed, we need to reconfigure
+  if (lastConfiguredLanguage !== normalizedLanguage) {
+    console.log(`TypeScript language changed from ${lastConfiguredLanguage} to ${normalizedLanguage}, reconfiguring`)
+    isTypeScriptConfigured = false
+  }
+
   // Only configure TypeScript once to avoid performance issues
-  if (isTypeScriptConfigured) {
-    console.log("TypeScript already configured, skipping reconfiguration")
+  if (isTypeScriptConfigured && lastConfiguredLanguage === normalizedLanguage) {
+    console.log(`TypeScript already configured for ${normalizedLanguage}, skipping reconfiguration`)
     return disposables
   }
 
-  console.log("Configuring TypeScript language support for the first time")
+  console.log(`Configuring TypeScript language support for: ${normalizedLanguage} (requested: ${language})`)
   isTypeScriptConfigured = true
+  lastConfiguredLanguage = normalizedLanguage
 
   // Set diagnostic options once with optimized settings
   monacoInstance.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
@@ -113,19 +91,14 @@ export function configureTypeScriptLanguage(
     ], // Ignore some common temporary errors to reduce editing interference
   })
 
-  const tsxConfig =
-    language === "typescriptreact"
-      ? {
-        jsx: monacoInstance.languages.typescript.JsxEmit.React,
-        jsxFactory: "React.createElement",
-        jsxFragmentFactory: "React.Fragment",
-        moduleResolution: monacoInstance.languages.typescript.ModuleResolutionKind.NodeJs,
-        module: monacoInstance.languages.typescript.ModuleKind.ESNext,
-        reactNamespace: "React",
-        allowJs: false, // Only support TypeScript
-        typeRoots: ["node_modules/@types"],
-      }
-      : {}
+  // Always enable JSX support for both .ts and .tsx files
+  const jsxConfig = {
+    jsx: monacoInstance.languages.typescript.JsxEmit.React,
+    jsxFactory: "React.createElement",
+    jsxFragmentFactory: "React.Fragment",
+    reactNamespace: "React",
+    allowJs: false, // Only support TypeScript
+  }
 
   const compilerOptions = {
     target: monacoInstance.languages.typescript.ScriptTarget.ES2020,
@@ -143,7 +116,7 @@ export function configureTypeScriptLanguage(
     typeRoots: [],
     isolatedModules: false, // Allow cross-file type checking
     forceConsistentCasingInFileNames: false,
-    ...tsxConfig,
+    ...jsxConfig,
   }
 
   console.log("Setting TypeScript compiler options:", compilerOptions)
@@ -158,58 +131,58 @@ export function configureTypeScriptLanguage(
   }
 
   // Add type definition files
-  if (typeDefinitionFiles && typeDefinitionFiles.length > 0) {
-    typeDefinitionFiles.forEach((typeFile) => {
-      const virtualPath = typeFile.virtualPath || `ts:filename/${typeFile.id}.d.ts`
-      monacoInstance.languages.typescript.typescriptDefaults.addExtraLib(
-        typeFile.content,
-        virtualPath
-      )
-    })
-  }
+  // if (typeDefinitionFiles && typeDefinitionFiles.length > 0) {
+  //   typeDefinitionFiles.forEach((typeFile) => {
+  //     const virtualPath = typeFile.virtualPath || `ts:filename/${typeFile.id}.d.ts`
+  //     monacoInstance.languages.typescript.typescriptDefaults.addExtraLib(
+  //       typeFile.content,
+  //       virtualPath
+  //     )
+  //   })
+  // }
 
+  // // Create virtual file models for local files
+  // if (localFiles && localFiles.length > 0) {
+  //   console.log(`Creating models for ${localFiles.length} local files`);
 
+  //   localFiles.forEach((file) => {
+  //     let fileContent = file.content;
 
+  //     // Ensure content is a valid TypeScript module
+  //     if (!fileContent.trim()) {
+  //       fileContent = "export default {};\nexport {}; // Ensure this is a module";
+  //     } else if (!fileContent.includes('export') && !fileContent.includes('module.exports')) {
+  //       fileContent += "\nexport {}; // Ensure this is a module";
+  //     }
 
-  // Create virtual file models for local files
-  if (localFiles && localFiles.length > 0) {
-    console.log(`Creating models for ${localFiles.length} local files`);
+  //     // Create file model using file:/// protocol and /files/ path
+  //     const fileUri = monacoInstance.Uri.parse(`file:///files/${file.id}.ts`);
 
-    localFiles.forEach((file) => {
-      let fileContent = file.content;
+  //     // Always use typescript language
+  //     const modelLanguage = "typescript";
 
-      // Ensure content is a valid TypeScript module
-      if (!fileContent.trim()) {
-        fileContent = "export default {};\nexport {}; // Ensure this is a module";
-      } else if (!fileContent.includes('export') && !fileContent.includes('module.exports')) {
-        fileContent += "\nexport {}; // Ensure this is a module";
-      }
-
-      // Create file model using file:/// protocol and /files/ path
-      const fileUri = monacoInstance.Uri.parse(`file:///files/${file.id}.ts`);
-
-      // Safely create model
-      createModelSafely(monacoInstance, fileContent, file.language || "typescript", fileUri);
-    });
-  }
+  //     // Safely create model
+  //     createModelSafely(monacoInstance, fileContent, modelLanguage, fileUri);
+  //   });
+  // }
 
   // Create model for current editing file
-  if (currentFile) {
-    let fileContent = currentFile.content;
+  // if (currentFile) {
+  //   let fileContent = currentFile.content;
 
-    // Ensure content is a valid TypeScript module
-    if (!fileContent.trim()) {
-      fileContent = "export default {};\nexport {}; // Ensure this is a module";
-    } else if (!fileContent.includes('export') && !fileContent.includes('module.exports')) {
-      fileContent += "\nexport {}; // Ensure this is a module";
-    }
+  //   // Ensure content is a valid TypeScript module
+  //   if (!fileContent.trim()) {
+  //     fileContent = "export default {};\nexport {}; // Ensure this is a module";
+  //   } else if (!fileContent.includes('export') && !fileContent.includes('module.exports')) {
+  //     fileContent += "\nexport {}; // Ensure this is a module";
+  //   }
 
-    // Create model for current editing file
-    const currentUri = monacoInstance.Uri.parse(`file:///current/${currentFile.id}.ts`);
+  //   // Create model for current editing file
+  //   const currentUri = monacoInstance.Uri.parse(`file:///current/${currentFile.id}.ts`);
 
-    // Safely create model for current editing file
-    createModelSafely(monacoInstance, fileContent, currentFile.language || "typescript", currentUri);
-  }
+  //   // Safely create model for current editing file
+  //   createModelSafely(monacoInstance, fileContent, currentFile.language || "typescript", currentUri);
+  // }
 
   // Debug: Check all added extra libraries
   setTimeout(() => {
@@ -241,17 +214,17 @@ const MIN_SYNC_INTERVAL = 100
  */
 export function syncEditorContentToVirtualFileSystem(
   monacoInstance: typeof monaco,
-  fileId: string,
+  filePath: string, // Changed from fileId to filePath
   content: string,
   pathPrefix: string = "current"
 ): void {
-  if (!fileId || content === undefined) return
+  if (!filePath || content === undefined) return
 
   const now = Date.now()
-  const lastSync = lastSyncTime.get(fileId) || 0
+  const lastSync = lastSyncTime.get(filePath) || 0
 
   // Check if content has actually changed
-  const cacheKey = fileId
+  const cacheKey = filePath
   const cachedContent = contentCache.get(cacheKey)
   if (cachedContent === content) {
     return // No change, skip update
@@ -259,7 +232,7 @@ export function syncEditorContentToVirtualFileSystem(
 
   // Rate limiting: avoid too frequent updates
   if (now - lastSync < MIN_SYNC_INTERVAL) {
-    console.log(`⏳ Rate limiting sync for ${fileId}, skipping`)
+    console.log(`⏳ Rate limiting sync for ${filePath}, skipping`)
     return
   }
 
@@ -273,30 +246,38 @@ export function syncEditorContentToVirtualFileSystem(
   }
 
   try {
-    // Update the model content directly without recreating
-    const currentUri = monacoInstance.Uri.parse(`file:///${pathPrefix}/${fileId}.ts`)
+    // Always use typescript language - JSX support is handled by file extension
+    const language = 'typescript'
+
+    // Create URI with correct extension
+    const currentUri = monacoInstance.Uri.parse(`file:///${filePath}`)
     const existingModel = monacoInstance.editor.getModel(currentUri)
 
     if (existingModel) {
-      // Update existing model content
+      // Update existing model content and ensure correct language
       if (existingModel.getValue() !== fileContent) {
         existingModel.setValue(fileContent)
-        console.log(`Updated model content for: ${fileId}`)
+        console.log(`Updated model content for: ${filePath}`)
+      }
+      // Ensure correct language is set
+      if (existingModel.getLanguageId() !== language) {
+        monacoInstance.editor.setModelLanguage(existingModel, language)
+        console.log(`Updated language to ${language} for: ${filePath}`)
       }
     } else {
-      // Create new model if it doesn't exist
-      createModelSafely(monacoInstance, fileContent, "typescript", currentUri)
-      console.log(`Created new model for: ${fileId}`)
+      // Create new model with correct language
+      createModelSafely(fileContent, language, currentUri)
+      console.log(`Created new model for: ${filePath} with language: ${language}`)
     }
 
     // Update cache and sync time
     contentCache.set(cacheKey, content)
-    lastSyncTime.set(fileId, now)
+    lastSyncTime.set(filePath, now)
 
-    // Update TypeScript extra lib only if content changed
+    // Update TypeScript extra lib with correct path
     try {
       const extraLibs = monacoInstance.languages.typescript.typescriptDefaults.getExtraLibs()
-      const libPath = `file:///${pathPrefix}/${fileId}.ts`
+      const libPath = `file:///${filePath}`
       const existingLib = extraLibs[libPath]
 
       if (!existingLib || existingLib.content !== fileContent) {
@@ -304,15 +285,15 @@ export function syncEditorContentToVirtualFileSystem(
           fileContent,
           libPath
         )
-        console.log(`✅ Updated TypeScript extra lib for: ${fileId}`)
+        console.log(`✅ Updated TypeScript extra lib for: ${filePath}`)
       } else {
-        console.log(`⏭️ TypeScript extra lib unchanged for: ${fileId}`)
+        console.log(`⏭️ TypeScript extra lib unchanged for: ${filePath}`)
       }
     } catch (libError) {
-      console.warn(`❌ Failed to update TypeScript extra lib for ${fileId}:`, libError)
+      console.warn(`❌ Failed to update TypeScript extra lib for ${filePath}:`, libError)
     }
   } catch (error) {
-    console.error(`❌ Error syncing content for ${fileId}:`, error)
+    console.error(`❌ Error syncing content for ${filePath}:`, error)
   }
 }
 
@@ -322,7 +303,7 @@ export function syncEditorContentToVirtualFileSystem(
 export function configureTypeScriptAutoCompletion(
   monacoInstance: typeof monaco,
   localFiles?: FileInfo[],
-  language: "typescript" | "typescriptreact" = "typescript"
+  language: "typescript" = "typescript"
 ): monaco.IDisposable[] {
   const disposables: monaco.IDisposable[] = []
 
@@ -369,47 +350,45 @@ export function configureTypeScriptAutoCompletion(
   )
   disposables.push(tsCompletionProvider)
 
-  // TSX auto-completion provider
-  if (language === "typescriptreact") {
-    const tsxCompletionProvider = monacoInstance.languages.registerCompletionItemProvider(
-      "typescript",
-      {
-        provideCompletionItems: (model, position) => {
-          const textUntilPosition = model.getValueInRange({
-            startLineNumber: position.lineNumber,
-            startColumn: 1,
-            endLineNumber: position.lineNumber,
-            endColumn: position.column,
-          })
+  // Auto-completion provider for both .ts and .tsx files
+  const importCompletionProvider = monacoInstance.languages.registerCompletionItemProvider(
+    "typescript",
+    {
+      provideCompletionItems: (model, position) => {
+        const textUntilPosition = model.getValueInRange({
+          startLineNumber: position.lineNumber,
+          startColumn: 1,
+          endLineNumber: position.lineNumber,
+          endColumn: position.column,
+        })
 
-          const importMatch = textUntilPosition.match(
-            /import\s+.*from\s+['"]@\/files\/([^'"]*)?$/
-          )
+        const importMatch = textUntilPosition.match(
+          /import\s+.*from\s+['"]@\/files\/([^'"]*)?$/
+        )
 
-          if (importMatch) {
-            const suggestions = localFiles.map((file) => ({
-              label: file.id,
-              kind: monacoInstance.languages.CompletionItemKind.Module,
-              detail: file.name || "File",
-              documentation: file.description || "No description",
-              insertText: file.id,
-              range: {
-                startLineNumber: position.lineNumber,
-                endLineNumber: position.lineNumber,
-                startColumn: position.column - (importMatch[1]?.length || 0),
-                endColumn: position.column,
-              },
-            }))
+        if (importMatch) {
+          const suggestions = localFiles.map((file) => ({
+            label: file.id,
+            kind: monacoInstance.languages.CompletionItemKind.Module,
+            detail: file.name || "File",
+            documentation: file.description || "No description",
+            insertText: file.id,
+            range: {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: position.column - (importMatch[1]?.length || 0),
+              endColumn: position.column,
+            },
+          }))
 
-            return { suggestions }
-          }
+          return { suggestions }
+        }
 
-          return { suggestions: [] }
-        },
-      }
-    )
-    disposables.push(tsxCompletionProvider)
-  }
+        return { suggestions: [] }
+      },
+    }
+  )
+  disposables.push(importCompletionProvider)
 
   return disposables
 }

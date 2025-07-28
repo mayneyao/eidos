@@ -187,7 +187,6 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
   const handleChange = useCallback(
     (code: string) => {
       onChange?.(activeFileId!, code)
-      
     },
     [activeFileId]
   )
@@ -196,17 +195,18 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
   useEffect(() => {
     if (!activeFileId || !getDeps) return
 
-    const activeFile = files.find(f => f.id === activeFileId)
+    const activeFile = files.find((f) => f.id === activeFileId)
     if (!activeFile) return
 
     const resolveDependencies = async () => {
       try {
         const depFiles = await getDepFiles(activeFile.content)
+        console.warn(`depFiles`, depFiles)
         if (depFiles && depFiles.length > 0) {
           // Add new dependency files to the store
-          const existingFileIds = new Set(files.map(f => f.id))
-          const newFiles = depFiles.filter(f => !existingFileIds.has(f.id))
-          
+          const existingFileIds = new Set(files.map((f) => f.id))
+          const newFiles = depFiles.filter((f) => !existingFileIds.has(f.id))
+
           if (newFiles.length > 0) {
             setFiles([...files, ...newFiles])
             console.log(`Added ${newFiles.length} dependency files`)
@@ -217,7 +217,7 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
       }
     }
 
-    resolveDependencies()
+    // resolveDependencies()
   }, [activeFileId, files, getDepFiles, setFiles, getDeps])
 
   return (

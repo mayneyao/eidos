@@ -176,9 +176,8 @@ export function getLanguageFromFileName(fileName: string): string {
 
   switch (ext) {
     case 'ts':
-      return 'typescript'
     case 'tsx':
-      return 'typescriptreact'
+      return 'typescript' // Both .ts and .tsx use typescript language
     case 'js':
       return 'javascript'
     case 'jsx':

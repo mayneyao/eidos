@@ -29,6 +29,7 @@ export interface LanguageConfigContext {
 export class LanguageConfigManager {
   private disposables: monaco.IDisposable[] = []
   private isConfigured = false
+  private lastConfiguredLanguage: SupportedLanguage | null = null
 
   /**
    * 配置指定语言（只支持 TypeScript）
@@ -38,29 +39,39 @@ export class LanguageConfigManager {
     language: SupportedLanguage,
     context: LanguageConfigContext
   ): void {
-    // Only configure once to avoid performance issues
-    if (this.isConfigured) {
-      console.log("Language already configured, skipping reconfiguration")
+    // For Monaco Editor, we always use 'typescript' language
+    // JSX support is handled through file extensions (.tsx)
+    const normalizedLanguage = "typescript"
+
+    // If language changed, we need to reconfigure
+    if (this.lastConfiguredLanguage !== normalizedLanguage) {
+      console.log(`Language changed from ${this.lastConfiguredLanguage} to ${normalizedLanguage}, reconfiguring`)
+      this.isConfigured = false
+    }
+
+    // Only configure once per language to avoid performance issues
+    if (this.isConfigured && this.lastConfiguredLanguage === normalizedLanguage) {
+      console.log(`Language ${normalizedLanguage} already configured, skipping reconfiguration`)
       return
     }
 
-    console.log("Configuring language for the first time")
+    console.log(`Configuring language: ${normalizedLanguage} (requested: ${language})`)
     this.isConfigured = true
+    this.lastConfiguredLanguage = normalizedLanguage
 
-    // 只支持 TypeScript 和 TypeScript React
-    const tsLanguage = language === "typescriptreact" ? "typescriptreact" : "typescript"
+    // Always use typescript language for both .ts and .tsx files
     const tsDisposables = configureTypeScriptLanguage(monacoInstance, {
       ...context,
-      language: tsLanguage,
+      language: "typescript",
     })
     this.disposables.push(...tsDisposables)
 
-    const completionDisposables = configureTypeScriptAutoCompletion(
-      monacoInstance,
-      context.allScripts,
-      tsLanguage
-    )
-    this.disposables.push(...completionDisposables)
+    // const completionDisposables = configureTypeScriptAutoCompletion(
+    //   monacoInstance,
+    //   context.allScripts,
+    //   "typescript"
+    // )
+    // this.disposables.push(...completionDisposables)
   }
 
   /**

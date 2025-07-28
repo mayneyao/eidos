@@ -36,20 +36,15 @@ export const checkPromptEnable = (data: unknown) => {
 
 export const getEditorLanguage = (
   script: IExtension
-): "typescript" | "javascript" | "typescriptreact" => {
+): "typescript" => {
+  // Always return typescript - JSX support is handled by file extension
+  // script → .ts, block → .tsx
+  return "typescript"
+}
 
-  if (script.type === "block") {
-    return "typescriptreact"
-  }
-  if (script.type === "script") {
-    return "typescript"
-  }
-
-  if (script.ts_code) {
-    return "typescript"
-  }
-
-  return "javascript"
+export const getFileExtension = (script: IExtension): string => {
+  // script → .ts, block → .tsx
+  return script.type === "block" ? ".tsx" : ".ts"
 }
 
 function getRegistryUrl(path: string) {

@@ -3,9 +3,9 @@ import type { IExtension } from "@/packages/core/types/IExtension"
 
 import { useSqlite } from "./use-sqlite"
 
-export const useAllExtensions = (space: string) => {
+export const useAllExtensions = () => {
   const [scripts, setScripts] = useState<IExtension[]>([])
-  const { sqlite } = useSqlite(space)
+  const { sqlite } = useSqlite()
 
   useEffect(() => {
     if (!sqlite) return
@@ -20,7 +20,7 @@ export const useAllExtensions = (space: string) => {
       }
     }
     fetchExtensions()
-  }, [space, sqlite])
+  }, [sqlite])
 
   return scripts
 }

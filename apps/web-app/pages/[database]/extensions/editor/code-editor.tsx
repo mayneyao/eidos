@@ -90,7 +90,7 @@ export const CodeEditor = forwardRef(
     const handleSave = useCallback(
       async (codeToSave: string, versionToSave?: string) => {
         setCode(codeToSave)
-        if (language === "typescript" || language === "typescriptreact") {
+        if (language === "typescript") {
           if (customCompile) {
             customCompile(codeToSave).then((jsCode) => {
               onSave?.(jsCode, codeToSave, versionToSave)
@@ -222,41 +222,33 @@ export const CodeEditor = forwardRef(
             "ts:filename/types.d.ts"
           )
         }
-        if (language === "typescript" || language === "typescriptreact") {
+        if (language === "typescript") {
           monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
             noSemanticValidation: false,
             noSyntaxValidation: false,
           })
 
-          const tsxConfig =
-            language === "typescriptreact"
-              ? {
-                  jsx: monaco.languages.typescript.JsxEmit.React,
-                  jsxFactory: "React.createElement",
-                  jsxFragmentFactory: "React.Fragment",
-                  moduleResolution:
-                    monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-                  module: monaco.languages.typescript.ModuleKind.ESNext,
-                  reactNamespace: "React",
-                  allowJs: true,
-                  typeRoots: ["node_modules/@types"],
-                }
-              : {}
+          // Always enable JSX support
+          const jsxConfig = {
+            jsx: monaco.languages.typescript.JsxEmit.React,
+            jsxFactory: "React.createElement",
+            jsxFragmentFactory: "React.Fragment",
+            moduleResolution:
+              monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+            module: monaco.languages.typescript.ModuleKind.ESNext,
+            reactNamespace: "React",
+            allowJs: true,
+            typeRoots: ["node_modules/@types"],
+          }
 
           monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
             target: monaco.languages.typescript.ScriptTarget.ESNext,
             allowNonTsExtensions: true,
             strict: true,
             noImplicitAny: false,
-            ...tsxConfig,
+            ...jsxConfig,
           })
 
-          if (language === "typescriptreact") {
-            // monaco.languages.typescript.typescriptDefaults.addExtraLib(
-            //   reactTypes,
-            //   `file:///node_modules/@react/types/index.d.ts`
-            // )
-          }
           monaco.languages.typescript.typescriptDefaults.addExtraLib(
             dynamicPrompt,
             "ts:filename/eidos.d.ts"
@@ -350,7 +342,7 @@ export const CodeEditor = forwardRef(
               automaticLayout: true,
               readOnly: false,
             }}
-            language={language === "typescriptreact" ? "typescript" : language}
+            language="typescript" // Always use typescript language
             onMount={(editor, monaco) => {
               const modifiedEditor = editor.getModifiedEditor()
               editorRef.current = modifiedEditor
@@ -378,7 +370,7 @@ export const CodeEditor = forwardRef(
               scrollBeyondLastLine: false,
               automaticLayout: true,
             }}
-            language={language === "typescriptreact" ? "typescript" : language}
+            language="typescript" // Always use typescript language
             onChange={(value) => {
               setCode(value)
             }}
