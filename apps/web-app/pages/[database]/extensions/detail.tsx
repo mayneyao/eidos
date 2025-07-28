@@ -25,7 +25,9 @@ import { getDescriptionFromCode, getEditorLanguage } from "./helper"
 import { useEditorStore } from "./stores/editor-store"
 
 // const CodeEditor = lazy(() => import("./editor/code-editor"))
-const SimpleCodeEditorWrapper = lazy(() => import("./editor/simple-code-editor-wrapper"))
+const SimpleCodeEditorWrapper = lazy(
+  () => import("./editor/simple-code-editor-wrapper")
+)
 
 export const ExtensionDetailPage = () => {
   const script = useLoaderData() as IExtension
@@ -105,49 +107,13 @@ export const ExtensionDetailPage = () => {
           version,
         })
         revalidator.revalidate()
-        toast({
-          title: "Code Updated Successfully",
-          description: version
-            ? `Version updated to ${version}`
-            : "Content updated.",
-        })
+        // toast({
+        //   title: "Code Updated Successfully",
+        //   description: version
+        //     ? `Version updated to ${version}`
+        //     : "Content updated.",
+        // })
       }
-      // if (script.type === "script") {
-      //   const sandbox = new ScriptSandbox()
-      //   const ast = parseSync("index.ts", ts_code || code)
-      //   console.log(ast)
-      //   try {
-      //     const exportsCommands = await sandbox.extractExports(code)
-      //     if (exportsCommands) {
-      //       await updateExtension({
-      //         id: script.id,
-      //         commands: exportsCommands,
-      //       })
-      //     }
-      //   } finally {
-      //     sandbox.destroy()
-      //   }
-      // }
-      // if (script.type === "udf") {
-      //   const sandbox = new ScriptSandbox()
-      //   try {
-      //     const res = await sandbox.detectObjects(code)
-      //     const func = Object.values(res)[0] as Function
-      //     if (typeof func === "function") {
-      //       const name = func.name
-      //       const description = getDescriptionFromCode(code)
-      //       await updateExtension({
-      //         id: script.id,
-      //         name,
-      //         description,
-      //       })
-      //     }
-      //   } catch (error) {
-      //     console.error("error", error)
-      //   } finally {
-      //     sandbox.destroy()
-      //   }
-      // }
     },
     [revalidator, script, toast, updateExtension]
   )

@@ -54,7 +54,6 @@ export const SimpleCodeEditorWrapper = forwardRef(
     }: CodeEditorProps,
     ref
   ) => {
-    const [code, setCode] = useState<string | undefined>(value)
     const dynamicPrompt = useMemo(() => getDynamicPrompt(bindings), [bindings])
 
     const [deps, setDeps] = useState<ResolvedFile[]>()
@@ -85,17 +84,17 @@ export const SimpleCodeEditorWrapper = forwardRef(
       setActiveTab,
       pendingVersionUpdateMap,
       setPendingVersionUpdate,
+      setUnsavedChanges,
     } = useEditorStore()
 
     const toApplyCode = scriptId ? scriptCodeMap[scriptId] : undefined
 
-    useEffect(() => {
-      setCode(value)
-    }, [value])
-
     const handleSave = useCallback(
       async (fileId: string, codeToSave: string, versionToSave?: string) => {
-        setCode(codeToSave)
+        // Mark as saved when save is called
+        if (scriptId) {
+          setUnsavedChanges(scriptId, false)
+        }
         if (language === "typescript" || language === "typescriptreact") {
           if (customCompile) {
             customCompile(codeToSave).then((jsCode) => {
@@ -113,23 +112,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
           onSave?.(codeToSave, undefined, versionToSave)
         }
       },
-      [language, onSave, customCompile]
-    )
-
-    // parent component can call handleSave directly
-    useImperativeHandle(
-      ref,
-      () => ({
-        save: () => {
-          if (code) {
-            handleSave?.(scriptId!, code)
-          }
-        },
-        layout: () => {
-          // SimpleCodeEditor handles layout automatically
-        },
-      }),
-      [code, handleSave]
+      [language, onSave, customCompile, scriptId, setUnsavedChanges]
     )
 
     const handleAcceptChanges = useCallback(() => {
@@ -154,14 +137,14 @@ export const SimpleCodeEditorWrapper = forwardRef(
       const getDeps = async () => {
         const deps = await resolveLocalFileDependencies(
           scriptId || "current",
-          code || "",
+          value || "",
           getExtensionBySlug
         )
         console.warn("deps", deps)
         return deps
       }
       getDeps().then(setDeps)
-    }, [code])
+    }, [value])
 
     const handleRejectChanges = useCallback(() => {
       if (scriptId) {
@@ -171,12 +154,13 @@ export const SimpleCodeEditorWrapper = forwardRef(
     }, [scriptId, setScriptCodeMap, setPendingVersionUpdate])
 
     // Convert current script and all scripts to FileModel format
+    // Don't include 'code' in dependencies to avoid recreating files on every keystroke
     const files: FileModel[] = useMemo(() => {
       const currentFile: FileModel = {
         id: scriptId || "current",
         name: `${scriptId || "current"}.ts`,
         path: `${scriptId || "current"}.ts`,
-        content: code || "",
+        content: value || "", // Use initial value, not current code state
         language:
           language === "typescriptreact" ? "typescriptreact" : "typescript",
         type: FileType.File,
@@ -194,16 +178,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
             type: FileType.File,
           }
         })
-      // const otherFiles: FileModel[] = allScripts
-      //   .filter((script) => script.id !== scriptId)
-      //   .map((script) => ({
-      //     id: script.id,
-      //     name: `${script.name || script.id}.ts`,
-      //     path: `${script.name || script.id}.ts`,
-      //     content: script.ts_code || script.code || "",
-      //     language: "typescript" as const,
-      //     type: FileType.File,
-      //   }))
+
       const eidosType: FileModel = {
         id: `eidos`,
         name: `eidos.d.ts`,
@@ -214,16 +189,23 @@ export const SimpleCodeEditorWrapper = forwardRef(
       }
 
       return [currentFile, eidosType, ...depsFiles]
-    }, [code, scriptId, language, deps])
+    }, [value, scriptId, language, deps, dynamicPrompt]) // Remove 'code' from dependencies
 
     const handleEditorChange = useCallback(
       (fileId: string, newCode: string) => {
         if (fileId === scriptId || fileId === "current") {
-          setCode(newCode)
+          console.warn("ffff")
+          if (scriptId) {
+            setUnsavedChanges(scriptId, true)
+          }
         }
       },
-      [scriptId]
+      [scriptId, setUnsavedChanges]
     )
+
+    const initialOpenFiles = useMemo(() => {
+      return [scriptId || "current"]
+    }, [scriptId])
 
     return (
       <div className="h-full w-full relative">
@@ -253,7 +235,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
         )}
         <SimpleCodeEditor
           initialFiles={files}
-          initialOpenFiles={[scriptId || "current"]}
+          initialOpenFiles={initialOpenFiles}
           initialActiveFileId={scriptId || "current"}
           className="w-full h-full"
           onChange={handleEditorChange}

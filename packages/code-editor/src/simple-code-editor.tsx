@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import type * as monaco from "monaco-editor"
 
 import { EditorArea } from "./components/editor-area"
 import { setupMonacoEnvironment } from "./monaco-setup"
+import {
+  getPluginManager,
+  type ImportSuggestion,
+} from "./plugins/plugin-manager"
 import { useMultiFileEditorStore } from "./store"
 import { type FileModel } from "./types"
-import { type ImportSuggestion, getPluginManager } from "./plugins/plugin-manager"
 
 // Configure Monaco Environment and Workers (async initialization)
 let monacoInitPromise: Promise<typeof monaco> | null = null
@@ -102,46 +105,63 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
     setActiveFileId,
   ])
 
-  // Listen for file content changes and call onChange callback
-  useEffect(() => {
-    if (onChange && initialActiveFileId) {
-      const activeFile = files.find((f) => f.id === initialActiveFileId)
-      if (activeFile) {
-        onChange(initialActiveFileId, activeFile.content)
-      }
-    }
-  }, [files, initialActiveFileId, onChange])
+  // // Listen for file content changes and call onChange callback
+  // useEffect(() => {
+  //   if (onChange && initialActiveFileId) {
+  //     const activeFile = files.find((f) => f.id === initialActiveFileId)
+  //     if (activeFile) {
+  //       onChange(initialActiveFileId, activeFile.content)
+  //     }
+  //   }
+  // }, [files, initialActiveFileId, onChange])
 
   // Update custom import suggestions when they change
   useEffect(() => {
     if (customImportSuggestions.length > 0) {
-      console.log("Updating custom import suggestions:", customImportSuggestions.length)
+      console.log(
+        "Updating custom import suggestions:",
+        customImportSuggestions.length
+      )
 
       // Wait for Monaco to be initialized before updating plugin
-      monacoInitPromise?.then(() => {
-        const pluginManager = getPluginManager()
-        const esmPlugin = pluginManager.getPlugin('esm-import-resolver')
+      monacoInitPromise
+        ?.then(() => {
+          const pluginManager = getPluginManager()
+          const esmPlugin = pluginManager.getPlugin("esm-import-resolver")
 
-        if (esmPlugin && esmPlugin.isEnabled()) {
-          // Type assertion to access the updateCustomImportSuggestions method
-          const typedPlugin = esmPlugin as any
-          if (typeof typedPlugin.updateCustomImportSuggestions === 'function') {
-            typedPlugin.updateCustomImportSuggestions(customImportSuggestions)
-            console.log("✅ Custom import suggestions updated successfully")
+          if (esmPlugin && esmPlugin.isEnabled()) {
+            // Type assertion to access the updateCustomImportSuggestions method
+            const typedPlugin = esmPlugin as any
+            if (
+              typeof typedPlugin.updateCustomImportSuggestions === "function"
+            ) {
+              typedPlugin.updateCustomImportSuggestions(customImportSuggestions)
+              console.log("✅ Custom import suggestions updated successfully")
+            }
           }
-        }
-      }).catch((error) => {
-        console.error("❌ Failed to update custom import suggestions:", error)
-      })
+        })
+        .catch((error) => {
+          console.error("❌ Failed to update custom import suggestions:", error)
+        })
     }
   }, [customImportSuggestions])
 
+  const handleSave = useCallback(
+    (code: string) => {
+      onSave?.(activeFileId!, code)
+    },
+    [activeFileId]
+  )
+  const handleChange = useCallback(
+    (code: string) => {
+      onChange?.(activeFileId!, code)
+    },
+    [activeFileId]
+  )
+
   return (
     <div className="flex-1 h-full">
-      <EditorArea
-        theme={theme}
-        onSave={(code) => onSave?.(activeFileId!, code)}
-      />
+      <EditorArea theme={theme} onSave={handleSave} onChange={handleChange} />
     </div>
   )
 }

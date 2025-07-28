@@ -21,6 +21,10 @@ interface EditorStore {
     pendingVersionUpdateMap: Record<string, string | null>
     setPendingVersionUpdate: (id: string, version: string | null) => void
 
+    // Track unsaved changes for each script
+    unsavedChangesMap: Record<string, boolean>
+    setUnsavedChanges: (id: string, hasUnsavedChanges: boolean) => void
+
     chatId: string
     setChatId: (id: string) => void
     chatHistory: Array<Message>
@@ -57,6 +61,11 @@ export const useEditorStore = create<EditorStore>((set) => ({
     setPendingVersionUpdate: (id, version) =>
         set((state) => ({
             pendingVersionUpdateMap: { ...state.pendingVersionUpdateMap, [id]: version },
+        })),
+    unsavedChangesMap: {},
+    setUnsavedChanges: (id, hasUnsavedChanges) =>
+        set((state) => ({
+            unsavedChangesMap: { ...state.unsavedChangesMap, [id]: hasUnsavedChanges },
         })),
     chatHistory: [],
     setChatHistory: (history) => set((state) => {

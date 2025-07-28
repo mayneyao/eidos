@@ -20,9 +20,11 @@ import { createEditorDebounce } from "../utils/debounce"
 export const EditorArea = ({
   theme,
   onSave,
+  onChange,
 }: {
   theme: string
   onSave: (code: string) => void
+  onChange?: (code: string) => void
 }) => {
   const { files, activeFileId, updateFileContent, fileModels, setFileModel } =
     useMultiFileEditorStore()
@@ -98,17 +100,24 @@ export const EditorArea = ({
     createEditorDebounce((scriptId: string, content: string) => {
       syncEditorContentToVirtualFileSystem(monaco, scriptId, content)
       console.log(`🔄 Debounced sync for ${scriptId}`)
-    }, 'CONTENT_SYNC'), // 使用专门的内容同步配置
+    }, "CONTENT_SYNC"),
     []
   )
 
   // Handle editor content changes with debouncing to avoid frequent updates
   const handleEditorChange = (value: string | undefined) => {
+    // Call optional onChange callback
+    console.error("fffff", {
+      activeFile,
+      value,
+    })
     if (activeFileId && value !== undefined) {
-      // 立即更新本地状态，保证UI响应性
       updateFileContent(activeFileId, value)
 
-      // 防抖同步到TypeScript语言服务，避免频繁校验
+      if (activeFile?.content !== value) {
+        onChange?.(value)
+      }
+
       if (activeFile) {
         debouncedSyncContent(activeFile.id, value)
       }
