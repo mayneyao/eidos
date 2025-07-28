@@ -125,7 +125,7 @@ export function DesktopSpaceLayout() {
             >
               <div className="flex flex-col h-full min-w-0">
                 <Nav>
-                  {scriptId && <ScriptBreadcrumb scriptId={scriptId} />}
+                  {scriptId && <ScriptBreadcrumb scriptIdOrSlug={scriptId} />}
                 </Nav>
                 <div
                   id="main-content"

@@ -56,7 +56,7 @@ export const ExtensionCard = ({
   const IconFromMap = IconMap[script.type]
   const iconIsDataUri = script.icon && script.icon.startsWith("data:image")
 
-  const isEnabledMicroBlock = script.type === "m_block" && script.enabled
+  const isEnabledMicroBlock = script.type === "block" && script.enabled
   const hasMenuItems =
     isEnabledMicroBlock && (onAddToSidebar || onOpenStandalone)
 
@@ -153,12 +153,10 @@ export const ExtensionCard = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {script.type !== "app" && (
-            <Switch
-              checked={script.enabled}
-              onCheckedChange={(checked) => onToggleEnabled(script, checked)}
-            />
-          )}
+          <Switch
+            checked={script.enabled}
+            onCheckedChange={(checked) => onToggleEnabled(script, checked)}
+          />
           {showReload && (
             <Button
               onClick={onReload}

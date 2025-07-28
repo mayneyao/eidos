@@ -5,7 +5,7 @@ import type { ITreeNode } from "@/packages/core/types/ITreeNode";
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import { getWeek, isDayPageId, isWeekNodeId } from "@/lib/utils"
 
-import { useExtensionById } from "@/apps/web-app/hooks/use-extension"
+import { useExtensionByIdOrSlug } from "@/apps/web-app/hooks/use-extension"
 import { useSqliteStore } from "./use-sqlite"
 import { EIDOS_CHAT_PROJECT_ID } from "@/lib/const"
 import { useAllExtNodes } from "./use-all-ext-nodes"
@@ -32,7 +32,7 @@ export const useCurrentNode = (): ITreeNode | null => {
 
 export const useCurrentExtension = () => {
   const { scriptId: extensionId } = useParams()
-  const extension = useExtensionById(extensionId!)
+  const extension = useExtensionByIdOrSlug(extensionId!)
   return extension
 }
 

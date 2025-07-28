@@ -21,13 +21,21 @@ export const EditorArea = ({
   theme,
   onSave,
   onChange,
+  onFileJump,
 }: {
   theme: string
   onSave: (code: string) => void
   onChange?: (code: string) => void
+  onFileJump?: (path: string) => void
 }) => {
-  const { files, activeFileId, updateFileContent, fileModels, setFileModel } =
-    useMultiFileEditorStore()
+  const {
+    files,
+    activeFileId,
+    setActiveFileId,
+    updateFileContent,
+    fileModels,
+    setFileModel,
+  } = useMultiFileEditorStore()
   const editorRef = useRef<EditorRef>({
     editor: null,
     save: () => {},
@@ -35,6 +43,7 @@ export const EditorArea = ({
   })
   const containerRef = useRef<HTMLDivElement>(null)
   const [isMonacoReady, setIsMonacoReady] = useState(false)
+  const [isEditorReady, setIsEditorReady] = useState(false)
   const languageConfigManagerRef = useRef<LanguageConfigManager>(
     new LanguageConfigManager()
   )
@@ -95,7 +104,6 @@ export const EditorArea = ({
     }
   }, [])
 
-  // 创建防抖的内容同步函数
   const debouncedSyncContent = useCallback(
     createEditorDebounce((scriptId: string, content: string) => {
       syncEditorContentToVirtualFileSystem(monaco, scriptId, content)
@@ -105,43 +113,95 @@ export const EditorArea = ({
   )
 
   // Handle editor content changes with debouncing to avoid frequent updates
-  const handleEditorChange = (value: string | undefined) => {
-    // Call optional onChange callback
-    console.error("fffff", {
-      activeFile,
-      value,
-    })
-    if (activeFileId && value !== undefined) {
-      updateFileContent(activeFileId, value)
+  const handleEditorChange = useCallback(
+    (value: string | undefined) => {
+      if (activeFileId && value !== undefined) {
+        updateFileContent(activeFileId, value)
 
-      if (activeFile?.content !== value) {
-        onChange?.(value)
+        if (activeFile?.content !== value) {
+          onChange?.(value)
+        }
+
+        if (activeFile) {
+          debouncedSyncContent(activeFile.id, value)
+        }
       }
+    },
+    [activeFileId, activeFile, onChange]
+  )
 
-      if (activeFile) {
-        debouncedSyncContent(activeFile.id, value)
-      }
-    }
-  }
-
-  // Handle editor mount
+  // Handle editor mount - only setup basic editor instance
   const handleEditorMount = (
     editor: monaco.editor.IStandaloneCodeEditor,
     monacoInstance: typeof monaco
   ) => {
     console.log("🎯 Editor mounted, setting up...")
     editorRef.current.editor = editor
-    editorRef.current.save = () => {
-      const code = editor.getValue()
-      console.log(`Saving file: ${activeFileId}`, code.length, "characters")
-      // Here you can add logic to save to server
-      onSave(code)
-    }
     editorRef.current.layout = () => {
       editor.layout()
     }
 
-    // If there's an active file, set model immediately
+    // Only set up keyboard shortcuts that don't depend on external state
+    editor.addAction({
+      id: "format-document",
+      label: "Format Document",
+      keybindings: [
+        monacoInstance.KeyMod.Alt |
+          monacoInstance.KeyMod.Shift |
+          monacoInstance.KeyCode.KeyF,
+      ],
+      run: () => {
+        editor.getAction("editor.action.formatDocument")?.run()
+      },
+    })
+
+    editor.addAction({
+      id: "toggle-comment",
+      label: "Toggle Comment",
+      keybindings: [
+        monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.Slash,
+      ],
+      run: () => {
+        editor.getAction("editor.action.commentLine")?.run()
+      },
+    })
+
+    // Mark editor as ready
+    setIsEditorReady(true)
+  }
+
+  // Handle save action and initial model setup - depends on activeFile and onSave
+  useEffect(() => {
+    const editor = editorRef.current.editor
+    if (!editor || !isEditorReady) return
+
+    const disposables: monaco.IDisposable[] = []
+
+    // Setup save function that depends on onSave callback
+    editorRef.current.save = () => {
+      const code = editor.getValue()
+      const currentActiveFileId =
+        useMultiFileEditorStore.getState().activeFileId
+      console.log(
+        `Saving file: ${currentActiveFileId}`,
+        code.length,
+        "characters"
+      )
+      onSave(code)
+    }
+
+    // Register save action
+    const saveAction = editor.addAction({
+      id: "save",
+      label: "Save",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      run: () => {
+        editorRef.current.save()
+      },
+    })
+    disposables.push(saveAction)
+
+    // Setup initial model if there's an active file
     if (activeFile) {
       console.log(`Setting initial model: ${activeFile.path}`)
       try {
@@ -180,71 +240,91 @@ export const EditorArea = ({
       }
     }
 
-    // Set up keyboard shortcuts
-    editor.addAction({
-      id: "save",
-      label: "Save",
-      keybindings: [
-        monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS,
-      ],
-      run: () => {
-        editorRef.current.save()
-      },
-    })
+    return () => {
+      disposables.forEach((d) => d.dispose())
+    }
+  }, [isEditorReady, activeFile, onSave, setFileModel])
 
-    // Add more editor shortcuts
-    editor.addAction({
-      id: "format-document",
-      label: "Format Document",
-      keybindings: [
-        monacoInstance.KeyMod.Alt |
-          monacoInstance.KeyMod.Shift |
-          monacoInstance.KeyCode.KeyF,
-      ],
-      run: () => {
-        editor.getAction("editor.action.formatDocument")?.run()
-      },
-    })
+  // Extract reusable function for handling go-to-definition
+  const handleGoToDefinition = useCallback(
+    async (position: monaco.Position) => {
+      const editor = editorRef.current.editor
+      if (!editor) return
 
-    editor.addAction({
-      id: "toggle-comment",
-      label: "Toggle Comment",
-      keybindings: [
-        monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.Slash,
-      ],
-      run: () => {
-        editor.getAction("editor.action.commentLine")?.run()
-      },
-    })
-
-    // If there's an active file, ensure its model is created or retrieved
-    if (activeFile) {
-      const uri = monacoInstance.Uri.parse(`file:///${activeFile.path}`)
+      const model = editor.getModel()
+      if (!model) return
 
       try {
-        // Try to get existing model
-        let model = monacoInstance.editor.getModel(uri)
-
-        if (!model) {
-          // If model doesn't exist, create new model
-          console.log(`Creating model on mount for: ${activeFile.path}`)
-          model = createModelSafely(
-            activeFile.content,
-            activeFile.language,
-            uri
+        const definitions = await monaco.languages.typescript
+          .getTypeScriptWorker()
+          .then((worker) => worker(model.uri))
+          .then((client) =>
+            client.getDefinitionAtPosition(
+              model.uri.toString(),
+              model.getOffsetAt(position)
+            )
           )
-          setFileModel(activeFile.id, model)
-        }
 
-        editor.setModel(model)
+        if (definitions && definitions.length > 0) {
+          const definition = definitions[0]
+          const targetPath = definition.fileName.replace(/^file:\/\/\//, "")
+          const fileId = files.find((f) => f.path === targetPath)?.id
+          if (fileId) {
+            onFileJump?.(fileId)
+            setActiveFileId(fileId)
+
+            // Set cursor position in target file
+            const targetModel = monaco.editor.getModel(
+              monaco.Uri.parse(definition.fileName)
+            )
+            if (targetModel) {
+              const targetPosition = targetModel.getPositionAt(
+                definition.textSpan.start
+              )
+              editor.setPosition(targetPosition)
+            }
+          }
+        }
       } catch (error) {
-        console.error(
-          `Error setting up model on mount for ${activeFile.path}:`,
-          error
-        )
+        console.error("Go to definition failed:", error)
       }
+    },
+    [files, onFileJump, setActiveFileId]
+  )
+
+  // Handle dynamic actions and events that need fresh dependencies
+  useEffect(() => {
+    const editor = editorRef.current.editor
+    if (!editor || !isEditorReady) return
+
+    const disposables: monaco.IDisposable[] = []
+
+    // Register go-to-definition action
+    const gotoDefinitionAction = editor.addAction({
+      id: "go-to-definition",
+      label: "Go to Definition",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.F12],
+      run: async () => {
+        const position = editor.getPosition()
+        if (position) {
+          await handleGoToDefinition(position)
+        }
+      },
+    })
+    disposables.push(gotoDefinitionAction)
+
+    // Register mouse down event
+    const mouseDownDisposable = editor.onMouseDown((e) => {
+      if ((e.event.ctrlKey || e.event.metaKey) && e.target.position) {
+        handleGoToDefinition(e.target.position)
+      }
+    })
+    disposables.push(mouseDownDisposable)
+
+    return () => {
+      disposables.forEach((d) => d.dispose())
     }
-  }
+  }, [handleGoToDefinition, isEditorReady])
 
   // When active file changes, switch editor model
   useEffect(() => {

@@ -685,8 +685,12 @@ export class DataSpace {
   //   return await this.script.call(id, input)
   // }
 
-  public async getScript(id: string) {
-    return this.script.get(id)
+  public async getScript(idOrSlug: string) {
+    const res = await this.extension.get(idOrSlug)
+    if (res) {
+      return res;
+    }
+    return this.extension.getExtensionBySlug(idOrSlug)
   }
 
   public async deleteExtension(id: string) {

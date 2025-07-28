@@ -32,6 +32,7 @@ export interface SimpleCodeEditorProps {
   /** File content change callback */
   onChange?: (fileId: string, content: string) => void
   onSave?: (fileId: string, content: string) => void
+  onFileJump?: (path: string) => void
   theme?: "vs-dark" | "light"
   /** Custom import suggestions for auto-completion */
   customImportSuggestions?: ImportSuggestion[]
@@ -51,6 +52,7 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
   onSave,
   theme = "light",
   customImportSuggestions = [],
+  onFileJump,
 }) => {
   const {
     files,
@@ -161,7 +163,12 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
 
   return (
     <div className="flex-1 h-full">
-      <EditorArea theme={theme} onSave={handleSave} onChange={handleChange} />
+      <EditorArea
+        theme={theme}
+        onSave={handleSave}
+        onChange={handleChange}
+        onFileJump={onFileJump}
+      />
     </div>
   )
 }

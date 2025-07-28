@@ -323,6 +323,14 @@ export class ExtensionTable
     return res.length > 0 ? this.toJson(res[0]) : null
   }
 
+  async getExtensionBySlugOrId(idOrSlug: string): Promise<IExtension | null> {
+    const byId = await this.get(idOrSlug)
+    if (byId) {
+      return byId
+    }
+    return this.getExtensionBySlug(idOrSlug)
+  }
+
   /**
    * Check if a slug already exists
    */

@@ -13,9 +13,11 @@ import {
   resolveLocalFileDependencies,
   type ResolvedFile,
 } from "@/packages/v3/code-tools/get-deps-file"
+import { useNavigate } from "react-router-dom"
 import ts from "typescript/lib/typescript"
 
 import { useAllScripts } from "@/hooks/use-all-scripts"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 
 import { getDynamicPrompt } from "../helper"
@@ -56,6 +58,11 @@ export const SimpleCodeEditorWrapper = forwardRef(
   ) => {
     const dynamicPrompt = useMemo(() => getDynamicPrompt(bindings), [bindings])
 
+    const navigate = useNavigate()
+    const { space } = useCurrentPathInfo()
+    const jumpToExtension = (id: string) => {
+      navigate(`/${space}/extensions/${id}`)
+    }
     const [deps, setDeps] = useState<ResolvedFile[]>()
     const { sqlite } = useSqlite()
     const allScripts = useAllScripts()
@@ -194,7 +201,6 @@ export const SimpleCodeEditorWrapper = forwardRef(
     const handleEditorChange = useCallback(
       (fileId: string, newCode: string) => {
         if (fileId === scriptId || fileId === "current") {
-          console.warn("ffff")
           if (scriptId) {
             setUnsavedChanges(scriptId, true)
           }
@@ -241,6 +247,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
           onChange={handleEditorChange}
           onSave={handleSave}
           theme={theme}
+          onFileJump={jumpToExtension}
           customImportSuggestions={customImportSuggestions}
         />
       </div>

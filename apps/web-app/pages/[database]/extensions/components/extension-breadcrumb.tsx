@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
-import { useExtensionById } from "@/hooks/use-extension"
+import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -15,16 +15,16 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useEditorStore } from "../stores/editor-store"
 
 interface ScriptBreadcrumbProps {
-  scriptId: string
+  scriptIdOrSlug: string
 }
 
-export const ScriptBreadcrumb = ({ scriptId }: ScriptBreadcrumbProps) => {
-  const script = useExtensionById(scriptId)
+export const ScriptBreadcrumb = ({ scriptIdOrSlug }: ScriptBreadcrumbProps) => {
+  const script = useExtensionByIdOrSlug(scriptIdOrSlug)
   const { space } = useCurrentPathInfo()
   const { t } = useTranslation()
   const { unsavedChangesMap } = useEditorStore()
 
-  const hasUnsavedChanges = unsavedChangesMap[scriptId] || false
+  const hasUnsavedChanges = unsavedChangesMap[script?.id || ""] || false
 
   return (
     <Breadcrumb>

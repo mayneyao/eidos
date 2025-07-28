@@ -53,13 +53,13 @@ export const useExtension = () => {
   }
 }
 
-export const useExtensionById = (id?: string) => {
+export const useExtensionByIdOrSlug = (id?: string) => {
   const { sqlite } = useSqlite()
   const [extension, setExtension] = useState<IExtension | null>(null)
   useEffect(() => {
     if (!sqlite || !id) return
     const fetchExtension = async () => {
-      const extension = await sqlite.extension.get(id)
+      const extension = await sqlite.extension.getExtensionBySlugOrId(id)
       setExtension(extension)
     }
     fetchExtension()
