@@ -58,7 +58,7 @@ export class ExtensionTable
     );
 
     ${createUpdateTriggerForFields(this.name, [
-    'id', 'slug', 'name', 'type', 'code', 'enabled', 'icon'
+    'id', 'slug', 'name', 'type', 'code', 'enabled', 'icon', 'meta'
   ])}
 
 `
@@ -67,6 +67,10 @@ export class ExtensionTable
     "meta",
     "bindings",
   ]
+
+  static isUDFExtension(extension: IExtension) {
+    return extension.type === 'script' && extension.meta?.type === 'udf'
+  }
 
   async getTableViews(): Promise<IExtension<TableViewMeta>[]> {
     const sql = `

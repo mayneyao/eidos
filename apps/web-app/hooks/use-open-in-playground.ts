@@ -1,4 +1,4 @@
-import { openCursor } from "@/lib/web/schema"
+import { openCursor } from "@/lib/web/scheme"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { usePlayground } from "@/apps/desktop/renderer/hooks/usePlayground"

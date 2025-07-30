@@ -1,17 +1,18 @@
-import { useEffect } from "react"
+import { useEffect } from "react";
 
 import type {
-  EidosDataEventChannelMsg} from "@/lib/const";
+  EidosDataEventChannelMsg
+} from "@/lib/const";
 import {
   DataUpdateSignalType,
   EidosDataEventChannelMsgType,
   EidosDataEventChannelName,
-} from "@/lib/const"
-import { ScriptTableName, TreeTableName } from "@/packages/core/sqlite/const"
-import type { ITreeNode } from "@/packages/core/types/ITreeNode"
+} from "@/lib/const";
+import { ExtensionTableName, TreeTableName } from "@/packages/core/sqlite/const";
+import type { ITreeNode } from "@/packages/core/types/ITreeNode";
 
-import { useEngine } from "./use-engine"
-import { useSqliteStore } from "./use-sqlite"
+import { useEngine } from "./use-engine";
+import { useSqliteStore } from "./use-sqlite";
 
 export const useSqliteMetaTableSubscribe = () => {
   const { addNode, setNode } = useSqliteStore()
@@ -37,9 +38,11 @@ export const useSqliteMetaTableSubscribe = () => {
           default:
             break
         }
-        if (table === ScriptTableName) {
-          const type = _new.type || _old.type
-          if (type !== 'udf') {
+        if (table === ExtensionTableName) {
+          if (_new.type !== 'script') {
+            return
+          }
+          if (JSON.parse(_new.meta).type !== 'udf') {
             return
           }
           const diff = Object.keys(_new).filter((key) => {

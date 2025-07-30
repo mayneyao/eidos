@@ -28,7 +28,6 @@ export const AddViewDropdown = ({
 }: AddViewDropdownProps) => {
   const { t } = useTranslation()
   const { tableViews } = useCustomTableViews()
-  console.log("tableViews", tableViews)
 
   if (isReadOnly) {
     return null
