@@ -2,7 +2,7 @@ import React, { useState } from "react"
 import { Edit3, FolderPlus, Plus, Trash2 } from "lucide-react"
 
 import { getLanguageFromFileName, useMultiFileEditorStore } from "../store"
-import type { FileModel} from "../types";
+import type { FileModel, SupportedLanguage} from "../types";
 import { FileType } from "../types"
 
 /**
@@ -39,7 +39,7 @@ export const FileToolbar: React.FC = () => {
       path: fileName,
       content: createType === FileType.File ? "" : "",
       language:
-        createType === FileType.File ? getLanguageFromFileName(fileName) : "",
+        createType === FileType.File ? (getLanguageFromFileName(fileName) === 'typescript' ? 'typescript' : '') as SupportedLanguage : '' as SupportedLanguage,
       type: createType,
     }
 

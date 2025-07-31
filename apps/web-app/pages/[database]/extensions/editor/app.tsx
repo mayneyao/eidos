@@ -1,7 +1,6 @@
 import React, { useState } from "react"
 import {
   FileType,
-  MultiFileEditor,
   SimpleCodeEditor,
   type FileModel,
 } from "@/packages/code-editor/src"
@@ -73,11 +72,11 @@ function App() {
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-gray-300">
       <SimpleCodeEditor
-        initialFiles={testFiles}
-        initialOpenFiles={["component.tsx"]}
-        // initialOpenFiles={["a.ts", "b.ts", "component.tsx", "utils.ts"]}
-        initialActiveFileId="component.tsx"
+        initialCode={componentContent}
+        fileName="component.tsx"
+        language="typescript"
         className="w-full h-full"
+        theme="vs-dark"
       />
     </div>
   )

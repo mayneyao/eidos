@@ -1,6 +1,12 @@
-import { forwardRef, useCallback, useEffect, useMemo, useState } from "react"
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { SimpleCodeEditor } from "@/packages/code-editor/src/simple-code-editor"
-import { FileType, type FileModel } from "@/packages/code-editor/src/types"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import {
   resolveLocalFileDependencies,
@@ -54,10 +60,6 @@ export const SimpleCodeEditorWrapper = forwardRef(
 
     const navigate = useNavigate()
     const { space } = useCurrentPathInfo()
-    const jumpToExtension = (id: string) => {
-      navigate(`/${space}/extensions/${id}`)
-    }
-    const [deps, setDeps] = useState<ResolvedFile[]>()
     const { sqlite } = useSqlite()
     const allScripts = useAllScripts()
     const currentExtension = useExtensionByIdOrSlug(scriptId)
@@ -71,23 +73,30 @@ export const SimpleCodeEditorWrapper = forwardRef(
           detail: script.description,
           documentation: script.description,
         }))
-    }, [allScripts])
+    }, [allScripts, scriptId])
 
-    const getExtensionBySlug = async (
-      slug: string
-    ): Promise<{
-      content: string
-      ext: "ts" | "tsx"
-    } | null> => {
-      const res = await sqlite?.extension.getExtensionBySlug(slug)
-      if (!res) {
-        return null
-      }
-      return {
-        content: res.ts_code!,
-        ext: res.type === "block" ? "tsx" : "ts",
-      }
+    const jumpToExtension = (id: string) => {
+      navigate(`/${space}/extensions/${id}`)
     }
+
+    const getExtensionBySlug = useCallback(
+      async (
+        slug: string
+      ): Promise<{
+        content: string
+        ext: "ts" | "tsx"
+      } | null> => {
+        const res = await sqlite?.extension.getExtensionBySlug(slug)
+        if (!res) {
+          return null
+        }
+        return {
+          content: res.ts_code!,
+          ext: res.type === "block" ? "tsx" : "ts",
+        }
+      },
+      [sqlite]
+    )
     const {
       scriptCodeMap,
       setScriptCodeMap,
@@ -97,10 +106,19 @@ export const SimpleCodeEditorWrapper = forwardRef(
       setUnsavedChanges,
     } = useEditorStore()
 
+    // Clear unsaved changes for this script on unmount
+    useEffect(() => {
+      return () => {
+        if (scriptId) {
+          setUnsavedChanges(scriptId, false)
+        }
+      }
+    }, [scriptId, setUnsavedChanges])
+
     const toApplyCode = scriptId ? scriptCodeMap[scriptId] : undefined
 
     const handleSave = useCallback(
-      async (fileId: string, codeToSave: string, versionToSave?: string) => {
+      async (codeToSave: string, versionToSave?: string) => {
         // Mark as saved when save is called
         if (scriptId) {
           setUnsavedChanges(scriptId, false)
@@ -125,10 +143,26 @@ export const SimpleCodeEditorWrapper = forwardRef(
       [language, onSave, customCompile, scriptId, setUnsavedChanges]
     )
 
+    // Determine extension based on script type: script -> .ts, block -> .tsx
+    const ext = currentExtension?.type === "block" ? "tsx" : "ts"
+
+    const getDeps = useCallback(
+      async (code: string) => {
+        const deps = await resolveLocalFileDependencies(
+          scriptId || "current",
+          code,
+          ext,
+          getExtensionBySlug
+        )
+        return deps
+      },
+      [scriptId, ext, getExtensionBySlug]
+    )
+
     const handleAcceptChanges = useCallback(() => {
       if (toApplyCode && scriptId) {
         const newVersion = pendingVersionUpdateMap[scriptId]
-        handleSave(scriptId, toApplyCode, newVersion || undefined)
+        handleSave(toApplyCode, newVersion || undefined)
         setScriptCodeMap(scriptId, "")
         setPendingVersionUpdate(scriptId, null)
         setActiveTab("preview")
@@ -143,23 +177,6 @@ export const SimpleCodeEditorWrapper = forwardRef(
       setPendingVersionUpdate,
     ])
 
-    const getDeps = useCallback(
-      async (code: string) => {
-        const deps = await resolveLocalFileDependencies(
-          scriptId || "current",
-          code,
-          ext,
-          getExtensionBySlug
-        )
-        return deps
-      },
-      [scriptId]
-    )
-
-    useEffect(() => {
-      getDeps(value).then(setDeps)
-    }, [value, getDeps])
-
     const handleRejectChanges = useCallback(() => {
       if (scriptId) {
         setScriptCodeMap(scriptId, "")
@@ -167,64 +184,37 @@ export const SimpleCodeEditorWrapper = forwardRef(
       }
     }, [scriptId, setScriptCodeMap, setPendingVersionUpdate])
 
-    // Determine extension based on script type: script -> .ts, block -> .tsx
-    const ext = currentExtension?.type === "block" ? "tsx" : "ts"
-    const currentFile: FileModel = {
-      id: `${scriptId || "current"}`,
-      name: `${scriptId || "current"}.${ext}`,
-      path: `${scriptId || "current"}.${ext}`,
-      content: value || "", // Use initial value, not current code state
-      language: "typescript", // Always use typescript language
-      type: FileType.File,
-    }
-
-    // Convert current script and all scripts to FileModel format
-    // Don't include 'code' in dependencies to avoid recreating files on every keystroke
-    const files: FileModel[] = useMemo(() => {
-      const depsFiles = (deps || [])
-        .filter((dp) => dp.id !== scriptId)
-        .map((dp) => {
-          return {
-            id: dp.id,
-            name: `${dp.id}.${dp.ext}`,
-            path: `${dp.id}.${dp.ext}`,
-            content: dp.content,
-            language: "typescript" as const,
-            type: FileType.File,
-          }
-        })
-
-      const eidosType: FileModel = {
-        id: `eidos`,
-        name: `eidos.d.ts`,
-        path: `eidos.d.ts`,
-        content: dynamicPrompt,
-        language: "typescript" as const,
-        type: FileType.File,
-      }
-
-      return [currentFile, eidosType, ...depsFiles]
-    }, [value, scriptId, language, deps, dynamicPrompt]) // Remove 'code' from dependencies
+    // Create the file name based on script info
+    const fileName = useMemo(() => {
+      return `${scriptId || "current"}.${ext}`
+    }, [scriptId, ext])
 
     const handleEditorChange = useCallback(
-      (fileId: string, newCode: string) => {
-        if (fileId === scriptId || fileId === "current") {
-          if (scriptId) {
-            setUnsavedChanges(scriptId, true)
-          }
+      (newCode: string) => {
+        if (scriptId) {
+          setUnsavedChanges(scriptId, true)
         }
       },
       [scriptId, setUnsavedChanges]
     )
 
-    const initialOpenFiles = useMemo(() => {
-      return [currentFile.path]
-    }, [scriptId])
-    console.warn("files", {
-      files,
-      currentExtension,
-      initialOpenFiles,
-    })
+    // Enhanced getDeps that includes eidos types
+    const getDepsWithTypes = useCallback(
+      async (code: string) => {
+        const deps = await getDeps(code)
+
+        // Add eidos type definitions as a dependency
+        const eidosTypeDep: ResolvedFile = {
+          id: "eidos",
+          content: dynamicPrompt,
+          imports: [],
+          ext: "ts",
+        }
+
+        return [...deps, eidosTypeDep]
+      },
+      [getDeps, dynamicPrompt]
+    )
 
     return (
       <div className="h-full w-full relative">
@@ -253,16 +243,16 @@ export const SimpleCodeEditorWrapper = forwardRef(
           </div>
         )}
         <SimpleCodeEditor
-          initialFiles={files}
-          initialOpenFiles={initialOpenFiles}
-          initialActiveFileId={currentFile.id}
+          initialCode={value || "// Start coding here..."}
+          fileName={fileName}
+          language="typescript"
           className="w-full h-full"
           onChange={handleEditorChange}
           onSave={handleSave}
           theme={theme}
-          onFileJump={jumpToExtension}
-          getDeps={getDeps}
+          getDeps={getDepsWithTypes}
           customImportSuggestions={customImportSuggestions}
+          onJump={jumpToExtension}
         />
       </div>
     )

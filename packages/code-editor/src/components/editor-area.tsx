@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
 import * as monaco from "monaco-editor"
 
@@ -9,105 +9,441 @@ import {
   getDefaultEditorOptions,
   setupMonacoModels,
 } from "../monaco-setup"
-import { useMultiFileEditorStore } from "../store"
-import { FileType, type EditorRef } from "../types"
+import { getPluginManager } from "../plugins/plugin-manager"
+import { FileType, type EditorRef, type FileModel } from "../types"
 import { createEditorDebounce } from "../utils/debounce"
 
 /**
- * Editor area component
- * Displays the editor for the currently active file
+ * 依赖文件管理 - 仅用于类型推断
+ */
+// 跟踪已添加到 TypeScript 语言服务的库
+const addedExtraLibs = new Set<string>()
+
+/**
+ * 为依赖文件创建模型，不会影响当前编辑的文件
+ */
+function createModelSafelyForDependency(
+  content: string,
+  language: string,
+  uri: monaco.Uri,
+  currentFileUri?: string
+): monaco.editor.ITextModel {
+  const uriString = uri.toString()
+
+  // 如果是当前文件，绝对不要修改其内容
+  if (currentFileUri && uriString === currentFileUri) {
+    const existingModel = monaco.editor.getModel(uri)
+    if (existingModel) {
+      console.log(`🔒 Skipping content update for current file: ${uriString}`)
+      return existingModel
+    }
+  }
+
+  // 对于依赖文件，可以正常创建或更新
+  return createModelSafely(content, language, uri)
+}
+
+function setupDependencyModels(
+  dependencies: readonly FileModel[],
+  currentFileUri?: string
+): void {
+  console.log(
+    `🔧 Setting up ${dependencies.length} dependency models for type context`
+  )
+
+  // 获取现有的依赖 models
+  const existingModels = monaco.editor.getModels()
+  const dependencyUris = new Set(
+    dependencies.map((file) => `file:///${file.path}`)
+  )
+
+  // 清理不再需要的依赖 models（保留当前编辑的文件）
+  existingModels.forEach((model) => {
+    const uriString = model.uri.toString()
+    if (uriString.startsWith("file:///") && !dependencyUris.has(uriString)) {
+      // 如果提供了当前文件URI，确保不清理当前文件的模型
+      if (currentFileUri && uriString === currentFileUri) {
+        console.log(
+          `🔒 Protecting current file model from cleanup: ${uriString}`
+        )
+        return
+      }
+
+      console.log(`🧹 Cleaning up unused dependency model: ${uriString}`)
+      model.dispose()
+    }
+  })
+
+  // 为每个依赖文件创建或更新 model
+  const extraLibsToAdd: Array<{ content: string; filePath: string }> = []
+  let hasModelUpdates = false
+
+  dependencies.forEach((file) => {
+    if (file.type === FileType.File && file.content !== undefined) {
+      const uri = monaco.Uri.parse(`file:///${file.path}`)
+      const uriString = uri.toString()
+
+      // 跳过与当前文件相同 URI 的依赖文件，避免覆盖用户输入
+      if (currentFileUri && uriString === currentFileUri) {
+        console.log(
+          `⏭️ Skipping dependency file with same URI as current file: ${uriString}`
+        )
+        return
+      }
+
+      try {
+        // Check if this is an update to an existing model
+        const existingModel = monaco.editor.getModel(uri)
+        const isUpdate =
+          existingModel && existingModel.getValue() !== file.content
+
+        const model = createModelSafelyForDependency(
+          file.content,
+          file.language,
+          uri,
+          currentFileUri
+        )
+
+        if (isUpdate) {
+          hasModelUpdates = true
+          console.log(`🔄 Updated dependency model: ${file.path}`)
+        }
+
+        // Setup plugin listeners for this dependency model
+        try {
+          const pluginManager = getPluginManager()
+          console.log(
+            "Plugin manager initialized:",
+            pluginManager.isInitialized()
+          )
+          const esmPlugin = pluginManager.getPlugin("esm-import-resolver")
+          console.log("ESM plugin found:", esmPlugin ? "yes" : "no")
+          if (esmPlugin) {
+            console.log("ESM plugin enabled:", esmPlugin.isEnabled())
+            if (esmPlugin.isEnabled()) {
+              ;(esmPlugin as any).setupModelListeners(model)
+            }
+          }
+        } catch (pluginError) {
+          console.warn(
+            "Failed to setup plugin listeners for dependency:",
+            pluginError
+          )
+        }
+
+        // 添加到 TypeScript 语言服务
+        extraLibsToAdd.push({
+          content: file.content,
+          filePath: `file:///${file.path}`,
+        })
+
+        console.log(`✅ Setup dependency model: ${file.path}`)
+      } catch (error) {
+        console.error(
+          `❌ Failed to setup dependency model for ${file.path}:`,
+          error
+        )
+      }
+    }
+  })
+
+  // 更新 TypeScript extra libraries
+  if (extraLibsToAdd.length > 0) {
+    // 只添加尚未添加的依赖文件到语言服务
+    extraLibsToAdd.forEach(({ content, filePath }) => {
+      if (!addedExtraLibs.has(filePath)) {
+        try {
+          monaco.languages.typescript.typescriptDefaults.addExtraLib(
+            content,
+            filePath
+          )
+          addedExtraLibs.add(filePath)
+        } catch (error) {
+          console.warn(`Failed to add extra lib for ${filePath}:`, error)
+        }
+      }
+    })
+
+    console.log(
+      `✅ Added ${extraLibsToAdd.length} files to TypeScript language service`
+    )
+  }
+
+  // 如果有模型更新，强制刷新 TypeScript 语言服务
+  if (hasModelUpdates) {
+    console.log(
+      `🔄 Forcing TypeScript language service refresh due to dependency updates`
+    )
+    try {
+      // 更温和的方式：重新添加 extra libraries 来触发 TypeScript 语言服务更新
+      extraLibsToAdd.forEach(({ content, filePath }) => {
+        try {
+          monaco.languages.typescript.typescriptDefaults.addExtraLib(
+            content,
+            filePath
+          )
+          console.log(`🔄 Refreshed TypeScript lib: ${filePath}`)
+        } catch (error) {
+          console.warn(`Failed to refresh extra lib for ${filePath}:`, error)
+        }
+      })
+    } catch (error) {
+      console.warn("Failed to refresh TypeScript language service:", error)
+    }
+  }
+}
+
+/**
+ * 重构后的 EditorArea Props - 职责分离
+ */
+interface EditorAreaProps {
+  /** 当前正在编辑的文件 */
+  currentFile: FileModel | null
+
+  /** 依赖的文件列表，用于类型推断（内容相对稳定）*/
+  dependencies: readonly FileModel[]
+
+  /** 编辑器主题 */
+  theme: string
+
+  /** 保存回调 */
+  onSave: (fileId: string, code: string) => void
+
+  /** 内容变化回调 */
+  onChange?: (fileId: string, code: string) => void
+
+  /** 文件跳转回调 */
+  onFileJump?: (fileId: string) => void
+}
+
+/**
+ * 纯粹的编辑器组件 - 当前文件 + 依赖管理分离
+ * 职责：只管理当前文件的编辑，依赖文件仅用于类型推断
  */
 export const EditorArea = ({
+  currentFile,
+  dependencies,
   theme,
   onSave,
   onChange,
   onFileJump,
-}: {
-  theme: string
-  onSave: (code: string) => void
-  onChange?: (code: string) => void
-  onFileJump?: (path: string) => void
-}) => {
-  const {
-    files,
-    activeFileId,
-    setActiveFileId,
-    updateFileContent,
-    fileModels,
-    setFileModel,
-  } = useMultiFileEditorStore()
+}: EditorAreaProps) => {
   const editorRef = useRef<EditorRef>({
     editor: null,
     save: () => {},
     layout: () => {},
   })
   const containerRef = useRef<HTMLDivElement>(null)
-  const [isMonacoReady, setIsMonacoReady] = useState(false)
   const [isEditorReady, setIsEditorReady] = useState(false)
   const languageConfigManagerRef = useRef<LanguageConfigManager>(
     new LanguageConfigManager()
   )
 
-  // Get currently active file
-  const activeFile = activeFileId
-    ? files.find((f) => f.id === activeFileId && f.type === FileType.File)
-    : null
+  // 追踪当前文件的 model，避免重复创建
+  const currentModelRef = useRef<monaco.editor.ITextModel | null>(null)
 
-  // Initialize Monaco models
+  // 存储光标位置（当前文件）
+  const cursorPositionRef = useRef<monaco.Position | null>(null)
+
+  // 标记是否正在进行程序性内容更新，避免触发 onChange
+  const isProgrammaticUpdateRef = useRef(false)
+
+  // Debug state for model information
+  const [debugInfo, setDebugInfo] = useState<{
+    models: Array<{
+      uri: string
+      language: string
+      contentLength: number
+      isActive: boolean
+    }>
+    activeModel: string | null
+  }>({
+    models: [],
+    activeModel: null,
+  })
+
+  // Update debug info periodically
   useEffect(() => {
-    if (files.length > 0) {
+    const updateDebugInfo = () => {
+      const editor = editorRef.current.editor
+      const activeModel = editor?.getModel()
+      const allModels = monaco.editor.getModels()
+
+      setDebugInfo({
+        models: allModels.map((model) => ({
+          uri: model.uri.toString(),
+          language: model.getLanguageId(),
+          contentLength: model.getValue().length,
+          isActive: model === activeModel,
+        })),
+        activeModel: activeModel?.uri.toString() || null,
+      })
+    }
+
+    const interval = setInterval(updateDebugInfo, 1000) // Update every second
+    return () => clearInterval(interval)
+  }, [])
+
+  // 1. 设置依赖文件的类型上下文（dependencies 变化时）
+  useEffect(() => {
+    if (dependencies.length > 0) {
       console.log(
-        "EditorArea: Setting up Monaco models, file count:",
-        files.length
+        `🔧 Setting up ${dependencies.length} dependency files for type context`
       )
+
       try {
-        setupMonacoModels(files)
-        setIsMonacoReady(true)
-        console.log("✅ Monaco model setup complete")
+        // 获取当前活跃编辑器的模型URI作为保护（如果存在）
+        const editor = editorRef.current.editor
+        const currentModel = editor?.getModel()
+        const currentFileUri = currentModel
+          ? currentModel.uri.toString()
+          : undefined
+
+        // 为依赖文件创建 models（仅用于类型推断），避免与当前文件冲突
+        setupDependencyModels(dependencies, currentFileUri)
+
+        // 配置语言支持
+        const context = {
+          scriptPathMappings: {
+            "@/scripts/*": ["file:///scripts/*"],
+            "@/utils/*": ["file:///utils/*"],
+          },
+          allScripts: dependencies
+            .filter((f) => f.type === FileType.File)
+            .map((f) => ({
+              id: f.id,
+              name: f.name,
+              code: f.content,
+              ts_code: f.content,
+            })),
+        }
+
+        languageConfigManagerRef.current.configureLanguage(
+          monaco,
+          "typescript",
+          context
+        )
+
+        console.log(`✅ Dependency context setup complete`)
       } catch (error) {
-        console.error("❌ Monaco model setup failed:", error)
+        console.error("❌ Failed to setup dependency context:", error)
       }
     }
-  }, [files])
+  }, [dependencies]) // 只依赖 dependencies，不依赖 currentFile
 
-  // Configure language support when Monaco is ready or active file changes
+  // 2. 处理当前文件变化（currentFile 变化时 + 编辑器准备好后）
   useEffect(() => {
-    if (isMonacoReady && files.length > 0 && activeFile) {
-      console.log(`🔧 Configuring language for active file: ${activeFile.path}`)
-      console.log(`  - File language: ${activeFile.language}`)
+    const editor = editorRef.current.editor
+    if (!editor || !isEditorReady) {
+      console.log(`⏳ Editor not ready yet, skipping file setup`, {
+        hasEditor: !!editor,
+        isEditorReady,
+      })
+      return
+    }
 
-      const context = {
-        scriptPathMappings: {
-          "@/scripts/*": ["file:///scripts/*"],
-          "@/utils/*": ["file:///utils/*"],
-        },
-        allScripts: files
-          .filter((f) => f.type === FileType.File)
-          .map((f) => ({
-            id: f.id,
-            name: f.name,
-            code: f.content,
-            ts_code: f.content,
-          })),
+    if (!currentFile) {
+      // 如果没有当前文件，清空编辑器
+      console.log(`📄 No current file, clearing editor`)
+      editor.setModel(null)
+      currentModelRef.current = null
+      cursorPositionRef.current = null
+      return
+    }
+
+    console.log(`🎯 Switching to current file: ${currentFile.path}`, {
+      contentLength: currentFile.content?.length || 0,
+      contentPreview: currentFile.content?.substring(0, 100) || "NO CONTENT",
+    })
+
+    try {
+      const uri = monaco.Uri.parse(`file:///${currentFile.path}`)
+
+      // 获取或创建当前文件的 model
+      let model = monaco.editor.getModel(uri)
+
+      if (!model) {
+        console.log(
+          `📝 Creating new model for current file: ${currentFile.path}`
+        )
+        model = createModelSafely(currentFile.content || "", "typescript", uri)
+
+        // Setup plugin listeners for the current file model
+        try {
+          const pluginManager = getPluginManager()
+          const esmPlugin = pluginManager.getPlugin("esm-import-resolver")
+          if (esmPlugin && esmPlugin.isEnabled()) {
+            ;(esmPlugin as any).setupModelListeners(model)
+            console.log(
+              `🔌 Setup plugin listeners for current file: ${currentFile.path}`
+            )
+          }
+        } catch (pluginError) {
+          console.warn(
+            "Failed to setup plugin listeners for current file:",
+            pluginError
+          )
+        }
+      } else {
+        // Model already exists, update content if it differs from current file content
+        const currentContent = model.getValue()
+        if (currentContent !== (currentFile.content || "")) {
+          console.log(
+            `📝 Updating existing model content for: ${currentFile.path}`
+          )
+          isProgrammaticUpdateRef.current = true
+          model.setValue(currentFile.content || "")
+          // Reset flag after a brief delay to allow change event to process
+          setTimeout(() => {
+            isProgrammaticUpdateRef.current = false
+          }, 10)
+        } else {
+          console.log(
+            `📝 Using existing model for current file: ${currentFile.path} (content already matches)`
+          )
+        }
       }
 
-      // Configure language based on active file
-      // For Monaco Editor, both .ts and .tsx files use 'typescript' language
-      // JSX support is determined by file extension, not language ID
-      const language = "typescript"
+      // 切换到当前文件的 model
+      const currentModel = editor.getModel()
+      if (
+        !currentModel ||
+        currentModel.uri.toString() !== model.uri.toString()
+      ) {
+        // 保存之前的光标位置
+        if (currentModel) {
+          const position = editor.getPosition()
+          if (position) {
+            cursorPositionRef.current = position
+          }
+        }
 
-      console.log(
-        `  - Resolved language: ${language} (original: ${activeFile.language})`
-      )
+        console.log(`🔄 Setting editor model to: ${currentFile.path}`)
+        editor.setModel(model)
+        currentModelRef.current = model
 
-      languageConfigManagerRef.current.configureLanguage(
-        monaco,
-        language,
-        context
+        // 恢复光标位置
+        if (cursorPositionRef.current) {
+          setTimeout(() => {
+            editor.setPosition(cursorPositionRef.current!)
+            console.log(`🎯 Restored cursor position for ${currentFile.path}`)
+          }, 10)
+        }
+
+        // 同步到虚拟文件系统
+        syncEditorContentToVirtualFileSystem(
+          monaco,
+          currentFile.path,
+          currentFile.content
+        )
+      }
+    } catch (error) {
+      console.error(
+        `❌ Error setting up current file ${currentFile.path}:`,
+        error
       )
-      console.warn("change editor language", { activeFile, language })
     }
-  }, [isMonacoReady, activeFile]) // Add activeFile dependency to reconfigure on file switch
+  }, [currentFile, isEditorReady]) // 添加 isEditorReady 依赖
 
   // Clean up language configuration
   useEffect(() => {
@@ -116,44 +452,62 @@ export const EditorArea = ({
     }
   }, [])
 
+  // Debounced content sync to virtual file system
   const debouncedSyncContent = useCallback(
     createEditorDebounce((path: string, content: string) => {
       syncEditorContentToVirtualFileSystem(monaco, path, content)
-      console.log(`🔄 Debounced sync for ${path}`)
+      console.log(`🔄 Synced to virtual file system: ${path}`)
     }, "CONTENT_SYNC"),
     []
   )
 
-  // Handle editor content changes with debouncing to avoid frequent updates
+  // Handle editor content changes
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
-      if (activeFileId && value !== undefined) {
-        updateFileContent(activeFileId, value)
+      if (!currentFile || value === undefined) return
 
-        if (activeFile?.content !== value) {
-          onChange?.(value)
-        }
+      // Skip onChange callback during programmatic updates
+      if (isProgrammaticUpdateRef.current) {
+        console.log(
+          `⏭️ Skipping onChange during programmatic update for: ${currentFile.path}`
+        )
+        return
+      }
 
-        if (activeFile) {
-          debouncedSyncContent(activeFile.path, value) // Use path instead of id
-        }
+      // Get current content from the model (source of truth)
+      const editor = editorRef.current.editor
+      if (!editor) return
+
+      const model = editor.getModel()
+      if (!model) return
+
+      const currentContent = model.getValue()
+
+      // Sync to virtual file system (fixed to not reset active editor content)
+      debouncedSyncContent(currentFile.path, currentContent)
+
+      // Notify external handler of content change
+      onChange?.(currentFile.id, currentContent)
+
+      // Save current cursor position
+      const currentPosition = editor.getPosition()
+      if (currentPosition) {
+        cursorPositionRef.current = currentPosition
       }
     },
-    [activeFileId, activeFile, onChange, debouncedSyncContent]
+    [currentFile, onChange, debouncedSyncContent]
   )
 
-  // Handle editor mount - only setup basic editor instance
+  // Handle editor mount
   const handleEditorMount = (
     editor: monaco.editor.IStandaloneCodeEditor,
     monacoInstance: typeof monaco
   ) => {
-    console.log("🎯 Editor mounted, setting up...")
+    console.log("🎯 Editor mounted")
     editorRef.current.editor = editor
-    editorRef.current.layout = () => {
-      editor.layout()
-    }
+    editorRef.current.layout = () => editor.layout()
 
-    // Only set up keyboard shortcuts that don't depend on external state
+    // Setup keyboard shortcuts
     editor.addAction({
       id: "format-document",
       label: "Format Document",
@@ -178,28 +532,23 @@ export const EditorArea = ({
       },
     })
 
-    // Mark editor as ready
     setIsEditorReady(true)
   }
 
-  // Handle save action and initial model setup - depends on activeFile and onSave
+  // Setup save functionality and dynamic actions
   useEffect(() => {
     const editor = editorRef.current.editor
     if (!editor || !isEditorReady) return
 
     const disposables: monaco.IDisposable[] = []
 
-    // Setup save function that depends on onSave callback
+    // Setup save function
     editorRef.current.save = () => {
+      if (!currentFile) return
+
       const code = editor.getValue()
-      const currentActiveFileId =
-        useMultiFileEditorStore.getState().activeFileId
-      console.log(
-        `Saving file: ${currentActiveFileId}`,
-        code.length,
-        "characters"
-      )
-      onSave(code)
+      console.log(`Saving file: ${currentFile.id}`, code.length, "characters")
+      onSave(currentFile.id, code)
     }
 
     // Register save action
@@ -207,83 +556,12 @@ export const EditorArea = ({
       id: "save",
       label: "Save",
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
-      run: () => {
-        editorRef.current.save()
-      },
+      run: () => editorRef.current.save(),
     })
     disposables.push(saveAction)
 
-    // Clean up any unwanted inmemory models created by Monaco
-    const allModels = monaco.editor.getModels()
-    const inmemoryModels = allModels.filter(
-      (model) => model.uri.scheme === "inmemory"
-    )
-    if (inmemoryModels.length > 0) {
-      console.log(`Disposing ${inmemoryModels.length} unwanted inmemory models`)
-      inmemoryModels.forEach((model) => model.dispose())
-    }
-
-    // Setup initial model if there's an active file
-    if (activeFile) {
-      console.log(`Setting initial model: ${activeFile.path}`)
-      try {
-        const uri = monaco.Uri.parse(`file:///${activeFile.path}`)
-        let model = monaco.editor.getModel(uri)
-
-        if (!model) {
-          console.log(`Creating new model: ${activeFile.path}`)
-          model = createModelSafely(
-            activeFile.content,
-            activeFile.language,
-            uri
-          )
-          setFileModel(activeFile.id, model)
-        } else {
-          console.log(`Using existing model: ${activeFile.path}`)
-        }
-
-        if (model) {
-          editor.setModel(model)
-
-          // Ensure the model has the correct language
-          if (model.getLanguageId() !== activeFile.language) {
-            console.log(
-              `Setting model language to ${activeFile.language} for: ${activeFile.path}`
-            )
-            monaco.editor.setModelLanguage(model, activeFile.language)
-          }
-
-          console.log(
-            `✅ Model setup successful: ${activeFile.path}, language: ${model.getLanguageId()}`
-          )
-
-          // Force trigger language service
-          setTimeout(() => {
-            const markers = monaco.editor.getModelMarkers({
-              resource: model.uri,
-            })
-            console.log(
-              `Model ${activeFile.path} marker count:`,
-              markers.length
-            )
-          }, 1000)
-        }
-      } catch (error) {
-        console.error(`❌ Initial model setup failed:`, error)
-      }
-    }
-
-    return () => {
-      disposables.forEach((d) => d.dispose())
-    }
-  }, [isEditorReady, activeFile, onSave, setFileModel])
-
-  // Extract reusable function for handling go-to-definition
-  const handleGoToDefinition = useCallback(
-    async (position: monaco.Position) => {
-      const editor = editorRef.current.editor
-      if (!editor) return
-
+    // Go-to-definition handler
+    const handleGoToDefinition = async (position: monaco.Position) => {
       const model = editor.getModel()
       if (!model) return
 
@@ -301,39 +579,20 @@ export const EditorArea = ({
         if (definitions && definitions.length > 0) {
           const definition = definitions[0]
           const targetPath = definition.fileName.replace(/^file:\/\/\//, "")
-          // eidos just a definition file, ignore it
-          const fileId = files.find(
-            (f) => f.id !== "eidos" && f.path === targetPath
-          )?.id
-          if (fileId) {
-            onFileJump?.(fileId)
-            setActiveFileId(fileId)
 
-            // Set cursor position in target file
-            const targetModel = monaco.editor.getModel(
-              monaco.Uri.parse(definition.fileName)
-            )
-            if (targetModel) {
-              const targetPosition = targetModel.getPositionAt(
-                definition.textSpan.start
-              )
-              editor.setPosition(targetPosition)
-            }
+          const targetFile = dependencies.find(
+            (f) => f.path === targetPath && f.path !== "eidos.ts"
+          )
+          console.warn("define", definition, targetFile)
+
+          if (targetFile) {
+            onFileJump?.(targetFile.id)
           }
         }
       } catch (error) {
         console.error("Go to definition failed:", error)
       }
-    },
-    [files, onFileJump, setActiveFileId]
-  )
-
-  // Handle dynamic actions and events that need fresh dependencies
-  useEffect(() => {
-    const editor = editorRef.current.editor
-    if (!editor || !isEditorReady) return
-
-    const disposables: monaco.IDisposable[] = []
+    }
 
     // Register go-to-definition action
     const gotoDefinitionAction = editor.addAction({
@@ -349,7 +608,7 @@ export const EditorArea = ({
     })
     disposables.push(gotoDefinitionAction)
 
-    // Register mouse down event
+    // Mouse down event for Ctrl+Click navigation
     const mouseDownDisposable = editor.onMouseDown((e) => {
       if ((e.event.ctrlKey || e.event.metaKey) && e.target.position) {
         handleGoToDefinition(e.target.position)
@@ -360,113 +619,79 @@ export const EditorArea = ({
     return () => {
       disposables.forEach((d) => d.dispose())
     }
-  }, [handleGoToDefinition, isEditorReady])
+  }, [isEditorReady, currentFile, onSave, onFileJump, dependencies])
 
-  // When active file changes, switch editor model
-  useEffect(() => {
-    if (!editorRef.current.editor || !activeFile) return
-
-    const uri = monaco.Uri.parse(`file:///${activeFile.path}`)
-
-    try {
-      // Try to get existing model
-      let model = monaco.editor.getModel(uri)
-
-      if (!model) {
-        // If model doesn't exist, create new model
-        console.log(`Creating new model for active file: ${activeFile.path}`)
-        model = createModelSafely(activeFile.content, activeFile.language, uri)
-        setFileModel(activeFile.id, model)
-      } else {
-        // If model exists but content is different, update content
-        if (model.getValue() !== activeFile.content) {
-          console.log(`Updating content for existing model: ${activeFile.path}`)
-          model.setValue(activeFile.content)
-        }
-
-        // Always use typescript language for both .ts and .tsx files
-        const expectedLanguage = "typescript"
-        if (model.getLanguageId() !== expectedLanguage) {
-          console.log(
-            `Updating language from ${model.getLanguageId()} to ${expectedLanguage} for: ${activeFile.path}`
-          )
-          monaco.editor.setModelLanguage(model, expectedLanguage)
-        }
-      }
-
-      // Set editor model
-      if (model) {
-        editorRef.current.editor.setModel(model)
-
-        // Always use typescript language for both .ts and .tsx files
-        const expectedLanguage = "typescript"
-        if (model.getLanguageId() !== expectedLanguage) {
-          console.log(
-            `Setting model language to ${expectedLanguage} for: ${activeFile.path}`
-          )
-          monaco.editor.setModelLanguage(model, expectedLanguage)
-        }
-
-        console.log(
-          `✅ Successfully set model for: ${activeFile.path}, language: ${model.getLanguageId()}`
-        )
-
-        syncEditorContentToVirtualFileSystem(
-          monaco,
-          activeFile.path,
-          activeFile.content
-        )
-
-        // Force trigger syntax highlighting by requesting language features
-        setTimeout(() => {
-          const markers = monaco.editor.getModelMarkers({ resource: model.uri })
-          console.log(
-            `Language service markers for ${activeFile.path}:`,
-            markers.length
-          )
-        }, 500)
-      } else {
-        console.error(`❌ Failed to create/get model for: ${activeFile.path}`)
-      }
-    } catch (error) {
-      console.error(`Error switching to file ${activeFile.path}:`, error)
-    }
-  }, [activeFile, setFileModel, debouncedSyncContent])
-
-  // If no active file, show blank state
-  if (!activeFile) {
+  // No current file state
+  if (!currentFile) {
+    console.log(`📄 EditorArea: No current file provided`, {
+      currentFile,
+      dependenciesCount: dependencies.length,
+      dependenciesIds: dependencies.map((d) => d.id),
+    })
     return (
       <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center text-gray-500 dark:text-gray-400">
-          <p className="text-lg font-medium">No open files</p>
-          <p className="text-sm mt-2">
-            Select a file from the left file tree to open
-          </p>
+          <p className="text-lg font-medium">No file selected</p>
+          <p className="text-sm mt-2">Select a file to start editing</p>
+          <div className="mt-4 text-xs">
+            <p>Dependencies: {dependencies.length}</p>
+          </div>
         </div>
       </div>
     )
   }
 
+  console.log(`📄 EditorArea: Current file provided`, {
+    id: currentFile.id,
+    path: currentFile.path,
+    contentLength: currentFile.content?.length,
+    isEditorReady,
+  })
+
   return (
-    <div ref={containerRef} className="h-full w-full">
+    <div ref={containerRef} className="h-full w-full relative">
       <Editor
         height="100%"
         width="100%"
-        // Don't set language here to avoid creating default model
-        // language={activeFile.language}
-        // Don't set value, let model manage content
-        // value={activeFile.content}
         theme={theme}
         options={{
           ...getDefaultEditorOptions(),
-          ...languageConfigManagerRef.current.getEditorOptions(
-            activeFile.language
-          ),
+          ...languageConfigManagerRef.current.getEditorOptions("typescript"),
         }}
         onChange={handleEditorChange}
         onMount={handleEditorMount}
         loading={<div className="p-4">Loading editor...</div>}
       />
+
+      {/* Debug Panel */}
+      <div className="absolute top-2 right-2 bg-black/80 text-white text-xs p-2 rounded max-w-sm max-h-40 overflow-auto font-mono hidden">
+        <div className="font-bold mb-1">Monaco Models Debug</div>
+        <div className="mb-1">
+          Active:{" "}
+          {debugInfo.activeModel
+            ? debugInfo.activeModel.split("/").pop()
+            : "None"}
+        </div>
+        <div className="space-y-1">
+          {debugInfo.models.map((model) => (
+            <div
+              key={model.uri}
+              className={`text-xs ${model.isActive ? "text-green-400 font-bold" : "text-gray-300"}`}
+            >
+              <div className="flex justify-between gap-2">
+                <span className="truncate flex-1" title={model.uri}>
+                  {model.uri.split("/").pop() || model.uri}
+                </span>
+                <span>{model.contentLength}ch</span>
+                <span className="text-blue-300">{model.language}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-1 pt-1 border-t border-gray-600 text-gray-400">
+          Total: {debugInfo.models.length} models
+        </div>
+      </div>
     </div>
   )
 }
