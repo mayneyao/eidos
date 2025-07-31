@@ -19,7 +19,8 @@
       // If it's a same-origin request or already going through our proxy, use original fetch
       if (
         requestOrigin === currentOrigin ||
-        requestUrl.hostname === "proxy.eidos.localhost"
+        requestUrl.hostname === "proxy.eidos.localhost" ||
+        requestUrl.hostname === "localhost"
       ) {
         return originalFetch(input, init)
       }
