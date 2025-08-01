@@ -27,50 +27,65 @@ export class ProxyHandler {
                 return c.text('Invalid target URL', 400);
             }
 
-            // Use fetch directly to avoid potential CORS header conflicts
-            const cleanHeaders: Record<string, string> = {
-                'User-Agent': c.req.header('User-Agent') || 'Eidos-Proxy/1.0',
-                'Accept': c.req.header('Accept') || '*/*',
-                'X-Forwarded-For': '127.0.0.1',
-            };
+            // Forward most headers but filter out potentially problematic ones
+            const headersToForward: Record<string, string> = {};
+            
+            // Headers to skip (security/proxy-related)
+            const skipHeaders = new Set([
+                'host', 'connection', 'upgrade', 'proxy-connection',
+                'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding'
+            ]);
 
-            // Add optional headers if they exist
-            const acceptLanguage = c.req.header('Accept-Language');
-            if (acceptLanguage) {
-                cleanHeaders['Accept-Language'] = acceptLanguage;
+            // Forward all request headers except the ones we skip
+            const originalHeaders = c.req.raw.headers;
+            originalHeaders.forEach((value, key) => {
+                const lowerKey = key.toLowerCase();
+                if (!skipHeaders.has(lowerKey)) {
+                    headersToForward[key] = value;
+                }
+            });
+
+            // Ensure we have essential headers
+            if (!headersToForward['User-Agent']) {
+                headersToForward['User-Agent'] = 'Eidos-Proxy/1.0';
+            }
+            if (!headersToForward['Accept']) {
+                headersToForward['Accept'] = '*/*';
             }
 
-            const acceptEncoding = c.req.header('Accept-Encoding');
-            if (acceptEncoding) {
-                cleanHeaders['Accept-Encoding'] = acceptEncoding;
-            }
-
-            const host = c.req.header('host');
-            if (host) {
-                cleanHeaders['X-Forwarded-Host'] = host;
+            // Add proxy identification
+            headersToForward['X-Forwarded-For'] = '127.0.0.1';
+            const hostHeader = c.req.header('host');
+            if (hostHeader) {
+                headersToForward['X-Forwarded-Host'] = hostHeader;
             }
 
             const requestInit: RequestInit = {
                 method: c.req.method,
-                headers: cleanHeaders,
+                headers: headersToForward,
                 body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? await c.req.arrayBuffer() : undefined,
             };
 
             const response = await fetch(targetUrl, requestInit);
 
-            // Create a new response with CORS headers
-            const responseBody = await response.arrayBuffer();
-            const newResponse = new Response(responseBody, {
+            // Create a new response with CORS headers, preserving the body stream
+            const responseHeaders = new Headers(response.headers);
+            
+            // Set CORS headers on the response
+            responseHeaders.set('Access-Control-Allow-Origin', '*');
+            responseHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+            responseHeaders.set('Access-Control-Allow-Headers', '*');
+            responseHeaders.set('Access-Control-Allow-Credentials', 'false');
+
+            // Remove headers that might cause issues
+            responseHeaders.delete('content-encoding');
+            responseHeaders.delete('content-security-policy');
+
+            const newResponse = new Response(response.body, {
                 status: response.status,
                 statusText: response.statusText,
-                headers: new Headers(response.headers),
+                headers: responseHeaders,
             });
-
-            // Set CORS headers on the response
-            newResponse.headers.set('Access-Control-Allow-Origin', '*');
-            newResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-            newResponse.headers.set('Access-Control-Allow-Headers', '*');
-            newResponse.headers.set('Access-Control-Allow-Credentials', 'false');
 
             return newResponse;
 
