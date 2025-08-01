@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import React, { useEffect, useState } from "react"
 
 export const meta = {
   type: "extNode",
@@ -12,15 +12,15 @@ export const meta = {
 
 export function MyExtNode() {
   const [content, setContent] = useState("")
-  const nodeId = window.location.pathname.split('/')[1]
+  const nodeId = window.location.pathname.split("/")[1]
 
   useEffect(() => {
-    eidos.currentSpace.extNode.getText(nodeId).then((text) => {
+    eidos.currentSpace.extNode.getText(nodeId).then((text: string) => {
       setContent(text || "")
     })
   }, [nodeId])
 
-  const handleSave = async (newContent) => {
+  const handleSave = async (newContent: string) => {
     await eidos.currentSpace.extNode.setText(nodeId, newContent)
     setContent(newContent)
   }

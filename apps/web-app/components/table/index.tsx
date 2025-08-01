@@ -45,6 +45,7 @@ export const Table = ({
   const extView = useTableViewInfoByExtType(currentView?.type)
   const isView = tableName.startsWith("vw_")
   const isExtView = currentView?.type?.startsWith("ext__")
+  console.log("currentView", currentView, extView)
   const { updateUiColumns } = useUiColumns(tableName, space)
   useEffect(() => {
     updateUiColumns(tableName)

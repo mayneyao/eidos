@@ -89,7 +89,7 @@ export async function generateImportMap(
         'react/jsx-runtime': `https://esm.sh/stable/react@${REACT_VERSION}/jsx-runtime`,
         'react-dom': `https://esm.sh/stable/react-dom@${REACT_VERSION}`,
         'react-dom/client': `https://esm.sh/stable/react-dom@${REACT_VERSION}/client`,
-        clsx: "https://esm.sh/clsx@2.1.1",
+        'clsx': "https://esm.sh/clsx@2.1.1",
         "tailwind-merge": "https://esm.sh/tailwind-merge",
         "@/lib/utils": `${HOST_URL}/compiled-ui/utils.js`,
     };

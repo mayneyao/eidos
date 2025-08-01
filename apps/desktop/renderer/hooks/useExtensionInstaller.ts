@@ -45,11 +45,10 @@ export const useExtensionInstaller = () => {
                 description: extensionData.extension.description,
                 icon: extensionData.extension.icon_url,
                 version: extensionData.latestVersion.version,
-                ...(extensionData.extension.type === 'm_block' || extensionData.extension.type === 'script'
+                ...(extensionData.extension.type === 'block' || extensionData.extension.type === 'script'
                     ? { ts_code: extensionData.latestVersion.code, code: '' }
                     : { code: extensionData.latestVersion.code }),
                 enabled: true,
-                commands: [],
             };
 
             await addExtension(script);

@@ -197,21 +197,6 @@ export const ExtensionToolbar = () => {
           editorContent={script.ts_code || script.code}
         />
       )}
-      {/* {script.type === "m_block" && (
-        <Button
-          size="xs"
-          onClick={handleOpenInCursor}
-          disabled={!isDesktopMode}
-        >
-          <BlendIcon className="mr-2 h-4 w-4" />
-          {t("extension.toolbar.editInCursor")}
-          {!isDesktopMode && (
-            <Badge variant="secondary">
-              {t("extension.toolbar.desktopOnly")}
-            </Badge>
-          )}
-        </Button>
-      )} */}
     </div>
   )
 }

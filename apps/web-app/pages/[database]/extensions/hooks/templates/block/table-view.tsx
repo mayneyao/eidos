@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import React, { useEffect, useState } from "react"
 
 export const meta = {
   type: "tableView",
@@ -10,7 +10,7 @@ export const meta = {
   },
 }
 
-const getRows = async (ctx) => {
+const getRows = async (ctx: { tableId: string; viewId?: string }) => {
   const rows = await eidos.currentSpace.table(ctx.tableId).rows.query(
     {},
     {
@@ -20,14 +20,15 @@ const getRows = async (ctx) => {
   return rows
 }
 
-export function MyListView({ ctx }) {
+export function MyListView() {
   const [rows, setRows] = useState([])
 
+  const tableId = window.location.pathname.split("/")[1]
   useEffect(() => {
-    getRows(ctx).then((rows) => {
+    getRows({ tableId }).then((rows) => {
       setRows(rows)
     })
-  }, [ctx])
+  }, [tableId])
 
   return (
     <div>

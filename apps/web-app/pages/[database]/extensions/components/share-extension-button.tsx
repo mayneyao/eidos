@@ -105,7 +105,7 @@ export const ShareExtensionButton = ({
     return script.marketplace_id ? "Confirm & Publish" : "Confirm & Submit"
   }
 
-  if (!["m_block", "udf", "script"].includes(script.type)) {
+  if (!["block", "udf", "script"].includes(script.type)) {
     return null
   }
 

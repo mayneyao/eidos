@@ -81,7 +81,7 @@ export const AddViewDropdown = ({
           return (
             <DropdownMenuItem
               key={view.id}
-              onClick={() => onAddView(`ext__${view.type}`)}
+              onClick={() => onAddView(`ext__${view.meta?.tableView?.type}`)}
             >
               <div className="flex items-center gap-2">
                 {React.createElement(IconComponent, {
