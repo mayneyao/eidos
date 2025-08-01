@@ -69,9 +69,18 @@ export function getImportsFromCode(code: string): string[] {
 
 const HOST_URL = ''
 export async function generateImportMap(
-    thirdPartyLibs: string[],
-    uiLibs: string[],
-    cssFiles: string[] = [],
+    {
+        thirdPartyLibs,
+        uiLibs,
+        cssLibs = [],
+        localLibs = [],
+    }: {
+        thirdPartyLibs: string[],
+        uiLibs: string[],
+        cssLibs: string[],
+        localLibs: string[],
+    },
+    spaceId: string,
 ) {
     const REACT_VERSION = '18.3.1';
 
@@ -84,6 +93,11 @@ export async function generateImportMap(
         "tailwind-merge": "https://esm.sh/tailwind-merge",
         "@/lib/utils": `${HOST_URL}/compiled-ui/utils.js`,
     };
+    // map localLibs to sandbox.<spaceId>.eidos.localhost:13127/<lib>.js
+    localLibs.forEach((dep) => {
+        const libName = dep.split('/').pop();
+        imports[dep] = `http://sandbox.${spaceId}.eidos.localhost:13127/${libName}.js`;
+    });
 
     thirdPartyLibs.forEach((dep) => {
         if (dep === "react" || dep === "react-dom") return;
@@ -119,7 +133,7 @@ export async function generateImportMap(
   </script>
   `;
 
-    const linkCreationStatements = cssFiles.map(cssFile => {
+    const linkCreationStatements = cssLibs.map(cssFile => {
         let cssUrl = '';
         if (cssFile.startsWith('@/')) {
             cssUrl = `${HOST_URL}${cssFile.replace('@', '')}`;
@@ -131,7 +145,7 @@ export async function generateImportMap(
     `;
     }).join('\n    ');
 
-    const cssLoaderScript = cssFiles.length > 0 ? linkCreationStatements : '';
+    const cssLoaderScript = cssLibs.length > 0 ? linkCreationStatements : '';
 
     return {
         importMapScript,
@@ -179,12 +193,14 @@ export function getAllLibs(code: string, uiComponentsDependencies: Record<string
         thirdPartyLibs: [],
         uiLibs: [],
         cssLibs: [],
+        localLibs: [],
     };
 
     const dependencies = getImportsFromCode(code);
     const thirdPartyLibsMasterSet = new Set<string>();
     const initialUiLibNames = new Set<string>();
     const cssLibsSet = new Set<string>();
+    const localLibsSet = new Set<string>();
 
     // Phase 1: Categorize direct imports from the input code
     for (const dep of dependencies) {
@@ -194,6 +210,8 @@ export function getAllLibs(code: string, uiComponentsDependencies: Record<string
             initialUiLibNames.add(dep.replace("@/components/ui/", ""));
         } else if (dep.startsWith("@/hooks/")) { // Handle hooks as potential UI libs
             initialUiLibNames.add(dep.replace("@/hooks/", ""));
+        } else if (dep.startsWith("./") || dep.startsWith("../")) {
+            localLibsSet.add(dep);
         } else if (!dep.startsWith("@/")) {
             thirdPartyLibsMasterSet.add(dep);
         }
@@ -231,6 +249,7 @@ export function getAllLibs(code: string, uiComponentsDependencies: Record<string
         thirdPartyLibs: Array.from(thirdPartyLibsMasterSet),
         uiLibs: Array.from(allFoundUiLibNames),
         cssLibs: Array.from(cssLibsSet),
+        localLibs: Array.from(localLibsSet),
     };
 }
 

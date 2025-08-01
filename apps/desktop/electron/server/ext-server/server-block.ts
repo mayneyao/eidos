@@ -95,7 +95,7 @@ export class ServerBlock {
         const code = extension?.ts_code || ""
         const compiledCode = extension?.code || ""
 
-        const { thirdPartyLibs, uiLibs, cssLibs } = getAllLibs(code, uiComponentsDependencies)
+        const { thirdPartyLibs, uiLibs, cssLibs, localLibs } = getAllLibs(code, uiComponentsDependencies)
         const res = await this.handleServerAction(code, dataSpace, url)
         console.log("server action result", res)
         // // preload some libs
@@ -108,7 +108,7 @@ export class ServerBlock {
         uiLibs.push("toast", "toaster", "use-toast")
         const envString = JSON.stringify(ServerBlock.getEnvMap(extension?.bindings))
         const defaultPropsString = JSON.stringify({})
-        const { importMapScript, cssLoaderScript } = await generateImportMap(thirdPartyLibs, uiLibs, cssLibs)
+        const { importMapScript, cssLoaderScript } = await generateImportMap({ thirdPartyLibs, uiLibs, cssLibs, localLibs }, spaceId)
         // // Placeholder for BlockRenderer server-side logic
         const themeRawCode = this.getThemeRawCss()
         const html = getIndexHtml({

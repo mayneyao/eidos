@@ -84,7 +84,7 @@ export const BlockRenderer = React.forwardRef<
       if (!code.length || isDesktopMode) {
         return
       }
-      const { thirdPartyLibs, uiLibs } = getAllLibs(
+      const { thirdPartyLibs, uiLibs, localLibs, cssLibs } = getAllLibs(
         code,
         uiComponentsDependencies
       )
@@ -98,7 +98,15 @@ export const BlockRenderer = React.forwardRef<
       uiLibs.push("toast", "toaster", "use-toast")
       setDependencies(thirdPartyLibs)
       setUiComponents(uiLibs)
-      generateImportMap(thirdPartyLibs, uiLibs).then(({ importMapScript }) => {
+      generateImportMap(
+        {
+          thirdPartyLibs,
+          uiLibs,
+          cssLibs,
+          localLibs,
+        },
+        space
+      ).then(({ importMapScript }) => {
         setImportMap(importMapScript)
         setIsLoading(false)
       })

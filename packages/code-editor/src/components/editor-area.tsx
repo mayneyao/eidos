@@ -623,11 +623,6 @@ export const EditorArea = ({
 
   // No current file state
   if (!currentFile) {
-    console.log(`📄 EditorArea: No current file provided`, {
-      currentFile,
-      dependenciesCount: dependencies.length,
-      dependenciesIds: dependencies.map((d) => d.id),
-    })
     return (
       <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center text-gray-500 dark:text-gray-400">
@@ -640,13 +635,6 @@ export const EditorArea = ({
       </div>
     )
   }
-
-  console.log(`📄 EditorArea: Current file provided`, {
-    id: currentFile.id,
-    path: currentFile.path,
-    contentLength: currentFile.content?.length,
-    isEditorReady,
-  })
 
   return (
     <div ref={containerRef} className="h-full w-full relative">

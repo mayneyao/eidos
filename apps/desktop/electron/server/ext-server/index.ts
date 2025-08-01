@@ -16,6 +16,22 @@ import { ServerBlock } from './server-block';
 
 type Ctx = Context<BlankEnv, "*", {}>;
 
+// Create script code provider function
+const getScriptCode = async (spaceId: string, scriptId: string): Promise<string | null> => {
+    try {
+        const dataSpace = await getOrSetDataSpace(spaceId);
+        let extension = await dataSpace.script.get(scriptId);
+        if (!extension) {
+            // fallback to slug
+            extension = await dataSpace.extension.getExtensionBySlug(scriptId)
+        }
+        return extension?.code || null;
+    } catch (error) {
+        log(`Error getting script code for ${scriptId} in space ${spaceId}: ${error}`);
+        return null;
+    }
+};
+
 // curl http://287c3686-f1e1-4b10-965e-2daa35a422fc.block.25-w19.eidos.localhost:13127/
 // Middleware to intercept <extensionId>.block.<spaceId>.eidos.localhost requests
 
@@ -51,25 +67,8 @@ export const interceptExtensionRequest = (dist: string, port: number) => async (
 
     if (sandboxMatch) {
         const spaceId = sandboxMatch[1];
-        console.log('interceptSandboxRequest', c.req.url);
-
-        // Create script code provider function
-        const getScriptCode = async (spaceId: string, scriptId: string): Promise<string | null> => {
-            try {
-                const dataSpace = await getOrSetDataSpace(spaceId);
-                let extension = await dataSpace.script.get(scriptId);
-                if (!extension) {
-                    // fallback to slug
-                    extension = await dataSpace.extension.getExtensionBySlug(scriptId)
-                }
-                return extension?.code || null;
-            } catch (error) {
-                log(`Error getting script code for ${scriptId} in space ${spaceId}: ${error}`);
-                return null;
-            }
-        };
-
         const sandboxHandler = new ScriptSandboxHandler(getScriptCode);
+        console.log('interceptSandboxRequest', c.req.url);
         return await sandboxHandler.handleSandboxRequest(spaceId, url, c);
     }
 
@@ -82,7 +81,6 @@ export const interceptExtensionRequest = (dist: string, port: number) => async (
     if (match) {
         const extensionId = match[1];
         const spaceId = match[2];
-
         // if pathname is /<spaceId>/files/*
         if (url.pathname.startsWith('/' + spaceId + '/files/')) {
             // const file = fs.readFileSync(path.join(dist, url.pathname))
