@@ -1,2 +1,10 @@
-// Empty block template
-// Add your React component here
+import React, { useEffect } from "react"
+import confetti from "canvas-confetti"
+
+export default function () {
+  useEffect(() => {
+    confetti()
+  }, [])
+
+  return <div></div>
+}

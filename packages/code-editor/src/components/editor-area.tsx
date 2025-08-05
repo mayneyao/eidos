@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import Editor from "@monaco-editor/react"
+import Editor, { DiffEditor } from "@monaco-editor/react"
 import * as monaco from "monaco-editor"
 
 import { LanguageConfigManager } from "../languages"
@@ -203,6 +203,9 @@ interface EditorAreaProps {
   /** 依赖的文件列表，用于类型推断（内容相对稳定）*/
   dependencies: readonly FileModel[]
 
+  /** 可选的原始代码用于 diff 模式 */
+  diffCode?: string
+
   /** 编辑器主题 */
   theme: string
 
@@ -216,13 +219,10 @@ interface EditorAreaProps {
   onFileJump?: (fileId: string) => void
 }
 
-/**
- * 纯粹的编辑器组件 - 当前文件 + 依赖管理分离
- * 职责：只管理当前文件的编辑，依赖文件仅用于类型推断
- */
 export const EditorArea = ({
   currentFile,
   dependencies,
+  diffCode,
   theme,
   onSave,
   onChange,
@@ -452,7 +452,104 @@ export const EditorArea = ({
     }
   }, [])
 
-  // Debounced content sync to virtual file system
+  // Common editor setup functions
+  const setupKeyboardShortcuts = useCallback(
+    (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: typeof monaco) => {
+      editor.addAction({
+        id: "format-document",
+        label: "Format Document",
+        keybindings: [
+          monacoInstance.KeyMod.Alt |
+            monacoInstance.KeyMod.Shift |
+            monacoInstance.KeyCode.KeyF,
+        ],
+        run: () => {
+          editor.getAction("editor.action.formatDocument")?.run()
+        },
+      })
+
+      editor.addAction({
+        id: "toggle-comment",
+        label: "Toggle Comment",
+        keybindings: [
+          monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.Slash,
+        ],
+        run: () => {
+          editor.getAction("editor.action.commentLine")?.run()
+        },
+      })
+    },
+    []
+  )
+
+  const setupDependencyContext = useCallback(
+    (currentFileUri?: string) => {
+      if (dependencies.length > 0) {
+        console.log(`🔧 Setting up ${dependencies.length} dependency models for editor type context`)
+        
+        try {
+          // Setup dependency models (reuse existing logic)
+          setupDependencyModels(dependencies, currentFileUri)
+
+          // Configure language support
+          const context = {
+            scriptPathMappings: {
+              "@/scripts/*": ["file:///scripts/*"],
+              "@/utils/*": ["file:///utils/*"],
+            },
+            allScripts: dependencies
+              .filter((f) => f.type === FileType.File)
+              .map((f) => ({
+                id: f.id,
+                name: f.name,
+                code: f.content,
+                ts_code: f.content,
+              })),
+          }
+
+          languageConfigManagerRef.current.configureLanguage(
+            monaco,
+            "typescript",
+            context
+          )
+
+          console.log(`✅ Editor dependency context setup complete`)
+        } catch (error) {
+          console.error("❌ Failed to setup editor dependency context:", error)
+        }
+      }
+    },
+    [dependencies, languageConfigManagerRef]
+  )
+
+  const setupPluginListeners = useCallback(
+    (model: monaco.editor.ITextModel, modelPath?: string) => {
+      try {
+        const pluginManager = getPluginManager()
+        const esmPlugin = pluginManager.getPlugin("esm-import-resolver")
+        if (esmPlugin && esmPlugin.isEnabled()) {
+          ;(esmPlugin as any).setupModelListeners(model)
+          console.log(`🔌 Setup ESM plugin listeners for model: ${modelPath || model.uri.toString()}`)
+        }
+      } catch (pluginError) {
+        console.warn("Failed to setup plugin listeners for model:", pluginError)
+      }
+    },
+    []
+  )
+
+  // Handle editor content change monitoring
+  const setupChangeMonitoring = useCallback(
+    (editor: monaco.editor.IStandaloneCodeEditor) => {
+      if (currentFile) {
+        editor.onDidChangeModelContent(() => {
+          const value = editor.getValue()
+          onChange?.(currentFile.id, value)
+        })
+      }
+    },
+    [currentFile, onChange]
+  )
   const debouncedSyncContent = useCallback(
     createEditorDebounce((path: string, content: string) => {
       syncEditorContentToVirtualFileSystem(monaco, path, content)
@@ -508,32 +605,55 @@ export const EditorArea = ({
     editorRef.current.layout = () => editor.layout()
 
     // Setup keyboard shortcuts
-    editor.addAction({
-      id: "format-document",
-      label: "Format Document",
-      keybindings: [
-        monacoInstance.KeyMod.Alt |
-          monacoInstance.KeyMod.Shift |
-          monacoInstance.KeyCode.KeyF,
-      ],
-      run: () => {
-        editor.getAction("editor.action.formatDocument")?.run()
-      },
-    })
-
-    editor.addAction({
-      id: "toggle-comment",
-      label: "Toggle Comment",
-      keybindings: [
-        monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.Slash,
-      ],
-      run: () => {
-        editor.getAction("editor.action.commentLine")?.run()
-      },
-    })
+    setupKeyboardShortcuts(editor, monacoInstance)
 
     setIsEditorReady(true)
   }
+
+  // Handle diff editor mount
+  const handleDiffEditorMount = useCallback(
+    (editor: monaco.editor.IStandaloneDiffEditor, monacoInstance: typeof monaco) => {
+      console.log("🎯 Diff editor mounted")
+      editorRef.current.editor = editor.getModifiedEditor()
+      editorRef.current.layout = () => editor.layout()
+
+      const modifiedEditor = editor.getModifiedEditor()
+      const originalEditor = editor.getOriginalEditor()
+      
+      // Setup keyboard shortcuts for the modified editor
+      setupKeyboardShortcuts(modifiedEditor, monacoInstance)
+
+      // Monitor changes on the modified editor for diff mode
+      setupChangeMonitoring(modifiedEditor)
+
+      // Setup dependency models and context for diff editor
+      if (dependencies.length > 0) {
+        // Get current models for protection
+        const originalModel = originalEditor.getModel()
+        const modifiedModel = modifiedEditor.getModel()
+        const currentFileUris = [
+          originalModel?.uri.toString(),
+          modifiedModel?.uri.toString()
+        ].filter(Boolean)
+
+        // Setup dependency context
+        setupDependencyContext(currentFileUris[0])
+
+        // Setup plugin listeners for both models
+        if (currentFile) {
+          if (modifiedModel) {
+            setupPluginListeners(modifiedModel, currentFile.path)
+          }
+          if (originalModel) {
+            setupPluginListeners(originalModel, currentFile.path)
+          }
+        }
+      }
+
+      setIsEditorReady(true)
+    },
+    [currentFile, setupKeyboardShortcuts, setupChangeMonitoring, setupDependencyContext, setupPluginListeners, dependencies]
+  )
 
   // Setup save functionality and dynamic actions
   useEffect(() => {
@@ -638,18 +758,40 @@ export const EditorArea = ({
 
   return (
     <div ref={containerRef} className="h-full w-full relative">
-      <Editor
-        height="100%"
-        width="100%"
-        theme={theme}
-        options={{
-          ...getDefaultEditorOptions(),
-          ...languageConfigManagerRef.current.getEditorOptions("typescript"),
-        }}
-        onChange={handleEditorChange}
-        onMount={handleEditorMount}
-        loading={<div className="p-4">Loading editor...</div>}
-      />
+      {diffCode ? (
+        <DiffEditor
+          height="100%"
+          width="100%"
+          theme={theme}
+          original={currentFile.content || ""}
+          modified={diffCode}
+          language="typescript"
+          options={{
+            ...getDefaultEditorOptions(),
+            ...languageConfigManagerRef.current.getEditorOptions("typescript"),
+            readOnly: false,
+            renderSideBySide: true,
+            ignoreTrimWhitespace: false,
+            renderOverviewRuler: true,
+            diffWordWrap: "on",
+          }}
+          onMount={handleDiffEditorMount}
+          loading={<div className="p-4">Loading diff editor...</div>}
+        />
+      ) : (
+        <Editor
+          height="100%"
+          width="100%"
+          theme={theme}
+          options={{
+            ...getDefaultEditorOptions(),
+            ...languageConfigManagerRef.current.getEditorOptions("typescript"),
+          }}
+          onChange={handleEditorChange}
+          onMount={handleEditorMount}
+          loading={<div className="p-4">Loading editor...</div>}
+        />
+      )}
 
       {/* Debug Panel */}
       <div className="absolute top-2 right-2 bg-black/80 text-white text-xs p-2 rounded max-w-sm max-h-40 overflow-auto font-mono hidden">

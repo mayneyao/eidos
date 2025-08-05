@@ -12,6 +12,7 @@ import {
   resolveLocalFileDependencies,
   type ResolvedFile,
 } from "@/packages/v3/code-tools/get-deps-file"
+import { DiffEditor } from "@monaco-editor/react"
 import { useNavigate } from "react-router-dom"
 import ts from "typescript/lib/typescript"
 
@@ -242,9 +243,11 @@ export const SimpleCodeEditorWrapper = forwardRef(
             </button>
           </div>
         )}
+
         <SimpleCodeEditor
           initialCode={value || "// Start coding here..."}
           fileName={fileName}
+          diffCode={toApplyCode}
           language="typescript"
           className="w-full h-full"
           onChange={handleEditorChange}

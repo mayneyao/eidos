@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { ZapIcon } from "lucide-react"
 import { RowsManager } from "@/packages/core/sdk/rows"
 import type {
   IExtension,
@@ -76,6 +77,7 @@ export const ScriptContextMenu = ({
               handleScriptActionCall(script)
             }}
           >
+            <ZapIcon className="pr-2" />
             {script.meta!.tableAction.name}
           </ContextMenuItem>
         )

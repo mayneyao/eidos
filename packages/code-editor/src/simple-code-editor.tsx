@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type * as monaco from "monaco-editor"
 
 import { EditorArea } from "./components/editor-area"
@@ -26,6 +26,8 @@ export interface ResolvedFile {
 export interface SimpleCodeEditorProps {
   /** Initial code content */
   initialCode?: string
+  /** Code to compare against in diff mode */
+  diffCode?: string
   /** File language */
   language?: string
   /** File name/ID */
@@ -52,6 +54,7 @@ export interface SimpleCodeEditorProps {
  */
 export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
   initialCode = "",
+  diffCode,
   language = "typescript",
   fileName = "main.ts",
   autoInitialize = true,
@@ -163,7 +166,6 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
     async (code: string) => {
       onChange?.(code)
 
-      // 始终尝试解析依赖（如果没有提供 getDeps 会使用测试依赖）
       try {
         const newDeps = await getDepFiles(code)
 
@@ -245,6 +247,7 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
       <EditorArea
         currentFile={currentFile}
         dependencies={dependencies}
+        diffCode={diffCode}
         theme={theme}
         onSave={(_, code) => handleSave(code)}
         onChange={(_, code) => handleChange(code)}
