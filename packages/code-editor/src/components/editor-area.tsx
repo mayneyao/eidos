@@ -10,6 +10,7 @@ import {
   setupMonacoModels,
 } from "../monaco-setup"
 import { getPluginManager } from "../plugins/plugin-manager"
+import type { DynamicPluginManager } from "../plugins/dynamic-plugin-manager"
 import { FileType, type EditorRef, type FileModel } from "../types"
 import { createEditorDebounce } from "../utils/debounce"
 
@@ -111,12 +112,12 @@ function setupDependencyModels(
 
         // Setup plugin listeners for this dependency model
         try {
-          const pluginManager = getPluginManager()
+          const activePluginManager = getActivePluginManager()
           console.log(
             "Plugin manager initialized:",
-            pluginManager.isInitialized()
+            activePluginManager.isInitialized()
           )
-          const esmPlugin = pluginManager.getPlugin("esm-import-resolver")
+          const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
           console.log("ESM plugin found:", esmPlugin ? "yes" : "no")
           if (esmPlugin) {
             console.log("ESM plugin enabled:", esmPlugin.isEnabled())
@@ -217,6 +218,9 @@ interface EditorAreaProps {
 
   /** 文件跳转回调 */
   onFileJump?: (fileId: string) => void
+
+  /** 可选的动态插件管理器实例 */
+  pluginManager?: DynamicPluginManager | null
 }
 
 export const EditorArea = ({
@@ -227,12 +231,18 @@ export const EditorArea = ({
   onSave,
   onChange,
   onFileJump,
+  pluginManager,
 }: EditorAreaProps) => {
   const editorRef = useRef<EditorRef>({
     editor: null,
     save: () => {},
     layout: () => {},
   })
+
+  // Helper function to get plugin manager (fallback to global if not provided)
+  const getActivePluginManager = useCallback(() => {
+    return pluginManager || getPluginManager()
+  }, [pluginManager])
   const containerRef = useRef<HTMLDivElement>(null)
   const [isEditorReady, setIsEditorReady] = useState(false)
   const languageConfigManagerRef = useRef<LanguageConfigManager>(
@@ -370,8 +380,8 @@ export const EditorArea = ({
 
         // Setup plugin listeners for the current file model
         try {
-          const pluginManager = getPluginManager()
-          const esmPlugin = pluginManager.getPlugin("esm-import-resolver")
+          const activePluginManager = getActivePluginManager()
+          const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
           if (esmPlugin && esmPlugin.isEnabled()) {
             ;(esmPlugin as any).setupModelListeners(model)
             console.log(
@@ -525,8 +535,8 @@ export const EditorArea = ({
   const setupPluginListeners = useCallback(
     (model: monaco.editor.ITextModel, modelPath?: string) => {
       try {
-        const pluginManager = getPluginManager()
-        const esmPlugin = pluginManager.getPlugin("esm-import-resolver")
+        const activePluginManager = getActivePluginManager()
+        const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
         if (esmPlugin && esmPlugin.isEnabled()) {
           ;(esmPlugin as any).setupModelListeners(model)
           console.log(`🔌 Setup ESM plugin listeners for model: ${modelPath || model.uri.toString()}`)
@@ -535,7 +545,7 @@ export const EditorArea = ({
         console.warn("Failed to setup plugin listeners for model:", pluginError)
       }
     },
-    []
+    [getActivePluginManager]
   )
 
   // Handle editor content change monitoring

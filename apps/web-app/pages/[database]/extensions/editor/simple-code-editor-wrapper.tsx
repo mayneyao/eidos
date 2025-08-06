@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { SimpleCodeEditor } from "@/packages/code-editor/src/simple-code-editor"
+import { SimpleCodeEditor, ESMImportResolverPlugin } from "@/packages/code-editor/src"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import {
   resolveLocalFileDependencies,
@@ -254,9 +254,14 @@ export const SimpleCodeEditorWrapper = forwardRef(
           onSave={handleSave}
           theme={theme}
           getDeps={getDepsWithTypes}
-          customImportSuggestions={customImportSuggestions}
           onJump={jumpToExtension}
-        />
+        >
+          {/* ESM Import Resolver Plugin with dynamic configuration */}
+          <ESMImportResolverPlugin
+            enableAutoTypeResolution={true}
+            customImportSuggestions={customImportSuggestions}
+          />
+        </SimpleCodeEditor>
       </div>
     )
   }

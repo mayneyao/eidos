@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import type * as monaco from "monaco-editor"
 
 import { EditorArea } from "./components/editor-area"
@@ -7,6 +7,8 @@ import {
   getPluginManager,
   type ImportSuggestion,
 } from "./plugins/plugin-manager"
+import { DynamicPluginManager } from "./plugins/dynamic-plugin-manager"
+import { extractPluginConfigs } from "./plugins/plugin-components"
 import { FileType, type FileModel, type SupportedLanguage } from "./types"
 
 // Configure Monaco Environment and Workers (async initialization)
@@ -45,6 +47,8 @@ export interface SimpleCodeEditorProps {
   theme?: "vs-dark" | "light"
   /** Custom import suggestions for auto-completion */
   customImportSuggestions?: ImportSuggestion[]
+  /** Plugin components */
+  children?: React.ReactNode
 }
 
 /**
@@ -65,11 +69,16 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
   customImportSuggestions = [],
   getDeps,
   onJump,
+  children,
 }) => {
   const [isInitialized, setIsInitialized] = useState(false)
+  const dynamicPluginManager = useRef<DynamicPluginManager | null>(null)
 
   // Internal state to manage dynamically discovered dependencies
   const [dependencies, setDependencies] = useState<FileModel[]>([])
+
+  // Extract plugin configurations from children
+  const pluginConfigs = useMemo(() => extractPluginConfigs(children), [children])
 
   const getDepFiles = useCallback(
     async (code: string) => {
@@ -92,21 +101,30 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
     [getDeps]
   )
 
-  // Initialize Monaco Editor
+  // Initialize Monaco Editor and Plugin Manager
   useEffect(() => {
     if (!autoInitialize) return
 
     console.log("=== Starting Monaco editor initialization ===")
 
     monacoInitPromise
-      ?.then(() => {
+      ?.then(async () => {
         console.log("✅ Monaco Editor initialization complete")
+        
+        // Initialize dynamic plugin manager
+        if (!dynamicPluginManager.current) {
+          dynamicPluginManager.current = new DynamicPluginManager()
+        }
+        
+        // Configure plugins based on children components
+        await dynamicPluginManager.current.updateConfiguration(pluginConfigs)
+        
         setIsInitialized(true)
       })
       .catch((error) => {
         console.error("❌ Failed to initialize Monaco Editor:", error)
       })
-  }, [autoInitialize])
+  }, [autoInitialize, pluginConfigs])
 
   // Check dependencies for initial code when editor is initialized
   useEffect(() => {
@@ -130,36 +148,39 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
     }
   }, [isInitialized, initialCode, getDepFiles])
 
+  // Update plugin configurations when children change
+  useEffect(() => {
+    if (isInitialized && dynamicPluginManager.current) {
+      console.log("🔄 Plugin configurations changed, updating...", pluginConfigs)
+      dynamicPluginManager.current.updateConfiguration(pluginConfigs)
+        .catch(error => {
+          console.error("❌ Failed to update plugin configurations:", error)
+        })
+    }
+  }, [pluginConfigs, isInitialized])
+
   // Update custom import suggestions when they change
   useEffect(() => {
-    if (customImportSuggestions.length > 0) {
+    if (customImportSuggestions.length > 0 && isInitialized && dynamicPluginManager.current) {
       console.log(
         "Updating custom import suggestions:",
         customImportSuggestions.length
       )
 
-      // Wait for Monaco to be initialized before updating plugin
-      monacoInitPromise
-        ?.then(() => {
-          const pluginManager = getPluginManager()
-          const esmPlugin = pluginManager.getPlugin("esm-import-resolver")
-
-          if (esmPlugin && esmPlugin.isEnabled()) {
-            // Type assertion to access the updateCustomImportSuggestions method
-            const typedPlugin = esmPlugin as any
-            if (
-              typeof typedPlugin.updateCustomImportSuggestions === "function"
-            ) {
-              typedPlugin.updateCustomImportSuggestions(customImportSuggestions)
-              console.log("✅ Custom import suggestions updated successfully")
-            }
-          }
-        })
-        .catch((error) => {
-          console.error("❌ Failed to update custom import suggestions:", error)
-        })
+      const esmPlugin = dynamicPluginManager.current.getPlugin("esm-import-resolver")
+      
+      if (esmPlugin && esmPlugin.isEnabled()) {
+        // Type assertion to access the updateCustomImportSuggestions method
+        const typedPlugin = esmPlugin as any
+        if (
+          typeof typedPlugin.updateCustomImportSuggestions === "function"
+        ) {
+          typedPlugin.updateCustomImportSuggestions(customImportSuggestions)
+          console.log("✅ Custom import suggestions updated successfully")
+        }
+      }
     }
-  }, [customImportSuggestions])
+  }, [customImportSuggestions, isInitialized])
 
   // Enhanced onChange handler with internal dependency resolution
   const handleChange = useCallback(
@@ -252,6 +273,7 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
         onSave={(_, code) => handleSave(code)}
         onChange={(_, code) => handleChange(code)}
         onFileJump={onJump}
+        pluginManager={dynamicPluginManager.current}
       />
     </div>
   )
