@@ -1,5 +1,6 @@
 import * as monaco from 'monaco-editor'
-import type { EditorPlugin, TailwindCSSPluginProps } from '../plugin-components'
+import type { EditorPlugin } from '../base-types'
+import type { TailwindCSSPluginProps } from './types'
 import { generateTailwindClasses, DEFAULT_TAILWIND_CONFIG, type TailwindConfig } from './tailwind-class-generator'
 
 /**

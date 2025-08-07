@@ -3,10 +3,12 @@ import type * as monaco from "monaco-editor"
 
 import { EditorArea } from "./components/editor-area"
 import { setupMonacoEnvironment } from "./monaco-setup"
+import { extractPluginConfigs } from "./plugins/components"
 import { DynamicPluginManager } from "./plugins/dynamic-plugin-manager"
-import { extractPluginConfigs } from "./plugins/plugin-components"
-import { type ImportSuggestion } from "./plugins/plugin-manager"
+import { type ImportSuggestion } from "./plugins/esm-import-resolver"
 import { FileType, type FileModel, type SupportedLanguage } from "./types"
+// Auto-load all plugins
+import "./plugins/auto-loader"
 
 // Configure Monaco Environment and Workers (async initialization)
 let monacoInitPromise: Promise<typeof monaco> | null = null

@@ -1,12 +1,10 @@
 export { SimpleCodeEditor, type SimpleCodeEditorProps } from "./code-editor"
 export { type FileModel, FileType } from "./types"
-export { 
+export {
   ESMImportResolverPlugin,
-  AutocompletionPlugin,
-  FormatterPlugin,
   TailwindCSSPlugin,
+  ExamplePlugin,
   type ESMImportResolverProps,
-  type AutocompletionPluginProps,
-  type FormatterPluginProps,
-  type TailwindCSSPluginProps
-} from "./plugins/plugin-components"
+  type TailwindCSSPluginProps,
+  type ExamplePluginProps,
+} from "./plugins/components"

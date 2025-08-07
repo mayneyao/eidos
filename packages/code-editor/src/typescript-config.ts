@@ -1,5 +1,4 @@
 import type * as monaco from "monaco-editor"
-import { createModelSafely } from "./monaco-setup"
 
 export interface FileInfo {
   id: string
