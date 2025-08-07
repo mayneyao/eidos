@@ -41,14 +41,10 @@ export class MonacoIntegration implements MonacoIntegrationService {
    */
   updateCompilerOptions(options: monaco.languages.typescript.CompilerOptions): void {
     try {
-      // Update both JavaScript and TypeScript compiler options
+      // Only update TypeScript compiler options to avoid duplicate suggestions
+      // TypeScript language service handles both .ts and .js files
       monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
         ...monaco.languages.typescript.typescriptDefaults.getCompilerOptions(),
-        ...options
-      })
-
-      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-        ...monaco.languages.typescript.javascriptDefaults.getCompilerOptions(),
         ...options
       })
 
@@ -98,29 +94,16 @@ export class MonacoIntegration implements MonacoIntegrationService {
     console.log(`📚 Adding extra lib: ${filePath}`)
     console.log(`📄 Content preview: ${content.substring(0, 200)}...`)
 
-    // Add to TypeScript defaults
+    // Only add to TypeScript defaults to avoid duplicate suggestions
+    // TypeScript language service handles both .ts and .js files
     const tsDisposable = monaco.languages.typescript.typescriptDefaults.addExtraLib(
       content,
       filePath
     )
 
-    // Also add to JavaScript defaults for better compatibility
-    const jsDisposable = monaco.languages.typescript.javascriptDefaults.addExtraLib(
-      content,
-      filePath
-    )
-
-    // Return a combined disposable
-    const combinedDisposable = {
-      dispose: () => {
-        tsDisposable.dispose()
-        jsDisposable.dispose()
-      }
-    }
-
-    this.disposables.push(combinedDisposable)
+    this.disposables.push(tsDisposable)
     console.log(`✅ Successfully added extra lib: ${filePath}`)
-    return combinedDisposable
+    return tsDisposable
   }
 
   /**

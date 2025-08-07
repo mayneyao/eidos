@@ -4,7 +4,9 @@ export {
   ESMImportResolverPlugin,
   AutocompletionPlugin,
   FormatterPlugin,
+  TailwindCSSPlugin,
   type ESMImportResolverProps,
   type AutocompletionPluginProps,
-  type FormatterPluginProps
+  type FormatterPluginProps,
+  type TailwindCSSPluginProps
 } from "./plugins/plugin-components"

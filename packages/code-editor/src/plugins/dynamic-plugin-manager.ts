@@ -4,18 +4,21 @@
  */
 
 import type * as monaco from 'monaco-editor'
-import { ESMImportResolverPlugin, type PluginManagerOptions } from './plugin-manager'
+import { ESMImportResolverPlugin, type ESMResolverConfig } from './plugin-manager'
 import type { 
   ESMImportResolverProps, 
   AutocompletionPluginProps,
   FormatterPluginProps,
+  TailwindCSSPluginProps,
   EditorPlugin 
 } from './plugin-components'
+import { TailwindCSSPlugin } from './tailwindcss-autocomplete'
 
 export interface DynamicPluginConfig {
   esmResolver?: ESMImportResolverProps
   autocompletion?: AutocompletionPluginProps
   formatter?: FormatterPluginProps
+  tailwindcss?: TailwindCSSPluginProps
 }
 
 /**
@@ -37,18 +40,26 @@ export class DynamicPluginManager {
     // Compare with current config to see what changed
     const changes = this.detectConfigChanges(this.currentConfig, config)
     
+    console.log('📋 Configuration changes detected:', {
+      toDispose: changes.toDispose,
+      toInitialize: changes.toInitialize
+    })
+    
     // Dispose plugins that are no longer enabled or have changed configuration
     for (const pluginName of changes.toDispose) {
+      console.log(`🗑️ Disposing plugin: ${pluginName}`)
       await this.disposePlugin(pluginName)
     }
 
     // Initialize or reconfigure plugins
     for (const pluginName of changes.toInitialize) {
+      console.log(`🔌 Initializing plugin: ${pluginName}`)
       await this.initializePlugin(pluginName, config)
     }
 
     this.currentConfig = { ...config }
     this.initialized = true
+    console.log('✅ Plugin configuration update complete')
   }
 
   /**
@@ -87,6 +98,19 @@ export class DynamicPluginManager {
       toDispose.push('formatter')
     }
 
+    // Check TailwindCSS plugin
+    const oldTailwind = oldConfig.tailwindcss
+    const newTailwind = newConfig.tailwindcss
+    
+    if (oldTailwind && (!newTailwind || newTailwind.enabled === false)) {
+      toDispose.push('tailwindcss')
+    } else if (newTailwind && newTailwind.enabled !== false) {
+      if (!oldTailwind || JSON.stringify(oldTailwind) !== JSON.stringify(newTailwind)) {
+        toDispose.push('tailwindcss') // Dispose first to reconfigure
+        toInitialize.push('tailwindcss')
+      }
+    }
+
     return { toDispose, toInitialize }
   }
 
@@ -95,12 +119,20 @@ export class DynamicPluginManager {
    */
   private async initializePlugin(pluginName: string, config: DynamicPluginConfig): Promise<void> {
     try {
+      // Ensure any existing plugin is disposed first
+      const existingPlugin = this.plugins.get(pluginName)
+      if (existingPlugin) {
+        console.log(`🔄 Disposing existing ${pluginName} plugin before reinitializing`)
+        existingPlugin.dispose()
+        this.plugins.delete(pluginName)
+      }
+
       let plugin: EditorPlugin | null = null
 
       switch (pluginName) {
         case 'esm-import-resolver':
           if (config.esmResolver && config.esmResolver.enabled !== false) {
-            const esmConfig: PluginManagerOptions['esmResolverConfig'] = {
+            const esmConfig: ESMResolverConfig = {
               esmServerUrl: config.esmResolver.esmServerUrl,
               packageWhitelist: config.esmResolver.packageWhitelist,
               packageBlacklist: config.esmResolver.packageBlacklist,
@@ -119,6 +151,12 @@ export class DynamicPluginManager {
         case 'formatter':
           // Placeholder for future formatter plugin
           console.log('🔌 Formatter plugin not yet implemented')
+          break
+
+        case 'tailwindcss':
+          if (config.tailwindcss && config.tailwindcss.enabled !== false) {
+            plugin = new TailwindCSSPlugin(config.tailwindcss)
+          }
           break
       }
 

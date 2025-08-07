@@ -1,14 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type * as monaco from "monaco-editor"
 
 import { EditorArea } from "./components/editor-area"
 import { setupMonacoEnvironment } from "./monaco-setup"
-import {
-  getPluginManager,
-  type ImportSuggestion,
-} from "./plugins/plugin-manager"
 import { DynamicPluginManager } from "./plugins/dynamic-plugin-manager"
 import { extractPluginConfigs } from "./plugins/plugin-components"
+import { type ImportSuggestion } from "./plugins/plugin-manager"
 import { FileType, type FileModel, type SupportedLanguage } from "./types"
 
 // Configure Monaco Environment and Workers (async initialization)
@@ -78,7 +75,10 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
   const [dependencies, setDependencies] = useState<FileModel[]>([])
 
   // Extract plugin configurations from children
-  const pluginConfigs = useMemo(() => extractPluginConfigs(children), [children])
+  const pluginConfigs = useMemo(
+    () => extractPluginConfigs(children),
+    [children]
+  )
 
   const getDepFiles = useCallback(
     async (code: string) => {
@@ -101,7 +101,7 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
     [getDeps]
   )
 
-  // Initialize Monaco Editor and Plugin Manager
+  // Initialize Monaco Editor and Plugin Manager (one-time setup)
   useEffect(() => {
     if (!autoInitialize) return
 
@@ -110,21 +110,56 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
     monacoInitPromise
       ?.then(async () => {
         console.log("✅ Monaco Editor initialization complete")
-        
-        // Initialize dynamic plugin manager
+
+        // Initialize dynamic plugin manager only once
         if (!dynamicPluginManager.current) {
           dynamicPluginManager.current = new DynamicPluginManager()
+          console.log("🔌 Created new DynamicPluginManager instance")
         }
-        
-        // Configure plugins based on children components
-        await dynamicPluginManager.current.updateConfiguration(pluginConfigs)
-        
+
         setIsInitialized(true)
       })
       .catch((error) => {
         console.error("❌ Failed to initialize Monaco Editor:", error)
       })
-  }, [autoInitialize, pluginConfigs])
+
+    // Cleanup function to dispose plugin manager when component unmounts
+    return () => {
+      if (dynamicPluginManager.current) {
+        console.log("🧹 Cleaning up plugin manager on component unmount")
+        dynamicPluginManager.current.dispose()
+        dynamicPluginManager.current = null
+        setIsInitialized(false)
+      }
+    }
+  }, [autoInitialize]) // 只依赖 autoInitialize
+
+  // Separate effect for plugin configuration updates
+  useEffect(() => {
+    if (isInitialized && dynamicPluginManager.current) {
+      console.log("🔄 Updating plugin configuration...", pluginConfigs)
+      console.log("🔍 Plugin manager status:", {
+        initialized: dynamicPluginManager.current.isInitialized(),
+        pluginCount: dynamicPluginManager.current.getAllPlugins().length,
+      })
+
+      dynamicPluginManager.current
+        .updateConfiguration(pluginConfigs)
+        .then(() => {
+          console.log("✅ Plugin configuration updated successfully")
+          const plugins = dynamicPluginManager.current?.getAllPlugins() || []
+          console.log(
+            "🔌 Active plugins:",
+            plugins.map(
+              (p) => `${p.name} (${p.isEnabled() ? "enabled" : "disabled"})`
+            )
+          )
+        })
+        .catch((error) => {
+          console.error("❌ Failed to update plugin configurations:", error)
+        })
+    }
+  }, [pluginConfigs, isInitialized])
 
   // Check dependencies for initial code when editor is initialized
   useEffect(() => {
@@ -148,39 +183,39 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
     }
   }, [isInitialized, initialCode, getDepFiles])
 
-  // Update plugin configurations when children change
+  // Update custom import suggestions when they change (legacy support)
   useEffect(() => {
-    if (isInitialized && dynamicPluginManager.current) {
-      console.log("🔄 Plugin configurations changed, updating...", pluginConfigs)
-      dynamicPluginManager.current.updateConfiguration(pluginConfigs)
-        .catch(error => {
-          console.error("❌ Failed to update plugin configurations:", error)
-        })
-    }
-  }, [pluginConfigs, isInitialized])
+    // Only handle legacy customImportSuggestions if no ESM plugin is configured via children
+    const hasESMPluginFromChildren =
+      pluginConfigs.esmResolver && pluginConfigs.esmResolver.enabled !== false
 
-  // Update custom import suggestions when they change
-  useEffect(() => {
-    if (customImportSuggestions.length > 0 && isInitialized && dynamicPluginManager.current) {
+    if (
+      customImportSuggestions.length > 0 &&
+      isInitialized &&
+      dynamicPluginManager.current &&
+      !hasESMPluginFromChildren
+    ) {
       console.log(
-        "Updating custom import suggestions:",
+        "Updating custom import suggestions (legacy mode):",
         customImportSuggestions.length
       )
 
-      const esmPlugin = dynamicPluginManager.current.getPlugin("esm-import-resolver")
-      
+      const esmPlugin = dynamicPluginManager.current.getPlugin(
+        "esm-import-resolver"
+      )
+
       if (esmPlugin && esmPlugin.isEnabled()) {
         // Type assertion to access the updateCustomImportSuggestions method
         const typedPlugin = esmPlugin as any
-        if (
-          typeof typedPlugin.updateCustomImportSuggestions === "function"
-        ) {
+        if (typeof typedPlugin.updateCustomImportSuggestions === "function") {
           typedPlugin.updateCustomImportSuggestions(customImportSuggestions)
-          console.log("✅ Custom import suggestions updated successfully")
+          console.log(
+            "✅ Custom import suggestions updated successfully (legacy mode)"
+          )
         }
       }
     }
-  }, [customImportSuggestions, isInitialized])
+  }, [customImportSuggestions, isInitialized, pluginConfigs])
 
   // Enhanced onChange handler with internal dependency resolution
   const handleChange = useCallback(

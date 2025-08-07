@@ -6,7 +6,8 @@ import {
   useRef,
   useState,
 } from "react"
-import { SimpleCodeEditor, ESMImportResolverPlugin } from "@/packages/code-editor/src"
+import { SimpleCodeEditor, ESMImportResolverPlugin, TailwindCSSPlugin } from "@/packages/code-editor/src"
+import { twConfig } from "@/components/block-renderer/tailwind-config"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import {
   resolveLocalFileDependencies,
@@ -260,6 +261,18 @@ export const SimpleCodeEditorWrapper = forwardRef(
           <ESMImportResolverPlugin
             enableAutoTypeResolution={true}
             customImportSuggestions={customImportSuggestions}
+          />
+          {/* Tailwind CSS Autocomplete Plugin with custom configuration */}
+          <TailwindCSSPlugin 
+            enabled={true}
+            tailwindConfig={twConfig as any} // Type assertion for Tailwind config compatibility
+            customClasses={[
+              // Add any additional custom classes specific to your project
+              'custom-gradient',
+              'hero-section',
+              'card-hover',
+              'animate-fade-in'
+            ]}
           />
         </SimpleCodeEditor>
       </div>

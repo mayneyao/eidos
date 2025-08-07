@@ -27,15 +27,12 @@ export interface ImportSuggestion {
   kind?: monaco.languages.CompletionItemKind
 }
 
-export interface PluginManagerOptions {
-  enableESMResolver?: boolean
-  esmResolverConfig?: {
-    esmServerUrl?: string
-    packageWhitelist?: string[]
-    packageBlacklist?: string[]
-    enableAutoTypeResolution?: boolean
-    customImportSuggestions?: ImportSuggestion[]
-  }
+export interface ESMResolverConfig {
+  esmServerUrl?: string
+  packageWhitelist?: string[]
+  packageBlacklist?: string[]
+  enableAutoTypeResolution?: boolean
+  customImportSuggestions?: ImportSuggestion[]
 }
 
 /**
@@ -44,6 +41,7 @@ export interface PluginManagerOptions {
 export class ESMImportResolverPlugin implements Plugin {
   name = 'ESM Import Resolver'
   version = '1.0.0'
+  private instanceId = Math.random().toString(36).substr(2, 9)
 
   private enabled = false
   private importParser: ImportParser
@@ -53,7 +51,8 @@ export class ESMImportResolverPlugin implements Plugin {
   private disposables: monaco.IDisposable[] = []
   private customImportSuggestions: ImportSuggestion[] = []
 
-  constructor(private options: PluginManagerOptions['esmResolverConfig'] = {}) {
+  constructor(private options: ESMResolverConfig = {}) {
+    console.log(`🔌 Creating new ESMImportResolverPlugin instance [${this.instanceId}]`)
     this.importParser = new ImportParser()
     this.urlResolver = new URLResolver()
     this.typeDefinitionManager = new TypeDefinitionManager()
@@ -79,9 +78,12 @@ export class ESMImportResolverPlugin implements Plugin {
   }
 
   async initialize(): Promise<void> {
-    if (this.enabled) return
+    if (this.enabled) {
+      console.log(`🔌 ${this.name} already enabled, skipping initialization`)
+      return
+    }
 
-    console.log(`🔌 Initializing ${this.name} v${this.version}`)
+    console.log(`🔌 Initializing ${this.name} v${this.version} [${this.instanceId}]`)
 
     try {
       // Register completion provider for ESM imports
@@ -95,6 +97,7 @@ export class ESMImportResolverPlugin implements Plugin {
         }
       )
       this.disposables.push(completionProvider)
+      console.log(`✅ Registered completion provider for ${this.name} [${this.instanceId}]`)
 
       // Register hover provider for import information
       const hoverProvider = monaco.languages.registerHoverProvider(
@@ -106,6 +109,7 @@ export class ESMImportResolverPlugin implements Plugin {
         }
       )
       this.disposables.push(hoverProvider)
+      console.log(`✅ Registered hover provider for ${this.name}`)
 
       // Register code action provider for import resolution
       const codeActionProvider = monaco.languages.registerCodeActionProvider(
@@ -117,6 +121,7 @@ export class ESMImportResolverPlugin implements Plugin {
         }
       )
       this.disposables.push(codeActionProvider)
+      console.log(`✅ Registered code action provider for ${this.name}`)
 
       // Configure TypeScript compiler options for ESM support
       this.configureCompilerOptions()
@@ -126,7 +131,7 @@ export class ESMImportResolverPlugin implements Plugin {
       // For now, we'll analyze imports when the plugin is initialized
 
       this.enabled = true
-      console.log(`✅ ${this.name} initialized successfully`)
+      console.log(`✅ ${this.name} [${this.instanceId}] initialized successfully`)
     } catch (error) {
       console.error(`❌ Failed to initialize ${this.name}:`, error)
       throw error
@@ -134,13 +139,13 @@ export class ESMImportResolverPlugin implements Plugin {
   }
 
   dispose(): void {
-    console.log(`🔌 Disposing ${this.name}`)
+    console.log(`🔌 Disposing ${this.name} [${this.instanceId}]`)
 
     this.disposables.forEach(disposable => disposable.dispose())
     this.disposables = []
     this.enabled = false
 
-    console.log(`✅ ${this.name} disposed`)
+    console.log(`✅ ${this.name} [${this.instanceId}] disposed`)
   }
 
   isEnabled(): boolean {
@@ -457,77 +462,5 @@ export class ESMImportResolverPlugin implements Plugin {
 
     this.monacoIntegration.updateCompilerOptions(compilerOptions)
     console.log('✅ TypeScript compiler options configured')
-  }
-}
-
-/**
- * Plugin Manager
- */
-export class PluginManager {
-  private plugins = new Map<string, Plugin>()
-  private initialized = false
-
-  constructor(private options: PluginManagerOptions = {}) { }
-
-  async initialize(): Promise<void> {
-    if (this.initialized) return
-
-    console.log('🔌 Initializing Plugin Manager')
-
-    // Initialize ESM Import Resolver plugin if enabled
-    if (this.options.enableESMResolver !== false) {
-      const esmPlugin = new ESMImportResolverPlugin(this.options.esmResolverConfig)
-      this.plugins.set('esm-import-resolver', esmPlugin)
-      await esmPlugin.initialize()
-    }
-
-    this.initialized = true
-    console.log('✅ Plugin Manager initialized')
-  }
-
-  dispose(): void {
-    console.log('🔌 Disposing Plugin Manager')
-
-    this.plugins.forEach(plugin => plugin.dispose())
-    this.plugins.clear()
-    this.initialized = false
-
-    console.log('✅ Plugin Manager disposed')
-  }
-
-  getPlugin(name: string): Plugin | undefined {
-    return this.plugins.get(name)
-  }
-
-  getAllPlugins(): Plugin[] {
-    return Array.from(this.plugins.values())
-  }
-
-  isInitialized(): boolean {
-    return this.initialized
-  }
-}
-
-// Global plugin manager instance
-let globalPluginManager: PluginManager | null = null
-
-export function getPluginManager(): PluginManager {
-  if (!globalPluginManager) {
-    globalPluginManager = new PluginManager({
-      enableESMResolver: true,
-      esmResolverConfig: {
-        enableAutoTypeResolution: true,
-        packageWhitelist: [], // Empty means allow all
-        packageBlacklist: [] // Empty means block none
-      }
-    })
-  }
-  return globalPluginManager
-}
-
-export function disposePluginManager(): void {
-  if (globalPluginManager) {
-    globalPluginManager.dispose()
-    globalPluginManager = null
   }
 }

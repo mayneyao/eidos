@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getPluginManager } from '../plugins/plugin-manager'
+import type { DynamicPluginManager } from '../plugins/dynamic-plugin-manager'
 
 interface PluginInfo {
   name: string
@@ -7,20 +7,29 @@ interface PluginInfo {
   enabled: boolean
 }
 
-export const PluginStatus: React.FC = () => {
+interface PluginStatusProps {
+  pluginManager?: DynamicPluginManager | null
+}
+
+export const PluginStatus: React.FC<PluginStatusProps> = ({ pluginManager }) => {
   const [plugins, setPlugins] = useState<PluginInfo[]>([])
   const [managerInitialized, setManagerInitialized] = useState(false)
 
   useEffect(() => {
     const updateStatus = () => {
       try {
-        const manager = getPluginManager()
-        setManagerInitialized(manager.isInitialized())
+        if (!pluginManager) {
+          setManagerInitialized(false)
+          setPlugins([])
+          return
+        }
         
-        const allPlugins = manager.getAllPlugins()
+        setManagerInitialized(pluginManager.isInitialized())
+        
+        const allPlugins = pluginManager.getAllPlugins()
         const pluginInfo = allPlugins.map(plugin => ({
-          name: plugin.name,
-          version: plugin.version,
+          name: plugin.name || 'Unknown',
+          version: plugin.version || '0.0.0',
           enabled: plugin.isEnabled()
         }))
         
@@ -37,7 +46,7 @@ export const PluginStatus: React.FC = () => {
     const interval = setInterval(updateStatus, 2000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [pluginManager])
 
   return (
     <div className="fixed top-4 right-4 bg-gray-800 text-white p-3 rounded-lg shadow-lg text-sm max-w-xs z-50">

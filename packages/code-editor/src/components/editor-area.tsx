@@ -2,14 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Editor, { DiffEditor } from "@monaco-editor/react"
 import * as monaco from "monaco-editor"
 
-import { LanguageConfigManager } from "../languages"
-import { syncEditorContentToVirtualFileSystem } from "../languages/typescript"
+import { syncEditorContentToVirtualFileSystem, getTypeScriptEditorOptions } from "../monaco-setup"
 import {
   createModelSafely,
   getDefaultEditorOptions,
   setupMonacoModels,
 } from "../monaco-setup"
-import { getPluginManager } from "../plugins/plugin-manager"
+
 import type { DynamicPluginManager } from "../plugins/dynamic-plugin-manager"
 import { FileType, type EditorRef, type FileModel } from "../types"
 import { createEditorDebounce } from "../utils/debounce"
@@ -46,7 +45,8 @@ function createModelSafelyForDependency(
 
 function setupDependencyModels(
   dependencies: readonly FileModel[],
-  currentFileUri?: string
+  currentFileUri?: string,
+  pluginManager?: DynamicPluginManager | null
 ): void {
   console.log(
     `🔧 Setting up ${dependencies.length} dependency models for type context`
@@ -112,17 +112,18 @@ function setupDependencyModels(
 
         // Setup plugin listeners for this dependency model
         try {
-          const activePluginManager = getActivePluginManager()
-          console.log(
-            "Plugin manager initialized:",
-            activePluginManager.isInitialized()
-          )
-          const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
-          console.log("ESM plugin found:", esmPlugin ? "yes" : "no")
-          if (esmPlugin) {
-            console.log("ESM plugin enabled:", esmPlugin.isEnabled())
-            if (esmPlugin.isEnabled()) {
-              ;(esmPlugin as any).setupModelListeners(model)
+          if (pluginManager) {
+            console.log(
+              "Plugin manager initialized:",
+              pluginManager.isInitialized()
+            )
+            const esmPlugin = pluginManager.getPlugin("esm-import-resolver")
+            console.log("ESM plugin found:", esmPlugin ? "yes" : "no")
+            if (esmPlugin) {
+              console.log("ESM plugin enabled:", esmPlugin.isEnabled())
+              if (esmPlugin.isEnabled()) {
+                ;(esmPlugin as any).setupModelListeners(model)
+              }
             }
           }
         } catch (pluginError) {
@@ -239,15 +240,16 @@ export const EditorArea = ({
     layout: () => {},
   })
 
-  // Helper function to get plugin manager (fallback to global if not provided)
+  // Helper function to get plugin manager (only use provided one, no fallback)
   const getActivePluginManager = useCallback(() => {
-    return pluginManager || getPluginManager()
+    if (!pluginManager) {
+      console.warn('No plugin manager provided to EditorArea, plugin features will be disabled')
+      return null
+    }
+    return pluginManager
   }, [pluginManager])
   const containerRef = useRef<HTMLDivElement>(null)
   const [isEditorReady, setIsEditorReady] = useState(false)
-  const languageConfigManagerRef = useRef<LanguageConfigManager>(
-    new LanguageConfigManager()
-  )
 
   // 追踪当前文件的 model，避免重复创建
   const currentModelRef = useRef<monaco.editor.ITextModel | null>(null)
@@ -310,7 +312,7 @@ export const EditorArea = ({
           : undefined
 
         // 为依赖文件创建 models（仅用于类型推断），避免与当前文件冲突
-        setupDependencyModels(dependencies, currentFileUri)
+        setupDependencyModels(dependencies, currentFileUri, pluginManager)
 
         // 配置语言支持
         const context = {
@@ -328,11 +330,7 @@ export const EditorArea = ({
             })),
         }
 
-        languageConfigManagerRef.current.configureLanguage(
-          monaco,
-          "typescript",
-          context
-        )
+        // TypeScript language configuration is now handled automatically in monaco-setup.ts
 
         console.log(`✅ Dependency context setup complete`)
       } catch (error) {
@@ -381,12 +379,14 @@ export const EditorArea = ({
         // Setup plugin listeners for the current file model
         try {
           const activePluginManager = getActivePluginManager()
-          const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
-          if (esmPlugin && esmPlugin.isEnabled()) {
-            ;(esmPlugin as any).setupModelListeners(model)
-            console.log(
-              `🔌 Setup plugin listeners for current file: ${currentFile.path}`
-            )
+          if (activePluginManager) {
+            const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
+            if (esmPlugin && esmPlugin.isEnabled()) {
+              ;(esmPlugin as any).setupModelListeners(model)
+              console.log(
+                `🔌 Setup plugin listeners for current file: ${currentFile.path}`
+              )
+            }
           }
         } catch (pluginError) {
           console.warn(
@@ -455,12 +455,7 @@ export const EditorArea = ({
     }
   }, [currentFile, isEditorReady]) // 添加 isEditorReady 依赖
 
-  // Clean up language configuration
-  useEffect(() => {
-    return () => {
-      languageConfigManagerRef.current.dispose()
-    }
-  }, [])
+  // Language configuration cleanup is no longer needed as it's handled globally
 
   // Common editor setup functions
   const setupKeyboardShortcuts = useCallback(
@@ -499,7 +494,7 @@ export const EditorArea = ({
         
         try {
           // Setup dependency models (reuse existing logic)
-          setupDependencyModels(dependencies, currentFileUri)
+          setupDependencyModels(dependencies, currentFileUri, pluginManager)
 
           // Configure language support
           const context = {
@@ -517,11 +512,7 @@ export const EditorArea = ({
               })),
           }
 
-          languageConfigManagerRef.current.configureLanguage(
-            monaco,
-            "typescript",
-            context
-          )
+          // TypeScript language configuration is now handled automatically in monaco-setup.ts
 
           console.log(`✅ Editor dependency context setup complete`)
         } catch (error) {
@@ -529,17 +520,19 @@ export const EditorArea = ({
         }
       }
     },
-    [dependencies, languageConfigManagerRef]
+    [dependencies]
   )
 
   const setupPluginListeners = useCallback(
     (model: monaco.editor.ITextModel, modelPath?: string) => {
       try {
         const activePluginManager = getActivePluginManager()
-        const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
-        if (esmPlugin && esmPlugin.isEnabled()) {
-          ;(esmPlugin as any).setupModelListeners(model)
-          console.log(`🔌 Setup ESM plugin listeners for model: ${modelPath || model.uri.toString()}`)
+        if (activePluginManager) {
+          const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
+          if (esmPlugin && esmPlugin.isEnabled()) {
+            ;(esmPlugin as any).setupModelListeners(model)
+            console.log(`🔌 Setup ESM plugin listeners for model: ${modelPath || model.uri.toString()}`)
+          }
         }
       } catch (pluginError) {
         console.warn("Failed to setup plugin listeners for model:", pluginError)
@@ -778,7 +771,7 @@ export const EditorArea = ({
           language="typescript"
           options={{
             ...getDefaultEditorOptions(),
-            ...languageConfigManagerRef.current.getEditorOptions("typescript"),
+            ...getTypeScriptEditorOptions(),
             readOnly: false,
             renderSideBySide: true,
             ignoreTrimWhitespace: false,
@@ -795,7 +788,7 @@ export const EditorArea = ({
           theme={theme}
           options={{
             ...getDefaultEditorOptions(),
-            ...languageConfigManagerRef.current.getEditorOptions("typescript"),
+            ...getTypeScriptEditorOptions(),
           }}
           onChange={handleEditorChange}
           onMount={handleEditorMount}

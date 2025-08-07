@@ -2,9 +2,10 @@ import { loader } from "@monaco-editor/react"
 import * as monaco from "monaco-editor"
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker"
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
-import type { FileModel } from "./types";
+import type { FileModel } from "./types"
 import { FileType } from "./types"
-import { getPluginManager } from "./plugins/plugin-manager"
+import { configureTypeScriptLanguage, getTypeScriptEditorOptions } from "./typescript-config"
+
 
 /**
  * Set up Monaco Environment and Workers
@@ -31,17 +32,14 @@ export function setupMonacoEnvironment(): Promise<typeof monaco> {
     const supportedLanguages = monacoInstance.languages.getLanguages()
     console.log("📋 Available languages:", supportedLanguages.map(lang => lang.id).join(', '))
 
-    // Note: Monaco Editor handles JSX through TypeScript language with .tsx file extensions
-    // No need to register a separate 'typescriptreact' language
+    // Configure TypeScript language support with default settings
+    configureTypeScriptLanguage(monacoInstance, {
+      language: "typescript"
+    })
 
-    // Initialize plugins after Monaco is ready
-    try {
-      const pluginManager = getPluginManager()
-      await pluginManager.initialize()
-      console.log("✅ Plugins initialized")
-    } catch (error) {
-      console.error("❌ Failed to initialize plugins:", error)
-    }
+    // Note: Plugin initialization is now handled by DynamicPluginManager in SimpleCodeEditor
+    // This allows for per-editor-instance plugin configuration
+    console.log("✅ Monaco setup complete - plugin initialization deferred to editor instances")
 
     return monacoInstance
   })
@@ -258,21 +256,9 @@ export function setupMonacoModels(files: FileModel[]): void {
         const model = createModelSafely(file.content, file.language, uri)
         fileModels[file.id] = model
 
-        // Setup plugin listeners for this model
-        try {
-          const pluginManager = getPluginManager()
-          console.log('Plugin manager initialized:', pluginManager.isInitialized())
-          const esmPlugin = pluginManager.getPlugin('esm-import-resolver')
-          console.log('ESM plugin found:', esmPlugin ? 'yes' : 'no')
-          if (esmPlugin) {
-            console.log('ESM plugin enabled:', esmPlugin.isEnabled())
-            if (esmPlugin.isEnabled()) {
-              ; (esmPlugin as any).setupModelListeners(model)
-            }
-          }
-        } catch (pluginError) {
-          console.warn('Failed to setup plugin listeners:', pluginError)
-        }
+        // Note: Plugin listeners setup is now handled by EditorArea component
+        // This allows for proper integration with the DynamicPluginManager
+        console.log(`📝 Model created for ${file.id}`)
 
         // Collect files that need to be added to TypeScript language service
         if (file.language === "typescript") {
@@ -408,3 +394,7 @@ export function getDefaultEditorOptions(): monaco.editor.IStandaloneEditorConstr
     },
   }
 }
+
+// Export TypeScript configuration functions for backward compatibility
+export { configureTypeScriptLanguage, getTypeScriptEditorOptions } from "./typescript-config"
+export { syncEditorContentToVirtualFileSystem } from "./virtual-file-system"
