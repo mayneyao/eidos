@@ -35,8 +35,15 @@ export class DynamicPluginManager {
 
     console.log('📋 Configuration changes detected:', {
       toDispose: changes.toDispose,
-      toInitialize: changes.toInitialize
+      toInitialize: changes.toInitialize,
+      hasChanges: changes.toDispose.length > 0 || changes.toInitialize.length > 0
     })
+
+    // Skip if no changes needed
+    if (changes.toDispose.length === 0 && changes.toInitialize.length === 0) {
+      console.log('✅ No plugin configuration changes needed, skipping update')
+      return
+    }
 
     // Dispose plugins that are no longer enabled or have changed configuration
     for (const pluginName of changes.toDispose) {
@@ -81,7 +88,7 @@ export class DynamicPluginManager {
       }
       // Check if plugin should be initialized/reconfigured
       else if (newPluginConfig && newPluginConfig.enabled !== false) {
-        if (!oldPluginConfig || JSON.stringify(oldPluginConfig) !== JSON.stringify(newPluginConfig)) {
+        if (!oldPluginConfig || !this.deepEqual(oldPluginConfig, newPluginConfig)) {
           // Dispose first if it exists, then initialize with new config
           if (oldPluginConfig) {
             toDispose.push(pluginId)
@@ -92,6 +99,64 @@ export class DynamicPluginManager {
     }
 
     return { toDispose, toInitialize }
+  }
+
+  /**
+   * Deep equality check for plugin configurations
+   * More reliable than JSON.stringify for object comparison
+   */
+  private deepEqual(obj1: any, obj2: any): boolean {
+    if (obj1 === obj2) {
+      return true
+    }
+
+    if (obj1 == null || obj2 == null) {
+      return obj1 === obj2
+    }
+
+    if (typeof obj1 !== typeof obj2) {
+      return false
+    }
+
+    if (typeof obj1 !== 'object') {
+      return obj1 === obj2
+    }
+
+    // Handle arrays
+    if (Array.isArray(obj1) !== Array.isArray(obj2)) {
+      return false
+    }
+
+    if (Array.isArray(obj1)) {
+      if (obj1.length !== obj2.length) {
+        return false
+      }
+      for (let i = 0; i < obj1.length; i++) {
+        if (!this.deepEqual(obj1[i], obj2[i])) {
+          return false
+        }
+      }
+      return true
+    }
+
+    // Handle objects
+    const keys1 = Object.keys(obj1)
+    const keys2 = Object.keys(obj2)
+
+    if (keys1.length !== keys2.length) {
+      return false
+    }
+
+    for (const key of keys1) {
+      if (!keys2.includes(key)) {
+        return false
+      }
+      if (!this.deepEqual(obj1[key], obj2[key])) {
+        return false
+      }
+    }
+
+    return true
   }
 
   /**

@@ -20,6 +20,10 @@ import type { ESMImportResolverProps, ImportSuggestion } from './types'
 // Re-export the props interface for convenience
 export type { ESMImportResolverProps, ImportSuggestion }
 
+// Global state to prevent duplicate Monaco service registrations
+let globalESMProviderRegistered = false
+let globalESMDisposables: monaco.IDisposable[] = []
+
 /**
  * ESM Import Resolver Plugin Implementation
  * Migrated from plugin-manager.ts and enhanced with new architecture
@@ -39,7 +43,7 @@ export class ESMImportResolverPlugin implements EditorPlugin {
 
   constructor(private config: ESMImportResolverProps = {}) {
     console.log(`🔌 Creating new ESMImportResolverPlugin instance [${this.instanceId}]`)
-    
+
     // Set default config
     this.config = {
       enabled: true,
@@ -77,16 +81,28 @@ export class ESMImportResolverPlugin implements EditorPlugin {
 
   async initialize(): Promise<void> {
     if (this.enabled) {
-      console.log(`🔌 ${this.name} already enabled, skipping initialization`)
+      console.log(`🔌 ${this.name} [${this.instanceId}] already enabled, skipping initialization`)
       return
     }
 
     console.log(`🔌 Initializing ${this.name} v${this.version} [${this.instanceId}]`)
 
     try {
+      // Check if global provider is already registered
+      if (globalESMProviderRegistered) {
+        console.log(`⚠️ ${this.name} provider already registered globally, disposing previous instance`)
+        // Dispose previous global registrations
+        globalESMDisposables.forEach(disposable => disposable.dispose())
+        globalESMDisposables = []
+        globalESMProviderRegistered = false
+      }
+
+      // Dispose any existing local disposables first to prevent duplicates
+      this.dispose()
+
       // Register completion provider for ESM imports
       const completionProvider = monaco.languages.registerCompletionItemProvider(
-        ['typescript', 'javascript', 'javascriptreact'],
+        ['typescript'],
         {
           triggerCharacters: ['"', "'", '/'],
           provideCompletionItems: async (model, position) => {
@@ -94,40 +110,53 @@ export class ESMImportResolverPlugin implements EditorPlugin {
           }
         }
       )
+      
+      // Track both locally and globally
       this.disposables.push(completionProvider)
+      globalESMDisposables.push(completionProvider)
       console.log(`✅ Registered completion provider for ${this.name} [${this.instanceId}]`)
 
       // Register hover provider for import information
       const hoverProvider = monaco.languages.registerHoverProvider(
-        ['typescript', 'javascript', 'javascriptreact'],
+        ['typescript'],
         {
           provideHover: async (model, position) => {
             return this.provideImportHover(model, position)
           }
         }
       )
+      
+      // Track both locally and globally
       this.disposables.push(hoverProvider)
-      console.log(`✅ Registered hover provider for ${this.name}`)
+      globalESMDisposables.push(hoverProvider)
+      console.log(`✅ Registered hover provider for ${this.name} [${this.instanceId}]`)
 
       // Register code action provider for import resolution
       const codeActionProvider = monaco.languages.registerCodeActionProvider(
-        ['typescript', 'javascript'],
+        ['typescript'],
         {
           provideCodeActions: async (model, range, context) => {
             return this.provideImportCodeActions(model, range, context)
           }
         }
       )
+      
+      // Track both locally and globally
       this.disposables.push(codeActionProvider)
-      console.log(`✅ Registered code action provider for ${this.name}`)
+      globalESMDisposables.push(codeActionProvider)
+      console.log(`✅ Registered code action provider for ${this.name} [${this.instanceId}]`)
+
+      // Mark global provider as registered
+      globalESMProviderRegistered = true
 
       // Configure TypeScript compiler options for ESM support
       this.configureCompilerOptions()
 
       this.enabled = true
       console.log(`✅ ${this.name} [${this.instanceId}] initialized successfully`)
+      console.log(`📊 Global ESM disposables count: ${globalESMDisposables.length}`)
     } catch (error) {
-      console.error(`❌ Failed to initialize ${this.name}:`, error)
+      console.error(`❌ Failed to initialize ${this.name} [${this.instanceId}]:`, error)
       throw error
     }
   }
@@ -135,9 +164,23 @@ export class ESMImportResolverPlugin implements EditorPlugin {
   dispose(): void {
     console.log(`🔌 Disposing ${this.name} [${this.instanceId}]`)
 
-    this.disposables.forEach(disposable => disposable.dispose())
+    // Store reference to disposables before clearing
+    const disposablesToRemove = [...this.disposables]
+    
+    // Remove from global tracking
+    globalESMDisposables = globalESMDisposables.filter(disposable => 
+      !disposablesToRemove.includes(disposable)
+    )
+    
+    // Dispose local disposables
+    disposablesToRemove.forEach(disposable => disposable.dispose())
     this.disposables = []
     this.enabled = false
+
+    // Reset global state if no more disposables exist
+    if (globalESMDisposables.length === 0) {
+      globalESMProviderRegistered = false
+    }
 
     console.log(`✅ ${this.name} [${this.instanceId}] disposed`)
   }

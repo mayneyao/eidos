@@ -76,7 +76,8 @@ class PluginComponentRegistry {
       const pluginInfo = this.getPluginInfo(child.type as React.ComponentType<any>)
       if (pluginInfo) {
         hasAnyPlugin = true
-        configs[pluginInfo.pluginId] = child.props as any
+        // Create a stable configuration object
+        configs[pluginInfo.pluginId] = this.stabilizeConfig(child.props as any)
       }
     })
 
@@ -90,6 +91,34 @@ class PluginComponentRegistry {
     }
 
     return configs
+  }
+
+  /**
+   * Stabilize configuration object to prevent unnecessary recreations
+   * Sorts object keys and handles array ordering consistently
+   */
+  private stabilizeConfig(config: any): any {
+    if (config === null || config === undefined) {
+      return config
+    }
+
+    if (typeof config !== 'object') {
+      return config
+    }
+
+    if (Array.isArray(config)) {
+      return config.map(item => this.stabilizeConfig(item))
+    }
+
+    // Sort object keys to ensure consistent ordering
+    const sortedKeys = Object.keys(config).sort()
+    const stabilizedConfig: any = {}
+    
+    for (const key of sortedKeys) {
+      stabilizedConfig[key] = this.stabilizeConfig(config[key])
+    }
+
+    return stabilizedConfig
   }
 }
 

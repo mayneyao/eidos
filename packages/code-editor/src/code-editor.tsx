@@ -72,6 +72,9 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
 }) => {
   const [isInitialized, setIsInitialized] = useState(false)
   const dynamicPluginManager = useRef<DynamicPluginManager | null>(null)
+  
+  // Debug: Log component lifecycle
+  console.log(`🔍 SimpleCodeEditor render - fileName: ${fileName}, initialized: ${isInitialized}`)
 
   // Internal state to manage dynamically discovered dependencies
   const [dependencies, setDependencies] = useState<FileModel[]>([])
@@ -113,7 +116,7 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
       ?.then(async () => {
         console.log("✅ Monaco Editor initialization complete")
 
-        // Initialize dynamic plugin manager only once
+        // Initialize dynamic plugin manager for this editor instance
         if (!dynamicPluginManager.current) {
           dynamicPluginManager.current = new DynamicPluginManager()
           console.log("🔌 Created new DynamicPluginManager instance")

@@ -7,7 +7,6 @@
 import './esm-import-resolver/register'
 import './tailwindcss-autocomplete/register'
 import './example-new-plugin/register'
-import './editor-area/register'
 
 // Future plugins can be added here:
 // import './formatter/register'
