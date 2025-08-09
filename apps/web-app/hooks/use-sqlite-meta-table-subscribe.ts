@@ -35,6 +35,12 @@ export const useSqliteMetaTableSubscribe = () => {
               setNode(_new as any as ITreeNode)
             }
             break
+          case DataUpdateSignalType.Delete:
+            if (table === TreeTableName) {
+              // Handle tree node deletion - reload to sync state
+              reload()
+            }
+            break
           default:
             break
         }

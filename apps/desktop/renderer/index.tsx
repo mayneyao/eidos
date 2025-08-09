@@ -20,6 +20,8 @@ import { NotFound } from "@/apps/web-app/pages/404"
 import { AppPage } from "@/apps/web-app/pages/[database]/apps/page"
 import { BlocksPage } from "@/apps/web-app/pages/[database]/blocks/page"
 import { ExtensionDetailPage } from "@/apps/web-app/pages/[database]/extensions/detail"
+import { ExtensionsEmptyState } from "@/apps/web-app/pages/[database]/extensions/empty-state"
+import { ExtensionsLayout } from "@/apps/web-app/pages/[database]/extensions/layout"
 import { ScriptPage } from "@/apps/web-app/pages/[database]/extensions/page"
 // space
 import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
@@ -218,23 +220,17 @@ const router = createBrowserRouter([
           },
           {
             path: "extensions",
+            element: <ExtensionsLayout />,
             children: [
               {
                 index: true,
-                id: "extensions",
-                loader: async () => {
-                  if (!(window as any)?.sqlite) {
-                    return []
-                  }
-                  return await (window as any)?.sqlite?.listScripts()
-                },
-                element: <ScriptPage />,
+                element: <ExtensionsEmptyState />,
               },
               {
                 path: ":scriptId",
                 loader: async ({ params }) => {
                   if (!(window as any)?.sqlite) {
-                    return []
+                    return {}
                   }
                   return await (window as any)?.sqlite?.getScript(
                     params.scriptId
@@ -297,6 +293,6 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <RouterProvider router={router} fallbackElement={<div>Loading...</div>} />
   </React.StrictMode>
 )

@@ -35,6 +35,8 @@ import { NotFound } from "./404"
 import { AppPage } from "./[database]/apps/page"
 import { BlocksPage } from "./[database]/blocks/page"
 import { ExtensionDetailPage } from "./[database]/extensions/detail"
+import { ExtensionsEmptyState } from "./[database]/extensions/empty-state"
+import { ExtensionsLayout } from "./[database]/extensions/layout"
 import { ScriptPage } from "./[database]/extensions/page"
 import { SpaceSetting } from "./[database]/settings/page"
 import { DocEditor } from "./eidtor/doc"
@@ -177,23 +179,17 @@ const router = createBrowserRouter([
           },
           {
             path: "extensions",
+            element: <ExtensionsLayout />,
             children: [
               {
                 index: true,
-                id: "extensions",
-                loader: async () => {
-                  if (!(window as any)?.sqlite) {
-                    return []
-                  }
-                  return await (window as any)?.sqlite?.listScripts()
-                },
-                element: <ScriptPage />,
+                element: <ExtensionsEmptyState />,
               },
               {
                 path: ":scriptId",
                 loader: async ({ params }) => {
                   if (!(window as any)?.sqlite) {
-                    return []
+                    return null
                   }
                   return await (window as any)?.sqlite?.getScript(
                     params.scriptId
@@ -256,6 +252,6 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <RouterProvider router={router} fallbackElement={<div>Loading...</div>} />
   </React.StrictMode>
 )

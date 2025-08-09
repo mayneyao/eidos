@@ -6,6 +6,7 @@ import { generateIdV7 } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 import { useExtension } from "@/apps/web-app/hooks/use-extension"
+import { useExtensionSidebarStore } from "../stores/sidebar-store"
 
 // Script templates
 import toolTemplate from "./templates/script/tool.ts?raw"
@@ -25,6 +26,7 @@ export const useNewExtension = () => {
   const { addExtension } = useExtension()
   const router = useNavigate()
   const { space } = useCurrentPathInfo()
+  const { setFocusedExtensionId } = useExtensionSidebarStore()
 
   const handleCreateNewExtension = async (
     template: "tool" | "udf" | "tableAction" | "tableView" | "extNode" | "emptyScript" | "emptyBlock" = "tool",
@@ -189,6 +191,10 @@ export const useNewExtension = () => {
 
     const extension = templateMap[template]
     await addExtension(extension)
+    
+    // Set the focused extension ID to scroll to it in the sidebar
+    setFocusedExtensionId(newScriptId)
+    
     router(`/${space}/extensions/${newScriptId}`)
   }
 

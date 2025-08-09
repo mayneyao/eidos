@@ -66,8 +66,9 @@ export const SimpleCodeEditorWrapper = forwardRef(
     const allScripts = useAllScripts()
     const currentExtension = useExtensionByIdOrSlug(scriptId)
 
+    // Stable memoization for customImportSuggestions to prevent unnecessary plugin reinitialization
     const customImportSuggestions = useMemo(() => {
-      return allScripts
+      const suggestions = allScripts
         .filter((script) => script.id !== scriptId)
         .map((script) => ({
           label: `${script.slug}[${script.name}]`,
@@ -75,7 +76,14 @@ export const SimpleCodeEditorWrapper = forwardRef(
           detail: script.description,
           documentation: script.description,
         }))
+      
+      // Create a stable hash to avoid recreating when content is the same
+      const suggestionHash = suggestions.map(s => `${s.label}:${s.insertText}`).join('|')
+      return { suggestions, hash: suggestionHash }
     }, [allScripts, scriptId])
+
+    // Use only the suggestions array for the component
+    const stableSuggestions = customImportSuggestions.suggestions
 
     const jumpToExtension = (id: string) => {
       navigate(`/${space}/extensions/${id}`)
@@ -260,7 +268,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
           {/* ESM Import Resolver Plugin with dynamic configuration */}
           <ESMImportResolverPlugin
             enableAutoTypeResolution={true}
-            customImportSuggestions={customImportSuggestions}
+            customImportSuggestions={stableSuggestions}
           />
           {/* Tailwind CSS Autocomplete Plugin with custom configuration */}
           <TailwindCSSPlugin 

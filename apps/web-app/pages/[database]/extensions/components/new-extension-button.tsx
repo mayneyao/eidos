@@ -26,7 +26,7 @@ import { useNewExtension } from "../hooks/use-new-extension"
 const ExtensionTooltip = ({ children }: { children: React.ReactNode }) => {
   return (
     <div
-      className="ring ring-primary invisible group-hover:visible absolute right-full top-0 mr-2 w-64 rounded-md border text-popover-foreground bg-popover p-3 text-sm before:absolute before:-right-4 before:top-0 before:h-full before:w-4"
+      className="ring ring-primary invisible group-hover:visible absolute left-full top-0 mr-2 w-64 rounded-md border text-popover-foreground bg-popover p-3 text-sm before:absolute before:-right-4 before:top-0 before:h-full before:w-4"
       onClick={(e) => e.stopPropagation()}
     >
       {children}
@@ -34,18 +34,26 @@ const ExtensionTooltip = ({ children }: { children: React.ReactNode }) => {
   )
 }
 
-export const NewExtensionButton = () => {
+interface NewExtensionButtonProps {
+  trigger?: React.ReactNode
+}
+
+export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
   const { handleCreateNewExtension } = useNewExtension()
   const { t } = useTranslation()
+
+  const defaultTrigger = (
+    <Button size="sm" className="w-full justify-between">
+      {t("common.new")} <ChevronDownIcon className="ml-1 h-4 w-4" />
+    </Button>
+  )
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="xs">
-          {t("common.new")} <ChevronDownIcon className="ml-1 h-4 w-4" />
-        </Button>
+        {trigger || defaultTrigger}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="overflow-visible" align="end">
+      <DropdownMenuContent className="overflow-visible" align="start">
         <DropdownMenuLabel>{t("extension.createNew")}</DropdownMenuLabel>
         <DropdownMenuSeparator />
 

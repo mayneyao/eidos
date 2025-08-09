@@ -76,6 +76,9 @@ ${errorStack}
         <h1 className="text-lg font-bold">
           {t("common.error.somethingWentWrong")}
         </h1>
+        <Link to="/">
+          <Button size="xs">{t("common.home")}</Button>
+        </Link>
         {isStoragePermissionError ? (
           <>
             <p>{t("common.error.storagePermissionBlocked")}</p>
