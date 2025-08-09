@@ -5,6 +5,7 @@ import type {
   IExtension,
   TableViewMeta,
   UDFMeta,
+  IBindings,
 } from "../types/IExtension";
 
 import type { BaseTable } from "./base";
@@ -134,7 +135,7 @@ export class ExtensionTable
     return Promise.resolve(true)
   }
 
-  async updateBindings(id: string, bindings: Record<string, { type: string; value: string }>) {
+  async updateBindings(id: string, bindings: IBindings) {
     this.dataSpace.exec2(`UPDATE ${this.name} SET bindings = ? WHERE id = ?`, [
       JSON.stringify(bindings),
       id,
