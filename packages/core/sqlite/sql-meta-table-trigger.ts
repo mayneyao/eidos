@@ -10,7 +10,7 @@ export interface TriggerField {
   type?: 'TEXT' | 'INTEGER' | 'REAL' | 'BOOLEAN' | 'TIMESTAMP'
 }
 
-export type TriggerOperation = 'insert' | 'update' | 'both'
+export type TriggerOperation = 'insert' | 'update' | 'delete' | 'both' | 'all'
 
 export interface TriggerOptions {
   tableName: string
@@ -25,6 +25,7 @@ export interface TriggerOptions {
   triggerSuffix?: {
     insert?: string
     update?: string
+    delete?: string
   }
   /**
    * Whether to create temporary triggers (default: true)
@@ -36,6 +37,7 @@ export interface TriggerOptions {
   eventFunctions?: {
     insert?: string
     update?: string
+    delete?: string
   }
 }
 
@@ -106,18 +108,49 @@ export function generateUpdateTrigger(options: TriggerOptions): string {
 }
 
 /**
- * Generate both INSERT and UPDATE triggers
+ * Generate DELETE trigger SQL
+ */
+export function generateDeleteTrigger(options: TriggerOptions): string {
+  const {
+    tableName,
+    fields,
+    triggerSuffix = {},
+    temporary = true,
+    eventFunctions = {}
+  } = options
+
+  const triggerName = `${tableName}_${triggerSuffix.delete || 'delete_trigger'}`
+  const tempKeyword = temporary ? 'TEMP ' : ''
+  const eventFunction = eventFunctions.delete || 'eidos_meta_table_event_delete'
+  const jsonObject = generateJsonObject(fields, 'old')
+
+  return `CREATE ${tempKeyword}TRIGGER IF NOT EXISTS ${triggerName}
+  AFTER DELETE ON ${tableName}
+  BEGIN
+    SELECT ${eventFunction}(
+      '${tableName}',
+      ${jsonObject}
+    );
+  END;`
+}
+
+/**
+ * Generate INSERT, UPDATE, and/or DELETE triggers
  */
 export function generateMetaTableTriggers(options: TriggerOptions): string {
   const { operations = 'both' } = options
   const triggers: string[] = []
   
-  if (operations === 'insert' || operations === 'both') {
+  if (operations === 'insert' || operations === 'both' || operations === 'all') {
     triggers.push(generateInsertTrigger(options))
   }
   
-  if (operations === 'update' || operations === 'both') {
+  if (operations === 'update' || operations === 'both' || operations === 'all') {
     triggers.push(generateUpdateTrigger(options))
+  }
+  
+  if (operations === 'delete' || operations === 'all') {
+    triggers.push(generateDeleteTrigger(options))
   }
   
   return triggers.join('\n\n  ')
@@ -147,4 +180,18 @@ export function createInsertTriggerForFields(tableName: string, fieldNames: stri
  */
 export function createUpdateTriggerForFields(tableName: string, fieldNames: string[]): string {
   return createTriggersForFields(tableName, fieldNames, 'update')
+}
+
+/**
+ * Convenience function to create only DELETE trigger
+ */
+export function createDeleteTriggerForFields(tableName: string, fieldNames: string[]): string {
+  return createTriggersForFields(tableName, fieldNames, 'delete')
+}
+
+/**
+ * Convenience function to create all triggers (INSERT, UPDATE, DELETE)
+ */
+export function createAllTriggersForFields(tableName: string, fieldNames: string[]): string {
+  return createTriggersForFields(tableName, fieldNames, 'all')
 } 

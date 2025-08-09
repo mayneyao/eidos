@@ -1,6 +1,6 @@
 import { ChatTableName } from "../sqlite/const"
 import { createInsertTriggerForFields } from "../sqlite/sql-meta-table-trigger"
-import type { BaseTable} from "./base";
+import type { BaseTable } from "./base";
 import { BaseTableImpl } from "./base"
 import type { ChatMessage } from "./message"
 

@@ -3,11 +3,14 @@ import type {
 } from './sql-meta-table-trigger';
 import { 
   generateInsertTrigger, 
-  generateUpdateTrigger, 
+  generateUpdateTrigger,
+  generateDeleteTrigger, 
   generateMetaTableTriggers,
   createTriggersForFields,
   createInsertTriggerForFields,
-  createUpdateTriggerForFields 
+  createUpdateTriggerForFields,
+  createDeleteTriggerForFields,
+  createAllTriggersForFields 
 } from './sql-meta-table-trigger'
 
 describe('SQL Meta Table Trigger Generator', () => {
@@ -88,6 +91,36 @@ describe('SQL Meta Table Trigger Generator', () => {
     })
   })
 
+  describe('generateDeleteTrigger', () => {
+    it('should generate basic DELETE trigger with old values', () => {
+      const fields: TriggerField[] = [
+        { name: 'id' },
+        { name: 'name' }
+      ]
+      
+      const result = generateDeleteTrigger({
+        tableName: 'test_table',
+        fields
+      })
+      
+      expect(result).toContain('CREATE TEMP TRIGGER IF NOT EXISTS test_table_delete_trigger')
+      expect(result).toContain('AFTER DELETE ON test_table')
+      expect(result).toContain("SELECT eidos_meta_table_event_delete(")
+      expect(result).toContain("'id', old.id")
+      expect(result).toContain("'name', old.name")
+    })
+
+    it('should support custom event function', () => {
+      const result = generateDeleteTrigger({
+        tableName: 'test_table',
+        fields: [{ name: 'id' }],
+        eventFunctions: { delete: 'custom_delete_event' }
+      })
+      
+      expect(result).toContain('SELECT custom_delete_event(')
+    })
+  })
+
   describe('generateMetaTableTriggers', () => {
     it('should generate both INSERT and UPDATE triggers', () => {
       const fields: TriggerField[] = [
@@ -104,6 +137,44 @@ describe('SQL Meta Table Trigger Generator', () => {
       expect(result).toContain('test_table_update_trigger')
       expect(result).toContain('eidos_meta_table_event_insert')
       expect(result).toContain('eidos_meta_table_event_update')
+    })
+
+    it('should generate only DELETE trigger when specified', () => {
+      const fields: TriggerField[] = [
+        { name: 'id' },
+        { name: 'name' }
+      ]
+      
+      const result = generateMetaTableTriggers({
+        tableName: 'test_table',
+        fields,
+        operations: 'delete'
+      })
+      
+      expect(result).toContain('test_table_delete_trigger')
+      expect(result).toContain('eidos_meta_table_event_delete')
+      expect(result).not.toContain('test_table_insert_trigger')
+      expect(result).not.toContain('test_table_update_trigger')
+    })
+
+    it('should generate all triggers when operations is "all"', () => {
+      const fields: TriggerField[] = [
+        { name: 'id' },
+        { name: 'name' }
+      ]
+      
+      const result = generateMetaTableTriggers({
+        tableName: 'test_table',
+        fields,
+        operations: 'all'
+      })
+      
+      expect(result).toContain('test_table_insert_trigger')
+      expect(result).toContain('test_table_update_trigger')
+      expect(result).toContain('test_table_delete_trigger')
+      expect(result).toContain('eidos_meta_table_event_insert')
+      expect(result).toContain('eidos_meta_table_event_update')
+      expect(result).toContain('eidos_meta_table_event_delete')
     })
   })
 
@@ -163,6 +234,38 @@ describe('SQL Meta Table Trigger Generator', () => {
         expect(result).toContain('test_table_update_trigger')
         expect(result).not.toContain('eidos_meta_table_event_insert')
         expect(result).toContain('eidos_meta_table_event_update')
+        expect(result).toContain("'id', new.id")
+        expect(result).toContain("'name', new.name")
+        expect(result).toContain("'id', old.id")
+        expect(result).toContain("'name', old.name")
+      })
+    })
+
+    describe('createDeleteTriggerForFields', () => {
+      it('should create only DELETE trigger', () => {
+        const result = createDeleteTriggerForFields('test_table', ['id', 'name'])
+        
+        expect(result).not.toContain('test_table_insert_trigger')
+        expect(result).not.toContain('test_table_update_trigger')
+        expect(result).toContain('test_table_delete_trigger')
+        expect(result).not.toContain('eidos_meta_table_event_insert')
+        expect(result).not.toContain('eidos_meta_table_event_update')
+        expect(result).toContain('eidos_meta_table_event_delete')
+        expect(result).toContain("'id', old.id")
+        expect(result).toContain("'name', old.name")
+      })
+    })
+
+    describe('createAllTriggersForFields', () => {
+      it('should create INSERT, UPDATE, and DELETE triggers', () => {
+        const result = createAllTriggersForFields('test_table', ['id', 'name'])
+        
+        expect(result).toContain('test_table_insert_trigger')
+        expect(result).toContain('test_table_update_trigger')
+        expect(result).toContain('test_table_delete_trigger')
+        expect(result).toContain('eidos_meta_table_event_insert')
+        expect(result).toContain('eidos_meta_table_event_update')
+        expect(result).toContain('eidos_meta_table_event_delete')
         expect(result).toContain("'id', new.id")
         expect(result).toContain("'name', new.name")
         expect(result).toContain("'id', old.id")

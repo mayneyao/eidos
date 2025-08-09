@@ -1,11 +1,11 @@
 import { ExtensionTableName } from "../sqlite/const";
-import { createUpdateTriggerForFields } from "../sqlite/sql-meta-table-trigger";
+import { createAllTriggersForFields } from "../sqlite/sql-meta-table-trigger";
 import type {
   ExtensionStatus,
+  IBindings,
   IExtension,
   TableViewMeta,
   UDFMeta,
-  IBindings,
 } from "../types/IExtension";
 
 import type { BaseTable } from "./base";
@@ -58,10 +58,9 @@ export class ExtensionTable
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    ${createUpdateTriggerForFields(this.name, [
+    ${createAllTriggersForFields(this.name, [
     'id', 'slug', 'name', 'type', 'code', 'enabled', 'icon', 'meta'
   ])}
-
 `
 
   JSONFields: string[] = [
