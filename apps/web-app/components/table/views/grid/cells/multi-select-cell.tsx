@@ -20,6 +20,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command"
 import {
   Popover,
@@ -51,7 +52,6 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
 
   const themeName = (theme as any).name
   const [oldValues, setOldValues] = React.useState(values ?? [])
-  const createNewOptionRef = React.useRef<HTMLInputElement>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   const [newOptions, setNewOptions] = React.useState<SelectOption[]>([])
@@ -95,18 +95,9 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
       set.add(value)
     }
     setNewValues(Array.from(set))
-    createNewOptionRef.current?.blur()
     inputRef.current?.focus()
   }
   const [inputValue, setInputValue] = React.useState("")
-
-  React.useEffect(() => {
-    if (allowedValues.findIndex((item) => item.name == inputValue) == -1) {
-      setTimeout(() => {
-        createNewOptionRef.current?.focus()
-      }, 200)
-    }
-  }, [allowedValues, inputValue])
 
   const handleBackspace: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === "Backspace" && !inputValue?.length) {
@@ -205,12 +196,11 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
               </div>
             </div>
           </div>
-          <div
+          <CommandList
             className={cn("max-h-[400px]", {
               "overflow-y-scroll": allowedValues.length * 32 > 400,
             })}
           >
-            {" "}
             <CommandEmpty>Create option</CommandEmpty>
             <CommandGroup className="h-full border-t">
               {allowedValues.map((option) => (
@@ -228,10 +218,10 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
                 allowedValues.findIndex((item) => item.name == inputValue) ==
                   -1 && (
                   <CommandItem
-                    ref={createNewOptionRef}
                     key={inputValue}
                     value={inputValue}
                     className="flex items-center gap-2"
+                    autoFocus
                     onSelect={(currentValue) => {
                       handleSelect(currentValue)
                     }}
@@ -251,7 +241,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
                   </CommandItem>
                 )}
             </CommandGroup>
-          </div>
+          </CommandList>
         </Command>
       </PopoverContent>
     </Popover>

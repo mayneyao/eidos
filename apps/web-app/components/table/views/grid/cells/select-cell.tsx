@@ -1,18 +1,16 @@
 import * as React from "react"
-import type {
-  CustomCell,
-  CustomRenderer,
-  ProvideEditorCallback,
-  Rectangle} from "@glideapps/glide-data-grid";
+import { SelectField, type SelectOption } from "@/packages/core/fields/select"
 import {
   GridCellKind,
   getMiddleCenterBias,
   measureTextCached,
+  type CustomCell,
+  type CustomRenderer,
+  type ProvideEditorCallback,
+  type Rectangle,
 } from "@glideapps/glide-data-grid"
 import { Check } from "lucide-react"
 
-import type { SelectOption } from "@/packages/core/fields/select";
-import { SelectField } from "@/packages/core/fields/select"
 import { cn } from "@/lib/utils"
 import {
   Command,
@@ -20,6 +18,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command"
 import {
   Popover,
@@ -42,7 +41,6 @@ export type SelectCell = CustomCell<SelectCellProps>
 export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
   const { value: cell, onFinishedEditing, initialValue, theme } = p
   const { allowedValues, value: valueIn } = cell.data
-  const createNewOptionRef = React.useRef<HTMLInputElement>(null)
 
   const themeName = (theme as any).name
   const oldOptionName = allowedValues.find((item) => item.id == valueIn)?.name
@@ -62,13 +60,6 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
   const [open, setOpen] = React.useState(true)
   //  input
   const [value, setValue] = React.useState("")
-  React.useEffect(() => {
-    if (allowedValues.findIndex((item) => item.name == value) == -1) {
-      setTimeout(() => {
-        createNewOptionRef.current?.focus()
-      }, 200)
-    }
-  }, [allowedValues, value])
 
   return (
     <Popover open={open}>
@@ -90,7 +81,7 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
             // value={value}
             onValueChange={setValue}
           />
-          <div
+          <CommandList
             className={cn("max-h-[400px]", {
               "overflow-y-scroll": allowedValues.length * 32 > 400,
             })}
@@ -120,9 +111,9 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
                 allowedValues.findIndex((item) => item.name == value) == -1 && (
                   <CommandItem
                     key={value}
-                    ref={createNewOptionRef}
                     className="flex items-center gap-2"
                     value={value}
+                    autoFocus
                     onSelect={(currentValue) => {
                       handleSelect(currentValue)
                     }}
@@ -139,7 +130,7 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
                   </CommandItem>
                 )}
             </CommandGroup>
-          </div>
+          </CommandList>
         </Command>
       </PopoverContent>
     </Popover>
