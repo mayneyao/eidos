@@ -27,7 +27,7 @@ import { useExtensionSidebarStore } from "./stores/sidebar-store"
 
 // const CodeEditor = lazy(() => import("./editor/code-editor"))
 const SimpleCodeEditorWrapper = lazy(
-  () => import("./editor/simple-code-editor-wrapper")
+  () => import("./editor/code-editor-wrapper")
 )
 
 export const ExtensionDetailPage = () => {

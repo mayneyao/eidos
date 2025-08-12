@@ -1,19 +1,15 @@
+import { forwardRef, useCallback, useEffect, useMemo } from "react"
 import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
-import { SimpleCodeEditor, ESMImportResolverPlugin, TailwindCSSPlugin } from "@/packages/code-editor/src"
-import { twConfig } from "@/components/block-renderer/tailwind-config"
+  ESMImportResolverPlugin,
+  SimpleCodeEditor,
+  TailwindCSSPlugin,
+} from "@/packages/code-editor/src"
+import { FileType, type FileModel } from "@/packages/code-editor/src/types"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import {
   resolveLocalFileDependencies,
   type ResolvedFile,
 } from "@/packages/v3/code-tools/get-deps-file"
-import { DiffEditor } from "@monaco-editor/react"
 import { useNavigate } from "react-router-dom"
 import ts from "typescript/lib/typescript"
 
@@ -21,9 +17,40 @@ import { useAllScripts } from "@/hooks/use-all-scripts"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import { useSqlite } from "@/hooks/use-sqlite"
+import buttonRaw from "@/components/ui/button?raw"
+import { twConfig } from "@/components/block-renderer/tailwind-config"
 
 import { getDynamicPrompt } from "../helper"
 import { useEditorStore } from "../stores/editor-store"
+
+// import accordionDts from "./built-in-types/accordion.d.mts?raw"
+// import alertDialogDts from "./built-in-types/alert-dialog.d.mts?raw"
+// built-in dependencies
+// import buttonDts from "./built-in-types/button.d.mts?raw"
+// import cardDts from "./built-in-types/card.d.mts?raw"
+// import dropdownMenuDts from "./built-in-types/dropdown-menu.d.mts?raw"
+// import inputDts from "./built-in-types/input.d.mts?raw"
+// import navigationMenuDts from "./built-in-types/navigation-menu.d.mts?raw"
+// import popoverDts from "./built-in-types/popover.d.mts?raw"
+
+// const builtInDependencies: FileModel[] = [
+//   {
+//     id: "button",
+//     name: "button",
+//     path: "components/ui/button.tsx",
+//     content: buttonDts,
+//     language: "typescript",
+//     type: FileType.File,
+//   },
+//   {
+//     id: "alert-dialog",
+//     name: "alert-dialog",
+//     path: "components/ui/alert-dialog.tsx",
+//     content: alertDialogDts,
+//     language: "typescript",
+//     type: FileType.File,
+//   },
+// ]
 
 function compile(source: string) {
   const result = ts.transpileModule(source, {
@@ -76,9 +103,20 @@ export const SimpleCodeEditorWrapper = forwardRef(
           detail: script.description,
           documentation: script.description,
         }))
-      
+
+      // if currentExtension is a block, addd @/components/ui/*
+      if (currentExtension?.type === "block") {
+        suggestions.push({
+          label: "@/components/ui/button",
+          insertText: "@/components/ui/button",
+          detail: "Tailwind CSS components",
+          documentation: "Tailwind CSS components",
+        })
+      }
       // Create a stable hash to avoid recreating when content is the same
-      const suggestionHash = suggestions.map(s => `${s.label}:${s.insertText}`).join('|')
+      const suggestionHash = suggestions
+        .map((s) => `${s.label}:${s.insertText}`)
+        .join("|")
       return { suggestions, hash: suggestionHash }
     }, [allScripts, scriptId])
 
@@ -96,7 +134,14 @@ export const SimpleCodeEditorWrapper = forwardRef(
         content: string
         ext: "ts" | "tsx"
       } | null> => {
-        const res = await sqlite?.extension.getExtensionBySlug(slug)
+        console.warn({ slug })
+        // fetch from local file
+        let _slug = slug
+        if (slug.startsWith("@/components/ui")) {
+          _slug = slug.replace("@/components/ui", "components/ui")
+        }
+        const res = await sqlite?.extension.getExtensionBySlug(_slug)
+        console.warn({ res, slug, _slug })
         if (!res) {
           return null
         }
@@ -164,6 +209,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
           ext,
           getExtensionBySlug
         )
+        console.warn({ deps })
         return deps
       },
       [scriptId, ext, getExtensionBySlug]
@@ -264,22 +310,27 @@ export const SimpleCodeEditorWrapper = forwardRef(
           theme={theme}
           getDeps={getDepsWithTypes}
           onJump={jumpToExtension}
+          // builtInDependencies={builtInDependencies}
         >
           {/* ESM Import Resolver Plugin with dynamic configuration */}
           <ESMImportResolverPlugin
             enableAutoTypeResolution={true}
             customImportSuggestions={stableSuggestions}
+            enableAutoPackageDownload={true}
+            downloadProductionOnly={true}
+            downloadWithTypes={true}
+            esmServerUrl="https://esm.sh"
           />
           {/* Tailwind CSS Autocomplete Plugin with custom configuration */}
-          <TailwindCSSPlugin 
+          <TailwindCSSPlugin
             enabled={true}
             tailwindConfig={twConfig as any} // Type assertion for Tailwind config compatibility
             customClasses={[
               // Add any additional custom classes specific to your project
-              'custom-gradient',
-              'hero-section',
-              'card-hover',
-              'animate-fade-in'
+              "custom-gradient",
+              "hero-section",
+              "card-hover",
+              "animate-fade-in",
             ]}
           />
         </SimpleCodeEditor>

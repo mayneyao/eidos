@@ -125,6 +125,10 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
     proxy: {
+      "/compiled-ui/": {
+        target: "http://localhost:13127",
+        changeOrigin: true,
+      },
       "/api/chat": "http://localhost:13127",
       '^/[^/]+/files/': {
         target: 'http://localhost:13127',
