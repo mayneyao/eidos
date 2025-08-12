@@ -316,10 +316,6 @@ export const SimpleCodeEditorWrapper = forwardRef(
           <ESMImportResolverPlugin
             enableAutoTypeResolution={true}
             customImportSuggestions={stableSuggestions}
-            enableAutoPackageDownload={true}
-            downloadProductionOnly={true}
-            downloadWithTypes={true}
-            esmServerUrl="https://esm.sh"
           />
           {/* Tailwind CSS Autocomplete Plugin with custom configuration */}
           <TailwindCSSPlugin

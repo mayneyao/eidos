@@ -80,6 +80,9 @@ export interface PackageMetadata {
   /** Whether it's a relative import */
   isRelative: boolean
 
+  /** Whether it's a local path mapping */
+  isLocalPathMapping: boolean
+
   /** Package scope (for scoped packages) */
   scope?: string
 }
@@ -106,7 +109,8 @@ export class URLResolver implements URLResolverService {
     version: /^(.+?)@(.+)$/,
     relative: /^\.{1,2}\//,
     absolute: /^[/\\]/,
-    nodePrefix: /^node:/
+    nodePrefix: /^node:/,
+    localPathMapping: /^[@~]\//
   }
 
   /**
@@ -186,7 +190,7 @@ export class URLResolver implements URLResolverService {
     const metadata = this.getPackageMetadata(importPath)
 
     // Don't resolve relative imports
-    if (metadata.isRelative) {
+    if (metadata.isRelative || metadata.isLocalPathMapping) {
       return false
     }
 
@@ -213,7 +217,8 @@ export class URLResolver implements URLResolverService {
       name: '',
       isScoped: false,
       isNodeBuiltin: false,
-      isRelative: this.patterns.relative.test(importPath)
+      isRelative: this.patterns.relative.test(importPath),
+      isLocalPathMapping: this.patterns.localPathMapping.test(importPath)
     }
 
     // Handle relative imports

@@ -110,7 +110,7 @@ export class ESMImportResolverPlugin implements EditorPlugin {
           }
         }
       )
-      
+
       // Track both locally and globally
       this.disposables.push(completionProvider)
       globalESMDisposables.push(completionProvider)
@@ -125,7 +125,7 @@ export class ESMImportResolverPlugin implements EditorPlugin {
           }
         }
       )
-      
+
       // Track both locally and globally
       this.disposables.push(hoverProvider)
       globalESMDisposables.push(hoverProvider)
@@ -140,7 +140,7 @@ export class ESMImportResolverPlugin implements EditorPlugin {
           }
         }
       )
-      
+
       // Track both locally and globally
       this.disposables.push(codeActionProvider)
       globalESMDisposables.push(codeActionProvider)
@@ -166,12 +166,12 @@ export class ESMImportResolverPlugin implements EditorPlugin {
 
     // Store reference to disposables before clearing
     const disposablesToRemove = [...this.disposables]
-    
+
     // Remove from global tracking
-    globalESMDisposables = globalESMDisposables.filter(disposable => 
+    globalESMDisposables = globalESMDisposables.filter(disposable =>
       !disposablesToRemove.includes(disposable)
     )
-    
+
     // Dispose local disposables
     disposablesToRemove.forEach(disposable => disposable.dispose())
     this.disposables = []
@@ -347,7 +347,7 @@ export class ESMImportResolverPlugin implements EditorPlugin {
       }
     ]
 
-    if (!metadata.isNodeBuiltin && !metadata.isRelative) {
+    if (!metadata.isNodeBuiltin && !metadata.isRelative && !metadata.isLocalPathMapping) {
       contents.push({
         value: `**Type:** Third-party package`
       })

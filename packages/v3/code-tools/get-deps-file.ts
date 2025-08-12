@@ -81,7 +81,7 @@ function getLocalImportsFromCode(code: string): string[] {
  * Check if an import path is a local file import
  */
 function isLocalImport(importPath: string): boolean {
-    return importPath.startsWith('./') || importPath.startsWith('../');
+    return importPath.startsWith('./') || importPath.startsWith('../') || importPath.startsWith('@/') || importPath.startsWith('~/')
 }
 
 /**

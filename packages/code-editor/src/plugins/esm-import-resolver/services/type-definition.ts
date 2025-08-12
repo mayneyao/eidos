@@ -507,20 +507,20 @@ export function createHash(algorithm: string): Hash;`
       }
 
       // For esm.sh URLs, try to get types directly by adding ?dts query parameter
-      if (packageUrl.includes('esm.sh')) {
-        const dtsUrl = `${packageUrl}?dts`
-        console.log(`📝 Trying esm.sh dts URL: ${dtsUrl}`)
+      // if (packageUrl.includes('esm.sh')) {
+      //   const dtsUrl = `${packageUrl}?dts`
+      //   console.log(`📝 Trying esm.sh dts URL: ${dtsUrl}`)
 
-        try {
-          const dtsResponse = await this.httpClient.fetch(dtsUrl, { timeout: 5000 })
-          if (dtsResponse.ok && dtsResponse.body.includes('declare')) {
-            console.log(`✅ Found types at esm.sh dts URL: ${dtsUrl}`)
-            return dtsUrl
-          }
-        } catch (dtsError) {
-          console.log(`❌ esm.sh dts URL failed: ${dtsError}`)
-        }
-      }
+      //   try {
+      //     const dtsResponse = await this.httpClient.fetch(dtsUrl, { timeout: 5000 })
+      //     if (dtsResponse.ok && dtsResponse.body.includes('declare')) {
+      //       console.log(`✅ Found types at esm.sh dts URL: ${dtsUrl}`)
+      //       return dtsUrl
+      //     }
+      //   } catch (dtsError) {
+      //     console.log(`❌ esm.sh dts URL failed: ${dtsError}`)
+      //   }
+      // }
 
       // Try to get the X-TypeScript-Types header from the package URL
       try {
