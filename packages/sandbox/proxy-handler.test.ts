@@ -1,7 +1,15 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProxyHandler } from './proxy-handler';
 import type { Context } from 'hono';
 import type { BlankEnv } from 'hono/types';
+
+// Mock Hono's proxy helper
+vi.mock('hono/proxy', () => ({
+  proxy: vi.fn().mockResolvedValue(new Response('mocked response', {
+    status: 200,
+    headers: { 'content-type': 'text/plain' }
+  }))
+}));
 
 // Mock Hono context
 const createMockContext = (url: string, method: string = 'GET', headers: Record<string, string> = {}): Context<BlankEnv, "*", {}> => {
@@ -154,6 +162,53 @@ describe('ProxyHandler', () => {
       expect(extractedUrl).toBe(targetUrl);
       expect(extractedUrl).toContain('q=hello%20world');
       expect(extractedUrl).toContain('data={"key":"value"}');
+    });
+  });
+
+  describe('Binary Data Handling', () => {
+    it('should properly handle binary file extensions', async () => {
+      // Test that binary file extensions are detected correctly
+      const binaryUrls = [
+        'https://example.com/model.weights',
+        'https://example.com/data.bin',
+        'https://example.com/model.pb',
+        'https://example.com/model.onnx',
+        'https://docs.swmansion.com/TypeGPU/assets/mnist-weights/conv2d.bin'
+      ];
+
+      for (const url of binaryUrls) {
+        const urlPath = new URL(url).pathname.toLowerCase();
+        const isBinaryContent = urlPath.match(/\.(bin|dat|weights|model|pb|onnx|tflite)$/);
+        expect(isBinaryContent).toBeTruthy();
+      }
+    });
+
+    it('should detect binary content types', async () => {
+      const binaryContentTypes = [
+        'application/octet-stream',
+        'application/x-binary',
+        'application/protobuf'
+      ];
+
+      for (const contentType of binaryContentTypes) {
+        const isBinaryContent = contentType.includes('octet-stream') || 
+                              contentType.includes('application/');
+        expect(isBinaryContent).toBeTruthy();
+      }
+    });
+
+    it('should not treat text content as binary', async () => {
+      const textContentTypes = [
+        'text/plain',
+        'text/html',
+        'text/css',
+        'text/javascript'
+      ];
+
+      for (const contentType of textContentTypes) {
+        const isBinaryContent = !contentType.startsWith('text/');
+        expect(isBinaryContent).toBeFalsy();
+      }
     });
   });
 

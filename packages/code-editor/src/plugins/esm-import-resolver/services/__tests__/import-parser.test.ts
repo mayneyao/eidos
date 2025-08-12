@@ -93,6 +93,23 @@ describe('ImportParser', () => {
       })
     })
 
+    it('should handle internal path mappings', async () => {
+      const code = `
+        import { Button } from '@/components/ui'
+        import { utils } from '@/lib/utils'
+        import { assets } from '~/assets/images'
+        import config from '@/config'
+      `
+      
+      const imports = await parser.parseImports(code, 'test.ts')
+      
+      expect(imports).toHaveLength(4)
+      imports.forEach(imp => {
+        expect(imp.isThirdParty).toBe(false) // Should NOT be considered third-party
+        expect(parser.isPathMapping(imp.source)).toBe(true) // Should be identified as path mapping
+      })
+    })
+
     it('should handle empty or invalid code gracefully', async () => {
       const emptyImports = await parser.parseImports('', 'test.ts')
       expect(emptyImports).toHaveLength(0)
@@ -182,6 +199,28 @@ describe('ImportParser', () => {
       expect(parser.isRelativeImport('react')).toBe(false)
       expect(parser.isRelativeImport('@babel/core')).toBe(false)
       expect(parser.isRelativeImport('/absolute/path')).toBe(false)
+    })
+  })
+
+  describe('isPathMapping', () => {
+    it('should identify internal path mappings correctly', () => {
+      // @ prefix mappings
+      expect(parser.isPathMapping('@/components/ui')).toBe(true)
+      expect(parser.isPathMapping('@/lib/utils')).toBe(true)
+      expect(parser.isPathMapping('@/config')).toBe(true)
+      
+      // ~ prefix mappings
+      expect(parser.isPathMapping('~/assets/images')).toBe(true)
+      expect(parser.isPathMapping('~/styles/globals.css')).toBe(true)
+      
+      // Should NOT match scoped packages (these start with @scope/package)
+      expect(parser.isPathMapping('@babel/core')).toBe(false)
+      expect(parser.isPathMapping('@excalidraw/excalidraw')).toBe(false)
+      
+      // Should NOT match other imports
+      expect(parser.isPathMapping('react')).toBe(false)
+      expect(parser.isPathMapping('./utils')).toBe(false)
+      expect(parser.isPathMapping('/absolute/path')).toBe(false)
     })
   })
 
