@@ -125,12 +125,12 @@ export class TailwindCSSPlugin implements EditorPlugin {
   private generateClassList(): void {
     // Start with default Tailwind classes
     const baseClasses = [...TAILWIND_CLASSES]
-    
+
     // Add custom classes if provided
     if (this.config.customClasses) {
       baseClasses.push(...this.config.customClasses)
     }
-    
+
     // Generate classes from Tailwind config if provided
     if (this.config.tailwindConfig) {
       const generatedFromConfig = generateTailwindClasses(
@@ -143,10 +143,10 @@ export class TailwindCSSPlugin implements EditorPlugin {
       const generatedFromDefault = generateTailwindClasses(DEFAULT_TAILWIND_CONFIG, [])
       baseClasses.push(...generatedFromDefault)
     }
-    
+
     // Remove duplicates and sort
     this.generatedClasses = [...new Set(baseClasses)].sort()
-    
+
     console.log(`🎨 Generated ${this.generatedClasses.length} Tailwind classes for [${this.instanceId}]`)
   }
 
@@ -179,7 +179,7 @@ export class TailwindCSSPlugin implements EditorPlugin {
 
       // Register completion provider for Tailwind CSS classes
       const completionProvider = monaco.languages.registerCompletionItemProvider(
-        ['typescript', 'javascript', 'javascriptreact', 'typescriptreact'],
+        ['typescript'],
         {
           triggerCharacters: ['"', "'", ' ', '-'],
           provideCompletionItems: (model, position) => {
@@ -187,7 +187,7 @@ export class TailwindCSSPlugin implements EditorPlugin {
           }
         }
       )
-      
+
       // Track both locally and globally
       this.disposables.push(completionProvider)
       globalTailwindDisposables.push(completionProvider)
@@ -204,20 +204,20 @@ export class TailwindCSSPlugin implements EditorPlugin {
   dispose(): void {
     // Store reference to disposables before clearing
     const disposablesToRemove = [...this.disposables]
-    
+
     this.disposables.forEach(disposable => disposable.dispose())
     this.disposables = []
     this.enabled = false
-    
+
     // Update global state - remove this instance's disposables from global tracking
-    globalTailwindDisposables = globalTailwindDisposables.filter(disposable => 
+    globalTailwindDisposables = globalTailwindDisposables.filter(disposable =>
       !disposablesToRemove.includes(disposable)
     )
-    
+
     if (globalTailwindDisposables.length === 0) {
       globalTailwindProviderRegistered = false
     }
-    
+
     console.log(`🗑️ ${this.name} [${this.instanceId}] disposed`)
   }
 
@@ -255,26 +255,20 @@ export class TailwindCSSPlugin implements EditorPlugin {
     const lastSpaceIndex = currentClasses.lastIndexOf(' ')
     const currentClass = lastSpaceIndex >= 0 ? currentClasses.substring(lastSpaceIndex + 1) : currentClasses
 
-    // Filter generated Tailwind classes based on current input
-    const suggestions = this.generatedClasses
-      .filter(className => {
-        if (!currentClass) return true
-        return className.toLowerCase().includes(currentClass.toLowerCase())
-      })
-      .slice(0, 50) // Limit suggestions to avoid performance issues
-      .map(className => ({
-        label: className,
-        kind: monaco.languages.CompletionItemKind.Keyword,
-        insertText: className,
-        detail: 'Tailwind CSS',
-        documentation: this.getClassDocumentation(className),
-        range: {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: position.column - currentClass.length,
-          endColumn: position.column,
-        }
-      }))
+    // Return all Tailwind classes and let Monaco handle the filtering and sorting
+    const suggestions = this.generatedClasses.map(className => ({
+      label: className,
+      kind: monaco.languages.CompletionItemKind.Keyword,
+      insertText: className,
+      detail: 'Tailwind CSS',
+      documentation: this.getClassDocumentation(className),
+      range: {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: position.column - currentClass.length,
+        endColumn: position.column,
+      }
+    }))
 
     return {
       suggestions
@@ -293,54 +287,54 @@ export class TailwindCSSPlugin implements EditorPlugin {
         return `Text color: ${className}`
       }
     }
-    
+
     if (className.startsWith('bg-')) {
       return `Background color: ${className}`
     }
-    
-    if (className.startsWith('p-') || className.startsWith('px-') || className.startsWith('py-') || 
-        className.startsWith('pt-') || className.startsWith('pr-') || className.startsWith('pb-') || className.startsWith('pl-')) {
+
+    if (className.startsWith('p-') || className.startsWith('px-') || className.startsWith('py-') ||
+      className.startsWith('pt-') || className.startsWith('pr-') || className.startsWith('pb-') || className.startsWith('pl-')) {
       return `Padding: ${className}`
     }
-    
-    if (className.startsWith('m-') || className.startsWith('mx-') || className.startsWith('my-') || 
-        className.startsWith('mt-') || className.startsWith('mr-') || className.startsWith('mb-') || className.startsWith('ml-')) {
+
+    if (className.startsWith('m-') || className.startsWith('mx-') || className.startsWith('my-') ||
+      className.startsWith('mt-') || className.startsWith('mr-') || className.startsWith('mb-') || className.startsWith('ml-')) {
       return `Margin: ${className}`
     }
-    
+
     if (className.startsWith('w-')) {
       return `Width: ${className}`
     }
-    
+
     if (className.startsWith('h-')) {
       return `Height: ${className}`
     }
-    
+
     if (className.startsWith('flex')) {
       return `Flexbox: ${className}`
     }
-    
+
     if (className.startsWith('grid')) {
       return `Grid: ${className}`
     }
-    
+
     if (className.startsWith('border')) {
       return `Border: ${className}`
     }
-    
+
     if (className.startsWith('rounded')) {
       return `Border radius: ${className}`
     }
-    
+
     if (className.startsWith('shadow')) {
       return `Box shadow: ${className}`
     }
-    
+
     // Check if it's a custom class
     if (this.config.customClasses?.includes(className)) {
       return `Custom class: ${className}`
     }
-    
+
     return `Tailwind CSS class: ${className}`
   }
 }
