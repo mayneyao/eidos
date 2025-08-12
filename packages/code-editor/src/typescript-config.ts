@@ -76,6 +76,10 @@ export function configureTypeScriptLanguage(
     strict: false, // Less strict for better development experience
     noImplicitAny: false,
     baseUrl: "file:///",
+    paths: {
+      "@/*": ["file:///*"],
+      "@/components/ui/*": ["file:///components/ui/*"],
+    },
     moduleResolution: monacoInstance.languages.typescript.ModuleResolutionKind.NodeJs,
     module: monacoInstance.languages.typescript.ModuleKind.ESNext,
     esModuleInterop: true,
