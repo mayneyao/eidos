@@ -1,7 +1,7 @@
-import type { DatePickerCell } from "@/components/table/views/grid/cells/date-picker-cell"
 
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
+import type { DatePickerCell } from "./interface"
 
 type DateProperty = {}
 

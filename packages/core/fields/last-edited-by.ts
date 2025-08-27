@@ -1,8 +1,8 @@
-import type { UserProfileCell } from "@/components/table/views/grid/cells/user-profile-cell"
 
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
 import type { UserFieldContext } from "./created-by"
+import type { UserProfileCell } from "./interface"
 
 type LastEditedByProperty = {}
 

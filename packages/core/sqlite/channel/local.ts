@@ -1,5 +1,4 @@
-import { toast } from "@/components/ui/use-toast"
-import { MsgType } from "@/packages/lib/const"
+import { MsgType } from "@/lib/const"
 import type { IpcRenderer } from 'electron';
 
 export interface ISqlite<T, D> {
@@ -76,11 +75,8 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
         const { id: returnId, type, data } = e.data
         switch (type) {
           case MsgType.Error:
-            toast({
-              title: "Error",
-              description: data.message,
-              duration: 5000,
-            })
+            // Log error instead of showing toast - core package shouldn't handle UI notifications
+            console.error("SQLite operation failed:", data.message)
             break
           case MsgType.DataUpdateSignal:
             console.log("data update signal", e)

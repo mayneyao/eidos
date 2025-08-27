@@ -2,7 +2,12 @@
   "compilerOptions": {
     "target": "ESNext",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable",
+      "WebWorker"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     "allowJs": true,
@@ -21,13 +26,27 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/locales/*": ["./packages/locales/*"],
-      "@/worker/*": ["./packages/worker/*"],
-      "@/lib/*": ["./packages/lib/*"],
-      "@/components/*": ["./apps/web-app/components/*"],
-      "@/hooks/*": ["./apps/web-app/hooks/*"],
-      "@/styles/*": ["./apps/web-app/styles/*"],
-      "@/*": ["./*"]
+      "@/locales/*": [
+        "./packages/locales/*"
+      ],
+      "@/worker/*": [
+        "./packages/worker/*"
+      ],
+      "@/lib/*": [
+        "./packages/lib/*"
+      ],
+      "@/components/*": [
+        "./apps/web-app/components/*"
+      ],
+      "@/hooks/*": [
+        "./apps/web-app/hooks/*"
+      ],
+      "@/styles/*": [
+        "./apps/web-app/styles/*"
+      ],
+      "@/*": [
+        "./*"
+      ]
     },
     "types": [
       "vite-plugin-pwa/react",
@@ -39,16 +58,6 @@
   },
   "include": [
     "**/*.wasm",
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.js",
-    "prettier.config.cjs",
-    "apps/web-app/rag.jsx",
-    "scripts/version.cjs",
-    "scripts/build-cf-worker.cjs",
-    "scripts/notarize.cjs",
-    "apps/web-app/postcss.config.mjs",
-    "apps/web-app/tailwind.config.mjs",
     "packages/shared/types/**/*.d.ts"
   ],
   "exclude": [
@@ -63,27 +72,4 @@
     "**/dev-dist/**",
     "**/dist-electron/**"
   ],
-  "references": [
-    {
-      "path": "./tsconfig.node.json"
-    },
-    {
-      "path": "./packages/core"
-    },
-    {
-      "path": "./packages/lib"
-    },
-    {
-      "path": "./packages/v3"
-    },
-    {
-      "path": "./packages/ai"
-    },
-    {
-      "path": "./apps/web-app"
-    },
-    {
-      "path": "./apps/desktop"
-    }
-  ]
 }

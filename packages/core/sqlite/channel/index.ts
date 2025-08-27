@@ -8,8 +8,8 @@ import { buildSql } from "../helper"
 import type { IQuery, ISqlite } from "../interface"
 import { getWorker } from "../worker"
 import { RemoteSqlite } from "./webrtc"
-import { MsgType } from "@/packages/lib/const"
-import { isDesktopMode, isInkServiceMode } from "@/packages/lib/env"
+import { MsgType } from "@/lib/const"
+import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { uuidv7 } from "uuidv7"
 
 

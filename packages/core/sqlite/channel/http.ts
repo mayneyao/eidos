@@ -1,4 +1,4 @@
-import type { MsgType } from "@/packages/lib/const"
+import type { MsgType } from "@/lib/const"
 
 import type { ISqlite } from "../interface"
 

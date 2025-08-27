@@ -1,22 +1,23 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "composite": true,
     "outDir": "./dist",
-    "rootDir": ".",
     "declaration": true,
     "declarationMap": true,
     "noEmit": false,
-    "emitDeclarationOnly": true
-  },
-  "include": ["./**/*.ts", "./**/*.tsx"],
-  "exclude": ["node_modules", "dist"],
-  "references": [
-    {
-      "path": "../shared"
+    "emitDeclarationOnly": true,
+    "paths": {
+      "@/lib/*": [
+        "../lib/*"
+      ]
     },
-    {
-      "path": "../lib"
-    }
+    "baseUrl": "."
+  },
+  "include": [
+    "./**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
   ]
 }

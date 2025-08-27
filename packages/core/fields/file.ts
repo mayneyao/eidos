@@ -1,9 +1,9 @@
-import type { FileCell } from "@/components/table/views/grid/cells/file/file-cell"
-import { getFilePreviewImage, getFileType } from "@/packages/lib/mime/mime"
+import { getFilePreviewImage, getFileType } from "@/lib/mime/mime"
 
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
 import { EIDOS_PROXY_URL } from "@/lib/const"
+import type { FileCell } from "./interface"
 
 export type FileProperty = {
   proxyUrl?: string
