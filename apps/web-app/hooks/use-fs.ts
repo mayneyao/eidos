@@ -4,7 +4,7 @@ import { isDesktopMode } from "@/lib/env"
 import { useEffect } from 'react'
 
 interface FileSystemState {
-    efsManager: EidosFileSystemManager
+    efsManager: EidosFileSystemManager | null
 
     isLoading: boolean
 
@@ -47,7 +47,7 @@ interface FileSystemActions {
 type FileSystemStore = FileSystemState & FileSystemActions
 
 const initialState: FileSystemState = {
-    efsManager: new EidosFileSystemManager(),
+    efsManager: null,
     isLoading: false,
     error: null,
     currentPath: [],
@@ -109,17 +109,23 @@ export const useFileSystemStore = create<FileSystemStore>((set, get) => ({
     reset: () => set(initialState)
 }))
 
-export const useEidosFileSystemManager = () => {
-    const { efsManager, initializeFileSystem, isLoading, error } = useFileSystemStore()
 
+export const useEidosFileSystemInitialized = () => {
+    const { efsManager, initializeFileSystem, isLoading, error } = useFileSystemStore()
     useEffect(() => {
-        if (!isLoading && !error) {
+        if (!isLoading && !error && !efsManager) {
             initializeFileSystem()
         }
     }, [efsManager, isLoading, error, initializeFileSystem])
 
+}
+
+export const useEidosFileSystemManager = () => {
+    const { efsManager, initializeFileSystem, isLoading, error } = useFileSystemStore()
+
+    // useEidosFileSystemInitialized will call at layout.tsx, so we can use efsManager here
     return {
-        efsManager,
+        efsManager: efsManager as EidosFileSystemManager,
         isLoading,
         error,
         initializeFileSystem

@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { Outlet, useNavigate } from "react-router-dom"
 
+import { useEidosFileSystemInitialized } from "@/hooks/use-fs"
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
@@ -16,6 +17,7 @@ export default function DatabaseLayout() {
   const { isActivated } = useActivation()
 
   useLayoutInit()
+  useEidosFileSystemInitialized()
 
   useEffect(() => {
     if (!isActivated) {

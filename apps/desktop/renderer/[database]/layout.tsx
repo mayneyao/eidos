@@ -20,7 +20,10 @@ import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
+import {
+  useEidosFileSystemInitialized,
+  useEidosFileSystemManager,
+} from "@/apps/web-app/hooks/use-fs"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { ScriptBreadcrumb } from "@/apps/web-app/pages/[database]/extensions/components/extension-breadcrumb"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -48,7 +51,8 @@ export function DesktopSpaceLayout() {
   }, [space])
 
   useLayoutInit()
-  const { efsManager } = useEidosFileSystemManager()
+  useEidosFileSystemInitialized()
+  const { efsManager, isLoading, error } = useEidosFileSystemManager()
 
   const [rightPanelSize, setRightPanelSize] = useLocalStorageState<number>(
     "rightPanelSize",
@@ -78,6 +82,13 @@ export function DesktopSpaceLayout() {
     }
   }, [isActivated, navigate])
 
+  if (!efsManager || isLoading || error) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <Loading />
+      </div>
+    )
+  }
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">

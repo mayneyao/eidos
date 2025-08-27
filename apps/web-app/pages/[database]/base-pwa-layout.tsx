@@ -2,20 +2,20 @@
 
 import { Suspense, lazy } from "react"
 
-import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { FileManager } from "@/components/file-manager"
-import { Loading } from "@/components/loading"
-import { Nav } from "@/components/nav"
-import { ScriptContainer } from "@/components/script-container"
-import { SideBar } from "@/components/sidebar"
+import { cn } from "@/lib/utils"
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
+import { FileManager } from "@/components/file-manager"
+import { Loading } from "@/components/loading"
+import { Nav } from "@/components/nav"
+import { ScriptContainer } from "@/components/script-container"
+import { SideBar } from "@/components/sidebar"
+import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { cn } from "@/lib/utils"
 
 import { useSpaceAppStore } from "./store"
 
@@ -30,9 +30,17 @@ export function PWALayoutBase({
 }) {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
-  const { efsManager } = useEidosFileSystemManager()
+  const { efsManager, isLoading, error } = useEidosFileSystemManager()
   const { isRightPanelOpen, currentAppIndex, apps } = useSpaceAppStore()
   const currentApp = apps[currentAppIndex]
+
+  if (!efsManager || isLoading || error) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <Loading />
+      </div>
+    )
+  }
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
