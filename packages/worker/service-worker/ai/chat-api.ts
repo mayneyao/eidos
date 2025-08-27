@@ -1,6 +1,6 @@
 import { getProvider } from "@/packages/ai/helper";
-import type { LanguageModelV1, Message, Tool} from "@/packages/ai";
-import { appendClientMessage, appendResponseMessages, createDataStreamResponse, extractReasoningMiddleware, jsonSchema, smoothStream, streamText, wrapLanguageModel } from "@/packages/ai";
+import type { LanguageModelV1, Message, Tool } from "@/packages/ai/index";
+import { appendClientMessage, appendResponseMessages, createDataStreamResponse, extractReasoningMiddleware, jsonSchema, smoothStream, streamText, wrapLanguageModel } from "@/packages/ai/index";
 
 
 // import { queryEmbedding } from "../routes/lib"

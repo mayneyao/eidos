@@ -1,4 +1,3 @@
-import type { APIAgentFormValues } from "@/apps/web-app/pages/settings/api/store"
 import { MsgType } from "@/lib/const"
 import { EIDOS_VERSION, logger } from "@/lib/env"
 import { getConfig } from "@/lib/storage/indexeddb"
@@ -7,6 +6,7 @@ import type { DataSpace } from "../../core/DataSpace"
 import { initWs } from "./api-agent/ws"
 import { SqliteServer } from "./sqlite-wasm-server"
 import { workerStore } from "./store"
+import type { APIAgentFormValues } from "@/packages/shared/types/api-agent-form"
 
 // current DB
 let _dataspace: DataSpace | null = null

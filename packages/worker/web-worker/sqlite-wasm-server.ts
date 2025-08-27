@@ -5,7 +5,7 @@ import { logger } from "@/lib/env"
 
 import { EidosDataEventChannelName } from "@/lib/const"
 import type { BaseServerDatabase } from "@/packages/core/sqlite/interface"
-import { DataSpace } from "../../core/DataSpace"
+import { DataSpace } from "@/packages/core/DataSpace"
 import { ExtensionTableName } from "@/packages/core/sqlite/const"
 
 const log = logger.info

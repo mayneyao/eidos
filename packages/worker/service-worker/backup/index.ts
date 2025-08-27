@@ -4,9 +4,10 @@ import {
   efsManager,
 } from "@/lib/storage/eidos-file-system"
 import { getIndexedDBValue } from "@/lib/storage/indexeddb"
-import type { BackupServerFormValues } from "@/apps/web-app/pages/settings/backup/page"
 
 import { GithubBackupServer } from "./provider/github"
+import type { BackupServerFormValues } from "@/packages/shared/types/backup-form"
+
 
 declare var self: ServiceWorkerGlobalScope
 

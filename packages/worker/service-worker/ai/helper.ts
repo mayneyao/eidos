@@ -1,5 +1,5 @@
-import type { CoreAssistantMessage, CoreToolMessage, LanguageModelV1, UIMessage, CoreMessage } from '@/packages/ai';
-import { generateText } from '@/packages/ai';
+import type { CoreAssistantMessage, CoreToolMessage, LanguageModelV1, UIMessage, CoreMessage } from '@/packages/ai/index';
+import { generateText } from '@/packages/ai/index';
 
 
 // import { queryEmbedding } from "../routes/lib"
@@ -69,8 +69,15 @@ export async function saveMessages(messages: { messages: ChatMessage[] }, datasp
     }
 }
 
-
-export const combineAssistantMessage = (uiMessage: UIMessage, message: ResponseMessage) => {
+export const combineAssistantMessage = (
+    uiMessage: UIMessage,
+    message: ResponseMessage
+): {
+    id: string;
+    role: string;
+    content: any;
+    parts: any[];
+} => {
     if (uiMessage.role === 'assistant' && message.role === 'assistant') {
         return {
             id: uiMessage.id,

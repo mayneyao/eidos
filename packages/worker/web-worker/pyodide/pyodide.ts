@@ -1,10 +1,28 @@
-import type { IPythonScriptCallProps } from '@/components/script-container/helper';
 import type { PyodideInterface } from 'pyodide';
 import { loadPyodide } from 'pyodide';
 import type { PyProxy } from 'pyodide/ffi';
 
 
 declare const self: Worker
+
+
+export interface IPythonScriptCallProps {
+    input: Record<string, any>
+    context: {
+        tables: any
+        env: Record<string, any>
+        currentNodeId?: string | null
+        currentRowId?: string | null
+        currentViewId?: string | null
+        currentViewQuery?: string | null
+        callFromTableAction?: boolean
+    }
+    code: string
+    command: string
+    id: string
+    bindings?: Record<string, any>
+    dependencies?: string[]
+}
 
 interface PyodideMessage {
     type: 'PythonScriptCall' | 'PythonScriptInstall'

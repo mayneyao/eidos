@@ -1,13 +1,33 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "composite": true,
     "outDir": "./dist",
     "declaration": true,
     "declarationMap": true,
     "noEmit": false,
-    "emitDeclarationOnly": true
+    "baseUrl": ".",
+    "emitDeclarationOnly": true,
+    "paths": {
+      "@/lib/*": [
+        "../lib/*"
+      ],
+      "@/packages/core/*": [
+        "../core/*"
+      ],
+      "@/packages/ai/*": [
+        "../ai/*"
+      ],
+      "@/packages/shared/*": [
+        "../shared/*"
+      ]
+    }
   },
-  "include": ["./**/*.ts", "./**/*.tsx"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "./**/*.ts",
+    "./**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
