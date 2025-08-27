@@ -70,7 +70,7 @@ if (typeof window !== 'undefined' && isDesktopMode && !(window as any).__updateS
         }
     };
 
-    window.eidos?.on('update-status', (event, status: UpdateStatus, data?: any) => {
+    window.eidos?.on('update-status', (event: any, status: UpdateStatus, data?: any) => {
         handleUpdateStatus(status, data);
     });
 }

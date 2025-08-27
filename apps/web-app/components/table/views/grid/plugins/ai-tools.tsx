@@ -1,11 +1,9 @@
 import { useCallback, useContext, useState } from "react"
+import { generateText } from "@/packages/ai/generate"
 import type { IExtension } from "@/packages/core/types/IExtension"
+import type { IField } from "@/packages/core/types/IField"
 import type { DataEditorProps, GridSelection } from "@glideapps/glide-data-grid"
 
-import { generateText } from "@/packages/ai/generate"
-import type { IField } from "@/packages/core/types/IField"
-import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
-import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 import {
   Command,
   CommandEmpty,
@@ -14,9 +12,11 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
+import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 
-import { TableContext } from "../../../hooks"
 import { ScrollArea } from "../../../../ui/scroll-area"
+import { TableContext } from "../../../hooks"
 
 export const AITools = ({
   close,
@@ -36,7 +36,7 @@ export const AITools = ({
   const [customPrompt, setCustomPrompt] = useState<string>("")
   const [searchFieldName, setSearchFieldName] = useState<string>("")
   const [selectedPrompt, setSelectedPrompt] = useState<IExtension | null>(null)
-  const { getConfigByModel } = useAiConfig()
+  const { getConfigByModel, codingModel, textModel } = useAiConfig()
   const [step, setStep] = useState(0)
   const { space, tableName, viewId } = useContext(TableContext)
   const { updateCell } = useTableOperation(tableName, space)
@@ -71,14 +71,15 @@ export const AITools = ({
         if (selectedPrompt && selection.current) {
           const highlightRegions = getAIHighlightRegions(selectedField)
           setAIHighlightRegions(highlightRegions)
-          const { model, code } = selectedPrompt
+          const { code } = selectedPrompt
+          const model = codingModel || textModel
+          const config = getConfigByModel(model)
           const field = getFieldByIndex(selection.current.range.x)
           const startIndex = selection.current.range.y
           const endIndex = startIndex + selection.current.range.height
           for (let i = startIndex; i < endIndex; i++) {
             const row = getRowByIndex(i)
             const input = row[field.table_column_name]
-            const config = getConfigByModel(model!)
             const needFixMessage = config.baseUrl?.includes("deepseek")
             if (!input) return
             const res = await generateText({

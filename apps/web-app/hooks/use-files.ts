@@ -93,6 +93,7 @@ export const useFileSystem = (rootDir?: FileSystemDirectoryHandle) => {
   }, [currentPath, setCurrentPath])
 
   const refresh = useCallback(async () => {
+    if (!efsManager) return
     const entries = await efsManager.listDir([...defaultPaths, ...currentPath])
     setEntries(entries)
   }, [efsManager, defaultPaths, currentPath, setEntries])
@@ -105,6 +106,9 @@ export const useFileSystem = (rootDir?: FileSystemDirectoryHandle) => {
     async (files: File[], useUuId: boolean = true) => {
       if (!sqlite) {
         throw new Error("add file failed, no sqlite instance")
+      }
+      if (!efsManager) {
+        throw new Error("add file failed, no efsManager instance")
       }
       const res: IFile[] = []
       for (const file of files) {
@@ -139,6 +143,9 @@ export const useFileSystem = (rootDir?: FileSystemDirectoryHandle) => {
 
   const addDir = useCallback(
     async (name: string) => {
+      if (!efsManager) {
+        throw new Error("add dir failed, no efsManager instance")
+      }
       await efsManager.addDir([...defaultPaths, ...currentPath], name)
       await refresh()
     },
@@ -171,6 +178,9 @@ export const useFileSystem = (rootDir?: FileSystemDirectoryHandle) => {
     ) => {
       if (!sqlite) {
         throw new Error("delete file failed, no sqlite instance")
+      }
+      if (!efsManager) {
+        throw new Error("delete file failed, no efsManager instance")
       }
       for (const { name, isDir } of names) {
         const paths = [...defaultPaths, ...currentPath, name]

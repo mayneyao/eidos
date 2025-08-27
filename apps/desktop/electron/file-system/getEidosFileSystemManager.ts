@@ -1,5 +1,6 @@
 import { EidosFileSystemManager } from '@/lib/storage/eidos-file-system';
 import { getOriginPrivateDirectory } from 'native-file-system-adapter';
+// @ts-ignore
 import nodeAdapter from 'native-file-system-adapter/src/adapters/node';
 import { getConfigManager } from '../config';
 

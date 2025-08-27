@@ -1,34 +1,19 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "composite": true,
     "outDir": "./dist",
-    "rootDir": ".",
     "declaration": true,
     "declarationMap": true,
     "noEmit": false,
     "emitDeclarationOnly": true,
-    "types": ["vite/client", "./electron/electron-env.d.ts"]
+    "types": [
+      "vite/client",
+      "@types/wicg-file-system-access"
+    ]
   },
-  "include": ["./**/*.ts", "./**/*.tsx"],
-  "references": [
-    {
-      "path": "../web-app"
-    },
-    {
-      "path": "../../packages/shared"
-    },
-    {
-      "path": "../../packages/core"
-    },
-    {
-      "path": "../../packages/lib"
-    },
-    {
-      "path": "../../packages/sync"
-    },
-    {
-      "path": "../../packages/sandbox"
-    }
+  "include": [
+    "./**/*.ts",
+    "./**/*.tsx",
+    "../../packages/shared/types/global.d.ts"
   ]
 }

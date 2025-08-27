@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react"
+import type { IBindings } from "@/packages/core/types/IExtension"
 import { makeSdkInjectScript } from "@/packages/sandbox/helper"
 import {
   generateImportMap,
@@ -34,7 +35,7 @@ interface BlockRendererProps {
   compiledCode: string
   blockId?: string
   env?: Record<string, string>
-  bindings?: Record<string, { type: "table"; value: string }>
+  bindings?: IBindings
   width?: string | number
   height?: string | number
   defaultProps?: Record<string, any>

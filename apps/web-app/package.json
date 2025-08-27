@@ -8,9 +8,11 @@
   "license": "ISC",
   "scripts": {
     "dev": "vite",
+    "preview": "vite preview",
     "build": "NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "generate-icons": "node scripts/generate-icons.cjs",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",
@@ -19,6 +21,7 @@
     "@types/d3": "^7.4.0",
     "@types/node": "^20.4.1",
     "@types/papaparse": "^5.3.7",
+    "@types/prismjs": "^1.26.5",
     "@types/react": "^18.2.14",
     "@types/react-dom": "^18.2.6",
     "@types/react-window": "^1.8.5",

@@ -1,22 +1,21 @@
 "use client"
 
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import type { Attachment, ChatRequestOptions, Message } from "ai"
 import { AnimatePresence } from "framer-motion"
-import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSWRConfig } from "swr"
 import { useWindowSize } from "usehooks-ts"
 
+import { useToast } from "@/components/ui/use-toast"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
-
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useMblock } from "@/apps/web-app/hooks/use-mblock"
 import { useRemixPrompt } from "@/apps/web-app/pages/[database]/extensions/hooks/use-remix-prompt"
 import { useEditorStore } from "@/apps/web-app/pages/[database]/extensions/stores/editor-store"
-import { useToast } from "@/components/ui/use-toast"
 
 import { getPromptByExtensionType } from "../ai-chat/hooks/use-system-prompt"
-import { Block, type UIBlock } from "./components/block"
+import type { UIBlock } from "./components/block"
 import { BlockStreamHandler } from "./components/block-stream-handler"
 import { PreviewMessage, ThinkingMessage } from "./components/message"
 import { MultimodalInput } from "./components/multimodal-input"
@@ -57,7 +56,10 @@ export function Chat({
     const basePrompt = getPromptByExtensionType(script?.type)
 
     getRemixPrompt(basePrompt, {
-      bindings: script?.bindings as Record<string, { type: "table"; value: string }>,
+      bindings: script?.bindings as Record<
+        string,
+        { type: "table"; value: string }
+      >,
       userCode: script?.ts_code || script?.code,
       useSdk: true,
       useUiGuide: true,
@@ -227,27 +229,6 @@ export function Chat({
           />
         </form>
       </div>
-
-      <AnimatePresence>
-        {block?.isVisible && (
-          <Block
-            chatId={id}
-            input={input}
-            setInput={setInput}
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-            stop={stop}
-            attachments={attachments}
-            setAttachments={setAttachments}
-            append={append}
-            block={block}
-            setBlock={setBlock}
-            messages={messages}
-            setMessages={setMessages}
-            votes={votes}
-          />
-        )}
-      </AnimatePresence>
 
       <BlockStreamHandler streamingData={streamingData} setBlock={setBlock} />
     </>

@@ -26,11 +26,7 @@ import {
 } from "@/components/ui/tooltip"
 
 import type { Document, Suggestion, Vote } from "../interface"
-import { DiffView } from "./diffview"
-import { DocumentSkeleton } from "./document-skeleton"
 import { CopyIcon, CrossIcon, DeltaIcon, RedoIcon, UndoIcon } from "./icons"
-import { PreviewMessage } from "./message"
-import { MultimodalInput } from "./multimodal-input"
 import { Toolbar } from "./toolbar"
 import { useScrollToBottom } from "./use-scroll-to-bottom"
 
@@ -286,51 +282,6 @@ export function Block({
               />
             )}
           </AnimatePresence>
-
-          <div className="flex flex-col h-full justify-between items-center gap-4">
-            <div
-              ref={messagesContainerRef}
-              className="flex flex-col gap-4 h-full items-center overflow-y-scroll px-4 pt-20"
-            >
-              {messages.map((message, index) => (
-                <PreviewMessage
-                  chatId={chatId}
-                  key={message.id}
-                  message={message}
-                  block={block}
-                  setBlock={setBlock}
-                  isLoading={isLoading && index === messages.length - 1}
-                  vote={
-                    votes
-                      ? votes.find((vote) => vote.messageId === message.id)
-                      : undefined
-                  }
-                />
-              ))}
-
-              <div
-                ref={messagesEndRef}
-                className="shrink-0 min-w-[24px] min-h-[24px]"
-              />
-            </div>
-
-            <form className="flex flex-row gap-2 relative items-end w-full px-4 pb-4">
-              <MultimodalInput
-                chatId={chatId}
-                input={input}
-                setInput={setInput}
-                handleSubmit={handleSubmit}
-                isLoading={isLoading}
-                stop={stop}
-                attachments={attachments}
-                setAttachments={setAttachments}
-                messages={messages}
-                append={append}
-                className="bg-background dark:bg-muted"
-                setMessages={setMessages}
-              />
-            </form>
-          </div>
         </motion.div>
       )}
 

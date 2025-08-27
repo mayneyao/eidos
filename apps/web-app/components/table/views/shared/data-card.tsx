@@ -23,6 +23,7 @@ interface DataCardProps {
   style?: React.CSSProperties
   properties?: IGalleryViewProperties
   showFields: IField[]
+  hiddenFields?: string[]
   tableId: string
   space: string
   uiColumnMap: Map<string, IField>

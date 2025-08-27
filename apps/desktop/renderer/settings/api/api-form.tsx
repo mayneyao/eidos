@@ -71,7 +71,7 @@ export function ApiForm() {
 
     const subscription = watch(async (value) => {
       if (value.url && typeof value.enabled !== "undefined") {
-        await window.eidos.config.set("apiAgentConfig", value)
+        await window.eidos.config.set("apiAgentConfig", value as any)
         toast({
           title: t("settings.api.settingsUpdated"),
         })

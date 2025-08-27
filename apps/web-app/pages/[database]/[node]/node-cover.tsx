@@ -88,7 +88,8 @@ export const NodeCover = (props: { node: ITreeNode }) => {
             blockId={block?.id ?? ""}
             code={block?.ts_code ?? ""}
             compiledCode={block?.code ?? ""}
-            env={block?.env_map}
+            // TODO: fix this, env has been removed
+            // env={block?.env_map}
             bindings={block?.bindings}
             width={size?.width}
             height={size?.height}

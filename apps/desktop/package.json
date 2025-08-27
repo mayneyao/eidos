@@ -13,7 +13,8 @@
     "dev": "cross-env EIDOS_SERVICE_MODE=desktop vite --mode desktop",
     "build": "shx rm -rf dist-electron && cross-env NODE_OPTIONS=--max-old-space-size=8192 EIDOS_SERVICE_MODE=desktop vite build --mode desktop",
     "package": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.json",
-    "package:dev": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.dev.json"
+    "package:dev": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.dev.json",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",

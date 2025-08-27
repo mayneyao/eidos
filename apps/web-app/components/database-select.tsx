@@ -111,7 +111,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
     const databaseName = slugifyDatabaseName
     if (databaseName) {
       setLoading(true)
-      if (file) {
+      if (file && spaceFileSystem) {
         await spaceFileSystem.import(databaseName, file)
       } else {
         await createSpace(databaseName, enableSync)

@@ -1,13 +1,13 @@
 "use client"
 
 import { memo, useMemo, useRef, useState } from "react"
+import { SelectField } from "@/packages/core/fields/select"
+import type { IField } from "@/packages/core/types/IField"
 import { useVirtualList } from "ahooks"
 import { Minimize, Plus } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useTranslation } from "react-i18next"
 
-import { SelectField } from "@/packages/core/fields/select"
-import type { IField } from "@/packages/core/types/IField"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -21,12 +21,11 @@ import { DataCard } from "@/components/table/views/shared/data-card"
 
 import type { IGalleryViewProperties } from "../gallery/properties"
 import { computeCardHeight } from "../gallery/utils"
-import type {
-  KanbanItem,
-  StatusCount} from "./hooks";
 import {
   NULL_STATUS,
   useKanbanItemOperations,
+  type KanbanItem,
+  type StatusCount,
 } from "./hooks"
 import type { IKanbanViewProperties } from "./properties"
 

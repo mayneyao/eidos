@@ -42,7 +42,7 @@ export const useEmbedSpace = () => {
     let progress = 0
     for (const docId of docIds) {
       console.log("docId", docId)
-      await em.createEmbedding(docId, "doc", "bge-m3", new BGEM3(embeddingTexts))
+      // await em.createEmbedding(docId, "doc", "bge-m3", new BGEM3(embeddingTexts))
       console.log("embeded", docId)
       progress++
       onProgress(progress / total * 100)

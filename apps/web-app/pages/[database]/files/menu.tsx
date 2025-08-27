@@ -1,4 +1,3 @@
-import { useAIConfigStore } from "@/apps/web-app/pages/settings/ai/store"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -9,6 +8,7 @@ import { useFileSystem } from "@/apps/web-app/hooks/use-files"
 import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useAIConfigStore } from "@/apps/web-app/pages/settings/ai/store"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
@@ -25,7 +25,7 @@ export function FileItemContextMenu({ children }: any) {
     selectedEntries.size === 1 ? selectedEntries.entries().next().value : null
 
   const isPdf = selectedEntry && selectedEntry[0].endsWith(".pdf")
-  const [name, isDir] = selectedEntry || [null, null]
+  const [name, isDir] = selectedEntry || ['', false]
   const handleRemove = () => {
     if (selectedEntry) {
       deleteFiles([

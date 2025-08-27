@@ -66,7 +66,8 @@ export const BlockApp = forwardRef<
       ref={ref}
       code={block?.ts_code ?? ""}
       compiledCode={block?.code ?? ""}
-      env={block?.env_map}
+      // TODO: fix this
+      // env={block?.env_map}
       bindings={block?.bindings}
       defaultProps={props}
       rerenderOnDefaultPropsChange={rerenderOnDefaultPropsChange}

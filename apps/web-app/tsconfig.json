@@ -1,7 +1,6 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "composite": true,
     "outDir": "./dist",
     "declaration": true,
     "declarationMap": true,
@@ -20,34 +19,5 @@
     "dist",
     "public/compiled-ui",
     "pages/[database]/extensions/hooks/templates"
-  ],
-  "references": [
-    {
-      "path": "../../packages/locales"
-    },
-    {
-      "path": "../../packages/shared"
-    },
-    {
-      "path": "../../packages/v3"
-    },
-    {
-      "path": "../../packages/ai"
-    },
-    {
-      "path": "../../packages/core"
-    },
-    {
-      "path": "../../packages/lib"
-    },
-    {
-      "path": "../../packages/worker"
-    },
-    {
-      "path": "../../packages/sandbox"
-    },
-    {
-      "path": "../../packages/code-editor"
-    }
   ]
 }

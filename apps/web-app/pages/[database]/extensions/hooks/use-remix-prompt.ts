@@ -6,9 +6,10 @@ import codePatching from "@/packages/ai/prompts/common/code-patching.md?raw"
 import uiGuide from "@/packages/ai/prompts/common/ui-guide.md?raw"
 import sdk from "@/packages/ai/prompts/common/sdk.md?raw"
 import type { DataSpace } from "@/packages/core/DataSpace"
+import type { IBindings } from "@/packages/core/types/IExtension"
 
 
-const getBindingsPrompt = async (bindings: Record<string, { type: "table", value: string }>, sqlite: DataSpace | null) => {
+const getBindingsPrompt = async (bindings: IBindings, sqlite: DataSpace | null) => {
     let bindingsPrompt = `
 If a table is named MY_TABLE, you can use \`eidos.currentSpace.MY_TABLE.rows.findMany\` to query the table directly.
 
@@ -34,7 +35,7 @@ export const useRemixPrompt = () => {
     const getRemixPrompt = useCallback(async (
         defaultPrompt: string,
         options?: {
-            bindings?: Record<string, { type: "table", value: string }>,
+            bindings?: IBindings,
             userCode?: string,
             useSdk?: boolean,
             useUiGuide?: boolean,

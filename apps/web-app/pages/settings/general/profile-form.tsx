@@ -3,13 +3,10 @@
 import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, X } from "lucide-react"
-import type { ControllerRenderProps} from "react-hook-form";
-import { useForm } from "react-hook-form"
+import { useForm, type ControllerRenderProps } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
-import { useActivationCodeStore } from "@/apps/web-app/hooks/use-activation"
-import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,6 +20,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
+import { useActivationCodeStore } from "@/apps/web-app/hooks/use-activation"
+import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 
 import { useConfigStore } from "../store"
 
@@ -95,7 +94,8 @@ export function ProfileForm() {
         multiple: false,
       })
       const file = await fileHandle.getFile()
-      const res = await efsManager.addFile(["static"], file)
+
+      const res = await efsManager?.addFile(["static"], file)
       if (!res) {
         throw new Error("Failed to upload avatar.")
       }
