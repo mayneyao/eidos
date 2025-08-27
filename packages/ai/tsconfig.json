@@ -1,13 +1,20 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "composite": true,
     "outDir": "./dist",
-    "rootDir": ".",
+    "baseUrl": ".",
     "declaration": true,
     "declarationMap": true,
     "noEmit": false,
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "paths": {
+      "@/lib/*": [
+        "../lib/*"
+      ],
+      "@/packages/core/*": [
+        "../core/*"
+      ]
+    }
   },
   "include": [
     "./**/*.ts",
@@ -16,13 +23,5 @@
   "exclude": [
     "node_modules",
     "dist"
-  ],
-  "references": [
-    {
-      "path": "../core"
-    },
-    {
-      "path": "../lib"
-    }
   ]
 }
