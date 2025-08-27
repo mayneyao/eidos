@@ -2,13 +2,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Editor, { DiffEditor } from "@monaco-editor/react"
 import * as monaco from "monaco-editor"
 
-import { syncEditorContentToVirtualFileSystem, getTypeScriptEditorOptions } from "../monaco-setup"
 import {
   createModelSafely,
   getDefaultEditorOptions,
-  setupMonacoModels,
+  getTypeScriptEditorOptions,
+  syncEditorContentToVirtualFileSystem,
 } from "../monaco-setup"
-
 import type { DynamicPluginManager } from "../plugins/dynamic-plugin-manager"
 import { FileType, type EditorRef, type FileModel } from "../types"
 import { createEditorDebounce } from "../utils/debounce"
@@ -243,7 +242,9 @@ export const EditorArea = ({
   // Helper function to get plugin manager (only use provided one, no fallback)
   const getActivePluginManager = useCallback(() => {
     if (!pluginManager) {
-      console.warn('No plugin manager provided to EditorArea, plugin features will be disabled')
+      console.warn(
+        "No plugin manager provided to EditorArea, plugin features will be disabled"
+      )
       return null
     }
     return pluginManager
@@ -380,7 +381,9 @@ export const EditorArea = ({
         try {
           const activePluginManager = getActivePluginManager()
           if (activePluginManager) {
-            const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
+            const esmPlugin = activePluginManager.getPlugin(
+              "esm-import-resolver"
+            )
             if (esmPlugin && esmPlugin.isEnabled()) {
               ;(esmPlugin as any).setupModelListeners(model)
               console.log(
@@ -459,7 +462,10 @@ export const EditorArea = ({
 
   // Common editor setup functions
   const setupKeyboardShortcuts = useCallback(
-    (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: typeof monaco) => {
+    (
+      editor: monaco.editor.IStandaloneCodeEditor,
+      monacoInstance: typeof monaco
+    ) => {
       editor.addAction({
         id: "format-document",
         label: "Format Document",
@@ -490,8 +496,10 @@ export const EditorArea = ({
   const setupDependencyContext = useCallback(
     (currentFileUri?: string) => {
       if (dependencies.length > 0) {
-        console.log(`🔧 Setting up ${dependencies.length} dependency models for editor type context`)
-        
+        console.log(
+          `🔧 Setting up ${dependencies.length} dependency models for editor type context`
+        )
+
         try {
           // Setup dependency models (reuse existing logic)
           setupDependencyModels(dependencies, currentFileUri, pluginManager)
@@ -531,7 +539,9 @@ export const EditorArea = ({
           const esmPlugin = activePluginManager.getPlugin("esm-import-resolver")
           if (esmPlugin && esmPlugin.isEnabled()) {
             ;(esmPlugin as any).setupModelListeners(model)
-            console.log(`🔌 Setup ESM plugin listeners for model: ${modelPath || model.uri.toString()}`)
+            console.log(
+              `🔌 Setup ESM plugin listeners for model: ${modelPath || model.uri.toString()}`
+            )
           }
         }
       } catch (pluginError) {
@@ -615,14 +625,17 @@ export const EditorArea = ({
 
   // Handle diff editor mount
   const handleDiffEditorMount = useCallback(
-    (editor: monaco.editor.IStandaloneDiffEditor, monacoInstance: typeof monaco) => {
+    (
+      editor: monaco.editor.IStandaloneDiffEditor,
+      monacoInstance: typeof monaco
+    ) => {
       console.log("🎯 Diff editor mounted")
       editorRef.current.editor = editor.getModifiedEditor()
       editorRef.current.layout = () => editor.layout()
 
       const modifiedEditor = editor.getModifiedEditor()
       const originalEditor = editor.getOriginalEditor()
-      
+
       // Setup keyboard shortcuts for the modified editor
       setupKeyboardShortcuts(modifiedEditor, monacoInstance)
 
@@ -636,7 +649,7 @@ export const EditorArea = ({
         const modifiedModel = modifiedEditor.getModel()
         const currentFileUris = [
           originalModel?.uri.toString(),
-          modifiedModel?.uri.toString()
+          modifiedModel?.uri.toString(),
         ].filter(Boolean)
 
         // Setup dependency context
@@ -655,7 +668,14 @@ export const EditorArea = ({
 
       setIsEditorReady(true)
     },
-    [currentFile, setupKeyboardShortcuts, setupChangeMonitoring, setupDependencyContext, setupPluginListeners, dependencies]
+    [
+      currentFile,
+      setupKeyboardShortcuts,
+      setupChangeMonitoring,
+      setupDependencyContext,
+      setupPluginListeners,
+      dependencies,
+    ]
   )
 
   // Setup save functionality and dynamic actions

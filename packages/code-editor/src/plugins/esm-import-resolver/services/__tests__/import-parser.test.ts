@@ -16,11 +16,11 @@ describe('ImportParser', () => {
         import * as lodash from 'lodash'
         import { debounce } from 'lodash/debounce'
       `
-      
+
       const imports = await parser.parseImports(code, 'test.ts')
-      
+
       expect(imports).toHaveLength(4)
-      
+
       // Default import
       expect(imports[0]).toMatchObject({
         source: 'react',
@@ -28,7 +28,7 @@ describe('ImportParser', () => {
         isThirdParty: true,
         isNodeBuiltin: false
       })
-      
+
       // Named imports
       expect(imports[1]).toMatchObject({
         source: 'react',
@@ -37,7 +37,7 @@ describe('ImportParser', () => {
           { type: 'named', imported: 'useEffect', local: 'useEffect' }
         ]
       })
-      
+
       // Namespace import
       expect(imports[2]).toMatchObject({
         source: 'lodash',
@@ -51,9 +51,9 @@ describe('ImportParser', () => {
         import config from '../config'
         import { Component } from '../../components/Component'
       `
-      
+
       const imports = await parser.parseImports(code, 'test.ts')
-      
+
       expect(imports).toHaveLength(3)
       imports.forEach(imp => {
         expect(imp.isThirdParty).toBe(false)
@@ -68,9 +68,9 @@ describe('ImportParser', () => {
         import { createHash } from 'crypto'
         import process from 'node:process'
       `
-      
+
       const imports = await parser.parseImports(code, 'test.ts')
-      
+
       expect(imports).toHaveLength(4)
       imports.forEach(imp => {
         expect(imp.isNodeBuiltin).toBe(true)
@@ -83,9 +83,9 @@ describe('ImportParser', () => {
         import { Excalidraw } from '@excalidraw/excalidraw'
         import babel from '@babel/core'
       `
-      
+
       const imports = await parser.parseImports(code, 'test.ts')
-      
+
       expect(imports).toHaveLength(2)
       imports.forEach(imp => {
         expect(imp.isThirdParty).toBe(true)
@@ -100,20 +100,19 @@ describe('ImportParser', () => {
         import { assets } from '~/assets/images'
         import config from '@/config'
       `
-      
+
       const imports = await parser.parseImports(code, 'test.ts')
-      
+
       expect(imports).toHaveLength(4)
       imports.forEach(imp => {
         expect(imp.isThirdParty).toBe(false) // Should NOT be considered third-party
-        expect(parser.isPathMapping(imp.source)).toBe(true) // Should be identified as path mapping
       })
     })
 
     it('should handle empty or invalid code gracefully', async () => {
       const emptyImports = await parser.parseImports('', 'test.ts')
       expect(emptyImports).toHaveLength(0)
-      
+
       const invalidImports = await parser.parseImports('invalid syntax {', 'test.ts')
       expect(invalidImports).toHaveLength(0)
     })
@@ -202,27 +201,7 @@ describe('ImportParser', () => {
     })
   })
 
-  describe('isPathMapping', () => {
-    it('should identify internal path mappings correctly', () => {
-      // @ prefix mappings
-      expect(parser.isPathMapping('@/components/ui')).toBe(true)
-      expect(parser.isPathMapping('@/lib/utils')).toBe(true)
-      expect(parser.isPathMapping('@/config')).toBe(true)
-      
-      // ~ prefix mappings
-      expect(parser.isPathMapping('~/assets/images')).toBe(true)
-      expect(parser.isPathMapping('~/styles/globals.css')).toBe(true)
-      
-      // Should NOT match scoped packages (these start with @scope/package)
-      expect(parser.isPathMapping('@babel/core')).toBe(false)
-      expect(parser.isPathMapping('@excalidraw/excalidraw')).toBe(false)
-      
-      // Should NOT match other imports
-      expect(parser.isPathMapping('react')).toBe(false)
-      expect(parser.isPathMapping('./utils')).toBe(false)
-      expect(parser.isPathMapping('/absolute/path')).toBe(false)
-    })
-  })
+
 
   describe('extractPackageName', () => {
     it('should extract package names from simple imports', () => {

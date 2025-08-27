@@ -4,7 +4,7 @@
 
 import { registerPlugin } from '../plugin-registry'
 import { TailwindCSSPlugin } from './index'
-import type { TailwindCSSPluginProps } from '../plugin-components'
+import type { TailwindCSSPluginProps } from './types'
 
 // Register the TailwindCSS plugin
 registerPlugin<TailwindCSSPluginProps>({
