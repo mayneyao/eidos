@@ -1,6 +1,14 @@
 import sdkInjectScript from "./sdk-inject-script.html?raw";
-import type { IBindings } from "@/packages/core/types/IExtension";
 
+export type BindingType = "table" | "secret" | "text"
+
+
+export type IBinding = {
+    type: BindingType
+    value: string
+}
+
+export type IBindings = Record<string, IBinding>
 
 export const makeSdkInjectScript = ({
     bindings,
