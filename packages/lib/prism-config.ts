@@ -1,6 +1,6 @@
 // @ts-ignore
 self.Prism = {
-  ...(self.Prism ?? {}),
+  ...((self as any).Prism ?? {}),
   disableWorkerMessageHandler: true,
 }
 

@@ -28,7 +28,6 @@ import {
 import type { Document, Suggestion, Vote } from "../interface"
 import { DiffView } from "./diffview"
 import { DocumentSkeleton } from "./document-skeleton"
-import { Editor } from "./editor"
 import { CopyIcon, CrossIcon, DeltaIcon, RedoIcon, UndoIcon } from "./icons"
 import { PreviewMessage } from "./message"
 import { MultimodalInput } from "./multimodal-input"
@@ -514,7 +513,7 @@ export function Block({
 
         <div className="prose dark:prose-invert dark:bg-muted bg-background h-full overflow-y-scroll px-4 py-8 md:p-20 !max-w-full pb-40 items-center">
           <div className="flex flex-row max-w-[600px] mx-auto">
-            {isDocumentsFetching && !block.content ? (
+            {/* {isDocumentsFetching && !block.content ? (
               <DocumentSkeleton />
             ) : mode === "edit" ? (
               <Editor
@@ -534,7 +533,7 @@ export function Block({
                 oldContent={getDocumentContentById(currentVersionIndex - 1)}
                 newContent={getDocumentContentById(currentVersionIndex)}
               />
-            )}
+            )} */}
 
             {suggestions ? (
               <div className="md:hidden h-dvh w-12 shrink-0" />

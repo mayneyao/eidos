@@ -36,7 +36,6 @@ import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { ThemeStudio } from "../theme-studio"
-import { ActionCommandItems } from "./action"
 // import { ExtensionCommandItems } from "./extension"
 import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
 import { NodeCommandItems } from "./nodes"

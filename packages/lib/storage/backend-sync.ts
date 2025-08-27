@@ -1,6 +1,6 @@
 import type { StateStorage } from "zustand/middleware"
 
-import { indexedDBStorage } from "@/lib/storage/indexeddb"
+import { indexedDBStorage } from "../storage/indexeddb"
 
 interface BackendSyncStorageOptions<T> {
     // The key used for backend configuration
