@@ -6,8 +6,43 @@ on:
       - "v*"
 
 jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20.18.0"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Download and extract libsimple
+        run: cd apps/desktop && node scripts/download-libsimple.cjs
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build frontend application
+        env:
+          NODE_OPTIONS: "--max_old_space_size=8192"
+        run: pnpm run build:desktop
+
+      - name: Upload frontend build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: |
+            apps/desktop/dist/
+            apps/desktop/dist-electron/
+          retention-days: 1
+
   build-windows:
     runs-on: windows-latest
+    needs: build-frontend
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -30,10 +65,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build application
-        env:
-          NODE_OPTIONS: "--max_old_space_size=8192"
-        run: pnpm run build:desktop
+      - name: Download frontend build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: apps/desktop/
 
       - name: Build without Signing
         run: pnpm run pkg:desktop
@@ -41,18 +77,15 @@ jobs:
       - name: List dist-app contents
         run: Get-ChildItem -Path apps/desktop/dist-app -Force
 
-      - name: Update Release (Windows)
-        uses: softprops/action-gh-release@v2
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
         with:
-          files: |
-            apps/desktop/dist-app/*.exe
-            apps/desktop/dist-app/*.zip
-            apps/desktop/dist-app/latest*.yml
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          name: windows-artifacts
+          path: apps/desktop/dist-app/
 
-  build-macos:
-    runs-on: macos-latest
+  build-macos-intel:
+    runs-on: macos-12
+    needs: build-frontend
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -77,12 +110,13 @@ jobs:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
 
-      - name: Build application
-        env:
-          NODE_OPTIONS: "--max_old_space_size=8192"
-        run: pnpm run build:desktop
+      - name: Download frontend build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: apps/desktop/
 
-      - name: Build and Sign
+      - name: Build and Sign (Intel)
         env:
           APPLEID: ${{ secrets.APPLE_ID }}
           APPLEIDPASS: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -91,21 +125,18 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
         run: pnpm run pkg:desktop
 
-      - name: List dist-app contents
+      - name: List dist-app contents (Intel)
         run: ls -la apps/desktop/dist-app
 
-      - name: Update Release (macOS)
-        uses: softprops/action-gh-release@v2
+      - name: Upload macOS Intel artifacts
+        uses: actions/upload-artifact@v4
         with:
-          files: |
-            apps/desktop/dist-app/*.dmg
-            apps/desktop/dist-app/*.zip
-            apps/desktop/dist-app/latest*.yml
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          name: macos-intel-artifacts
+          path: apps/desktop/dist-app/
 
-  build-linux:
-    runs-on: ubuntu-latest
+  build-macos-arm:
+    runs-on: macos-latest
+    needs: build-frontend
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -124,10 +155,62 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build application
+      - name: Import Code-Signing Certificates
+        uses: Apple-Actions/import-codesign-certs@v1
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+
+      - name: Download frontend build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: apps/desktop/
+
+      - name: Build and Sign (ARM)
         env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
-        run: pnpm run build:desktop
+          APPLEID: ${{ secrets.APPLE_ID }}
+          APPLEIDPASS: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLETEAMID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: pnpm run pkg:desktop
+
+      - name: List dist-app contents (ARM)
+        run: ls -la apps/desktop/dist-app
+
+      - name: Upload macOS ARM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm-artifacts
+          path: apps/desktop/dist-app/
+
+  build-linux:
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20.18.0"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Download and extract libsimple
+        run: cd apps/desktop && node scripts/download-libsimple.cjs
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Download frontend build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: apps/desktop/
 
       - name: Build AppImage
         run: pnpm run pkg:desktop
@@ -135,12 +218,50 @@ jobs:
       - name: List dist-app contents
         run: ls -la apps/desktop/dist-app
 
-      - name: Update Release (Linux)
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: apps/desktop/dist-app/
+
+  release:
+    needs: [build-windows, build-macos-intel, build-macos-arm, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: ./artifacts/windows/
+
+      - name: Download macOS Intel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-intel-artifacts
+          path: ./artifacts/macos-intel/
+
+      - name: Download macOS ARM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-arm-artifacts
+          path: ./artifacts/macos-arm/
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-artifacts
+          path: ./artifacts/linux/
+
+      - name: Update Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            apps/desktop/dist-app/*.AppImage
-            apps/desktop/dist-app/*.zip
-            apps/desktop/dist-app/latest*.yml
+            ./artifacts/windows/*
+            ./artifacts/macos-intel/*
+            ./artifacts/macos-arm/*
+            ./artifacts/linux/*
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}

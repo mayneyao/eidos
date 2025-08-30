@@ -48,20 +48,8 @@
     "afterSign": "scripts/notarize.cjs",
     "mac": {
         "target": [
-            {
-                "target": "dmg",
-                "arch": [
-                    "x64",
-                    "arm64"
-                ]
-            },
-            {
-                "target": "zip",
-                "arch": [
-                    "x64",
-                    "arm64"
-                ]
-            }
+            "dmg",
+            "zip"
         ],
         "icon": "dist/logo.icns",
         "hardenedRuntime": true,
