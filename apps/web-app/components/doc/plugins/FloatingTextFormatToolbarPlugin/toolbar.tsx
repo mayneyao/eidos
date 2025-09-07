@@ -2,14 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { TOGGLE_LINK_COMMAND } from "@lexical/link"
 import { mergeRegister } from "@lexical/utils"
 import { useKeyPress } from "ahooks"
-import type {
-  LexicalEditor} from "lexical";
 import {
   $getRoot,
   $getSelection,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
   SELECTION_CHANGE_COMMAND,
+  type LexicalEditor,
 } from "lexical"
 import {
   Baseline,
@@ -187,28 +186,6 @@ export function TextFormatFloatingToolbar({
     )
   }, [editor, updateTextFormatFloatingToolbar])
 
-  useEffect(() => {
-    editor.getEditorState().read(() => {
-      updateTextFormatFloatingToolbar()
-    })
-    return mergeRegister(
-      editor.registerUpdateListener(({ editorState }) => {
-        editorState.read(() => {
-          updateTextFormatFloatingToolbar()
-        })
-      }),
-
-      editor.registerCommand(
-        SELECTION_CHANGE_COMMAND,
-        () => {
-          updateTextFormatFloatingToolbar()
-          return false
-        },
-        COMMAND_PRIORITY_LOW
-      )
-    )
-  }, [editor, updateTextFormatFloatingToolbar])
-
   useKeyPress("alt.i", (e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -218,124 +195,115 @@ export function TextFormatFloatingToolbar({
   return (
     <div
       ref={popupCharStylesEditorRef}
-      className="floating-text-format-popup bg-slate-50 dark:bg-slate-700"
+      className="floating-text-format-popup bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-slate-200 dark:border-slate-700"
     >
       {editor.isEditable() && (
-        <>
-          <div
-            className={cn(
-              "mx-2 flex cursor-pointer items-center justify-center gap-1 px-2",
-              "border-r text-purple-500 hover:bg-secondary hover:text-purple-600"
-            )}
+        <div className="flex items-center gap-0.5 p-1">
+            <div
+              className={cn(
+                "flex cursor-pointer items-center justify-center gap-1 px-2 py-1.5 rounded-md",
+                "text-primary hover:bg-primary/10 transition-colors"
+              )}
             onMouseDownCapture={(e) => {
               e.preventDefault()
               e.stopPropagation()
               editor.dispatchCommand(INSERT_AI_COMMAND, content)
             }}
-            title="alt+i"
+            title="AI Tools (Alt+I)"
           >
-            <SparklesIcon className="h-4 w-4" /> AI
+            <SparklesIcon className="h-3.5 w-3.5" />
+            <span className="text-xs font-medium">AI</span>
           </div>
-          <Toggle
-            size="sm"
-            type="button"
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")
-            }}
-            pressed={isBold}
-            aria-label="Format text as bold"
-          >
-            <Bold className="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            size="sm"
-            type="button"
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")
-            }}
-            pressed={isItalic}
-            aria-label="Format text as italics"
-          >
-            <Italic className="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            size="sm"
-            type="button"
-            onClick={(e) => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline")
-            }}
-            pressed={isUnderline}
-            aria-label="Format text to underlined"
-          >
-            <Underline className="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            size="sm"
-            type="button"
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "strikethrough")
-            }}
-            pressed={isStrikethrough}
-            aria-label="Format text with a strikethrough"
-          >
-            <Strikethrough className="h-4 w-4" />
-          </Toggle>
-          {/* <Toggle
-            size="sm"
-            type="button"
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript")
-            }}
-            pressed={isSubscript}
-            title="Subscript"
-            aria-label="Format Subscript"
-          >
-            <Subscript className="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            size="sm"
-            type="button"
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "superscript")
-            }}
-            pressed={isSuperscript}
-            title="Superscript"
-            aria-label="Format Superscript"
-          >
-            <Superscript className="h-4 w-4" />
-          </Toggle> */}
-          <Toggle
-            size="sm"
-            type="button"
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code")
-            }}
-            pressed={isCode}
-            aria-label="Insert code block"
-          >
-            <Code className="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            size="sm"
-            type="button"
-            onClick={insertLink}
-            pressed={isLink}
-            aria-label="Insert link"
-          >
-            <Link className="h-4 w-4" />
-          </Toggle>
+
+          <div className="w-px h-4 bg-border mx-1" />
+
+          <div className="flex items-center gap-0.5">
+            <Toggle
+              size="sm"
+              type="button"
+              onClick={() => {
+                editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")
+              }}
+              pressed={isBold}
+              aria-label="Bold"
+              className="h-7 w-7 p-0"
+            >
+              <Bold className="h-3.5 w-3.5" />
+            </Toggle>
+            <Toggle
+              size="sm"
+              type="button"
+              onClick={() => {
+                editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")
+              }}
+              pressed={isItalic}
+              aria-label="Italic"
+              className="h-7 w-7 p-0"
+            >
+              <Italic className="h-3.5 w-3.5" />
+            </Toggle>
+            <Toggle
+              size="sm"
+              type="button"
+              onClick={(e) => {
+                editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline")
+              }}
+              pressed={isUnderline}
+              aria-label="Underline"
+              className="h-7 w-7 p-0"
+            >
+              <Underline className="h-3.5 w-3.5" />
+            </Toggle>
+            <Toggle
+              size="sm"
+              type="button"
+              onClick={() => {
+                editor.dispatchCommand(FORMAT_TEXT_COMMAND, "strikethrough")
+              }}
+              pressed={isStrikethrough}
+              aria-label="Strikethrough"
+              className="h-7 w-7 p-0"
+            >
+              <Strikethrough className="h-3.5 w-3.5" />
+            </Toggle>
+            <Toggle
+              size="sm"
+              type="button"
+              onClick={() => {
+                editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code")
+              }}
+              pressed={isCode}
+              aria-label="Code"
+              className="h-7 w-7 p-0"
+            >
+              <Code className="h-3.5 w-3.5" />
+            </Toggle>
+            <Toggle
+              size="sm"
+              type="button"
+              onClick={insertLink}
+              pressed={isLink}
+              aria-label="Link"
+              className="h-7 w-7 p-0"
+            >
+              <Link className="h-3.5 w-3.5" />
+            </Toggle>
+          </div>
+
+          <div className="w-px h-4 bg-border mx-1" />
+
           <Popover>
-            <PopoverTrigger>
-              <div className="mx-2 flex items-center">
-                <Baseline className="h-4 w-4" />{" "}
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-muted transition-colors">
+                <Baseline className="h-3.5 w-3.5" />
                 <ChevronDown className="h-3 w-3" />
-              </div>
+              </button>
             </PopoverTrigger>
-            <PopoverContent className="w-[350px] p-0">
+            <PopoverContent className="w-80 p-0" align="start">
               <ColorPicker activeEditor={editor} />
             </PopoverContent>
           </Popover>
-        </>
+        </div>
       )}
     </div>
   )

@@ -1,8 +1,6 @@
-import type { MouseEventHandler} from "react";
-import { useCallback } from "react"
+import { useCallback, type MouseEventHandler } from "react"
 import { $patchStyleText } from "@lexical/selection"
-import type { LexicalEditor } from "lexical";
-import { $getSelection, $isRangeSelection } from "lexical"
+import { $getSelection, $isRangeSelection, type LexicalEditor } from "lexical"
 import { useTheme } from "next-themes"
 
 import { cn } from "@/lib/utils"
@@ -68,46 +66,59 @@ export const ColorPicker = ({
 
   const { theme } = useTheme()
   return (
-    <div className="w-full p-2">
-      <h2>FontColor</h2>
-      <div className="flex gap-1 p-2">
-        {fgColors.map(({ value: color }, index) => {
-          return (
-            <div
-              onMouseDownCapture={handleFontColorSelect}
-              data-color={color}
-              key={`font-color-${color}`}
-              style={
-                index === 0
-                  ? {
-                      backgroundColor: theme === "light" ? "black" : "white",
-                    }
-                  : { backgroundColor: color }
-              }
-              className={cn(
-                "h-[32px] w-[32px] rounded-[32px]",
-                index === 0 &&
-                  "border border-black bg-black dark:border-white dark:bg-white"
-              )}
-            ></div>
-          )
-        })}
-      </div>
-      <h2>BackgroundColor</h2>
-      <div className="flex gap-1 p-2">
-        {bgColors.map(({ value: color }, index) => {
-          return (
-            <div
-              onMouseDownCapture={handleBgColorSelect}
-              style={{ backgroundColor: color }}
-              key={`bg-color-${color}`}
-              className={cn(
-                "h-[32px] w-[32px] rounded-[32px]",
-                index === 0 && "border border-black dark:border-white"
-              )}
-            ></div>
-          )
-        })}
+    <div className="w-full p-3">
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-xs font-medium text-muted-foreground mb-2">
+            Text Color
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {fgColors.map(({ value: color }, index) => {
+              return (
+                <div
+                  onMouseDownCapture={handleFontColorSelect}
+                  data-color={color}
+                  key={`font-color-${color}`}
+                  style={
+                    index === 0
+                      ? {
+                          backgroundColor:
+                            theme === "light" ? "black" : "white",
+                        }
+                      : { backgroundColor: color }
+                  }
+                  className={cn(
+                    "h-6 w-6 rounded-full border-2 border-transparent hover:border-border transition-colors",
+                    index === 0 && "border-border"
+                  )}
+                  title={index === 0 ? "Default" : color}
+                />
+              )
+            })}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-xs font-medium text-muted-foreground mb-2">
+            Background
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {bgColors.map(({ value: color }, index) => {
+              return (
+                <div
+                  onMouseDownCapture={handleBgColorSelect}
+                  style={{ backgroundColor: color }}
+                  key={`bg-color-${color}`}
+                  className={cn(
+                    "h-6 w-6 rounded-full border-2 border-transparent hover:border-border transition-colors",
+                    index === 0 && "border-border"
+                  )}
+                  title={index === 0 ? "Default" : color}
+                />
+              )
+            })}
+          </div>
+        </div>
       </div>
     </div>
   )
