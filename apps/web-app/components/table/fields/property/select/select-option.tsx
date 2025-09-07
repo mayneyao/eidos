@@ -1,11 +1,13 @@
 import { useState } from "react"
+import {
+  SelectField,
+  type SelectOption as ISelectOption,
+} from "@/packages/core/fields/select"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Trash } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import type { SelectOption as ISelectOption} from "@/packages/core/fields/select";
-import { SelectField } from "@/packages/core/fields/select"
 import { Input } from "@/components/ui/input"
 import {
   Popover,
@@ -61,7 +63,7 @@ export const SelectOption = ({
         <div
           ref={setNodeRef}
           style={style}
-          className="flex w-full items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 overflow-hidden"
+          className="flex w-full items-center gap-0.5 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 overflow-hidden"
         >
           <button
             className="cursor-grab text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"

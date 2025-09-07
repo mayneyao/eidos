@@ -1,28 +1,27 @@
 import React, { useCallback, useMemo } from "react"
-import { Plus } from "lucide-react"
-import type {
-  DragEndEvent} from "@dnd-kit/core";
+import { SelectField } from "@/packages/core/fields/select"
+import type { IField } from "@/packages/core/types/IField"
 import {
   DndContext,
-  closestCenter,
   KeyboardSensor,
   PointerSensor,
+  closestCenter,
   useSensor,
-  useSensors
+  useSensors,
+  type DragEndEvent,
 } from "@dnd-kit/core"
 import {
-  arrayMove,
   SortableContext,
+  arrayMove,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
+import { Plus } from "lucide-react"
 
-import { SelectField } from "@/packages/core/fields/select"
-import type { IField } from "@/packages/core/types/IField"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 
 import { SelectOption } from "./select-option"
 
@@ -80,7 +79,7 @@ const useFieldChange = (
       const newOptions = [...field.options]
       const [movedOption] = newOptions.splice(oldIndex, 1)
       newOptions.splice(newIndex, 0, movedOption)
-      
+
       field.column.property.options = newOptions
       onPropertyChange(field.column.property)
     },
@@ -142,7 +141,9 @@ export const SelectPropertyEditor = (props: IFieldPropertyEditorProps) => {
       if (!over) return
 
       if (active.id !== over.id) {
-        const oldIndex = field.options.findIndex((item) => item.id === active.id)
+        const oldIndex = field.options.findIndex(
+          (item) => item.id === active.id
+        )
         const newIndex = field.options.findIndex((item) => item.id === over.id)
         handleOptionsReorder(oldIndex, newIndex)
       }
@@ -151,7 +152,10 @@ export const SelectPropertyEditor = (props: IFieldPropertyEditorProps) => {
   )
 
   return (
-    <ScrollArea className="max-h-[500px] grow-0 w-full overflow-x-hidden" ref={ref}>
+    <ScrollArea
+      className="max-h-[500px] grow-0 w-full overflow-x-hidden"
+      ref={ref}
+    >
       <div className="flex flex-col w-full">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -187,7 +191,7 @@ export const SelectPropertyEditor = (props: IFieldPropertyEditorProps) => {
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={field.options.map(opt => opt.id)}
+              items={field.options.map((opt) => opt.id)}
               strategy={verticalListSortingStrategy}
             >
               {field.options.map((option) => (
