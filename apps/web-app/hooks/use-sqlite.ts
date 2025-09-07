@@ -6,7 +6,7 @@ import orderBy from "lodash/orderBy"
 import { create } from "zustand"
 
 import { TreeTableName } from "@/packages/core/sqlite/const"
-import type { ITreeNode} from "@/packages/core/types/ITreeNode";
+import type { ITreeNode } from "@/packages/core/types/ITreeNode";
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import type { IView } from "@/packages/core/types/IView"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -394,6 +394,7 @@ export const useSqlite = (dbName?: string) => {
       name: docName,
       type: TreeNodeType.Doc,
       parent_id: parent_id,
+      hide_properties: true,
     })
     await sqlWorker.addDoc(docId, JSON.stringify(DefaultState), "")
     addNode(node)

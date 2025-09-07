@@ -3,7 +3,7 @@ import type { ITreeNode } from "../types/ITreeNode"
 import { extractIdFromShortId, getRawTableNameById } from "@/lib/utils"
 import { createTriggersForFields } from "../sqlite/sql-meta-table-trigger"
 
-import type { BaseTable} from "./base";
+import type { BaseTable } from "./base";
 import { BaseTableImpl } from "./base"
 
 export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
@@ -44,8 +44,8 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
   async add(data: ITreeNode): Promise<ITreeNode> {
     const nextPosition = await this.getNextRowId()
     this.dataSpace.exec(
-      `INSERT INTO ${TreeTableName} (id,name,type,parent_id,position) VALUES (? , ? , ? , ?,?);`,
-      [data.id, data.name, data.type, data.parent_id, nextPosition]
+      `INSERT INTO ${TreeTableName} (id,name,type,parent_id,position,hide_properties) VALUES (? , ? , ? , ?,?,?);`,
+      [data.id, data.name, data.type, data.parent_id, nextPosition, data.hide_properties ?? 0]
     )
     return Promise.resolve({
       ...data,

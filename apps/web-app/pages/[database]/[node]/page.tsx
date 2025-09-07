@@ -1,18 +1,8 @@
-import { useEffect } from "react"
-import { Wand2 } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { useNavigate, useParams } from "react-router-dom"
-
-import type {
-  EidosDataEventChannelMsg} from "@/lib/const";
-import {
-  DataUpdateSignalType,
-  EidosDataEventChannelMsgType,
-  EidosDataEventChannelName,
-} from "@/lib/const"
-import { isInkServiceMode } from "@/lib/env"
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
-import { isDayPageId } from "@/lib/utils"
+import { useEffect } from "react"
+import { useTranslation } from "react-i18next"
+import { useParams } from "react-router-dom"
+
 import {
   useCurrentExtNodeHandleBlockId,
   useCurrentNode,
@@ -23,16 +13,24 @@ import { useEmoji } from "@/apps/web-app/hooks/use-emoji"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
-import { Button } from "@/components/ui/button"
-import { toast } from "@/components/ui/use-toast"
 import { ExtNodeBlockApp } from "@/components/block-renderer/ext-node-block-app"
 import { DataView } from "@/components/dataview"
-import { DocProperty } from "@/components/doc-property"
+import { PropertyTabs } from "@/components/doc-property-global/property-tabs"
 import { Editor } from "@/components/doc/editor"
+import { DefaultColors } from "@/components/file-selector"
 import { FolderTree } from "@/components/folder"
 import { Table } from "@/components/table"
+import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui/use-toast"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+  type EidosDataEventChannelMsg,
+} from "@/lib/const"
+import { isInkServiceMode } from "@/lib/env"
+import { isDayPageId } from "@/lib/utils"
 
-import { DefaultColors } from "@/components/file-selector"
 import { EverydayPageContent } from "../everyday/[day]/page"
 import { useGenerateTitle } from "./hooks/use-generate-title"
 import { NodeCover } from "./node-cover"
@@ -167,10 +165,11 @@ export const NodeComponent = ({
           }
           coverComponent={node.cover && <NodeCover node={node} />}
           propertyComponent={
-            parentNode?.type === "table" &&
-            !node.hide_properties && (
-              <DocProperty tableId={node.parent_id!} docId={node.id} />
-            )
+            <>
+              {node?.type === "doc" && !node.hide_properties && (
+                <PropertyTabs docId={node.id} parentNode={parentNode} />
+              )}
+            </>
           }
           topComponent={
             <div className="flex h-[28px] cursor-pointer gap-2 opacity-100 hover:opacity-100 sm:opacity-0">
@@ -186,22 +185,18 @@ export const NodeComponent = ({
                       {t("doc.addCover")}
                     </Button>
                   )}
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={handleGenerateTitle}
-                    disabled={isTitleGenerating}
-                  >
-                    <Wand2 className="mr-1 h-3 w-3" />
-                    {t("doc.generateTitle")}
-                  </Button>
                 </>
               )}
-              {parentNode?.type === "table" && (
+              {node?.type === "doc" && (
                 <Button size="xs" variant="ghost" onClick={toggleProperties}>
                   {node.hide_properties
                     ? t("doc.showProperties")
                     : t("doc.hideProperties")}
+                </Button>
+              )}
+              {!isReadOnly && (
+                <Button size="xs" variant="ghost" onClick={handleGenerateTitle}>
+                  {t("doc.generateTitle")}
                 </Button>
               )}
             </div>
