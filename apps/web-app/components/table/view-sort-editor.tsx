@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
+import { FieldType } from "@/packages/core/fields/const"
 
 import { FieldSelector } from "./fields/field-selector"
 import { TableContext, useCurrentView } from "./hooks"
@@ -47,6 +48,48 @@ interface SortableItemProps {
   onDelete: (index: number) => void
   t: (key: string) => string
   excludeValues: string[]
+}
+
+// Helper function to get field type from uiColumns
+function getFieldType(columnName: string, uiColumns: any[]): FieldType | null {
+  const column = uiColumns.find(col => col.table_column_name === columnName)
+  return column?.type || null
+}
+
+// Helper function to get appropriate sorting text based on field type
+function getSortingText(fieldType: FieldType | null, order: string, t: (key: string) => string): string {
+  if (!fieldType) {
+    return order === "ASC" ? t("table.sortAscending") : t("table.sortDescending")
+  }
+
+  // Number types
+  if (fieldType === FieldType.Number || fieldType === FieldType.Rating) {
+    return order === "ASC" ? t("table.sort.number.asc") : t("table.sort.number.desc")
+  }
+
+  // Text types
+  if (fieldType === FieldType.Text || fieldType === FieldType.Title || 
+      fieldType === FieldType.URL || fieldType === FieldType.Select || 
+      fieldType === FieldType.MultiSelect || fieldType === FieldType.Formula ||
+      fieldType === FieldType.Link || fieldType === FieldType.Lookup ||
+      fieldType === FieldType.CreatedBy || fieldType === FieldType.LastEditedBy ||
+      fieldType === FieldType.File) {
+    return order === "ASC" ? t("table.sort.text.asc") : t("table.sort.text.desc")
+  }
+
+  // Date/Time types
+  if (fieldType === FieldType.Date || fieldType === FieldType.CreatedTime || 
+      fieldType === FieldType.LastEditedTime) {
+    return order === "ASC" ? t("table.sort.date.asc") : t("table.sort.date.desc")
+  }
+
+  // Boolean types (Checkbox) - use text sorting for consistency
+  if (fieldType === FieldType.Checkbox) {
+    return order === "ASC" ? t("table.sort.text.asc") : t("table.sort.text.desc")
+  }
+
+  // Default fallback
+  return order === "ASC" ? t("table.sortAscending") : t("table.sortDescending")
 }
 
 function SortableItem({
@@ -74,6 +117,11 @@ function SortableItem({
     opacity: isDragging ? 0.5 : 1,
   }
 
+  // Get field type and dynamic sorting text
+  const fieldType = getFieldType(item.column, uiColumns)
+  const ascText = getSortingText(fieldType, "ASC", t)
+  const descText = getSortingText(fieldType, "DESC", t)
+
   return (
     <div
       ref={setNodeRef}
@@ -100,11 +148,11 @@ function SortableItem({
         onValueChange={(value) => onOrderChange(value, index)}
       >
         <SelectTrigger id="sort-order-2">
-          <SelectValue placeholder={t("table.sortAscending")} />
+          <SelectValue placeholder={ascText} />
         </SelectTrigger>
         <SelectContent position="popper">
-          <SelectItem value="ASC">{t("table.sortAscending")}</SelectItem>
-          <SelectItem value="DESC">{t("table.sortDescending")}</SelectItem>
+          <SelectItem value="ASC">{ascText}</SelectItem>
+          <SelectItem value="DESC">{descText}</SelectItem>
         </SelectContent>
       </Select>
       <Button
