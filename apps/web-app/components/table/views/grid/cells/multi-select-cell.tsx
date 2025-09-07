@@ -1,18 +1,16 @@
 import * as React from "react"
-import type {
-  CustomCell,
-  CustomRenderer,
-  ProvideEditorCallback,
-  Rectangle} from "@glideapps/glide-data-grid";
+import { SelectField, type SelectOption } from "@/packages/core/fields/select"
 import {
   GridCellKind,
   getMiddleCenterBias,
   measureTextCached,
+  type CustomCell,
+  type CustomRenderer,
+  type ProvideEditorCallback,
+  type Rectangle,
 } from "@glideapps/glide-data-grid"
 import { XIcon } from "lucide-react"
 
-import type { SelectOption } from "@/packages/core/fields/select";
-import { SelectField } from "@/packages/core/fields/select"
 import { cn } from "@/lib/utils"
 import {
   Command,
@@ -58,10 +56,13 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
 
   const allowedValuesMap = React.useMemo(
     () =>
-      [...allowedValues, ...newOptions].reduce((res, option) => {
-        res[option.id] = option
-        return res
-      }, {} as Record<string, SelectOption>),
+      [...allowedValues, ...newOptions].reduce(
+        (res, option) => {
+          res[option.id] = option
+          return res
+        },
+        {} as Record<string, SelectOption>
+      ),
     [allowedValues, newOptions]
   )
   const currentOptions = values!

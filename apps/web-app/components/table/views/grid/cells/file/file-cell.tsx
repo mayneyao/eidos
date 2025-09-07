@@ -1,10 +1,9 @@
 import { useCallback, useState } from "react"
-import type {
-  CustomCell,
-  CustomRenderer,
-  ProvideEditorCallback} from "@glideapps/glide-data-grid";
 import {
-  GridCellKind
+  GridCellKind,
+  type CustomCell,
+  type CustomRenderer,
+  type ProvideEditorCallback,
 } from "@glideapps/glide-data-grid"
 import { useKeyPress } from "ahooks"
 import update from "immutability-helper"
@@ -179,7 +178,7 @@ export const FileCellEditor: ReturnType<
   return (
     <div
       className={cn(
-        "min-w-[300px] rounded-md border-none outline-none",
+        "min-w-[280px] rounded-md border-none outline-none",
         className
       )}
     >
@@ -192,15 +191,14 @@ export const FileCellEditor: ReturnType<
 
       {!cell.readonly && (
         <>
-          {cell.data.displayData.length > 0 && <Separator className="my-1" />}
+          {cell.data.displayData.length > 0 && <Separator className="my-0.5" />}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
-                className="w-full"
-                // onClick={showUploadFilePicker}
+                className="w-full h-7 text-xs text-muted-foreground hover:text-foreground"
               >
-                add new
+                + Add File
               </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -215,8 +213,8 @@ export const FileCellEditor: ReturnType<
                 onRemove={() => {}}
                 disableColor
                 hideRemove
-                height={300}
-              ></FileSelector>
+                height={250}
+              />
             </PopoverContent>
           </Popover>
         </>
