@@ -1,8 +1,25 @@
-import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import { useEffect } from "react"
+import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+  type EidosDataEventChannelMsg,
+} from "@/lib/const"
+import { isInkServiceMode } from "@/lib/env"
+import { isDayPageId } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui/use-toast"
+import { ExtNodeBlockApp } from "@/components/block-renderer/ext-node-block-app"
+import { DataView } from "@/components/dataview"
+import { PropertyTabs } from "@/components/doc-property-global/property-tabs"
+import { Editor } from "@/components/doc/editor"
+import { DefaultColors } from "@/components/file-selector"
+import { FolderTree } from "@/components/folder"
+import { Table } from "@/components/table"
 import {
   useCurrentExtNodeHandleBlockId,
   useCurrentNode,
@@ -13,23 +30,6 @@ import { useEmoji } from "@/apps/web-app/hooks/use-emoji"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
-import { ExtNodeBlockApp } from "@/components/block-renderer/ext-node-block-app"
-import { DataView } from "@/components/dataview"
-import { PropertyTabs } from "@/components/doc-property-global/property-tabs"
-import { Editor } from "@/components/doc/editor"
-import { DefaultColors } from "@/components/file-selector"
-import { FolderTree } from "@/components/folder"
-import { Table } from "@/components/table"
-import { Button } from "@/components/ui/button"
-import { toast } from "@/components/ui/use-toast"
-import {
-  DataUpdateSignalType,
-  EidosDataEventChannelMsgType,
-  EidosDataEventChannelName,
-  type EidosDataEventChannelMsg,
-} from "@/lib/const"
-import { isInkServiceMode } from "@/lib/env"
-import { isDayPageId } from "@/lib/utils"
 
 import { EverydayPageContent } from "../everyday/[day]/page"
 import { useGenerateTitle } from "./hooks/use-generate-title"
@@ -165,11 +165,15 @@ export const NodeComponent = ({
           }
           coverComponent={node.cover && <NodeCover node={node} />}
           propertyComponent={
-            <>
+            <div
+              className={
+                node.is_full_width ? "w-full max-w-full md:!px-12" : "w-full"
+              }
+            >
               {node?.type === "doc" && !node.hide_properties && (
                 <PropertyTabs docId={node.id} parentNode={parentNode} />
               )}
-            </>
+            </div>
           }
           topComponent={
             <div className="flex h-[28px] cursor-pointer gap-2 opacity-100 hover:opacity-100 sm:opacity-0">
