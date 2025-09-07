@@ -1,6 +1,23 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { OrderByItem } from "@/packages/core/sqlite/sql-sort-parser"
-import { XIcon } from "lucide-react"
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { GripVertical, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
@@ -19,6 +36,86 @@ import { useViewQuery } from "./hooks/use-view-query"
 
 interface IViewEditorProps {
   onSortChange?: (sort: OrderByItem[]) => void
+}
+
+interface SortableItemProps {
+  item: OrderByItem
+  index: number
+  uiColumns: any[]
+  onValueChange: (value: string, index: number) => void
+  onOrderChange: (value: string, index: number) => void
+  onDelete: (index: number) => void
+  t: (key: string) => string
+  excludeValues: string[]
+}
+
+function SortableItem({
+  item,
+  index,
+  uiColumns,
+  onValueChange,
+  onOrderChange,
+  onDelete,
+  t,
+  excludeValues,
+}: SortableItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.column })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="mt-2 grid grid-cols-[24px_140px_140px_24px] gap-1.5 items-center"
+    >
+      <Button
+        className="h-6 w-6 p-0 text-gray-400 cursor-grab active:cursor-grabbing"
+        variant="ghost"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-3 w-3" />
+      </Button>
+      <FieldSelector
+        fields={uiColumns}
+        value={item.column}
+        className="w-full"
+        excludeValues={excludeValues}
+        onChange={(value) => onValueChange(value, index)}
+      />
+      <Select
+        value={item.order}
+        onValueChange={(value) => onOrderChange(value, index)}
+      >
+        <SelectTrigger id="sort-order-2">
+          <SelectValue placeholder={t("table.sortAscending")} />
+        </SelectTrigger>
+        <SelectContent position="popper">
+          <SelectItem value="ASC">{t("table.sortAscending")}</SelectItem>
+          <SelectItem value="DESC">{t("table.sortDescending")}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Button
+        className="h-6 w-6 p-0 text-gray-400"
+        variant="ghost"
+        onClick={() => onDelete(index)}
+      >
+        <Trash2 className="h-3 w-3" />
+      </Button>
+    </div>
+  )
 }
 export function ViewSortEditor(props: IViewEditorProps) {
   const { t } = useTranslation()
@@ -39,6 +136,13 @@ export function ViewSortEditor(props: IViewEditorProps) {
     oldOrderBy.map((item) => item.column)
   )
   const [orderItems, setOrderItems] = useState<OrderByItem[]>(oldOrderBy)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   useEffect(() => {
     setOrderItems(oldOrderBy)
@@ -69,12 +173,11 @@ export function ViewSortEditor(props: IViewEditorProps) {
       setAddedFields([...addedFields, column])
     }
   }
+
   const delSort = useCallback(
     (index: number) => {
-      console.log(index)
       const newOrderItems = [...orderItems]
       newOrderItems.splice(index, 1)
-      console.log(newOrderItems)
       setOrderItems(newOrderItems)
     },
     [orderItems]
@@ -102,57 +205,73 @@ export function ViewSortEditor(props: IViewEditorProps) {
     setOrderItems([])
   }
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (active.id !== over?.id) {
+      const oldIndex = orderItems.findIndex((item) => item.column === active.id)
+      const newIndex = orderItems.findIndex((item) => item.column === over?.id)
+
+      setOrderItems((items) => {
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
+  }
+
   return (
-    <div className="w-[400px] rounded-lg border p-2 shadow-md">
+    <div className="w-[360px] rounded border p-1.5 shadow-sm">
       {!orderItems.length && (
-        <span className="select-none text-sm">
+        <span className="select-none text-xs text-muted-foreground">
           {t("table.view.noSortRule")}
         </span>
       )}
-      {orderItems.map((item, index) => {
-        return (
-          <div className="mt-4 flex items-center space-x-2" key={item.column}>
-            <FieldSelector
-              fields={uiColumns}
-              value={item.column}
-              onChange={(value) => onValueChange(value, index)}
-            />
-            <Select
-              value={item.order}
-              onValueChange={(value) => onOrderChange(value, index)}
-            >
-              <SelectTrigger id="sort-order-2">
-                <SelectValue placeholder={t("table.sortAscending")} />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectItem value="ASC">{t("table.sortAscending")}</SelectItem>
-                <SelectItem value="DESC">
-                  {t("table.sortDescending")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              className="text-gray-400"
-              variant="ghost"
-              onClick={() => delSort(index)}
-            >
-              <XIcon className="h-4 w-4" />
-            </Button>
-          </div>
-        )
-      })}
-      <hr className="my-2" />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={orderItems.map((item) => item.column)}
+          strategy={verticalListSortingStrategy}
+        >
+          {orderItems.map((item, index) => {
+            const excludeValues = orderItems
+              .map((orderItem) => orderItem.column)
+              .filter((col) => col !== item.column)
+
+            return (
+              <SortableItem
+                key={item.column}
+                item={item}
+                index={index}
+                uiColumns={uiColumns}
+                onValueChange={onValueChange}
+                onOrderChange={onOrderChange}
+                onDelete={delSort}
+                t={t}
+                excludeValues={excludeValues}
+              />
+            )
+          })}
+        </SortableContext>
+      </DndContext>
+      <hr className="my-1.5" />
       <div className="flex items-center justify-between">
         <Button
-          className="flex items-center space-x-2"
+          className="h-6 text-xs"
           variant="outline"
           onClick={addSort}
           size="sm"
         >
-          <span>{t("table.view.addSort")}</span>
+          {t("table.view.addSort")}
         </Button>
-        <Button size="sm" variant="ghost" onClick={handleClearSort}>
-          <span>{t("table.view.deleteSort")}</span>
+        <Button
+          className="h-6 text-xs"
+          size="sm"
+          variant="ghost"
+          onClick={handleClearSort}
+        >
+          {t("table.view.deleteSort")}
         </Button>
       </div>
     </div>

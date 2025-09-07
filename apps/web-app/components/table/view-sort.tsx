@@ -53,7 +53,7 @@ export const ViewSort = ({ view }: { view?: IView }) => {
   return (
     <Popover>
       <PopoverTrigger
-        className={cn("rounded-md", {
+        className={cn("rounded", {
           "bg-secondary": hasOrderBy,
         })}
         asChild
