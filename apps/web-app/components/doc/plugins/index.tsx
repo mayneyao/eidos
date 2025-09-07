@@ -23,6 +23,7 @@ import AdvancedListPlugin from "./DraggableBlockPlugin/advanced-list"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { PrettierPlugin } from "./PrettierPlugin"
+import { PropertyNavigationPlugin } from "./PropertyNavigationPlugin/PropertyNavigationPlugin"
 import { ShortcutPlugin } from "./ShortcutPlugin"
 import TableCellResizer from "./TableCellResizer"
 import TableHoverActionsPlugin from "./TableHoverActionsPlugin"
@@ -65,6 +66,7 @@ export const AllPlugins = ({
       <CheckListPlugin />
       <AIToolsPlugin />
       <LinkPlugin />
+      <PropertyNavigationPlugin />
       <ShortcutPlugin />
       <AutoLinkPlugin />
       <DragDropPaste />
