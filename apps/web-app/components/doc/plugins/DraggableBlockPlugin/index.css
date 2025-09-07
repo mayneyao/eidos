@@ -1,26 +1,31 @@
 .draggable-block-menu {
-  border-radius: 4px;
-  padding: 2px 1px;
+  border-radius: 3px;
+  padding: 1px;
   cursor: grab;
   opacity: 0;
   position: absolute;
-  left: -54px;
-  top: 0;
-  width: 60px;
+  left: -38px;
+  top: -2px;
+  width: 40px;
+  height: 20px;
   will-change: transform;
-  transition: opacity 0.2s;
+  transition: opacity 0.15s ease-out;
   pointer-events: none;
-  /* 确保菜单始终在正确的层级 */
   z-index: 2;
-  /* 防止菜单被其他元素裁剪 */
   overflow: visible;
-  /* 确保菜单位置计算基于边界框 */
   transform-origin: left center;
 }
 
-*:hover > .draggable-block-menu {
+*:hover>.draggable-block-menu,
+.draggable-block-menu:hover {
   opacity: 1;
   pointer-events: all;
+}
+
+/* 确保菜单在鼠标移动到图标区域时保持显示 */
+.draggable-block-menu:hover .icon,
+.draggable-block-menu:hover .add-icon {
+  opacity: 0.8;
 }
 
 .draggable-block-menu-container {
@@ -29,33 +34,36 @@
 }
 
 .draggable-block-menu .icon {
-  width: 20px;
-  height: 20px;
-  opacity: 0.3;
-  padding: 4px;
+  width: 16px;
+  height: 16px;
+  opacity: 0.4;
+  padding: 2px;
+  margin: 1px;
   background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWdyaXAtdmVydGljYWwiPjxjaXJjbGUgY3g9IjkiIGN5PSIxMiIgcj0iMSIvPjxjaXJjbGUgY3g9IjkiIGN5PSI1IiByPSIxIi8+PGNpcmNsZSBjeD0iOSIgY3k9IjE5IiByPSIxIi8+PGNpcmNsZSBjeD0iMTUiIGN5PSIxMiIgcj0iMSIvPjxjaXJjbGUgY3g9IjE1IiBjeT0iNSIgcj0iMSIvPjxjaXJjbGUgY3g9IjE1IiBjeT0iMTkiIHI9IjEiLz48L3N2Zz4=);
-  /* 图片缩放 0.8 */
-  background-size: 90%;
-  /* 放中间 不重复 */
+  background-size: 100%;
   background-position: center;
   background-repeat: no-repeat;
+  border-radius: 2px;
 }
 
 .draggable-block-menu .add-icon {
-  width: 20px;
-  height: 20px;
-  padding: 4px;
-  opacity: 0.3;
+  width: 16px;
+  height: 16px;
+  padding: 2px;
+  margin: 1px;
+  opacity: 0.4;
   cursor: pointer;
   background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXBsdXMiPjxwYXRoIGQ9Ik01IDEyaDE0Ii8+PHBhdGggZD0iTTEyIDV2MTQiLz48L3N2Zz4=);
-  background-size: 90%;
+  background-size: 100%;
   background-position: center;
   background-repeat: no-repeat;
+  border-radius: 2px;
 }
 
-.draggable-block-menu > div:hover {
-  opacity: 0.7;
-  background-color: hsl(var(--secondary));
+.draggable-block-menu>div:hover {
+  opacity: 0.8;
+  background-color: hsl(var(--muted) / 0.5);
+  transition: all 0.1s ease-out;
 }
 
 .draggable-block-menu:active {
@@ -64,11 +72,13 @@
 
 .draggable-block-target-line {
   pointer-events: none;
-  background: deepskyblue;
-  height: 4px;
+  background: hsl(var(--primary));
+  height: 2px;
   position: absolute;
   left: -1rem;
   top: 0;
   opacity: 0;
   will-change: transform;
+  border-radius: 1px;
+  box-shadow: 0 0 4px hsl(var(--primary) / 0.3);
 }

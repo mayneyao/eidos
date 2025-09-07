@@ -47,22 +47,22 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 const IconMap: Record<string, JSX.Element> = {
-  h1: <Heading1Icon className="h-5 w-5" />,
-  h2: <Heading2Icon className="h-5 w-5" />,
-  h3: <Heading3Icon className="h-5 w-5" />,
-  ai: <SparklesIcon className="h-5 w-5" />,
-  lo: <ListOrderedIcon className="h-5 w-5" />,
-  ul: <ListIcon className="h-5 w-5" />,
-  cl: <ListChecksIcon className="h-5 w-5" />,
-  quote: <QuoteIcon className="h-5 w-5" />,
-  code: <CodeIcon className="h-5 w-5" />,
-  image: <ImageIcon className="h-5 w-5" />,
-  audio: <AudioLinesIcon className="h-5 w-5" />,
-  database: <SheetIcon className="h-5 w-5" />,
-  text: <CaseSensitiveIcon className="h-5 w-5" />,
-  hr: <MinusSquareIcon className="h-5 w-5" />,
-  sql: <VariableIcon className="h-5 w-5" />,
-  bookmark: <BookMarkedIcon className="h-5 w-5" />,
+  h1: <Heading1Icon className="h-4 w-4" />,
+  h2: <Heading2Icon className="h-4 w-4" />,
+  h3: <Heading3Icon className="h-4 w-4" />,
+  ai: <SparklesIcon className="h-4 w-4" />,
+  lo: <ListOrderedIcon className="h-4 w-4" />,
+  ul: <ListIcon className="h-4 w-4" />,
+  cl: <ListChecksIcon className="h-4 w-4" />,
+  quote: <QuoteIcon className="h-4 w-4" />,
+  code: <CodeIcon className="h-4 w-4" />,
+  image: <ImageIcon className="h-4 w-4" />,
+  audio: <AudioLinesIcon className="h-4 w-4" />,
+  database: <SheetIcon className="h-4 w-4" />,
+  text: <CaseSensitiveIcon className="h-4 w-4" />,
+  hr: <MinusSquareIcon className="h-4 w-4" />,
+  sql: <VariableIcon className="h-4 w-4" />,
+  bookmark: <BookMarkedIcon className="h-4 w-4" />,
 }
 
 class ComponentPickerOption extends MenuOption {
@@ -212,15 +212,15 @@ export const TurnIntoMenu = ({
   }
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
-        <GitCompareArrowsIcon className="mr-2 h-4 w-4"></GitCompareArrowsIcon>
+      <DropdownMenuSubTrigger className="px-2 py-1.5 text-sm">
+        <GitCompareArrowsIcon className="mr-2 h-3.5 w-3.5"></GitCompareArrowsIcon>
         <span>Turn into</span>
       </DropdownMenuSubTrigger>
       <DropdownMenuPortal>
-        <DropdownMenuSubContent>
+        <DropdownMenuSubContent className="p-1">
           {options.map((option) => (
             <DropdownMenuItem
-              className="flex gap-2"
+              className="flex gap-2 px-2 py-1.5 text-sm"
               key={option.title}
               onSelect={() => {
                 editor.update(() => {
