@@ -16,7 +16,7 @@ export const RatingEditor = ({ value, onChange }: IRatingEditorProps) => {
   }, [_value, onChange])
 
   return (
-    <div className="flex h-10 items-center">
+    <div className="flex h-full w-full items-center px-2">
       {[...Array(5)].map((star, i) => {
         const ratingValue = i + 1
         return (

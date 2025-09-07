@@ -1,8 +1,8 @@
 import { useState } from "react"
+import type { SelectOption } from "@/packages/core/fields/select"
 import { Check } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import type { SelectOption } from "@/packages/core/fields/select"
 import { cn } from "@/lib/utils"
 import {
   Command,
@@ -55,7 +55,7 @@ export const SelectEditor = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="w-full">
-        <div className="flex gap-2">
+        <div className="flex h-full w-full items-center px-2 gap-2">
           {_value && _value.length ? (
             option && <SelectOptionItem theme={theme} option={option} />
           ) : (

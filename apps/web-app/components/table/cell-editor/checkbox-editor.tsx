@@ -1,13 +1,53 @@
 import { useState } from "react"
 
-import { Checkbox } from "@/components/ui/checkbox"
-
 import useChangeEffect from "../hooks/use-change-effect"
 
 interface ICheckboxEditorProps {
   value: boolean
   onChange: (value: boolean) => void
   isEditing: boolean
+}
+
+const CustomCheckbox = ({
+  checked,
+  onChange,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) => {
+  return (
+    <div
+      className="cursor-pointer select-none"
+      onClick={() => onChange(!checked)}
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" className="border-0">
+        {/* Checkbox border and background */}
+        <rect
+          x="1"
+          y="1"
+          width="14"
+          height="14"
+          rx="2"
+          ry="2"
+          fill={checked ? "#6b7280" : "transparent"}
+          stroke="#d1d5db"
+          strokeWidth="1"
+          className={checked ? "fill-gray-500" : "fill-transparent"}
+        />
+        {/* Checkmark */}
+        {checked && (
+          <path
+            d="M4.5 8.5L7 11L11.5 5.5"
+            stroke="white"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        )}
+      </svg>
+    </div>
+  )
 }
 
 export const CheckboxEditor = ({ value, onChange }: ICheckboxEditorProps) => {
@@ -18,13 +58,13 @@ export const CheckboxEditor = ({ value, onChange }: ICheckboxEditorProps) => {
   }, [_value, onChange])
 
   return (
-    <div>
-      <Checkbox
+    <div className="flex h-full w-full items-center px-2">
+      <CustomCheckbox
         checked={Boolean(_value)}
-        onCheckedChange={(checked: boolean) => {
+        onChange={(checked: boolean) => {
           setValue(checked)
         }}
-      ></Checkbox>
+      />
     </div>
   )
 }

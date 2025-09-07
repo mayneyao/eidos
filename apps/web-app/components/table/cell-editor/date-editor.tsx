@@ -1,13 +1,13 @@
-import { useUpdateEffect } from "ahooks"
 import { useState } from "react"
+import { useUpdateEffect } from "ahooks"
 
+import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
 
 import { EmptyValue } from "./common"
 
@@ -32,13 +32,13 @@ export const DateEditor = ({
     <Popover>
       <PopoverTrigger
         className={cn(
-          "flex h-full w-[280px] items-center  justify-start font-normal",
+          "flex h-full w-full items-center justify-start font-normal px-2",
           !_value && "text-muted-foreground"
         )}
       >
         {_value ? new Date(_value).toLocaleDateString() : <EmptyValue />}
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
+      <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
           selected={_value ? new Date(_value) : undefined}

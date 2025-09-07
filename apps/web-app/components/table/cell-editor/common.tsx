@@ -1,10 +1,9 @@
-import type { SelectOption } from "@/packages/core/fields/select";
-import { SelectField } from "@/packages/core/fields/select"
+import { SelectField, type SelectOption } from "@/packages/core/fields/select"
 
 export const EmptyValue = () => {
   return (
     <div className="flex h-full w-full items-center">
-      <span className="text-muted-foreground">Empty</span>
+      <span className="text-muted-foreground italic">Empty</span>
     </div>
   )
 }
