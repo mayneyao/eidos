@@ -34,6 +34,7 @@ export const PropertyTabs: React.FC<PropertyTabsProps> = ({
       <div className="flex items-center gap-4 mb-3 border-b border-border/50">
         <button
           onClick={() => setActiveTab("global-properties")}
+          tabIndex={0}
           className={cn(
             "text-sm font-medium pb-2 border-b-2 transition-colors flex items-center gap-1",
             activeTab === "global-properties"
@@ -56,6 +57,7 @@ export const PropertyTabs: React.FC<PropertyTabsProps> = ({
         {isParentTable && (
           <button
             onClick={() => setActiveTab("table-properties")}
+            tabIndex={0}
             className={cn(
               "text-sm font-medium pb-2 border-b-2 transition-colors flex items-center gap-1",
               activeTab === "table-properties"

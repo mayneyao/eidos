@@ -6,6 +6,7 @@ interface ICheckboxEditorProps {
   value: boolean
   onChange: (value: boolean) => void
   isEditing: boolean
+  onFinishEditing?: () => void
 }
 
 const CustomCheckbox = ({
@@ -50,19 +51,37 @@ const CustomCheckbox = ({
   )
 }
 
-export const CheckboxEditor = ({ value, onChange }: ICheckboxEditorProps) => {
+export const CheckboxEditor = ({
+  value,
+  onChange,
+  onFinishEditing,
+}: ICheckboxEditorProps) => {
   const [_value, setValue] = useState<boolean>(value)
 
   useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      const newValue = !_value
+      setValue(newValue)
+      onFinishEditing?.()
+    }
+  }
+
   return (
-    <div className="flex h-full w-full items-center px-2">
+    <div
+      className="flex h-full w-full items-center px-2"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
       <CustomCheckbox
         checked={Boolean(_value)}
         onChange={(checked: boolean) => {
           setValue(checked)
+          onFinishEditing?.()
         }}
       />
     </div>

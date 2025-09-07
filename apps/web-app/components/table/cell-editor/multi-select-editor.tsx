@@ -26,6 +26,7 @@ interface IMultiSelectEditorProps {
   options: SelectOption[]
   isEditing: boolean
   inline?: boolean
+  onFinishEditing?: () => void
 }
 
 export const MultiSelectEditor = ({
@@ -34,6 +35,7 @@ export const MultiSelectEditor = ({
   options,
   isEditing,
   inline = false,
+  onFinishEditing,
 }: IMultiSelectEditorProps) => {
   const optionsMap = useMemo(
     () =>
@@ -48,6 +50,7 @@ export const MultiSelectEditor = ({
   )
 
   const [oldOptionsMap, setOldOptionsMap] = React.useState(optionsMap)
+  const [isPopoverOpen, setIsPopoverOpen] = React.useState(false)
 
   const { theme } = useTheme()
   const [values, setValues] = React.useState(value ? value.split(",") : [])
@@ -116,10 +119,22 @@ export const MultiSelectEditor = ({
     }
   }
 
-  const [open, setOpen] = React.useState(false)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !isEditing) {
+      e.preventDefault()
+      setIsPopoverOpen(true)
+    }
+  }
+
+  const handlePopoverOpenChange = (open: boolean) => {
+    setIsPopoverOpen(open)
+    if (!open) {
+      onFinishEditing?.()
+    }
+  }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
       <PopoverTrigger className="w-full">
         {value ? (
           <div
@@ -127,6 +142,9 @@ export const MultiSelectEditor = ({
               "flex h-full w-full items-center px-2 gap-1",
               inline ? "flex-nowrap overflow-hidden" : "flex-wrap"
             )}
+            onKeyDown={handleKeyDown}
+            onClick={() => setIsPopoverOpen(true)}
+            tabIndex={0}
           >
             {values.map((optionId) => {
               const option = oldOptionsMap[optionId]
@@ -154,7 +172,12 @@ export const MultiSelectEditor = ({
             })}
           </div>
         ) : (
-          <div className="flex h-full w-full items-center px-2">
+          <div 
+            className="flex h-full w-full items-center px-2"
+            onKeyDown={handleKeyDown}
+            onClick={() => setIsPopoverOpen(true)}
+            tabIndex={0}
+          >
             <EmptyValue />
           </div>
         )}

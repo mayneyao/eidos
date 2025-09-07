@@ -10,6 +10,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command"
 import {
   Popover,
@@ -25,6 +26,7 @@ interface ISelectEditorProps {
   onChange: (value: string) => void
   options: SelectOption[]
   isEditing: boolean
+  onFinishEditing?: () => void
 }
 
 export const SelectEditor = ({
@@ -32,11 +34,12 @@ export const SelectEditor = ({
   onChange,
   options,
   isEditing,
+  onFinishEditing,
 }: ISelectEditorProps) => {
   const [_value, setValue] = useState<string>(value)
   const [_options, setOptions] = useState<SelectOption[]>(options)
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 
-  const [open, setOpen] = useState(false)
   const { theme } = useTheme()
   useChangeEffect(() => {
     onChange(_value)
@@ -48,14 +51,38 @@ export const SelectEditor = ({
       setOptions([..._options, { id: value, name: value, color: "default" }])
     }
     onChange(value)
-    setOpen(false)
+    setIsPopoverOpen(false)
+    onFinishEditing?.()
   }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !isEditing) {
+      e.preventDefault()
+      setIsPopoverOpen(true)
+    }
+  }
+
+  const handlePopoverOpenChange = (open: boolean) => {
+    setIsPopoverOpen(open)
+    if (!open) {
+      onFinishEditing?.()
+    }
+  }
+
   const option = _options.find((item) => item.id == _value)
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={isPopoverOpen}
+      onOpenChange={handlePopoverOpenChange}
+    >
       <PopoverTrigger className="w-full">
-        <div className="flex h-full w-full items-center px-2 gap-2">
+        <div
+          className="flex h-full w-full items-center px-2 gap-2"
+          onKeyDown={handleKeyDown}
+          onClick={() => setIsPopoverOpen(true)}
+          tabIndex={0}
+        >
           {_value && _value.length ? (
             option && <SelectOptionItem theme={theme} option={option} />
           ) : (
@@ -64,18 +91,18 @@ export const SelectEditor = ({
         </div>
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-0" align="start" sideOffset={-24}>
-        <Command>
+        <Command shouldFilter={false}>
           <CommandInput
             placeholder="Search Option..."
-            // value={value}
+            value={_value}
             onValueChange={setValue}
+            autoFocus
           />
-          <div
+          <CommandList
             className={cn("max-h-[400px]", {
               "overflow-y-scroll": _options.length * 32 > 400,
             })}
           >
-            {" "}
             <CommandEmpty>Create some options</CommandEmpty>
             <CommandGroup className="h-full">
               {_options.map((option) => (
@@ -109,7 +136,7 @@ export const SelectEditor = ({
                   </CommandItem>
                 )}
             </CommandGroup>
-          </div>
+          </CommandList>
         </Command>
       </PopoverContent>
     </Popover>

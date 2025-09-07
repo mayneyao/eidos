@@ -64,6 +64,7 @@ interface ICellEditorProps {
   disableTextBaseEditor?: boolean
   disabled?: boolean
   inline?: boolean
+  onFinishEditing?: () => void
 }
 
 export interface CellEditorRef {
@@ -80,6 +81,7 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
       disableTextBaseEditor,
       disabled,
       inline,
+      onFinishEditing,
     },
     ref
   ) => {
@@ -130,7 +132,10 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
     const _isEditing = disabled ? false : editorMode ? true : isEditing
     const getEditor = () => {
       const Editor = CellEditorMap[field.type]
-      const handleFinishEditing = () => setIsEditing(false)
+      const handleFinishEditing = () => {
+        setIsEditing(false)
+        onFinishEditing?.()
+      }
 
       switch (field.type) {
         case FieldType.Text:
@@ -172,6 +177,7 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
                 (field as IField<SelectProperty>).property?.options || []
               }
               isEditing={_isEditing}
+              onFinishEditing={handleFinishEditing}
             />
           )
         case FieldType.MultiSelect:
@@ -184,6 +190,34 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
               }
               isEditing={_isEditing}
               inline={inline}
+              onFinishEditing={handleFinishEditing}
+            />
+          )
+        case FieldType.Date:
+          return (
+            <DateEditor
+              value={value}
+              onChange={run}
+              isEditing={_isEditing}
+              onFinishEditing={handleFinishEditing}
+            />
+          )
+        case FieldType.Checkbox:
+          return (
+            <CheckboxEditor
+              value={value}
+              onChange={run}
+              isEditing={_isEditing}
+              onFinishEditing={handleFinishEditing}
+            />
+          )
+        case FieldType.Rating:
+          return (
+            <RatingEditor
+              value={value}
+              onChange={run}
+              isEditing={_isEditing}
+              onFinishEditing={handleFinishEditing}
             />
           )
         case FieldType.File:
