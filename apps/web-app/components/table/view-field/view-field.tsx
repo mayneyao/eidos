@@ -143,31 +143,31 @@ export const ViewField = (props: { view?: IView }) => {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={"rounded-md"} asChild>
+      <PopoverTrigger className={"rounded"} asChild>
         <Button size="xs" variant="ghost">
-          <SlidersHorizontalIcon className="h-4 w-4 opacity-60"></SlidersHorizontalIcon>
+          <SlidersHorizontalIcon className="h-3 w-3 opacity-60"></SlidersHorizontalIcon>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-2">
-        <div className="flex justify-between px-2">
-          <Button size="xs" variant="ghost" onClick={showAllFields}>
+      <PopoverContent className="w-auto p-1.5">
+        <div className="flex justify-between px-1">
+          <Button size="xs" variant="ghost" onClick={showAllFields} className="h-6 text-xs">
             {t("table.view.field.showAll")}
           </Button>
-          <Button size="xs" variant="ghost" onClick={hideAllFields}>
+          <Button size="xs" variant="ghost" onClick={hideAllFields} className="h-6 text-xs">
             {t("table.view.field.hideAll")}
           </Button>
         </div>
         <hr className="my-1" />
         <DndProvider backend={HTML5Backend} context={window}>
-          <div className="max-h-[420px] w-[300px] overflow-y-auto">
+          <div className="max-h-[320px] w-[280px] overflow-y-auto">
             {cards.map((card, i) => renderCard(card, i))}
           </div>
         </DndProvider>
         {!isView && (
           <>
             <hr className="my-1" />
-            <CommonMenuItem className="pl-4" onClick={handleAddFieldClick}>
-              <PlusIcon className="mr-2 h-4 w-4" />
+            <CommonMenuItem className="pl-3 text-xs" onClick={handleAddFieldClick}>
+              <PlusIcon className="mr-1.5 h-3 w-3" />
               {t("table.view.field.addField")}
             </CommonMenuItem>
           </>

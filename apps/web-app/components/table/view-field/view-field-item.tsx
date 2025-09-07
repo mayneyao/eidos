@@ -32,7 +32,7 @@ interface DragItem {
   type: string
 }
 
-const icons = makeHeaderIcons(18)
+const icons = makeHeaderIcons(14)
 
 export const FieldItemCard: FC<CardProps> = ({
   id,
@@ -138,20 +138,20 @@ export const FieldItemCard: FC<CardProps> = ({
     <div
       ref={ref}
       data-handler-id={handlerId}
-      className={cn("group mb-1 flex gap-1 p-1 text-sm hover:bg-secondary", {
+      className={cn("group mb-0.5 flex gap-1 p-1 text-xs hover:bg-secondary", {
         "dragging opacity-0": isDragging,
         "opacity-100": !isDragging,
       })}
     >
       <GripVerticalIcon
         className=" cursor-grab opacity-0 group-hover:opacity-60"
-        size={20}
+        size={16}
       />
       <div
         className="flex w-full justify-between pr-2"
         onClick={handleFieldClick}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <span
             dangerouslySetInnerHTML={{
               __html: iconSvgString,
@@ -165,7 +165,7 @@ export const FieldItemCard: FC<CardProps> = ({
             disabled: id === "title",
           })}
         >
-          {isHidden ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+          {isHidden ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
         </span>
       </div>
     </div>

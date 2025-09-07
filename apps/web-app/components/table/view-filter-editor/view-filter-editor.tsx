@@ -1,8 +1,8 @@
+import { BinaryOperator, CompareOperator } from "@/packages/core/fields/const"
+import type { IField } from "@/packages/core/types/IField"
 import { CopyPlusIcon, PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { BinaryOperator, CompareOperator } from "@/packages/core/fields/const"
-import type { IField } from "@/packages/core/types/IField"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
@@ -14,7 +14,10 @@ import {
 } from "@/components/ui/popover"
 import { CommonMenuItem } from "@/components/common-menu-item"
 
-import type { IFilterValue, IGroupFilterValue } from "../../../../../packages/core/types/IViewFilter"
+import type {
+  IFilterValue,
+  IGroupFilterValue,
+} from "../../../../../packages/core/types/IViewFilter"
 import { ViewFilterGroupEditor } from "./view-filter-group-editor"
 import { ViewFilterItemEditor } from "./view-filter-item-editor"
 
@@ -94,31 +97,32 @@ export const ViewFilterEditor = ({
     depth === 2 ? (
       <div
         onClick={handleAddFilter}
-        className="flex cursor-pointer items-center gap-2 rounded-sm p-2 hover:bg-secondary"
+        className="flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground"
       >
-        <PlusIcon className="h-4 w-4"></PlusIcon>
-        {t('table.view.addFilter')}
+        <PlusIcon className="h-2.5 w-2.5"></PlusIcon>
+        {t("table.view.addFilter")}
       </div>
     ) : (
       <Popover>
-        <PopoverTrigger className="flex w-full items-center gap-2 rounded-sm p-2 hover:bg-secondary">
-          <PlusIcon className="h-4 w-4"></PlusIcon>{t('table.view.addFilter')}
+        <PopoverTrigger className="flex w-full items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+          <PlusIcon className="h-2.5 w-2.5"></PlusIcon>
+          {t("table.view.addFilter")}
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0.5" align="start">
           <div
             onClick={handleAddFilter}
-            className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
+            className="flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-xs hover:bg-muted/50"
           >
-            <PlusIcon className="h-4 w-4 opacity-70"></PlusIcon>
-            {t('table.view.addFilter')}
+            <PlusIcon className="h-2.5 w-2.5"></PlusIcon>
+            {t("table.view.addFilter")}
           </div>
           {depth < 2 && (
             <div
               onClick={handleAddGroupFilter}
-              className="flex cursor-pointer items-center gap-2 p-2 hover:bg-secondary"
+              className="flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-xs hover:bg-muted/50"
             >
-              <CopyPlusIcon className="h-4 w-4 opacity-70"></CopyPlusIcon>
-              {t('table.view.addGroupFilter')}
+              <CopyPlusIcon className="h-2.5 w-2.5"></CopyPlusIcon>
+              {t("table.view.addGroupFilter")}
             </div>
           )}
         </PopoverContent>
@@ -126,20 +130,20 @@ export const ViewFilterEditor = ({
     )
   if (!_value) {
     return (
-      <div className="flex max-w-[600px] flex-col gap-2 border border-gray-200 p-2 dark:border-gray-700">
+      <div className="flex max-w-[600px] flex-col gap-1.5 border border-gray-200 p-1.5 dark:border-gray-700">
         <div
           className={cn({
             "sub-group-filter": depth > 0,
             "group-wrapper-root": depth === 0,
           })}
         ></div>
-        <span className="select-none text-sm">
-          {t('table.view.noFilterRule')}
+        <span className="select-none text-xs text-muted-foreground">
+          {t("table.view.noFilterRule")}
         </span>
         {AddFilterComponent}
         <hr />
-        <CommonMenuItem className="pl-4" onClick={clearFilter}>
-          {t('table.view.deleteFilter')}
+        <CommonMenuItem className="pl-3 text-xs" onClick={clearFilter}>
+          {t("table.view.deleteFilter")}
         </CommonMenuItem>
       </div>
     )
@@ -149,7 +153,7 @@ export const ViewFilterEditor = ({
   ) {
     if (depth === 0) {
       return (
-        <div className="flex min-w-[400px] max-w-[900px] flex-col gap-2 border border-gray-200 p-2 dark:border-gray-700">
+        <div className="flex min-w-[400px] max-w-[900px] flex-col gap-1.5 border border-gray-200 p-1.5 dark:border-gray-700">
           <div
             className={cn("items-start", {
               "sub-group-filter": depth > 0,
@@ -166,14 +170,14 @@ export const ViewFilterEditor = ({
           </div>
           {AddFilterComponent}
           <hr />
-          <Button variant="ghost" onClick={clearFilter}>
-            {t('table.view.deleteFilter')}
+          <Button variant="ghost" size="sm" onClick={clearFilter} className="h-6 text-xs">
+            {t("table.view.deleteFilter")}
           </Button>
         </div>
       )
     }
     return (
-      <div className="sub-group-filter flex flex-col gap-2 border border-gray-200 dark:border-gray-700">
+      <div className="sub-group-filter flex flex-col gap-1.5 border border-gray-200 dark:border-gray-700">
         <div className="group-wrapper-root items-baseline">
           <ViewFilterGroupEditor
             value={_value as IGroupFilterValue}

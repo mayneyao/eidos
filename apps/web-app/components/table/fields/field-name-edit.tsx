@@ -65,7 +65,7 @@ export const FieldNameEdit = ({
   }, [field])
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1 w-[180px]">
       <Input
         ref={inputRef}
         id="fieldName"
@@ -83,9 +83,9 @@ export const FieldNameEdit = ({
             onEditEnd && onEditEnd()
           }
         }}
-        className="col-span-3 h-[32px]"
+        className="col-span-3 h-7 text-xs"
       />
-      {error && <div className="text-red-500">{error}</div>}
+      {error && <div className="text-xs text-red-500">{error}</div>}
     </div>
   )
 }

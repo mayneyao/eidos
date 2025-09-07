@@ -61,10 +61,10 @@ export function FieldTypeSelect({ value, onChange }: IFieldTypeSelectProps) {
           role="combobox"
           aria-expanded={open}
           disabled={!canBeSelected}
-          className={cn("w-[200px] justify-between")}
+          className={cn("h-7 w-[180px] justify-between px-2 py-1 text-xs")}
         >
           {value ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <FieldIcon type={value} />
               {t(
                 [...fields, ...readonlyFields].find(
@@ -75,10 +75,10 @@ export function FieldTypeSelect({ value, onChange }: IFieldTypeSelectProps) {
           ) : (
             t("table.field.selectField")
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="click-outside-ignore w-[200px] p-0">
+      <PopoverContent className="click-outside-ignore w-[180px] p-0">
         <Command>
           <CommandInput placeholder={t("table.field.searchField")} />
           <CommandEmpty>{t("table.field.noFieldFound")}</CommandEmpty>
@@ -91,14 +91,15 @@ export function FieldTypeSelect({ value, onChange }: IFieldTypeSelectProps) {
                   value !== field.value && onChange(field.value)
                   setOpen(false)
                 }}
+                className="h-7 px-1.5 py-1"
               >
                 <Check
                   className={cn(
-                    "mr-2 h-4 w-4",
+                    "mr-1.5 h-3 w-3",
                     value === field.value ? "opacity-100" : "opacity-0"
                   )}
                 />
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <FieldIcon type={field.value} />
                   {t(field.label)}
                 </div>

@@ -78,7 +78,7 @@ export const SelectEditor = ({
     >
       <PopoverTrigger className="w-full">
         <div
-          className="flex h-full w-full items-center px-2 gap-2"
+          className="flex h-full w-full items-center px-1.5 gap-1.5"
           onKeyDown={handleKeyDown}
           onClick={() => setIsPopoverOpen(true)}
           tabIndex={0}
@@ -90,7 +90,7 @@ export const SelectEditor = ({
           )}
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" align="start" sideOffset={-24}>
+      <PopoverContent className="w-[280px] p-0" align="start" sideOffset={-20}>
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Search Option..."
@@ -99,8 +99,8 @@ export const SelectEditor = ({
             autoFocus
           />
           <CommandList
-            className={cn("max-h-[400px]", {
-              "overflow-y-scroll": _options.length * 32 > 400,
+            className={cn("max-h-[320px]", {
+              "overflow-y-scroll": _options.length * 28 > 320,
             })}
           >
             <CommandEmpty>Create some options</CommandEmpty>
@@ -112,10 +112,11 @@ export const SelectEditor = ({
                   onSelect={() => {
                     handleSelect(option.id === _value ? "" : option.id)
                   }}
+                  className="h-7 px-2 py-1"
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4",
+                      "mr-1.5 h-3 w-3",
                       _value === option.id ? "opacity-100" : "opacity-0"
                     )}
                   />
@@ -131,6 +132,7 @@ export const SelectEditor = ({
                     onSelect={(currentValue) => {
                       handleSelect(currentValue)
                     }}
+                    className="h-7 px-2 py-1 text-xs"
                   >
                     Create {_value}
                   </CommandItem>
