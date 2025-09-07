@@ -1,4 +1,5 @@
 import * as React from "react"
+import { SelectField } from "@/packages/core/fields/select"
 import {
   GridCellKind,
   getMiddleCenterBias,
@@ -7,9 +8,8 @@ import {
   type CustomRenderer,
 } from "@glideapps/glide-data-grid"
 
-import { SelectField } from "@/packages/core/fields/select"
-
 import { roundedRect } from "./helper"
+import NumberOverlayEditor from "./number-overlay-editor"
 
 interface RangeCellProps {
   readonly kind: "range-cell"
@@ -26,22 +26,15 @@ export type RangeCell = CustomCell<RangeCellProps>
 
 const RANGE_HEIGHT = 6
 
-const inputStyle: React.CSSProperties = {
-  marginRight: 8,
-}
-
-const wrapperStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  flexGrow: 1,
-}
-
 const renderer: CustomRenderer<RangeCell> = {
   kind: GridCellKind.Custom,
   isMatch: (c): c is RangeCell => (c.data as any).kind === "range-cell",
   draw: (args, cell) => {
     const { ctx, theme, rect } = args
     const { min, max, value, label, measureLabel, color } = cell.data
+    if (value === undefined) {
+      return true
+    }
 
     const x = rect.x + theme.cellHorizontalPadding
     const yMid = rect.y + rect.height / 2
@@ -112,43 +105,33 @@ const renderer: CustomRenderer<RangeCell> = {
 
     return true
   },
-  provideEditor: () => {
-    // eslint-disable-next-line react/display-name
-    return (p) => {
-      const { data, readonly } = p.value
-
-      const strValue = data.value.toString()
-      const strMin = data.min.toString()
-      const strMax = data.max.toString()
-      const strStep = data.step.toString()
-
-      const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        p.onChange({
-          ...p.value,
-          data: {
-            ...data,
-            value: Number(e.target.value),
-          },
-        })
-      }
-
-      return (
-        <label style={wrapperStyle}>
-          <input
-            style={inputStyle}
-            type="range"
-            color=""
-            value={strValue}
-            min={strMin}
-            max={strMax}
-            step={strStep}
-            onChange={onChange}
-            disabled={readonly}
-          />
-          {strValue}
-        </label>
-      )
-    }
+  provideEditor: () => (p) => {
+    const { isHighlighted, onChange, value, validatedSelection } = p
+    return (
+      <React.Suspense fallback={null}>
+        <NumberOverlayEditor
+          highlight={isHighlighted}
+          disabled={value.readonly === true}
+          value={value.data.value}
+          // fixedDecimals={value.fixedDecimals}
+          // allowNegative={value.allowNegative}
+          // thousandSeparator={value.thousandSeparator}
+          // decimalSeparator={value.decimalSeparator}
+          validatedSelection={validatedSelection}
+          onChange={(x) =>
+            onChange({
+              ...value,
+              data: {
+                ...value.data,
+                value: Number.isNaN(x.floatValue ?? 0)
+                  ? 0
+                  : (x.floatValue as number),
+              } as RangeCellProps,
+            })
+          }
+        />
+      </React.Suspense>
+    )
   },
   onPaste: (v, d) => {
     let num = Number.parseFloat(v)
