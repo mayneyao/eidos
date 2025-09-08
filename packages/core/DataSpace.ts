@@ -211,6 +211,8 @@ export class DataSpace {
       // this.queue
     ]
     this.initMetaTable()
+    // 
+    this.doc.registerTrigger()
 
     // migration
     if (this.draftDb) {

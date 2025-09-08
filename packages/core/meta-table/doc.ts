@@ -6,139 +6,15 @@ import { DocTableName } from "../sqlite/const"
 import type { BaseTable } from "./base";
 import { BaseTableImpl } from "./base"
 import { FieldType } from "../fields/const";
+import {
+  escapeFTSQuery,
+  parseFrontmatter,
+  isValidPropertyName,
+  filterValidProperties,
+  RESERVED_PROPERTIES
+} from "./doc.helper";
+import { generateMetaTableTriggers } from "../sqlite/sql-meta-table-trigger";
 
-/**
- * Utility function to escape FTS queries safely
- * @param query Raw user input query
- * @param allowAdvanced Whether to allow advanced FTS syntax
- * @returns Escaped query safe for FTS
- */
-export function escapeFTSQuery(query: string, allowAdvanced: boolean = false): string {
-  if (!query || typeof query !== 'string') {
-    return '';
-  }
-
-  const trimmedQuery = query.trim();
-
-  // Check if query looks like it contains intentional FTS syntax
-  const looksAdvanced = /^["'].*["']$/.test(trimmedQuery) || // Quoted phrases
-    /\b(AND|OR|NOT|NEAR)\b/i.test(trimmedQuery) || // Boolean operators
-    /\*/.test(trimmedQuery) || // Wildcards
-    /^\+/.test(trimmedQuery); // Prefix search
-
-  // If advanced syntax is allowed and query looks intentional
-  if (allowAdvanced && looksAdvanced) {
-    // Only escape unmatched quotes and basic cleanup
-    return trimmedQuery
-      .replace(/"/g, (match, offset, string) => {
-        // Count quotes before this position
-        const beforeQuotes = (string.substring(0, offset).match(/"/g) || []).length;
-        // If odd number of quotes before, this might be unmatched
-        return beforeQuotes % 2 === 0 ? '"' : '';
-      })
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  // For regular user input, wrap in quotes for exact phrase matching
-  // This allows searching for special characters like brackets safely
-  // Escape any existing quotes in the content first
-  const escaped = trimmedQuery.replace(/"/g, '""');
-
-  // Wrap the entire query in quotes for exact phrase matching
-  return `"${escaped}"`;
-}
-
-
-
-const RESERVED_PROPERTIES = [
-  "id",
-  "content",
-  "markdown",
-  "is_day_page",
-  "created_at",
-  "updated_at",
-  "properties",
-  "meta", // Now used for display configuration
-]
-
-/**
- * Parse YAML frontmatter from markdown content
- * @param markdown markdown content
- * @returns parsed custom properties object
- */
-function parseFrontmatter(markdown: string): Record<string, any> {
-  const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/
-  const match = markdown.match(frontmatterRegex)
-
-  if (!match) {
-    return {}
-  }
-
-  const frontmatterStr = match[1]
-  const properties: Record<string, any> = {}
-
-  // Simple YAML parsing (only supports key: value format)
-  const lines = frontmatterStr.split('\n')
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-
-    const colonIndex = trimmed.indexOf(':')
-    if (colonIndex === -1) continue
-
-    const key = trimmed.substring(0, colonIndex).trim()
-    let value = trimmed.substring(colonIndex + 1).trim()
-
-    // Remove quotes
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1)
-    }
-
-    properties[key] = value
-  }
-
-  return properties
-}
-
-/**
- * Validate if custom property name is valid
- * @param propertyName property name
- * @returns whether it is valid
- */
-function isValidPropertyName(propertyName: string): boolean {
-  // Check if it is a reserved property
-  if (RESERVED_PROPERTIES.includes(propertyName)) {
-    return false
-  }
-
-  // Check if it starts with _
-  if (propertyName.startsWith('_')) {
-    return false
-  }
-
-  // Check if it contains special characters (only letters, numbers, underscores allowed)
-  const validNameRegex = /^[a-zA-Z0-9_]+$/
-  return validNameRegex.test(propertyName)
-}
-
-/**
- * Filter valid custom properties
- * @param properties properties object
- * @returns filtered valid properties object
- */
-function filterValidProperties(properties: Record<string, any>): Record<string, any> {
-  const validProperties: Record<string, any> = {}
-
-  for (const [key, value] of Object.entries(properties)) {
-    if (isValidPropertyName(key)) {
-      validProperties[key] = value
-    }
-  }
-
-  return validProperties
-}
 
 export interface IDoc {
   id: string
@@ -162,79 +38,15 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
   CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}',tokenize = 'simple');
   `: `CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}');`
 
-  /**
-   * Get table column information
-   * @returns array of column information
-   */
-  async getTableColumns(): Promise<string[]> {
-    try {
-      const res = await this.dataSpace.exec2(
-        `PRAGMA table_info(${this.name})`
-      )
-      return res.map((col: any) => col.name)
-    } catch (error) {
-      console.error('Failed to get table columns:', error)
-      return []
-    }
-  }
-
-  /**
-   * Check if column exists
-   * @param columnName column name
-   * @returns whether it exists
-   */
-  async columnExists(columnName: string): Promise<boolean> {
-    const columns = await this.getTableColumns()
-    return columns.includes(columnName)
-  }
-
-  /**
-   * Dynamically add new column
-   * @param columnName column name
-   * @param columnType column type (defaults to TEXT)
-   */
-  async addColumn(columnName: string, columnType: string = 'TEXT'): Promise<void> {
-    try {
-      await this.dataSpace.exec2(
-        `ALTER TABLE ${this.name} ADD COLUMN ${columnName} ${columnType}`
-      )
-      console.log(`Added column ${columnName} to table ${this.name}`)
-    } catch (error) {
-      console.error(`Failed to add column ${columnName}:`, error)
-      throw error
-    }
-  }
-
-  /**
-   * Ensure custom property columns exist, create them if they don't
-   * @param properties custom properties object
-   */
-  async ensureCustomPropertyColumns(properties: Record<string, any>): Promise<void> {
-    const validProperties = filterValidProperties(properties)
-
-    for (const propertyName of Object.keys(validProperties)) {
-      const exists = await this.columnExists(propertyName)
-      if (!exists) {
-        // await this.addColumn(propertyName)
-        await this.dataSpace.column.add({
-          name: propertyName,
-          type: FieldType.Text,
-          table_name: this.name,
-          table_column_name: propertyName,
-          property: {},
-        })
-      }
-    }
-  }
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${this.name} (
     id TEXT PRIMARY KEY,
     content TEXT,
-    is_day_page BOOLEAN DEFAULT 0,
     markdown TEXT,
+    is_day_page BOOLEAN DEFAULT 0,
+    meta TEXT DEFAULT '{}', -- JSON string for display configuration
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    meta TEXT DEFAULT '{}' -- JSON string for display configuration
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
 
@@ -549,7 +361,7 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
               await this.setProperties(id, customProperties)
             } else {
               // If there are no custom properties, clear existing custom properties
-              const existingProperties = await this.getProperties(id)
+              const existingProperties = await this.getCustomProperties(id)
               if (Object.keys(existingProperties).length > 0) {
                 // Set existing properties to null to clear them
                 const clearProperties: Record<string, any> = {}
@@ -599,8 +411,58 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
     }
   }
 
-  // getProperties
-  async getProperties(id: string) {
+
+  /**
+ * Get table column information
+ * @returns array of column information
+ */
+  async getTableColumns(): Promise<string[]> {
+    try {
+      const res = await this.dataSpace.exec2(
+        `PRAGMA table_info(${this.name})`
+      )
+      return res.map((col: any) => col.name)
+    } catch (error) {
+      console.error('Failed to get table columns:', error)
+      return []
+    }
+  }
+
+  /**
+   * Check if column exists
+   * @param columnName column name
+   * @returns whether it exists
+   */
+  async columnExists(columnName: string): Promise<boolean> {
+    const columns = await this.getTableColumns()
+    return columns.includes(columnName)
+  }
+
+
+  /**
+   * Ensure custom property columns exist, create them if they don't
+   * @param properties custom properties object
+   */
+  async ensureCustomPropertyColumns(properties: Record<string, any>): Promise<void> {
+    const validProperties = filterValidProperties(properties)
+
+    for (const propertyName of Object.keys(validProperties)) {
+      const exists = await this.columnExists(propertyName)
+      if (!exists) {
+        // await this.addColumn(propertyName)
+        await this.dataSpace.column.add({
+          name: propertyName,
+          type: FieldType.Text,
+          table_name: this.name,
+          table_column_name: propertyName,
+          property: {},
+        })
+        this.flushTrigger()
+      }
+    }
+  }
+  // getCustomProperties
+  async getCustomProperties(id: string) {
     try {
       // Get table column information
       const columns = await this.getTableColumns()
@@ -851,24 +713,6 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
     }
   }
 
-  /**
-   * Check if property should be displayed
-   * @param id document ID
-   * @param propertyName property name
-   * @returns whether it should be displayed
-   */
-  async shouldDisplayProperty(id: string, propertyName: string): Promise<boolean> {
-    try {
-      const meta = await this.getMeta(id)
-      const displayProperties = meta.displayProperties || []
-      return displayProperties.includes(propertyName)
-    } catch (error) {
-      console.error('Failed to check display property:', error)
-      return false
-    }
-  }
-
-
   async setProperties(id: string, properties: Record<string, any>) {
     const validProperties = filterValidProperties(properties)
 
@@ -896,11 +740,26 @@ export class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
       return { success: false, message: `Failed to set properties: ${error}` }
     }
   }
-  async getPropertyMeta(id: string) {
-    const res = await this.dataSpace.exec2(
-      `SELECT * FROM ${this.name} WHERE id = ?`,
-      [id]
-    )
-    return res[0]
+
+  async changePropertyType(propertyName: string, newType: FieldType) {
+    await this.dataSpace.column.changeType(this.name, propertyName, newType)
+  }
+
+
+  async flushTrigger() {
+    const triggerName = `${this.name}_update_trigger`
+    this.dataSpace.db.exec(`DROP TRIGGER IF EXISTS ${triggerName};`)
+    await this.registerTrigger()
+  }
+
+  async registerTrigger() {
+    const columns = await this.getTableColumns()
+    const triggers = generateMetaTableTriggers({
+      tableName: this.name,
+      fields: columns.map(col => ({ name: col })),
+      operations: 'update',
+      temporary: true
+    })
+    this.dataSpace.db.exec(triggers)
   }
 }

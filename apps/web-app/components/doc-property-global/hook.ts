@@ -1,28 +1,25 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { extractIdFromShortId } from "@/lib/utils"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-
-/**
- * Hooks for managing document properties and meta configurations
- * Provides both global utility functions and state-managed hooks for UI components
- */
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite";
+import type { EidosDataEventChannelMsg } from "@/lib/const";
+import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const";
+import { DocTableName } from "@/packages/core/sqlite/const";
 
 /**
- * Global utility hooks for document properties
- * Provides basic get/set operations without state management
+ * State-managed hook for document properties
+ * Provides loading states and automatic state updates for UI components
+ * @param data.docId - The document ID to manage properties for
  */
-export const useDocPropertyGlobal = () => {
+export const useDocProperty = (data: { docId: string }) => {
+  const { docId } = data
   const { sqlite } = useSqlite()
-
-  const getProperty = useCallback(
-    async (docId: string) => {
-      if (!sqlite) return
-      const res = await sqlite.doc.getProperties(docId)
-      return res
-    },
-    [sqlite]
+  const [docProperty, setDocProperty] = useState<Record<string, any> | null>(
+    null
   )
+
+  const displayProperties = useMemo(() => {
+    return JSON.parse(docProperty?.meta || '{}')?.displayProperties || [] as string[]
+  }, [docProperty?.meta])
 
   const getAllProperties = useCallback(
     async (docId: string) => {
@@ -34,52 +31,11 @@ export const useDocPropertyGlobal = () => {
   )
 
   const setProperty = useCallback(
-    async (docId: string, data: Record<string, any>) => {
+    async (data: Record<string, any>) => {
       if (!sqlite) return
       return await sqlite.doc.setProperties(docId, data)
     },
-    [sqlite]
-  )
-
-  return {
-    getProperty,
-    getAllProperties,
-    setProperty,
-  }
-}
-
-/**
- * Global utility hooks for document meta configurations
- * Provides all meta-related operations without state management
- */
-export const useDocPropertyMeta = () => {
-  const { sqlite } = useSqlite()
-
-  const getMeta = useCallback(
-    async (docId: string) => {
-      if (!sqlite) return null
-      const res = await sqlite.doc.getMeta(docId)
-      return res
-    },
-    [sqlite]
-  )
-
-  const setMeta = useCallback(
-    async (docId: string, meta: any) => {
-      if (!sqlite) return { success: false }
-      const res = await sqlite.doc.setMeta(docId, meta)
-      return res
-    },
-    [sqlite]
-  )
-
-  const getMetas = useCallback(
-    async (docIds: string[]) => {
-      if (!sqlite) return {}
-      const res = await sqlite.doc.getMetas(docIds)
-      return res
-    },
-    [sqlite]
+    [sqlite, docId]
   )
 
   const addDisplayProperty = useCallback(
@@ -109,180 +65,58 @@ export const useDocPropertyMeta = () => {
     [sqlite]
   )
 
-  const getDisplayProperties = useCallback(
-    async (docId: string) => {
-      if (!sqlite) return {}
-      const res = await sqlite.doc.getDisplayProperties(docId)
-      return res
-    },
-    [sqlite]
-  )
-
-  const shouldDisplayProperty = useCallback(
-    async (docId: string, propertyName: string) => {
-      if (!sqlite) return false
-      const res = await sqlite.doc.shouldDisplayProperty(docId, propertyName)
-      return res
-    },
-    [sqlite]
-  )
-
-  return {
-    getMeta,
-    setMeta,
-    getMetas,
-    addDisplayProperty,
-    removeDisplayProperty,
-    setDisplayProperties,
-    getDisplayProperties,
-    shouldDisplayProperty,
-  }
-}
-
-/**
- * State-managed hook for document meta configurations
- * Provides loading states and automatic state updates for UI components
- * @param data.docId - The document ID to manage meta for
- */
-export const useDocMeta = (data: { docId: string }) => {
-  const { docId } = data
-  const { sqlite } = useSqlite()
-  const [docMeta, setDocMeta] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
-  const { getMeta, setMeta, addDisplayProperty, removeDisplayProperty, setDisplayProperties } = useDocPropertyMeta()
-
-  const _getMeta = useCallback(async () => {
+  const _getAllProperties = useCallback(async () => {
     if (!sqlite) return
-    setLoading(true)
-    try {
-      const rowId = extractIdFromShortId(docId)
-      const res = await getMeta(rowId)
-      setDocMeta(res)
-    } catch (error) {
-      console.error('Failed to get meta:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [docId, getMeta, sqlite])
-
-  const _setMeta = useCallback(
-    async (meta: any) => {
-      if (!sqlite) return
-      setLoading(true)
-      try {
-        const rowId = extractIdFromShortId(docId)
-        const res = await setMeta(rowId, meta)
-        if (res.success) {
-          await _getMeta()
-        }
-        return res
-      } catch (error) {
-        console.error('Failed to set meta:', error)
-        return { success: false, message: error instanceof Error ? error.message : 'Unknown error' }
-      } finally {
-        setLoading(false)
-      }
-    },
-    [sqlite, docId, setMeta, _getMeta]
-  )
-
-  const _addDisplayProperty = useCallback(
-    async (propertyName: string) => {
-      if (!sqlite) return { success: false }
-      const rowId = extractIdFromShortId(docId)
-      const res = await addDisplayProperty(rowId, propertyName)
-      if (res.success) {
-        await _getMeta()
-      }
-      return res
-    },
-    [sqlite, docId, addDisplayProperty, _getMeta]
-  )
-
-  const _removeDisplayProperty = useCallback(
-    async (propertyName: string) => {
-      if (!sqlite) return { success: false }
-      const rowId = extractIdFromShortId(docId)
-      const res = await removeDisplayProperty(rowId, propertyName)
-      if (res.success) {
-        await _getMeta()
-      }
-      return res
-    },
-    [sqlite, docId, removeDisplayProperty, _getMeta]
-  )
-
-  const _setDisplayProperties = useCallback(
-    async (propertyNames: string[]) => {
-      if (!sqlite) return { success: false }
-      const rowId = extractIdFromShortId(docId)
-      const res = await setDisplayProperties(rowId, propertyNames)
-      if (res.success) {
-        await _getMeta()
-      }
-      return res
-    },
-    [sqlite, docId, setDisplayProperties, _getMeta]
-  )
-
-  useEffect(() => {
-    _getMeta()
-  }, [_getMeta])
-
-  return {
-    meta: docMeta,
-    loading,
-    setMeta: _setMeta,
-    addDisplayProperty: _addDisplayProperty,
-    removeDisplayProperty: _removeDisplayProperty,
-    setDisplayProperties: _setDisplayProperties,
-    refresh: _getMeta,
-  }
-}
-
-/**
- * State-managed hook for document custom properties
- * Provides loading states and automatic state updates for UI components
- * @param data.docId - The document ID to manage properties for
- */
-export const useDocProperty = (data: { docId: string }) => {
-  const { docId } = data
-  const { sqlite } = useSqlite()
-  const [docProperty, setDocProperty] = useState<Record<string, any> | null>(
-    null
-  )
-  const { getProperty, setProperty } = useDocPropertyGlobal()
-
-  const _getProperty = useCallback(async () => {
-    if (!sqlite) return
-    const rowId = extractIdFromShortId(docId)
-    const res = await getProperty(rowId)
+    const res = await getAllProperties(docId)
     res && setDocProperty(res)
-  }, [docId, getProperty, sqlite])
+  }, [docId, getAllProperties, sqlite])
 
-  const _setProperty = useCallback(
-    async (data: Record<string, any>) => {
-      if (!sqlite) return
-      const rowId = extractIdFromShortId(docId)
-      await setProperty(rowId, data)
-      await _getProperty()
-    },
-    [sqlite, docId, setProperty, _getProperty]
-  )
 
   useEffect(() => {
-    _getProperty()
-  }, [_getProperty])
+    _getAllProperties()
+  }, [_getAllProperties])
 
-  if (!docProperty) {
-    return {
-      properties: null,
-      setProperty: _setProperty,
+  useEffect(() => {
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
+
+    const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
+      const { type, payload } = ev.data
+      if (type === EidosDataEventChannelMsgType.MetaTableUpdateSignalType) {
+        const { table, _new, _old, type: updateType } = payload
+        const id = _new?.id || _old?.id
+        if (id !== docId) return
+        if (table !== DocTableName) return
+
+        // find diff between _new and _old
+        const diff = Object.keys(_new).filter((key) => {
+          return _new[key] !== _old[key]
+        })
+        if (diff.length === 0) return
+        switch (updateType) {
+          case DataUpdateSignalType.Update:
+            console.log('update', diff)
+            setDocProperty(_new)
+            break
+          default:
+            break
+        }
+      }
     }
-  }
-  const { _id, title, ...restData } = docProperty
+
+    bc.addEventListener("message", handler)
+    return () => {
+      bc.removeEventListener("message", handler)
+      bc.close()
+    }
+  }, [docId])
+
+
   return {
-    properties: restData,
-    setProperty: _setProperty,
+    properties: docProperty,
+    setProperty: setProperty,
+    addDisplayProperty: addDisplayProperty,
+    removeDisplayProperty: removeDisplayProperty,
+    setDisplayProperties: setDisplayProperties,
+    displayProperties: displayProperties,
   }
 }
