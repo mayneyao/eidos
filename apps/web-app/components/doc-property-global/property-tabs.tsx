@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/tooltip"
 import { DocProperty } from "@/components/doc-property"
 
+import { DocAction } from "./doc-action"
 import { DocPropertyGlobal } from "./index"
 
 interface PropertyTabsProps {
@@ -31,54 +32,58 @@ export const PropertyTabs: React.FC<PropertyTabsProps> = ({
 
   return (
     <div className="w-full" id="doc-property-container">
-      <div className="flex items-center gap-4 mb-3 border-b border-border/50">
-        <button
-          onClick={() => setActiveTab("global-properties")}
-          tabIndex={0}
-          className={cn(
-            "text-sm font-medium pb-2 border-b-2 transition-colors flex items-center gap-1",
-            activeTab === "global-properties"
-              ? "text-foreground border-foreground"
-              : "text-muted-foreground border-transparent hover:text-foreground hover:border-border"
-          )}
-        >
-          {t("doc.properties.globalProperties")}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                {t("doc.properties.globalPropertiesTooltip")}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </button>
-        {isParentTable && (
+      <div className="flex items-center justify-between gap-4 mb-3 border-b border-border/50">
+        <div className="flex items-center gap-4">
           <button
-            onClick={() => setActiveTab("table-properties")}
+            onClick={() => setActiveTab("global-properties")}
             tabIndex={0}
             className={cn(
               "text-sm font-medium pb-2 border-b-2 transition-colors flex items-center gap-1",
-              activeTab === "table-properties"
+              activeTab === "global-properties"
                 ? "text-foreground border-foreground"
                 : "text-muted-foreground border-transparent hover:text-foreground hover:border-border"
             )}
           >
-            {t("doc.properties.tableProperties")}
+            {t("doc.properties.globalProperties")}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  {t("doc.properties.tablePropertiesTooltip")} [
-                  {parentNode.name}]
+                  {t("doc.properties.globalPropertiesTooltip")}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </button>
-        )}
+          {isParentTable && (
+            <button
+              onClick={() => setActiveTab("table-properties")}
+              tabIndex={0}
+              className={cn(
+                "text-sm font-medium pb-2 border-b-2 transition-colors flex items-center gap-1",
+                activeTab === "table-properties"
+                  ? "text-foreground border-foreground"
+                  : "text-muted-foreground border-transparent hover:text-foreground hover:border-border"
+              )}
+            >
+              {t("doc.properties.tableProperties")}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    {t("doc.properties.tablePropertiesTooltip")} [
+                    {parentNode.name}]
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </button>
+          )}
+        </div>
+
+        <DocAction docId={docId} />
       </div>
 
       <div className="w-full">

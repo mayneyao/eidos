@@ -32,7 +32,6 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
 import { EverydayPageContent } from "../everyday/[day]/page"
-import { useGenerateTitle } from "./hooks/use-generate-title"
 import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
 import { NodeRestore } from "./node-restore"
@@ -54,8 +53,6 @@ export const NodeComponent = ({
   const handleBlockId = useCurrentExtNodeHandleBlockId()
   const { getEmoji } = useEmoji()
   const { updateIcon, updateCover, updateHideProperties } = useNode()
-  const { generateTitle, isLoading: isTitleGenerating } = useGenerateTitle()
-  const { getDocMarkdown } = useSqlite()
   const { space } = useCurrentPathInfo()
 
   useEffect(() => {
@@ -109,25 +106,6 @@ export const NodeComponent = ({
   }
   const isReadOnly = node.is_locked || isInkServiceMode
 
-  const handleGenerateTitle = async () => {
-    if (!node?.id) return
-
-    const docContent = await getDocMarkdown(node.id)
-    if (!docContent) return
-    try {
-      const newTitle = await generateTitle(docContent)
-      console.log("newTitle", newTitle)
-      if (newTitle) {
-        await updateNodeName(node.id, newTitle)
-      }
-    } catch (error) {
-      console.error("Failed to generate title:", error)
-      toast({
-        title: t("common.error"),
-        description: t("common.error.tryAgainLater"),
-      })
-    }
-  }
 
   return (
     <>
@@ -196,11 +174,6 @@ export const NodeComponent = ({
                   {node.hide_properties
                     ? t("doc.showProperties")
                     : t("doc.hideProperties")}
-                </Button>
-              )}
-              {!isReadOnly && (
-                <Button size="xs" variant="ghost" onClick={handleGenerateTitle}>
-                  {t("doc.generateTitle")}
                 </Button>
               )}
             </div>

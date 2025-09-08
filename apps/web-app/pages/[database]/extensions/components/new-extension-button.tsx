@@ -81,6 +81,16 @@ export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
         </DropdownMenuItem>
         <DropdownMenuItem
           className="group relative"
+          onClick={() => handleCreateNewExtension("docAction")}
+        >
+          <ZapIcon className="mr-2 h-4 w-4" />
+          {t("extension.docAction")}
+          <ExtensionTooltip>
+            {t("extension.docActionDescription")}
+          </ExtensionTooltip>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="group relative"
           onClick={() => handleCreateNewExtension("udf")}
         >
           <DatabaseIcon className="mr-2 h-4 w-4" />
