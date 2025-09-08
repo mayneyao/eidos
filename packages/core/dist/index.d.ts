@@ -84,7 +84,7 @@ type ILookupContext = {
 //#region types/IExtension.d.ts
 type ExtensionStatus = "all" | "enabled" | "disabled";
 type BindingType = "table" | "secret" | "text";
-type ExtensionMeta = TableViewMeta | ExtNodeMeta | ToolMeta | TableActionMeta | UDFMeta;
+type ExtensionMeta = TableViewMeta | ExtNodeMeta | ToolMeta | TableActionMeta | DocActionMeta | UDFMeta;
 type IBinding = {
   type: BindingType;
   value: string;
@@ -109,6 +109,7 @@ interface IExtension<T extends ExtensionMeta = ExtensionMeta> {
 }
 declare enum ScriptExtensionType {
   TableAction = "tableAction",
+  DocAction = "docAction",
   Tool = "tool",
   UDF = "udf",
 }
@@ -148,6 +149,14 @@ interface TableActionMeta {
   type: ScriptExtensionType.TableAction;
   funcName: string;
   tableAction: {
+    name: string;
+    description: string;
+  };
+}
+interface DocActionMeta {
+  type: ScriptExtensionType.DocAction;
+  funcName: string;
+  docAction: {
     name: string;
     description: string;
   };
@@ -304,10 +313,37 @@ interface IDoc {
   is_day_page?: boolean;
   created_at?: string;
   updated_at?: string;
+  meta?: string;
+}
+interface DocMeta {
+  displayProperties?: string[];
+  [key: string]: any;
 }
 declare class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
   name: string;
   createFTSSql: string;
+  /**
+   * Get table column information
+   * @returns array of column information
+   */
+  getTableColumns(): Promise<string[]>;
+  /**
+   * Check if column exists
+   * @param columnName column name
+   * @returns whether it exists
+   */
+  columnExists(columnName: string): Promise<boolean>;
+  /**
+   * Dynamically add new column
+   * @param columnName column name
+   * @param columnType column type (defaults to TEXT)
+   */
+  addColumn(columnName: string, columnType?: string): Promise<void>;
+  /**
+   * Ensure custom property columns exist, create them if they don't
+   * @param properties custom properties object
+   */
+  ensureCustomPropertyColumns(properties: Record<string, any>): Promise<void>;
   createTableSql: string;
   /**
    * for now lexical's code node depends on the browser's dom, so we can't use lexical in worker.
@@ -379,6 +415,88 @@ declare class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
     success: boolean;
     msg: string;
   }>;
+  getProperties(id: string): Promise<any>;
+  /**
+   * Get all properties of a document (including system properties)
+   * @param id document ID
+   * @returns complete properties object
+   */
+  getAllProperties(id: string): Promise<any>;
+  /**
+   * Get document's meta configuration
+   * @param id document ID
+   * @returns meta configuration object
+   */
+  getMeta(id: string): Promise<DocMeta>;
+  /**
+   * Set document's meta configuration
+   * @param id document ID
+   * @param meta meta configuration object
+   * @returns operation result
+   */
+  setMeta(id: string, meta: DocMeta): Promise<{
+    success: boolean;
+    message?: string;
+  }>;
+  /**
+   * Add property to display list
+   * @param id document ID
+   * @param propertyName property name to display
+   * @returns operation result
+   */
+  addDisplayProperty(id: string, propertyName: string): Promise<{
+    success: boolean;
+    message?: string;
+  }>;
+  /**
+   * Remove property from display list
+   * @param id document ID
+   * @param propertyName property name to remove
+   * @returns operation result
+   */
+  removeDisplayProperty(id: string, propertyName: string): Promise<{
+    success: boolean;
+    message?: string;
+  }>;
+  /**
+   * Set list of properties to display
+   * @param id document ID
+   * @param propertyNames array of property names to display
+   * @returns operation result
+   */
+  setDisplayProperties(id: string, propertyNames: string[]): Promise<{
+    success: boolean;
+    message?: string;
+  }>;
+  /**
+   * Get properties to display and their values
+   * @param id document ID
+   * @returns properties object to display
+   */
+  getDisplayProperties(id: string): Promise<Record<string, any>>;
+  /**
+   * Batch get meta configurations for multiple documents
+   * @param ids array of document IDs
+   * @returns meta configuration mapping object
+   */
+  getMetas(ids: string[]): Promise<Record<string, DocMeta>>;
+  /**
+   * Check if property should be displayed
+   * @param id document ID
+   * @param propertyName property name
+   * @returns whether it should be displayed
+   */
+  shouldDisplayProperty(id: string, propertyName: string): Promise<boolean>;
+  setProperties(id: string, properties: Record<string, any>): Promise<{
+    success: boolean;
+    message: string;
+    updatedProperties?: undefined;
+  } | {
+    success: boolean;
+    updatedProperties: string[];
+    message?: undefined;
+  }>;
+  getPropertyMeta(id: string): Promise<any>;
 }
 //# sourceMappingURL=doc.d.ts.map
 //#endregion
@@ -812,11 +930,19 @@ declare class ExtensionTable extends BaseTableImpl<IExtension> implements BaseTa
   /**
    * Get TableAction extensions by status
    */
-  getTableActionExtensions(status?: ExtensionStatus): Promise<IExtension[]>;
+  getTableActionExtensions(status?: ExtensionStatus): Promise<IExtension<TableActionMeta>[]>;
+  /**
+   * Get DocAction extensions by status
+   */
+  getDocActionExtensions(status?: ExtensionStatus): Promise<IExtension<DocActionMeta>[]>;
   /**
    * Get UDF (User Defined Function) extensions by status
    */
   getUDFExtensions(status?: ExtensionStatus): Promise<IExtension<UDFMeta>[]>;
+  /**
+   * Generic method to get script extensions by type and status
+   */
+  private getScriptExtensionsByType;
   /**
    * Get extension by slug
    */
@@ -1124,6 +1250,7 @@ declare class RowsManager {
     withRowId?: boolean;
   }): Promise<any>;
   /**
+   * @deprecated Use findMany instead. This method will be removed in a future version.
    * @param filter a filter object, the key is field name, the value is field value
    * @param options
    * @returns
@@ -1828,6 +1955,20 @@ interface Eidos {
       prompt: string;
       [key: string]: any;
     }): Promise<string>;
+    /**
+     * Generate object using AI
+     * @param options Generation options including model and prompt
+     * @param options.model The AI model to use
+     * @param options.prompt The prompt text
+     * @param options.schema The json schema of the object
+     * @returns The generated object
+     */
+    generateObject(options: {
+      model?: string;
+      prompt: string;
+      schema: Record<string, any>;
+      [key: string]: any;
+    }): Promise<Record<string, any>>;
   };
   utils: {
     /**

@@ -19,6 +19,7 @@ export enum FieldType {
   LastEditedBy = "last-edited-by",
 }
 
+
 export enum FieldValueType {
   String = "string",
   Number = "number",

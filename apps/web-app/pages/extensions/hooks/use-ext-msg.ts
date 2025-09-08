@@ -8,7 +8,7 @@ import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useScriptCall } from "@/apps/web-app/hooks/use-script-call"
 import { getSqliteChannel } from "@/packages/core/sqlite/channel"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { generateText } from "ai"
+import { generateObject, generateText, jsonSchema } from "ai"
 import { useExtensions } from "./use-extensions"
 
 
@@ -54,7 +54,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
   const { getExtensionIndex } = useExtensions()
   const { setRunningCommand } = useAppRuntimeStore()
 
-  const { getLLModel } = useAiConfig()
+  const { getLLModel, textModel } = useAiConfig()
   const { callScript } = useScriptCall()
 
   const { efsManager } = useEidosFileSystemManager()
@@ -132,10 +132,42 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                 setRunningCommand(null)
               })
               break
+            case "generateObject":
+              try {
+                console.log("receive generate object", _args)
+                const payload = _args[0]
+                const llmodel = getLLModel(payload.model || textModel)
+                generateObject({
+                  model: llmodel,
+                  prompt: payload.prompt,
+                  schema: jsonSchema(payload.schema),
+                }).then(({ object }) => {
+                  console.log("generate object", object)
+                  event.ports[0].postMessage({
+                    type: ExtMsgType.scriptCallMainResp,
+                    data: object,
+                  })
+                }).catch((error) => {
+                  event.ports[0].postMessage({
+                    type: ExtMsgType.scriptCallMainError,
+                    data: error,
+                  })
+                  console.log("generate object error", error)
+                  setRunningCommand(null)
+                })
+              } catch (error) {
+                event.ports[0].postMessage({
+                  type: ExtMsgType.scriptCallMainError,
+                  data: error,
+                })
+                setRunningCommand(null)
+              }
+              break
             case "generateText":
               try {
+                console.log("receive generate text", _args)
                 const payload = _args[0]
-                const llmodel = getLLModel(payload.model)
+                const llmodel = getLLModel(payload.model || textModel)
                 generateText({
                   model: llmodel,
                   prompt: payload.prompt,
@@ -181,7 +213,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
           break
         case ExtMsgType.rpcCall:
           // query database
-          const { method, params, space } = event.data.data
+          const { method, params, space, scope, args } = event.data.data
           console.log("receive rpc call", method, params, space)
           const thisCallId = uuidv7()
           const res = sqlite.send({

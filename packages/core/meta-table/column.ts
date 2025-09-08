@@ -13,7 +13,7 @@ import { getColumnIndexName, getTableIdByRawTableName } from "@/lib/utils"
 
 import type { BaseServerDatabase } from "../sqlite/interface"
 import { TableManager } from "../sdk/table"
-import type { BaseTable} from "./base";
+import type { BaseTable } from "./base";
 import { BaseTableImpl } from "./base"
 
 
