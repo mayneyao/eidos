@@ -72,7 +72,7 @@ export function hello({ name }: { name: string }) {
 #### 2.2.2 元配置
 
 ```typescript
-interface ActionMeta {
+interface TableActionMeta {
   type: "tableAction"
   funcName: string
   tableAction: {
@@ -119,13 +119,80 @@ export async function toggleChecked(
 }
 ```
 
-### 2.3 用户自定义函数 (UDF) 脚本
+### 2.3 文档动作脚本
 
 #### 2.3.1 概述
 
-当 `type` 属性设置为 `"udf"` 时，脚本创建可以在 SQL 查询中调用的数据库函数，扩展数据库的计算能力。
+当 `type` 属性设置为 `"docAction"` 时，脚本作为文档级操作，可以在特定文档上触发。这些操作通过文档动作菜单访问，让您的文档变得更加智能和自动化。
 
 #### 2.3.2 元配置
+
+```typescript
+interface DocActionMeta {
+  type: "docAction"
+  funcName: string
+  docAction: {
+    name: string
+    description: string
+  }
+}
+```
+
+#### 2.3.3 执行上下文
+
+文档动作函数接收两个参数：
+
+- `input`: 作为 `Record<string, any>` 的输入参数
+- `ctx`: 包含 `docId` 的上下文对象
+
+#### 2.3.4 实现示例
+
+```ts
+export const meta = {
+  type: "docAction",
+  funcName: "calculateCompletion",
+  docAction: {
+    name: "计算完成度",
+    description: "计算文档中待办事项的完成百分比",
+  },
+}
+
+export async function calculateCompletion(
+  input: Record<string, any>,
+  ctx: {
+    docId: string
+  }
+) {
+  const { docId } = ctx
+  const doc = await eidos.currentSpace.doc.getMarkdown(docId)
+  
+  // 从 markdown 中提取 checkbox 的完成占比
+  const uncheckedCount = doc
+    .split("\n")
+    .filter((line) => line.startsWith("- [ ]")).length
+  const checkedCount = doc
+    .split("\n")
+    .filter((line) => line.startsWith("- [x]")).length
+  const totalCount = uncheckedCount + checkedCount
+  const completion = totalCount > 0 ? (checkedCount / totalCount) * 100 : 0
+
+  await eidos.currentSpace.doc.setProperties(docId, {
+    completion,
+  })
+  
+  return {
+    completion,
+  }
+}
+```
+
+### 2.4 用户自定义函数 (UDF) 脚本
+
+#### 2.4.1 概述
+
+当 `type` 属性设置为 `"udf"` 时，脚本创建可以在 SQL 查询中调用的数据库函数，扩展数据库的计算能力。
+
+#### 2.4.2 元配置
 
 ```typescript
 interface UDFMeta {
@@ -138,9 +205,9 @@ interface UDFMeta {
 }
 ```
 
-#### 2.3.3 UDF 类型
+#### 2.4.3 UDF 类型
 
-##### 2.3.3.1 标量 UDF
+##### 2.4.3.1 标量 UDF
 
 标量 UDF 对单个值进行操作，每次调用返回单个结果。
 

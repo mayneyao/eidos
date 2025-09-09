@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS eidos__docs (
     content TEXT,
     markdown TEXT,
     is_day_page BOOLEAN DEFAULT 0,
+    meta TEXT DEFAULT '{}', -- JSON string for display configuration
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -36,9 +37,9 @@ CREATE TABLE IF NOT EXISTS eidos__docs (
 | content     | TEXT      | Lexical 格式的富内容（编辑器使用的格式） |
 | markdown    | TEXT      | 用于导出和互操作性的 markdown 版本       |
 | is_day_page | boolean   | 这是否是日常日记页面                     |
+| meta        | TEXT      | JSON 格式的显示配置（控制显示哪些属性）  |
 | created_at  | timestamp | 您首次开始此文档的时间                   |
 | updated_at  | timestamp | 您最后一次修改它的时间                   |
-| meta        | TEXT      | JSON 格式的显示配置（控制显示哪些属性）  |
 
 巧妙之处在于以两种格式存储内容。`content` 字段保存使编辑流畅的富结构化格式。`markdown` 字段为您提供可移植性——您始终可以以几十年后仍然可读的格式导出您的想法。
 
@@ -54,7 +55,7 @@ CREATE TABLE IF NOT EXISTS eidos__docs (
 
 ## 自定义属性
 
-您可以在文档中添加自定义属性。这些属性不会影响文档的正常使用，但可以用于存储额外的信息。 它类似于 frontmatter, 在常见约定中在 markdown 头部使用 yaml 格式存储一些元数据。
+您可以在文档中添加自定义属性。这些属性不会影响文档的正常使用，但可以用于存储额外的信息。 它类似于 frontmatter, 常见约定中, 在 markdown 头部使用 yaml 格式存储一些元数据。
 
 假设你有一份 markdown 文档如下:
 
@@ -73,6 +74,17 @@ this is a markdown document
 | --- | ----------------- | ----------- | --------------------------- | ------------------- | ------------------- | ------------------ | -------------------- |
 | 1   | <lexical_content> | 0           | this is a markdown document | 2025-01-01 12:00:00 | 2025-01-01 12:00:00 | value1             | value2               |
 
+### 属性类型
+
+文档的自定义属性类型不会像表格那样丰富，仅提供一些基础类型
+
+- 文本 text
+- 数字 number
+- 勾选框 boolean
+- 日期 date
+- 日期时间 datetime
+- 多选 array of text
+
 ### 保留属性
 
 系统默认的字段（如上表所示）是保留属性，你在新建自定义属性时无法使用这些字段。下面是作为保留属性的字段：
@@ -85,11 +97,13 @@ this is a markdown document
 - is_day_page
 - created_at
 - updated_at
+- meta
 
 未来可能用到的保留属性：
 
 - properties
-- meta
+- slug
+- filename
 
 同时也避免使用 `_` 开头的字段，在一般的约定中，`_` 开头的字段是系统保留字段。
 
@@ -109,16 +123,103 @@ WHERE
   AND d.my_custom_property_2 = 'value2';
 ```
 
-## 表格中的文档
+## 自定义动作
 
-表格中的每一行记录都可以展开为一份文档。文档内容仍然是 `eidos__docs` 表中的内容，但是会带上表格的元数据。
-此份文档在 `eidos__docs` 表中的 `id` 和 `eidos__tree` 表中的 `id` 以及所在 `tb_<node_id>` 表中的 `_id` 是相同的。
+除了自定义属性，您还可以为文档添加自定义动作。这些动作让您的文档变得更加智能和自动化。
 
-- `eidos__docs` 表中的 `id` 例如 `0190b47cc6d0758baf066cd8aded669a`
-- `eidos__tree` 表中的 `id` 例如 `0190b47cc6d0758baf066cd8aded669a`
-- `tb_<node_id>` 表中的 `_id` 例如 `0190b47c-c6d0-758b-af06-6cd8aded669a`
+想象一下，当您写完一篇文章后，系统可以自动为您生成摘要；当您勾选完所有待办事项后，系统可以自动计算完成度；当您记录完一天的饮食后，系统可以自动计算卡路里摄入量。
 
-这类表格中的子文档会存在 2 类属性。
+这些动作通过 [script](/zh-cn/extensions/script) 扩展来实现。您只需要创建一个脚本，暴露 `type` 为 [docAction](/zh-cn/extensions/script#23-文档动作脚本) 的 meta 对象，系统就会自动识别并将其添加到文档动作菜单中。
 
-- 所在表格的字段属性
-- `eidos__docs` 表中公用的全局属性
+### 应用案例 - 计算完成度
+
+假设您用一份文档来记录今天的待办事项，通过勾选框来标记完成状态。您希望系统能够自动计算完成度，让您一目了然地看到今天的进度。
+
+首先，我们需要创建一个名为 `completion` 的数字类型属性。然后，编写一个脚本来分析文档中的勾选框状态：
+
+```ts
+export const meta = {
+  type: "docAction",
+  funcName: "calculateCompletion",
+  docAction: {
+    name: "Calculate Completion",
+    description: "Calculates the completion percentage of the document",
+  },
+}
+
+export async function calculateCompletion(
+  input: Record<string, any>,
+  ctx: {
+    docId: string
+  }
+) {
+  const { docId } = ctx
+  const doc = await eidos.currentSpace.doc.getMarkdown(docId)
+  // 从 markdown 中提取 checkbox 的完成占比
+  const uncheckedCount = doc
+    .split("\n")
+    .filter((line) => line.startsWith("- [ ]")).length
+  const checkedCount = doc
+    .split("\n")
+    .filter((line) => line.startsWith("- [x]")).length
+  const totalCount = uncheckedCount + checkedCount
+  const completion = totalCount > 0 ? (checkedCount / totalCount) * 100 : 0
+
+  await eidos.currentSpace.doc.setProperties(docId, {
+    completion,
+  })
+  return {
+    completion,
+  }
+}
+```
+
+### 应用案例 - 计算卡路里
+
+现在让我们看一个更复杂的例子。假设您正在写健身日记，记录每天的饮食情况，并希望系统能够自动计算您摄入的卡路里。
+
+首先，创建一个名为 `calories` 的数字类型属性。然后，我们可以借助 AI 的强大能力来自动分析您的饮食记录。
+
+Eidos SDK 提供了丰富的 AI 功能。您可以使用 `eidos.AI.generateText` 来生成文本内容，比如摘要和总结。对于计算卡路里这种需要结构化数据的场景，我们使用 `eidos.AI.generateObject` 来确保 AI 返回包含卡路里信息的对象：
+
+```ts
+export const meta = {
+  type: "docAction",
+  funcName: "calculateCalories",
+  docAction: {
+    name: "Calculate Calories",
+    description: "Calculates the calories of the document",
+  },
+}
+
+export async function calculateCalories(
+  input: Record<string, any>,
+  ctx: {
+    docId: string
+  }
+) {
+  const { docId } = ctx
+  const doc = await eidos.currentSpace.doc.getMarkdown(docId)
+  const { calories } = await eidos.AI.generateObject({
+    model: "google/gemini-2.5-flash-lite@openrouter",
+    prompt: `Calculate the calories of the following document:
+    ${doc}`,
+    schema: {
+      type: "object",
+      properties: {
+        calories: {
+          type: "number",
+        },
+      },
+      required: ["calories"],
+    },
+    }
+  })
+  await eidos.currentSpace.doc.setProperties(docId, {
+    calories,
+  })
+  return {
+    calories,
+  }
+}
+```
