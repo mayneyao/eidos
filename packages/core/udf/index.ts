@@ -181,7 +181,7 @@ export const withSqlite3AllUDF = (bc: {
     name: "eidos_column_event_insert",
     xFunc: function (pCx, table, _new) {
       bc.postMessage({
-        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        type: EidosDataEventChannelMsgType.SchemaUpdateSignalType,
         payload: {
           type: DataUpdateSignalType.AddColumn,
           table,
@@ -195,7 +195,7 @@ export const withSqlite3AllUDF = (bc: {
     name: "eidos_column_event_insert",
     xFunc: function (table, _new) {
       bc.postMessage({
-        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        type: EidosDataEventChannelMsgType.SchemaUpdateSignalType,
         payload: {
           type: DataUpdateSignalType.AddColumn,
           table,
@@ -209,7 +209,7 @@ export const withSqlite3AllUDF = (bc: {
     name: "eidos_column_event_update",
     xFunc: function (pCx, table, _new, _old) {
       bc.postMessage({
-        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        type: EidosDataEventChannelMsgType.SchemaUpdateSignalType,
         payload: {
           type: DataUpdateSignalType.UpdateColumn,
           table,
@@ -224,11 +224,38 @@ export const withSqlite3AllUDF = (bc: {
     name: "eidos_column_event_update",
     xFunc: function (table, _new, _old) {
       bc.postMessage({
-        type: EidosDataEventChannelMsgType.DataUpdateSignalType,
+        type: EidosDataEventChannelMsgType.SchemaUpdateSignalType,
         payload: {
           type: DataUpdateSignalType.UpdateColumn,
           table,
           _new: JSON.parse(_new),
+          _old: JSON.parse(_old),
+        },
+      })
+    },
+  }
+
+  const eidos_column_event_delete = {
+    name: "eidos_column_event_delete",
+    xFunc: function (pCx, table, _old) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.SchemaUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.DeleteColumn,
+          table,
+          _old: JSON.parse(_old),
+        },
+      })
+    },
+  }
+  const eidos_column_event_deleteNoCtx = {
+    name: "eidos_column_event_delete",
+    xFunc: function (table, _old) {
+      bc.postMessage({
+        type: EidosDataEventChannelMsgType.SchemaUpdateSignalType,
+        payload: {
+          type: DataUpdateSignalType.DeleteColumn,
+          table,
           _old: JSON.parse(_old),
         },
       })
@@ -332,6 +359,7 @@ export const withSqlite3AllUDF = (bc: {
     eidos_data_event_delete,
     eidos_column_event_insert,
     eidos_column_event_update,
+    eidos_column_event_delete,
     eidos_meta_table_event_insert,
     eidos_meta_table_event_update,
     eidos_meta_table_event_delete,
@@ -348,6 +376,7 @@ export const withSqlite3AllUDF = (bc: {
     eidos_data_event_deleteNoCtx,
     eidos_column_event_insertNoCtx,
     eidos_column_event_updateNoCtx,
+    eidos_column_event_deleteNoCtx,
     eidos_meta_table_event_insertNoCtx,
     eidos_meta_table_event_updateNoCtx,
     eidos_meta_table_event_deleteNoCtx,

@@ -9,7 +9,7 @@ export const useNodeBaseInfo = (node: ITreeNode | null) => {
   useEffect(() => {
     if (!node) return
     if (node.type === "doc") {
-      sqlite?.getDocBaseInfo(node.id).then((info) => {
+      sqlite?.doc.getBaseInfo(node.id).then((info) => {
         setUpdatedAt(info?.updated_at)
       })
     } else {

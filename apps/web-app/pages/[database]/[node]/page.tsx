@@ -59,7 +59,7 @@ export const NodeComponent = ({
     const bc = new BroadcastChannel(EidosDataEventChannelName)
     const handler = (ev: MessageEvent<EidosDataEventChannelMsg>) => {
       const { type, payload } = ev.data
-      if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
+      if (type === EidosDataEventChannelMsgType.SchemaUpdateSignalType) {
         const { table, _new, _old } = payload
         if (
           [
