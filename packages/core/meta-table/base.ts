@@ -17,7 +17,10 @@ export interface BaseTable<T> extends MetaTable<T> {
 export class BaseTableImpl<T = any> {
   name = ""
   JSONFields: string[] = []
-  constructor(protected dataSpace: DataSpace) { }
+  dataSpace: DataSpace
+  constructor(dataSpace: DataSpace) {
+    this.dataSpace = dataSpace
+  }
 
   initTable(createTableSql: string) {
     this.dataSpace.exec(createTableSql)
@@ -30,6 +33,46 @@ export class BaseTableImpl<T = any> {
       }
     })
     return data
+  }
+
+  /**
+   * Check if column exists
+   * @param columnName column name
+   * @returns whether it exists
+   */
+  public async columnExists(columnName: string): Promise<boolean> {
+    const columns = await this.getTableColumns()
+    return columns.includes(columnName)
+  }
+
+  /**
+   * Get table column information
+   * @returns array of column information
+   */
+  public async getTableColumns(): Promise<string[]> {
+    try {
+      const res = await this.dataSpace.exec2(
+        `PRAGMA table_info(${this.name})`
+      )
+      return res.map((col: any) => col.name)
+    } catch (error) {
+      console.error('Failed to get table columns:', error)
+      return []
+    }
+  }
+
+  public async getRegularTriggers(tableName: string) {
+    return await this.dataSpace.exec2(`
+      SELECT name FROM sqlite_master 
+      WHERE type = 'trigger' AND tbl_name = ?
+    `, [tableName]) as Array<{ name: string }>
+  }
+
+  public async getTempTriggers(tableName: string) {
+    return await this.dataSpace.exec2(`
+      SELECT name FROM sqlite_temp_master 
+      WHERE type = 'trigger' AND tbl_name = ?
+    `, [tableName]) as Array<{ name: string }>
   }
 
   async del(id: string, db = this.dataSpace.db): Promise<boolean> {
