@@ -11,10 +11,9 @@ export async function summarizeArticle(
     input: Record<string, any>,
     ctx: {
         docId: string
-        databaseId: string
     }
 ) {
-    const { docId, databaseId } = ctx
+    const { docId } = ctx
 
     // Get document content
     const docContent = await eidos.currentSpace.doc.getMarkdown(docId)
@@ -35,7 +34,7 @@ export async function summarizeArticle(
     try {
         // Generate AI summary
         const summary = await eidos.AI.generateText({
-            prompt: `Please provide a concise summary of the following document. Focus on the main points, key insights, and important information. Keep the summary clear and well-structured:
+            prompt: `Please provide a concise summary of the following document in exactly 127 characters or less. Focus on the main points, key insights, and important information. Keep the summary clear and well-structured:
 
 ${docContent}`
         })
@@ -44,23 +43,16 @@ ${docContent}`
         // Save summary to document properties
         await eidos.currentSpace.doc.setProperties(docId, {
             summary: summary,
-            summaryGeneratedAt: new Date().toISOString(),
-            originalLength: docContent.length,
-            summaryLength: summary.length
         })
 
         return {
             success: true,
             summary: summary,
-            originalLength: docContent.length,
-            summaryLength: summary.length,
-            savedToProperties: true
         }
     } catch (error) {
         return {
             success: false,
             error: `Failed to generate summary: ${error.message}`,
-            originalLength: docContent.length
         }
     }
 }

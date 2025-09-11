@@ -4,6 +4,7 @@ export enum FieldType {
   Title = "title",
   Checkbox = "checkbox",
   Date = "date",
+  DateTime = "datetime",
   File = "file",
   MultiSelect = "multi-select",
   Rating = "rating",

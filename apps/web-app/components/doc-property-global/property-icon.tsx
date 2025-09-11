@@ -1,4 +1,4 @@
-import { Calendar, CheckSquare, Hash, Tag, Type } from "lucide-react"
+import { Calendar, CheckSquare, Clock, Hash, Tag, Type } from "lucide-react"
 
 import type { PropertyType } from "./types"
 
@@ -18,6 +18,8 @@ export const PropertyIcon: React.FC<PropertyIconProps> = ({
       return <Hash className={className} />
     case "date":
       return <Calendar className={className} />
+    case "datetime":
+      return <Clock className={className} />
     case "boolean":
       return <CheckSquare className={className} />
     case "tags":

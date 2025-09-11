@@ -72,7 +72,4 @@ export class ExtNodeTable extends BaseTableImpl<IExtNode> implements BaseTable<I
     return this.set(id, { text })
   }
 
-  async deleteExtNode(id: string): Promise<boolean> {
-    return this.del(id)
-  }
 } 

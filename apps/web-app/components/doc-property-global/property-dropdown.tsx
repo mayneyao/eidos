@@ -8,7 +8,7 @@ interface PropertyDropdownProps {
   availableProperties: Record<string, any>
   systemProperties?: Record<string, any>
   onSelectProperty: (propertyName: string) => Promise<void>
-  onCreateNew: () => void
+  onCreateNew: (searchQuery?: string) => void
   onClose: () => void
 }
 
@@ -111,7 +111,7 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
         onSelectProperty(propertyName)
       } else {
         // Create new property
-        onCreateNew()
+        onCreateNew(searchQuery.trim() || undefined)
       }
     }
   }
@@ -216,7 +216,7 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
 
           {/* Create New Property Button */}
           <button
-            onClick={onCreateNew}
+            onClick={() => onCreateNew(searchQuery.trim() || undefined)}
             className={`w-full px-2 py-1 text-sm text-left hover:bg-accent hover:border hover:border-border border border-transparent flex items-center gap-2 text-muted-foreground transition-colors ${
               selectedIndex ===
               filteredSystemProperties.length +
@@ -227,6 +227,11 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
           >
             <Plus className="w-3 h-3" />
             Create new property
+            {searchQuery.trim() && (
+              <span className="text-xs bg-muted px-1 rounded">
+                "{searchQuery.trim()}"
+              </span>
+            )}
           </button>
         </div>
       </div>

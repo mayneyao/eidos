@@ -4,18 +4,24 @@ import { Type } from "lucide-react"
 interface AddPropertyInputProps {
   onAdd: (propertyName: string) => Promise<void>
   onCancel: () => void
+  initialValue?: string
 }
 
 export const AddPropertyInput: React.FC<AddPropertyInputProps> = ({
   onAdd,
   onCancel,
+  initialValue = "",
 }) => {
-  const [newPropertyName, setNewPropertyName] = useState("")
+  const [newPropertyName, setNewPropertyName] = useState(initialValue)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus()
+      // 如果有初始值，选中所有文本
+      if (initialValue) {
+        inputRef.current.select()
+      }
     }
   }, [])
 

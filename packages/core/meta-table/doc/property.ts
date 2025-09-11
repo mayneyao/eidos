@@ -1,9 +1,7 @@
-import type { BaseDocTable, DocMeta } from "./base";
-import { allFieldTypesMap } from "../../fields";
 import { FieldType } from "../../fields/const";
-import { ColumnTable } from "../column";
-import { alterColumnType } from "../../sqlite/sql-alter-column-type";
+import { ColumnTableName } from "../../sqlite/const";
 import { generateMetaTableTriggers } from "../../sqlite/sql-meta-table-trigger";
+import type { BaseDocTable, DocMeta } from "./base";
 import { filterValidProperties, RESERVED_PROPERTIES } from "./helper";
 
 // Mixin to add property-related methods
@@ -107,34 +105,6 @@ export function WithProperty<T extends Constructor>(Base: T) {
             }
         }
 
-        async getPropertyTypes() {
-            const columns = await this.dataSpace.column.list({ table_name: this.name })
-            return columns.map((col: any) => ({ name: col.table_column_name, type: col.type }))
-        }
-
-        async changePropertyType(propertyName: string, newType: FieldType) {
-            const defaultFieldProperty =
-                allFieldTypesMap[newType].getDefaultFieldProperty()
-            let newProperty = defaultFieldProperty
-            const field = await this.dataSpace.column.getColumn(
-                this.name,
-                propertyName
-            )
-
-            if (!field) return
-
-            const oldColumnType = ColumnTable.getColumnTypeByFieldType(field.type)
-            const newColumnType = ColumnTable.getColumnTypeByFieldType(newType)
-            const isColumnTypeChanged = oldColumnType !== newColumnType
-            if (isColumnTypeChanged) {
-                const sql = alterColumnType(this.name, propertyName, newColumnType)
-                await this.dataSpace.db.exec(sql)
-            }
-        }
-
-        async deleteProperty(propertyName: string) {
-            await this.dataSpace.column.deleteField(this.name, propertyName)
-        }
 
         async deleteTrigger() {
             const triggerName = `${this.name}_update_trigger`
@@ -315,6 +285,102 @@ export function WithProperty<T extends Constructor>(Base: T) {
             } catch (error) {
                 console.error('Failed to get display properties:', error)
                 return {}
+            }
+        }
+
+
+        async getPropertyTypes() {
+            const columns = await this.dataSpace.column.list({ table_name: this.name })
+            return columns.map((col: any) => ({ name: col.table_column_name, type: col.type }))
+        }
+
+        async changePropertyType(propertyName: string, newType: FieldType) {
+            const field = await this.dataSpace.column.getColumn(
+                this.name,
+                propertyName
+            )
+
+            if (!field) return
+            await this.dataSpace.exec2(
+                `UPDATE ${ColumnTableName} SET type = ? WHERE table_column_name = ? AND table_name = ?;`,
+                [newType, propertyName, this.name]
+            )
+            // const oldColumnType = ColumnTable.getColumnTypeByFieldType(field.type)
+            // const newColumnType = ColumnTable.getColumnTypeByFieldType(newType)
+            // const isColumnTypeChanged = oldColumnType !== newColumnType
+            // if (isColumnTypeChanged) {
+            //     const sql = alterColumnType(this.name, propertyName, newColumnType)
+            //     await this.dataSpace.db.exec(sql)
+            // }
+        }
+
+        /**
+         * Get count of documents where the specified property is not empty
+         * Used to confirm impact scope before deleting a property
+         * @param propertyName the property name to check
+         * @returns count of documents with non-empty values for this property
+         */
+        async getPropertyNonEmptyCount(propertyName: string): Promise<number> {
+            try {
+                // Check if the property column exists
+                const columns = await this.getTableColumns()
+                if (!columns.includes(propertyName)) {
+                    return 0
+                }
+
+                // Query count of non-empty values
+                // For different field types, "empty" has different meanings:
+                // - Text fields: not NULL and not empty string
+                // - Number fields: not NULL
+                // - Boolean fields: not NULL
+                // - JSON fields: not NULL and not empty JSON
+
+                const columnInfo = await this.dataSpace.column.getColumn(this.name, propertyName)
+                let whereCondition: string
+
+                if (!columnInfo) {
+                    return 0
+                }
+
+                switch (columnInfo.type) {
+                    case FieldType.Number:
+                    case FieldType.Rating:
+                    case FieldType.Checkbox:
+                        // For numeric and boolean types, just check not NULL
+                        whereCondition = `${propertyName} IS NOT NULL`
+                        break
+                    default:
+                        // For text and other types, check not NULL and not empty string
+                        whereCondition = `${propertyName} IS NOT NULL AND ${propertyName} != ''`
+                        break
+                }
+
+                const sql = `SELECT COUNT(*) as count FROM ${this.name} WHERE ${whereCondition}`
+                const res = await this.dataSpace.exec2(sql)
+
+                return res[0]?.count || 0
+            } catch (error) {
+                console.error('Failed to get property non-empty count:', error)
+                return 0
+            }
+        }
+
+        async deleteProperty(propertyName: string) {
+            try {
+                await this.dataSpace.db.prepare('BEGIN TRANSACTION;').run()
+                this.deleteTrigger()
+                this.dataSpace.db.prepare(`DELETE FROM ${ColumnTableName} WHERE table_column_name = ? AND table_name = ?;`).run([propertyName, this.name])
+                this.dataSpace.db.prepare(`ALTER TABLE ${this.name} DROP COLUMN ${propertyName};`).run()
+                await this.dataSpace.db.prepare('COMMIT;').run()
+                this.flushTrigger()
+            } catch (error) {
+                await this.dataSpace.db.prepare('ROLLBACK;').run()
+                console.error('Error in deleteField transaction:', error)
+                this.dataSpace.notify({
+                    title: "Error",
+                    description:
+                        `Failed to delete column, ${error}`,
+                })
             }
         }
     };

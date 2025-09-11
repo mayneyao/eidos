@@ -1,10 +1,18 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, X } from "lucide-react"
 
+import { PropertyEditorFactory } from "./property-editors"
 import { PropertyIcon } from "./property-icon"
-import { formatPropertyValue, inferType, isPropertyEmpty } from "./utils"
+import { PropertyMenu } from "./property-menu"
+import { useDocPropertyTypes } from "./property-type-hook"
+import type { PropertyType } from "./types"
+import {
+  convertFieldTypeToPropertyType,
+  inferType,
+  isPropertyEmpty,
+} from "./utils"
 
 interface PropertyItemProps {
   propertyName: string
@@ -16,6 +24,7 @@ interface PropertyItemProps {
   readonly?: boolean
   isSystemProperty?: boolean
   isDragDisabled?: boolean
+  allowTypeChange?: boolean
 }
 
 export const PropertyItem: React.FC<PropertyItemProps> = ({
@@ -28,15 +37,39 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
   readonly = false,
   isSystemProperty = false,
   isDragDisabled = false,
+  allowTypeChange = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
-  const [editingValue, setEditingValue] = useState("")
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [showMenu, setShowMenu] = useState(false)
   const [itemRef, setItemRef] = useState<HTMLDivElement | null>(null)
 
-  const propertyType = inferType(value, propertyName)
-  const displayValue = formatPropertyValue(value, propertyType)
+  // Use the global property types hook for type inference
+  const { getPropertyType, propertyTypeMap } = useDocPropertyTypes()
+
+  // Get the actual property type from the database schema, fallback to inference
+  const actualFieldType = getPropertyType(propertyName)
+  const inferredType = inferType(value, propertyName)
+
+  // Convert FieldType to PropertyType for display compatibility
+  const propertyType = actualFieldType
+    ? convertFieldTypeToPropertyType(actualFieldType)
+    : inferredType
   const isEmpty = isPropertyEmpty(value)
+
+  console.log({
+    propertyName,
+    propertyType,
+    actualFieldType,
+    inferredType,
+    value,
+    isEmpty,
+    propertyTypeMap,
+  })
+  // Handle clicking on property icon to show menu
+  const handleIconClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowMenu(!showMenu)
+  }
 
   // Sortable functionality
   const {
@@ -57,43 +90,37 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
     opacity: isDragging ? 0.5 : 1,
   }
 
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus()
-    }
-  }, [isEditing])
-
   // Auto-edit effect when autoEdit prop is true (but not in readonly mode or system property)
   useEffect(() => {
-    if (autoEdit && !isEditing && !readonly && !isSystemProperty) {
-      startEditing()
+    if (
+      autoEdit &&
+      !isEditing &&
+      !readonly &&
+      !isSystemProperty &&
+      propertyType !== "boolean"
+    ) {
+      setIsEditing(true)
     }
-  }, [autoEdit, readonly, isSystemProperty])
+  }, [autoEdit, readonly, isSystemProperty, propertyType, isEditing])
 
-  const startEditing = () => {
-    setIsEditing(true)
-    setEditingValue(String(value || ""))
+  const handleStartEdit = () => {
+    if (!readonly && !isSystemProperty && propertyType !== "boolean") {
+      setIsEditing(true)
+    }
   }
 
-  const cancelEditing = () => {
+  const handleFinishEdit = () => {
     setIsEditing(false)
-    setEditingValue("")
     onEditEnd?.()
   }
 
-  const handleUpdate = async () => {
-    await onUpdate(propertyName, editingValue)
+  const handleCancelEdit = () => {
     setIsEditing(false)
-    setEditingValue("")
     onEditEnd?.()
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleUpdate()
-    } else if (e.key === "Escape") {
-      cancelEditing()
-    }
+  const handleValueChange = async (newValue: any) => {
+    await onUpdate(propertyName, newValue)
   }
 
   return (
@@ -110,61 +137,78 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
       data-property-item
       data-property-name={propertyName}
     >
-      {/* Drag Handle - 绝对定位在左侧，不占用布局空间 */}
-      {!isDragDisabled && (
-        <div
-          {...attributes}
-          {...listeners}
-          className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing transition-opacity"
-          title="Drag to reorder"
-        >
-          <GripVertical className="w-3 h-3" />
+      {/* Property Menu - 移到根元素，避免 hover 抖动 */}
+      {showMenu && (
+        <div className="absolute left-4 top-1 z-50">
+          <PropertyMenu
+            propertyName={propertyName}
+            value={value}
+            isSystemProperty={isSystemProperty}
+            readonly={readonly}
+            allowTypeChange={allowTypeChange}
+            onClose={() => setShowMenu(false)}
+            onDelete={onDelete}
+          />
         </div>
       )}
-
       {/* Property Name */}
-      <div className="flex items-center gap-2 w-40 flex-shrink-0">
-        <span className="text-muted-foreground">
-          <PropertyIcon type={propertyType} />
-        </span>
+      <div className="flex items-center gap-2 w-40 flex-shrink-0 relative h-6">
+        <div className="relative">
+          {/* Property Icon - 默认显示，hover 时隐藏 */}
+          {!isDragDisabled && (
+            <button
+              onClick={handleIconClick}
+              className="group-hover:hidden text-muted-foreground hover:text-foreground transition-colors p-1 -m-1 rounded hover:bg-muted/50"
+              title="Property options"
+            >
+              <PropertyIcon type={propertyType as PropertyType} />
+            </button>
+          )}
+
+          {/* Drag Handle - 默认隐藏，hover 时显示 */}
+          {!isDragDisabled && (
+            <button
+              {...attributes}
+              {...listeners}
+              onClick={handleIconClick}
+              className="hidden group-hover:block text-muted-foreground hover:text-foreground transition-colors p-1 -m-1 rounded hover:bg-muted/50 cursor-grab active:cursor-grabbing"
+              title="Drag to reorder / Click for options"
+            >
+              <GripVertical className="w-3 h-3" />
+            </button>
+          )}
+
+          {/* Property Icon - 当 drag disabled 时总是显示 */}
+          {isDragDisabled && (
+            <button
+              onClick={handleIconClick}
+              className="text-muted-foreground hover:text-foreground transition-colors p-1 -m-1 rounded hover:bg-muted/50"
+              title="Property options"
+            >
+              <PropertyIcon type={propertyType as PropertyType} />
+            </button>
+          )}
+        </div>
         <span className="text-sm text-foreground truncate">{propertyName}</span>
       </div>
 
       {/* Property Value */}
       <div className="flex-1 min-w-0">
         <div className="relative h-6 flex items-center">
-          {isEditing ? (
-            <input
-              ref={inputRef}
-              type="text"
-              value={editingValue}
-              onChange={(e) => setEditingValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={handleUpdate}
-              className="absolute inset-0 w-full px-2 text-sm border-none rounded focus:outline-none bg-muted focus:bg-accent"
-              placeholder="Enter value..."
-            />
-          ) : (
-            <div
-              onClick={(e) => {
-                if (!readonly && !isSystemProperty) {
-                  e.stopPropagation()
-                  startEditing()
-                }
-              }}
-              className={`absolute inset-0 px-2 text-sm flex items-center ${
-                readonly || isSystemProperty
-                  ? "cursor-default"
-                  : "cursor-pointer"
-              }`}
-            >
-              {isEmpty ? (
-                <span className="text-muted-foreground italic">Empty</span>
-              ) : (
-                <span className="text-foreground truncate">{displayValue}</span>
-              )}
-            </div>
-          )}
+          <PropertyEditorFactory
+            propertyType={propertyType as PropertyType}
+            value={value}
+            onChange={handleValueChange}
+            isEditing={isEditing}
+            onFinishEdit={handleFinishEdit}
+            onCancelEdit={handleCancelEdit}
+            onStartEdit={handleStartEdit}
+            autoFocus={true}
+            readonly={readonly}
+            isSystemProperty={isSystemProperty}
+            isEmpty={isEmpty}
+            propertyName={propertyName}
+          />
         </div>
       </div>
 
@@ -175,7 +219,6 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
         </span>
       )}
 
-      {/* Delete Button - 在非只读模式下显示，始终在最右边 */}
       {!readonly && (
         <button
           onClick={(e) => {

@@ -43,6 +43,7 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
   const [showAddInput, setShowAddInput] = useState(false)
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false)
   const [autoEditProperty, setAutoEditProperty] = useState<string | null>(null)
+  const [newPropertyInitialValue, setNewPropertyInitialValue] = useState<string | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Optimistic update state for drag sorting
@@ -204,6 +205,7 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
   }, [availableProperties, currentDisplayProperties])
 
   const handlePropertyUpdate = async (propertyName: string, value: any) => {
+    console.log("handlePropertyUpdate", propertyName, value)
     try {
       await setProperty({ [propertyName]: value })
     } catch (error) {
@@ -217,6 +219,7 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
       await setProperty({ [propertyName]: initialValue })
       await addDisplayProperty(docId, propertyName)
       setShowAddInput(false)
+      setNewPropertyInitialValue(undefined)
     } catch (error) {
       console.error("Failed to add property:", error)
     }
@@ -237,14 +240,15 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
 
   const handleDeleteProperty = async (propertyName: string) => {
     try {
-      const isSystem = isSystemProperty(propertyName)
+      await removeDisplayProperty(docId, propertyName)
+      // const isSystem = isSystemProperty(propertyName)
 
-      if (isSystem) {
-        await removeDisplayProperty(docId, propertyName)
-      } else {
-        await setProperty({ [propertyName]: null })
-        await removeDisplayProperty(docId, propertyName)
-      }
+      // if (isSystem) {
+      //   await removeDisplayProperty(docId, propertyName)
+      // } else {
+      //   await setProperty({ [propertyName]: null })
+      //   await removeDisplayProperty(docId, propertyName)
+      // }
     } catch (error) {
       console.error("Failed to delete property:", error)
     }
@@ -326,6 +330,7 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
                 readonly={isLocked}
                 isSystemProperty={isSystemProperty(propertyName)}
                 isDragDisabled={isLocked}
+                allowTypeChange={!isSystemProperty(propertyName) && !isLocked}
               />
             ))}
           </div>
@@ -336,14 +341,18 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
             {showAddInput ? (
               <AddPropertyInput
                 onAdd={handleAddProperty}
-                onCancel={() => setShowAddInput(false)}
+                onCancel={() => {
+                  setShowAddInput(false)
+                  setNewPropertyInitialValue(undefined)
+                }}
+                initialValue={newPropertyInitialValue}
               />
             ) : (
               <div className="flex items-center py-1">
                 <div className="flex items-center gap-2 w-40 flex-shrink-0 relative">
                   <button
                     onClick={() => setShowPropertyDropdown(true)}
-                    className="group flex items-center gap-2 py-1 px-2 -mx-2 rounded border transition-colors cursor-pointer border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-none"
+                    className="group flex items-center gap-2 h-6 py-1 px-2 -mx-2 rounded border transition-colors cursor-pointer border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-none"
                     tabIndex={0}
                     data-property-item
                     data-property-name="__add_property__"
@@ -364,8 +373,9 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
                       )}
                       systemProperties={Object.fromEntries(systemProperties)}
                       onSelectProperty={handleSelectExistingProperty}
-                      onCreateNew={() => {
+                      onCreateNew={(searchQuery) => {
                         setShowPropertyDropdown(false)
+                        setNewPropertyInitialValue(searchQuery)
                         setShowAddInput(true)
                       }}
                       onClose={() => setShowPropertyDropdown(false)}

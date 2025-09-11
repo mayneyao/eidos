@@ -8,6 +8,8 @@ This directory contains a refactored version of the DocPropertyGlobal component,
 
 - **`index.tsx`** - Main component that orchestrates all the sub-components
 - **`hook.ts`** - Custom hooks for property and meta data management
+- **`property-type-hook.ts`** - Global hook for managing document property types and type changes (affects entire docs table)
+- **`hooks.ts`** - Centralized exports for all hooks
 - **`types.ts`** - TypeScript type definitions
 
 ### Sub-components
@@ -74,6 +76,8 @@ This directory contains a refactored version of the DocPropertyGlobal component,
 
 ## Usage
 
+### Main Component
+
 The component maintains the same external API:
 
 ```tsx
@@ -82,6 +86,70 @@ import { DocPropertyGlobal } from "./doc-property-global"
 ;<DocPropertyGlobal docId="your-doc-id" />
 ```
 
+### Hooks Usage
+
+#### useDocProperty (Document-specific)
+```tsx
+import { useDocProperty } from "./hooks"
+
+const MyComponent = ({ docId }) => {
+  const {
+    properties,
+    setProperty,
+    addDisplayProperty,
+    removeDisplayProperty,
+    setDisplayProperties,
+    displayProperties,
+  } = useDocProperty({ docId })
+
+  // Use document-specific properties...
+}
+```
+
+#### useDocPropertyTypes (Global - Now with Zustand State Management)
+```tsx
+import { useDocPropertyTypes } from "./hooks"
+
+const PropertyTypeManager = () => {
+  const {
+    propertyTypes,
+    customPropertyTypes,
+    propertyTypeMap,
+    loading,
+    error,
+    changePropertyType,
+    getPropertyType,
+    hasProperty,
+  } = useDocPropertyTypes() // No docId needed - this is global and cached in Zustand
+
+  // Manage property types for entire docs table...
+  // State is now shared across all components, reducing API calls
+}
+```
+
+## Hook Responsibilities
+
+### useDocProperty
+- **Scope**: Document-specific
+- **Purpose**: Manage properties and display settings for individual documents
+- **Key Features**:
+  - Get/set document properties
+  - Manage display property list
+  - Real-time updates via broadcast channel
+  - Optimistic UI updates
+
+### useDocPropertyTypes  
+- **Scope**: Global (entire eidos__docs table)
+- **Purpose**: Manage property types and schema for the docs table  
+- **Optimization**: Now uses Zustand for global state management to reduce frequent API calls
+- **Key Features**:
+  - Get all property types for the table
+  - Change property field types
+  - **Shared state across all components** - no more duplicate fetching
+  - **Automatic initialization check** - only fetches if not already loaded
+  - Distinguish between system and custom properties
+  - Real-time schema change notifications
+
 ## Development Notes
 
 - All components follow React best practices
@@ -89,3 +157,4 @@ import { DocPropertyGlobal } from "./doc-property-global"
 - Components are designed to be easily testable
 - Consistent naming conventions are used
 - Error handling is centralized where appropriate
+- Hooks are separated by scope (document-specific vs global)
