@@ -9,7 +9,10 @@ export const useAllViews = ({ tableId }: { tableId: string }) => {
 
     useEffect(() => {
         if (!sqlite) return
-        sqlite.listViews(tableId).then((views) => {
+        sqlite.view.list({ table_id: tableId }, {
+          order: 'ASC',
+          orderBy: 'position'
+        }).then((views) => {
             setViews(views)
         })
     }, [sqlite])

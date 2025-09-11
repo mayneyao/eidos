@@ -7,7 +7,7 @@ export const useNodeTree = () => {
     if (!sqlite) {
       return
     }
-    sqlite?.pinNode(id, true)
+    sqlite?.tree.pinNode(id, true)
     setNode({
       id,
       is_pinned: true,
@@ -17,7 +17,7 @@ export const useNodeTree = () => {
     if (!sqlite) {
       return
     }
-    sqlite?.pinNode(id, false)
+    sqlite?.tree.pinNode(id, false)
     setNode({
       id,
       is_pinned: false,

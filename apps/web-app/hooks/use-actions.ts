@@ -9,7 +9,7 @@ export const useActions = (space: string) => {
 
   useEffect(() => {
     if (!sqlite) return
-    sqlite.listActions().then((res) => {
+    sqlite.action.list().then((res) => {
       setActions(res)
     })
   }, [space, sqlite])

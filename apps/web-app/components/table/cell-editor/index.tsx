@@ -37,6 +37,7 @@ export const CellEditorMap: Record<
 > = {
   [FieldType.Checkbox]: CheckboxEditor,
   [FieldType.Date]: DateEditor,
+  [FieldType.DateTime]: DateEditor,
   [FieldType.Text]: TextBaseEditor,
   [FieldType.Title]: TextBaseEditor,
   [FieldType.URL]: UrlEditor,

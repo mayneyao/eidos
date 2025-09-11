@@ -129,7 +129,7 @@ export const useAIFunctions = () => {
       case "createQuickAction":
         const { name, params, nodes } = parameters
         try {
-          await sqlite?.addAction({
+          await sqlite?.action.add({
             id: uuidv7(),
             name,
             params,

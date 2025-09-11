@@ -48,6 +48,10 @@ export const FIELD_VALUE_TYPE_MAP = {
     valueType: FieldValueType.String,
     example: "2024-03-20",
   },
+  [FieldType.DateTime]: {
+    valueType: FieldValueType.String,
+    example: "2024-03-20 10:30:00",
+  },
   [FieldType.File]: {
     valueType: FieldValueType.String,
     example: "/path/to/file or https://example.com/file",

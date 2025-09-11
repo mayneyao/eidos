@@ -293,7 +293,7 @@ export const useSqlite = (dbName?: string) => {
 
   const queryAllNodes = useCallback(async () => {
     if (!sqlWorker) return
-    const allNodes = await sqlWorker.listTreeNodes()
+    const allNodes = await sqlWorker.tree.listNodes()
     // console.log("node list loaded", allNodes)
     return allNodes
   }, [sqlWorker])
@@ -329,7 +329,7 @@ export const useSqlite = (dbName?: string) => {
   const createFolder = async (parent_id?: string) => {
     if (!sqlWorker) return
     const folderId = uuidv7().split("-").join("")
-    const node = await sqlWorker.addTreeNode({
+    const node = await sqlWorker.tree.addNode({
       id: folderId,
       name: "New Folder",
       type: TreeNodeType.Folder,
@@ -342,7 +342,7 @@ export const useSqlite = (dbName?: string) => {
   const createView = async (parent_id?: string) => {
     if (!sqlWorker) return
     const viewId = uuidv7().split("-").join("")
-    const node = await sqlWorker.addTreeNode({
+    const node = await sqlWorker.tree.addNode({
       id: viewId,
       name: "",
       type: TreeNodeType.Dataview,
@@ -354,7 +354,7 @@ export const useSqlite = (dbName?: string) => {
 
   const createExtNode = async (ext_node_type: string, parent_id?: string) => {
     if (!sqlWorker) return
-    const nodeId = await sqlWorker.createExtNode(ext_node_type, parent_id)
+    const nodeId = await sqlWorker.tree.createExtNode(ext_node_type, parent_id)
     nodeId && addNode({
       id: nodeId,
       name: "",
@@ -377,7 +377,7 @@ export const useSqlite = (dbName?: string) => {
       sql,
       parent_id,
     })
-    const node = await sqlWorker.getTreeNode(tableId)
+    const node = await sqlWorker.tree.getNode(tableId)
     node && addNode(node)
     return tableId
   }
@@ -389,7 +389,7 @@ export const useSqlite = (dbName?: string) => {
   ) => {
     if (!sqlWorker) return
     const docId = nodeId || uuidv7().split("-").join("")
-    const node = await sqlWorker.addTreeNode({
+    const node = await sqlWorker.tree.addNode({
       id: docId,
       name: docName,
       type: TreeNodeType.Doc,
@@ -408,10 +408,10 @@ export const useSqlite = (dbName?: string) => {
   }) => {
     if (!sqlWorker) return null
     const { docId, tableId, title } = data
-    const res = await sqlWorker.getTreeNode(docId)
+    const res = await sqlWorker.tree.getNode(docId)
     let node = res
     if (!res) {
-      const treeNode = await sqlWorker.addTreeNode({
+      const treeNode = await sqlWorker.tree.addNode({
         id: docId,
         name: title,
         type: TreeNodeType.Doc,
@@ -541,7 +541,7 @@ export const useSqlite = (dbName?: string) => {
 
   const restoreNode = async (node: ITreeNode) => {
     if (!sqlWorker) return
-    sqlWorker.restoreNode(node.id)
+    sqlWorker.tree.restoreNode(node.id)
     setNode({
       id: node.id,
       is_deleted: false,
@@ -550,7 +550,7 @@ export const useSqlite = (dbName?: string) => {
 
   const toggleNodeFullWidth = async (node: ITreeNode) => {
     if (!sqlWorker) return
-    sqlWorker.toggleNodeFullWidth(node.id, !node.is_full_width)
+    sqlWorker.tree.toggleNodeFullWidth(node.id, !node.is_full_width)
     setNode({
       id: node.id,
       is_full_width: !node.is_full_width,
@@ -559,7 +559,7 @@ export const useSqlite = (dbName?: string) => {
 
   const toggleNodeLock = async (node: ITreeNode) => {
     if (!sqlWorker) return
-    sqlWorker.toggleNodeLock(node.id, !node.is_locked)
+    sqlWorker.tree.toggleNodeLock(node.id, !node.is_locked)
     setNode({
       id: node.id,
       is_locked: !node.is_locked,
@@ -570,7 +570,7 @@ export const useSqlite = (dbName?: string) => {
     if (node.type === TreeNodeType.Dataview) {
       await deleteView(node.id)
     } else {
-      sqlWorker.deleteNode(node.id)
+      sqlWorker.tree.deleteNode(node.id)
       setNode({
         id: node.id,
         is_deleted: true,
@@ -580,7 +580,7 @@ export const useSqlite = (dbName?: string) => {
 
   const deleteExtNode = async (nodeId: string) => {
     if (!sqlWorker) return
-    sqlWorker.permanentlyDeleteExtNode(nodeId)
+    sqlWorker.tree.permanentlyDeleteExtNode(nodeId)
     delNode(nodeId)
   }
 
@@ -654,7 +654,7 @@ export const useSqlite = (dbName?: string) => {
 
   const updateNodeName = async (nodeId: string, newName: string) => {
     if (!sqlWorker) return
-    await sqlWorker.updateTreeNodeName(nodeId, newName)
+    await sqlWorker.tree.updateNodeName(nodeId, newName)
     setNode({
       id: nodeId,
       name: newName,

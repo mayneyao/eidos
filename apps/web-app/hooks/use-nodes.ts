@@ -49,7 +49,7 @@ export const useNode = () => {
   }
 
   const updatePosition = async (id: string, position: number) => {
-    await sqlite?.updateTreeNodePosition(id, position)
+    await sqlite?.tree.updateNodePosition(id, position)
     setNode({
       id,
       position,
@@ -82,7 +82,7 @@ export const useNode = () => {
     parentId?: string
   ) => {
     if (!sqlite) return
-    await sqlite.moveDraftIntoTable(nodeId, tableId, parentId)
+    await sqlite.tree.moveIntoTable(nodeId, tableId, parentId)
     setNode({
       id: nodeId,
       parent_id: tableId,
@@ -100,7 +100,7 @@ export const useNode = () => {
     if (id == parentId) {
       return
     }
-    const res = await sqlite?.nodeChangeParent(id, parentId, opts)
+    const res = await sqlite?.tree.nodeChangeParent(id, parentId, opts)
     setNode({
       id,
       parent_id: parentId,

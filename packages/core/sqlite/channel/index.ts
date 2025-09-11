@@ -2,7 +2,7 @@ import type { DataSpace, EidosTable } from "../../DataSpace"
 import type { DataConnection } from "peerjs"
 
 import { HttpSqlite } from "./http"
-import type { ILocalSendData} from "./local";
+import type { ILocalSendData } from "./local";
 import { LocalSqlite } from "./local"
 import { buildSql } from "../helper"
 import type { IQuery, ISqlite } from "../interface"

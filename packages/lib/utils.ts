@@ -25,6 +25,7 @@ export const isUuid = (id: string) => {
   return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id)
 }
 
+
 export function nonNullable<T>(value: T): value is NonNullable<T> {
   return value != null
 }
@@ -61,6 +62,7 @@ export const getRawTableNameById = (id: string, isView: boolean = false) => {
   return isView ? `vw_${id}` : `tb_${id}`
 }
 
+
 export const getTableIdByRawTableName = (rawTableName: string) => {
   if (rawTableName.startsWith("tb_")) {
     return rawTableName.replace("tb_", "")
@@ -70,6 +72,7 @@ export const getTableIdByRawTableName = (rawTableName: string) => {
   }
   return rawTableName
 }
+
 
 export const getColumnIndexName = (tableName: string, columnName: string) => {
   return `idx__${tableName}__${columnName}`
@@ -130,7 +133,7 @@ export const EIDOS_RESERVED_FIELDS = [
  * @returns An object with validation result and error message if invalid
  */
 export const validateSqliteColumnName = (
-  columnName: string, 
+  columnName: string,
   existingColumns?: string[]
 ): { isValid: boolean; error?: string } => {
   // Check if empty
@@ -205,7 +208,7 @@ export const generateValidSqliteColumnName = (prefix: string = 'cl'): string => 
  * @returns A valid SQLite column name
  */
 export const generateColumnNameFromFieldName = (
-  fieldName: string, 
+  fieldName: string,
   existingColumns?: string[]
 ): string => {
   if (!fieldName || fieldName.trim() === '') {
@@ -236,8 +239,8 @@ export const generateColumnNameFromFieldName = (
   }
 
   // Ensure it's not a reserved keyword or Eidos reserved field
-  if (SQLITE_RESERVED_KEYWORDS.includes(columnName.toUpperCase()) || 
-      EIDOS_RESERVED_FIELDS.includes(columnName)) {
+  if (SQLITE_RESERVED_KEYWORDS.includes(columnName.toUpperCase()) ||
+    EIDOS_RESERVED_FIELDS.includes(columnName)) {
     columnName = `f_${columnName}`
   }
 
@@ -245,17 +248,17 @@ export const generateColumnNameFromFieldName = (
   if (existingColumns) {
     let finalColumnName = columnName
     let counter = 1
-    
+
     while (existingColumns.some(col => col.toLowerCase() === finalColumnName.toLowerCase())) {
       finalColumnName = `${columnName}_${counter}`
       counter++
-      
+
       // Prevent infinite loop
       if (counter > 100) {
         return generateValidSqliteColumnName()
       }
     }
-    
+
     return finalColumnName
   }
 

@@ -28,7 +28,7 @@ export const NodeMoveInto = ({ node }: { node: ITreeNode }) => {
 
   const moveDraftIntoTable = async (nodeId: string, tableId: string) => {
     if (!sqlite) return
-    await sqlite.moveDraftIntoTable(nodeId, tableId)
+    await sqlite.tree.moveIntoTable(nodeId, tableId)
     setNode({
       id: nodeId,
       parent_id: tableId,

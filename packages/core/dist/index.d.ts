@@ -1,6 +1,6 @@
 import { JsonSchema7ObjectType } from "zod-to-json-schema";
-import { Email } from "postal-mime";
 import { Message } from "ai";
+import * as postal_mime14 from "postal-mime";
 
 //#region fields/const.d.ts
 declare enum FieldType {
@@ -9,6 +9,7 @@ declare enum FieldType {
   Title = "title",
   Checkbox = "checkbox",
   Date = "date",
+  DateTime = "datetime",
   File = "file",
   MultiSelect = "multi-select",
   Rating = "rating",
@@ -169,336 +170,6 @@ interface UDFMeta {
     deterministic?: boolean;
   };
 }
-//#endregion
-//#region ../lib/const.d.ts
-declare enum MsgType {
-  SetConfig = "SetConfig",
-  CallFunction = "CallFunction",
-  SwitchDatabase = "SwitchDatabase",
-  CreateSpace = "CreateSpace",
-  Syscall = "Syscall",
-  Status = "Status",
-  Pull = "Pull",
-  Push = "Push",
-  Reset = "Reset",
-  Pages = "Pages",
-  Error = "Error",
-  QueryResp = "QueryResp",
-  Notify = "Notify",
-  BlockUIMsg = "BlockUIMsg",
-  DataUpdateSignal = "DataUpdateSignal",
-  WebSocketConnected = "WebSocketConnected",
-  WebSocketDisconnected = "WebSocketDisconnected",
-  ConvertMarkdown2State = "ConvertMarkdown2State",
-  ConvertHtml2State = "ConvertHtml2State",
-  ConvertEmail2State = "ConvertEmail2State",
-  GetDocMarkdown = "GetDocMarkdown",
-  HighlightRow = "HighlightRow",
-  GetTheme = "GetTheme",
-  SetTheme = "SetTheme",
-  ListThemes = "ListThemes",
-  SetCurrentTheme = "SetCurrentTheme",
-  ApplyTheme = "ApplyTheme",
-}
-//#endregion
-//#region sqlite/interface.d.ts
-declare abstract class BaseServerDatabase {
-  filename?: string;
-  get isWalMode(): boolean;
-  pages(): Promise<{
-    [key: string]: any;
-  }>;
-  status(): Promise<{
-    [key: string]: any;
-  }>;
-  pull(): Promise<{
-    [key: string]: any;
-  }>;
-  push(): Promise<{
-    [key: string]: any;
-  }>;
-  reset(): Promise<{
-    [key: string]: any;
-  }>;
-  abstract prepare(sql: string): {
-    run: (bind?: any[]) => void;
-    all: (bind?: any[]) => Promise<any[]>;
-  };
-  abstract close(): void;
-  abstract selectObjects(sql: string, bind?: any[]): Promise<{
-    [columnName: string]: any;
-  }[]>;
-  abstract transaction(func: (db: BaseServerDatabase) => void): any;
-  abstract exec(opts: string | {
-    sql: string;
-    bind?: any[];
-    rowMode?: "array" | "object";
-    returnValue?: "resultRows" | "saveSql";
-  }): Promise<any>;
-  abstract createFunction(opt: {
-    name: string;
-    xFunc: (...args: any[]) => any;
-  }): any;
-}
-//# sourceMappingURL=interface.d.ts.map
-//#endregion
-//#region sqlite/sql-query-builder.d.ts
-interface FindManyOptions<T = any> {
-  where?: Partial<T> | WhereCondition<T>;
-  orderBy?: OrderByOption<T> | OrderByOption<T>[];
-  skip?: number;
-  take?: number;
-  select?: Partial<Record<keyof T, boolean>>;
-  include?: Partial<Record<keyof T, boolean>>;
-}
-interface WhereCondition<T = any> {
-  AND?: (WhereCondition<T> | Partial<T>)[];
-  OR?: (WhereCondition<T> | Partial<T>)[];
-  NOT?: WhereCondition<T> | Partial<T>;
-  [key: string]: any;
-}
-interface OrderByOption<T = any> {
-  [key: string]: 'asc' | 'desc' | undefined;
-}
-//#endregion
-//#region meta-table/base.d.ts
-interface MetaTable<T> {
-  add(data: T): Promise<T>;
-  get(id: string): Promise<T | null>;
-  set(id: string, data: Partial<T>): Promise<boolean>;
-  del(id: string): Promise<boolean>;
-}
-interface BaseTable<T> extends MetaTable<T> {
-  name: string;
-  createTableSql: string;
-  JSONFields?: string[];
-}
-declare class BaseTableImpl<T = any> {
-  protected dataSpace: DataSpace;
-  name: string;
-  JSONFields: string[];
-  constructor(dataSpace: DataSpace);
-  initTable(createTableSql: string): void;
-  toJson: (data: T) => T;
-  del(id: string, db?: BaseServerDatabase): Promise<boolean>;
-  delBy(data: Partial<T>, db?: BaseServerDatabase): Promise<boolean>;
-  get(id: string): Promise<T | null>;
-  transformData: (data: Partial<T>) => {
-    kv: any[][];
-    updateKPlaceholder: string;
-    insertKPlaceholder: string;
-    insertVPlaceholder: string;
-    deleteKPlaceholder: string;
-    values: any[];
-  };
-  add(data: Partial<T>, db?: BaseServerDatabase): Promise<T>;
-  set(id: string, data: Partial<T>): Promise<boolean>;
-  list(query?: Partial<T>, opts?: {
-    limit?: number;
-    offset?: number;
-    orderBy?: string;
-    order?: "ASC" | "DESC";
-    fields?: string[];
-  }): Promise<T[]>;
-  findMany(options?: FindManyOptions<T>): Promise<T[]>;
-  count(options?: Omit<FindManyOptions<T>, 'select' | 'orderBy' | 'skip' | 'take'>): Promise<number>;
-}
-//# sourceMappingURL=base.d.ts.map
-//#endregion
-//#region meta-table/doc.d.ts
-interface IDoc {
-  id: string;
-  content: string;
-  markdown: string;
-  is_day_page?: boolean;
-  created_at?: string;
-  updated_at?: string;
-  meta?: string;
-}
-interface DocMeta {
-  displayProperties?: string[];
-  [key: string]: any;
-}
-declare class DocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
-  name: string;
-  createFTSSql: string;
-  /**
-   * Get table column information
-   * @returns array of column information
-   */
-  getTableColumns(): Promise<string[]>;
-  /**
-   * Check if column exists
-   * @param columnName column name
-   * @returns whether it exists
-   */
-  columnExists(columnName: string): Promise<boolean>;
-  /**
-   * Dynamically add new column
-   * @param columnName column name
-   * @param columnType column type (defaults to TEXT)
-   */
-  addColumn(columnName: string, columnType?: string): Promise<void>;
-  /**
-   * Ensure custom property columns exist, create them if they don't
-   * @param properties custom properties object
-   */
-  ensureCustomPropertyColumns(properties: Record<string, any>): Promise<void>;
-  createTableSql: string;
-  /**
-   * for now lexical's code node depends on the browser's dom, so we can't use lexical in worker.
-   * wait for lexical improve code node to support worker
-   * @param type
-   * @param data
-   * @returns
-   */
-  callMain: (type: MsgType.GetDocMarkdown | MsgType.ConvertMarkdown2State | MsgType.ConvertHtml2State | MsgType.ConvertEmail2State, data: any) => Promise<any> | undefined;
-  rebuildIndex(opts: {
-    refillNullMarkdown?: boolean;
-    recreateFtsTable?: boolean;
-  }): Promise<void>;
-  listAllDayPages(): Promise<any>;
-  listDayPage(page?: number): Promise<any>;
-  del(id: string): Promise<boolean>;
-  getMarkdown(id: string): Promise<string>;
-  getBaseInfo(id: string): Promise<Partial<IDoc>>;
-  /**
-   * Search documents using full-text search with progressive query processing
-   *
-   * @param query The search query string
-   * @param options Optional search configuration (kept for backward compatibility)
-   * @returns Array of search results with document ID and highlighted snippets
-   *
-   * @example
-   * // Basic search
-   * const results = await docTable.search('hello world');
-   *
-   * // Advanced FTS syntax (automatically detected and handled)
-   * const results = await docTable.search('"exact phrase" AND keyword*');
-   */
-  search(query: string, options?: {
-    allowAdvanced?: boolean;
-  }): Promise<{
-    id: string;
-    result: string;
-  }[]>;
-  createOrUpdateWithMarkdown(id: string, mdStr: string): Promise<{
-    id: string;
-    success: boolean;
-    msg?: undefined;
-  } | {
-    id: string;
-    success: boolean;
-    msg: string;
-  }>;
-  createOrUpdate(data: {
-    id: string;
-    text: string | Email;
-    type: "html" | "markdown" | "email";
-    mode?: "replace" | "append" | "prepend";
-  }): Promise<{
-    id: string;
-    success: boolean;
-    msg?: undefined;
-  } | {
-    id: string;
-    success: boolean;
-    msg: string;
-  }>;
-  static mergeState: (oldState: string, newState: string) => string;
-  _createOrUpdate(id: string, content: string, markdown: string, mode?: "replace" | "append" | "prepend"): Promise<{
-    id: string;
-    success: boolean;
-    msg?: undefined;
-  } | {
-    id: string;
-    success: boolean;
-    msg: string;
-  }>;
-  getProperties(id: string): Promise<any>;
-  /**
-   * Get all properties of a document (including system properties)
-   * @param id document ID
-   * @returns complete properties object
-   */
-  getAllProperties(id: string): Promise<any>;
-  /**
-   * Get document's meta configuration
-   * @param id document ID
-   * @returns meta configuration object
-   */
-  getMeta(id: string): Promise<DocMeta>;
-  /**
-   * Set document's meta configuration
-   * @param id document ID
-   * @param meta meta configuration object
-   * @returns operation result
-   */
-  setMeta(id: string, meta: DocMeta): Promise<{
-    success: boolean;
-    message?: string;
-  }>;
-  /**
-   * Add property to display list
-   * @param id document ID
-   * @param propertyName property name to display
-   * @returns operation result
-   */
-  addDisplayProperty(id: string, propertyName: string): Promise<{
-    success: boolean;
-    message?: string;
-  }>;
-  /**
-   * Remove property from display list
-   * @param id document ID
-   * @param propertyName property name to remove
-   * @returns operation result
-   */
-  removeDisplayProperty(id: string, propertyName: string): Promise<{
-    success: boolean;
-    message?: string;
-  }>;
-  /**
-   * Set list of properties to display
-   * @param id document ID
-   * @param propertyNames array of property names to display
-   * @returns operation result
-   */
-  setDisplayProperties(id: string, propertyNames: string[]): Promise<{
-    success: boolean;
-    message?: string;
-  }>;
-  /**
-   * Get properties to display and their values
-   * @param id document ID
-   * @returns properties object to display
-   */
-  getDisplayProperties(id: string): Promise<Record<string, any>>;
-  /**
-   * Batch get meta configurations for multiple documents
-   * @param ids array of document IDs
-   * @returns meta configuration mapping object
-   */
-  getMetas(ids: string[]): Promise<Record<string, DocMeta>>;
-  /**
-   * Check if property should be displayed
-   * @param id document ID
-   * @param propertyName property name
-   * @returns whether it should be displayed
-   */
-  shouldDisplayProperty(id: string, propertyName: string): Promise<boolean>;
-  setProperties(id: string, properties: Record<string, any>): Promise<{
-    success: boolean;
-    message: string;
-    updatedProperties?: undefined;
-  } | {
-    success: boolean;
-    updatedProperties: string[];
-    message?: undefined;
-  }>;
-  getPropertyMeta(id: string): Promise<any>;
-}
-//# sourceMappingURL=doc.d.ts.map
 //#endregion
 //#region ../lib/storage/eidos-file-system.d.ts
 declare enum FileSystemType {
@@ -742,6 +413,158 @@ declare class SQLiteUndoRedo {
   private _step;
 }
 //#endregion
+//#region ../lib/const.d.ts
+declare enum MsgType {
+  SetConfig = "SetConfig",
+  CallFunction = "CallFunction",
+  SwitchDatabase = "SwitchDatabase",
+  CreateSpace = "CreateSpace",
+  Syscall = "Syscall",
+  Status = "Status",
+  Pull = "Pull",
+  Push = "Push",
+  Reset = "Reset",
+  Pages = "Pages",
+  Error = "Error",
+  QueryResp = "QueryResp",
+  Notify = "Notify",
+  BlockUIMsg = "BlockUIMsg",
+  DataUpdateSignal = "DataUpdateSignal",
+  WebSocketConnected = "WebSocketConnected",
+  WebSocketDisconnected = "WebSocketDisconnected",
+  ConvertMarkdown2State = "ConvertMarkdown2State",
+  ConvertHtml2State = "ConvertHtml2State",
+  ConvertEmail2State = "ConvertEmail2State",
+  GetDocMarkdown = "GetDocMarkdown",
+  HighlightRow = "HighlightRow",
+  GetTheme = "GetTheme",
+  SetTheme = "SetTheme",
+  ListThemes = "ListThemes",
+  SetCurrentTheme = "SetCurrentTheme",
+  ApplyTheme = "ApplyTheme",
+}
+//#endregion
+//#region sqlite/interface.d.ts
+declare abstract class BaseServerDatabase {
+  filename?: string;
+  get isWalMode(): boolean;
+  pages(): Promise<{
+    [key: string]: any;
+  }>;
+  status(): Promise<{
+    [key: string]: any;
+  }>;
+  pull(): Promise<{
+    [key: string]: any;
+  }>;
+  push(): Promise<{
+    [key: string]: any;
+  }>;
+  reset(): Promise<{
+    [key: string]: any;
+  }>;
+  abstract prepare(sql: string): {
+    run: (bind?: any[]) => void;
+    all: (bind?: any[]) => Promise<any[]>;
+  };
+  abstract close(): void;
+  abstract selectObjects(sql: string, bind?: any[]): Promise<{
+    [columnName: string]: any;
+  }[]>;
+  abstract transaction(func: (db: BaseServerDatabase) => void): any;
+  abstract exec(opts: string | {
+    sql: string;
+    bind?: any[];
+    rowMode?: "array" | "object";
+    returnValue?: "resultRows" | "saveSql";
+  }): Promise<any>;
+  abstract createFunction(opt: {
+    name: string;
+    xFunc: (...args: any[]) => any;
+  }): any;
+}
+//# sourceMappingURL=interface.d.ts.map
+//#endregion
+//#region sqlite/sql-query-builder.d.ts
+interface FindManyOptions<T = any> {
+  where?: Partial<T> | WhereCondition<T>;
+  orderBy?: OrderByOption<T> | OrderByOption<T>[];
+  skip?: number;
+  take?: number;
+  select?: Partial<Record<keyof T, boolean>>;
+  include?: Partial<Record<keyof T, boolean>>;
+}
+interface WhereCondition<T = any> {
+  AND?: (WhereCondition<T> | Partial<T>)[];
+  OR?: (WhereCondition<T> | Partial<T>)[];
+  NOT?: WhereCondition<T> | Partial<T>;
+  [key: string]: any;
+}
+interface OrderByOption<T = any> {
+  [key: string]: 'asc' | 'desc' | undefined;
+}
+//#endregion
+//#region meta-table/base.d.ts
+interface MetaTable<T> {
+  add(data: T): Promise<T>;
+  get(id: string): Promise<T | null>;
+  set(id: string, data: Partial<T>): Promise<boolean>;
+  del(id: string): Promise<boolean>;
+}
+interface BaseTable<T> extends MetaTable<T> {
+  name: string;
+  createTableSql: string;
+  JSONFields?: string[];
+}
+declare class BaseTableImpl<T = any> {
+  name: string;
+  JSONFields: string[];
+  dataSpace: DataSpace;
+  constructor(dataSpace: DataSpace);
+  initTable(createTableSql: string): void;
+  toJson: (data: T) => T;
+  /**
+   * Check if column exists
+   * @param columnName column name
+   * @returns whether it exists
+   */
+  columnExists(columnName: string): Promise<boolean>;
+  /**
+   * Get table column information
+   * @returns array of column information
+   */
+  getTableColumns(): Promise<string[]>;
+  getRegularTriggers(tableName: string): Promise<{
+    name: string;
+  }[]>;
+  getTempTriggers(tableName: string): Promise<{
+    name: string;
+  }[]>;
+  del(id: string, db?: BaseServerDatabase): Promise<boolean>;
+  delBy(data: Partial<T>, db?: BaseServerDatabase): Promise<boolean>;
+  get(id: string): Promise<T | null>;
+  transformData: (data: Partial<T>) => {
+    kv: any[][];
+    updateKPlaceholder: string;
+    insertKPlaceholder: string;
+    insertVPlaceholder: string;
+    deleteKPlaceholder: string;
+    values: any[];
+  };
+  add(data: Partial<T>, db?: BaseServerDatabase): Promise<T>;
+  set(id: string, data: Partial<T>): Promise<boolean>;
+  list(query?: Partial<T>, opts?: {
+    limit?: number;
+    offset?: number;
+    orderBy?: string;
+    order?: "ASC" | "DESC";
+    fields?: string[];
+  }): Promise<T[]>;
+  findMany(options?: FindManyOptions<T>): Promise<T[]>;
+  count(options?: Omit<FindManyOptions<T>, 'select' | 'orderBy' | 'skip' | 'take'>): Promise<number>;
+}
+//# sourceMappingURL=base.d.ts.map
+//#endregion
 //#region meta-table/action.d.ts
 type ParamType = "string" | "number" | "boolean";
 interface IFunction {
@@ -855,6 +678,240 @@ declare class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   changeType(tableName: string, tableColumnName: string, newType: FieldType): Promise<void>;
 }
 //# sourceMappingURL=column.d.ts.map
+//#endregion
+//#region meta-table/doc/base.d.ts
+interface IDoc {
+  id: string;
+  content: string;
+  markdown: string;
+  is_day_page?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  meta?: string;
+}
+interface DocMeta {
+  displayProperties?: string[];
+  [key: string]: any;
+}
+declare class BaseDocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
+  name: string;
+  createFTSSql: string;
+  createTableSql: string;
+}
+//# sourceMappingURL=base.d.ts.map
+//#endregion
+//#region meta-table/doc/index.d.ts
+declare const ComposedDocTable: {
+  new (...args: any[]): {
+    callMain: (type: MsgType.GetDocMarkdown | MsgType.ConvertMarkdown2State | MsgType.ConvertHtml2State | MsgType.ConvertEmail2State, data: any) => Promise<any> | undefined;
+    listAllDayPages(): Promise<any>;
+    listDayPage(page?: number): Promise<any>;
+    getMarkdown(id: string): Promise<string>;
+    getBaseInfo(id: string): Promise<Partial<IDoc>>;
+    createOrUpdateWithMarkdown(id: string, mdStr: string): Promise<{
+      id: string;
+      success: boolean;
+      msg?: undefined;
+    } | {
+      id: string;
+      success: boolean;
+      msg: string;
+    }>;
+    createOrUpdate(data: {
+      id: string;
+      text: string | postal_mime14.Email;
+      type: "html" | "markdown" | "email";
+      mode?: "replace" | "append" | "prepend";
+    }): Promise<{
+      id: string;
+      success: boolean;
+      msg?: undefined;
+    } | {
+      id: string;
+      success: boolean;
+      msg: string;
+    }>;
+    _createOrUpdate(id: string, content: string, markdown: string, mode?: "replace" | "append" | "prepend"): Promise<{
+      id: string;
+      success: boolean;
+      msg?: undefined;
+    } | {
+      id: string;
+      success: boolean;
+      msg: string;
+    }>;
+    name: string;
+    createFTSSql: string;
+    createTableSql: string;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    del(id: string, db?: BaseServerDatabase): Promise<boolean>;
+    delBy(data: Partial<IDoc>, db?: BaseServerDatabase): Promise<boolean>;
+    get(id: string): Promise<IDoc | null>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    add(data: Partial<IDoc>, db?: BaseServerDatabase): Promise<IDoc>;
+    set(id: string, data: Partial<IDoc>): Promise<boolean>;
+    list(query?: Partial<IDoc> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<IDoc[]>;
+    findMany(options?: FindManyOptions<IDoc>): Promise<IDoc[]>;
+    count(options?: Omit<FindManyOptions<IDoc>, "orderBy" | "select" | "skip" | "take">): Promise<number>;
+  };
+  mergeState: (oldState: string, newState: string) => string;
+} & {
+  new (...args: any[]): {
+    rebuildIndex(opts: {
+      refillNullMarkdown?: boolean;
+      recreateFtsTable?: boolean;
+    }): Promise<void>;
+    search(query: string, options?: {
+      allowAdvanced?: boolean;
+    } | undefined): Promise<{
+      id: string;
+      result: string;
+    }[]>;
+    name: string;
+    createFTSSql: string;
+    createTableSql: string;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    del(id: string, db?: BaseServerDatabase): Promise<boolean>;
+    delBy(data: Partial<IDoc>, db?: BaseServerDatabase): Promise<boolean>;
+    get(id: string): Promise<IDoc | null>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    add(data: Partial<IDoc>, db?: BaseServerDatabase): Promise<IDoc>;
+    set(id: string, data: Partial<IDoc>): Promise<boolean>;
+    list(query?: Partial<IDoc> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<IDoc[]>;
+    findMany(options?: FindManyOptions<IDoc>): Promise<IDoc[]>;
+    count(options?: Omit<FindManyOptions<IDoc>, "orderBy" | "select" | "skip" | "take">): Promise<number>;
+  };
+} & {
+  new (...args: any[]): {
+    ensureCustomPropertyColumns(properties: Record<string, any>): Promise<void>;
+    getCustomProperties(id: string): Promise<any>;
+    getAllProperties(id: string): Promise<any>;
+    setProperties(id: string, properties: Record<string, any>): Promise<{
+      success: boolean;
+      message: string;
+      updatedProperties?: undefined;
+    } | {
+      success: boolean;
+      updatedProperties: string[];
+      message?: undefined;
+    }>;
+    deleteTrigger(): Promise<void>;
+    registerTrigger(): Promise<void>;
+    flushTrigger(): Promise<void>;
+    getMeta(id: string): Promise<DocMeta>;
+    setMeta(id: string, meta: DocMeta): Promise<{
+      success: boolean;
+      message?: string;
+    }>;
+    addDisplayProperty(id: string, propertyName: string): Promise<{
+      success: boolean;
+      message?: string;
+    }>;
+    removeDisplayProperty(id: string, propertyName: string): Promise<{
+      success: boolean;
+      message?: string;
+    }>;
+    setDisplayProperties(id: string, propertyNames: string[]): Promise<{
+      success: boolean;
+      message?: string;
+    }>;
+    getDisplayProperties(id: string): Promise<Record<string, any>>;
+    getPropertyTypes(): Promise<{
+      name: any;
+      type: any;
+    }[]>;
+    changePropertyType(propertyName: string, newType: FieldType): Promise<void>;
+    getPropertyNonEmptyCount(propertyName: string): Promise<number>;
+    deleteProperty(propertyName: string): Promise<void>;
+    name: string;
+    createFTSSql: string;
+    createTableSql: string;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    del(id: string, db?: BaseServerDatabase): Promise<boolean>;
+    delBy(data: Partial<IDoc>, db?: BaseServerDatabase): Promise<boolean>;
+    get(id: string): Promise<IDoc | null>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    add(data: Partial<IDoc>, db?: BaseServerDatabase): Promise<IDoc>;
+    set(id: string, data: Partial<IDoc>): Promise<boolean>;
+    list(query?: Partial<IDoc> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<IDoc[]>;
+    findMany(options?: FindManyOptions<IDoc>): Promise<IDoc[]>;
+    count(options?: Omit<FindManyOptions<IDoc>, "orderBy" | "select" | "skip" | "take">): Promise<number>;
+  };
+} & typeof BaseDocTable;
+declare class DocTable extends ComposedDocTable {}
+//# sourceMappingURL=index.d.ts.map
 //#endregion
 //#region meta-table/embedding.d.ts
 interface IEmbedding {
@@ -1767,16 +1824,10 @@ declare class DataSpace {
   addExtension(data: IExtension): Promise<void>;
   listScripts(status?: ExtensionStatus): Promise<IExtension<ExtensionMeta>[]>;
   getScript(idOrSlug: string): Promise<IExtension<ExtensionMeta> | null>;
-  deleteExtension(id: string): Promise<void>;
-  updateExtension(data: IExtension): Promise<void>;
-  enableExtension(id: string): Promise<void>;
-  disableExtension(id: string): Promise<void>;
-  rebuildIndex(refillNullMarkdown?: boolean): Promise<void>;
   rebuildFTS(tableId: string): Promise<void>;
   createExtNode(ext_node_type: string, parent_id?: string): Promise<string>;
   permanentlyDeleteExtNode(nodeId: string): Promise<void>;
   addDoc(docId: string, content: string, markdown: string, isDayPage?: boolean): Promise<void>;
-  getDocBaseInfo(id: string): Promise<Partial<IDoc>>;
   updateDoc(docId: string, content: string, markdown: string, _isDayPage?: boolean): Promise<void>;
   getDoc(docId: string): Promise<string | undefined>;
   getDocMarkdown(docId: string, {

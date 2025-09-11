@@ -83,7 +83,7 @@ export const useViewOperation = () => {
 
   const addView = useCallback(async (type: ViewType = ViewTypeEnum.Grid) => {
     if (tableId && sqlite) {
-      const view = await sqlite.createDefaultView(tableName, type)
+      const view = await sqlite.view.createDefaultView(tableName, type)
       await updateViews()
       return view
     }
@@ -92,7 +92,7 @@ export const useViewOperation = () => {
   const delView = useCallback(
     async (viewId: string) => {
       if (sqlite) {
-        await sqlite.delView(viewId)
+        await sqlite.view.del(viewId)
         await updateViews()
       }
     },
@@ -104,7 +104,7 @@ export const useViewOperation = () => {
       if (isInkServiceMode) {
         setView(tableId, id, view)
       } else if (sqlite) {
-        await sqlite.updateView(id, view)
+        await sqlite.view.set(id, view)
         await updateViews()
       }
     },

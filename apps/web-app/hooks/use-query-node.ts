@@ -13,7 +13,7 @@ export const useQueryNode = () => {
   const queryNodes = useCallback(
     async (q: string): Promise<ISearchNodes[] | undefined> => {
       if (!sqlite) return
-      const nodes = await sqlite.listTreeNodes(q, true)
+      const nodes = await sqlite.tree.listNodes(q, true)
       return nodes.map((item) => ({
         ...item,
         mode: "node",
@@ -51,7 +51,7 @@ export const useQueryNode = () => {
   const getNode = useCallback(
     async (id: string) => {
       if (!sqlite) return
-      const node = await sqlite.getTreeNode(id)
+      const node = await sqlite.tree.getNode(id)
       return node
     },
     [sqlite]

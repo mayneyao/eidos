@@ -20,7 +20,7 @@ export class MarkdownImportAndExport extends BaseImportAndExport {
   }
 
   async export(nodeId: string, dataSpace: DataSpace): Promise<string> {
-    const node = await dataSpace.getTreeNode(nodeId)
+    const node = await dataSpace.tree.getNode(nodeId)
     const markdown = await dataSpace.getDocMarkdown(nodeId)
     return markdown ?? ""
   }
