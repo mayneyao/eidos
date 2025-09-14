@@ -80,6 +80,78 @@ describe("transformQueryWithFormulaFields2Sql", () => {
     const res = transformFormula2VirtualGeneratedField("cl_xxx3", fields)
     expect(res).toEqual("((upper (cl_xxx1) ) + cl_xxx2)")
   })
+
+  test("should automatically add _id field when transforming formula", () => {
+    const fields = [
+      {
+        name: "formula1",
+        table_name: "table1",
+        table_column_name: "cl_xxx3",
+        type: FieldType.Formula,
+        property: {
+          formula: "_id",
+        },
+      },
+      {
+        name: "title",
+        table_name: "table1",
+        table_column_name: "cl_xxx1",
+        type: FieldType.Title,
+        property: {},
+      },
+    ]
+
+    const res = transformFormula2VirtualGeneratedField("cl_xxx3", fields)
+    expect(res).toEqual('"_id"')
+  })
+
+  test("should support _id field in complex formulas", () => {
+    const fields = [
+      {
+        name: "formula1",
+        table_name: "table1",
+        table_column_name: "cl_xxx3",
+        type: FieldType.Formula,
+        property: {
+          formula: "upper(_id) || '_suffix'",
+        },
+      },
+      {
+        name: "title",
+        table_name: "table1",
+        table_column_name: "cl_xxx1",
+        type: FieldType.Title,
+        property: {},
+      },
+    ]
+
+    const res = transformFormula2VirtualGeneratedField("cl_xxx3", fields)
+    expect(res).toEqual("((upper (\"_id\") ) || ('_suffix'))")
+  })
+
+  test("should support _id field with other fields in formula", () => {
+    const fields = [
+      {
+        name: "formula1",
+        table_name: "table1",
+        table_column_name: "cl_xxx3",
+        type: FieldType.Formula,
+        property: {
+          formula: "_id || title",
+        },
+      },
+      {
+        name: "title",
+        table_name: "table1",
+        table_column_name: "cl_xxx1",
+        type: FieldType.Title,
+        property: {},
+      },
+    ]
+
+    const res = transformFormula2VirtualGeneratedField("cl_xxx3", fields)
+    expect(res).toEqual("(\"_id\" || cl_xxx1)")
+  })
 })
 
 describe("detectCircularDependencies", () => {

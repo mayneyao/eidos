@@ -1,7 +1,8 @@
 import type {
   ExprRef,
   SelectFromStatement,
-  SelectedColumn} from "pgsql-ast-parser";
+  SelectedColumn
+} from "pgsql-ast-parser";
 import {
   astMapper,
   parseFirst,
@@ -60,6 +61,14 @@ export const transformFormula2VirtualGeneratedField = (
   columnName: string,
   fields: IField[],
 ) => {
+  // add system field _id
+  fields.push({
+    name: "_id",
+    type: FieldType.Text,
+    table_column_name: "_id",
+    table_name: fields[0].table_name,
+    property: {},
+  })
   // Check for circular dependencies first
   const circularCheck = detectCircularDependencies(fields);
   if (circularCheck.hasCycle) {
