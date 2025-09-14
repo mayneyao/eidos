@@ -234,7 +234,7 @@ const router = createBrowserRouter([
                   if (!(window as any)?.sqlite) {
                     return {}
                   }
-                  return await (window as any)?.sqlite?.getScript(
+                  return await (window as any)?.sqlite?.extension.get(
                     params.scriptId
                   )
                 },
