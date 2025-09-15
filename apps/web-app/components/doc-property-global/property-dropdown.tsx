@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Plus } from "lucide-react"
+import { BookOpen, ExternalLink, FileText, Info, Plus } from "lucide-react"
 
 import { PropertyIcon } from "./property-icon"
 import { inferType } from "./utils"
@@ -137,8 +137,17 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
           {/* Custom Properties Section */}
           {filteredSelectableProperties.length > 0 ? (
             <>
-              <div className="px-2 py-1 text-xs text-muted-foreground bg-muted border-b">
+              <div className="px-2 py-1 text-xs text-muted-foreground bg-muted border-b flex gap-1 items-center">
                 Custom Properties
+                <a
+                  href="https://docs.eidos.space/nodes/doc/#custom-properties"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <BookOpen className="w-3 h-3" />
+                </a>
               </div>
               {filteredSelectableProperties.map(
                 ([propertyName, value], index) => {
@@ -183,8 +192,17 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
           {/* System Properties Section */}
           {filteredSystemProperties.length > 0 && (
             <>
-              <div className="px-2 py-1 text-xs text-muted-foreground bg-muted border-b">
+              <div className="px-2 py-1 text-xs text-muted-foreground bg-muted border-b flex items-center gap-1">
                 System Properties (read-only)
+                <a
+                  href="https://docs.eidos.space/nodes/doc/#what-each-field-means"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <BookOpen className="w-3 h-3" />
+                </a>
               </div>
               {filteredSystemProperties.map(([propertyName, value], index) => {
                 const propertyType = inferType(value, propertyName)
