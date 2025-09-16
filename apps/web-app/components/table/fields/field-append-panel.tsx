@@ -25,6 +25,7 @@ import {
   generateColumnNameFromFieldName,
   generateValidSqliteColumnName,
   validateSqliteColumnName,
+  EIDOS_RESERVED_FIELDS,
 } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -160,7 +161,8 @@ export function FieldAppendPanel({
       // Validate column name before saving
       const columnNameValidation = validateSqliteColumnName(
         currentField.table_column_name,
-        uiColumns.map((col) => col.table_column_name)
+        uiColumns.map((col) => col.table_column_name),
+        EIDOS_RESERVED_FIELDS
       )
       if (!columnNameValidation.isValid) {
         console.error("Invalid column name:", columnNameValidation.error)
@@ -276,7 +278,8 @@ export function FieldAppendPanel({
                 {(() => {
                   const validation = validateSqliteColumnName(
                     currentField.table_column_name,
-                    uiColumns.map((col) => col.table_column_name)
+                    uiColumns.map((col) => col.table_column_name),
+                    EIDOS_RESERVED_FIELDS
                   )
                   if (validation.isValid) {
                     return (
@@ -312,7 +315,8 @@ export function FieldAppendPanel({
               disabled={
                 !validateSqliteColumnName(
                   currentField.table_column_name,
-                  uiColumns.map((col) => col.table_column_name)
+                  uiColumns.map((col) => col.table_column_name),
+                  EIDOS_RESERVED_FIELDS
                 ).isValid
               }
             >

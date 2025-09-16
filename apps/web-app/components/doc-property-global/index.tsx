@@ -20,6 +20,7 @@ import { useCurrentNode } from "@/hooks/use-current-node"
 
 import { AddPropertyInput } from "./add-property-input"
 import { useDocProperty } from "./hook"
+import { useDocPropertyTypes } from "./property-type-hook"
 import { PropertyDropdown } from "./property-dropdown"
 import { PropertyItem } from "./property-item"
 import type { DocPropertyGlobalProps } from "./types"
@@ -37,6 +38,7 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
     setDisplayProperties,
     displayProperties,
   } = useDocProperty({ docId })
+  const { propertyTypes } = useDocPropertyTypes()
   const currentNode = useCurrentNode()
   const isLocked = Boolean(currentNode?.is_locked)
 
@@ -49,6 +51,11 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
   // Optimistic update state for drag sorting
   const [optimisticDisplayProperties, setOptimisticDisplayProperties] =
     useState<string[] | null>(null)
+
+  // Get existing property names for validation
+  const existingPropertyNames = useMemo(() => {
+    return propertyTypes.map(prop => prop.name)
+  }, [propertyTypes])
 
   // Use optimistic state or original state
   const currentDisplayProperties =
@@ -346,6 +353,7 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
                   setNewPropertyInitialValue(undefined)
                 }}
                 initialValue={newPropertyInitialValue}
+                existingProperties={existingPropertyNames}
               />
             ) : (
               <div className="flex items-center py-1">

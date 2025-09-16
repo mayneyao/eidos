@@ -130,11 +130,13 @@ export const EIDOS_RESERVED_FIELDS = [
  * SQLite supports Unicode identifiers including Chinese characters
  * @param columnName The column name to validate
  * @param existingColumns Optional array of existing column names to check for duplicates
+ * @param reservedFields Optional array of reserved field names to check against (defaults to EIDOS_RESERVED_FIELDS)
  * @returns An object with validation result and error message if invalid
  */
 export const validateSqliteColumnName = (
   columnName: string,
-  existingColumns?: string[]
+  existingColumns: string[],
+  reservedFields: string[] = EIDOS_RESERVED_FIELDS
 ): { isValid: boolean; error?: string } => {
   // Check if empty
   if (!columnName || columnName.trim() === '') {
@@ -146,9 +148,9 @@ export const validateSqliteColumnName = (
     return { isValid: false, error: `Column name cannot be a SQLite reserved keyword: ${columnName}` }
   }
 
-  // Check if it's an Eidos reserved field name (case-sensitive)
-  if (EIDOS_RESERVED_FIELDS.includes(columnName)) {
-    return { isValid: false, error: `Column name cannot be an Eidos reserved field: ${columnName}` }
+  // Check if it's a reserved field name (case-sensitive)
+  if (reservedFields.includes(columnName)) {
+    return { isValid: false, error: `Column name cannot be a reserved field: ${columnName}` }
   }
 
   // Check if column name contains spaces in the middle
@@ -189,7 +191,7 @@ export const generateValidSqliteColumnName = (prefix: string = 'cl'): string => 
     const randomSuffix = Math.random().toString(36).substring(2, 6)
     const columnName = `${prefix}_${randomSuffix}`
 
-    if (validateSqliteColumnName(columnName).isValid) {
+    if (validateSqliteColumnName(columnName, []).isValid) {
       return columnName
     }
 
@@ -205,11 +207,13 @@ export const generateValidSqliteColumnName = (prefix: string = 'cl'): string => 
  * Converts user-friendly field names to valid SQLite column names
  * @param fieldName The user-friendly field name
  * @param existingColumns Optional array of existing column names to avoid duplicates
+ * @param reservedFields Optional array of reserved field names to check against (defaults to EIDOS_RESERVED_FIELDS)
  * @returns A valid SQLite column name
  */
 export const generateColumnNameFromFieldName = (
   fieldName: string,
-  existingColumns?: string[]
+  existingColumns?: string[],
+  reservedFields: string[] = EIDOS_RESERVED_FIELDS
 ): string => {
   if (!fieldName || fieldName.trim() === '') {
     return generateValidSqliteColumnName()
@@ -238,9 +242,9 @@ export const generateColumnNameFromFieldName = (
     columnName = columnName.substring(0, 60) + '_'
   }
 
-  // Ensure it's not a reserved keyword or Eidos reserved field
+  // Ensure it's not a reserved keyword or reserved field
   if (SQLITE_RESERVED_KEYWORDS.includes(columnName.toUpperCase()) ||
-    EIDOS_RESERVED_FIELDS.includes(columnName)) {
+    reservedFields.includes(columnName)) {
     columnName = `f_${columnName}`
   }
 
