@@ -36,7 +36,6 @@ export const useNewExtension = () => {
     const newScriptId = generateIdV7()
     const shortSlug = newScriptId.slice(-8)
 
-    // 根据模板类型动态创建扩展
     const createExtension = async (): Promise<IExtension> => {
       switch (template) {
         case "tool": {
@@ -53,7 +52,9 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: toolTemplate,
-            meta
+            meta,
+            enabled: true
+
           }
         }
 
@@ -71,7 +72,9 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: udfTemplate,
-            meta
+            meta,
+            enabled: true
+
           }
         }
 
@@ -89,7 +92,8 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: tableActionTemplate,
-            meta
+            meta,
+            enabled: true
           }
         }
 
@@ -108,7 +112,8 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: docActionTemplate,
-            meta: docMeta
+            meta: docMeta,
+            enabled: true
           }
         }
 
@@ -126,7 +131,8 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: tableViewTemplate,
-            meta
+            meta,
+            enabled: true
           }
         }
 
@@ -144,7 +150,8 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: extNodeTemplate,
-            meta
+            meta,
+            enabled: true
           }
         }
 
@@ -159,7 +166,8 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: emptyScriptTemplate,
-            meta: undefined
+            meta: undefined,
+            enabled: true
           }
         }
 
@@ -174,7 +182,8 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: emptyBlockTemplate,
-            meta: undefined
+            meta: undefined,
+            enabled: true
           }
         }
 
