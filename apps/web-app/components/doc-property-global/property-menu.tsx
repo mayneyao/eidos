@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { FieldType } from "@/packages/core/fields/const"
 import { ChevronRight, Copy, EyeOff, RefreshCw, Trash2 } from "lucide-react"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
@@ -52,6 +53,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
   const actualFieldType = getPropertyType(propertyName)
   const { toast } = useToast()
   const { sqlite } = useSqlite()
+  const { t } = useTranslation()
 
   // Get count of documents with non-empty values for this property
   const getNonEmptyCount = async () => {
@@ -130,8 +132,8 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
     } catch (error) {
       console.error("Failed to delete property:", error)
       toast({
-        title: "删除失败",
-        description: "删除属性时发生错误，请重试",
+        title: t("doc.propertyMenu.deleteFailed"),
+        description: t("doc.propertyMenu.deleteError"),
         variant: "destructive",
       })
     }
@@ -181,7 +183,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
             >
               <div className="flex items-center gap-2">
                 <RefreshCw className="w-3 h-3" />
-                <span>Change Type</span>
+                <span>{t("doc.propertyMenu.changeType")}</span>
               </div>
               <ChevronRight className="w-3 h-3" />
             </button>
@@ -233,7 +235,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
           className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
         >
           <Copy className="w-3 h-3" />
-          <span>Copy Key</span>
+          <span>{t("doc.propertyMenu.copyKey")}</span>
         </button>
 
         {/* Copy Value */}
@@ -242,7 +244,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
           className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
         >
           <Copy className="w-3 h-3" />
-          <span>Copy Value</span>
+          <span>{t("doc.propertyMenu.copyValue")}</span>
         </button>
 
         {/* Hide */}
@@ -252,7 +254,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
             className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
           >
             <EyeOff className="w-3 h-3" />
-            <span>Hide</span>
+            <span>{t("doc.propertyMenu.hideProperty")}</span>
           </button>
         )}
 
@@ -268,38 +270,38 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
                   className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2 text-red-600 hover:text-red-700"
                 >
                   <Trash2 className="w-3 h-3" />
-                  <span>Delete Property</span>
+                  <span>{t("doc.propertyMenu.deleteProperty")}</span>
                 </button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>确认删除属性</AlertDialogTitle>
+                  <AlertDialogTitle>{t("doc.propertyMenu.deleteConfirmTitle")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    你确定要删除属性 "{propertyName}" 吗？
+                    {t("doc.propertyMenu.deleteConfirmDescription", { propertyName })}
                     <br />
                     {loadingCount ? (
-                      <span className="text-sm text-muted-foreground">正在检查影响范围...</span>
+                      <span className="text-sm text-muted-foreground">{t("doc.propertyMenu.checkingImpact")}</span>
                     ) : nonEmptyCount !== null ? (
                       <span className="text-sm">
                         <strong className="text-orange-600">
-                          将影响 {nonEmptyCount} 个文档（包含该属性的文档数量）。
+                          {t("doc.propertyMenu.impactCount", { count: nonEmptyCount })}
                         </strong>
                       </span>
                     ) : null}
                     <br />
                     <strong className="text-red-600">
-                      此操作将从所有文档中永久删除该属性，且无法撤销。
+                      {t("doc.propertyMenu.permanentDeleteWarning")}
                     </strong>
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>取消</AlertDialogCancel>
+                  <AlertDialogCancel>{t("doc.propertyMenu.cancel")}</AlertDialogCancel>
                    <AlertDialogAction
                      onClick={handleDeleteProperty}
                      disabled={loadingCount}
                     className="bg-red-600 hover:bg-red-700"
                   >
-                    删除属性
+                    {t("doc.propertyMenu.delete")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

@@ -163,12 +163,12 @@ export const DocActionCommandItems = () => {
                   />
                 )}
                 <span className="flex-1">{script.meta!.docAction.name}</span>
-                <button
+                {/* <button
                   className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 ml-2 flex items-center justify-center"
                   onClick={(e) => handleExtensionBadgeClick(e, script.id)}
                 >
                   <ExternalLink className="h-3 w-3" />
-                </button>
+                </button> */}
               </CommandItem>
             ))}
           </CommandGroup>

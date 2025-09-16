@@ -161,7 +161,7 @@ export function CommandDialogDemo() {
                     </CommandItem>
                   </CommandGroup>
                 )}
-
+                <CommandSeparator />
                 {isDesktopMode && currentNode?.type === "table" && (
                   <CommandGroup heading={t("cmdk.table")}>
                     <CommandItem
