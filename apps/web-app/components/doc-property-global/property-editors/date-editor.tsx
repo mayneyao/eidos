@@ -37,10 +37,16 @@ export const DateEditor: React.FC<PropertyEditorProps> = ({
 
       if (propertyType === "datetime") {
         // Format as YYYY-MM-DDTHH:MM for datetime-local input
-        return date.toISOString().slice(0, 16)
+        // Use local timezone offset to avoid date shifting
+        const offset = date.getTimezoneOffset() * 60000
+        const localDate = new Date(date.getTime() - offset)
+        return localDate.toISOString().slice(0, 16)
       } else {
         // Format as YYYY-MM-DD for date input
-        return date.toISOString().split("T")[0]
+        // Use local timezone offset to avoid date shifting
+        const offset = date.getTimezoneOffset() * 60000
+        const localDate = new Date(date.getTime() - offset)
+        return localDate.toISOString().split("T")[0]
       }
     } catch {
       return ""

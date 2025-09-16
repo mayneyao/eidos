@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite";
 import type { EidosDataEventChannelMsg } from "@/lib/const";
 import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const";
-import { ColumnTableName, DocTableName } from "@/packages/core/sqlite/const";
+import { DocTableName } from "@/packages/core/sqlite/const";
 import { useDocPropertyTypes } from "./property-type-hook";
 import { SYSTEM_PROPERTY_NAMES } from "./utils";
 
@@ -100,8 +100,8 @@ export const useDocProperty = (data: { docId: string }) => {
         if (diff.length === 0) return
         switch (updateType) {
           case DataUpdateSignalType.Update:
-            console.log('update', diff, _new)
-            setDocProperty(_new)
+            // refresh properties
+            _getAllProperties()
             break
           default:
             break
@@ -127,7 +127,7 @@ export const useDocProperty = (data: { docId: string }) => {
       bc.removeEventListener("message", handler)
       bc.close()
     }
-  }, [docId])
+  }, [docId, sqlite, _getAllProperties])
 
 
   return {

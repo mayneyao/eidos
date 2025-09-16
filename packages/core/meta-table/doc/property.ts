@@ -2,7 +2,7 @@ import { FieldType } from "../../fields/const";
 import { ColumnTableName } from "../../sqlite/const";
 import { generateMetaTableTriggers } from "../../sqlite/sql-meta-table-trigger";
 import type { BaseDocTable, DocMeta } from "./base";
-import { filterValidProperties, RESERVED_PROPERTIES } from "./helper";
+import { filterValidProperties, RESERVED_PROPERTIES, buildSelectClauseWithCasting } from "./helper";
 
 // Mixin to add property-related methods
 type Constructor<T = {}> = new (...args: any[]) => T & BaseDocTable;
@@ -67,14 +67,69 @@ export function WithProperty<T extends Constructor>(Base: T) {
         /**
          * Get all properties of a document (including system properties)
          * @param id document ID
-         * @returns complete properties object
+         * @returns complete properties object with converted checkbox values
          */
         async getAllProperties(id: string) {
+            // Get property types to identify checkbox fields
+            const columns = await this.dataSpace.column.list({ table_name: this.name })
+            const propertyTypes = new Map(
+                columns.map((col: any) => [col.table_column_name, col.type])
+            )
+
+            // Build SELECT statement with CAST for different field types
+            const allColumnNames = Array.from(propertyTypes.keys())
+            const selectClauses = buildSelectClauseWithCasting(allColumnNames, propertyTypes)
+
+            // Add system columns that might not be in propertyTypes
+            const systemColumns = RESERVED_PROPERTIES
+            for (const sysCol of systemColumns) {
+                if (!propertyTypes.has(sysCol)) {
+                    selectClauses.push(sysCol)
+                }
+            }
+
+            const selectClause = selectClauses.join(', ')
             const res = await this.dataSpace.exec2(
-                `SELECT * FROM ${this.name} WHERE id = ?`,
+                `SELECT ${selectClause} FROM ${this.name} WHERE id = ?`,
                 [id]
             )
+
             return res[0] || {}
+        }
+
+        async getProperties(id: string, propertyNames: string[]) {
+            try {
+                // Get column information for the requested properties
+                const columns = await this.dataSpace.column.findMany({
+                    where: {
+                        table_name: this.name,
+                        table_column_name: {
+                            in: propertyNames
+                        }
+                    }
+                })
+
+                if (!columns || columns.length === 0) {
+                    return null
+                }
+
+                // Create a map of property types for efficient lookup
+                const propertyTypes = new Map(
+                    columns.map((col: any) => [col.table_column_name, col.type])
+                )
+
+                // Build SELECT statement with CAST for different field types
+                const selectClauses = buildSelectClauseWithCasting(propertyNames, propertyTypes)
+
+                const selectClause = selectClauses.join(', ')
+                const sql = `SELECT ${selectClause} FROM ${this.name} WHERE id = ?`
+
+                const res = await this.dataSpace.exec2(sql, [id])
+                return res[0] || null
+            } catch (error) {
+                console.error('Failed to get properties:', error)
+                return null
+            }
         }
 
         async setProperties(id: string, properties: Record<string, any>) {

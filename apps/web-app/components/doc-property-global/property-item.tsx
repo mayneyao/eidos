@@ -56,15 +56,6 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
     : inferredType
   const isEmpty = isPropertyEmpty(value)
 
-  console.log({
-    propertyName,
-    propertyType,
-    actualFieldType,
-    inferredType,
-    value,
-    isEmpty,
-    propertyTypeMap,
-  })
   // Handle clicking on property icon to show menu
   const handleIconClick = (e: React.MouseEvent) => {
     e.stopPropagation()

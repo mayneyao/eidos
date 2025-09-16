@@ -2,6 +2,8 @@
  * Helper functions for document operations
  */
 
+import { FieldType } from "../../fields/const";
+
 /**
  * Reserved property names that cannot be used as custom properties
  */
@@ -12,7 +14,7 @@ export const RESERVED_PROPERTIES = [
   "is_day_page",
   "created_at",
   "updated_at",
-  "properties",
+  // "properties",
   "meta", // Now used for display configuration
 ]
 
@@ -134,4 +136,34 @@ export function filterValidProperties(properties: Record<string, any>): Record<s
   }
 
   return validProperties
+}
+
+/**
+ * Build SELECT clause with proper type casting for different field types
+ * @param columnNames array of column names to select
+ * @param propertyTypes map of column names to their field types
+ * @returns array of SELECT clause expressions with proper casting
+ */
+export function buildSelectClauseWithCasting(
+  columnNames: string[],
+  propertyTypes: Map<string, string>
+): string[] {
+  const selectClauses: string[] = []
+
+  for (const columnName of columnNames) {
+    const fieldType = propertyTypes.get(columnName)
+
+    if (fieldType === FieldType.Checkbox) {
+      // Use CAST to convert checkbox boolean to integer (01 format)
+      selectClauses.push(`CAST(${columnName} AS INTEGER) as ${columnName}`)
+    } else if (fieldType === FieldType.Number) {
+      // Use CAST to convert number to REAL for proper numeric handling
+      selectClauses.push(`CAST(${columnName} AS REAL) as ${columnName}`)
+    } else {
+      // Keep other fields as is
+      selectClauses.push(columnName)
+    }
+  }
+
+  return selectClauses
 }

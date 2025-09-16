@@ -199,6 +199,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
                   FieldType.Date,
                   FieldType.DateTime,
                   FieldType.Checkbox,
+                  // FieldType.MultiSelect,
                 ].map((fieldType) => (
                   <button
                     key={fieldType}

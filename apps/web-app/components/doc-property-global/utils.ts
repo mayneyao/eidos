@@ -131,8 +131,8 @@ export const convertFieldTypeToPropertyType = (fieldType: FieldType): string => 
     case FieldType.Checkbox:
       return "boolean"
     case FieldType.MultiSelect:
-    case FieldType.Select:
       return "tags"
+    case FieldType.Select:
     case FieldType.File:
     case FieldType.Link:
     case FieldType.Lookup:
