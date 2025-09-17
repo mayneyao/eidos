@@ -1,6 +1,6 @@
 import { TreeTableName } from "../sqlite/const"
 import type { ITreeNode } from "../types/ITreeNode"
-import { extractIdFromShortId, getRawTableNameById } from "@/lib/utils"
+import { extractIdFromShortId, getRawTableNameById, uuidv7 } from "@/lib/utils"
 import { createTriggersForFields } from "../sqlite/sql-meta-table-trigger"
 
 import type { BaseTable } from "./base";
@@ -167,6 +167,18 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     }
   }
 
+
+  async duplicateNode(id: string): Promise<ITreeNode | null> {
+    const node = await this.get(id)
+    if (!node) return null
+    const newId = uuidv7().split("-").join("")
+    await this.add({
+      ...node,
+      id: newId,
+      name: node.name + " Copy",
+    })
+    return this.getNode(newId)
+  }
   /**
    * id: uuid without '-'
    * miniId: last 8 char of id. most of time, it's enough to identify a node

@@ -163,17 +163,6 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
                             // Update custom properties
                             if (Object.keys(customProperties).length > 0) {
                                 await (this as any).setProperties(id, customProperties)
-                            } else {
-                                // If there are no custom properties, clear existing custom properties
-                                const existingProperties = await (this as any).getCustomProperties(id)
-                                if (Object.keys(existingProperties).length > 0) {
-                                    // Set existing properties to null to clear them
-                                    const clearProperties: Record<string, any> = {}
-                                    Object.keys(existingProperties).forEach(key => {
-                                        clearProperties[key] = null
-                                    })
-                                    await (this as any).setProperties(id, clearProperties)
-                                }
                             }
                             break
 

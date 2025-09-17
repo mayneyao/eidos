@@ -31,7 +31,7 @@ export const useDocProperty = (data: { docId: string }) => {
   const getAllProperties = useCallback(
     async (docId: string) => {
       if (!sqlite) return
-      const res = await sqlite.doc.getAllProperties(docId)
+      const res = await sqlite.doc.getProperties(docId)
       return res
     },
     [sqlite]

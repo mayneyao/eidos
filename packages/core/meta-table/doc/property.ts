@@ -16,10 +16,11 @@ export function WithProperty<T extends Constructor>(Base: T) {
         async ensureCustomPropertyColumns(properties: Record<string, any>): Promise<void> {
             const validProperties = filterValidProperties(properties)
 
+            let hasChanged = false
             for (const propertyName of Object.keys(validProperties)) {
                 const exists = await this.columnExists(propertyName)
                 if (!exists) {
-                    // await this.addColumn(propertyName)
+                    hasChanged = true
                     await this.dataSpace.column.add({
                         name: propertyName,
                         type: FieldType.Text,
@@ -27,8 +28,10 @@ export function WithProperty<T extends Constructor>(Base: T) {
                         table_column_name: propertyName,
                         property: {},
                     })
-                    this.flushTrigger()
                 }
+            }
+            if (hasChanged) {
+                this.flushTrigger()
             }
         }
 
@@ -69,7 +72,7 @@ export function WithProperty<T extends Constructor>(Base: T) {
          * @param id document ID
          * @returns complete properties object with converted checkbox values
          */
-        async getAllProperties(id: string) {
+        async getProperties(id: string) {
             // Get property types to identify checkbox fields
             const columns = await this.dataSpace.column.list({ table_name: this.name })
             const propertyTypes = new Map(
@@ -95,41 +98,6 @@ export function WithProperty<T extends Constructor>(Base: T) {
             )
 
             return res[0] || {}
-        }
-
-        async getProperties(id: string, propertyNames: string[]) {
-            try {
-                // Get column information for the requested properties
-                const columns = await this.dataSpace.column.findMany({
-                    where: {
-                        table_name: this.name,
-                        table_column_name: {
-                            in: propertyNames
-                        }
-                    }
-                })
-
-                if (!columns || columns.length === 0) {
-                    return null
-                }
-
-                // Create a map of property types for efficient lookup
-                const propertyTypes = new Map(
-                    columns.map((col: any) => [col.table_column_name, col.type])
-                )
-
-                // Build SELECT statement with CAST for different field types
-                const selectClauses = buildSelectClauseWithCasting(propertyNames, propertyTypes)
-
-                const selectClause = selectClauses.join(', ')
-                const sql = `SELECT ${selectClause} FROM ${this.name} WHERE id = ?`
-
-                const res = await this.dataSpace.exec2(sql, [id])
-                return res[0] || null
-            } catch (error) {
-                console.error('Failed to get properties:', error)
-                return null
-            }
         }
 
         async setProperties(id: string, properties: Record<string, any>) {

@@ -59,7 +59,7 @@ export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
 
         {/* Script Extensions */}
         <DropdownMenuLabel className="flex items-center text-xs text-muted-foreground">
-          Script
+          {t("extension.scriptSection")}
         </DropdownMenuLabel>
         <DropdownMenuItem
           className="group relative"
@@ -107,9 +107,9 @@ export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
           onClick={() => handleCreateNewExtension("emptyScript")}
         >
           <CodeIcon className="mr-2 h-4 w-4" />
-          Empty Script
+          {t("extension.emptyScript")}
           <ExtensionTooltip>
-            Create an empty script extension with no template code
+            {t("extension.emptyScriptDescription")}
           </ExtensionTooltip>
         </DropdownMenuItem>
 
@@ -117,7 +117,7 @@ export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
 
         {/* Block Extensions */}
         <DropdownMenuLabel className="flex items-center text-xs text-muted-foreground">
-          Block
+          {t("extension.blockSection")}
         </DropdownMenuLabel>
         <DropdownMenuItem
           className="group relative"
@@ -147,9 +147,9 @@ export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
           onClick={() => handleCreateNewExtension("emptyBlock")}
         >
           <ToyBrickIcon className="mr-2 h-4 w-4" />
-          Empty Block
+          {t("extension.emptyBlock")}
           <ExtensionTooltip>
-            Create an empty block extension with no template code
+            {t("extension.emptyBlockDescription")}
           </ExtensionTooltip>
         </DropdownMenuItem>
       </DropdownMenuContent>

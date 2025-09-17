@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react"
+import type { BindingType, IBindings } from "@/packages/core/types/IExtension"
 import { Check, ExternalLink, Pencil, Plus, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -29,14 +28,18 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { TableSelector } from "@/components/table-selector"
-import type { IBindings, BindingType } from "@/packages/core/types/IExtension"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useGoto } from "@/apps/web-app/hooks/use-goto"
 
 interface BindingsProps {
   bindings: IBindings
   onUpdateBindings: (newBindings: IBindings) => void
 }
 
-export const ExtensionBindings = ({ bindings, onUpdateBindings }: BindingsProps) => {
+export const ExtensionBindings = ({
+  bindings,
+  onUpdateBindings,
+}: BindingsProps) => {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
   const goto = useGoto()
@@ -53,7 +56,9 @@ export const ExtensionBindings = ({ bindings, onUpdateBindings }: BindingsProps)
   }, [bindings])
 
   const envBindings = useMemo(() => {
-    return Object.entries(bindings || {}).filter(([, v]) => v.type === "secret" || v.type === "text")
+    return Object.entries(bindings || {}).filter(
+      ([, v]) => v.type === "secret" || v.type === "text"
+    )
   }, [bindings])
 
   const handleAddBinding = () => {
@@ -126,22 +131,28 @@ export const ExtensionBindings = ({ bindings, onUpdateBindings }: BindingsProps)
     <Card>
       <CardHeader>
         <CardTitle>Bindings</CardTitle>
-        <CardDescription>Configure bindings and environment variables for this extension</CardDescription>
+        <CardDescription>
+          Configure bindings and environment variables for this extension
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-6">
           {/* Environment Variables Section */}
           {envBindings.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium mb-3">Environment Variables</h3>
+              <h3 className="text-sm font-medium mb-3">
+                Environment Variables
+              </h3>
               <div className="flex flex-col gap-2">
                 {envBindings.map(([key, binding]) => (
-                  <div key={key} className="flex items-center gap-2">
+                  <div key={key} className="flex items-center gap-1.5">
                     <Select
                       value={binding.type}
-                      onValueChange={(type: "secret" | "text") => handleBindingTypeChange(key, type)}
+                      onValueChange={(type: "secret" | "text") =>
+                        handleBindingTypeChange(key, type)
+                      }
                     >
-                      <SelectTrigger className="w-[100px]">
+                      <SelectTrigger className="w-[90px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -149,9 +160,13 @@ export const ExtensionBindings = ({ bindings, onUpdateBindings }: BindingsProps)
                         <SelectItem value="text">Text</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input value={key} disabled className="w-[150px]" />
+                    <Input value={key} disabled className="w-[140px]" />
                     <Input
-                      value={editingKeys.has(key) ? editingValues[key] : binding.value}
+                      value={
+                        editingKeys.has(key)
+                          ? editingValues[key]
+                          : binding.value
+                      }
                       disabled={!editingKeys.has(key)}
                       onChange={(e) => {
                         setEditingValues((prev) => ({
@@ -212,16 +227,16 @@ export const ExtensionBindings = ({ bindings, onUpdateBindings }: BindingsProps)
               <h3 className="text-sm font-medium mb-3">Table Bindings</h3>
               <div className="flex flex-col gap-2">
                 {tableBindings.map(([key, binding]) => (
-                  <div key={key} className="flex items-center gap-2">
+                  <div key={key} className="flex items-center gap-1.5">
                     <Select disabled value={binding.type}>
-                      <SelectTrigger className="w-[100px]">
+                      <SelectTrigger className="w-[90px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="table">Table</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input value={key} disabled className="w-[150px]" />
+                    <Input value={key} disabled className="w-[140px]" />
                     <TableSelector
                       value={binding.value}
                       onSelect={(value) => handleBindingValueChange(key, value)}
@@ -252,12 +267,12 @@ export const ExtensionBindings = ({ bindings, onUpdateBindings }: BindingsProps)
           {/* Add New Binding */}
           <div>
             <h3 className="text-sm font-medium mb-3">Add New Binding</h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Select
                 value={newBindingType}
                 onValueChange={(value: BindingType) => setNewBindingType(value)}
               >
-                <SelectTrigger className="w-[100px]">
+                <SelectTrigger className="w-[90px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -270,7 +285,7 @@ export const ExtensionBindings = ({ bindings, onUpdateBindings }: BindingsProps)
                 placeholder="Key"
                 value={newBindingKey}
                 onChange={(e) => setNewBindingKey(e.target.value)}
-                className="w-[150px]"
+                className="w-[140px]"
               />
               {newBindingType === "table" ? (
                 <TableSelector
@@ -288,21 +303,25 @@ export const ExtensionBindings = ({ bindings, onUpdateBindings }: BindingsProps)
                   type={newBindingType === "secret" ? "password" : "text"}
                 />
               )}
-              <Button size="icon" onClick={handleAddBinding} variant="outline">
+              <Button size="xs" onClick={handleAddBinding} variant="outline">
                 {newBindingKey.trim() && newBindingValue.trim() ? (
-                  <Check className="h-4 w-4" />
+                  <Check className="h-3 w-3" />
                 ) : (
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3 w-3" />
                 )}
               </Button>
               {(newBindingType === "secret" || newBindingType === "text") && (
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button variant="outline">{t("extension.config.bulkAdd")}</Button>
+                    <Button variant="outline" size="xs">
+                      {t("extension.config.bulkAdd")}
+                    </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>{t("extension.config.bulkAddTitle")}</DialogTitle>
+                      <DialogTitle>
+                        {t("extension.config.bulkAddTitle")}
+                      </DialogTitle>
                     </DialogHeader>
                     <div className="flex flex-col gap-4">
                       <Textarea
