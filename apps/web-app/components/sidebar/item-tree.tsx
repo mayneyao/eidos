@@ -7,6 +7,7 @@ import {
   Folder,
   FolderOpenIcon,
   ViewIcon,
+  Hash,
 } from "lucide-react"
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
@@ -116,6 +117,8 @@ export const ItemIcon = ({
       return <FolderOpenIcon className={_className} />
     case "day":
       return <CalendarDaysIcon className={_className} />
+    case "property":
+      return <Hash className={_className} />
     default:
       return <File className={_className} />
   }

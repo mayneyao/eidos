@@ -3,6 +3,7 @@ import { createContext, useContext, useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
+import { useDocProperty } from "@/apps/web-app/components/doc-property-global/hook"
 
 interface EditorInstanceContextType {
   mblocks: IExtension[]
@@ -11,6 +12,8 @@ interface EditorInstanceContextType {
   selectedKeys: Set<string>
   setSelectedKeys: (keys: Set<string>) => void
   docId: string | null
+  // Document properties - only getter
+  docProperties: Record<string, any> | null
 }
 
 const EditorInstanceContext = createContext<EditorInstanceContextType>({
@@ -20,6 +23,8 @@ const EditorInstanceContext = createContext<EditorInstanceContextType>({
   selectedKeys: new Set(),
   setSelectedKeys: () => {},
   docId: null,
+  // Document properties defaults
+  docProperties: null,
 })
 
 export function EditorInstanceProvider({
@@ -32,6 +37,9 @@ export function EditorInstanceProvider({
   const { mblocks } = useAllMblocks()
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState(new Set<string>())
+  
+  // Use useDocProperty hook for reactive document properties
+  const { properties: docProperties } = useDocProperty({ docId: docId || '' })
 
   const value = {
     mblocks,
@@ -40,6 +48,8 @@ export function EditorInstanceProvider({
     selectedKeys,
     setSelectedKeys,
     docId,
+    // Document properties - only getter
+    docProperties,
   }
 
   return (

@@ -1,7 +1,8 @@
 import type { ReactNode } from "react"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
-import type { EditorConfig, LexicalEditor, NodeKey } from "lexical";
+import type { EditorConfig, LexicalEditor, NodeKey, LexicalNode } from "lexical";
 import { DecoratorNode } from "lexical"
+import type { TextMatchTransformer } from "@lexical/markdown"
 
 import { MentionComponent } from "./component"
 
@@ -24,7 +25,7 @@ export class MentionNode extends DecoratorNode<ReactNode> {
   }
 
   getTextContent(): string {
-    return `[[ ${this.__id} | ${this.__title || "Untitled"} ]]`
+    return `[[ ${this.__id} ]]`
   }
 
   createDOM(): HTMLElement {
@@ -48,7 +49,10 @@ export class MentionNode extends DecoratorNode<ReactNode> {
     return (
       <div className="inline-block">
         <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
-          <MentionComponent id={this.__id} title={this.__title} />
+          <MentionComponent 
+            id={this.__id} 
+            title={this.__title}
+          />
         </BlockWithAlignableContents>
       </div>
     )
@@ -82,7 +86,27 @@ export function $createMentionNode(id: string, title?: string): MentionNode {
 }
 
 export function $isMentionNode(
-  node: MentionNode | null | undefined
+  node: LexicalNode | null | undefined
 ): node is MentionNode {
   return node instanceof MentionNode
+}
+
+export const MENTION_NODE_TRANSFORMER: TextMatchTransformer = {
+  dependencies: [MentionNode],
+  export: (node) => {
+    if (!$isMentionNode(node)) {
+      return null
+    }
+    const mentionNode = node as MentionNode
+    return `[[ ${mentionNode.__id} ]]`
+  },
+  importRegExp: /\[\[ ([^\]]+) \]\]/,
+  regExp: /\[\[ ([^\]]+) \]\]$/,
+  replace: (textNode, match) => {
+    const [, id] = match
+    const mentionNode = $createMentionNode(id.trim())
+    textNode.replace(mentionNode)
+  },
+  trigger: "]",
+  type: "text-match",
 }
