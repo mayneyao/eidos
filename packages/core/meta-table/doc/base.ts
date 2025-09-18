@@ -12,6 +12,7 @@ export interface IDoc {
   created_at?: string
   updated_at?: string
   meta?: string // JSON string for display configuration
+  [key: string]: any // Allow for future extensions
 }
 
 export interface DocMeta {
@@ -26,7 +27,7 @@ export class BaseDocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc>
   CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}',tokenize = 'simple');
   `: `CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}');`
 
-  
+
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${this.name} (
     id TEXT PRIMARY KEY,

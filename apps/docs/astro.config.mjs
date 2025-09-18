@@ -45,6 +45,10 @@ export default defineConfig({
           autogenerate: { directory: "extensions" },
         },
         {
+          label: "API Reference",
+          autogenerate: { directory: "api-reference" },
+        },
+        {
           label: "Comparisons",
           autogenerate: { directory: "comparisons" },
         },

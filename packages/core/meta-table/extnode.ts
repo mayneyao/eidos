@@ -33,21 +33,6 @@ export class ExtNodeTable extends BaseTableImpl<IExtNode> implements BaseTable<I
   END;
   `
 
-  async addExtNode(data: Omit<IExtNode, "created_at" | "updated_at">) {
-    return this.add(data)
-  }
-
-  async updateExtNode(id: string, data: Partial<Omit<IExtNode, "id" | "created_at" | "updated_at">>) {
-    return this.set(id, data)
-  }
-
-  async getExtNodesByType(type: string): Promise<IExtNode[]> {
-    return this.list({ type })
-  }
-
-  async getExtNode(id: string): Promise<IExtNode | null> {
-    return this.get(id)
-  }
   async getBlob(id: string): Promise<Buffer | null> {
     const extNode = await this.get(id)
     return extNode?.blob || null
@@ -61,11 +46,6 @@ export class ExtNodeTable extends BaseTableImpl<IExtNode> implements BaseTable<I
 
   async setBlob(id: string, blob: Buffer): Promise<boolean> {
     return this.set(id, { blob })
-  }
-
-
-  async setType(id: string, type: string): Promise<boolean> {
-    return this.set(id, { type })
   }
 
   async setText(id: string, text: string): Promise<boolean> {

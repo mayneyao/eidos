@@ -397,7 +397,7 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
         type: `ext__${ext_node_type}`,
         parent_id,
       })
-      await this.dataSpace.extNode.addExtNode({
+      await this.dataSpace.extNode.add({
         id: extNodeId,
         type: ext_node_type,
       })
