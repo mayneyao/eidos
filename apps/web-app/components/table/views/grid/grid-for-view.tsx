@@ -1,10 +1,9 @@
-import type {
-  DataEditorProps,
-  DataEditorRef,
-  HeaderClickedEventArgs,
-  Item,
-} from "@glideapps/glide-data-grid";
-import DataEditor from "@glideapps/glide-data-grid"
+import DataEditor, {
+  type DataEditorProps,
+  type DataEditorRef,
+  type HeaderClickedEventArgs,
+  type Item,
+} from "@glideapps/glide-data-grid"
 
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 
@@ -16,10 +15,10 @@ import React, {
   useMemo,
   useRef,
 } from "react"
+import type { IGridViewProperties, IView } from "@/packages/core/types/IView"
 import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import type { IGridViewProperties, IView } from "@/packages/core/types/IView"
 import { cn } from "@/lib/utils"
 import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
@@ -66,11 +65,13 @@ export function GridViewForView(props: IGridProps) {
   const r = containerRef.current?.querySelector(".dvn-scroll-inner")
   const hasScroll = r && r?.scrollWidth > r?.clientWidth
 
-  const { currentView } = useCurrentView<IGridViewProperties>({
+  const { currentView: _currentView } = useCurrentView<IGridViewProperties>({
     space: databaseName,
     tableName,
     viewId: props.view?.id,
   })
+  const currentView = props.view || _currentView
+
   const { count: viewCount } = useViewCount(currentView)
   const { tableSchema, getRowData, getRowDataById } = useTableOperation(
     tableName,

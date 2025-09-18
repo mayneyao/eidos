@@ -100,12 +100,16 @@ export class SqlDataView {
         }
     }
 
-    async createDataView(id: string, createViewSql: string) {
+    async createDataView(id: string, createViewSql: string, isTemp: boolean = false) {
         const viewName = `vw_${id}`
+        if (!isTemp) {
+            // delete temp view
+            await this.delete(id)
+        }
         await this.dataSpace.db.prepare('BEGIN TRANSACTION;').run()
 
         try {
-            await this.dataSpace.db.prepare(`CREATE VIEW IF NOT EXISTS ${viewName} AS ${createViewSql};`).run();
+            await this.dataSpace.db.prepare(`CREATE ${isTemp ? 'TEMPORARY' : ''} VIEW IF NOT EXISTS ${viewName} AS ${createViewSql};`).run();
             await this.dataSpace.view.add({
                 id: shortenId(uuidv7()),
                 name: `New View`,
