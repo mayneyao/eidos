@@ -9,12 +9,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useDocProperty } from "@/components/doc-property-global/hook"
 import { ItemIcon } from "@/components/sidebar/item-tree"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
 import { NodeIconEditor } from "@/apps/web-app/pages/[database]/[node]/node-icon"
 
 import { InnerEditor } from "../../editor"
+import { useEditorInstance } from "../../hooks/editor-instance-context"
 
 interface NodeMentionComponentProps {
   id: string
@@ -28,6 +30,8 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
   const { getNode } = useQueryNode()
   const { id } = props
   const router = useNavigate()
+  const { markerProperty, showReferenceNodeIcon } = useEditorInstance()
+  const { properties } = useDocProperty({ docId: id })
 
   const onClick = () => {
     if (isDayPageId(id)) {
@@ -53,46 +57,55 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
   return (
     <TooltipProvider>
       <Tooltip
-        delayDuration={100}
+        delayDuration={200}
         {...(props.disablePreview && { open: false })}
       >
         <TooltipTrigger>
-          <span
-            className={cn(
-              "inline-flex shrink-0 cursor-pointer",
-              "items-baseline rounded-sm px-1 underline hover:bg-secondary",
-              {
-                "text-red-400": node?.is_deleted,
-              }
-            )}
-            id={id}
-            onClick={onClick}
-          >
-            <span className="inline-flex items-center mr-1">
-              {node && node.icon ? (
-                <NodeIconEditor
-                  icon={node.icon}
-                  nodeId={node.id}
-                  disabled
-                  size="1rem"
-                />
-              ) : (
-                <ItemIcon
-                  type={node?.type ?? ""}
-                  className="h-4 w-4 translate-y-[0.1em]"
-                />
+          <>
+            <span
+              className={cn(
+                "inline-flex shrink-0 cursor-pointer",
+                "items-baseline rounded-sm px-1 underline hover:bg-secondary",
+                {
+                  "text-red-400": node?.is_deleted,
+                }
               )}
+              id={id}
+              onClick={onClick}
+            >
+              {showReferenceNodeIcon && (
+                <span className="inline-flex items-center mr-1">
+                  {node && node.icon ? (
+                    <NodeIconEditor
+                      icon={node.icon}
+                      nodeId={node.id}
+                      disabled
+                      size="1rem"
+                    />
+                  ) : (
+                    <ItemIcon
+                      type={node?.type ?? ""}
+                      className="h-4 w-4 translate-y-[0.1em]"
+                    />
+                  )}
+                </span>
+              )}
+              <span className="!my-0 max-w-[32rem] truncate">
+                {node ? node.name || "Untitled" : props.title || "loading"}
+              </span>
             </span>
-            <span className="!my-0 max-w-[18rem] truncate">
-              {node ? node.name || "Untitled" : props.title || "loading"}
-            </span>
-          </span>
+            {markerProperty && properties?.[markerProperty] && (
+              <sup className="text-muted-foreground text-xs">
+                {properties?.[markerProperty]}
+              </sup>
+            )}
+          </>
         </TooltipTrigger>
         {!props.disablePreview && (
           <TooltipContent
             side="bottom"
             align="start"
-            className=" max-h-[500px]  min-w-[300px] max-w-[450px] overflow-y-auto p-4"
+            className="max-h-[500px]  min-w-[300px] max-w-[450px] overflow-y-auto p-4 bg-secondary"
           >
             {node && (node?.type === "doc" || node?.type === "day") && (
               <InnerEditor
@@ -100,6 +113,7 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
                 docId={node.id}
                 disableSelectionPlugin
                 disableSafeBottomPaddingPlugin
+                disablePlaceholder
                 className={"prose w-full max-w-full dark:prose-invert"}
               />
             )}

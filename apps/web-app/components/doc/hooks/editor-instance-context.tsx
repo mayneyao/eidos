@@ -1,9 +1,9 @@
-import type { ReactNode} from "react";
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 
-import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
+import { useSpaceSettings } from "@/hooks/use-space-settings"
 import { useDocProperty } from "@/apps/web-app/components/doc-property-global/hook"
+import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
 
 interface EditorInstanceContextType {
   mblocks: IExtension[]
@@ -14,6 +14,8 @@ interface EditorInstanceContextType {
   docId: string | null
   // Document properties - only getter
   docProperties: Record<string, any> | null
+  markerProperty: string
+  showReferenceNodeIcon: boolean
 }
 
 const EditorInstanceContext = createContext<EditorInstanceContextType>({
@@ -25,6 +27,8 @@ const EditorInstanceContext = createContext<EditorInstanceContextType>({
   docId: null,
   // Document properties defaults
   docProperties: null,
+  markerProperty: "",
+  showReferenceNodeIcon: false,
 })
 
 export function EditorInstanceProvider({
@@ -37,9 +41,15 @@ export function EditorInstanceProvider({
   const { mblocks } = useAllMblocks()
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState(new Set<string>())
-  
+
   // Use useDocProperty hook for reactive document properties
-  const { properties: docProperties } = useDocProperty({ docId: docId || '' })
+  const { properties: docProperties } = useDocProperty({ docId: docId || "" })
+
+  const { data: spaceDocSettings } = useSpaceSettings("doc", {
+    markerProperty: "",
+  })
+  const markerProperty = spaceDocSettings.markerProperty
+  const showReferenceNodeIcon = spaceDocSettings.showReferenceNodeIcon
 
   const value = {
     mblocks,
@@ -50,6 +60,8 @@ export function EditorInstanceProvider({
     docId,
     // Document properties - only getter
     docProperties,
+    markerProperty,
+    showReferenceNodeIcon,
   }
 
   return (

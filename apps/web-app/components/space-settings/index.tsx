@@ -1,253 +1,26 @@
-import { useEffect, useState } from "react"
-import { FolderOpen, SettingsIcon } from "lucide-react"
+import { useState } from "react"
+import { SettingsIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router-dom"
 
-import { MsgType } from "@/lib/const"
-import { isDesktopMode } from "@/lib/env"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useEngine } from "@/apps/web-app/hooks/use-engine"
-import { useSpace } from "@/apps/web-app/hooks/use-space"
 
 import { Button } from "../ui/button"
+import { SettingsContent } from "./settings-content"
+import { SettingsSidebar } from "./settings-sidebar"
+
+type SettingsSection = "general" | "document"
 
 export function Settings() {
-  const { t } = useTranslation()
-  const { space } = useCurrentPathInfo()
-  const { exportSpace, deleteSpace, rebuildIndex } = useSpace()
-  const navigate = useNavigate()
-  const [confirmName, setConfirmName] = useState("")
-  const [isRebuilding, setIsRebuilding] = useState(false)
-  const [dataFolder, setDataFolder] = useState<string>("")
-  const { close } = useEngine()
-
-  useEffect(() => {
-    const loadDataFolder = async () => {
-      if (isDesktopMode) {
-        const folder = await window.eidos.config.get("dataFolder")
-        setDataFolder(folder)
-      }
-    }
-    loadDataFolder()
-  }, [])
-
-  const handleExport = () => {
-    exportSpace(space)
-  }
-
-  const handleDelete = async () => {
-    if (confirmName === space) {
-      await deleteSpace(space)
-      close()
-      navigate("/")
-    } else {
-      alert("The space name does not match.")
-    }
-  }
-
-  const handleRebuildIndex = async () => {
-    setIsRebuilding(true)
-    try {
-      await rebuildIndex()
-      alert("Index rebuilt successfully!")
-    } catch (error) {
-      console.error("Error rebuilding index:", error)
-      alert("Failed to rebuild index. Please try again.")
-    } finally {
-      setIsRebuilding(false)
-    }
-  }
-
-  const handleOpenFolder = () => {
-    if (dataFolder) {
-      const spacePath = `${dataFolder}/spaces/${space}`
-      window.eidos.openFolder(spacePath)
-    }
-  }
-  const handleStatus = async () => {
-    const res = await window.eidos.invoke(MsgType.Status, { spaceName: space })
-    console.log("pull:", res)
-  }
-  const handleReset = async () => {
-    const res = await window.eidos.invoke(MsgType.Reset, { spaceName: space })
-    console.log("reset:", res)
-  }
-  const handlePages = async () => {
-    const res = await window.eidos.invoke(MsgType.Pages, { spaceName: space })
-    console.log("pages:", res)
-  }
+  const [activeSection, setActiveSection] = useState<SettingsSection>("general")
 
   return (
-    <Card className="border-0 p-0">
-      <CardHeader>
-        <CardTitle>{t("space.settings.title")}</CardTitle>
-        <CardDescription>
-          {t("space.settings.description")}{" "}
-          <Link to="/settings" className="text-blue-500 underline">
-            {t("space.settings.globalSettings")}
-          </Link>
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-6">
-          <div className="grid gap-3">
-            <Label htmlFor="name">{t("common.name")}</Label>
-            <div className="flex gap-1">
-              <Input id="name" type="text" disabled defaultValue={space} />
-              {isDesktopMode && (
-                <Button
-                  variant="outline"
-                  onClick={handleOpenFolder}
-                  title={t("common.openFolder")}
-                >
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-          <hr />
-          {/* <div className="grid gap-3">
-            <Label htmlFor="status">{t("space.settings.status")}</Label>
-            <p className="text-sm text-muted-foreground">
-              {t("space.settings.statusDescription")}
-            </p>
-            <Button
-              size="sm"
-              className="max-w-max"
-              variant="outline"
-              onClick={handleStatus}
-            >
-              {t("space.settings.status")}
-            </Button>
-          </div>
-          <div className="grid gap-3">
-            <Label htmlFor="reset">{t("space.settings.reset")}</Label>
-            <p className="text-sm text-muted-foreground">
-              {t("space.settings.resetDescription")}
-            </p>
-            <Button
-              size="sm"
-              className="max-w-max"
-              variant="outline"
-              onClick={handleReset}
-            >
-              {t("space.settings.reset")}
-            </Button>
-          </div>
-          <div className="grid gap-3">
-            <Label htmlFor="pages">{t("space.settings.pages")}</Label>
-            <p className="text-sm text-muted-foreground">
-              {t("space.settings.pagesDescription")}
-            </p>
-            <Button
-              size="sm"
-              className="max-w-max"
-              variant="outline"
-              onClick={handlePages}
-            >
-              {t("space.settings.pages")}
-            </Button>
-          </div> */}
-          <div className="grid gap-3">
-            <Label htmlFor="description">{t("common.export")}</Label>
-            <p className="text-sm text-muted-foreground">
-              {t("space.settings.exportDescription")}
-            </p>
-            <Button
-              size="sm"
-              className="max-w-max"
-              variant="outline"
-              onClick={handleExport}
-            >
-              {t("space.settings.exportSpace")}
-            </Button>
-          </div>
-          <div className="grid gap-3">
-            <Label htmlFor="rebuild-index">
-              {t("space.settings.rebuildIndex")}
-            </Label>
-            <p className="text-sm text-muted-foreground">
-              {t("space.settings.rebuildIndexDescription")}
-            </p>
-            <Button
-              size="sm"
-              className="max-w-max"
-              variant="outline"
-              onClick={handleRebuildIndex}
-              disabled={isRebuilding}
-            >
-              {isRebuilding
-                ? t("space.settings.rebuilding")
-                : t("space.settings.rebuildIndex")}
-            </Button>
-          </div>
-          <div className="grid gap-3">
-            <Label htmlFor="description">
-              {t("space.settings.dangerZone")}
-            </Label>
-            <p className="text-sm text-muted-foreground">
-              {t("space.settings.deleteSpaceDescription")}
-            </p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button size="sm" className=" max-w-max" variant="destructive">
-                  {t("space.settings.deleteSpace")}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    {t("common.areYouAbsolutelySure")}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t("space.settings.deleteSpaceWarning", {
-                      spaceName: space,
-                    })}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <Input
-                  id="confirmName"
-                  type="text"
-                  placeholder={t("space.settings.typeSpaceName")}
-                  value={confirmName}
-                  onChange={(e) => setConfirmName(e.target.value)}
-                />
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    disabled={confirmName !== space}
-                  >
-                    {t("common.continue")}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex h-[85vh]">
+      <SettingsSidebar
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
+      <SettingsContent activeSection={activeSection} />
+    </div>
   )
 }
 
@@ -267,7 +40,7 @@ export const SpaceSettings = () => {
           </span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="h-[90%] p-0 lg:min-w-[800px]">
+      <DialogContent className="h-[85vh] w-[75vw] max-w-6xl p-0">
         <Settings />
       </DialogContent>
     </Dialog>
