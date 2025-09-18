@@ -1,10 +1,9 @@
 import { useRef, useState } from "react"
 import * as Icons from "lucide-react"
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react"
 import { ChevronRightIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import {
   Command,
   CommandEmpty,
@@ -23,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "@/components/ui/use-toast"
+import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 
 import { useBuiltInPrompts } from "./hooks/use-builtIn-prompts"
 
@@ -35,7 +35,8 @@ export function PromptList({
   onPromptSelect,
   onGenerateChart,
 }: PromptListProps) {
-  const { findFirstAvailableModel, findAvailableModel } = useAiConfig()
+  const { findFirstAvailableModel, findAvailableModel, textModel } =
+    useAiConfig()
   const builtInPrompts = useBuiltInPrompts()
   const { t } = useTranslation()
   const [customPrompt, setCustomPrompt] = useState<string>("")
@@ -43,7 +44,7 @@ export function PromptList({
   const commandGroupRef = useRef<HTMLDivElement>(null)
 
   const runCustomAction = (prompt: string) => {
-    const model = findFirstAvailableModel()
+    const model = textModel || findFirstAvailableModel()
     if (!model) {
       toast({
         title: "No model available",
@@ -76,15 +77,6 @@ export function PromptList({
         <CommandList className="max-h-[20rem]">
           <CommandEmpty>No Prompt found.</CommandEmpty>
           <CommandGroup heading="Built-in Prompts" ref={commandGroupRef}>
-            <CommandItem
-              className="flex items-center justify-between"
-              onSelect={onGenerateChart}
-            >
-              <div className="flex items-center gap-2">
-                <Icons.BarChart2Icon className="h-5 w-5 opacity-50" />
-                <span>Visualize Data</span>
-              </div>
-            </CommandItem>
             {builtInPrompts.map((prompt) => {
               const Icon = Icons[
                 prompt.icon as keyof typeof Icons
@@ -154,8 +146,16 @@ export function PromptList({
                 </CommandItem>
               )
             })}
+            <CommandItem
+              className="flex items-center justify-between"
+              onSelect={onGenerateChart}
+            >
+              <div className="flex items-center gap-2">
+                <Icons.BarChart2Icon className="h-5 w-5 opacity-50" />
+                <span>Visualize Data</span>
+              </div>
+            </CommandItem>
           </CommandGroup>
-
         </CommandList>
       </ScrollArea>
     </Command>
