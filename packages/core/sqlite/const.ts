@@ -45,3 +45,6 @@ export const QueueTableName = `eidos__queue`
 
 // store ext_node
 export const ExtNodeTableName = `eidos__extnodes`
+
+// store kv
+export const KVTableName = `eidos__kv`

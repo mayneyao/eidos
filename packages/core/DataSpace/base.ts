@@ -1,47 +1,39 @@
-import { MsgType } from "@/lib/const"
-import type { EidosFileSystemManager } from "@/lib/storage/eidos-file-system"
-import type { ITreeNode } from "../types/ITreeNode";
-import { TreeNodeType } from "../types/ITreeNode"
-import type { IView, ViewType } from "../types/IView";
-import { ViewTypeEnum } from "../types/IView"
+import { MsgType } from "@/lib/const";
+import type { EidosFileSystemManager } from "@/lib/storage/eidos-file-system";
 import {
-  getRawTableNameById,
-  getTableIdByRawTableName,
-  uuidv7,
-} from "@/lib/utils"
-import type { FieldType } from "../fields/const"
-import type { IField } from "../types/IField"
-import { ColumnTableName } from "../sqlite/const"
+  getTableIdByRawTableName
+} from "@/lib/utils";
+import { ColumnTableName } from "../sqlite/const";
+import type { IField } from "../types/IField";
 
-import { DataChangeEventHandler } from "../data-pipeline/DataChangeEventHandler"
-import { DataChangeTrigger } from "../data-pipeline/DataChangeTrigger"
-import { LinkRelationUpdater } from "../data-pipeline/LinkRelationUpdater"
-import { TableFullTextSearch } from "../data-pipeline/TableFullTextSearch"
-import { TableSemanticSearch } from "../data-pipeline/TableSemanticSearch"
-import { SQLiteUndoRedo } from "../data-pipeline/UndoRedo"
-import { DbMigrator } from "../db-migrator/DbMigrator"
-import { timeit } from "../helper"
-import { CsvImportAndExport } from "../import-and-export/csv"
-import { MarkdownImportAndExport } from "../import-and-export/markdown"
-import { ActionTable } from "../meta-table/action"
-import type { BaseTable } from "../meta-table/base"
-import { ChatTable } from "../meta-table/chat"
-import { ColumnTable } from "../meta-table/column"
-import { DocTable } from "../meta-table/doc"
+import { DataChangeEventHandler } from "../data-pipeline/DataChangeEventHandler";
+import { DataChangeTrigger } from "../data-pipeline/DataChangeTrigger";
+import { LinkRelationUpdater } from "../data-pipeline/LinkRelationUpdater";
+import { TableFullTextSearch } from "../data-pipeline/TableFullTextSearch";
+import { TableSemanticSearch } from "../data-pipeline/TableSemanticSearch";
+import { SQLiteUndoRedo } from "../data-pipeline/UndoRedo";
+import { DbMigrator } from "../db-migrator/DbMigrator";
+import { CsvImportAndExport } from "../import-and-export/csv";
+import { MarkdownImportAndExport } from "../import-and-export/markdown";
+import { ActionTable } from "../meta-table/action";
+import type { BaseTable } from "../meta-table/base";
+import { ChatTable } from "../meta-table/chat";
+import { ColumnTable } from "../meta-table/column";
+import { DocTable } from "../meta-table/doc";
 import type { IEmbedding } from "../meta-table/embedding";
-import { EmbeddingTable } from "../meta-table/embedding"
-import type { ExtensionStatus, IExtension } from "../meta-table/extension";
-import { ExtensionTable } from "../meta-table/extension"
-import { ExtNodeTable } from "../meta-table/extnode"
-import { FileTable } from "../meta-table/file"
-import { MessageTable } from "../meta-table/message"
-import { ReferenceTable } from "../meta-table/reference"
-import { TreeTable } from "../meta-table/tree"
-import { ViewTable } from "../meta-table/view"
-import { SqlDataView } from "../sdk/sql-data-view"
-import { ThemeManager } from "../sdk/theme-manager"
-import type { BaseServerDatabase } from "../sqlite/interface"
-import { withSqlite3AllUDF } from "../udf"
+import { EmbeddingTable } from "../meta-table/embedding";
+import { ExtensionTable } from "../meta-table/extension";
+import { ExtNodeTable } from "../meta-table/extnode";
+import { FileTable } from "../meta-table/file";
+import { KVTable } from "../meta-table/kv";
+import { MessageTable } from "../meta-table/message";
+import { ReferenceTable } from "../meta-table/reference";
+import { TreeTable } from "../meta-table/tree";
+import { ViewTable } from "../meta-table/view";
+import { SqlDataView } from "../sdk/sql-data-view";
+import { ThemeManager } from "../sdk/theme-manager";
+import type { BaseServerDatabase } from "../sqlite/interface";
+import { withSqlite3AllUDF } from "../udf";
 // import { QueueTable } from "./meta-table/queue"
 
 export type EidosTable =
@@ -79,6 +71,7 @@ export abstract class BaseDataSpace {
   message: MessageTable
   file: FileTable
   extNode: ExtNodeTable
+  kv: KVTable
   theme: ThemeManager
   dataView: SqlDataView
   dataChangeTrigger: DataChangeTrigger
@@ -178,6 +171,7 @@ export abstract class BaseDataSpace {
     this.extNode = new ExtNodeTable(this as any)
     this.theme = new ThemeManager(this as any)
     this.dataView = new SqlDataView(this as any)
+    this.kv = new KVTable(this as any)
     // this.queue = new QueueTable(this)
     //
     this.allTables = [
@@ -193,6 +187,7 @@ export abstract class BaseDataSpace {
       this.chat,
       this.message,
       this.extNode,
+      this.kv,
       // this.queue
     ]
     this.initMetaTable()

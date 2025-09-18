@@ -90,7 +90,7 @@ export class BaseTableImpl<T = any> {
     return true
   }
 
-  async get(id: string): Promise<T | null> {
+  async get(id: string): Promise<T | null | any> {
     const res = await this.dataSpace.exec2(
       `SELECT * FROM ${this.name} where id = ?;`,
       [id]
