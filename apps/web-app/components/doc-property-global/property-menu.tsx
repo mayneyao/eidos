@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
 import { FieldType } from "@/packages/core/fields/const"
-import { ChevronRight, Copy, EyeOff, RefreshCw, Trash2 } from "lucide-react"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import {
+  ChevronRight,
+  Copy,
+  Database,
+  EyeOff,
+  RefreshCw,
+  Trash2,
+  ViewIcon,
+} from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import {
   AlertDialog,
@@ -16,6 +23,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/components/ui/use-toast"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useDataView } from "@/apps/web-app/hooks/use-data-view"
+import { useGoto } from "@/apps/web-app/hooks/use-goto"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 
 import { PropertyIcon } from "./property-icon"
 import { useDocPropertyTypes } from "./property-type-hook"
@@ -53,7 +64,10 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
   const actualFieldType = getPropertyType(propertyName)
   const { toast } = useToast()
   const { sqlite } = useSqlite()
+  const { createCustomPropertyDataView } = useDataView()
   const { t } = useTranslation()
+  const goto = useGoto()
+  const { space } = useCurrentPathInfo()
 
   // Get count of documents with non-empty values for this property
   const getNonEmptyCount = async () => {
@@ -64,7 +78,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
       const count = await sqlite.doc.getPropertyNonEmptyCount(propertyName)
       setNonEmptyCount(count)
     } catch (error) {
-      console.error('Failed to get non-empty count:', error)
+      console.error("Failed to get non-empty count:", error)
       setNonEmptyCount(0)
     } finally {
       setLoadingCount(false)
@@ -134,6 +148,25 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
       toast({
         title: t("doc.propertyMenu.deleteFailed"),
         description: t("doc.propertyMenu.deleteError"),
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle create dataview
+  const handleCreateDataview = async () => {
+    try {
+      const dataviewId = await createCustomPropertyDataView(propertyName, value)
+      onClose()
+      // Navigate to the newly created dataview
+      if (dataviewId && space) {
+        goto(space, dataviewId)
+      }
+    } catch (error) {
+      console.error("Failed to create dataview:", error)
+      toast({
+        title: t("doc.propertyMenu.createDataviewFailed"),
+        description: t("doc.propertyMenu.createDataviewError"),
         variant: "destructive",
       })
     }
@@ -247,6 +280,20 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
           <span>{t("doc.propertyMenu.copyValue")}</span>
         </button>
 
+        {/* Create Dataview */}
+        {!isSystemProperty &&
+          value !== null &&
+          value !== undefined &&
+          value !== "" && (
+            <button
+              onClick={handleCreateDataview}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
+            >
+              <ViewIcon className="w-3 h-3" />
+              <span>{t("doc.propertyMenu.createDataview")}</span>
+            </button>
+          )}
+
         {/* Hide */}
         {!readonly && (
           <button
@@ -260,53 +307,66 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
 
         {/* Delete Property */}
         {!readonly && !isSystemProperty && (
-            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <AlertDialogTrigger asChild>
-                 <button
-                   onClick={(e) => {
-                     e.stopPropagation() // 阻止事件冒泡，防止触发外部点击检测
-                     handleShowDeleteDialog()
-                   }}
-                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2 text-red-600 hover:text-red-700"
+          <AlertDialog
+            open={showDeleteDialog}
+            onOpenChange={setShowDeleteDialog}
+          >
+            <AlertDialogTrigger asChild>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation() // 阻止事件冒泡，防止触发外部点击检测
+                  handleShowDeleteDialog()
+                }}
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2 text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>{t("doc.propertyMenu.deleteProperty")}</span>
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t("doc.propertyMenu.deleteConfirmTitle")}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("doc.propertyMenu.deleteConfirmDescription", {
+                    propertyName,
+                  })}
+                  <br />
+                  {loadingCount ? (
+                    <span className="text-sm text-muted-foreground">
+                      {t("doc.propertyMenu.checkingImpact")}
+                    </span>
+                  ) : nonEmptyCount !== null ? (
+                    <span className="text-sm">
+                      <strong className="text-orange-600">
+                        {t("doc.propertyMenu.impactCount", {
+                          count: nonEmptyCount,
+                        })}
+                      </strong>
+                    </span>
+                  ) : null}
+                  <br />
+                  <strong className="text-red-600">
+                    {t("doc.propertyMenu.permanentDeleteWarning")}
+                  </strong>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>
+                  {t("doc.propertyMenu.cancel")}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteProperty}
+                  disabled={loadingCount}
+                  className="bg-red-600 hover:bg-red-700"
                 >
-                  <Trash2 className="w-3 h-3" />
-                  <span>{t("doc.propertyMenu.deleteProperty")}</span>
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t("doc.propertyMenu.deleteConfirmTitle")}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t("doc.propertyMenu.deleteConfirmDescription", { propertyName })}
-                    <br />
-                    {loadingCount ? (
-                      <span className="text-sm text-muted-foreground">{t("doc.propertyMenu.checkingImpact")}</span>
-                    ) : nonEmptyCount !== null ? (
-                      <span className="text-sm">
-                        <strong className="text-orange-600">
-                          {t("doc.propertyMenu.impactCount", { count: nonEmptyCount })}
-                        </strong>
-                      </span>
-                    ) : null}
-                    <br />
-                    <strong className="text-red-600">
-                      {t("doc.propertyMenu.permanentDeleteWarning")}
-                    </strong>
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t("doc.propertyMenu.cancel")}</AlertDialogCancel>
-                   <AlertDialogAction
-                     onClick={handleDeleteProperty}
-                     disabled={loadingCount}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
-                    {t("doc.propertyMenu.delete")}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+                  {t("doc.propertyMenu.delete")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
     </>
   )

@@ -1,5 +1,5 @@
 import { Message } from "ai";
-import * as postal_mime9 from "postal-mime";
+import * as postal_mime10 from "postal-mime";
 import { JsonSchema7ObjectType } from "zod-to-json-schema";
 
 //#region fields/const.d.ts
@@ -668,7 +668,7 @@ declare class BaseTableImpl<T = any> {
   }[]>;
   del(id: string, db?: BaseServerDatabase): Promise<boolean>;
   delBy(data: Partial<T>, db?: BaseServerDatabase): Promise<boolean>;
-  get(id: string): Promise<T | null>;
+  get(id: string): Promise<T | null | any>;
   transformData: (data: Partial<T>) => {
     kv: any[][];
     updateKPlaceholder: string;
@@ -999,6 +999,7 @@ interface IDoc {
   created_at?: string;
   updated_at?: string;
   meta?: string;
+  [key: string]: any;
 }
 interface DocMeta {
   displayProperties?: string[];
@@ -1055,7 +1056,7 @@ declare const ComposedDocTable: {
     }>;
     createOrUpdate(data: {
       id: string;
-      text: string | postal_mime9.Email;
+      text: string | postal_mime10.Email;
       type: "html" | "markdown" | "email";
       mode?: "replace" | "append" | "prepend";
     }): Promise<{
@@ -1093,7 +1094,7 @@ declare const ComposedDocTable: {
     }[]>;
     del(id: string, db?: BaseServerDatabase): Promise<boolean>;
     delBy(data: Partial<IDoc>, db?: BaseServerDatabase): Promise<boolean>;
-    get(id: string): Promise<IDoc | null>;
+    get(id: string): Promise<IDoc | null | any>;
     transformData: (data: Partial<T>) => {
       kv: any[][];
       updateKPlaceholder: string;
@@ -1144,7 +1145,7 @@ declare const ComposedDocTable: {
     }[]>;
     del(id: string, db?: BaseServerDatabase): Promise<boolean>;
     delBy(data: Partial<IDoc>, db?: BaseServerDatabase): Promise<boolean>;
-    get(id: string): Promise<IDoc | null>;
+    get(id: string): Promise<IDoc | null | any>;
     transformData: (data: Partial<T>) => {
       kv: any[][];
       updateKPlaceholder: string;
@@ -1224,7 +1225,7 @@ declare const ComposedDocTable: {
     }[]>;
     del(id: string, db?: BaseServerDatabase): Promise<boolean>;
     delBy(data: Partial<IDoc>, db?: BaseServerDatabase): Promise<boolean>;
-    get(id: string): Promise<IDoc | null>;
+    get(id: string): Promise<IDoc | null | any>;
     transformData: (data: Partial<T>) => {
       kv: any[][];
       updateKPlaceholder: string;
@@ -1502,17 +1503,50 @@ interface IExtNode {
 declare class ExtNodeTable extends BaseTableImpl<IExtNode> implements BaseTable<IExtNode> {
   name: string;
   createTableSql: string;
-  addExtNode(data: Omit<IExtNode, "created_at" | "updated_at">): Promise<IExtNode>;
-  updateExtNode(id: string, data: Partial<Omit<IExtNode, "id" | "created_at" | "updated_at">>): Promise<boolean>;
-  getExtNodesByType(type: string): Promise<IExtNode[]>;
-  getExtNode(id: string): Promise<IExtNode | null>;
   getBlob(id: string): Promise<Buffer | null>;
   getText(id: string): Promise<string | null>;
   setBlob(id: string, blob: Buffer): Promise<boolean>;
-  setType(id: string, type: string): Promise<boolean>;
   setText(id: string, text: string): Promise<boolean>;
 }
 //# sourceMappingURL=extnode.d.ts.map
+//#endregion
+//#region meta-table/kv.d.ts
+type KV = {
+  key: string;
+  value: string;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, any>;
+};
+type KVGetType = "text" | "integer" | "real" | "json";
+declare class KVTable extends BaseTableImpl<KV> implements BaseTable<KV> {
+  name: string;
+  createTableSql: string;
+  JSONFields: string[];
+  /**
+   * Get a single value from the KV store (Cloudflare Workers KV compatible)
+   * @param key The key of the KV pair
+   * @param typeOrOptions Optional type or options object
+   * @returns Promise resolving to the value or null if not found
+   */
+  get(key: string, typeOrOptions?: KVGetType): Promise<any | null>;
+  /**
+   * Put a value into the KV store
+   * @param key The key of the KV pair
+   * @param value The value of the KV pair
+   * @param options The options for the KV pair
+   */
+  put(key: string, value: any, options?: {
+    metadata: Record<string, any>;
+  }): Promise<void>;
+  /**
+   * Delete a value from the KV store
+   * @param key
+   * @returns A Promise that resolves if the delete is successful.
+   */
+  delete(key: string): Promise<void>;
+}
+//# sourceMappingURL=kv.d.ts.map
 //#endregion
 //#region meta-table/reference.d.ts
 interface IReference {
@@ -1553,6 +1587,7 @@ declare class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     withSubNode?: boolean;
   }): Promise<ITreeNode[]>;
   moveIntoTable(id: string, tableId: string, parentId?: string): Promise<boolean>;
+  duplicateNode(id: string): Promise<ITreeNode | null>;
   /**
    * id: uuid without '-'
    * miniId: last 8 char of id. most of time, it's enough to identify a node
@@ -1648,7 +1683,7 @@ declare class SqlDataView {
     type: FieldType;
     property: any;
   }): Promise<void>;
-  createDataView(id: string, createViewSql: string): Promise<boolean>;
+  createDataView(id: string, createViewSql: string, isTemp?: boolean): Promise<boolean>;
 }
 //# sourceMappingURL=sql-data-view.d.ts.map
 //#endregion
@@ -1686,6 +1721,7 @@ declare abstract class BaseDataSpace {
   message: MessageTable;
   file: FileTable;
   extNode: ExtNodeTable;
+  kv: KVTable;
   theme: ThemeManager;
   dataView: SqlDataView;
   dataChangeTrigger: DataChangeTrigger;
@@ -1840,12 +1876,12 @@ declare class DataSpaceWithFile extends DataSpaceWithDatabase {
 declare class DataSpaceWithDoc extends DataSpaceWithFile {
   addDoc(docId: string, content: string, markdown: string, isDayPage?: boolean): Promise<void>;
   updateDoc(docId: string, content: string, markdown: string, _isDayPage?: boolean): Promise<void>;
-  getDoc(docId: string): Promise<string | undefined>;
+  getDoc(docId: string): Promise<any>;
   getDocMarkdown(docId: string, {
     withTitle
   }?: {
     withTitle?: boolean;
-  }): Promise<string | undefined>;
+  }): Promise<any>;
   /**
    * if you want to create or update a day page, you should pass a day page id. page id is like 2021-01-01
    * @param docId

@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from "react"
 import { useSqlite } from "./use-sqlite"
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import { uuidv7 } from "@/lib/utils"
+import { useCurrentPathInfo } from "./use-current-pathinfo"
 
 export const useDataView = () => {
     const { sqlite } = useSqlite()
+    const { space } = useCurrentPathInfo()
 
     const createDataView = async (id: string, createViewSql: string) => {
         await sqlite?.dataView.createDataView(id, createViewSql)
@@ -30,8 +32,9 @@ export const useDataView = () => {
             name: `New View - ${propertyValue}`,
             type: TreeNodeType.Dataview,
         })
-        const query = generateCustomPropertyQuery(propertyKey, propertyValue)
-        return await createDataView(id, query)
+        const query = generateCustomPropertyQuery(propertyKey, propertyValue, space)
+        await createDataView(id, query)
+        return id // return the node ID for navigation
     }
 
     return {
@@ -72,7 +75,7 @@ export const useDataViewById = (id?: string) => {
  * @param propertyValue - property value
  * @returns SQL query string
  */
-const generateCustomPropertyQuery = (propertyKey: string, propertyValue: any): string => {
+const generateCustomPropertyQuery = (propertyKey: string, propertyValue: any, space: string): string => {
     // handle different types of values
     let whereCondition: string
     if (typeof propertyValue === 'string') {
@@ -92,6 +95,7 @@ const generateCustomPropertyQuery = (propertyKey: string, propertyValue: any): s
 SELECT
   t.name as title,
   d.id as id,
+  '/${space}/' || t.id as doc_pathname,
   d.markdown as markdown,
   d.created_at as created_at,
   d.updated_at as updated_at,
