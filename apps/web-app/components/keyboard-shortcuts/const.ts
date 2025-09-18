@@ -140,6 +140,14 @@ export const useDocumentKeyboardShortcuts = () => {
       key: "--- + Space",
       description: t('kbd.shortcuts.document.horizontalRuleDescription'),
     },
+    {
+      key: "Option + ↑/↓",
+      description: t('kbd.shortcuts.document.optionArrowDescription'),
+    },
+    {
+      key: "Shift + Option + ↑/↓",
+      description: t('kbd.shortcuts.document.shiftOptionArrowDescription'),
+    },
   ];
 };
 
@@ -182,6 +190,10 @@ export const useCommonKeyboardShortcuts = () => {
     {
       key: "Ctrl/Cmd + ,",
       description: t('kbd.shortcuts.common.openSettingsDescription'),
+    },
+    {
+      key: "Shift + Ctrl/Cmd + C",
+      description: t('kbd.shortcuts.common.copyUrlDescription'),
     },
   ];
 };

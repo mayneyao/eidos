@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import {
   useCommonKeyboardShortcuts,
@@ -32,7 +32,7 @@ export function KeyboardShortCuts() {
     } else {
       setActiveTab("common")
     }
-  }, [currentNode])
+  }, [currentNode?.type])
 
   return (
     <Dialog
