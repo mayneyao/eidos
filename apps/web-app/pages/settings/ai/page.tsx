@@ -1,12 +1,9 @@
+import { lazy, Suspense } from "react"
+import { ALL_PROVIDERS, type LLMProviderType } from "@/packages/ai/helper"
 import { Plus } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
-import type {
-  LLMProviderType} from "@/packages/ai/helper";
-import {
-  ALL_PROVIDERS
-} from "@/packages/ai/helper"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -16,8 +13,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 import { AITaskConfigForm } from "./ai-task-form"
-import { ProviderIcon } from "./provider/provider-icon"
+// import { ProviderIcon } from "./provider/provider-icon"
 import { useAIConfigStore } from "./store"
+
+// lazy import ProviderIcon
+const ProviderIcon = lazy(() => import("./provider/provider-icon"))
 
 export default function SettingsAIPage() {
   const { t } = useTranslation()
@@ -74,7 +74,9 @@ export default function SettingsAIPage() {
                     configuredProviderTypes.has(type)
                   }
                 >
-                  <ProviderIcon type={type} />
+                  <Suspense fallback={<div className="w-4 h-4" />}>
+                    <ProviderIcon type={type} />
+                  </Suspense>
                   {type.charAt(0).toUpperCase() + type.slice(1)}
                 </DropdownMenuItem>
               ))}
@@ -93,7 +95,9 @@ export default function SettingsAIPage() {
                 className="group flex items-center  p-1 rounded hover:bg-accent"
               >
                 <div className="flex flex-grow items-center space-x-3">
-                  <ProviderIcon type={provider.type} isActive />
+                  <Suspense fallback={<div className="w-4 h-4" />}>
+                    <ProviderIcon type={provider.type} isActive />
+                  </Suspense>
                   <div className="flex flex-grow gap-2 items-center justify-between w-full">
                     <h5 className="font-medium shrink-0">{provider.name}</h5>
                     {/* Display enabled models */}

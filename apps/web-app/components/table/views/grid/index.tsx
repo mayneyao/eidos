@@ -11,6 +11,8 @@ import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
 import React, {
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -42,12 +44,15 @@ import { useGridSearch } from "./hooks/use-grid-search"
 import { useHighlightRow } from "./hooks/use-highlight-row"
 import { useHover } from "./hooks/use-hover"
 import { AITools } from "./plugins/ai-tools"
-import { FormulaEditor } from "./plugins/formula-editor"
+// import { FormulaEditor } from "./plugins/formula-editor"
 import { useFormulaEditor } from "./plugins/use-formula-editor"
 import { useTableAppStore } from "./store"
 import "./styles.css"
 import { useUndoRedo } from "./hooks/use-undo-redo"
 import { useDynamicTheme } from "./theme"
+
+// lazy import FormulaEditor
+const FormulaEditor = lazy(() => import("./plugins/formula-editor"))
 
 interface IGridProps {
   tableName: string
@@ -481,13 +486,15 @@ export default function GridView(props: IGridProps) {
         )}
         <div ref={formulaEditorRef} className="fixed">
           {showEditor && (
-            <FormulaEditor
-              editorRef={editorRef}
-              closeEditor={closeEditor}
-              formulaField={formulaField}
-              uiColumns={uiColumns}
-              rowId={rowId}
-            />
+            <Suspense fallback={<div className="flex items-center justify-center p-4">Loading Formula Editor...</div>}>
+              <FormulaEditor
+                editorRef={editorRef}
+                closeEditor={closeEditor}
+                formulaField={formulaField}
+                uiColumns={uiColumns}
+                rowId={rowId}
+              />
+            </Suspense>
           )}
         </div>
       </div>

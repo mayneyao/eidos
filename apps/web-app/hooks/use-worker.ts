@@ -1,13 +1,13 @@
-import React, { useCallback } from "react"
+import React, { lazy, Suspense, useCallback } from "react"
 
-import { Markdown } from "@/components/remix-chat/components/markdown"
-import { useToast } from "@/components/ui/use-toast"
+// lazy import markdown
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useToast } from "@/components/ui/use-toast"
 import { EidosMessageChannelName, MsgType, WORKER_INIT_MESSAGES, WORKER_MESSAGE_TYPES } from "@/lib/const"
 import { getEmbeddingWorker } from "@/lib/embedding/worker"
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { getWorker } from "@/packages/core/sqlite/worker"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useThemeStore } from "@/apps/web-app/store/theme-store"
@@ -18,6 +18,9 @@ import {
   _getDocMarkdown,
 } from "./use-doc-editor"
 import { useCurrentUser } from "./user-current-user"
+
+const Markdown = lazy(() => import("@/components/remix-chat/components/markdown"))
+
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
@@ -59,7 +62,9 @@ export const useWorker = () => {
         case MsgType.Notify:
           toast({
             title: data.title,
-            description: React.createElement(Markdown, { children: data.description }),
+            description: React.createElement(Suspense, { 
+              fallback: React.createElement("div", null, "Loading...") 
+            }, React.createElement(Markdown, { children: data.description })),
           })
           break
         case MsgType.BlockUIMsg:

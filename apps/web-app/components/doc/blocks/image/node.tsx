@@ -9,13 +9,10 @@
 import * as React from "react"
 import type { TextMatchTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
-import type {
-  SerializedDecoratorBlockNode} from "@lexical/react/LexicalDecoratorBlockNode";
 import {
-  DecoratorBlockNode
+  DecoratorBlockNode,
+  type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode"
-import type {
-  ElementFormatType} from "lexical";
 import {
   $applyNodeReplacement,
   createEditor,
@@ -23,6 +20,7 @@ import {
   type DOMConversionOutput,
   type DOMExportOutput,
   type EditorConfig,
+  type ElementFormatType,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
@@ -30,10 +28,7 @@ import {
   type Spread,
 } from "lexical"
 
-const ImageComponent = React.lazy(
-  // @ts-ignore
-  () => import("./component")
-)
+import ImageComponent from "./component"
 
 export interface ImagePayload {
   altText: string

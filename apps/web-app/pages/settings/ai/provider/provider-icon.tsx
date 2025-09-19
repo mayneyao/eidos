@@ -1,4 +1,5 @@
 import React from "react"
+import type { LLMProviderType } from "@/packages/ai/helper"
 import {
   Anthropic,
   Aws,
@@ -18,8 +19,6 @@ import {
   Together,
   XAI,
 } from "@lobehub/icons"
-
-import type { LLMProviderType } from "@/packages/ai/helper"
 
 export const providerIcons = {
   google: <Google size={16} />,
@@ -92,3 +91,5 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
     <div className={`flex-shrink-0 ${className || ""}`}>{IconComponent}</div>
   )
 }
+
+export default ProviderIcon

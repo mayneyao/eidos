@@ -395,3 +395,5 @@ export const FormulaEditor = ({
     </div>
   )
 }
+
+export default FormulaEditor

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import { formatSql } from "@/packages/core/sqlite/helper"
 import { ViewTypeEnum } from "@/packages/core/types/IView"
 import type { SQLNamespace } from "@codemirror/lang-sql"
@@ -13,7 +13,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
-import SqlEditor from "@/components/sql-editor"
+// lazy import SqlEditor
+// import SqlEditor from "@/components/sql-editor"
 import { GridViewForView } from "@/apps/web-app/components/table/views/grid/grid-for-view"
 import { useDataView } from "@/apps/web-app/hooks/use-data-view"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
@@ -21,6 +22,8 @@ import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 import { TableContext } from "../table/hooks"
 import { TemplatePanel } from "./template-panel"
+
+const SqlEditor = lazy(() => import("@/components/sql-editor"))
 
 export const DataViewPlaceholder = ({
   nodeId,
@@ -235,11 +238,13 @@ export const DataViewPlaceholder = ({
                 </div>
               )}
               <div className="flex-1 min-h-0 px-2">
-                <SqlEditor
-                  value={sql}
-                  onChange={handleSqlChange}
-                  schema={schema}
-                />
+                <Suspense fallback={<div className="flex items-center justify-center h-full">Loading SQL Editor...</div>}>
+                  <SqlEditor
+                    value={sql}
+                    onChange={handleSqlChange}
+                    schema={schema}
+                  />
+                </Suspense>
               </div>
             </div>
           </ResizablePanel>

@@ -1,6 +1,5 @@
-import { Settings } from "lucide-react"
 import { useContext, useEffect, useState } from "react"
-import { format } from "sql-formatter"
+import { Settings } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
@@ -17,9 +16,25 @@ export const ViewRawQuery = () => {
   useEffect(() => {
     const fetchRawQuery = async () => {
       if (!sqlite) return
-      const rawQuery = await sqlite.dataView.getViewRawQuery(tableName)
-      const formattedQuery = format(rawQuery, { language: "sqlite" })
-      setRawQuery(formattedQuery)
+      try {
+        const rawQuery = await sqlite.dataView.getViewRawQuery(tableName)
+        // lazy import format
+        const { format } = await import("sql-formatter")
+        const formattedQuery = format(rawQuery, { language: "sqlite" })
+        setRawQuery(formattedQuery)
+      } catch (error) {
+        console.error("Error loading sql-formatter or formatting query:", error)
+        // Fallback to unformatted query if formatter fails
+        if (sqlite) {
+          try {
+            const rawQuery = await sqlite.dataView.getViewRawQuery(tableName)
+            setRawQuery(rawQuery)
+          } catch (fallbackError) {
+            console.error("Error fetching raw query:", fallbackError)
+            setRawQuery("Error loading query")
+          }
+        }
+      }
     }
     fetchRawQuery()
   }, [sqlite, tableName])

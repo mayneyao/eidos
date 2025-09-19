@@ -1,5 +1,4 @@
 import { useEditorInstance } from "@/components/doc/hooks/editor-instance-context"
-import { ItemIcon } from "@/components/sidebar/item-tree"
 
 interface PropertyMentionComponentProps {
   id: string
@@ -60,7 +59,7 @@ export const PropertyMentionComponent = (
       }`}
       id={id}
     >
-      <span className="max-w-[18rem] truncate">{displayValue}</span>
+      <span>{displayValue}</span>
     </span>
   )
 }
