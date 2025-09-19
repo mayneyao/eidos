@@ -213,7 +213,6 @@ export async function calculateCalories(
       },
       required: ["calories"],
     },
-    }
   })
   await eidos.currentSpace.doc.setProperties(docId, {
     calories,
