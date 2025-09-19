@@ -10,7 +10,7 @@ import {
   type EidosDataEventChannelMsg,
 } from "@/lib/const"
 import { isInkServiceMode } from "@/lib/env"
-import { isDayPageId } from "@/lib/utils"
+import { cn, isDayPageId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/use-toast"
 import { ExtNodeBlockApp } from "@/components/block-renderer/ext-node-block-app"
@@ -106,7 +106,6 @@ export const NodeComponent = ({
   }
   const isReadOnly = node.is_locked || isInkServiceMode
 
-
   return (
     <>
       <NodeRestore node={node} />
@@ -144,9 +143,9 @@ export const NodeComponent = ({
           coverComponent={node.cover && <NodeCover node={node} />}
           propertyComponent={
             <div
-              className={
-                node.is_full_width ? "w-full max-w-full md:!px-12" : "w-full"
-              }
+              className={cn("w-full mb-2", {
+                "max-w-full md:!px-12": node.is_full_width,
+              })}
             >
               {node?.type === "doc" && !node.hide_properties && (
                 <PropertyTabs docId={node.id} parentNode={parentNode} />

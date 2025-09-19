@@ -1,5 +1,9 @@
 import React, { useEffect, useRef, useState } from "react"
 import { format } from "date-fns"
+import { ExternalLink } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 import { isPropertyEmpty } from "../utils"
 import { BaseEditor, EmptyValue } from "./base-editor"
@@ -24,6 +28,8 @@ export const DateEditor: React.FC<PropertyEditorProps> = ({
 }) => {
   const [editingValue, setEditingValue] = useState<string>("")
   const inputRef = useRef<HTMLInputElement>(null)
+  const navigate = useNavigate()
+  const { space: databaseId } = useCurrentPathInfo()
 
   const isEmpty = propIsEmpty ?? isPropertyEmpty(value)
 
@@ -129,6 +135,22 @@ export const DateEditor: React.FC<PropertyEditorProps> = ({
     }
   }
 
+  // Handle date navigation
+  const handleDateNavigation = () => {
+    if (propertyType === "date" && value && databaseId) {
+      try {
+        const date = new Date(value)
+        if (!isNaN(date.getTime())) {
+          // Format date as YYYY-MM-DD for the URL
+          const dateString = date.toISOString().split("T")[0]
+          navigate(`/${databaseId}/everyday/${dateString}`)
+        }
+      } catch (error) {
+        console.error("Invalid date value for navigation:", error)
+      }
+    }
+  }
+
   if (isEditing) {
     return (
       <BaseEditor
@@ -143,7 +165,7 @@ export const DateEditor: React.FC<PropertyEditorProps> = ({
           onChange={(e) => setEditingValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleFinishEdit}
-          className="w-full bg-transparent border-none outline-none focus:outline-none"
+          className="w-auto min-w-0 bg-transparent border-none outline-none focus:outline-none"
         />
       </BaseEditor>
     )
@@ -165,11 +187,28 @@ export const DateEditor: React.FC<PropertyEditorProps> = ({
       readonly={readonly}
       isSystemProperty={isSystemProperty}
     >
-      <span className="text-foreground truncate">
-        {propertyType === "datetime"
-          ? formatDateForDisplay(value, "yyyy-MM-dd HH:mm")
-          : formatDateForDisplay(value, "yyyy-MM-dd")}
-      </span>
+      <div className="flex items-center gap-2 w-full">
+        <span className="text-foreground truncate">
+          {propertyType === "datetime"
+            ? formatDateForDisplay(value, "yyyy-MM-dd HH:mm")
+            : formatDateForDisplay(value, "yyyy-MM-dd")}
+        </span>
+
+        {/* Date Navigation Icon */}
+        {propertyType === "date" &&
+          value &&
+          !isEmpty &&
+          databaseId &&
+          !isEditing && (
+            <button
+              onClick={handleDateNavigation}
+              className="ml-2 p-1 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+              title="jump to the day"
+            >
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          )}
+      </div>
     </BaseEditor>
   )
 }
