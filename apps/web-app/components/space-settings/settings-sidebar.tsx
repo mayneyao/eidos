@@ -50,7 +50,7 @@ export function SettingsSidebar({
                   : "border-transparent hover:bg-muted"
               }`}
             >
-              <div className="flex items-center space-x-3 min-h-[2.5rem]">
+              <div className="flex items-center space-x-3 min-h-[1rem]">
                 <div
                   className={`${
                     activeSection === section.id
@@ -60,12 +60,9 @@ export function SettingsSidebar({
                 >
                   {section.icon}
                 </div>
-                <div className="flex-1 min-h-[2.5rem] flex flex-col justify-center">
+                <div className="flex-1 min-h-[1rem] flex flex-col justify-center">
                   <div className="font-medium text-sm leading-tight">
                     {section.title}
-                  </div>
-                  <div className="text-xs text-muted-foreground line-clamp-1 leading-tight">
-                    {section.description}
                   </div>
                 </div>
               </div>

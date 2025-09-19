@@ -39,7 +39,7 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="p-6 overflow-y-auto flex-1">
-        <div className="max-w-2xl">
+        <div className="max-w-2xl mx-auto">
           <h2 className="text-2xl font-semibold">
             {getSectionTitle(activeSection)}
           </h2>
