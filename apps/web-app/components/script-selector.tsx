@@ -19,12 +19,12 @@ export const ScriptSelector = ({
   return (
     <Select onValueChange={onSelect} value={value}>
       <SelectTrigger className="w-[200px]">
-        <SelectValue placeholder="选择脚本..." />
+        <SelectValue placeholder="Select script..." />
       </SelectTrigger>
       <SelectContent>
         {scripts.map((script) => (
           <SelectItem key={script.id} value={script.id}>
-            {script.name || "未命名"}
+            {script.name || "Untitled"}
           </SelectItem>
         ))}
       </SelectContent>

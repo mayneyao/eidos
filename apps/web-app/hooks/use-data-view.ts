@@ -79,7 +79,7 @@ const generateCustomPropertyQuery = (propertyKey: string, propertyValue: any, sp
     // handle different types of values
     let whereCondition: string
     if (typeof propertyValue === 'string') {
-        whereCondition = `d.${propertyKey} = '${propertyValue.replace(/'/g, "''")}'` // 转义单引号
+        whereCondition = `d.${propertyKey} = '${propertyValue.replace(/'/g, "''")}'` // Escape single quotes
     } else if (typeof propertyValue === 'number') {
         whereCondition = `d.${propertyKey} = ${propertyValue}`
     } else if (typeof propertyValue === 'boolean') {

@@ -264,7 +264,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     const needsReorder = views.some((view, index) => {
       if (index === 0) return false
       const diff = Math.abs(view.position - views[index - 1].position)
-      return diff < 0.000001 // 设置一个合理的阈值
+      return diff < 0.000001 // Set a reasonable threshold
     })
 
     if (needsReorder) {

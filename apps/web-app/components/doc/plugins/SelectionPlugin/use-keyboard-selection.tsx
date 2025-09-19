@@ -268,7 +268,7 @@ export function useKeyboardSelection() {
           clearSelectedKeySet()
           setGlobalIsSelecting(false)
 
-          // 先获得焦点
+          // Focus first
           editor.focus()
           // (node as any).select()
           node.selectEnd()

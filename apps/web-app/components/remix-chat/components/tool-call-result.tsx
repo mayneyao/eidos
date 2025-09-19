@@ -26,7 +26,7 @@ export const ToolCallResult = ({
 }: ToolCallResultProps) => {
   const [isExpanded, setIsExpanded] = useState(false)
 
-  // 特殊工具处理
+  // Special tool handling
   if (toolName === "createDoc") {
     return (
       <div className="flex flex-col">
@@ -194,7 +194,7 @@ export const ToolCallResult = ({
     )
   }
 
-  // 通用工具结果处理
+  // General tool result handling
   return (
     <div className="flex flex-col">
       <div className="flex flex-col p-2 bg-muted/30 rounded-lg border border-border/50">

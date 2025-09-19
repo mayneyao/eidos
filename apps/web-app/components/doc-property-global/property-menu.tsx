@@ -314,7 +314,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
             <AlertDialogTrigger asChild>
               <button
                 onClick={(e) => {
-                  e.stopPropagation() // 阻止事件冒泡，防止触发外部点击检测
+                  e.stopPropagation() // Prevent event bubbling to avoid triggering external click detection
                   handleShowDeleteDialog()
                 }}
                 className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2 text-red-600 hover:text-red-700"

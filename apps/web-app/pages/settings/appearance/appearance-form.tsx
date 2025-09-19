@@ -126,7 +126,7 @@ export function AppearanceForm() {
                     {...field}
                   >
                     <option value="en">English</option>
-                    <option value="zh">中文</option>
+                    <option value="zh">Chinese</option>
                   </select>
                 </FormControl>
                 <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50" />

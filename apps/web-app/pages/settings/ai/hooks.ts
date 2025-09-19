@@ -78,7 +78,7 @@ export const useModelTest = () => {
                         return res.text
                     }
                     try {
-                        const text = "Bonjour 世界"
+                        const text = "Bonjour World"
                         const targetLanguage = "English"
                         await translationText(text, targetLanguage)
                         toast({

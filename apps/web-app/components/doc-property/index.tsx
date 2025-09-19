@@ -26,14 +26,14 @@ const TABLE_SYSTEM_COLUMNS = [
 ] as const
 
 /**
- * 检查字段是否为表格系统字段
+ * Check if field is a table system field
  */
 const isTableSystemColumn = (uiColumn: any): boolean => {
-  // 通过字段类型检查
+  // Check by field type
   if (TABLE_SYSTEM_FIELD_TYPES.includes(uiColumn.type)) {
     return true
   }
-  // 通过列名检查
+  // Check by column name
   if (TABLE_SYSTEM_COLUMNS.includes(uiColumn.table_column_name)) {
     return true
   }
@@ -78,7 +78,7 @@ const FieldItem: React.FC<FieldItemProps> = ({
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === "Enter" && !isSystemColumn) {
       event.preventDefault()
-      // 触发 CellEditor 的编辑状态
+      // Trigger CellEditor's edit state
       if (cellEditorRef.current) {
         cellEditorRef.current.startEditing()
       }
@@ -171,27 +171,27 @@ export const DocProperty = (props: IDocPropertyProps) => {
       .filter(nonNullable)
   }, [properties, uiColumns])
 
-  // 键盘导航处理
+  // Keyboard navigation handling
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       const container = containerRef.current
       if (!container) return
 
-      // 只处理特定的键盘事件，让 Tab 键使用浏览器原生行为
+      // Only handle specific keyboard events, let Tab key use browser native behavior
       if (!["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) return
 
-      // 检查焦点是否在属性面板内
+      // Check if focus is within property panel
       if (!container.contains(document.activeElement)) return
 
       const currentFocused = document.activeElement as HTMLElement
 
-      // 获取所有可聚焦的属性项
+      // Get all focusable property items
       const propertyItems = container.querySelectorAll(
         "[data-property-item]"
       ) as NodeListOf<HTMLElement>
       const currentIndex = Array.from(propertyItems).indexOf(currentFocused)
 
-      // 如果没有找到任何可聚焦的元素，直接返回
+      // If no focusable elements found, return directly
       if (propertyItems.length === 0) {
         return
       }
@@ -202,7 +202,7 @@ export const DocProperty = (props: IDocPropertyProps) => {
           if (currentIndex < propertyItems.length - 1) {
             propertyItems[currentIndex + 1].focus()
           } else {
-            // 已经在最后一个可聚焦元素，跳转到编辑器
+            // Already at the last focusable element, jump to editor
             container.blur()
             window.dispatchEvent(new CustomEvent("eidos-editor-focus"))
           }
@@ -212,14 +212,14 @@ export const DocProperty = (props: IDocPropertyProps) => {
           if (currentIndex > 0) {
             propertyItems[currentIndex - 1].focus()
           } else if (currentIndex === 0) {
-            // 已经在第一个，保持焦点
+            // Already at the first, keep focus
             propertyItems[0].focus()
           }
           break
         case "Enter":
           e.preventDefault()
           if (currentIndex >= 0) {
-            // 触发编辑模式
+            // Trigger edit mode
             const currentElement = propertyItems[currentIndex]
             const cellEditor = currentElement.querySelector(
               "[data-cell-editor]"
@@ -238,7 +238,7 @@ export const DocProperty = (props: IDocPropertyProps) => {
     [fields.length]
   )
 
-  // 添加键盘事件监听
+  // Add keyboard event listener
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown)
     return () => {
@@ -246,13 +246,13 @@ export const DocProperty = (props: IDocPropertyProps) => {
     }
   }, [handleKeyDown])
 
-  // 添加属性激活事件监听
+  // Add property activation event listener
   useEffect(() => {
     const handlePropertyActivate = () => {
       const container = containerRef.current
       if (!container) return
 
-      // 聚焦到最后一个可聚焦元素
+      // Focus on the last focusable element
       const propertyItems = container.querySelectorAll(
         "[data-property-item]"
       ) as NodeListOf<HTMLElement>
@@ -260,7 +260,7 @@ export const DocProperty = (props: IDocPropertyProps) => {
       if (lastItem) {
         lastItem.focus()
       } else {
-        // 如果没有任何可聚焦元素，聚焦到容器
+        // If no focusable elements, focus on container
         container.focus()
       }
     }
@@ -280,7 +280,7 @@ export const DocProperty = (props: IDocPropertyProps) => {
     })
   }
 
-  // 编辑结束后重新聚焦到对应的属性项
+  // Re-focus on corresponding property item after editing ends
   const handleEditEnd = useCallback((propertyName: string) => {
     setTimeout(() => {
       const container = containerRef.current

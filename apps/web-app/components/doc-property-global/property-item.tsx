@@ -128,7 +128,7 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
       data-property-item
       data-property-name={propertyName}
     >
-      {/* Property Menu - 移到根元素，避免 hover 抖动 */}
+      {/* Property Menu - moved to root element to avoid hover jitter */}
       {showMenu && (
         <div className="absolute left-4 top-1 z-50">
           <PropertyMenu
@@ -145,7 +145,7 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
       {/* Property Name */}
       <div className="flex items-center gap-2 w-40 flex-shrink-0 relative h-6">
         <div className="relative">
-          {/* Property Icon - 默认显示，hover 时隐藏 */}
+          {/* Property Icon - shown by default, hidden on hover */}
           {!isDragDisabled && (
             <button
               onClick={handleIconClick}
@@ -156,7 +156,7 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
             </button>
           )}
 
-          {/* Drag Handle - 默认隐藏，hover 时显示 */}
+          {/* Drag Handle - hidden by default, shown on hover */}
           {!isDragDisabled && (
             <button
               {...attributes}
@@ -169,7 +169,7 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
             </button>
           )}
 
-          {/* Property Icon - 当 drag disabled 时总是显示 */}
+          {/* Property Icon - always shown when drag is disabled */}
           {isDragDisabled && (
             <button
               onClick={handleIconClick}

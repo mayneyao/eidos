@@ -114,7 +114,7 @@ const router = createBrowserRouter([
                 children: [
                   {
                     path: ":providerId",
-                    element: <ProviderPage />, // /settings/ai/provider/:providerId 的目标组件
+                    element: <ProviderPage />, // Target component for /settings/ai/provider/:providerId
                   },
                 ],
               },

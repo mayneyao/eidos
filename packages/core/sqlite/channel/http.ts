@@ -57,7 +57,7 @@ export class HttpSqlite implements ISqlite<string, IHttpSendData> {
               reject(new Error(responseData.result))
             }
           } catch (error) {
-            reject(new Error(`Error: ${error instanceof Error ? error.message : '未知错误'}`))
+            reject(new Error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`))
           } finally {
             this.responseMap.delete(thisCallId)
           }

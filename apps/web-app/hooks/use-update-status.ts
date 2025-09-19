@@ -25,7 +25,7 @@ interface UpdateStore {
     quitAndInstall: () => void;
 }
 
-// 创建 Zustand store
+// Create Zustand store
 const useUpdateStore = create<UpdateStore>((set) => ({
     updateStatus: 'idle',
     updateInfo: null,
@@ -45,7 +45,7 @@ const useUpdateStore = create<UpdateStore>((set) => ({
     }
 }));
 
-// 初始化 store 和事件监听
+// Initialize store and event listeners
 if (typeof window !== 'undefined' && isDesktopMode && !(window as any).__updateStoreInitialized) {
     (window as any).__updateStoreInitialized = true;
 
@@ -75,6 +75,6 @@ if (typeof window !== 'undefined' && isDesktopMode && !(window as any).__updateS
     });
 }
 
-// 导出 hook
+// Export hook
 export const useUpdateStatus = () => useUpdateStore();
 

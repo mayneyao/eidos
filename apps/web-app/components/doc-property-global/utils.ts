@@ -87,8 +87,8 @@ export const isPropertyEmpty = (value: any): boolean => {
 }
 
 /**
- * 系统属性名称列表
- * 这个列表应该与 packages/core/meta-table/doc.ts 中的 RESERVED_PROPERTIES 保持一致
+ * System property name list
+ * This list should be consistent with RESERVED_PROPERTIES in packages/core/meta-table/doc.ts
  */
 export const SYSTEM_PROPERTY_NAMES = [
   "id",
@@ -102,7 +102,7 @@ export const SYSTEM_PROPERTY_NAMES = [
 ] as const
 
 /**
- * 检查属性是否为系统属性
+ * Check if property is a system property
  */
 export const isSystemProperty = (propertyName: string): boolean => {
   return SYSTEM_PROPERTY_NAMES.includes(propertyName as any)

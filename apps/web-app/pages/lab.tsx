@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import { fileChecksum } from "@/lib/web/crypto"
 import { Chart, type ChartConfig } from "@/components/chart"
 
-// 定义 Worker 消息类型
+// Define Worker message types
 type PyodideMessage = {
   type: "execute" | "install"
   payload: {
@@ -24,7 +24,7 @@ export const LabPage = () => {
   const [output, setOutput] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
 
-  // 初始化 Worker
+  // Initialize Worker
   useEffect(() => {
     const pyWorker = new Worker(
       new URL("@/worker/web-worker/pyodide/pyodide.ts", import.meta.url),
@@ -47,7 +47,7 @@ export const LabPage = () => {
     return () => pyWorker.terminate()
   }, [])
 
-  // 执行 Python 代码
+  // Execute Python code
   const runPythonCode = useCallback(
     (code: string) => {
       if (!worker) return
@@ -63,7 +63,7 @@ export const LabPage = () => {
     [worker]
   )
 
-  // 安装 Python 包
+  // Install Python packages
   const installPackages = useCallback(
     (packages: string[]) => {
       if (!worker) return
@@ -92,7 +92,7 @@ export const LabPage = () => {
     console.log("File hash:", hash)
   }
 
-  // 新增：图表示例配置
+  // New: Chart example configuration
   const lineChartConfig: ChartConfig = {
     type: "line",
     data: [
@@ -194,7 +194,7 @@ export const LabPage = () => {
     height: 300,
   }
 
-  // 添加雷达图配置
+  // Add radar chart configuration
   const radarChartConfig: ChartConfig = {
     type: "radar",
     data: [
@@ -261,7 +261,7 @@ export const LabPage = () => {
     height: 300,
   }
 
-  // 添加散点图配置
+  // Add scatter chart configuration
   const scatterChartConfig: ChartConfig = {
     type: "scatter",
     data: [
@@ -335,7 +335,7 @@ export const LabPage = () => {
     height: 300,
   }
 
-  // 添加 TreeMap 图表配置
+  // Add TreeMap chart configuration
   const treeMapChartConfig: ChartConfig = {
     type: "treemap",
     data: [

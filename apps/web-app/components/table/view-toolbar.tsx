@@ -188,7 +188,7 @@ export const ViewToolbar = (props: {
     useTableSearchStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // 当显示搜索框时自动聚焦
+  // Auto-focus when search box is shown
   useEffect(() => {
     if (showSearch) {
       searchInputRef.current?.focus()

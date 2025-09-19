@@ -450,7 +450,7 @@ export const ScriptPage = () => {
                           key={type.id}
                           className={cn(
                             "flex w-full items-center gap-2 rounded-md py-1.5 text-sm transition-colors",
-                            "pl-9 pr-3", // 对齐主文件夹的主图标位置
+                            "pl-9 pr-3", // Align with main folder's main icon position
                             isActive
                               ? "bg-primary text-primary-foreground"
                               : "hover:bg-muted"

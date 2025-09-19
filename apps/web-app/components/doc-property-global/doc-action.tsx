@@ -125,7 +125,7 @@ export const DocAction: React.FC<DocActionProps> = ({ docId }) => {
   }
 
   const handleExtensionBadgeClick = (e: React.MouseEvent, scriptId: string) => {
-    e.stopPropagation() // 阻止事件冒泡到 DropdownMenuItem
+    e.stopPropagation() // Prevent event bubbling to DropdownMenuItem
     navigateToExtension(scriptId)
   }
 
