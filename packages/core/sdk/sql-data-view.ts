@@ -103,13 +103,11 @@ export class SqlDataView {
 
     async createDataView(id: string, createViewSql: string, isTemp: boolean = false) {
         const viewName = `vw_${id}`
-        if (!isTemp) {
-            // delete temp view
-            await this.dataSpace.db.prepare(`DROP VIEW IF EXISTS ${viewName};`).run()
-            await this.dataSpace.view.deleteByTableId(id)
-            // Clean up existing column metadata for this view
-            await this.dataSpace.column.deleteByRawTableName(viewName)
-        }
+        // delete temp view
+        await this.dataSpace.db.prepare(`DROP VIEW IF EXISTS ${viewName};`).run()
+        await this.dataSpace.view.deleteByTableId(id)
+        // Clean up existing column metadata for this view
+        await this.dataSpace.column.deleteByRawTableName(viewName)
         await this.dataSpace.db.prepare('BEGIN TRANSACTION;').run()
 
         try {
@@ -121,11 +119,8 @@ export class SqlDataView {
                 table_id: id,
                 query: `select * from ${viewName}`,
             })
-
             // Parse column types from SQL comments and create column metadata
-            if (!isTemp) {
-                await this.createColumnMetadataFromComments(viewName, createViewSql)
-            }
+            await this.createColumnMetadataFromComments(viewName, createViewSql)
         } catch (error) {
             await this.dataSpace.db.prepare('ROLLBACK;').run()
             console.error('Error in createDataView transaction:', error)
@@ -145,7 +140,7 @@ export class SqlDataView {
         try {
             // Parse column types from SQL comments
             const columnTypes = parseColumnTypesFromComments(createViewSql)
-            
+
             if (Object.keys(columnTypes).length === 0) {
                 // No column type comments found, no need to create metadata
                 // System will default to text type for all columns

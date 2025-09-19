@@ -16,9 +16,6 @@ export const useDataView = () => {
         return await sqlite?.dataView.isDataViewExist(id)
     }
 
-    const getViewColumns = async (id: string) => {
-        return await sqlite?.dataView.getViewColumns(id)
-    }
 
     const createTempDataView = async (id: string, createViewSql: string) => {
         return await sqlite?.dataView.createDataView(id, createViewSql, true)
@@ -42,29 +39,24 @@ export const useDataView = () => {
         createCustomPropertyDataView,
         createTempDataView,
         isDataViewExist,
-        getViewColumns
     }
 }
 
 export const useDataViewById = (id?: string) => {
-    const [isDataViewExist, setIsDataViewExist] = useState(true)
-    const [viewColumns, setViewColumns] = useState<any[]>([])
+    const [isDataViewExist, setIsDataViewExist] = useState(false)
     const { sqlite } = useSqlite()
 
     const reload = useCallback(() => {
         if (id) {
             sqlite?.dataView.isDataViewExist(id).then(setIsDataViewExist)
-            sqlite?.dataView.getViewColumns(id).then(setViewColumns)
         }
     }, [id])
-    // console.log("viewColumns", { id, viewColumns })
     useEffect(() => {
         reload()
     }, [id, reload])
 
     return {
         isDataViewExist,
-        viewColumns,
         reload
     }
 }

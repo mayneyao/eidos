@@ -1,4 +1,4 @@
-export const templates = [
+export const getTemplates = (space: string) => [
   {
     name: "queryAllFiles",
     i18nKey: "dataview.template.queryAllFiles",
@@ -7,6 +7,7 @@ export const templates = [
     category: "file",
     difficulty: "beginner",
     sql: `
+-- [path_display:file]
 SELECT
     *,
     CASE
@@ -24,12 +25,14 @@ FROM eidos__files
     category: "file",
     difficulty: "beginner",
     sql: `
+-- [path_display:file]
 SELECT 
-    *,
+    id,
     CASE
         WHEN path LIKE 'spaces/%' THEN substr(path, 7)
         ELSE path
-    END AS path_display    
+    END AS path_display,
+    *
 FROM eidos__files WHERE mime LIKE 'image/%'
     `
   },
@@ -41,6 +44,10 @@ FROM eidos__files WHERE mime LIKE 'image/%'
     category: "doc",
     difficulty: "intermediate",
     sql: `
+-- [url:url]
+-- [image:file]
+-- [fetched:checkbox]
+-- [pathname:url]
 WITH valid_docs AS (
     SELECT id, content, created_at
     FROM eidos__docs
@@ -55,7 +62,8 @@ SELECT
     json_extract(j.value, '$.description') as description,
     json_extract(j.value, '$.image') as image,
     json_extract(j.value, '$.fetched') as fetched,
-    j.value as raw_node
+    j.value as raw_node,
+    '/${space}/' || d.id AS pathname
 FROM valid_docs d,
     json_tree(d.content, '$.root.children') AS j
 WHERE j.type = 'object'
@@ -69,6 +77,8 @@ AND json_extract(j.value, '$.type') = 'bookmark';
     category: "doc",
     difficulty: "intermediate",
     sql: `
+-- [checked:checkbox]
+-- [pathname:url]
 WITH
   valid_docs AS (
     SELECT
@@ -85,7 +95,8 @@ SELECT
   json_extract(j.value, '$.checked') as checked,
   d.id as doc_id,
   j.value as raw_node,
-  d.created_at as created_at
+  d.created_at as created_at,
+  '/${space}/' || d.id AS pathname
 FROM
   valid_docs d,
   json_tree(d.content, '$.root.children') AS parent,
@@ -106,6 +117,7 @@ WHERE
     category: "doc",
     difficulty: "intermediate",
     sql: `
+-- [pathname:url]
 WITH
   valid_docs AS (
     SELECT
@@ -119,7 +131,8 @@ WITH
 SELECT
   json_extract(j.value, '$.text') as text,
   d.id as doc_id,
-  j.value as raw_node
+  j.value as raw_node,
+  '/${space}/' || d.id AS pathname
 FROM
   valid_docs d,
   json_tree(d.content, '$.root.children') AS j
@@ -238,6 +251,7 @@ ORDER BY
     category: "system",
     difficulty: "intermediate",
     sql: `
+-- [count:number]
 SELECT
     type,
     COUNT(*) as count,

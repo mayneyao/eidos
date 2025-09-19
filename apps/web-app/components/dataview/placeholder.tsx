@@ -19,6 +19,7 @@ import { useDataView } from "@/apps/web-app/hooks/use-data-view"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
+import { TableContext } from "../table/hooks"
 import { TemplatePanel } from "./template-panel"
 
 export const DataViewPlaceholder = ({
@@ -180,12 +181,24 @@ export const DataViewPlaceholder = ({
     }
   }, [nodeId])
 
+  const tableContext = useMemo(() => {
+    return {
+      tableName: `vw_${nodeId}`,
+      space,
+      viewId: "tempviewid",
+      isReadOnly: false,
+      isView: true,
+      udfs: [],
+    }
+  }, [nodeId, space])
+
   return (
     <div className="flex h-full px-4 gap-4">
       {/* Template Panel */}
       <TemplatePanel
         isCollapsed={isTemplatePanelCollapsed}
         onTemplateSelect={handleTemplateSelect}
+        space={space}
       />
 
       <div className="flex-1 h-full">
@@ -262,13 +275,15 @@ export const DataViewPlaceholder = ({
             <div className="h-full flex flex-col">
               <div className="flex-1 min-h-0">
                 {isPreviewMode ? (
-                  <GridViewForView
-                    tableName={`vw_${nodeId}`}
-                    databaseName={space}
-                    view={view}
-                    isEditable={false}
-                    className="h-full"
-                  />
+                  <TableContext.Provider value={tableContext}>
+                    <GridViewForView
+                      tableName={`vw_${nodeId}`}
+                      databaseName={space}
+                      view={view}
+                      isEditable={false}
+                      className="h-full"
+                    />
+                  </TableContext.Provider>
                 ) : (
                   <div className="flex-1 min-h-0 h-full flex items-center justify-center">
                     <p className="text-sm text-muted-foreground">

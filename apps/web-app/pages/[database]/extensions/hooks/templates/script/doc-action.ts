@@ -34,7 +34,7 @@ export async function summarizeArticle(
     try {
         // Generate AI summary
         const summary = await eidos.AI.generateText({
-            prompt: `Please provide a concise summary of the following document in exactly 127 characters or less. Focus on the main points, key insights, and important information. Keep the summary clear and well-structured:
+            prompt: `Please provide a concise summary of the following document in exactly 127 characters or less. IMPORTANT: Respond in the same language as the original document. Focus on the main points, key insights, and important information. Keep the summary clear and well-structured:
 
 ${docContent}`
         })
