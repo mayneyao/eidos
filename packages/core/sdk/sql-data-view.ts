@@ -104,7 +104,8 @@ export class SqlDataView {
         const viewName = `vw_${id}`
         if (!isTemp) {
             // delete temp view
-            await this.delete(id)
+            await this.dataSpace.db.prepare(`DROP VIEW IF EXISTS ${viewName};`).run()
+            await this.dataSpace.view.deleteByTableId(id)
         }
         await this.dataSpace.db.prepare('BEGIN TRANSACTION;').run()
 
