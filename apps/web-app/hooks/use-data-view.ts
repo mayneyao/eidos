@@ -47,7 +47,7 @@ export const useDataView = () => {
 }
 
 export const useDataViewById = (id?: string) => {
-    const [isDataViewExist, setIsDataViewExist] = useState(false)
+    const [isDataViewExist, setIsDataViewExist] = useState(true)
     const [viewColumns, setViewColumns] = useState<any[]>([])
     const { sqlite } = useSqlite()
 
@@ -95,7 +95,7 @@ const generateCustomPropertyQuery = (propertyKey: string, propertyValue: any, sp
 SELECT
   t.name as title,
   d.id as id,
-  '/${space}/' || t.id as doc_pathname,
+  '/${space}/' || t.id as doc_pathname, -- [doc_pathname:url]
   d.markdown as markdown,
   d.created_at as created_at,
   d.updated_at as updated_at,

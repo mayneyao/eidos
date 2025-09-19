@@ -4,6 +4,7 @@ import { shortenId, uuidv7 } from "@/lib/utils"
 import type { IField } from "../types/IField"
 import { FieldType } from "../fields/const"
 import { allFieldTypesMap } from "../fields"
+import { parseColumnTypesFromComments } from "../sqlite/sql-comment-parser"
 
 export class SqlDataView {
     constructor(private dataSpace: DataSpace) {
@@ -106,6 +107,8 @@ export class SqlDataView {
             // delete temp view
             await this.dataSpace.db.prepare(`DROP VIEW IF EXISTS ${viewName};`).run()
             await this.dataSpace.view.deleteByTableId(id)
+            // Clean up existing column metadata for this view
+            await this.dataSpace.column.deleteByRawTableName(viewName)
         }
         await this.dataSpace.db.prepare('BEGIN TRANSACTION;').run()
 
@@ -118,6 +121,11 @@ export class SqlDataView {
                 table_id: id,
                 query: `select * from ${viewName}`,
             })
+
+            // Parse column types from SQL comments and create column metadata
+            if (!isTemp) {
+                await this.createColumnMetadataFromComments(viewName, createViewSql)
+            }
         } catch (error) {
             await this.dataSpace.db.prepare('ROLLBACK;').run()
             console.error('Error in createDataView transaction:', error)
@@ -126,5 +134,39 @@ export class SqlDataView {
             await this.dataSpace.db.prepare('COMMIT;').run()
         }
         return true
+    }
+
+    /**
+     * Create column metadata from SQL comments
+     * @param viewName The view name
+     * @param createViewSql The SQL used to create the view
+     */
+    private async createColumnMetadataFromComments(viewName: string, createViewSql: string) {
+        try {
+            // Parse column types from SQL comments
+            const columnTypes = parseColumnTypesFromComments(createViewSql)
+            
+            if (Object.keys(columnTypes).length === 0) {
+                // No column type comments found, no need to create metadata
+                // System will default to text type for all columns
+                return
+            }
+
+            // Create column metadata only for columns with type comments
+            for (const [columnName, fieldType] of Object.entries(columnTypes)) {
+                const defaultProperty = allFieldTypesMap[fieldType].getDefaultFieldProperty()
+                await this.dataSpace.column.addPureUIColumn({
+                    name: columnName,
+                    type: fieldType,
+                    table_name: viewName,
+                    table_column_name: columnName,
+                    property: defaultProperty,
+                })
+            }
+        } catch (error) {
+            console.error('Error creating column metadata from comments:', error)
+            // Don't throw error here to avoid breaking the view creation
+            // Just log the error and continue with default behavior
+        }
     }
 }
