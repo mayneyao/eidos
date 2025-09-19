@@ -1,11 +1,11 @@
 import { useCallback, useEffect } from "react";
 
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite";
+import { useDocPropertyStore } from "@/apps/web-app/store/doc-property-store";
 import type { EidosDataEventChannelMsg } from "@/lib/const";
 import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const";
-import { ColumnTableName, DocTableName } from "@/packages/core/sqlite/const";
 import type { FieldType } from "@/packages/core/fields/const";
-import { useDocPropertyStore, useDocPropertySelectors, PropertyType } from "@/apps/web-app/store/doc-property-store";
+import { DocTableName } from "@/packages/core/sqlite/const";
 
 // Re-export PropertyType for backward compatibility
 export type { PropertyType } from "@/apps/web-app/store/doc-property-store";

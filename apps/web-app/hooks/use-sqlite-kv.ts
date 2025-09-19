@@ -45,7 +45,8 @@ export const useSqliteKV = <T = any>(key: string, defaultValue: T) => {
             if (type === EidosDataEventChannelMsgType.MetaTableUpdateSignalType) {
                 const { table, _new, _old, type: updateType } = payload
                 if (table !== KVTableName) return
-                if (updateType !== DataUpdateSignalType.Update) return
+                // Listen for both INSERT and UPDATE events for KV table
+                if (updateType !== DataUpdateSignalType.Update && updateType !== DataUpdateSignalType.Insert) return
                 if (_new?.key !== key) return
                 const newValue = await sqlite?.kv.get(key, dataType)
                 setValue(newValue as T)

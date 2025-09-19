@@ -26,6 +26,7 @@ import { useAIConfigStore } from "../settings/ai/store"
 import { useReadSqliteStore } from "@/apps/web-app/hooks/use-readonly-sqlite"
 import { useSyncExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useSyncMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
+import { useDocPropertyTypes } from "@/components/doc-property-global/property-type-hook"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
@@ -77,10 +78,18 @@ export const useLayoutInit = () => {
   const { isInitialized, initWorker, initEmbeddingWorker } = useWorker()
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
 
+  const { getPropertyTypes } = useDocPropertyTypes()
   const { initPeer } = usePeer()
 
   useSyncExtNodes()
   useSyncMblocks()
+
+  useEffect(() => {
+    // refresh property types when space changed
+    if (database) {
+      getPropertyTypes()
+    }
+  }, [database, getPropertyTypes])
 
   useKeyPress(["ctrl.backslash", "meta.backslash"], () => {
     setSidebarOpen(!isSidebarOpen)
