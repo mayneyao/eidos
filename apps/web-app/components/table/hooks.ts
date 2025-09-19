@@ -10,7 +10,8 @@ import {
 } from "react"
 import { useSearchParams } from "react-router-dom"
 
-import { useSqlite, useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useTableFields, useTableOperation } from "@/apps/web-app/hooks/use-table"
 import { FieldType } from "@/packages/core/fields/const"
 import type { IView, ViewType } from "@/packages/core/types/IView";

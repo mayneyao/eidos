@@ -1,7 +1,8 @@
 import type { ITreeNode} from "@/packages/core/types/ITreeNode";
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 
-import { useSqlite, useSqliteStore } from "./use-sqlite"
+import { useSqlite } from "./use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 export const useAllNodes = (opts?: {
   isDeleted?: boolean

@@ -12,7 +12,7 @@ import { ExtensionTableName, TreeTableName } from "@/packages/core/sqlite/const"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode";
 
 import { useEngine } from "./use-engine";
-import { useSqliteStore } from "./use-sqlite";
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store";
 
 export const useSqliteMetaTableSubscribe = () => {
   const { addNode, setNode } = useSqliteStore()

@@ -4,7 +4,8 @@ import { getTableIdByRawTableName } from "@/lib/utils"
 
 import type { IField } from "@/packages/core/types/IField"
 import { useCurrentPathInfo } from "./use-current-pathinfo"
-import { useSqlite, useSqliteStore } from "./use-sqlite"
+import { useSqlite } from "./use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useTableFields } from "./use-table"
 import { TableContext } from "@/components/table/hooks"
 

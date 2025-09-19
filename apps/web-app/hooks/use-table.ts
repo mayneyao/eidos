@@ -19,7 +19,7 @@ import {
 
 import type { IField } from "@/packages/core/types/IField"
 import { useSqlWorker } from "./use-sql-worker"
-import { useSqliteStore } from "./use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useUiColumns } from "./use-ui-columns"
 
 export const useTableFields = (tableIdOrName: string | undefined) => {

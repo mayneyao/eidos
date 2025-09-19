@@ -1,4 +1,5 @@
-import { useSqlite, useSqliteStore } from "./use-sqlite"
+import { useSqlite } from "./use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 export const useNodeTree = () => {
   const { setNode, addNode, delNode } = useSqliteStore()

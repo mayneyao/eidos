@@ -23,7 +23,8 @@ import {
 } from "react"
 
 import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
-import { useSqlite, useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import {
   rewriteQueryWithOffsetAndLimit,
   rewriteQueryWithSortedQuery

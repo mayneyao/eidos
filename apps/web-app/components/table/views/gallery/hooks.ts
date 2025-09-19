@@ -1,7 +1,8 @@
 import { useContext, useEffect, useState } from "react"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useSqlite, useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { useViewSort } from "@/apps/web-app/hooks/use-view-sort"
 import type {

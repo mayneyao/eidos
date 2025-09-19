@@ -4,7 +4,7 @@ import { VariableSizeGrid as Grid } from "react-window"
 
 import type { IView } from "@/packages/core/types/IView"
 import { getTableIdByRawTableName } from "@/lib/utils"
-import { useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
 import { TableContext, useShowColumns } from "../../hooks"

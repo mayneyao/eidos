@@ -9,7 +9,7 @@ import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { getWorker } from "@/packages/core/sqlite/worker"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
-import { useSqliteStore } from "./use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useThemeStore } from "@/apps/web-app/store/theme-store"
 import {
   _convertEmail2State,

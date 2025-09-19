@@ -1,5 +1,5 @@
 import type { IField } from "@/packages/core/types/IField"
-import { useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { DataCard } from "@/components/table/views/shared/data-card"
 
 import type { IGalleryViewProperties } from "./properties"
