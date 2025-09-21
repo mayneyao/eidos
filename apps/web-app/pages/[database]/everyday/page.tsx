@@ -7,7 +7,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
 
-import { DayHeatMap } from "./heatmap"
 import { useAllDays, useDays } from "./hooks"
 
 export default function EverydayPage() {
@@ -48,25 +47,6 @@ export default function EverydayPage() {
   return (
     <ScrollArea className="mx-auto flex w-full">
       <div className="prose mx-auto flex w-full flex-col gap-2 p-10 dark:prose-invert  xs:p-5">
-        <div className="hidden md:block">
-          <div className="flex cursor-pointer select-none gap-2">
-            {years.map((_year) => {
-              const isActive = _year === year
-              return (
-                <div
-                  key={_year}
-                  onClick={() => setYear(_year)}
-                  className={`rounded-sm p-2 text-sm ${
-                    isActive ? "bg-secondary" : ""
-                  }`}
-                >
-                  {_year}
-                </div>
-              )
-            })}
-          </div>
-          <DayHeatMap days={_days} startDate={startDate} />
-        </div>
         <div className="flex flex-col gap-2">
           {days.map((day, index) => {
             return (
