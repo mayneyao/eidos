@@ -8,6 +8,7 @@ import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
 
 import { useAllDays, useDays } from "./hooks"
+import { getDisplayTitle } from "./utils"
 
 export default function EverydayPage() {
   const params = useCurrentPathInfo()
@@ -59,7 +60,7 @@ export default function EverydayPage() {
                   className="text-2xl"
                   to={`/${params.database}/everyday/${day.id}`}
                 >
-                  {day.id}
+                  {getDisplayTitle(day.id)}
                 </Link>
                 <Editor
                   docId={day.id}
