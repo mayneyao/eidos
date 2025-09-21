@@ -1,12 +1,13 @@
 import { CompareOperator } from "@/packages/core/fields/const"
 import type { IField } from "@/packages/core/types/IField"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
+import type { IFilterValue } from "../../../../../packages/core/types/IViewFilter"
 import { CellEditor } from "../cell-editor"
 import { FieldCompareSelector } from "../fields/field-compare-selector"
 import { FieldSelector } from "../fields/field-selector"
-import type { IFilterValue } from "../../../../../packages/core/types/IViewFilter"
+import { useTableContext } from "../hooks"
 
 interface IViewFilterItemEditorProps {
   value?: IFilterValue
@@ -21,10 +22,10 @@ export const ViewFilterItemEditor = ({
   onDelete,
   fields,
 }: IViewFilterItemEditorProps) => {
-  const { database, tableName } = useCurrentPathInfo()
+  const { tableName, space } = useTableContext()
   const { rawIdNameMap, uiColumnMap, uiColumns } = useUiColumns(
-    tableName!,
-    database!
+    tableName,
+    space
   )
 
   if (!value) {

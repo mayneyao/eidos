@@ -1,4 +1,3 @@
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useTableOperation } from "@/apps/web-app/hooks/use-table"
@@ -15,8 +14,9 @@ import { transformSql } from "@/packages/core/sqlite/sql-parser"
 import type { IView } from "@/packages/core/types/IView"
 import { getRawTableNameById } from "@/lib/utils"
 import type { IField } from "@/packages/core/types/IField"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { uuidv7 } from "@/lib/utils"
+import { TableContext } from "../../hooks"
 
 export type KanbanItem = {
     id: string
@@ -36,12 +36,12 @@ export const NULL_STATUS = "EIDOS_NULL_STATUS"
 export const useKanbanViewData = (view: IView) => {
     const { table_id: tableId, query, properties } = view
     const tableName = getRawTableNameById(tableId)
+    const { space } = useContext(TableContext)
     const { sqlite } = useSqlite()
     const { setRows } = useSqliteStore()
     const [items, setItems] = useState<KanbanItem[]>([])
     const [statusCounts, setStatusCounts] = useState<StatusCount[]>([])
     const [loading, setLoading] = useState(false)
-    const { space } = useCurrentPathInfo()
     const { nameRawIdMap, fieldRawColumnNameFieldMap, uiColumns } = useUiColumns(tableName, space)
 
     const groupByField = properties?.groupByField || 'status'

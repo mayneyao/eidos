@@ -10,8 +10,7 @@ import {
 import { useTranslation } from "react-i18next"
 
 import type { IView } from "@/packages/core/types/IView"
-import { cn, shortenId } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { cn, shortenId, getTableIdByRawTableName } from "@/lib/utils"
 import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
@@ -25,6 +24,7 @@ import {
 } from "./hooks/use-table-search-store"
 import { useTableSemanticSearch } from "./hooks/use-table-semantic-search"
 import { SemanticSearchResultsList } from "./semantic-search-results-list"
+import { useTableContext } from "./hooks"
 
 const Spinner = () => (
   <svg
@@ -156,9 +156,12 @@ export const ViewSearch = (props: { view: IView }) => {
     setSemanticSearchResult,
   ])
 
-  const { space, tableId } = useCurrentPathInfo()
+  const { space, tableName } = useTableContext()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const { setSubPage } = useCurrentSubPage()
+  
+  // Convert rawTableName to tableId
+  const tableId = getTableIdByRawTableName(tableName)
 
   const handleSemanticSearchResultClick = useCallback(
     async (result: SemanticSearchResultData) => {

@@ -9,8 +9,7 @@ import {
 } from "lucide-react"
 
 import type { IField } from "@/packages/core/types/IField"
-import { shortenId } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { shortenId, getTableIdByRawTableName } from "@/lib/utils"
 import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
@@ -23,7 +22,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 
-import { TableContext } from "../../hooks"
+import { TableContext, useTableContext } from "../../hooks"
 import { ScriptContextMenu } from "./script-context-menu"
 import { useTableAppStore } from "./store"
 
@@ -50,9 +49,12 @@ export function GridContextMenu({
     }
     return rowCount.toLocaleString();
   }, [selection])
-  const { space, tableId } = useCurrentPathInfo()
+  const { space, tableName } = useTableContext()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const { setSubPage } = useCurrentSubPage()
+  
+  // Convert rawTableName to tableId
+  const tableId = getTableIdByRawTableName(tableName)
 
   const goto = useGoto()
   const getRow = useCallback(() => {

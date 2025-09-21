@@ -30,13 +30,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 import { useTableAppStore } from "../views/grid/store"
 import {
   NotImplementEditor,
   PropertyEditorTypeMap,
 } from "./field-property-editor"
+import { useTableContext } from "../hooks"
 
 export function FieldAppendPanel({
   addField,
@@ -56,7 +56,7 @@ export function FieldAppendPanel({
 }) {
   const { t } = useTranslation()
   const [currentField, setCurrentField] = React.useState<IField>()
-  const { tableName } = useCurrentPathInfo()
+  const { tableName } = useTableContext()
   const ref = React.useRef<HTMLDivElement>(null)
   const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
   const fieldTypes = [

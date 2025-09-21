@@ -7,10 +7,10 @@ import {
 } from "@glideapps/glide-data-grid"
 
 import type { LinkCellData } from "@/packages/core/fields/link"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 import { drawDrilldownCell } from "../helper"
 import { LinkCellEditor as _LinkCellEditor } from "./link-cell-editor"
+import { useTableContext } from "../../../../hooks"
 
 interface LinkCellProps {
   readonly kind: "link-cell"
@@ -22,7 +22,7 @@ export type LinkCell = CustomCell<LinkCellProps>
 const LinkCellEditor: ReturnType<ProvideEditorCallback<LinkCell>> = (props) => {
   const { value: cell, onFinishedEditing, initialValue } = props
   const { value: oldValue, linkTable } = cell.data
-  const { space } = useCurrentPathInfo()
+  const { space } = useTableContext()
   const handleClick = (data: LinkCellData[]) => {
     onFinishedEditing({
       ...cell,
