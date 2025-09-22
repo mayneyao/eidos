@@ -1,8 +1,8 @@
-import type { MouseEvent} from "react";
-import { useRef, type FC } from "react"
-import type { Identifier, XYCoord } from "dnd-core"
+import type { MouseEvent } from "react"
+import { type FC } from "react"
 import { EyeIcon, EyeOffIcon, GripVerticalIcon } from "lucide-react"
-import { useDrag, useDrop } from "react-dnd"
+import { useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { cn } from "@/lib/utils"
 
@@ -12,24 +12,13 @@ import { useTableAppStore } from "@/components/table/views/grid/store"
 
 import { makeHeaderIcons } from "../fields/header-icons"
 
-export const ItemTypes = {
-  CARD: "card",
-}
-
 export interface CardProps {
   id: any
   text: string
   index: number
   isHidden: boolean
   field: IField
-  moveCard: (dragIndex: number, hoverIndex: number) => void
   onToggleHidden: (id: any) => void
-}
-
-interface DragItem {
-  index: number
-  id: string
-  type: string
 }
 
 const icons = makeHeaderIcons(14)
@@ -40,84 +29,28 @@ export const FieldItemCard: FC<CardProps> = ({
   index,
   isHidden,
   field,
-  moveCard,
   onToggleHidden,
 }) => {
-  const ref = useRef<HTMLDivElement>(null)
   const { setIsFieldPropertiesEditorOpen, setCurrentUiColumn } =
     useTableAppStore()
-  const [{ handlerId }, drop] = useDrop<
-    DragItem,
-    void,
-    { handlerId: Identifier | null }
-  >({
-    accept: ItemTypes.CARD,
-    collect(monitor) {
-      return {
-        handlerId: monitor.getHandlerId(),
-      }
-    },
-    hover(item: DragItem, monitor) {
-      if (!ref.current) {
-        return
-      }
-      const dragIndex = item.index
-      const hoverIndex = index
+  
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
 
-      // Don't replace items with themselves
-      if (dragIndex === hoverIndex) {
-        return
-      }
-
-      // Determine rectangle on screen
-      const hoverBoundingRect = ref.current?.getBoundingClientRect()
-
-      // Get vertical middle
-      const hoverMiddleY =
-        (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2
-
-      // Determine mouse position
-      const clientOffset = monitor.getClientOffset()
-
-      // Get pixels to the top
-      const hoverClientY = (clientOffset as XYCoord).y - hoverBoundingRect.top
-
-      // Only perform the move when the mouse has crossed half of the items height
-      // When dragging downwards, only move when the cursor is below 50%
-      // When dragging upwards, only move when the cursor is above 50%
-
-      // Dragging downwards
-      if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) {
-        return
-      }
-
-      // Dragging upwards
-      if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
-        return
-      }
-
-      // Time to actually perform the action
-      moveCard(dragIndex, hoverIndex)
-
-      // Note: we're mutating the monitor item here!
-      // Generally it's better to avoid mutations,
-      // but it's good here for the sake of performance
-      // to avoid expensive index searches.
-      item.index = hoverIndex
-    },
-  })
-
-  const [{ isDragging }, drag] = useDrag({
-    type: ItemTypes.CARD,
-    item: () => {
-      return { id, index }
-    },
-    collect: (monitor: any) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  })
-
-  drag(drop(ref))
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    // 确保拖拽时不会超出容器边界
+    position: 'relative' as const,
+    zIndex: isDragging ? 1000 : 'auto',
+  }
   const handleToggleHidden = (e: MouseEvent, id: any) => {
     e.stopPropagation()
     if (id === "title") return
@@ -136,28 +69,27 @@ export const FieldItemCard: FC<CardProps> = ({
 
   return (
     <div
-      ref={ref}
-      data-handler-id={handlerId}
-      className={cn("group mb-0.5 flex gap-1 p-1 text-xs hover:bg-secondary", {
-        "dragging opacity-0": isDragging,
-        "opacity-100": !isDragging,
-      })}
+      ref={setNodeRef}
+      style={style}
+      className="group mb-0.5 flex gap-1 p-1 text-xs hover:bg-secondary min-w-0"
     >
       <GripVerticalIcon
-        className=" cursor-grab opacity-0 group-hover:opacity-60"
+        className="cursor-grab opacity-0 group-hover:opacity-60"
         size={16}
+        {...attributes}
+        {...listeners}
       />
       <div
-        className="flex w-full justify-between pr-2"
+        className="flex w-full justify-between pr-2 min-w-0"
         onClick={handleFieldClick}
       >
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <span
             dangerouslySetInnerHTML={{
               __html: iconSvgString,
             }}
           ></span>
-          {text}
+          <span className="truncate">{text}</span>
         </div>
         <span
           onClick={(e) => handleToggleHidden(e, id)}

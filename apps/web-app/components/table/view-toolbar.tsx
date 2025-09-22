@@ -1,24 +1,12 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
   ViewTypeEnum,
   type IView,
   type ViewType,
 } from "@/packages/core/types/IView"
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import {
-  SortableContext,
-  horizontalListSortingStrategy,
-} from "@dnd-kit/sortable"
+import { arrayMove } from "@dnd-kit/sortable"
 import { useKeyPress } from "ahooks"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 import {
@@ -28,7 +16,15 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
-import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
+import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useTableOperation } from "@/apps/web-app/hooks/use-table"
+import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/eui/sub-page-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,15 +35,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from "@/components/eui/sub-page-dialog"
-import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useTableOperation } from "@/apps/web-app/hooks/use-table"
-import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
+import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
@@ -63,6 +51,7 @@ import { ViewItem } from "./view-item"
 import { ViewRawQuery } from "./view-raw-query"
 import { ViewSearch } from "./view-search"
 import { ViewSort } from "./view-sort"
+import { SortableContainer } from "./sortable"
 
 const Views = ({
   views,
@@ -92,22 +81,41 @@ const Views = ({
   onEditStart: (viewId: string) => void
 }) => {
   const [open, setOpen] = useState(false)
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor)
+  const [localViews, setLocalViews] = useState(views)
+
+  // Update local state when external views change
+  useEffect(() => {
+    setLocalViews(views)
+  }, [views])
+
+
+  const handleReorder = useCallback(
+    (newViews: IView[]) => {
+      setLocalViews(newViews)
+      
+      // Call external callback asynchronously to avoid blocking UI updates
+      setTimeout(() => {
+        // Find the moved view by comparing with original order
+        const originalOrder = views.map(v => v.id)
+        const newOrder = newViews.map(v => v.id)
+        
+        // Find which view moved and where
+        for (let i = 0; i < newOrder.length; i++) {
+          if (originalOrder[i] !== newOrder[i]) {
+            const movedViewId = newOrder[i]
+            const targetViewId = i > 0 ? newOrder[i - 1] : newOrder[i + 1]
+            const direction = i > originalOrder.indexOf(movedViewId) ? "down" : "up"
+            onReorder?.(movedViewId, targetViewId, direction)
+            break
+          }
+        }
+      }, 0)
+    },
+    [onReorder, views]
   )
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    // Calculate the direction based on the index difference
-    const activeIndex = views.findIndex((view) => view.id === active.id)
-    const overIndex = views.findIndex((view) => view.id === over.id)
-    const direction = activeIndex > overIndex ? "up" : "down"
-
-    onReorder?.(active.id as string, over.id as string, direction)
-  }
+  // Add drag state management for visual feedback
+  const [isDragging, setIsDragging] = useState(false)
 
   const onlyOneView = views.length === 1
   const { t } = useTranslation()
@@ -148,38 +156,33 @@ const Views = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={views.map((v) => v.id)}
-            strategy={horizontalListSortingStrategy}
-          >
-            <div className="space-y-1">
-              {views.map((view) => {
-                const isActive = view.id === currentView?.id
-                return (
-                  <ViewItem
-                    key={view.id}
-                    view={view}
-                    isActive={isActive}
-                    jump2View={handleJump2View}
-                    deleteView={async () => {
-                      await deleteView(view.id)()
-                      setOpen(false)
-                    }}
-                    disabledDelete={onlyOneView}
-                    isInDropdown={true}
-                    isReadOnly={isReadOnly}
-                    onEditStart={() => onEditStart(view.id)}
-                  />
-                )
-              })}
-            </div>
-          </SortableContext>
-        </DndContext>
+        <SortableContainer
+          items={localViews}
+          onReorder={handleReorder}
+          className="space-y-1 overflow-hidden"
+          onDragStart={() => setIsDragging(true)}
+          onDragEnd={() => setIsDragging(false)}
+          renderItem={(view, index) => {
+            const isActive = view.id === currentView?.id
+            return (
+              <ViewItem
+                key={view.id}
+                view={view}
+                isActive={isActive}
+                jump2View={handleJump2View}
+                deleteView={async () => {
+                  await deleteView(view.id)()
+                  setOpen(false)
+                }}
+                disabledDelete={onlyOneView}
+                isInDropdown={true}
+                isReadOnly={isReadOnly}
+                onEditStart={() => onEditStart(view.id)}
+                isDragging={isDragging}
+              />
+            )
+          }}
+        />
 
         {!isReadOnly && (
           <>
@@ -434,23 +437,25 @@ export const ViewToolbar = (props: {
   return (
     <div ref={ref}>
       <div className="ml-2 flex items-center justify-between border-b pb-1">
-        <div className="flex items-center" ref={ref1}>
-          <Views
-            views={views}
-            currentView={currentView}
-            jump2View={jump2View}
-            deleteView={deleteView}
-            onReorder={handleReorderViews}
-            onAddView={handleAddView}
-            isView={isView}
-            isReadOnly={props.isReadOnly}
-            onEditStart={setEditingViewId}
-          />
-          {currentView && (
-            <span className="text-xs text-muted-foreground ml-2 select-none">
-              ({currentViewCount})
-            </span>
-          )}
+        <div className="flex items-center min-w-0" ref={ref1}>
+          <div className="flex items-center min-w-0">
+            <Views
+              views={views}
+              currentView={currentView}
+              jump2View={jump2View}
+              deleteView={deleteView}
+              onReorder={handleReorderViews}
+              onAddView={handleAddView}
+              isView={isView}
+              isReadOnly={props.isReadOnly}
+              onEditStart={setEditingViewId}
+            />
+            {currentView && (
+              <span className="text-xs text-muted-foreground ml-2 select-none flex-shrink-0">
+                ({currentViewCount})
+              </span>
+            )}
+          </div>
         </div>
         <div
           className={cn("flex gap-2 hover:opacity-100", {

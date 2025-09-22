@@ -1,10 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { PlusIcon } from "@radix-ui/react-icons"
-import update from "immutability-helper"
 import sortBy from "lodash/sortBy"
 import { SlidersHorizontalIcon } from "lucide-react"
-import { DndProvider } from "react-dnd"
-import { HTML5Backend } from "react-dnd-html5-backend"
 import { useTranslation } from "react-i18next"
 
 import type { IView } from "@/packages/core/types/IView"
@@ -21,7 +18,9 @@ import { useTableAppStore } from "@/components/table/views/grid/store"
 
 import { TableContext, useTableContext, useViewOperation } from "../hooks"
 import { FieldItemCard } from "./view-field-item"
+import { SortableContainer } from "../sortable"
 
+// Refactored to use @dnd-kit for better performance
 export interface ContainerState {
   cards: IField[]
 }
@@ -96,45 +95,18 @@ export const ViewField = (props: { view?: IView }) => {
     )
   }
 
-  const moveCard = useCallback(
-    (dragIndex: number, hoverIndex: number) => {
-      setCards((prevCards: IField[]) => {
-        const newCards = update(prevCards, {
-          $splice: [
-            [dragIndex, 1],
-            [hoverIndex, 0, prevCards[dragIndex] as IField],
-          ],
-        })
-        const newOrderMap: IView["order_map"] = {}
-        newCards.forEach((item, index) => {
-          newOrderMap[item.table_column_name] = index
-        })
-        updateViewOrderMap(newOrderMap)
-        return newCards
+  const handleReorder = useCallback(
+    (newCards: IField[]) => {
+      setCards(newCards)
+      const newOrderMap: IView["order_map"] = {}
+      newCards.forEach((item, index) => {
+        newOrderMap[item.table_column_name] = index
       })
+      updateViewOrderMap(newOrderMap)
     },
     [updateViewOrderMap]
   )
 
-  const renderCard = useCallback(
-    (card: IField, index: number) => {
-      const isHidden =
-        (hiddenFields || []).indexOf(card.table_column_name) !== -1
-      return (
-        <FieldItemCard
-          field={card}
-          key={card.table_column_name}
-          index={index}
-          id={card.table_column_name}
-          isHidden={isHidden}
-          text={card.name}
-          onToggleHidden={handleHideField}
-          moveCard={moveCard}
-        />
-      )
-    },
-    [handleHideField, hiddenFields, moveCard]
-  )
 
   const handleAddFieldClick = () => {
     setOpen(false)
@@ -158,11 +130,26 @@ export const ViewField = (props: { view?: IView }) => {
           </Button>
         </div>
         <hr className="my-1" />
-        <DndProvider backend={HTML5Backend} context={window}>
-          <div className="max-h-[320px] w-[280px] overflow-y-auto">
-            {cards.map((card, i) => renderCard(card, i))}
-          </div>
-        </DndProvider>
+        <SortableContainer
+          items={cards.map(card => ({ ...card, id: card.table_column_name }))}
+          onReorder={handleReorder}
+          className="max-h-[320px] w-[280px] overflow-y-auto overflow-x-hidden"
+          renderItem={(item, index) => {
+            const card = item as IField
+            const isHidden = (hiddenFields || []).indexOf(card.table_column_name) !== -1
+            return (
+              <FieldItemCard
+                field={card}
+                key={card.table_column_name}
+                index={index}
+                id={card.table_column_name}
+                isHidden={isHidden}
+                text={card.name}
+                onToggleHidden={handleHideField}
+              />
+            )
+          }}
+        />
         {!isView && (
           <>
             <hr className="my-1" />

@@ -1,21 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { OrderByItem } from "@/packages/core/sqlite/sql-sort-parser"
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
+import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -34,13 +19,14 @@ import { FieldType } from "@/packages/core/fields/const"
 import { FieldSelector } from "./fields/field-selector"
 import { TableContext, useCurrentView } from "./hooks"
 import { useViewQuery } from "./hooks/use-view-query"
+import { SortableContainer } from "./sortable"
 
 interface IViewEditorProps {
   onSortChange?: (sort: OrderByItem[]) => void
 }
 
 interface SortableItemProps {
-  item: OrderByItem
+  item: OrderByItem & { id: string }
   index: number
   uiColumns: any[]
   onValueChange: (value: string, index: number) => void
@@ -109,7 +95,7 @@ function SortableItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.column })
+  } = useSortable({ id: item.id })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -185,12 +171,6 @@ export function ViewSortEditor(props: IViewEditorProps) {
   )
   const [orderItems, setOrderItems] = useState<OrderByItem[]>(oldOrderBy)
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
 
   useEffect(() => {
     setOrderItems(oldOrderBy)
@@ -253,18 +233,13 @@ export function ViewSortEditor(props: IViewEditorProps) {
     setOrderItems([])
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-
-    if (active.id !== over?.id) {
-      const oldIndex = orderItems.findIndex((item) => item.column === active.id)
-      const newIndex = orderItems.findIndex((item) => item.column === over?.id)
-
-      setOrderItems((items) => {
-        return arrayMove(items, oldIndex, newIndex)
-      })
-    }
-  }
+  const handleReorder = useCallback(
+    (newItems: (OrderByItem & { id: string })[]) => {
+      const orderItems = newItems.map(({ id, ...item }) => item)
+      setOrderItems(orderItems)
+    },
+    []
+  )
 
   return (
     <div className="w-[360px] rounded border p-1.5 shadow-sm">
@@ -273,36 +248,29 @@ export function ViewSortEditor(props: IViewEditorProps) {
           {t("table.view.noSortRule")}
         </span>
       )}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={orderItems.map((item) => item.column)}
-          strategy={verticalListSortingStrategy}
-        >
-          {orderItems.map((item, index) => {
-            const excludeValues = orderItems
-              .map((orderItem) => orderItem.column)
-              .filter((col) => col !== item.column)
+      <SortableContainer
+        items={orderItems.map(item => ({ ...item, id: item.column }))}
+        onReorder={handleReorder}
+        renderItem={(item, index) => {
+          const excludeValues = orderItems
+            .map((orderItem) => orderItem.column)
+            .filter((col) => col !== item.column)
 
-            return (
-              <SortableItem
-                key={item.column}
-                item={item}
-                index={index}
-                uiColumns={uiColumns}
-                onValueChange={onValueChange}
-                onOrderChange={onOrderChange}
-                onDelete={delSort}
-                t={t}
-                excludeValues={excludeValues}
-              />
-            )
-          })}
-        </SortableContext>
-      </DndContext>
+          return (
+            <SortableItem
+              key={item.column}
+              item={item}
+              index={index}
+              uiColumns={uiColumns}
+              onValueChange={onValueChange}
+              onOrderChange={onOrderChange}
+              onDelete={delSort}
+              t={t}
+              excludeValues={excludeValues}
+            />
+          )
+        }}
+      />
       <hr className="my-1.5" />
       <div className="flex items-center justify-between">
         <Button
