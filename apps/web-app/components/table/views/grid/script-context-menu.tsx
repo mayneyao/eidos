@@ -16,8 +16,10 @@ import { useTableContext } from "../../hooks"
 
 export const ScriptContextMenu = ({
   getRows,
+  count,
 }: {
   getRows: () => any[] | undefined
+  count: string
 }) => {
   const { space, viewId, tableName } = useTableContext()
   const { sqlite } = useSqlite(space)
@@ -82,7 +84,7 @@ export const ScriptContextMenu = ({
             }}
           >
             <ZapIcon className="pr-2" />
-            {script.meta!.tableAction.name}
+            {script.meta!.tableAction.name} ({count})
           </ContextMenuItem>
         )
       })}

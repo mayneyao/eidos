@@ -796,6 +796,8 @@
     "table.view.createNew": "Create New",
     "table.view.deleteConfirmDescription": "This action cannot be undone. This will permanently delete the view.",
     "table.view.deleteConfirmTitle": "Are you sure you want to delete this view?",
+    "table.rows.deleteConfirmDescription": "This action cannot be undone. This will permanently delete the selected rows.",
+    "table.rows.deleteConfirmTitle": "Are you sure you want to delete these rows?",
     "table.view.deleteFilter": "Delete filter",
     "table.view.deleteSort": "Delete sort",
     "table.view.disabledViewTypesWarning": "The disabled view types are not ready for large data",
