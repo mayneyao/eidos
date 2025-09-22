@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useTransition } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { getToday } from "@/lib/utils"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
@@ -42,32 +42,40 @@ export const useAllDays = (spaceName: string) => {
   const [currentPage, setCurrentPage] = useState(0)
   const [error, setError] = useState<Error | null>(null)
   const [hasNextPage, setHasNextPage] = useState(true)
+  const [loading, setLoading] = useState(false)
   const { sqlite } = useSqlite(spaceName)
-  const [isPending, startTransition] = useTransition()
 
   const loadMore = useCallback(async () => {
-    const res = await sqlite?.listDays(currentPage + 1)
-    startTransition(() => {
+    if (loading) return // Prevent multiple simultaneous loads
+    
+    setLoading(true)
+    try {
+      const res = await sqlite?.listDays(currentPage + 1)
+      
       if (!res?.length) {
         setHasNextPage(false)
         return
       }
+      
       setDays((prevDays) => {
         const existingIds = new Set(prevDays.map((d: IDay) => d.id))
         const newDays = res.filter((d: IDay) => !existingIds.has(d.id))
         
-        const mergedDays = [...prevDays, ...newDays].sort((a, b) => {
-          return new Date(b.id).getTime() - new Date(a.id).getTime()
-        })
-        
-        return mergedDays
+        // Since we're loading in reverse chronological order, we can just append to the end
+        // No need to sort the entire array every time
+        return [...prevDays, ...newDays]
       })
+      
       setCurrentPage(currentPage + 1)
       if (res.length < EachPageSize) {
         setHasNextPage(false)
       }
-    })
-  }, [currentPage, sqlite])
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [currentPage, sqlite, loading])
 
   useEffect(() => {
     const today = getToday()
@@ -91,7 +99,7 @@ export const useAllDays = (spaceName: string) => {
   }, [spaceName, sqlite])
 
   return {
-    loading: isPending,
+    loading,
     error,
     days,
     hasNextPage,
