@@ -1,11 +1,9 @@
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
-import type { IView, ViewType } from "@/packages/core/types/IView"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
+import {
+  ViewTypeEnum,
+  type IView,
+  type ViewType,
+} from "@/packages/core/types/IView"
 import {
   DndContext,
   KeyboardSensor,
@@ -21,6 +19,7 @@ import {
 } from "@dnd-kit/sortable"
 import { useKeyPress } from "ahooks"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
+import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 import {
   createSearchParams,
@@ -34,9 +33,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogContent,
@@ -48,11 +50,15 @@ import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
 
 import { Button } from "../ui/button"
-import { AddViewDropdown } from "./add-view-dropdown"
+import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 import { TableContext, useCurrentView, useViewOperation } from "./hooks"
+import { useCustomTableViews } from "./hooks/use-custom-table-views"
 import { useTableSearchStore } from "./hooks/use-table-search-store"
+import { useViewCount } from "./hooks/use-view-count"
+import { ViewEditor } from "./view-editor/view-editor"
 import { ViewField } from "./view-field/view-field"
 import { ViewFilter } from "./view-filter"
+import { ViewIcon } from "./view-icon"
 import { ViewItem } from "./view-item"
 import { ViewRawQuery } from "./view-raw-query"
 import { ViewSearch } from "./view-search"
@@ -65,6 +71,10 @@ const Views = ({
   deleteView,
   asList,
   onReorder,
+  onAddView,
+  isView,
+  isReadOnly,
+  onEditStart,
 }: {
   views: IView[]
   currentView: IView | undefined
@@ -76,7 +86,12 @@ const Views = ({
     targetId: string,
     direction: "up" | "down"
   ) => void
+  onAddView: (viewType: ViewType) => void
+  isView: boolean
+  isReadOnly?: boolean
+  onEditStart: (viewId: string) => void
 }) => {
+  const [open, setOpen] = useState(false)
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor)
@@ -95,52 +110,141 @@ const Views = ({
   }
 
   const onlyOneView = views.length === 1
-  if (asList) {
-    const view = views[0]
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger>
-          <div className="flex items-center gap-2">
-            {view && <span className="select-none">{view.name}</span>}
-            <ChevronDownIcon className="h-4 w-4" />
-          </div>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          {views.slice(1).map((view) => {
-            const isActive = view.id === currentView?.id
-            return (
-              <DropdownMenuItem key={view.id}>{view.name}</DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
+  const { t } = useTranslation()
+  const { tableViews } = useCustomTableViews()
+
+  // Handle view switching and close dropdown
+  const handleJump2View = (viewId: string) => {
+    jump2View(viewId)
+    setOpen(false)
   }
+
+  // Handle adding new view and close dropdown
+  const handleAddView = (viewType: ViewType) => {
+    onAddView(viewType)
+    setOpen(false)
+  }
+
+  // Always render as dropdown now
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext
-        items={views.map((v) => v.id)}
-        strategy={horizontalListSortingStrategy}
-      >
-        {views.map((view) => {
-          const isActive = view.id === currentView?.id
-          return (
-            <ViewItem
-              key={view.id}
-              view={view}
-              isActive={isActive}
-              jump2View={jump2View}
-              deleteView={deleteView(view.id)}
-              disabledDelete={onlyOneView}
-            />
-          )
-        })}
-      </SortableContext>
-    </DndContext>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="flex items-center gap-2 px-1"
+        >
+          {currentView && (
+            <>
+              <ViewIcon
+                viewType={currentView.type}
+                className="h-4 w-4"
+                showCursor={false}
+              />
+              <span className="select-none">{currentView.name}</span>
+            </>
+          )}
+          <ChevronDownIcon className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={views.map((v) => v.id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            <div className="space-y-1">
+              {views.map((view) => {
+                const isActive = view.id === currentView?.id
+                return (
+                  <ViewItem
+                    key={view.id}
+                    view={view}
+                    isActive={isActive}
+                    jump2View={handleJump2View}
+                    deleteView={async () => {
+                      await deleteView(view.id)()
+                      setOpen(false)
+                    }}
+                    disabledDelete={onlyOneView}
+                    isInDropdown={true}
+                    isReadOnly={isReadOnly}
+                    onEditStart={() => onEditStart(view.id)}
+                  />
+                )
+              })}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        {!isReadOnly && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <div className="flex items-center gap-2">
+                  <PlusIcon className="h-4 w-4" />
+                  <span>{t("table.view.createNew")}</span>
+                </div>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem
+                  onClick={() => handleAddView(ViewTypeEnum.Grid)}
+                >
+                  <div className="flex items-center gap-2">
+                    <ViewIcon viewType="grid" className="h-4 w-4" />
+                    <span>{t("views.types.grid")}</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleAddView(ViewTypeEnum.Gallery)}
+                >
+                  <div className="flex items-center gap-2">
+                    <ViewIcon viewType="gallery" className="h-4 w-4" />
+                    <span>{t("views.types.gallery")}</span>
+                  </div>
+                </DropdownMenuItem>
+                {!isView && (
+                  <DropdownMenuItem
+                    onClick={() => handleAddView(ViewTypeEnum.Kanban)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ViewIcon viewType="kanban" className="h-4 w-4" />
+                      <span>{t("views.types.kanban")}</span>
+                    </div>
+                  </DropdownMenuItem>
+                )}
+                {tableViews.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    {tableViews.map((view) => (
+                      <DropdownMenuItem
+                        key={view.id}
+                        onClick={() =>
+                          handleAddView(`ext__${view.meta?.tableView?.type}`)
+                        }
+                      >
+                        <div className="flex items-center gap-2">
+                          <ViewIcon
+                            viewType={`ext__${view.meta?.tableView?.type}`}
+                            className="h-4 w-4"
+                          />
+                          <span>{view.meta?.tableView?.title}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 export const ViewToolbar = (props: {
@@ -173,11 +277,13 @@ export const ViewToolbar = (props: {
     tableName,
     viewId,
   })
+  const { count: currentViewCount } = useViewCount(currentView)
+  const [editingViewId, setEditingViewId] = useState<string | null>(null)
 
   const [searchParams] = useSearchParams()
   const sharePeerId = searchParams.get("peerId")
   const { addRow } = useTableOperation(tableName, space)
-  const { getOrCreateTableSubDoc } = useSqlite()
+  const { getOrCreateTableSubDoc, sqlite } = useSqlite()
   const [open, setOpen] = useState(false)
   const tableId = getTableIdByRawTableName(tableName)
   const { subPageId, setSubPage, clearSubPage } = useCurrentSubPage()
@@ -281,7 +387,18 @@ export const ViewToolbar = (props: {
 
   const deleteView = (viewId: string) => async () => {
     await delView(viewId)
-    jump2View(defaultViewId)
+    // 删除后获取更新后的视图列表，切换到第一个视图
+    await updateViews()
+    const updatedViews = await sqlite?.view.list(
+      { table_id: tableId },
+      {
+        order: "ASC",
+        orderBy: "position",
+      }
+    )
+    if (updatedViews && updatedViews.length > 0) {
+      jump2View(updatedViews[0].id)
+    }
   }
 
   const handleMaximize = useCallback(() => {
@@ -324,16 +441,20 @@ export const ViewToolbar = (props: {
             jump2View={jump2View}
             deleteView={deleteView}
             onReorder={handleReorderViews}
-          />
-          <AddViewDropdown
             onAddView={handleAddView}
             isView={isView}
             isReadOnly={props.isReadOnly}
+            onEditStart={setEditingViewId}
           />
+          {currentView && (
+            <span className="text-xs text-muted-foreground ml-2 select-none">
+              ({currentViewCount})
+            </span>
+          )}
         </div>
         <div
           className={cn("flex gap-2 hover:opacity-100", {
-            "opacity-0": isEmbed,
+            // "opacity-0": isEmbed,
           })}
           ref={ref2}
         >
@@ -348,7 +469,7 @@ export const ViewToolbar = (props: {
           {!props.isReadOnly && !isView && (
             <Button size="xs" onClick={handleAddRow} variant="ghost">
               <PlusIcon className="h-4 w-4"></PlusIcon>
-              {t("common.new")}
+              {/* {t("common.new")} */}
             </Button>
           )}
           <Dialog open={open} onOpenChange={handleDialogOpenChange}>
@@ -366,6 +487,25 @@ export const ViewToolbar = (props: {
           </Dialog>
         </div>
       </div>
+
+      {editingViewId &&
+        ReactDOM.createPortal(
+          <div
+            onClick={(e) => {
+              if ((e.target as Element).closest("#view-editor")) {
+                return
+              }
+              setEditingViewId(null)
+            }}
+            className="absolute inset-0 z-10"
+          >
+            <ViewEditor
+              setEditDialogOpen={(open) => setEditingViewId(null)}
+              view={views.find((v) => v.id === editingViewId)!}
+            />
+          </div>,
+          document.getElementById(TABLE_CONTENT_ELEMENT_ID)!
+        )}
     </div>
   )
 }
