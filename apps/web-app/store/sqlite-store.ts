@@ -1,15 +1,13 @@
 "use client"
 
-import { create } from "zustand"
 import orderBy from "lodash/orderBy"
+import { create } from "zustand"
 
-import { TreeTableName } from "@/packages/core/sqlite/const"
-import type { ITreeNode } from "@/packages/core/types/ITreeNode"
-import { TreeNodeType } from "@/packages/core/types/ITreeNode"
-import type { IView } from "@/packages/core/types/IView"
 import type { IDataStore } from "@/apps/web-app/store/interface"
-import type { IField } from "@/packages/core/types/IField"
 import type { DataSpace } from "@/packages/core/DataSpace"
+import type { IField } from "@/packages/core/types/IField"
+import type { ITreeNode } from "@/packages/core/types/ITreeNode"
+import type { IView } from "@/packages/core/types/IView"
 
 interface SqliteState {
   isInitialized: boolean

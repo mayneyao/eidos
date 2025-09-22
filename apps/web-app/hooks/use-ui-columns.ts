@@ -8,6 +8,7 @@ import { useSqlite } from "./use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useTableFields } from "./use-table"
 import { TableContext } from "@/components/table/hooks"
+import { tableRequestManager } from "./table-request-manager"
 
 export const useCurrentUiColumns = () => {
   const { tableName, space } = useContext(TableContext)
@@ -48,12 +49,16 @@ export const useUiColumns = (
       if (!sqlite || !_tableName) return
 
       const tableId = getTableIdByRawTableName(_tableName)
-      const tableExists = dataStore.tableMap[tableId]
-
-      if (!tableExists || !tableExists.fieldMap || Object.keys(tableExists.fieldMap).length === 0) {
-        console.log(`Table ${_tableName} not found in dataStore, fetching...`)
-        await updateUiColumns(_tableName)
-      }
+      
+      // Use request manager to wrap the entire check logic, ensuring atomicity
+      await tableRequestManager.executeRequest(tableId, async () => {
+        const tableExists = dataStore.tableMap[tableId]
+        
+        if (!tableExists || !tableExists.fieldMap || Object.keys(tableExists.fieldMap).length === 0) {
+          console.log(`Table ${_tableName} not found in dataStore, fetching...`)
+          await updateUiColumns(_tableName)
+        }
+      })
     },
     [sqlite, tableName, fieldMap, updateUiColumns]
   )
