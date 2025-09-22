@@ -16,6 +16,7 @@ import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
 import { RightPanelNav } from "@/components/nav/right-panel-nav"
+import { TempPanel } from "@/components/nav/temp-panel"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
@@ -27,6 +28,7 @@ import {
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { ScriptBreadcrumb } from "@/apps/web-app/pages/[database]/extensions/components/extension-breadcrumb"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { DevTools } from "@/components/dev-tools"
 
 import { useLayoutInit } from "../../../web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
@@ -36,7 +38,7 @@ const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 export function DesktopSpaceLayout() {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
-  const { isRightPanelOpen, currentApp, resetCurrentApp } = useSpaceAppStore()
+  const { isRightPanelOpen, currentApp, resetCurrentApp, tempPanelNode } = useSpaceAppStore()
   const navigate = useNavigate()
   const { isActivated } = useActivation()
   const isBlocksPath = isStandaloneBlocksPath(useLocation().pathname)
@@ -170,15 +172,21 @@ export function DesktopSpaceLayout() {
                     className="grow border-t h-[calc(100%-38px)] overflow-y-auto"
                     ref={rightPanelRef}
                   >
-                    {currentApp === "chat" && (
-                      <Suspense fallback={<Loading />}>
-                        <AIChat />
-                      </Suspense>
-                    )}
-                    {isCurrentAppABlock && (
-                      <Suspense fallback={<Loading />}>
-                        <BlockApp url={currentApp} height={size?.height} />
-                      </Suspense>
+                    {tempPanelNode ? (
+                      <TempPanel />
+                    ) : (
+                      <>
+                        {currentApp === "chat" && (
+                          <Suspense fallback={<Loading />}>
+                            <AIChat />
+                          </Suspense>
+                        )}
+                        {isCurrentAppABlock && (
+                          <Suspense fallback={<Loading />}>
+                            <BlockApp url={currentApp} height={size?.height} />
+                          </Suspense>
+                        )}
+                      </>
                     )}
                   </div>
                 </ResizablePanel>

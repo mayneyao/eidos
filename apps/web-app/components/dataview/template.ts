@@ -285,5 +285,27 @@ WHERE
   d.my_custom_property = 'value1'
   AND d.my_custom_property_2 = 'value2'
     `
+  },
+  {
+    name: "queryAllUserTables",
+    i18nKey: "dataview.template.queryAllUserTables",
+    descriptionKey: "dataview.template.queryAllUserTables.description",
+    tags: ["table", "user", "custom"],
+    category: "table",
+    difficulty: "intermediate",
+    sql: `
+-- [pathname:url]
+SELECT
+  t.name as title,
+  '/${space}/' || t.id AS pathname
+FROM
+  eidos__tree t
+  JOIN sqlite_master sm ON sm.name = 'tb_' || t.id
+WHERE
+  t.type = 'table'
+  AND sm.type = 'table' AND t.is_deleted = 0
+ORDER BY
+  t.created_at DESC
+    `
   }
 ]

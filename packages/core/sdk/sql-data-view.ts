@@ -111,7 +111,7 @@ export class SqlDataView {
         await this.dataSpace.db.prepare('BEGIN TRANSACTION;').run()
 
         try {
-            await this.dataSpace.db.prepare(`CREATE ${isTemp ? 'TEMPORARY' : ''} VIEW IF NOT EXISTS ${viewName} AS ${createViewSql};`).run();
+            await this.dataSpace.db.prepare(`CREATE ${isTemp ? 'TEMPORARY' : ''} VIEW IF NOT EXISTS ${viewName} AS \n ${createViewSql};`).run();
             await this.dataSpace.view.add({
                 id: shortenId(uuidv7()),
                 name: `New View`,

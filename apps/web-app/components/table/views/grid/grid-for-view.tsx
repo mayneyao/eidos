@@ -187,6 +187,7 @@ export function GridViewForView(props: IGridProps) {
     }
   }, [selection])
 
+
   // Use the new hook
   const {
     freezeHandleRef,
@@ -199,6 +200,7 @@ export function GridViewForView(props: IGridProps) {
     currentView,
     columns, // Pass the columns array from useColumns
     gridRef: containerRef,
+    rowMarkersWidth: props.isEmbed ? 0 : 48,
   })
 
   // Re-introduce the config calculation using freezeColumns from the hook
@@ -206,6 +208,12 @@ export function GridViewForView(props: IGridProps) {
     let conf = {
       ...defaultConfig,
       freezeColumns: freezeColumns, // Use freezeColumns state from the hook
+      ...{
+        rowMarkers: {
+          kind: "both",
+          width: props.isEmbed ? 0 : 48,
+        } as DataEditorProps["rowMarkers"],
+      },
     }
     const sw = getScrollbarWidth()
     if (!hasScroll) {

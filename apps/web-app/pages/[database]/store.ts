@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { persist } from 'zustand/middleware'
+import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 
 interface ISpaceAppState {
   apps: string[]
@@ -32,6 +33,10 @@ interface ISpaceAppState {
 
   isMobileSidebarOpen: boolean
   setMobileSidebarOpen: (isMobileSidebarOpen: boolean) => void
+
+  tempPanelNode: ITreeNode | null
+  setTempPanelNode: (node: ITreeNode | null) => void
+  clearCurrentApp: () => void
 }
 
 interface IAppsState {
@@ -96,4 +101,8 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
 
   isMobileSidebarOpen: false,
   setMobileSidebarOpen: (isMobileSidebarOpen) => set({ isMobileSidebarOpen }),
+
+  tempPanelNode: null,
+  setTempPanelNode: (tempPanelNode) => set({ tempPanelNode }),
+  clearCurrentApp: () => set({ currentApp: "", currentAppIndex: -1 }),
 }))

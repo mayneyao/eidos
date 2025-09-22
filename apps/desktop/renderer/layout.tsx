@@ -5,9 +5,9 @@ import { Outlet } from "react-router-dom"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
 import { CommandDialogDemo } from "@/components/cmdk"
+import { DevTools } from "@/components/dev-tools"
 import { GodModeTooltip } from "@/components/god-mode-tooltip"
 import { ShortCuts } from "@/components/keyboard-shortcuts/shortcuts"
-import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeUpdater } from "@/components/theme-updater"
 import { Toaster } from "@/components/toaster"
@@ -43,7 +43,7 @@ export default function RootLayout() {
         <CommandDialogDemo />
         <ShortCuts />
       </SidebarProvider>
-      <TailwindIndicator />
+      <DevTools />
 
       <Toaster />
       <BlockUIDialog />

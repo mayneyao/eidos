@@ -12,7 +12,7 @@ import { BlockUIDialog } from "@/components/block-ui-dialog"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { ReloadPrompt } from "@/components/reload-prompt"
 import { ShortCuts } from "@/components/keyboard-shortcuts/shortcuts"
-import { TailwindIndicator } from "@/components/tailwind-indicator"
+import { DevTools } from "@/components/dev-tools"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeUpdater } from "@/components/theme-updater"
 import { GodModeTooltip } from "@/components/god-mode-tooltip"
@@ -44,7 +44,7 @@ export default function RootLayout() {
         <CommandDialogDemo />
         <ShortCuts />
       </SidebarProvider>
-      <TailwindIndicator />
+      <DevTools />
       <Toaster />
       <BlockUIDialog />
       <ReloadPrompt />

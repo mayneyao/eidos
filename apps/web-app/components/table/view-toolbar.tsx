@@ -3,7 +3,6 @@ import {
   type IView,
   type ViewType,
 } from "@/packages/core/types/IView"
-import { arrayMove } from "@dnd-kit/sortable"
 import { useKeyPress } from "ahooks"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import { useCallback, useContext, useEffect, useRef, useState } from "react"
@@ -43,6 +42,7 @@ import { TableContext, useCurrentView, useViewOperation } from "./hooks"
 import { useCustomTableViews } from "./hooks/use-custom-table-views"
 import { useTableSearchStore } from "./hooks/use-table-search-store"
 import { useViewCount } from "./hooks/use-view-count"
+import { SortableContainer } from "./sortable"
 import { ViewEditor } from "./view-editor/view-editor"
 import { ViewField } from "./view-field/view-field"
 import { ViewFilter } from "./view-filter"
@@ -51,7 +51,6 @@ import { ViewItem } from "./view-item"
 import { ViewRawQuery } from "./view-raw-query"
 import { ViewSearch } from "./view-search"
 import { ViewSort } from "./view-sort"
-import { SortableContainer } from "./sortable"
 
 const Views = ({
   views,

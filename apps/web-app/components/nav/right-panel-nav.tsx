@@ -6,10 +6,12 @@ import {
   PlusIcon,
   ToyBrickIcon,
   Trash2,
+  ExternalLinkIcon,
+  XIcon,
   type LucideIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 import { cn, getBlockIdFromUrl } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -32,6 +34,7 @@ import {
   useAppsStore,
   useSpaceAppStore,
 } from "@/apps/web-app/pages/[database]/store"
+import { isDayPageId } from "@/lib/utils"
 
 import { BlockContextMenu } from "./block-context-menu"
 
@@ -55,11 +58,12 @@ const DefaultAppInfoMap: Record<
 }
 
 export const RightPanelNav = () => {
-  const { setIsRightPanelOpen, setCurrentApp, currentApp, setApps } =
+  const { setIsRightPanelOpen, setCurrentApp, currentApp, setApps, tempPanelNode, setTempPanelNode } =
     useSpaceAppStore()
   const { apps, addApp, deleteApp } = useAppsStore()
   const { space } = useCurrentPathInfo()
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
   const handleAppChange = (app: string) => {
     setCurrentApp(app)
@@ -151,6 +155,26 @@ export const RightPanelNav = () => {
 
   const cleanMessages = () => {
     // setChatHistory([])
+  }
+
+  const handleOpenTempNode = () => {
+    if (!tempPanelNode) return
+    
+    if (isDayPageId(tempPanelNode.id)) {
+      navigate(`/${space}/everyday/${tempPanelNode.id}`)
+    } else {
+      navigate(`/${space}/${tempPanelNode.id}`)
+    }
+    // 清空临时节点并关闭面板
+    setTempPanelNode(null)
+    setCurrentApp("chat")
+    setIsRightPanelOpen(false)
+  }
+
+  const handleCloseTempNode = () => {
+    setTempPanelNode(null)
+    setCurrentApp("chat")
+    setIsRightPanelOpen(false)
   }
 
   return (
@@ -298,6 +322,26 @@ export const RightPanelNav = () => {
       </div>
       <div className="drag-region grow"></div>
       {currentApp === "chat" && <AIChatHeader />}
+      {tempPanelNode && (
+        <>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={handleOpenTempNode}
+            title={`Open ${tempPanelNode.name} in new tab`}
+          >
+            <ExternalLinkIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={handleCloseTempNode}
+            title="Close temporary panel"
+          >
+            <XIcon className="h-4 w-4" />
+          </Button>
+        </>
+      )}
       <Button
         size="xs"
         variant="ghost"

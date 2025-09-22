@@ -186,21 +186,21 @@ export function NodeItem({
           />
         </PopoverContent>
       </Popover>
-      <ContextMenuContent className="w-64">
+      <ContextMenuContent className="w-56">
         {/* <ContextMenuItem onClick={() => navigator.clipboard.writeText(node.id)}>
           <CopyIcon className="pr-2" />
           {t("node.menu.copyId")}
         </ContextMenuItem> */}
         <ContextMenuItem onClick={handleDeleteTable}>
-          <Trash2Icon className="pr-2" /> {t("common.delete")}
+          <Trash2Icon className="pr-1.5" /> {t("common.delete")}
         </ContextMenuItem>
         <ContextMenuItem onClick={handleRename}>
-          <PencilLineIcon className="pr-2" />
+          <PencilLineIcon className="pr-1.5" />
           {t("node.menu.rename")}
         </ContextMenuItem>
 
         <ContextMenuItem onClick={handleAddToChat}>
-          <MessageSquareIcon className="pr-2" />
+          <MessageSquareIcon className="pr-1.5" />
           {t("node.menu.addToChat", "Add to Chat")}
         </ContextMenuItem>
 
@@ -208,7 +208,7 @@ export function NodeItem({
           onClick={() => handleCut(node.id)}
           disabled={Boolean(currentCut && currentCut !== node.id)}
         >
-          <ScissorsIcon className="pr-2" />
+          <ScissorsIcon className="pr-1.5" />
           {currentCut === node.id
             ? t("node.menu.cancelCut")
             : t("node.menu.cut")}
@@ -219,7 +219,7 @@ export function NodeItem({
             onClick={() => handlePaste(node)}
             disabled={!currentCut}
           >
-            <ClipboardPasteIcon className="pr-2" />
+            <ClipboardPasteIcon className="pr-1.5" />
             {t("common.paste")}
           </ContextMenuItem>
         )}
@@ -228,12 +228,12 @@ export function NodeItem({
           <>
             {node.is_pinned ? (
               <ContextMenuItem onClick={() => unpin(node.id)}>
-                <PinOffIcon className="pr-2" />
+                <PinOffIcon className="pr-1.5" />
                 {t("node.menu.unpin")}
               </ContextMenuItem>
             ) : (
               <ContextMenuItem onClick={() => pin(node.id)}>
-                <PinIcon className="pr-2" />
+                <PinIcon className="pr-1.5" />
                 {t("node.menu.pin")}
               </ContextMenuItem>
             )}
@@ -244,22 +244,22 @@ export function NodeItem({
         {node.type === "folder" && (
           <>
             <ContextMenuItem onClick={handleCreateDoc}>
-              <FilePlus2Icon className="pr-2" />
+              <FilePlus2Icon className="pr-1.5" />
               {t("node.menu.newDoc")}
             </ContextMenuItem>
             <ContextMenuItem onClick={handleCreateTable}>
-              <FileSpreadsheetIcon className="pr-2" />
+              <FileSpreadsheetIcon className="pr-1.5" />
               {t("node.menu.newTable")}
             </ContextMenuItem>
             <ContextMenuItem onClick={handleCreateView}>
-              <FileSpreadsheetIcon className="pr-2" />
+              <FileSpreadsheetIcon className="pr-1.5" />
               {t("node.menu.newDataView")}
               <span className="mx-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
                 {t("common.badge.alpha")}
               </span>
             </ContextMenuItem>
             <ContextMenuItem onClick={handleCreateFolder} disabled={depth > 6}>
-              <FolderPlusIcon className="pr-2" />
+              <FolderPlusIcon className="pr-1.5" />
               {t("node.menu.newNestedFolder")}
             </ContextMenuItem>
             {extNodes.length > 0 && <ContextMenuSeparator />}
@@ -274,7 +274,7 @@ export function NodeItem({
                     )
                   }
                 >
-                  <FileIcon className="pr-2" />
+                  <FileIcon className="pr-1.5" />
                   {extNode.name}
                 </ContextMenuItem>
               )
@@ -287,7 +287,7 @@ export function NodeItem({
               onClick={() => duplicateTable(node.name, `${node.name}_copy`)}
               disabled
             >
-              <CopyIcon className="pr-2" />
+              <CopyIcon className="pr-1.5" />
               {t("node.menu.duplicate")}
             </ContextMenuItem>
           </>
@@ -296,7 +296,7 @@ export function NodeItem({
           <>
             <ContextMenuSub>
               <ContextMenuSubTrigger>
-                <PackageIcon className="pr-2" />
+                <PackageIcon className="pr-1.5" />
                 {t("node.menu.moveInto")}
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">

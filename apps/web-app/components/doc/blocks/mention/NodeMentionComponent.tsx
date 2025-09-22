@@ -14,6 +14,7 @@ import { ItemIcon } from "@/components/sidebar/item-tree"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
 import { NodeIconEditor } from "@/apps/web-app/pages/[database]/[node]/node-icon"
+import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 
 import { InnerEditor } from "../../editor"
 import { useEditorInstance } from "../../hooks/editor-instance-context"
@@ -32,8 +33,24 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
   const router = useNavigate()
   const { markerProperty, showReferenceNodeIcon } = useEditorInstance()
   const { properties } = useDocProperty({ docId: id })
+  const { setTempPanelNode, setIsRightPanelOpen, clearCurrentApp } =
+    useSpaceAppStore()
 
-  const onClick = () => {
+  const onClick = (event: React.MouseEvent) => {
+    if (event.altKey) {
+      event.preventDefault()
+      const nodeToShow = node || {
+        id,
+        name: props.title || "Loading...",
+        type: isDayPageId(id) ? "day" : "doc",
+        is_deleted: false,
+      }
+      clearCurrentApp()
+      setTempPanelNode(nodeToShow)
+      setIsRightPanelOpen(true, -1)
+      return
+    }
+
     if (isDayPageId(id)) {
       return router(`/${space}/everyday/${id}`)
     }
@@ -101,13 +118,14 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
             )}
           </>
         </TooltipTrigger>
-        {!props.disablePreview && (
-          <TooltipContent
-            side="bottom"
-            align="start"
-            className="max-h-[500px]  min-w-[300px] max-w-[450px] overflow-y-auto p-4 bg-secondary"
-          >
-            {node && (node?.type === "doc" || node?.type === "day") && (
+        {!props.disablePreview &&
+          node &&
+          (node?.type === "doc" || node?.type === "day") && (
+            <TooltipContent
+              side="bottom"
+              align="start"
+              className="max-h-[500px]  min-w-[300px] max-w-[450px] overflow-y-auto p-4 bg-secondary"
+            >
               <InnerEditor
                 isEditable={false}
                 docId={node.id}
@@ -116,9 +134,8 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
                 disablePlaceholder
                 className={"prose w-full max-w-full dark:prose-invert"}
               />
-            )}
-          </TooltipContent>
-        )}
+            </TooltipContent>
+          )}
       </Tooltip>
     </TooltipProvider>
   )

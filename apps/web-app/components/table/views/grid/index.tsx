@@ -11,8 +11,8 @@ import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
 import React, {
-  lazy,
   Suspense,
+  lazy,
   useCallback,
   useContext,
   useEffect,
@@ -262,6 +262,7 @@ export default function GridView(props: IGridProps) {
     }
   }, [selection])
 
+  const rowMarkersWidth = props.isEmbed ? 0 : 48
   // Use the new hook
   const {
     freezeHandleRef,
@@ -274,6 +275,7 @@ export default function GridView(props: IGridProps) {
     currentView,
     columns, // Pass the columns array from useColumns
     gridRef: containerRef,
+    rowMarkersWidth,
   })
 
   // Re-introduce the config calculation using freezeColumns from the hook
@@ -281,6 +283,12 @@ export default function GridView(props: IGridProps) {
     let conf = {
       ...defaultConfig,
       freezeColumns: freezeColumns, // Use freezeColumns state from the hook
+      ...{
+        rowMarkers: {
+          kind: props.isEmbed ? "none" : "both",
+          width: rowMarkersWidth,
+        } as DataEditorProps["rowMarkers"],
+      },
     }
     const sw = getScrollbarWidth()
     if (!hasScroll) {
@@ -486,7 +494,13 @@ export default function GridView(props: IGridProps) {
         )}
         <div ref={formulaEditorRef} className="fixed">
           {showEditor && (
-            <Suspense fallback={<div className="flex items-center justify-center p-4">Loading Formula Editor...</div>}>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center p-4">
+                  Loading Formula Editor...
+                </div>
+              }
+            >
               <FormulaEditor
                 editorRef={editorRef}
                 closeEditor={closeEditor}

@@ -10,6 +10,7 @@ interface UseFreezeLineProps {
     gridRef: React.RefObject<HTMLElement | null>;
     currentView: IView<IGridViewProperties> | null | undefined;
     columns: readonly GridColumn[] | undefined;
+    rowMarkersWidth?: number;
     // Optional callback if the parent needs to persist the change
     // onFreezeColumnsChange?: (count: number) => void;
 }
@@ -23,6 +24,7 @@ export function useFreezeLine({
     gridRef,
     currentView,
     columns,
+    rowMarkersWidth = ROW_NUMBER_COL_WIDTH,
 }: // onFreezeColumnsChange,
     UseFreezeLineProps) {
     const freezeHandleRef = useRef<HTMLDivElement>(null);
@@ -49,8 +51,8 @@ export function useFreezeLine({
     // Calculate column end positions (right edge relative to start)
     const columnEndPositions = useMemo(() => {
         if (!columns) return [];
-        const positions = [ROW_NUMBER_COL_WIDTH]; // End of row numbers column
-        let currentLeft = ROW_NUMBER_COL_WIDTH;
+        const positions = [rowMarkersWidth]; // End of row numbers column
+        let currentLeft = rowMarkersWidth;
         for (let i = 0; i < columns.length; i++) {
             const column = columns[i];
             // Attempt to access width safely, provide default
@@ -66,7 +68,7 @@ export function useFreezeLine({
     // Calculate the exact position where the *actual* freeze line should be visually
     const freezeLinePosition = useMemo(() => {
         if (freezeColumns <= 0 || !columns || freezeColumns > columns.length) {
-            return ROW_NUMBER_COL_WIDTH + FREEZE_LINE_OFFSET;
+            return rowMarkersWidth + FREEZE_LINE_OFFSET;
         }
         return columnEndPositions[freezeColumns] + FREEZE_LINE_OFFSET;
     }, [columnEndPositions, freezeColumns, columns]);

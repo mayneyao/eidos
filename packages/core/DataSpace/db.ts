@@ -1,3 +1,4 @@
+import { logger } from "@/lib/env"
 import { timeit } from "../helper"
 import { buildSql, isReadOnlySql } from "../sqlite/helper"
 import { BaseDataSpace } from "./base"
@@ -159,14 +160,14 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
 
   // return object array
   public async sql4mainThread2(sql: string, bind: any[] = []) {
-    // logger.debug(
-    //   "[%cSQLQuery:%cCallViaRawSql]",
-    //   "color:indigo",
-    //   "color:red",
-    //   sql,
-    //   bind,
-    //   "object"
-    // )
+    logger.debug(
+      "[%cSQLQuery:%cCallViaRawSql]",
+      "color:indigo",
+      "color:red",
+      sql,
+      bind,
+      "object"
+    )
     return this.execSqlWithBind(sql, bind, "object")
   }
 }
