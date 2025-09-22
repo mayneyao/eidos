@@ -30,6 +30,7 @@ import { useEmoji } from "@/apps/web-app/hooks/use-emoji"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { EverydayPageContent } from "../everyday/[day]/page"
 import { NodeCover } from "./node-cover"
@@ -54,6 +55,7 @@ export const NodeComponent = ({
   const { getEmoji } = useEmoji()
   const { updateIcon, updateCover, updateHideProperties } = useNode()
   const { space } = useCurrentPathInfo()
+  const { isCmdkOpen } = useAppRuntimeStore()
 
   useEffect(() => {
     const bc = new BroadcastChannel(EidosDataEventChannelName)
@@ -104,7 +106,7 @@ export const NodeComponent = ({
   const toggleProperties = async () => {
     await updateHideProperties(node?.id!, !node?.hide_properties)
   }
-  const isReadOnly = node.is_locked || isInkServiceMode
+  const isReadOnly = node.is_locked || isInkServiceMode || isCmdkOpen
 
   return (
     <>

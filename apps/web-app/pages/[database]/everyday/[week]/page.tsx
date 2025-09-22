@@ -5,12 +5,14 @@ import { getDaysByYearWeek } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Editor } from "@/components/doc/editor"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { getDisplayTitle } from "../utils"
 
 export const WeekPage = () => {
   const params = useCurrentPathInfo()
   const { day } = useParams()
   const [currentDay, setCurrentDay] = useState<string>("")
+  const { isCmdkOpen } = useAppRuntimeStore()
   const days: any[] = getDaysByYearWeek(day!).map((day) => {
     return {
       id: day,
@@ -35,7 +37,7 @@ export const WeekPage = () => {
               docId={day.id}
               namespace="eidos-notes-home-page"
               autoFocus={index === 0}
-              isEditable
+              isEditable={!isCmdkOpen}
               placeholder=""
               isActive={currentDay === day.id}
               disableSelectionPlugin

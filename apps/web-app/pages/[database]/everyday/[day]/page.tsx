@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Editor } from "@/components/doc/editor"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { WeekPage } from "../[week]/page"
 import { useDays } from "../hooks"
@@ -29,6 +30,7 @@ export function EverydayPageContent({
   const [month, setMonth] = useState<Date>(new Date(day as string))
   const router = useNavigate()
   const { days } = useDays()
+  const { isCmdkOpen } = useAppRuntimeStore()
   const handleDayClick = (date: Date, closePopover = false) => {
     const day = getLocalDate(date)
     setMonth(date)
@@ -42,7 +44,7 @@ export function EverydayPageContent({
   return (
     <div className="flex gap-4 grow">
       <Editor
-        isEditable
+        isEditable={!isCmdkOpen}
         title={day}
         showTitle
         namespace="eidos-notes"

@@ -26,7 +26,7 @@ export const useDataView = () => {
         const id = uuidv7().split("-").join("")
         await sqlite?.tree.addNode({
             id,
-            name: `New View - ${propertyValue}`,
+            name: `DataView - ${propertyValue}`,
             type: TreeNodeType.Dataview,
         })
         const query = generateCustomPropertyQuery(propertyKey, propertyValue, space)

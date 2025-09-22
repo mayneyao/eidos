@@ -6,6 +6,7 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { useAllDays, useDays } from "./hooks"
 import { getDisplayTitle } from "./utils"
@@ -16,6 +17,7 @@ export default function EverydayPage() {
     params.space
   )
   let [searchParams, setSearchParams] = useSearchParams()
+  const { isCmdkOpen } = useAppRuntimeStore()
 
   const [sentryRef] = useInfiniteScroll({
     loading,
@@ -66,7 +68,7 @@ export default function EverydayPage() {
                   docId={day.id}
                   namespace="eidos-notes-home-page"
                   autoFocus={index === 0}
-                  isEditable
+                  isEditable={!isCmdkOpen}
                   placeholder=""
                   disableSelectionPlugin
                   disableSafeBottomPaddingPlugin

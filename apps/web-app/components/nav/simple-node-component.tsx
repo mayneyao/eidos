@@ -5,6 +5,7 @@ import { Editor } from "@/components/doc/editor"
 import { Table } from "@/components/table"
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 interface SimpleNodeComponentProps {
   nodeId: string
@@ -17,6 +18,7 @@ export const SimpleNodeComponent = ({
 }: SimpleNodeComponentProps) => {
   const nodeMap = useNodeMap()
   const currentPathInfo = useCurrentPathInfo()
+  const { isCmdkOpen } = useAppRuntimeStore()
 
   const actualSpace = space || currentPathInfo.space
 
@@ -45,7 +47,7 @@ export const SimpleNodeComponent = ({
     return (
       <Editor
         isActive={false}
-        isEditable
+        isEditable={!isCmdkOpen}
         docId={node.id}
         title={node.name}
         showTitle={true}
