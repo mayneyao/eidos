@@ -8,6 +8,9 @@ import type { PlaygroundFile } from './file-system/playground';
 import nodeAdapter from './lib/node-adapter';
 import type { ApiAgentStatus } from './server/api-agent';
 
+// AI related
+import { generateText, generateObject } from 'ai';
+
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void;
 
 
@@ -210,13 +213,11 @@ function main() {
           }
         } as Response;
       });
+    },
+    AI: {
+      generateText,
+      generateObject
     }
   })
-
-
-
 }
-
-
-
 main()

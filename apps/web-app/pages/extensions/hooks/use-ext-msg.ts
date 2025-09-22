@@ -6,10 +6,11 @@ import { uuidv7 } from "@/lib/utils"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useScriptCall } from "@/apps/web-app/hooks/use-script-call"
-import { getSqliteChannel } from "@/packages/core/sqlite/channel"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { getSqliteChannel } from "@/packages/core/sqlite/channel"
 import { generateObject, generateText, jsonSchema } from "ai"
 import { useExtensions } from "./use-extensions"
+import { isDesktopMode } from "@/lib/env"
 
 
 export enum ExtMsgType {
@@ -137,7 +138,8 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                 console.log("receive generate object", _args)
                 const payload = _args[0]
                 const llmodel = getLLModel(payload.model || textModel)
-                generateObject({
+                let _generateObject = isDesktopMode ? window.eidos.AI.generateObject : generateObject
+                _generateObject({
                   model: llmodel,
                   prompt: payload.prompt,
                   schema: jsonSchema(payload.schema),
@@ -168,7 +170,9 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                 console.log("receive generate text", _args)
                 const payload = _args[0]
                 const llmodel = getLLModel(payload.model || textModel)
-                generateText({
+                // forward request to backend avoid CORS issue
+                let _generateText = isDesktopMode ? window.eidos.AI.generateText : generateText
+                _generateText({
                   model: llmodel,
                   prompt: payload.prompt,
                 }).then(({ text }) => {
