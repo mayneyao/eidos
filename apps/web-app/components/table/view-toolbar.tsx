@@ -1,3 +1,4 @@
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
   ViewTypeEnum,
   type IView,
@@ -5,7 +6,6 @@ import {
 } from "@/packages/core/types/IView"
 import { useKeyPress } from "ahooks"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
-import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 import {
@@ -15,15 +15,7 @@ import {
   useSearchParams,
 } from "react-router-dom"
 
-import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useTableOperation } from "@/apps/web-app/hooks/use-table"
-import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from "@/components/eui/sub-page-dialog"
+import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +26,15 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/eui/sub-page-dialog"
+import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useTableOperation } from "@/apps/web-app/hooks/use-table"
+import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
 
 import { Button } from "../ui/button"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
@@ -87,23 +87,23 @@ const Views = ({
     setLocalViews(views)
   }, [views])
 
-
   const handleReorder = useCallback(
     (newViews: IView[]) => {
       setLocalViews(newViews)
-      
+
       // Call external callback asynchronously to avoid blocking UI updates
       setTimeout(() => {
         // Find the moved view by comparing with original order
-        const originalOrder = views.map(v => v.id)
-        const newOrder = newViews.map(v => v.id)
-        
+        const originalOrder = views.map((v) => v.id)
+        const newOrder = newViews.map((v) => v.id)
+
         // Find which view moved and where
         for (let i = 0; i < newOrder.length; i++) {
           if (originalOrder[i] !== newOrder[i]) {
             const movedViewId = newOrder[i]
             const targetViewId = i > 0 ? newOrder[i - 1] : newOrder[i + 1]
-            const direction = i > originalOrder.indexOf(movedViewId) ? "down" : "up"
+            const direction =
+              i > originalOrder.indexOf(movedViewId) ? "down" : "up"
             onReorder?.(movedViewId, targetViewId, direction)
             break
           }
@@ -468,14 +468,13 @@ export const ViewToolbar = (props: {
             <ViewSort view={currentView} />
             <ViewField view={currentView} />
             {isView && <ViewRawQuery />}
+            {!props.isReadOnly && !isView && (
+              <Button size="xs" onClick={handleAddRow} variant="ghost">
+                <PlusIcon className="h-4 w-4"></PlusIcon>
+                {/* {t("common.new")} */}
+              </Button>
+            )}
           </div>
-
-          {!props.isReadOnly && !isView && (
-            <Button size="xs" onClick={handleAddRow} variant="ghost">
-              <PlusIcon className="h-4 w-4"></PlusIcon>
-              {/* {t("common.new")} */}
-            </Button>
-          )}
           <Dialog open={open} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger>
               <div></div>

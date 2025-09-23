@@ -17,16 +17,17 @@ import { useViewQuery } from "./hooks/use-view-query"
 import type { FilterValueType } from "../../../../packages/core/types/IViewFilter"
 import { ViewFilterEditor } from "./view-filter-editor/view-filter-editor"
 
-export const ViewFilter = (props: { view: IView }) => {
+export const ViewFilter = (props: { view?: IView }) => {
   const { tableName, space } = useContext(TableContext)
   const { parsedSql } = useViewQuery(props.view)
   const { updateView } = useViewOperation()
-  const hasFilter = Boolean(parsedSql.where)
+  const hasFilter = Boolean(parsedSql?.where)
   // const value = defaultValue
-  const value = hasFilter ? props.view.filter : null
+  const value = hasFilter ? props.view?.filter : null
 
   // const res = transformFilterItems2SqlExpr(value as any)
   const handleFilterValueChange = (value: FilterValueType) => {
+    if (!props.view) return
     const sql = transformFilterItems2SqlString(props.view.query, value)
     updateView(props.view.id, {
       query: sql,
@@ -34,6 +35,7 @@ export const ViewFilter = (props: { view: IView }) => {
     })
   }
   const handleClearFilter = () => {
+    if (!props.view) return
     const sql = transformFilterItems2SqlString(props.view.query, null)
     updateView(props.view.id, {
       query: sql,
@@ -41,10 +43,6 @@ export const ViewFilter = (props: { view: IView }) => {
   }
 
   const { uiColumns } = useUiColumns(tableName, space)
-
-  if (!props.view) {
-    return null
-  }
 
   return (
     <Popover>

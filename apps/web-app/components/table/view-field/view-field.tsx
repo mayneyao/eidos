@@ -28,8 +28,14 @@ export interface ContainerState {
 export const ViewField = (props: { view?: IView }) => {
   const { t } = useTranslation()
   const { isView } = useTableContext()
+  const { tableName, space } = useContext(TableContext)
+  const { uiColumns } = useUiColumns(tableName, space)
+  const { setIsAddFieldEditorOpen } = useTableAppStore()
+  const { updateView } = useViewOperation()
 
   const [open, setOpen] = useState(false)
+  const [cards, setCards] = useState<IField[]>([])
+  
   const orderMap = useMemo(
     () => props.view?.order_map || {},
     [props.view?.order_map]
@@ -38,10 +44,7 @@ export const ViewField = (props: { view?: IView }) => {
     () => props.view?.hidden_fields || [],
     [props.view?.hidden_fields]
   )
-  const { tableName, space } = useContext(TableContext)
-  const { uiColumns } = useUiColumns(tableName, space)
-  const { setIsAddFieldEditorOpen } = useTableAppStore()
-  const [cards, setCards] = useState<IField[]>([])
+  
   const sortedUiColumns = useMemo(
     () =>
       sortBy(uiColumns, (item) => {
@@ -54,24 +57,25 @@ export const ViewField = (props: { view?: IView }) => {
     setCards(sortedUiColumns)
   }, [sortedUiColumns])
 
-  const { updateView } = useViewOperation()
   const updateViewOrderMap = useCallback(
     (newOrderMap: IView["order_map"]) => {
-      props.view && updateView(props.view?.id, { order_map: newOrderMap })
+      if (!props.view) return
+      updateView(props.view.id, { order_map: newOrderMap })
     },
     [props.view, updateView]
   )
 
   const updateHiddenFields = useCallback(
     (newHiddenFields: string[]) => {
-      props.view &&
-        updateView(props.view?.id, { hidden_fields: newHiddenFields })
+      if (!props.view) return
+      updateView(props.view.id, { hidden_fields: newHiddenFields })
     },
     [props.view, updateView]
   )
 
   const handleHideField = useCallback(
     (fieldId: string) => {
+      if (!props.view) return
       const hiddenFieldsSet = new Set([...(hiddenFields || [])])
       if (hiddenFieldsSet.has(fieldId)) {
         hiddenFieldsSet.delete(fieldId)
@@ -80,23 +84,26 @@ export const ViewField = (props: { view?: IView }) => {
       }
       updateHiddenFields(Array.from(hiddenFieldsSet))
     },
-    [hiddenFields, updateHiddenFields]
+    [hiddenFields, updateHiddenFields, props.view]
   )
 
-  const showAllFields = () => {
+  const showAllFields = useCallback(() => {
+    if (!props.view) return
     updateHiddenFields([])
-  }
+  }, [updateHiddenFields, props.view])
 
-  const hideAllFields = () => {
+  const hideAllFields = useCallback(() => {
+    if (!props.view) return
     updateHiddenFields(
       uiColumns
         .filter((field) => field.table_column_name !== "title")
         .map((item) => item.table_column_name)
     )
-  }
+  }, [updateHiddenFields, uiColumns, props.view])
 
   const handleReorder = useCallback(
     (newCards: IField[]) => {
+      if (!props.view) return
       setCards(newCards)
       const newOrderMap: IView["order_map"] = {}
       newCards.forEach((item, index) => {
@@ -104,14 +111,13 @@ export const ViewField = (props: { view?: IView }) => {
       })
       updateViewOrderMap(newOrderMap)
     },
-    [updateViewOrderMap]
+    [updateViewOrderMap, props.view]
   )
 
-
-  const handleAddFieldClick = () => {
+  const handleAddFieldClick = useCallback(() => {
     setOpen(false)
     setIsAddFieldEditorOpen(true)
-  }
+  }, [setIsAddFieldEditorOpen])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
