@@ -2,7 +2,7 @@
 title: Doc API Reference
 ---
 
-The `eidos__doc` table is a built-in table in Eidos used for storing documents, supporting document content management, property management, and full-text search functionality. This table works in conjunction with the Tree table, where the Tree table stores the hierarchical structure and metadata of documents, while the Doc table stores the specific content and custom properties of documents.
+The `eidos__docs` table is a built-in table in Eidos used for storing documents, supporting document content management, property management, and full-text search functionality. This table works in conjunction with the Tree table, where the Tree table stores the hierarchical structure and metadata of documents, while the Doc table stores the specific content and custom properties of documents.
 
 The document table supports a dynamic property system. In addition to predefined system fields, users can add any number of custom properties to each document. These custom properties are automatically created as database columns with a default type of Text.
 
@@ -11,7 +11,7 @@ The document table supports a dynamic property system. In addition to predefined
 ### Database Schema
 
 ```sql
-CREATE TABLE IF NOT EXISTS eidos__doc (
+CREATE TABLE IF NOT EXISTS eidos__docs (
   id TEXT PRIMARY KEY,
   content TEXT,
   markdown TEXT,
@@ -22,10 +22,10 @@ CREATE TABLE IF NOT EXISTS eidos__doc (
 );
 
 CREATE TRIGGER IF NOT EXISTS update_time_trigger__eidos__doc
-AFTER UPDATE ON eidos__doc
+AFTER UPDATE ON eidos__docs
 FOR EACH ROW
 BEGIN
-  UPDATE eidos__doc SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+  UPDATE eidos__docs SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
 ```
 

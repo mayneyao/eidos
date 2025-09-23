@@ -2,7 +2,7 @@
 title: Doc API 参考
 ---
 
-`eidos__doc` 表是 Eidos 中用于存储文档的内置表，支持文档内容管理、属性管理和全文搜索功能。该表与 Tree 表配合使用，Tree 表存储文档的层次结构和元数据，而 Doc 表存储文档的具体内容和自定义属性。
+`eidos__docs` 表是 Eidos 中用于存储文档的内置表，支持文档内容管理、属性管理和全文搜索功能。该表与 Tree 表配合使用，Tree 表存储文档的层次结构和元数据，而 Doc 表存储文档的具体内容和自定义属性。
 
 文档表支持动态属性系统，除了预定义的系统字段外，用户可以为每个文档添加任意数量的自定义属性。这些自定义属性会自动创建为数据库列，默认类型为 Text。
 
@@ -11,7 +11,7 @@ title: Doc API 参考
 ### 数据库 Schema
 
 ```sql
-CREATE TABLE IF NOT EXISTS eidos__doc (
+CREATE TABLE IF NOT EXISTS eidos__docs (
   id TEXT PRIMARY KEY,
   content TEXT,
   markdown TEXT,
@@ -22,10 +22,10 @@ CREATE TABLE IF NOT EXISTS eidos__doc (
 );
 
 CREATE TRIGGER IF NOT EXISTS update_time_trigger__eidos__doc
-AFTER UPDATE ON eidos__doc
+AFTER UPDATE ON eidos__docs
 FOR EACH ROW
 BEGIN
-  UPDATE eidos__doc SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+  UPDATE eidos__docs SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
 ```
 
