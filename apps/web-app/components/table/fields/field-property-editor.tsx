@@ -10,7 +10,7 @@ import { CommonMenuItem } from "@/components/common-menu-item"
 import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 
 import { TableContext } from "../hooks"
-import { useTableAppStore } from "../views/grid/store"
+import { useTableStore } from "../table-store-provider"
 import { FieldDelete } from "./field-delete"
 import { FieldNameEdit } from "./field-name-edit"
 import { FieldTypeSelect } from "./field-type-select"
@@ -62,7 +62,7 @@ export const FieldPropertyEditor = ({
   const { t } = useTranslation()
   const ref = React.useRef<HTMLDivElement>(null)
   const { setIsFieldPropertiesEditorOpen, currentUiColumn: currentField } =
-    useTableAppStore()
+    useTableStore()
   const { updateViewColumn } = useTableOperation(tableName, databaseName)
   const { isView } = useContext(TableContext)
   const handleDeleteField = () => {

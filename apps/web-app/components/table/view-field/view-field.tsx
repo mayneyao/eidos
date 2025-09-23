@@ -14,7 +14,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { CommonMenuItem } from "@/components/common-menu-item"
-import { useTableAppStore } from "@/components/table/views/grid/store"
+import { useTableStore } from "@/components/table/table-store-provider"
 
 import { TableContext, useTableContext, useViewOperation } from "../hooks"
 import { FieldItemCard } from "./view-field-item"
@@ -30,7 +30,7 @@ export const ViewField = (props: { view?: IView }) => {
   const { isView } = useTableContext()
   const { tableName, space } = useContext(TableContext)
   const { uiColumns } = useUiColumns(tableName, space)
-  const { setIsAddFieldEditorOpen } = useTableAppStore()
+  const { setIsAddFieldEditorOpen } = useTableStore()
   const { updateView } = useViewOperation()
 
   const [open, setOpen] = useState(false)

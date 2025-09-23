@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-import { useTableAppStore } from "../views/grid/store"
+import { useTableStore } from "../table-store-provider"
 import {
   NotImplementEditor,
   PropertyEditorTypeMap,
@@ -58,7 +58,7 @@ export function FieldAppendPanel({
   const [currentField, setCurrentField] = React.useState<IField>()
   const { tableName } = useTableContext()
   const ref = React.useRef<HTMLDivElement>(null)
-  const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
+  const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableStore()
   const fieldTypes = [
     { name: t("table.field.text"), value: FieldType.Text, icon: BaselineIcon },
     { name: t("table.field.number"), value: FieldType.Number, icon: HashIcon },

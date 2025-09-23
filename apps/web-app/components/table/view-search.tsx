@@ -21,7 +21,7 @@ import type {
   SemanticSearchResultData} from "./hooks/use-table-search-store";
 import {
   useTableSearchStore,
-} from "./hooks/use-table-search-store"
+} from "./table-store-provider"
 import { useTableSemanticSearch } from "./hooks/use-table-semantic-search"
 import { SemanticSearchResultsList } from "./semantic-search-results-list"
 import { useTableContext } from "./hooks"

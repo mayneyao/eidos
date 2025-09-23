@@ -1,6 +1,7 @@
 import type {
   GridSelection,
-  Rectangle} from "@glideapps/glide-data-grid";
+  Rectangle
+} from "@glideapps/glide-data-grid";
 import {
   CompactSelection
 } from "@glideapps/glide-data-grid"
@@ -22,8 +23,6 @@ interface ITableAppState {
   isFieldPropertiesEditorOpen: boolean
   setIsFieldPropertiesEditorOpen: (isFieldPropertiesEditorOpen: boolean) => void
 
-  selectedFieldType: string
-  setSelectedFieldType: (selectedFieldType: string) => void
 
   selection: GridSelection
   setSelection: (selection: GridSelection) => void
@@ -49,7 +48,8 @@ interface ITableAppState {
   clearAddedRowIds: () => void
 }
 
-export const useTableAppStore = create<ITableAppState>()((set) => ({
+// Store factory function
+export const createTableStore = () => create<ITableAppState>()((set) => ({
   isAddFieldEditorOpen: false,
   setIsAddFieldEditorOpen: (isAddFieldEditorOpen) =>
     set({ isAddFieldEditorOpen }),
@@ -59,8 +59,6 @@ export const useTableAppStore = create<ITableAppState>()((set) => ({
     set({ isFieldPropertiesEditorOpen })
   },
 
-  selectedFieldType: "",
-  setSelectedFieldType: (selectedFieldType) => set({ selectedFieldType }),
 
   selection: {
     columns: CompactSelection.empty(),
@@ -115,3 +113,6 @@ export const useTableAppStore = create<ITableAppState>()((set) => ({
     })
   },
 }))
+
+// Export the store factory and types for use in components
+export type { ITableAppState, IMenu }

@@ -35,7 +35,7 @@ import { useTranslation } from "react-i18next"
 
 import { TableContext, useTableContext } from "../../hooks"
 import { ScriptContextMenu } from "./script-context-menu"
-import { useTableAppStore } from "./store"
+import { useTableStore } from "../../table-store-provider"
 
 export function GridContextMenu({
   children,
@@ -51,7 +51,7 @@ export function GridContextMenu({
   openAItools: () => void
 }) {
   const { t } = useTranslation()
-  const { selection, clearSelection } = useTableAppStore()
+  const { selection, clearSelection } = useTableStore()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const count = useMemo(() => {
     let rowCount = 0

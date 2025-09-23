@@ -21,7 +21,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { FileSelector } from "@/components/file-selector"
 
-import { useTableAppStore } from "../../store"
+import { useTableStore } from "../../../../table-store-provider"
 import { drawImage } from "../helper"
 import { Card } from "./file-cell-eidtor"
 import { FilePreview } from "./file-preview"
@@ -47,7 +47,7 @@ export const FileCellEditor: ReturnType<
   const className = cell.className
 
   const [open, setOpen] = useState(false)
-  const { currentPreviewIndex, setCurrentPreviewIndex } = useTableAppStore()
+  const { currentPreviewIndex, setCurrentPreviewIndex } = useTableStore()
 
   const moveCard = useCallback(
     (dragIndex: number, hoverIndex: number) => {

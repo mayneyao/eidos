@@ -5,7 +5,7 @@ import { TableContext, useViewOperation } from "@/components/table/hooks"
 import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
-import { useTableAppStore } from "../views/grid/store"
+import { useTableStore } from "../table-store-provider"
 import { FieldAppendPanel } from "./field-append-panel"
 import { FieldEditorDropdown } from "./field-editor-dropdown"
 import { FieldPropertyEditor } from "./field-property-editor"
@@ -25,7 +25,7 @@ export const FieldEditor = (props: IFieldEditorProps) => {
     currentUiColumn,
     fieldInsertPosition,
     setFieldInsertPosition,
-  } = useTableAppStore()
+  } = useTableStore()
   const { uiColumns } = useUiColumns(tableName, databaseName)
 
   useEffect(() => {

@@ -3,7 +3,7 @@ import { useSqlite } from '@/apps/web-app/hooks/use-sqlite'
 import { useThrottleFn } from "ahooks"
 import { useContext, useEffect, useRef, useState } from "react"
 import { TableContext, useView } from "../hooks"
-import { useTableSearchStore } from "./use-table-search-store"
+import { useTableSearchStore } from "../table-store-provider"
 
 const MIN_SEARCH_LENGTH = 2
 const PAGE_SIZE = 100

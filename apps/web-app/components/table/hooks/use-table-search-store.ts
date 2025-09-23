@@ -59,7 +59,6 @@ interface TableSearchState {
     setSemanticSearchSelectedIndex: (index: number | ((prev: number) => number)) => void
 }
 
-
 const emptySemanticSearchResult: SemanticSearchResult = {
     meta: {
         page: 1,
@@ -69,7 +68,8 @@ const emptySemanticSearchResult: SemanticSearchResult = {
     results: []
 }
 
-export const useTableSearchStore = create<TableSearchState>((set) => ({
+// Store factory function
+export const createTableSearchStore = () => create<TableSearchState>((set) => ({
     searchQuery: '',
     showSearch: false,
     searchResults: [],
@@ -133,4 +133,7 @@ export const useTableSearchStore = create<TableSearchState>((set) => ({
     setSemanticSearchSelectedIndex: (index) => set((state) => ({
         semanticSearchSelectedIndex: typeof index === 'function' ? index(state.semanticSearchSelectedIndex) : index
     })),
-})) 
+}))
+
+// Export types for use in components
+export type { TableSearchState } 

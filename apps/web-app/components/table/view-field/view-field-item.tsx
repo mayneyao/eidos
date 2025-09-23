@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 
 import "./index.css"
 import type { IField } from "@/packages/core/types/IField"
-import { useTableAppStore } from "@/components/table/views/grid/store"
+import { useTableStore } from "@/components/table/table-store-provider"
 
 import { makeHeaderIcons } from "../fields/header-icons"
 
@@ -32,7 +32,7 @@ export const FieldItemCard: FC<CardProps> = ({
   onToggleHidden,
 }) => {
   const { setIsFieldPropertiesEditorOpen, setCurrentUiColumn } =
-    useTableAppStore()
+    useTableStore()
   
   const {
     attributes,

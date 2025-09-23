@@ -36,7 +36,7 @@ import {
 import { useTableFields } from "@/apps/web-app/hooks/use-table"
 
 import { useColumns } from "../views/grid/hooks/use-col"
-import { useTableAppStore } from "../views/grid/store"
+import { useTableStore } from "../table-store-provider"
 import { FieldNameEdit } from "./field-name-edit"
 
 interface IFieldEditorDropdownProps {
@@ -56,7 +56,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     currentUiColumn,
     setCurrentUiColumn,
     setFieldInsertPosition,
-  } = useTableAppStore()
+  } = useTableStore()
 
   const { isView } = useContext(TableContext)
   const isOpen = menu !== undefined

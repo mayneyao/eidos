@@ -30,7 +30,7 @@ import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { TwinkleSparkle } from "../../../loading"
 import { Button } from "../../../ui/button"
 import { TableContext, useCurrentView } from "../../hooks"
-import { useTableSearchStore } from "../../hooks/use-table-search-store"
+import { useTableSearchStore } from "../../table-store-provider"
 import { useViewCount } from "../../hooks/use-view-count"
 import { customCells } from "./cells"
 import { GridContextMenu } from "./grid-context-menu"
@@ -46,7 +46,7 @@ import { useHover } from "./hooks/use-hover"
 import { AITools } from "./plugins/ai-tools"
 // import { FormulaEditor } from "./plugins/formula-editor"
 import { useFormulaEditor } from "./plugins/use-formula-editor"
-import { useTableAppStore } from "./store"
+import { useTableStore } from "../../table-store-provider"
 import "./styles.css"
 import { useUndoRedo } from "./hooks/use-undo-redo"
 import { useDynamicTheme } from "./theme"
@@ -159,7 +159,7 @@ export default function GridView(props: IGridProps) {
   }, [currentView?.id, reset])
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
-    useTableAppStore()
+    useTableStore()
   const [isAItoolsOpen, setIsAItoolsOpen] = React.useState(false)
 
   const onSelectionChange = useCallback(
@@ -262,7 +262,7 @@ export default function GridView(props: IGridProps) {
     }
   }, [selection])
 
-  const rowMarkersWidth = props.isEmbed ? 0 : 48
+  // const rowMarkersWidth = props.isEmbed ? 0 : 48
   // Use the new hook
   const {
     freezeHandleRef,
@@ -275,7 +275,7 @@ export default function GridView(props: IGridProps) {
     currentView,
     columns, // Pass the columns array from useColumns
     gridRef: containerRef,
-    rowMarkersWidth,
+    // rowMarkersWidth,
   })
 
   // Re-introduce the config calculation using freezeColumns from the hook
@@ -283,12 +283,12 @@ export default function GridView(props: IGridProps) {
     let conf = {
       ...defaultConfig,
       freezeColumns: freezeColumns, // Use freezeColumns state from the hook
-      ...{
-        rowMarkers: {
-          kind: props.isEmbed ? "none" : "both",
-          width: rowMarkersWidth,
-        } as DataEditorProps["rowMarkers"],
-      },
+      // ...{
+      //   rowMarkers: {
+      //     kind: props.isEmbed ? "none" : "both",
+      //     width: rowMarkersWidth,
+      //   } as DataEditorProps["rowMarkers"],
+      // },
     }
     const sw = getScrollbarWidth()
     if (!hasScroll) {
@@ -311,7 +311,7 @@ export default function GridView(props: IGridProps) {
   useEffect(() => {
     clearSelection()
   }, [tableName, databaseName, clearSelection])
-  const { menu, setMenu } = useTableAppStore()
+  const { menu, setMenu } = useTableStore()
 
   const onHeaderClicked = React.useCallback(
     (col: number, e: HeaderClickedEventArgs) => {
