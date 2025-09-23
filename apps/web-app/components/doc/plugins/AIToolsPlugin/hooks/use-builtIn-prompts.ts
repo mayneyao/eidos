@@ -1,4 +1,4 @@
-import { TaskType } from "@/apps/web-app/pages/settings/ai/hooks"
+import { TaskType } from "@/components/settings/global/ai/hooks"
 
 export const useBuiltInPrompts = () => {
   return [

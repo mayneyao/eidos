@@ -1,21 +1,13 @@
-import { Separator } from "@/components/ui/separator"
-import { useTranslation } from "react-i18next"
-
-import { StorageForm } from "./storage-form"
+import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 
 export default function SettingsStoragePage() {
-  const { t } = useTranslation();
+  const navigate = useNavigate()
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">{t("settings.storage")}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t("settings.storage.description")}
-        </p>
-      </div>
-      <Separator />
-      <StorageForm />
-    </div>
-  )
+  useEffect(() => {
+    // Redirect to the unified settings page with storage section
+    navigate("/settings?section=storage", { replace: true })
+  }, [navigate])
+
+  return null
 }

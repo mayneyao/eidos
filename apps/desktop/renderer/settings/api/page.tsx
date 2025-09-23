@@ -1,22 +1,13 @@
-import { useTranslation } from "react-i18next"
-
-import { Separator } from "@/components/ui/separator"
-
-import { ApiForm } from "./api-form"
+import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 
 export default function SettingsApiPage() {
-  const { t } = useTranslation()
+  const navigate = useNavigate()
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">{t("settings.api")}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t("settings.api.description")}
-        </p>
-      </div>
-      <Separator />
-      <ApiForm />
-    </div>
-  )
+  useEffect(() => {
+    // Redirect to the unified settings page with API section
+    navigate("/settings?section=api", { replace: true })
+  }, [navigate])
+
+  return null
 }

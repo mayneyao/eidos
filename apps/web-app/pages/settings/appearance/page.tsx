@@ -1,23 +1,13 @@
-import { useTranslation } from "react-i18next"
-
-import { Separator } from "@/components/ui/separator"
-import { AppearanceForm } from "@/apps/web-app/pages/settings/appearance/appearance-form"
+import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 
 export default function SettingsAppearancePage() {
-  const { t } = useTranslation()
+  const navigate = useNavigate()
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">
-          {t("settings.appearance.title")}
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          {t("settings.appearance.description")}
-        </p>
-      </div>
-      <Separator />
-      <AppearanceForm />
-    </div>
-  )
+  useEffect(() => {
+    // Redirect to the unified settings page with general section (appearance is now part of general)
+    navigate("/settings?section=general", { replace: true })
+  }, [navigate])
+
+  return null
 }

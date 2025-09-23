@@ -86,10 +86,10 @@ export function AIModelSelect({
           role="combobox"
           aria-expanded={open}
           size={size}
-          className={cn("grow gap-1", className)}
+          className={cn("w-full gap-1 min-w-0 overflow-hidden", className)}
         >
           <p
-            className="max-w-[200px] truncate"
+            className="flex-1 min-w-0 truncate text-left"
             title={currentModel || "Select model..."}
           >
             {value ? currentModel : "Select model..."}
@@ -117,18 +117,19 @@ export function AIModelSelect({
                         )
                         setOpen(false)
                       }}
+                      className="flex items-center gap-2 min-w-0"
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "h-4 w-4 shrink-0",
                           value.toLowerCase() === model.toLowerCase()
                             ? "opacity-100"
                             : "opacity-0"
                         )}
                       />
-                      <p className="max-w-[250px] truncate" title={model}>
+                      <p className="flex-1 min-w-0 truncate" title={model}>
                         {model}
-                      </p>{" "}
+                      </p>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -154,14 +155,15 @@ export function AIModelSelect({
                         setValue(model === value ? "" : model)
                         setOpen(false)
                       }}
+                      className="flex items-center gap-2 min-w-0"
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "h-4 w-4 shrink-0",
                           value === model ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      <p className="max-w-[250px] truncate" title={model}>
+                      <p className="flex-1 min-w-0 truncate" title={model}>
                         {model}
                       </p>
                     </CommandItem>

@@ -21,7 +21,7 @@ export function SettingsAILayout() {
   const providerDisplayName =
     providerId === "new" ? name || providerType : providerId
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem className="text-lg font-medium">

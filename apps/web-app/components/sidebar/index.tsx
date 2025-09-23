@@ -28,7 +28,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { FileManager } from "../file-manager"
 import { NavigationControls } from "../navigation-controls"
-import { SpaceSettings } from "../space-settings"
+import { SpaceSettings } from "../settings"
 import { Button } from "../ui/button"
 import {
   ContextMenu,

@@ -44,6 +44,10 @@ interface AppRuntimeState {
   // running script
   runningCommand: string | null
   setRunningCommand: (runningCommand: string | null) => void
+
+  // space settings dialog
+  isSpaceSettingsOpen: boolean
+  setSpaceSettingsOpen: (isSpaceSettingsOpen: boolean) => void
 }
 
 export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
@@ -91,4 +95,8 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
   scriptContainerRef: null,
   setScriptContainerRef: (scriptContainerRef) =>
     set({ scriptContainerRef: scriptContainerRef }),
+
+  isSpaceSettingsOpen: false,
+  setSpaceSettingsOpen: (isSpaceSettingsOpen) =>
+    set({ isSpaceSettingsOpen }),
 }))

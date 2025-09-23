@@ -1,33 +1,27 @@
-import { useState } from "react"
 import { SettingsIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { Button } from "../ui/button"
-import { SettingsContent } from "./settings-content"
-import { SettingsSidebar } from "./settings-sidebar"
-
-type SettingsSection = "general" | "document"
+import { UnifiedSettings } from "./unified-settings"
 
 export function Settings() {
-  const [activeSection, setActiveSection] = useState<SettingsSection>("general")
-
   return (
-    <div className="flex h-[85vh]">
-      <SettingsSidebar
-        activeSection={activeSection}
-        onSectionChange={setActiveSection}
-      />
-      <SettingsContent activeSection={activeSection} />
-    </div>
+    <UnifiedSettings 
+      initialSection="general" 
+      showSpaceSettings={true} 
+    />
   )
 }
 
 export const SpaceSettings = () => {
   const { t } = useTranslation()
+  const { isSpaceSettingsOpen, setSpaceSettingsOpen } = useAppRuntimeStore()
+  
   return (
-    <Dialog>
+    <Dialog open={isSpaceSettingsOpen} onOpenChange={setSpaceSettingsOpen}>
       <DialogTrigger asChild>
         <Button
           variant={"ghost"}

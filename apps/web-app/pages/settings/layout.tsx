@@ -99,7 +99,7 @@ export default function SettingsLayout() {
       ></div>
       <div className="grid w-full grid-cols-5 ">
         <div className="col-span-1" />
-        <div className="col-span-5 space-y-6 p-4 pb-16 md:block md:p-10 xl:col-span-3">
+        <div className="col-span-5 space-y-4 p-4 pb-16 md:block md:p-8 xl:col-span-3">
           <div className="flex items-start justify-between">
             <div className="space-y-0.5">
               <h2 className="text-2xl font-bold tracking-tight">
@@ -113,8 +113,8 @@ export default function SettingsLayout() {
               <Minimize2 className="mr-2 h-4 w-4" /> {t("common.esc")}
             </Button>
           </div>
-          <Separator className="my-6" />
-          <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
+          <Separator className="my-4" />
+          <div className="flex flex-col space-y-6 lg:flex-row lg:space-x-8 lg:space-y-0">
             <aside className="-mx-4 lg:w-1/5 min-w-[180px]">
               <SidebarNav
                 items={sidebarNavItems.map((item) => ({

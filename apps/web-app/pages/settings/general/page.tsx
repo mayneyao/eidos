@@ -1,28 +1,13 @@
-import { useTranslation } from "react-i18next"
-
-import { Separator } from "@/components/ui/separator"
-import { ProfileForm } from "@/apps/web-app/pages/settings/general/profile-form"
-import { AutoUpdateForm } from "@/apps/web-app/pages/settings/general/auto-update-form"
-
-// import { AccountSection } from "./account-section"
+import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 
 export default function SettingsGeneralPage() {
-  const { t } = useTranslation()
+  const navigate = useNavigate()
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">{t("settings.general")}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t("settings.general.description")}
-        </p>
-      </div>
-      <Separator />
-      <ProfileForm />
-      <Separator />
-      <AutoUpdateForm />
-      {/* <Separator />
-      <AccountSection /> */}
-    </div>
-  )
+  useEffect(() => {
+    // Redirect to the unified settings page with general section
+    navigate("/settings?section=general", { replace: true })
+  }, [navigate])
+
+  return null
 }

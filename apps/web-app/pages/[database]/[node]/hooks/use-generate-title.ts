@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { toast } from "@/components/ui/use-toast"
 import { uuidv7 } from "@/lib/utils"
-import { TaskType } from "@/apps/web-app/pages/settings/ai/hooks"
+import { TaskType } from "@/components/settings/global/ai/hooks"
 import { useState, useCallback, useRef, useMemo } from "react"
 
 export function useGenerateTitle() {

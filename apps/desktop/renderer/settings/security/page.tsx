@@ -1,23 +1,13 @@
-"use client"
-
-import { useTranslation } from "react-i18next"
-
-import { Separator } from "@/components/ui/separator"
-import { SecurityForm } from "./security-form"
+import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 
 export default function SettingsSecurityPage() {
-  const { t } = useTranslation()
+  const navigate = useNavigate()
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">{t("settings.security")}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t("settings.security.description")}
-        </p>
-      </div>
-      <Separator />
-      <SecurityForm />
-    </div>
-  )
+  useEffect(() => {
+    // Redirect to the unified settings page with security section
+    navigate("/settings?section=security", { replace: true })
+  }, [navigate])
+
+  return null
 } 

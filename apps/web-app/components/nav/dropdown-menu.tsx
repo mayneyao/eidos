@@ -181,10 +181,10 @@ export function NavDropdownMenu() {
                 <Keyboard className="mr-2 h-4 w-4" />
                 <span>{t("nav.dropdown.menu.keyboardShortcuts")}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={goSettings}>
+              {/* <DropdownMenuItem onSelect={goSettings}>
                 <CogIcon className="mr-2 h-4 w-4" />
                 <span>{t("common.settings")}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem> */}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <Link to="https://github.com/mayneyao/eidos" target="_blank">

@@ -9,6 +9,7 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useToast } from "@/components/ui/use-toast"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 /**
  * global shortcuts, register here
@@ -18,6 +19,7 @@ export function ShortCuts() {
   const { setTheme, theme } = useTheme()
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
+  const { setSpaceSettingsOpen } = useAppRuntimeStore()
   const navigate = useNavigate()
   const { toast } = useToast()
   const { createDoc } = useSqlite()
@@ -70,7 +72,7 @@ export function ShortCuts() {
   })
 
   useKeyPress(["ctrl.comma", "meta.comma"], () => {
-    navigate("/settings")
+    setSpaceSettingsOpen(true)
   })
 
   // Add new shortcut for copying current URL
