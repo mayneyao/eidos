@@ -167,7 +167,7 @@ export const DocAction: React.FC<DocActionProps> = ({ docId }) => {
                 <ChevronDown className="h-3 w-3 ml-1" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="max-w-[300px]">
               <DropdownMenuLabel className="flex items-center gap-1">
                 Document Actions
                 <a
@@ -203,7 +203,7 @@ export const DocAction: React.FC<DocActionProps> = ({ docId }) => {
                       name={(script.icon as any) || "zap"}
                       className="h-3.5 w-3.5 mr-1"
                     />
-                    <span className="flex-1">{script.meta!.docAction.name}</span>
+                    <span className="flex-1 truncate">{script.meta!.docAction.name}</span>
                     <Button
                       size="sm"
                       variant="ghost"

@@ -39,6 +39,7 @@ import {
 } from "@/apps/web-app/pages/[database]/store"
 
 import { BlockContextMenu } from "./block-context-menu"
+import { NodeContextMenu } from "./node-context-menu"
 import { NodeAppPanel } from "./node-app-panel"
 
 const DefaultAppInfoMap: Record<
@@ -274,6 +275,9 @@ export const RightPanelNav = () => {
                         url={app}
                         setUrl={(newUrl) => updateApp(app, newUrl)}
                       />
+                    )}
+                    {isNode && (
+                      <NodeContextMenu url={app} />
                     )}
                   </ContextMenuContent>
                 </ContextMenu>
