@@ -64,11 +64,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const ref2 = useRef<HTMLDivElement>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [currentColIndex, setCurrentColIndex] = useState<number>()
-  const { currentView } = useCurrentView<IGridViewProperties>({
-    space: databaseName,
-    tableName: tableName,
-    viewId: props.view?.id,
-  })
+  const { currentView } = useCurrentView<IGridViewProperties>()
   const { addSort, freezeColumn, updateView } = useViewOperation()
   const inputRef = useRef<HTMLInputElement>(null)
   const { fields } = useTableFields(tableName)

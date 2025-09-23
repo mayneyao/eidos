@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { FieldType } from "@/packages/core/fields/const"
 import type { OrderByItem } from "@/packages/core/sqlite/sql-sort-parser"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -14,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
-import { FieldType } from "@/packages/core/fields/const"
 
 import { FieldSelector } from "./fields/field-selector"
 import { TableContext, useCurrentView } from "./hooks"
@@ -38,40 +38,64 @@ interface SortableItemProps {
 
 // Helper function to get field type from uiColumns
 function getFieldType(columnName: string, uiColumns: any[]): FieldType | null {
-  const column = uiColumns.find(col => col.table_column_name === columnName)
+  const column = uiColumns.find((col) => col.table_column_name === columnName)
   return column?.type || null
 }
 
 // Helper function to get appropriate sorting text based on field type
-function getSortingText(fieldType: FieldType | null, order: string, t: (key: string) => string): string {
+function getSortingText(
+  fieldType: FieldType | null,
+  order: string,
+  t: (key: string) => string
+): string {
   if (!fieldType) {
-    return order === "ASC" ? t("table.sortAscending") : t("table.sortDescending")
+    return order === "ASC"
+      ? t("table.sortAscending")
+      : t("table.sortDescending")
   }
 
   // Number types
   if (fieldType === FieldType.Number || fieldType === FieldType.Rating) {
-    return order === "ASC" ? t("table.sort.number.asc") : t("table.sort.number.desc")
+    return order === "ASC"
+      ? t("table.sort.number.asc")
+      : t("table.sort.number.desc")
   }
 
   // Text types
-  if (fieldType === FieldType.Text || fieldType === FieldType.Title || 
-      fieldType === FieldType.URL || fieldType === FieldType.Select || 
-      fieldType === FieldType.MultiSelect || fieldType === FieldType.Formula ||
-      fieldType === FieldType.Link || fieldType === FieldType.Lookup ||
-      fieldType === FieldType.CreatedBy || fieldType === FieldType.LastEditedBy ||
-      fieldType === FieldType.File) {
-    return order === "ASC" ? t("table.sort.text.asc") : t("table.sort.text.desc")
+  if (
+    fieldType === FieldType.Text ||
+    fieldType === FieldType.Title ||
+    fieldType === FieldType.URL ||
+    fieldType === FieldType.Select ||
+    fieldType === FieldType.MultiSelect ||
+    fieldType === FieldType.Formula ||
+    fieldType === FieldType.Link ||
+    fieldType === FieldType.Lookup ||
+    fieldType === FieldType.CreatedBy ||
+    fieldType === FieldType.LastEditedBy ||
+    fieldType === FieldType.File
+  ) {
+    return order === "ASC"
+      ? t("table.sort.text.asc")
+      : t("table.sort.text.desc")
   }
 
   // Date/Time types
-  if (fieldType === FieldType.Date || fieldType === FieldType.CreatedTime || 
-      fieldType === FieldType.LastEditedTime) {
-    return order === "ASC" ? t("table.sort.date.asc") : t("table.sort.date.desc")
+  if (
+    fieldType === FieldType.Date ||
+    fieldType === FieldType.CreatedTime ||
+    fieldType === FieldType.LastEditedTime
+  ) {
+    return order === "ASC"
+      ? t("table.sort.date.asc")
+      : t("table.sort.date.desc")
   }
 
   // Boolean types (Checkbox) - use text sorting for consistency
   if (fieldType === FieldType.Checkbox) {
-    return order === "ASC" ? t("table.sort.text.asc") : t("table.sort.text.desc")
+    return order === "ASC"
+      ? t("table.sort.text.asc")
+      : t("table.sort.text.desc")
   }
 
   // Default fallback
@@ -154,8 +178,8 @@ function SortableItem({
 export function ViewSortEditor(props: IViewEditorProps) {
   const { t } = useTranslation()
   const { onSortChange } = props
-  const { tableName, space, viewId } = useContext(TableContext)
-  const { currentView } = useCurrentView({ tableName, space, viewId })
+  const { tableName, space } = useContext(TableContext)
+  const { currentView } = useCurrentView()
   const { parsedSql } = useViewQuery(currentView)
 
   const oldOrderBy: OrderByItem[] = useMemo(() => {
@@ -170,7 +194,6 @@ export function ViewSortEditor(props: IViewEditorProps) {
     oldOrderBy.map((item) => item.column)
   )
   const [orderItems, setOrderItems] = useState<OrderByItem[]>(oldOrderBy)
-
 
   useEffect(() => {
     setOrderItems(oldOrderBy)
@@ -249,7 +272,7 @@ export function ViewSortEditor(props: IViewEditorProps) {
         </span>
       )}
       <SortableContainer
-        items={orderItems.map(item => ({ ...item, id: item.column }))}
+        items={orderItems.map((item) => ({ ...item, id: item.column }))}
         onReorder={handleReorder}
         renderItem={(item, index) => {
           const excludeValues = orderItems

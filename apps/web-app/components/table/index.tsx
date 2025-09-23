@@ -1,14 +1,15 @@
-import { useEffect } from "react"
 import { ViewTypeEnum } from "@/packages/core/types/IView"
+import { useEffect, useMemo, useState } from "react"
 
-import { getTableIdByRawTableName } from "@/lib/utils"
 import { useSqliteTableSubscribe } from "@/apps/web-app/hooks/use-sqlite-table-subscribe"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
+import { useTableOperation } from "@/hooks/use-table"
+import { getTableIdByRawTableName } from "@/lib/utils"
 
 import { ExtTableViewBlockApp } from "../block-renderer/ext-table-view-block-app"
 import { FieldEditor } from "./fields"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
-import { TableContext, useCurrentView, useUDFs } from "./hooks"
+import { TableContext, useUDFs } from "./hooks"
 import { useTableViewInfoByExtType } from "./hooks/use-custom-table-views"
 import { TableStoreProvider } from "./table-store-provider"
 import { ViewToolbar } from "./view-toolbar"
@@ -37,19 +38,29 @@ export const Table = ({
   isEditable,
   isReadOnly,
 }: ITableProps) => {
-  const { currentView } = useCurrentView({
-    space,
-    tableName,
-    viewId,
-  })
+  const [currentViewId, setCurrentViewId] = useState<string | undefined>(viewId)
   const udfs = useUDFs()
-  const extView = useTableViewInfoByExtType(currentView?.type)
-  const isView = tableName.startsWith("vw_")
-  const isExtView = currentView?.type?.startsWith("ext__")
+
   const { updateUiColumns } = useUiColumns(tableName, space)
+  const { updateViews, views } = useTableOperation(tableName, space)
   useEffect(() => {
     updateUiColumns(tableName)
   }, [updateUiColumns, tableName])
+
+  useEffect(() => {
+    updateViews()
+  }, [updateViews, tableName])
+
+  const currentView = useMemo(() => {
+    if (currentViewId) {
+      return views.find((v) => v.id === currentViewId)
+    }
+    return views[0]
+  }, [views, currentViewId])
+
+  const extView = useTableViewInfoByExtType(currentView?.type)
+  const isView = tableName.startsWith("vw_")
+  const isExtView = currentView?.type?.startsWith("ext__")
 
   useSqliteTableSubscribe(tableName)
   return (
@@ -58,9 +69,11 @@ export const Table = ({
         value={{
           tableName,
           space,
-          viewId: currentView?.id || viewId,
+          viewId: currentViewId,
+          setViewId: setCurrentViewId,
           isReadOnly,
           isView,
+          isEmbed,
           udfs,
         }}
       >
@@ -68,7 +81,6 @@ export const Table = ({
           <ViewToolbar
             tableName={tableName}
             space={space}
-            isEmbed={Boolean(isEmbed)}
             isReadOnly={isReadOnly}
           />
           <div
@@ -123,7 +135,7 @@ export const Table = ({
             <FieldEditor
               tableName={tableName}
               databaseName={space}
-              view={currentView}
+              view={currentView!}
             />
           </div>
         </div>

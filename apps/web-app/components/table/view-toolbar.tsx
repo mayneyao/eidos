@@ -1,4 +1,3 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
   ViewTypeEnum,
   type IView,
@@ -6,16 +5,20 @@ import {
 } from "@/packages/core/types/IView"
 import { useKeyPress } from "ahooks"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
-import {
-  createSearchParams,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 
-import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
+import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useTableOperation } from "@/apps/web-app/hooks/use-table"
+import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/eui/sub-page-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,23 +29,15 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from "@/components/eui/sub-page-dialog"
-import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useTableOperation } from "@/apps/web-app/hooks/use-table"
-import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
+import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
 
 import { Button } from "../ui/button"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 import { TableContext, useCurrentView, useViewOperation } from "./hooks"
 import { useCustomTableViews } from "./hooks/use-custom-table-views"
-import { useTableSearchStore } from "./table-store-provider"
 import { useViewCount } from "./hooks/use-view-count"
 import { SortableContainer } from "./sortable"
+import { useTableSearchStore } from "./table-store-provider"
 import { ViewEditor } from "./view-editor/view-editor"
 import { ViewField } from "./view-field/view-field"
 import { ViewFilter } from "./view-filter"
@@ -252,10 +247,10 @@ const Views = ({
 export const ViewToolbar = (props: {
   tableName: string
   space: string
-  isEmbed: boolean
   isReadOnly?: boolean
 }) => {
-  const { space, tableName, viewId } = useContext(TableContext)
+  const { space, tableName, viewId, isEmbed, setViewId } =
+    useContext(TableContext)
   const ref = useRef<HTMLDivElement>(null)
   const ref1 = useRef<HTMLDivElement>(null)
   const ref2 = useRef<HTMLDivElement>(null)
@@ -267,23 +262,15 @@ export const ViewToolbar = (props: {
   //   ref2.current
   // )
 
-  const { isEmbed } = props
   const { updateViews, views } = useTableOperation(tableName!, space)
   const navigate = useNavigate()
-  const location = useLocation()
   const { addView, delView, moveViewPosition } = useViewOperation()
 
   const isView = tableName.startsWith("vw_")
-  const { currentView, setCurrentViewId, defaultViewId } = useCurrentView({
-    space,
-    tableName,
-    viewId,
-  })
+  const { currentView } = useCurrentView()
   const { count: currentViewCount } = useViewCount(currentView)
   const [editingViewId, setEditingViewId] = useState<string | null>(null)
 
-  const [searchParams] = useSearchParams()
-  const sharePeerId = searchParams.get("peerId")
   const { addRow } = useTableOperation(tableName, space)
   const { getOrCreateTableSubDoc, sqlite } = useSqlite()
   const [open, setOpen] = useState(false)
@@ -353,24 +340,9 @@ export const ViewToolbar = (props: {
 
   const jump2View = useCallback(
     (viewId: string) => {
-      if (isEmbed) {
-        // when embed, we don't need to change the url
-        setCurrentViewId(viewId)
-        return
-      }
-      navigate({
-        pathname: location.pathname,
-        search: sharePeerId
-          ? `?${createSearchParams({
-              v: viewId,
-              peerId: sharePeerId,
-            })}`
-          : `?${createSearchParams({
-              v: viewId,
-            })}`,
-      })
+      setViewId?.(viewId)
     },
-    [isEmbed, location.pathname, navigate, setCurrentViewId, sharePeerId]
+    [setViewId]
   )
 
   const handleAddView = useCallback(
@@ -383,13 +355,8 @@ export const ViewToolbar = (props: {
     [addView, jump2View]
   )
 
-  useEffect(() => {
-    updateViews()
-  }, [updateViews, tableName])
-
   const deleteView = (viewId: string) => async () => {
     await delView(viewId)
-    // 删除后获取更新后的视图列表，切换到第一个视图
     await updateViews()
     const updatedViews = await sqlite?.view.list(
       { table_id: tableId },

@@ -30,8 +30,10 @@ interface TableContextType {
   tableName: string
   space: string
   viewId?: string
+  setViewId?: (viewId: string | undefined) => void
   isReadOnly?: boolean
   isView?: boolean
+  isEmbed?: boolean
   udfs?: {
     id: string
     name: string
@@ -43,8 +45,10 @@ export const TableContext = createContext<TableContextType>({
   tableName: "",
   space: "",
   viewId: undefined,
+  setViewId: undefined,
   isReadOnly: true,
   isView: false,
+  isEmbed: false,
   udfs: [],
 })
 
@@ -184,42 +188,22 @@ export const useViewOperation = () => {
   }
 }
 
-export const useCurrentView = <T = any>({
-  space,
-  tableName,
-  viewId,
-}: {
-  space: string
-  tableName: string
-  viewId?: string
-}) => {
-  const { views } = useTableOperation(tableName!, space)
-  const defaultViewId = useMemo(() => {
-    return views[0]?.id
-  }, [views])
-
-  const [currentViewId, setCurrentViewId] = useState<string | undefined>(
-    viewId || defaultViewId
-  )
-  let [searchParams, setSearchParams] = useSearchParams()
-  const v = searchParams.get("v")
-
-  useEffect(() => {
-    if (v) {
-      setCurrentViewId(v)
-    } else {
-      setCurrentViewId(defaultViewId)
-    }
-  }, [defaultViewId, setSearchParams, v])
+// Simplified hook that only computes currentView from context
+export const useCurrentView = <T = any>() => {
+  const { tableName, space } = useContext(TableContext)
+  const { views } = useTableOperation(tableName, space)
+  const { viewId } = useContext(TableContext)
 
   const currentView = useMemo(() => {
-    return views.find((v) => v.id === currentViewId)
-  }, [views, currentViewId])
+    if (viewId) {
+      return views.find((v) => v.id === viewId)
+    }
+    return views[0]
+  }, [views, viewId])
+
 
   return {
     currentView: currentView as IView<T>,
-    setCurrentViewId,
-    defaultViewId,
   }
 }
 
@@ -232,11 +216,15 @@ export const useShowColumns = (uiColumns: IField[], view: IView) => {
   }, [uiColumns, view?.hidden_fields, view?.order_map])
 }
 
-export const useView = <T = any>(viewId: string) => {
+
+export const useView = <T = any>(viewId?: string) => {
   const { tableName, space } = useContext(TableContext)
   const { views } = useTableOperation(tableName!, space)
   const view = useMemo(() => {
-    return views.find((v) => v.id === viewId)
+    if (viewId) {
+      return views.find((v) => v.id === viewId)
+    }
+    return views[0]
   }, [views, viewId])
 
   return view as IView<T>

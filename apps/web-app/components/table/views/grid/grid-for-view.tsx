@@ -62,11 +62,7 @@ export function GridViewForView(props: IGridProps) {
   const r = containerRef.current?.querySelector(".dvn-scroll-inner")
   const hasScroll = r && r?.scrollWidth > r?.clientWidth
 
-  const { currentView: _currentView } = useCurrentView<IGridViewProperties>({
-    space: databaseName,
-    tableName,
-    viewId: props.view?.id,
-  })
+  const { currentView: _currentView } = useCurrentView<IGridViewProperties>()
   const currentView = props.view || _currentView
 
   const { count: viewCount } = useViewCount(currentView)
@@ -269,9 +265,7 @@ export function GridViewForView(props: IGridProps) {
   if (!columns || columns.length === 0) {
     return (
       <div>
-        <div className="flex items-center justify-center h-full w-full">
-          <p>No columns</p>
-        </div>
+        <div className="flex items-center justify-center h-full w-full"></div>
       </div>
     )
   }

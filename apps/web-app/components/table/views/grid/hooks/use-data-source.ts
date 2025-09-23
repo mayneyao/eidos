@@ -23,10 +23,7 @@ export const useDataSource = (tableName: string, databaseName: string) => {
     tableName,
     databaseName
   )
-  const { currentView } = useCurrentView({
-    space: databaseName,
-    tableName: tableName,
-  })
+  const { currentView } = useCurrentView()
   const { sqlite } = useSqlite()
   const { userMap } = useUserMap()
   const { uiColumns } = useUiColumns(tableName, databaseName)
