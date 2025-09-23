@@ -17,6 +17,7 @@ import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
 import { RightPanelNav } from "@/components/nav/right-panel-nav"
 import { TempPanel } from "@/components/nav/temp-panel"
+import { NodeAppPanel } from "@/components/nav/node-app-panel"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
@@ -185,6 +186,9 @@ export function DesktopSpaceLayout() {
                           <Suspense fallback={<Loading />}>
                             <BlockApp url={currentApp} height={size?.height} />
                           </Suspense>
+                        )}
+                        {currentApp && currentApp.startsWith("node://") && (
+                          <NodeAppPanel />
                         )}
                       </>
                     )}

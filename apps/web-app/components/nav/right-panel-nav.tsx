@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   BotIcon,
+  ExternalLinkIcon,
+  FileIcon,
   MoreHorizontalIcon,
   PanelRightIcon,
   PlusIcon,
   ToyBrickIcon,
   Trash2,
-  ExternalLinkIcon,
+  ViewIcon,
   XIcon,
   type LucideIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
-import { cn, getBlockIdFromUrl } from "@/lib/utils"
+import { cn, getBlockIdFromUrl, isDayPageId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   ContextMenu,
@@ -29,14 +31,15 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { AIChatHeader } from "@/components/ai-chat/ai-chat-header"
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
+import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import {
   useAppsStore,
   useSpaceAppStore,
 } from "@/apps/web-app/pages/[database]/store"
-import { isDayPageId } from "@/lib/utils"
 
 import { BlockContextMenu } from "./block-context-menu"
+import { NodeAppPanel } from "./node-app-panel"
 
 const DefaultAppInfoMap: Record<
   string,
@@ -58,14 +61,22 @@ const DefaultAppInfoMap: Record<
 }
 
 export const RightPanelNav = () => {
-  const { setIsRightPanelOpen, setCurrentApp, currentApp, setApps, tempPanelNode, setTempPanelNode } =
-    useSpaceAppStore()
+  const {
+    setIsRightPanelOpen,
+    setCurrentApp,
+    currentApp,
+    setApps,
+    tempPanelNode,
+    setTempPanelNode,
+  } = useSpaceAppStore()
   const { apps, addApp, deleteApp } = useAppsStore()
   const { space } = useCurrentPathInfo()
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const nodeMap = useNodeMap()
 
   const handleAppChange = (app: string) => {
+    // Clear tempPanelNode when switching to a currentApp
     setCurrentApp(app)
   }
   const handleAddApp = (blockId: string) => {
@@ -79,6 +90,11 @@ export const RightPanelNav = () => {
         const id = getBlockIdFromUrl(app)
         const [blockId, blockSpace] = id.split("@")
         return blockSpace === space
+      }
+      if (app.startsWith("node://")) {
+        const id = getBlockIdFromUrl(app)
+        const [nodeId, nodeSpace] = id.split("@")
+        return nodeSpace === space
       }
       return true
     })
@@ -126,6 +142,37 @@ export const RightPanelNav = () => {
         available: true,
       }
     }
+    if (app.startsWith("node://")) {
+      const id = getBlockIdFromUrl(app)
+      const [nodeIdWithSchema, nodeSpace] = id.split("@")
+      const nodeId = nodeIdWithSchema.split("://")[1]
+      if (nodeSpace !== space) {
+        return {
+          icon: FileIcon,
+          title: t("common.tips.nodeNotInCurrentSpace", {
+            space: nodeSpace,
+          }),
+          shortcut: undefined,
+          available: false,
+        }
+      }
+      // Get actual node data from nodeMap
+      const node = nodeMap[nodeId]
+      if (!node) {
+        return {
+          icon: FileIcon,
+          title: t("common.tips.notFoundNode"),
+          shortcut: undefined,
+          available: false,
+        }
+      }
+      return {
+        icon: ViewIcon, // Use ViewIcon for dataview nodes
+        title: node.name || `Node ${nodeId}`,
+        shortcut: undefined,
+        available: true,
+      }
+    }
     return DefaultAppInfoMap[app]
   }
   const updateApp = (app: string, newUrl: string) => {
@@ -159,19 +206,20 @@ export const RightPanelNav = () => {
 
   const handleOpenTempNode = () => {
     if (!tempPanelNode) return
-    
+
     if (isDayPageId(tempPanelNode.id)) {
       navigate(`/${space}/everyday/${tempPanelNode.id}`)
     } else {
       navigate(`/${space}/${tempPanelNode.id}`)
     }
-    // 清空临时节点并关闭面板
+    // 清空临时节点并关闭面板，确保互斥性
     setTempPanelNode(null)
     setCurrentApp("chat")
     setIsRightPanelOpen(false)
   }
 
   const handleCloseTempNode = () => {
+    // 清空临时节点，确保互斥性
     setTempPanelNode(null)
     setCurrentApp("chat")
     setIsRightPanelOpen(false)
@@ -185,9 +233,10 @@ export const RightPanelNav = () => {
           const { icon: IconOrUri, title, shortcut } = appInfo ?? {}
           const isCurrentApp = app === currentApp
           const isBlock = app.startsWith("block://")
+          const isNode = app.startsWith("node://")
           return (
             <div key={app} className="relative">
-              {isBlock ? (
+              {isBlock || isNode ? (
                 <ContextMenu>
                   <ContextMenuTrigger asChild>
                     <Button
@@ -220,10 +269,12 @@ export const RightPanelNav = () => {
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete
                     </ContextMenuItem>
-                    <BlockContextMenu
-                      url={app}
-                      setUrl={(newUrl) => updateApp(app, newUrl)}
-                    />
+                    {isBlock && (
+                      <BlockContextMenu
+                        url={app}
+                        setUrl={(newUrl) => updateApp(app, newUrl)}
+                      />
+                    )}
                   </ContextMenuContent>
                 </ContextMenu>
               ) : (
@@ -321,8 +372,10 @@ export const RightPanelNav = () => {
         </DropdownMenu>
       </div>
       <div className="drag-region grow"></div>
-      {currentApp === "chat" && <AIChatHeader />}
-      {tempPanelNode && (
+      {/* Only show currentApp UI when tempPanelNode is not active */}
+      {!tempPanelNode && currentApp === "chat" && <AIChatHeader />}
+      {/* Only show tempPanelNode UI when currentApp is not active */}
+      {tempPanelNode && !currentApp && (
         <>
           <Button
             size="xs"

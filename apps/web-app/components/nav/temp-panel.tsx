@@ -1,5 +1,6 @@
-import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
+
 import { SimpleNodeComponent } from "./simple-node-component"
 
 export const TempPanel = () => {
@@ -16,10 +17,7 @@ export const TempPanel = () => {
         </div>
       ) : (
         <div className="h-full overflow-y-auto">
-          <SimpleNodeComponent 
-            nodeId={tempPanelNode.id} 
-            space={space}
-          />
+          <SimpleNodeComponent nodeId={tempPanelNode.id} space={space} />
         </div>
       )}
     </div>

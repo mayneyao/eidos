@@ -12,6 +12,7 @@ import { Nav } from "@/components/nav"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { TempPanel } from "@/components/nav/temp-panel"
+import { NodeAppPanel } from "@/components/nav/node-app-panel"
 import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppStore } from "@/apps/web-app/store/app-store"
@@ -102,6 +103,9 @@ export function DatabaseLayoutBase({
                             <Suspense fallback={<Loading />}>
                               <FileManager />
                             </Suspense>
+                          )}
+                          {currentApp && currentApp.startsWith("node://") && (
+                            <NodeAppPanel />
                           )}
                         </>
                       )}
