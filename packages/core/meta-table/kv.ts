@@ -8,7 +8,7 @@ export type KV = {
     value: string
     created_at: string
     updated_at: string
-    metadata: Record<string, any>
+    meta: Record<string, any>
 }
 
 export type KVGetType = "text" | "integer" | "real" | "json"
@@ -19,7 +19,7 @@ export class KVTable extends BaseTableImpl<KV> implements BaseTable<KV> {
   CREATE TABLE IF NOT EXISTS ${KVTableName} (
     key TEXT PRIMARY KEY,
     value TEXT,
-    metadata TEXT,
+    meta TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
@@ -32,11 +32,11 @@ export class KVTable extends BaseTableImpl<KV> implements BaseTable<KV> {
   END;
 
   ${createAllTriggersForFields(KVTableName, [
-        'key', 'value', 'metadata'
+        'key', 'value', 'meta'
     ])}
   `
 
-    JSONFields: string[] = ["metadata"]
+    JSONFields: string[] = ["meta"]
     /**
      * Get a single value from the KV store (Cloudflare Workers KV compatible)
      * @param key The key of the KV pair
@@ -92,16 +92,16 @@ export class KVTable extends BaseTableImpl<KV> implements BaseTable<KV> {
      * @param options The options for the KV pair
      */
     async put(key: string, value: any, options?: {
-        metadata: Record<string, any>
+        meta: Record<string, any>
     }) {
         console.log('put', key, value, options)
         if (typeof value === 'object' && value != null) {
             value = JSON.stringify(value)
         }
         let sql = `INSERT OR REPLACE INTO ${KVTableName} (key, value) VALUES (?, ?);`
-        if (options && typeof options.metadata === 'object' && options.metadata != null) {
-            sql = `INSERT OR REPLACE INTO ${KVTableName} (key, value, metadata) VALUES (?, ?, ?);`
-            await this.dataSpace.exec2(sql, [key, value, JSON.stringify(options.metadata)])
+        if (options && typeof options.meta === 'object' && options.meta != null) {
+            sql = `INSERT OR REPLACE INTO ${KVTableName} (key, value, meta) VALUES (?, ?, ?);`
+            await this.dataSpace.exec2(sql, [key, value, JSON.stringify(options.meta)])
         } else {
             await this.dataSpace.exec2(sql, [key, value])
         }
