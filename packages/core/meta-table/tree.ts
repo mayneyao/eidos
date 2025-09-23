@@ -388,7 +388,6 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
   }
 
   public async createExtNode(ext_node_type: string, parent_id?: string): Promise<string> {
-    const { uuidv7 } = await import("@/lib/utils")
     const extNodeId = uuidv7().split("-").join("")
     await this.dataSpace.db.transaction(async (db) => {
       await this.add({
