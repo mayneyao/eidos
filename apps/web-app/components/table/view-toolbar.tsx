@@ -1,3 +1,4 @@
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
   ViewTypeEnum,
   type IView,
@@ -5,20 +6,11 @@ import {
 } from "@/packages/core/types/IView"
 import { useKeyPress } from "ahooks"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
-import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
-import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useTableOperation } from "@/apps/web-app/hooks/use-table"
-import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from "@/components/eui/sub-page-dialog"
+import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +21,15 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/eui/sub-page-dialog"
+import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useTableOperation } from "@/apps/web-app/hooks/use-table"
+import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
 
 import { Button } from "../ui/button"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
@@ -400,6 +400,8 @@ export const ViewToolbar = (props: {
     setShowSearch(true)
   })
 
+  const tableContentElementId = `${TABLE_CONTENT_ELEMENT_ID}-${tableName}-${isEmbed ? "embed" : "main"}`
+
   return (
     <div ref={ref}>
       <div className="ml-2 flex items-center justify-between border-b pb-1">
@@ -474,7 +476,7 @@ export const ViewToolbar = (props: {
               view={views.find((v) => v.id === editingViewId)!}
             />
           </div>,
-          document.getElementById(TABLE_CONTENT_ELEMENT_ID)!
+          document.getElementById(tableContentElementId)!
         )}
     </div>
   )

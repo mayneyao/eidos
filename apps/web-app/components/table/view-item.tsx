@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 import { Button } from "../ui/button"
-import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
 import { TableContext } from "./hooks"
 import { useViewLoadingStore } from "./hooks/use-view-loading"
 import { ViewIcon } from "./view-icon"

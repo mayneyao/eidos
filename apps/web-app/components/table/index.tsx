@@ -1,10 +1,10 @@
-import { ViewTypeEnum } from "@/packages/core/types/IView"
 import { useEffect, useMemo, useState } from "react"
+import { ViewTypeEnum } from "@/packages/core/types/IView"
 
+import { getTableIdByRawTableName } from "@/lib/utils"
+import { useTableOperation } from "@/hooks/use-table"
 import { useSqliteTableSubscribe } from "@/apps/web-app/hooks/use-sqlite-table-subscribe"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
-import { useTableOperation } from "@/hooks/use-table"
-import { getTableIdByRawTableName } from "@/lib/utils"
 
 import { ExtTableViewBlockApp } from "../block-renderer/ext-table-view-block-app"
 import { FieldEditor } from "./fields"
@@ -85,7 +85,7 @@ export const Table = ({
           />
           <div
             className="relative flex-grow overflow-hidden"
-            id={TABLE_CONTENT_ELEMENT_ID}
+            id={`${TABLE_CONTENT_ELEMENT_ID}-${tableName}-${isEmbed ? "embed" : "main"}`}
           >
             {currentView?.type === ViewTypeEnum.Grid &&
               (isView ? (
