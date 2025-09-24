@@ -1,25 +1,25 @@
 import { useEffect, useMemo, useRef, type FC } from "react"
+import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import type { Identifier, XYCoord } from "dnd-core"
+import { PinIcon } from "lucide-react"
 import { useDrag, useDrop } from "react-dnd"
 import { Link, useSearchParams } from "react-router-dom"
 
 import { isInkServiceMode } from "@/lib/env"
-import type { ITreeNode } from "@/packages/core/types/ITreeNode"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { cn } from "@/lib/utils"
-import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ExtNodeBadge } from "@/components/ext-node-badge"
+import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { NodeIconEditor } from "@/apps/web-app/pages/[database]/[node]/node-icon"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { ItemIcon } from "../item-tree"
 import { NodeItem } from "./node-menu"
 import { NodeTreeContainer } from "./node-tree"
-import type { IHoverTarget} from "./store";
-import { useFolderStore } from "./store"
+import { useFolderStore, type IHoverTarget } from "./store"
 
 export const ItemTypes = {
   CARD: "card",
@@ -39,6 +39,8 @@ export interface CardProps {
   // Add optional state props for independent tree instances
   target?: IHoverTarget | null
   targetFolderId?: string | null
+  // Add flag to disable child rendering for virtual scrolling
+  disableChildren?: boolean
 }
 
 export interface DragItem {
@@ -61,6 +63,7 @@ export const Card: FC<CardProps> = ({
   containerId,
   target: propTarget,
   targetFolderId: propTargetFolderId,
+  disableChildren = false,
 }) => {
   const { space: spaceName } = useCurrentPathInfo()
   const [searchParams] = useSearchParams()
@@ -97,7 +100,7 @@ export const Card: FC<CardProps> = ({
         setTarget(null)
         return
       }
-      
+
       const drag = item
       if (!ref.current) {
         setTargetFolderId(null)
@@ -250,14 +253,14 @@ export const Card: FC<CardProps> = ({
 
   return (
     <div
-      className={cn("flex flex-col gap-1", {
+      className={cn("flex flex-col gap-1 w-full", {
         "opacity-50": currentCut === node.id,
       })}
     >
       <div
         ref={ref}
         data-handler-id={handlerId}
-        className={cn("flex flex-col gap-1")}
+        className={cn("flex flex-col gap-1 w-full")}
       >
         <div className={cn("group flex w-full", className)}>
           <NodeItem
@@ -267,15 +270,18 @@ export const Card: FC<CardProps> = ({
             depth={depth}
           >
             <Button
-              variant={node.id === currentNode?.id ? "secondary" : "ghost"}
+              variant="ghost"
               size="sm"
-              className="w-full justify-start font-normal"
+              className={cn(
+                "w-full justify-start font-normal rounded-sm px-2 py-1 text-sm transition-colors text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
+                node.id === currentNode?.id ? "bg-muted/80" : "hover:bg-muted/80"
+              )}
               onClick={setOpen}
               asChild
             >
               <Link
                 to={node.type !== "folder" ? link : window.location.pathname}
-                className="w-full"
+                className="w-full flex items-center gap-2"
               >
                 <NodeIconEditor
                   icon={node.icon!}
@@ -295,21 +301,24 @@ export const Card: FC<CardProps> = ({
                     />
                   }
                 />
-                <span className="truncate" title={node.name}>
+                <span className="flex-1 truncate" title={node.name}>
                   {node.name.length === 0 ? "Untitled" : node.name}
                 </span>
                 <ExtNodeBadge type={node.type} />
+                {Boolean(node.is_pinned) && (
+                  <PinIcon className="h-4 w-4" />
+                )}
               </Link>
             </Button>
           </NodeItem>
           {/* {node.type === "folder" && <CreateNodeTrigger parent_id={node.id} />} */}
         </div>
       </div>
-      {open && node.type === "folder" && (
+      {!disableChildren && open && node.type === "folder" && (
         <div className="ml-3 border-l pl-1">
-          <NodeTreeContainer 
-            nodes={children} 
-            depth={depth + 1} 
+          <NodeTreeContainer
+            nodes={children}
+            depth={depth + 1}
             containerId={containerId}
             target={propTarget}
             targetFolderId={propTargetFolderId}

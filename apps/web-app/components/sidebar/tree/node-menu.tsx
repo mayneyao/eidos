@@ -185,7 +185,7 @@ export function NodeItem({
         <ContextMenuTrigger className="w-full">
           <div className="w-full">
             {children}
-            <PopoverTrigger>
+            <PopoverTrigger tabIndex={-1}>
               <span />
             </PopoverTrigger>
           </div>

@@ -80,7 +80,7 @@ export const NodeIconEditor = (props: {
   }
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="[&>svg]:!size-5">
+      <PopoverTrigger className="[&>svg]:!size-5" tabIndex={-1}>
         {icon ? (
           <div className={props.className}>
             <em-emoji native={icon} size={props.size || "2em"}></em-emoji>

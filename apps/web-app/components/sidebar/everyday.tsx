@@ -87,7 +87,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
               className="[&>svg]:!size-5"
             >
               <CalendarDays className="pr-1" />
-              {t("common.today")}
+              {/* {t("common.today")} */}
             </Link>
           </Button>
         </ContextMenuTrigger>

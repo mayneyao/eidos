@@ -1,36 +1,34 @@
-import { Button } from "@/components/ui/button"
-import { NewExtensionButton } from "./new-extension-button"
-import { ExtensionSortDropdown } from "./extension-sort-dropdown"
-import { ExtensionSearch } from "./extension-search"
-import { PanelLeftCloseIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { SearchIcon } from "lucide-react"
 
-interface ExtensionSidebarHeaderProps {
+import { Button } from "@/components/ui/button"
+
+import { CreateNodeTrigger } from "./create-node-trigger"
+import { TreeSearch } from "./tree-search"
+import { TreeSortDropdown } from "./tree-sort-dropdown"
+
+interface TreeSidebarHeaderProps {
   showSearch: boolean
   onToggleSearch: () => void
   onExitSearch: () => void
+  disableAdd?: boolean
 }
 
-export const ExtensionSidebarHeader = ({
+export const TreeSidebarHeader = ({
   showSearch,
   onToggleSearch,
   onExitSearch,
-}: ExtensionSidebarHeaderProps) => {
+  disableAdd = false,
+}: TreeSidebarHeaderProps) => {
   return (
     <div className="px-1 flex-shrink-0">
       {/* Icon Buttons Row */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          {/* Create Extension Dropdown */}
-          <NewExtensionButton
-            trigger={
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <PlusIcon className="h-4 w-4" />
-              </Button>
-            }
-          />
+          {/* Create Node Button */}
+          {!disableAdd && <CreateNodeTrigger />}
 
           {/* Sort Dropdown */}
-          <ExtensionSortDropdown />
+          <TreeSortDropdown />
 
           {/* Search Toggle */}
           <Button
@@ -45,7 +43,7 @@ export const ExtensionSidebarHeader = ({
       </div>
 
       {/* Conditional Search Input */}
-      {showSearch && <ExtensionSearch onExit={onExitSearch} />}
+      {showSearch && <TreeSearch onExit={onExitSearch} />}
     </div>
   )
 }

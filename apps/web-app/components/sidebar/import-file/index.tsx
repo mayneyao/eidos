@@ -24,13 +24,10 @@ export function ImportFileDialog() {
         <Button
           variant={"ghost"}
           size="sm"
-          className="w-full cursor-pointer justify-start font-normal"
-          asChild
+          className="h-8 w-8 p-0 cursor-pointer"
+          title={t("common.import")}
         >
-          <span className="[&>svg]:!size-5">
-            <Plus className="pr-1" />
-            {t("common.import")}
-          </span>
+          <Plus className="h-4 w-4" />
         </Button>
       </DialogTrigger>
 

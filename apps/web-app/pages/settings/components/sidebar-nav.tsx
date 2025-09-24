@@ -4,8 +4,8 @@ import type { LucideIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
-import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { buttonVariants } from "@/components/ui/button"
 
 interface SidebarNavProps extends React.HTMLAttributes<HTMLElement> {
   items: {

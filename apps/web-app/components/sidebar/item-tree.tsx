@@ -1,54 +1,54 @@
-import { useState, useMemo, useCallback } from "react"
-import { useLocalStorageState } from "ahooks"
+import { useCallback, useMemo, useState } from "react"
+import { TreeNodeType, type ITreeNode } from "@/packages/core/types/ITreeNode"
 import {
   CalendarDaysIcon,
   File,
   FileSpreadsheet,
   Folder,
   FolderOpenIcon,
-  ViewIcon,
   Hash,
+  ViewIcon,
 } from "lucide-react"
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
+import { useKeyPress } from "ahooks"
 
-import type { ITreeNode} from "@/packages/core/types/ITreeNode";
-import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import { cn } from "@/lib/utils"
 
-import { Button } from "../ui/button"
 import { CreateNodeTrigger } from "./tree/create-node-trigger"
-import { NodeTreeContainer } from "./tree/node-tree"
+import { VirtualNodeTreeContainer } from "./tree/virtual-node-tree"
+import { TreeSidebarHeader } from "./tree/tree-sidebar-header"
 import type { IHoverTarget } from "./tree/store"
 
 export const CurrentItemTree = ({
   allNodes,
+  allNodesForVirtual,
   Icon,
   title,
   disableAdd,
 }: {
   allNodes: ITreeNode[]
+  allNodesForVirtual?: ITreeNode[]
   title: string
   Icon: React.ReactNode
   disableAdd?: boolean
 }) => {
   // Generate a unique container ID for each CurrentItemTree instance
-  const containerId = useMemo(() => `tree-container-${Math.random().toString(36).substr(2, 9)}`, [])
-  
-  const [showNodes, setShowNodes] = useLocalStorageState(
-    "root-node-tree-show-toggle",
-    {
-      defaultValue: true,
-    }
+  const containerId = useMemo(
+    () => `tree-container-${Math.random().toString(36).substr(2, 9)}`,
+    []
   )
 
   // Independent state for each tree instance
   const [targetFolderId, setTargetFolderId] = useState<string | null>(null)
   const [target, setTarget] = useState<IHoverTarget | null>(null)
+  const [showSearch, setShowSearch] = useState(false)
 
-  const handleToggleShowNodes = () => {
-    setShowNodes(!showNodes)
-  }
+  // Keyboard shortcut: Shift + Cmd/Ctrl + F to toggle search
+  useKeyPress(["shift.ctrl.f", "shift.meta.f"], (e) => {
+    e.preventDefault()
+    setShowSearch(!showSearch)
+  })
 
   const handleSetTarget = useCallback((newTarget: IHoverTarget | null) => {
     setTarget(newTarget)
@@ -60,39 +60,29 @@ export const CurrentItemTree = ({
   const handleSetTargetFolderId = useCallback((id: string | null) => {
     setTargetFolderId(id)
   }, [])
-  
+
   return (
-    <>
-      <div className="flex items-center justify-between w-full">
-        <Button
-          variant={"ghost"}
-          size="sm"
-          onClick={handleToggleShowNodes}
-          className="flex justify-start w-full font-normal"
-          asChild
-        >
-          <span className="cursor-pointer select-none [&>svg]:!size-5">
-            {Icon}
-            {title}
-          </span>
-        </Button>
-        {!disableAdd && <CreateNodeTrigger />}
+    <div className="flex h-full flex-col">
+      <TreeSidebarHeader
+        showSearch={showSearch}
+        onToggleSearch={() => setShowSearch(!showSearch)}
+        onExitSearch={() => setShowSearch(false)}
+        disableAdd={disableAdd}
+      />
+      <div className="flex-1 min-h-0 w-full">
+        <DndProvider backend={HTML5Backend} context={window}>
+          <VirtualNodeTreeContainer
+            nodes={allNodes}
+            allNodes={allNodesForVirtual || allNodes}
+            containerId={containerId}
+            target={target}
+            targetFolderId={targetFolderId}
+            setTarget={handleSetTarget}
+            setTargetFolderId={handleSetTargetFolderId}
+          />
+        </DndProvider>
       </div>
-      {showNodes && (
-        <div className="mt-1 w-full space-y-1 pl-4">
-          <DndProvider backend={HTML5Backend} context={window}>
-            <NodeTreeContainer 
-              nodes={allNodes} 
-              containerId={containerId}
-              target={target}
-              targetFolderId={targetFolderId}
-              setTarget={handleSetTarget}
-              setTargetFolderId={handleSetTargetFolderId}
-            />
-          </DndProvider>
-        </div>
-      )}
-    </>
+    </div>
   )
 }
 

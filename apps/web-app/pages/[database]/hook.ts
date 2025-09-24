@@ -81,9 +81,13 @@ export const useLayoutInit = () => {
 
   const { getPropertyTypes } = useDocPropertyTypes()
   const { initPeer } = usePeer()
+  const { updateNodeList } = useSqlite()
 
   useSyncExtNodes()
   useSyncMblocks()
+  useEffect(() => {
+    updateNodeList()
+  }, [updateNodeList])
 
   useEffect(() => {
     // refresh property types when space changed

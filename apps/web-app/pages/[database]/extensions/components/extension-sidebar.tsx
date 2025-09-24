@@ -6,7 +6,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { useAllExtensions } from "@/apps/web-app/hooks/use-all-extensions"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
-import { useExtensionSidebarStore } from "../stores/sidebar-store"
 import { ExtensionSidebarHeader } from "./extension-sidebar-header"
 import { ExtensionList } from "./extension-list"
 
@@ -32,10 +31,6 @@ export const ExtensionSidebar = ({ className }: ExtensionSidebarProps) => {
   } | null>(null)
   const [newSlug, setNewSlug] = useState("")
   const [isRenaming, setIsRenaming] = useState(false)
-  const {
-    isSidebarOpen,
-    toggleSidebar,
-  } = useExtensionSidebarStore()
 
   // Keyboard shortcut: Shift + Cmd/Ctrl + F to toggle search
   useKeyPress(["shift.ctrl.f", "shift.meta.f"], (e) => {
@@ -92,22 +87,17 @@ export const ExtensionSidebar = ({ className }: ExtensionSidebarProps) => {
     setIsRenaming(false)
   }
 
-  // Don't render if sidebar is closed
-  if (!isSidebarOpen) {
-    return null
-  }
 
   return (
     <div
       className={cn(
-        "w-64 flex-shrink-0 border-r bg-muted/20 flex flex-col h-full px-2",
+        "w-full flex flex-col h-full",
         className
       )}
     >
       <ExtensionSidebarHeader
         showSearch={showSearch}
         onToggleSearch={() => setShowSearch(!showSearch)}
-        onClose={toggleSidebar}
         onExitSearch={() => setShowSearch(false)}
       />
 

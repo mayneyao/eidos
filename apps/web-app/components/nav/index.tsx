@@ -2,11 +2,11 @@ import { Menu, PanelRightIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { isDesktopMode } from "@/lib/env"
-import { useAppStore } from "@/apps/web-app/store/app-store"
 import { cn } from "@/lib/utils"
 import { isMac, isWindowsDesktop } from "@/lib/web/helper"
 import { Button } from "@/components/ui/button"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
+import { useAppStore } from "@/apps/web-app/store/app-store"
 
 import { BreadCrumb } from "./breadcrumb"
 import { NavDropdownMenu } from "./dropdown-menu"
@@ -46,9 +46,8 @@ export const Nav = ({
 
   return (
     <div
-      id={isMac() ? "title-bar-mac" : "title-bar"}
       className={cn(
-        "flex h-8 w-full shrink-0 border-separate items-center justify-between pl-2",
+        "flex w-full shrink-0 border-separate items-center justify-between pl-2 h-[38px] border-b",
         {
           fixed: navigator.windowControlsOverlay?.visible,
           "!pl-[72px]":
@@ -57,7 +56,6 @@ export const Nav = ({
             !isSidebarOpen,
           "!pr-[230px]":
             navigator.windowControlsOverlay?.visible && isSidebarOpen,
-          "!h-[38px]": isMac(),
           // fix title bar height for windows
           "pt-[6px]": isWindowsDesktop,
           // "bg-primary": theme === "dark",

@@ -162,7 +162,7 @@ export function DesktopSpaceLayout() {
                 >
                   <div
                     className={cn(
-                      "mx-3 flex justify-end !h-[38px] items-center shrink-0",
+                      "px-3 flex justify-end h-[38px] items-center shrink-0 border-b",
                       {
                         "pr-[100px]": isWindowsDesktop && isRightPanelOpen,
                       }
@@ -171,7 +171,7 @@ export function DesktopSpaceLayout() {
                     <RightPanelNav />
                   </div>
                   <div
-                    className="grow border-t h-[calc(100%-38px)] overflow-y-auto"
+                    className="grow  h-[calc(100%-38px)] overflow-y-auto"
                     ref={rightPanelRef}
                   >
                     {tempPanelNode ? (

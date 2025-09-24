@@ -26,12 +26,10 @@ export const SpaceSettings = () => {
         <Button
           variant={"ghost"}
           size="sm"
-          className="w-full cursor-pointer justify-center font-normal"
-          asChild
+          className="h-8 w-8 p-0 cursor-pointer"
+          title={t("common.settings")}
         >
-          <span className="[&>svg]:!size-5">
-            <SettingsIcon />
-          </span>
+          <SettingsIcon className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="h-[85vh] w-[75vw] max-w-6xl p-0">
