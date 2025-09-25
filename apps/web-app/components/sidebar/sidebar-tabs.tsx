@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
 import {
   BlocksIcon,
   CalendarDays,
@@ -10,18 +9,19 @@ import {
   SettingsIcon,
   ToyBrickIcon,
 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
-import { cn } from "@/lib/utils"
-import { isMac } from "@/lib/web/helper"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import {
   useSidebarStore,
   type SidebarApp,
 } from "@/apps/web-app/store/sidebar-store"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
+import { cn } from "@/lib/utils"
+import { isMacDesktop } from "@/lib/web/helper"
 
 import { Button } from "../ui/button"
 import {
@@ -92,7 +92,7 @@ export const SidebarTabs = () => {
       const dropdownWidth = 32 // dropdown button width
 
       const totalTabs = tabs.length + favBlocks.length
-      const availableWidth = containerWidth - (isMac() ? 80 : 0) // Account for Mac padding
+      const availableWidth = containerWidth - (isMacDesktop() ? 80 : 0) // Account for Mac padding
 
       // Calculate how many tabs can fit
       let canFit = Math.floor((availableWidth + gap) / (tabWidth + gap))
@@ -127,10 +127,10 @@ export const SidebarTabs = () => {
       className={cn(
         "flex h-[38px] items-center gap-1 px-2 border-b border-sidebar-border",
         {
-          "pl-[5rem]": isMac(),
+          "pl-[5rem]": isMacDesktop(),
         }
       )}
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       {/* Visible regular tabs */}
       {visibleTabs.map((tab) => {
@@ -145,7 +145,7 @@ export const SidebarTabs = () => {
               "h-8 w-8 p-0 transition-colors flex-shrink-0",
               isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
             )}
-            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             onClick={() => handleTabClick(tab)}
             title={tab.label}
           >
@@ -177,7 +177,7 @@ export const SidebarTabs = () => {
           variant="ghost"
           size="sm"
           className="h-8 w-8 p-0 transition-colors flex-shrink-0"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           onClick={() => handleBlockClick(block.id)}
           title={block.name || block.id}
         >
@@ -193,7 +193,7 @@ export const SidebarTabs = () => {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 transition-colors flex-shrink-0"
-              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
               title="More tabs"
             >
               <ChevronDownIcon className="h-4 w-4" />
