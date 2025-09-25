@@ -139,20 +139,6 @@ export const Card: FC<CardProps> = ({
       // When dragging downwards, only move when the cursor is below 50%
       // When dragging upwards, only move when the cursor is above 50%
 
-      // // Dragging downwards
-      // if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY * 3) {
-      //   // moveIntoCard(dragIndex, hoverIndex)
-      //   // setTarget(hoverIndex, "up")
-      //   return
-      // }
-
-      // // Dragging upwards
-      // if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
-      //   // moveIntoCard(dragIndex, hoverIndex)
-      //   // setTarget(hoverIndex, "down")
-      //   return
-      // }
-
       // if node is folder, we split the drop area into 3 parts, up: 1/4, middle: 1/2, down: 1/4
       if (
         node.type === "folder" &&
@@ -171,13 +157,6 @@ export const Card: FC<CardProps> = ({
       })
 
       // Time to actually perform the action
-      // moveCard(dragIndex, hoverIndex, drag.id)
-
-      // Note: we're mutating the monitor item here!
-      // Generally it's better to avoid mutations,
-      // but it's good here for the sake of performance
-      // to avoid expensive index searches.
-      // item.index = hoverIndex
     },
   })
 
@@ -204,41 +183,6 @@ export const Card: FC<CardProps> = ({
     canDrag: !isInkServiceMode,
   })
 
-  // This useEffect adds native drag-and-drop support to coexist with react-dnd.
-  // react-dnd uses its own event handling, but doesn't set the native dataTransfer,
-  // which is needed for dropping outside of the react-dnd context (e.g., an external editor).
-  // By using addEventListener, we can add our own logic without overwriting react-dnd's handlers.
-  // useEffect(() => {
-  //   const element = ref.current
-  //   if (!element) {
-  //     return
-  //   }
-
-  //   const handleDragStart = (event: DragEvent) => {
-  //     // We must not stop propagation, so both react-dnd and native handlers can run.
-  //     event.dataTransfer?.setData("text/plain", node.id)
-  //     if (event.dataTransfer) {
-  //       event.dataTransfer.effectAllowed = "copy"
-  //     }
-  //     console.log("Native drag started for node:", node.name, node.id)
-  //   }
-
-  //   const handleDragEnd = () => {
-  //     console.log("Native drag ended for node:", node.name)
-  //   }
-
-  //   // react-dnd's `drag` ref will set `draggable=true` on this element.
-  //   // We're just adding our listeners to the element.
-  //   element.addEventListener("dragstart", handleDragStart)
-  //   element.addEventListener("dragend", handleDragEnd)
-
-  //   return () => {
-  //     element.removeEventListener("dragstart", handleDragStart)
-  //     element.removeEventListener("dragend", handleDragEnd)
-  //   }
-  // }, [node.id, node.name])
-
-  // const opacity = isDragging ? 0 : 1
   useEffect(() => {
     isDragging && closeFolder(node.id)
   }, [isDragging, node.id, closeFolder])
@@ -253,80 +197,60 @@ export const Card: FC<CardProps> = ({
 
   return (
     <div
+      ref={ref}
+      data-handler-id={handlerId}
       className={cn("flex flex-col gap-1 w-full", {
         "opacity-50": currentCut === node.id,
       })}
     >
-      <div
-        ref={ref}
-        data-handler-id={handlerId}
-        className={cn("flex flex-col gap-1 w-full")}
-      >
-        <div className={cn("group flex w-full", className)}>
-          <NodeItem
-            node={node}
-            databaseName={spaceName}
-            key={node.id}
-            depth={depth}
+      <div className={cn("group flex w-full", className)}>
+        <NodeItem
+          node={node}
+          databaseName={spaceName}
+          key={node.id}
+          depth={depth}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "w-full justify-start font-normal rounded-sm p-1 text-sm transition-colors text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
+              node.id === currentNode?.id ? "bg-muted/80" : "hover:bg-muted/80"
+            )}
+            onClick={setOpen}
+            asChild
           >
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "w-full justify-start font-normal rounded-sm p-1  text-sm transition-colors text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
-                node.id === currentNode?.id
-                  ? "bg-muted/80"
-                  : "hover:bg-muted/80"
-              )}
-              onClick={setOpen}
-              asChild
+            <Link
+              to={node.type !== "folder" ? link : window.location.pathname}
+              className="w-full flex items-center gap-2"
             >
-              <Link
-                to={node.type !== "folder" ? link : window.location.pathname}
-                className="w-full flex items-center gap-2"
-              >
-                <NodeIconEditor
-                  icon={node.icon!}
-                  nodeId={node.id}
-                  size="1em"
-                  className="flex h-5 w-5 items-center justify-start"
-                  customTrigger={
-                    <ItemIcon
-                      type={
-                        node.type === "folder"
-                          ? open
-                            ? "folder-open"
-                            : "folder"
-                          : node.type
-                      }
-                      className="pr-1"
-                    />
-                  }
-                />
-                <span className="flex-1 truncate" title={node.name}>
-                  {node.name.length === 0 ? "Untitled" : node.name}
-                </span>
-                <ExtNodeBadge type={node.type} />
-                {Boolean(node.is_pinned) && <PinIcon className="h-4 w-4" />}
-              </Link>
-            </Button>
-          </NodeItem>
-          {/* {node.type === "folder" && <CreateNodeTrigger parent_id={node.id} />} */}
-        </div>
+              <NodeIconEditor
+                icon={node.icon!}
+                nodeId={node.id}
+                size="1em"
+                className="flex h-5 w-5 items-center justify-start"
+                customTrigger={
+                  <ItemIcon
+                    type={
+                      node.type === "folder"
+                        ? open
+                          ? "folder-open"
+                          : "folder"
+                        : node.type
+                    }
+                    className="pr-1"
+                  />
+                }
+              />
+              <span className="flex-1 truncate" title={node.name}>
+                {node.name || "Untitled"}
+              </span>
+              <ExtNodeBadge type={node.type} />
+              {Boolean(node.is_pinned) && <PinIcon className="h-4 w-4" />}
+            </Link>
+          </Button>
+        </NodeItem>
       </div>
-      {!disableChildren && open && node.type === "folder" && (
-        <div className="ml-3 border-l pl-1">
-          <NodeTreeContainer
-            nodes={children}
-            depth={depth + 1}
-            containerId={containerId}
-            target={propTarget}
-            targetFolderId={propTargetFolderId}
-            setTarget={setTarget}
-            setTargetFolderId={setTargetFolderId}
-          />
-        </div>
-      )}
     </div>
   )
 }

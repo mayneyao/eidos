@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
-import { useVirtualList } from "ahooks"
 
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -35,7 +34,6 @@ export const VirtualNodeTreeContainer = ({
   setTargetFolderId?: (id: string | null) => void
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
-  const wrapperRef = useRef<HTMLDivElement>(null)
 
   const {
     currentCut,
@@ -70,20 +68,6 @@ export const VirtualNodeTreeContainer = ({
     )
   }, [allNodes, folders, depth, searchTerm, sortField, sortOrder])
 
-  const [list, scrollTo] = useVirtualList(flattenedNodes, {
-    containerTarget: containerRef,
-    wrapperTarget: wrapperRef,
-    itemHeight: 34, // 32px height + 2px marginBottom
-    overscan: 10, // Increase overscan to ensure bottom items are rendered
-  })
-
-  // Force re-render when flattened nodes change
-  useEffect(() => {
-    if (containerRef.current && wrapperRef.current) {
-      // Trigger a resize event to force virtual list recalculation
-      window.dispatchEvent(new Event("resize"))
-    }
-  }, [flattenedNodes.length])
 
   const { updatePosition, updateParentId } = useNode()
 
@@ -123,39 +107,6 @@ export const VirtualNodeTreeContainer = ({
     ]
   )
 
-  const renderCard = useCallback(
-    (flattenedNode: FlattenedNode, index: number) => {
-      const { node, depth: nodeDepth } = flattenedNode
-      if (!node?.id) return null
-      const showBorder = targetFolderId === node.id
-      const showNewIndex =
-        !showBorder && target?.index === index && target.depth === nodeDepth
-      return (
-        <Card
-          className={cn({
-            "rounded-sm ring-2": showBorder,
-            "border-b border-blue-400":
-              showNewIndex && target.direction === "down",
-            "border-t border-blue-400 inset-0":
-              showNewIndex && target.direction === "up",
-          })}
-          depth={nodeDepth}
-          key={node.id}
-          index={index}
-          id={node.id}
-          node={node}
-          setTarget={setTarget}
-          setTargetFolderId={setTargetFolderId}
-          onDrop={onDrop}
-          containerId={containerId}
-          target={target}
-          targetFolderId={targetFolderId}
-          disableChildren={true}
-        />
-      )
-    },
-    [targetFolderId, target, setTarget, setTargetFolderId, onDrop, containerId]
-  )
 
   if (flattenedNodes.length === 0) {
     return (
@@ -169,31 +120,41 @@ export const VirtualNodeTreeContainer = ({
 
   return (
     <ScrollArea className="h-full w-full" ref={containerRef}>
-      <div
-        ref={wrapperRef}
-        className="h-full w-full p-1"
-        style={{
-          height: flattenedNodes.length * 34, // Set explicit height for virtual scrolling
-        }}
-      >
-        {list.map((item) => {
-          const flattenedNode = item.data
-          const index = item.index
-
+      <div className="h-full w-full p-1">
+        {flattenedNodes.map(({ node, depth: nodeDepth }, index) => {
+          if (!node?.id) return null
+          
+          const showBorder = targetFolderId === node.id
+          const showNewIndex = !showBorder && target?.index === index && target.depth === nodeDepth
+          
           return (
             <div
-              key={flattenedNode.node.id}
-              className="w-full"
+              key={node.id}
+              className="flex items-center"
               style={{
                 height: 32,
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
                 marginBottom: 2,
-                paddingLeft: 8 + flattenedNode.depth * 12, // Add indentation based on depth
+                paddingLeft: 8 + nodeDepth * 12,
               }}
             >
-              {renderCard(flattenedNode, index)}
+              <Card
+                className={cn({
+                  "rounded-sm ring-2": showBorder,
+                  "border-b border-blue-400": showNewIndex && target.direction === "down",
+                  "border-t border-blue-400 inset-0": showNewIndex && target.direction === "up",
+                })}
+                depth={nodeDepth}
+                index={index}
+                id={node.id}
+                node={node}
+                setTarget={setTarget}
+                setTargetFolderId={setTargetFolderId}
+                onDrop={onDrop}
+                containerId={containerId}
+                target={target}
+                targetFolderId={targetFolderId}
+                disableChildren={true}
+              />
             </div>
           )
         })}
