@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { SearchIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ interface ExtensionSearchProps {
 export const ExtensionSearch = ({ showSearch, onToggleSearch, onExitSearch }: ExtensionSearchProps) => {
   const { searchTerm, updateSearch } = useAllExtensions()
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const DEBOUNCE_DELAY = 200
 
@@ -39,6 +40,18 @@ export const ExtensionSearch = ({ showSearch, onToggleSearch, onExitSearch }: Ex
     setLocalSearchTerm(searchTerm)
   }, [searchTerm])
 
+  // Focus input after search becomes visible and animation completes
+  useEffect(() => {
+    if (showSearch && inputRef.current) {
+      // Use a timeout to wait for the CSS transition to complete
+      const timeoutId = setTimeout(() => {
+        inputRef.current?.focus()
+      }, 350) // Slightly longer than the 300ms transition duration
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [showSearch])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
       e.preventDefault()
@@ -62,12 +75,12 @@ export const ExtensionSearch = ({ showSearch, onToggleSearch, onExitSearch }: Ex
       >
         <div className="whitespace-nowrap h-full w-full flex items-center px-1">
           <Input
+            ref={inputRef}
             placeholder="Search extensions..."
             value={localSearchTerm}
             onChange={(e) => handleSearchChange(e.target.value)}
             onKeyDown={handleKeyDown}
             className="h-6 text-xs w-full"
-            autoFocus={showSearch}
           />
         </div>
       </div>
