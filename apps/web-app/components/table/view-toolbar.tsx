@@ -404,7 +404,7 @@ export const ViewToolbar = (props: {
 
   return (
     <div ref={ref}>
-      <div className="ml-2 flex items-center justify-between border-b pb-1">
+      <div className="flex items-center justify-between border-b pb-1">
         <div className="flex items-center min-w-0" ref={ref1}>
           <div className="flex items-center min-w-0">
             <Views
@@ -425,6 +425,19 @@ export const ViewToolbar = (props: {
             )}
           </div>
         </div>
+        <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+          <DialogTrigger>
+            <></>
+          </DialogTrigger>
+          <DialogContent
+            className="container h-[95vh] p-0 md:max-w-[756px]"
+            onMaximize={handleMaximize}
+          >
+            <div className="h-full w-full overflow-x-hidden">
+              <NodeComponent nodeId={subPageId} />
+            </div>
+          </DialogContent>
+        </Dialog>
         <div
           className={cn("flex gap-2 hover:opacity-100", {
             // "opacity-0": isEmbed,
@@ -444,19 +457,6 @@ export const ViewToolbar = (props: {
               </Button>
             )}
           </div>
-          <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-            <DialogTrigger>
-              <div></div>
-            </DialogTrigger>
-            <DialogContent
-              className="container h-[95vh] p-0 md:max-w-[756px]"
-              onMaximize={handleMaximize}
-            >
-              <div className="h-full w-full overflow-x-hidden">
-                <NodeComponent nodeId={subPageId} />
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 

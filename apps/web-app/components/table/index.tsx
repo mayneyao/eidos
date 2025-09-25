@@ -77,7 +77,7 @@ export const Table = ({
           udfs,
         }}
       >
-        <div className="h-full w-full overflow-hidden p-2 pt-0 flex flex-col">
+        <div className="h-full w-full overflow-hidden pl-2 pr-1 pt-0 flex flex-col">
           <ViewToolbar
             tableName={tableName}
             space={space}

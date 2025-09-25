@@ -22,14 +22,8 @@ export const TreeSidebarHeader = ({
   return (
     <div className="px-1 flex-shrink-0">
       {/* Icon Buttons Row */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-end gap-2">
         <div className="flex items-center gap-2">
-          {/* Create Node Button */}
-          {!disableAdd && <CreateNodeTrigger />}
-
-          {/* Sort Dropdown */}
-          <TreeSortDropdown />
-
           {/* Search Toggle */}
           <Button
             variant="ghost"
@@ -39,6 +33,11 @@ export const TreeSidebarHeader = ({
           >
             <SearchIcon className="h-4 w-4" />
           </Button>
+          {/* Sort Dropdown */}
+          <TreeSortDropdown />
+
+          {/* Create Node Button */}
+          {!disableAdd && <CreateNodeTrigger />}
         </div>
       </div>
 

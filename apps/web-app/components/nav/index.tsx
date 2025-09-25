@@ -47,7 +47,7 @@ export const Nav = ({
   return (
     <div
       className={cn(
-        "flex w-full shrink-0 border-separate items-center justify-between pl-2 h-[38px] border-b",
+        "flex w-full shrink-0 border-separate items-center justify-between px-1 h-[38px] border-b",
         {
           fixed: navigator.windowControlsOverlay?.visible,
           "!pl-[72px]":
@@ -56,8 +56,8 @@ export const Nav = ({
             !isSidebarOpen,
           "!pr-[230px]":
             navigator.windowControlsOverlay?.visible && isSidebarOpen,
-          // fix title bar height for windows
-          "pt-[6px]": isWindowsDesktop,
+          // // fix title bar height for windows
+          // "pt-[6px]": isWindowsDesktop,
           // "bg-primary": theme === "dark",
           // "bg-background": theme === "light",
           // PWA does not support css variables for theme color yet, we just use bg-white text-black for now
@@ -80,7 +80,7 @@ export const Nav = ({
       <div className="hidden md:block">{children || <BreadCrumb />}</div>
       <div className="h-full grow" id="drag-region" />
       <div
-        className={cn("mr-3 flex items-center justify-between gap-2", {
+        className={cn("flex items-center justify-between gap-1", {
           "pr-[100px]": isWindowsDesktop && !isRightPanelOpen,
         })}
       >
