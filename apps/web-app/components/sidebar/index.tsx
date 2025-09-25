@@ -8,7 +8,6 @@ import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { SpaceSettings } from "../settings"
-import { ImportFileDialog } from "./import-file"
 import { SidebarContent } from "./sidebar-content"
 import { SidebarTabs } from "./sidebar-tabs"
 import { Trash } from "./trash"
@@ -32,7 +31,6 @@ export const SideBar = () => {
           {!isShareMode && <DatabaseSelect databases={spaceList} />}
           <div className="flex items-center gap-1">
             <Trash />
-            <ImportFileDialog />
             <SpaceSettings />
           </div>
         </div>

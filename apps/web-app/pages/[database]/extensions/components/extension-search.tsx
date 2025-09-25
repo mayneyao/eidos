@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from "react"
 import { SearchIcon } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAllExtensions } from "@/apps/web-app/hooks/use-all-extensions"
 
 interface ExtensionSearchProps {
-  onExit: () => void
+  showSearch: boolean
+  onToggleSearch: () => void
+  onExitSearch: () => void
 }
 
-export const ExtensionSearch = ({ onExit }: ExtensionSearchProps) => {
+export const ExtensionSearch = ({ showSearch, onToggleSearch, onExitSearch }: ExtensionSearchProps) => {
   const { searchTerm, updateSearch } = useAllExtensions()
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
 
@@ -41,21 +44,43 @@ export const ExtensionSearch = ({ onExit }: ExtensionSearchProps) => {
       e.preventDefault()
       setLocalSearchTerm("")
       updateSearch("")
-      onExit()
+      onExitSearch()
     }
   }
 
   return (
-    <div className="relative mt-2">
-      <SearchIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-      <Input
-        placeholder="Search extensions..."
-        value={localSearchTerm}
-        onChange={(e) => handleSearchChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        className="pl-8 h-8 text-sm"
-        autoFocus
-      />
+    <div className="flex items-center gap-1">
+      {/* Search Input with Slide Animation */}
+      <div
+        className={`h-8 transition-all duration-300 ease-out flex items-center ${
+          showSearch ? "w-48 opacity-100" : "w-0 opacity-0"
+        }`}
+        style={{
+          transitionProperty: "width, opacity",
+          transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+      >
+        <div className="whitespace-nowrap h-full w-full flex items-center px-1">
+          <Input
+            placeholder="Search extensions..."
+            value={localSearchTerm}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="h-6 text-xs w-full"
+            autoFocus={showSearch}
+          />
+        </div>
+      </div>
+
+      {/* Search Toggle */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 p-0"
+        onClick={onToggleSearch}
+      >
+        <SearchIcon className="h-4 w-4" />
+      </Button>
     </div>
   )
 }

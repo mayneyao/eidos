@@ -16,7 +16,7 @@ import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { NodeIconEditor } from "@/apps/web-app/pages/[database]/[node]/node-icon"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
-import { ItemIcon } from "../item-tree"
+import { ItemIcon } from "."
 import { NodeItem } from "./node-menu"
 import { NodeTreeContainer } from "./node-tree"
 import { useFolderStore, type IHoverTarget } from "./store"
@@ -273,8 +273,10 @@ export const Card: FC<CardProps> = ({
               variant="ghost"
               size="sm"
               className={cn(
-                "w-full justify-start font-normal rounded-sm px-2 py-1 text-sm transition-colors text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
-                node.id === currentNode?.id ? "bg-muted/80" : "hover:bg-muted/80"
+                "w-full justify-start font-normal rounded-sm p-1  text-sm transition-colors text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
+                node.id === currentNode?.id
+                  ? "bg-muted/80"
+                  : "hover:bg-muted/80"
               )}
               onClick={setOpen}
               asChild
@@ -305,9 +307,7 @@ export const Card: FC<CardProps> = ({
                   {node.name.length === 0 ? "Untitled" : node.name}
                 </span>
                 <ExtNodeBadge type={node.type} />
-                {Boolean(node.is_pinned) && (
-                  <PinIcon className="h-4 w-4" />
-                )}
+                {Boolean(node.is_pinned) && <PinIcon className="h-4 w-4" />}
               </Link>
             </Button>
           </NodeItem>

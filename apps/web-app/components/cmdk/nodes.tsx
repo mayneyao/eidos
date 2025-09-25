@@ -1,7 +1,7 @@
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 import { ExtNodeBadge } from "../ext-node-badge"
-import { ItemIcon } from "../sidebar/item-tree"
+import { ItemIcon } from "../sidebar/tree"
 import { Badge } from "../ui/badge"
 import {
   CommandGroup,

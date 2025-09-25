@@ -1,6 +1,7 @@
 import { TreeNodeType, type ITreeNode } from "@/packages/core/types/ITreeNode"
 import { Plus } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { isDesktopMode } from "@/lib/env"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -57,6 +58,45 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
     console.log("extNodeId", extNodeId)
     if (!extNodeId) return
     goto(space, extNodeId)
+  }
+
+  const handleImportCsv = async (file: File) => {
+    if (isDesktopMode) {
+      await window.eidos.invoke("reload-query-worker")
+    }
+    const tableId = await sqlite?.importCsv({
+      name: file.name,
+      content: await file.text(),
+    })
+    if (tableId) {
+      goto(space, tableId)
+    }
+  }
+
+  const handleImportMarkdown = async (file: File) => {
+    const docId = await sqlite?.importMarkdown({
+      name: file.name,
+      content: await file.text(),
+    })
+    if (docId) {
+      goto(space, docId)
+    }
+  }
+
+  const triggerFileInput = (accept: string, handler: (file: File) => void) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = accept
+    input.style.display = 'none'
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        handler(file)
+      }
+    }
+    document.body.appendChild(input)
+    input.click()
+    document.body.removeChild(input)
   }
 
   const handleCreateNode = (type: ITreeNode["type"]) => {
@@ -116,6 +156,21 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
           <span className="mx-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
             {t("common.badge.alpha")}
           </span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => {
+            triggerFileInput('.csv', handleImportCsv)
+          }}
+        >
+          {t("sidebar.importFile.importCSV")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            triggerFileInput('.md,.markdown', handleImportMarkdown)
+          }}
+        >
+          {t("sidebar.importFile.importMarkdown")}
         </DropdownMenuItem>
         {extNodes.length > 0 && <DropdownMenuSeparator />}
         {extNodes.map((node) => {

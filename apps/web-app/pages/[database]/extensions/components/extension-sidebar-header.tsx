@@ -1,8 +1,10 @@
+import { PlusIcon } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
-import { NewExtensionButton } from "./new-extension-button"
-import { ExtensionSortDropdown } from "./extension-sort-dropdown"
+
 import { ExtensionSearch } from "./extension-search"
-import { PanelLeftCloseIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { ExtensionSortDropdown } from "./extension-sort-dropdown"
+import { NewExtensionButton } from "./new-extension-button"
 
 interface ExtensionSidebarHeaderProps {
   showSearch: boolean
@@ -17,10 +19,20 @@ export const ExtensionSidebarHeader = ({
 }: ExtensionSidebarHeaderProps) => {
   return (
     <div className="px-1 flex-shrink-0">
-      {/* Icon Buttons Row */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {/* Create Extension Dropdown */}
+      {/* Icon Buttons Row with Search */}
+      <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center gap-1 h-8">
+          {/* Search Component */}
+          <ExtensionSearch
+            showSearch={showSearch}
+            onToggleSearch={onToggleSearch}
+            onExitSearch={onExitSearch}
+          />
+
+          {/* Sort Dropdown */}
+          <ExtensionSortDropdown />
+
+          {/* Create Extension Button */}
           <NewExtensionButton
             trigger={
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -28,24 +40,8 @@ export const ExtensionSidebarHeader = ({
               </Button>
             }
           />
-
-          {/* Sort Dropdown */}
-          <ExtensionSortDropdown />
-
-          {/* Search Toggle */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={onToggleSearch}
-          >
-            <SearchIcon className="h-4 w-4" />
-          </Button>
         </div>
       </div>
-
-      {/* Conditional Search Input */}
-      {showSearch && <ExtensionSearch onExit={onExitSearch} />}
     </div>
   )
 }

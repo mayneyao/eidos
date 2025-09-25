@@ -190,7 +190,7 @@ export const VirtualNodeTreeContainer = ({
                 display: "flex",
                 alignItems: "center",
                 marginBottom: 2,
-                paddingLeft: flattenedNode.depth * 12, // Add indentation based on depth
+                paddingLeft: 8 + flattenedNode.depth * 12, // Add indentation based on depth
               }}
             >
               {renderCard(flattenedNode, index)}

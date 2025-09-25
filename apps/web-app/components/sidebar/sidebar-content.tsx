@@ -10,7 +10,7 @@ import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
 import { ExtensionSidebar } from "../../pages/[database]/extensions/components/extension-sidebar"
 import { FileManager } from "../file-manager"
-import { CurrentItemTree } from "./item-tree"
+import { CurrentItemTree } from "./tree"
 
 const NodesContent = () => {
   const { t } = useTranslation()

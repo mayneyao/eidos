@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react"
 import { TreeNodeType, type ITreeNode } from "@/packages/core/types/ITreeNode"
+import { useKeyPress } from "ahooks"
 import {
   CalendarDaysIcon,
   File,
@@ -11,14 +12,13 @@ import {
 } from "lucide-react"
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
-import { useKeyPress } from "ahooks"
 
 import { cn } from "@/lib/utils"
 
-import { CreateNodeTrigger } from "./tree/create-node-trigger"
-import { VirtualNodeTreeContainer } from "./tree/virtual-node-tree"
-import { TreeSidebarHeader } from "./tree/tree-sidebar-header"
-import type { IHoverTarget } from "./tree/store"
+import type { IHoverTarget } from "./store"
+import { TreeSidebarHeader } from "./tree-sidebar-header"
+import { useTreeSidebarStore } from "./tree-sidebar-store"
+import { VirtualNodeTreeContainer } from "./virtual-node-tree"
 
 export const CurrentItemTree = ({
   allNodes,
@@ -42,12 +42,15 @@ export const CurrentItemTree = ({
   // Independent state for each tree instance
   const [targetFolderId, setTargetFolderId] = useState<string | null>(null)
   const [target, setTarget] = useState<IHoverTarget | null>(null)
-  const [showSearch, setShowSearch] = useState(false)
+
+  // Use store for search state
+  const { toggleSearch } = useTreeSidebarStore()
 
   // Keyboard shortcut: Shift + Cmd/Ctrl + F to toggle search
   useKeyPress(["shift.ctrl.f", "shift.meta.f"], (e) => {
     e.preventDefault()
-    setShowSearch(!showSearch)
+    console.log("Keyboard shortcut triggered, toggling search")
+    toggleSearch()
   })
 
   const handleSetTarget = useCallback((newTarget: IHoverTarget | null) => {
@@ -63,13 +66,8 @@ export const CurrentItemTree = ({
 
   return (
     <div className="flex h-full flex-col">
-      <TreeSidebarHeader
-        showSearch={showSearch}
-        onToggleSearch={() => setShowSearch(!showSearch)}
-        onExitSearch={() => setShowSearch(false)}
-        disableAdd={disableAdd}
-      />
-      <div className="flex-1 min-h-0 w-full">
+      <TreeSidebarHeader disableAdd={disableAdd} />
+      <div className="flex-1 min-h-0 p-1 w-full">
         <DndProvider backend={HTML5Backend} context={window}>
           <VirtualNodeTreeContainer
             nodes={allNodes}
