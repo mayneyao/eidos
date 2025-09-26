@@ -268,22 +268,22 @@ ORDER BY
     `
   },
   {
-    name: "queryDocsWithCustomProperties",
-    i18nKey: "dataview.template.queryDocsWithCustomProperties",
-    descriptionKey: "dataview.template.queryDocsWithCustomProperties.description",
-    tags: ["doc", "custom", "property"],
+    name: "queryAllDocs",
+    i18nKey: "dataview.template.queryAllDocs",
+    descriptionKey: "dataview.template.queryAllDocs.description",
+    tags: ["doc", "all"],
     category: "doc",
-    difficulty: "intermediate",
+    difficulty: "beginner",
     sql: `
 SELECT
   t.name as title,
+  '/${space}/' || t.id AS pathname, -- [pathname:url]
   d.*
 FROM
   eidos__tree t
   JOIN eidos__docs d ON t.id = d.id
-WHERE
-  d.my_custom_property = 'value1'
-  AND d.my_custom_property_2 = 'value2'
+ORDER BY
+  d.created_at DESC
     `
   },
   {

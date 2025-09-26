@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react"
 import { formatSql } from "@/packages/core/sqlite/helper"
 import { ViewTypeEnum } from "@/packages/core/types/IView"
 import type { SQLNamespace } from "@codemirror/lang-sql"
-import { Database } from "lucide-react"
+import { BookOpen, Database, ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { shortenId } from "@/lib/utils"
@@ -42,9 +42,18 @@ export const DataViewPlaceholder = ({
   const { createDataView, createTempDataView } = useDataView()
   const { sqlite } = useSqlite()
   const { resetTableData } = useSqliteStore()
-  const { t } = useTranslation()
-  
+  const { t, i18n } = useTranslation()
+
   const sqlEditorRef = useRef<any>(null)
+
+  // Generate documentation URL based on current language
+  const getDocumentationUrl = () => {
+    const baseUrl = "https://docs.eidos.space"
+    const isChinese = i18n.language.startsWith("zh")
+    return isChinese
+      ? `${baseUrl}/zh-cn/nodes/dataview`
+      : `${baseUrl}/nodes/dataview`
+  }
 
   useEffect(() => {
     const buildSchema = async () => {
@@ -220,12 +229,23 @@ export const DataViewPlaceholder = ({
             <div className="h-full flex flex-col">
               <div className="flex justify-between items-center mb-2 flex-shrink-0 py-2">
                 <div className="flex items-center gap-2 justify-between w-full">
-                  <label
-                    htmlFor="sql"
-                    className="block text-sm font-medium text-muted-foreground"
-                  >
-                    {t("common.sqlQuery")}
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="sql"
+                      className="block text-sm font-medium text-muted-foreground"
+                    >
+                      {t("common.sqlQuery")}
+                    </label>
+                    <a
+                      href={getDocumentationUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group"
+                      title={t("common.viewDocumentation")}
+                    >
+                      <BookOpen className="h-3 w-3" />
+                    </a>
+                  </div>
                   <TemplateModal
                     onTemplateSelect={handleTemplateSelect}
                     space={space}
