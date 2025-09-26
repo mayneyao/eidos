@@ -133,7 +133,7 @@ export function GlobalAISettings() {
   return (
     <div className="space-y-0">
       {/* Provider Section */}
-      <div className="py-4 flex items-center justify-between">
+      <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h3 className="text-lg font-medium">{t("settings.ai.provider")}</h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -166,7 +166,7 @@ export function GlobalAISettings() {
 
       <hr className="border-border" />
 
-      <div className="py-4">
+      <div className="py-4 lg:py-6">
         <div className="space-y-4">
           <div className="space-y-0.5">
             <p className="text-sm text-muted-foreground">
@@ -174,59 +174,24 @@ export function GlobalAISettings() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {aiConfig.llmProviders.map((provider) => {
               return (
                 <div
                   key={provider.name}
-                  className="group flex items-center p-3 rounded-lg border hover:bg-accent/50 transition-colors"
+                  className="group flex flex-col sm:flex-row sm:items-center p-3 rounded-lg border hover:bg-accent/50 transition-colors gap-3"
                 >
-                  <div className="flex items-center space-x-3 w-full">
-                    <Suspense fallback={<div className="w-5 h-5" />}>
-                      <ProviderIcon type={provider.type} isActive />
-                    </Suspense>
-                    
-                    {/* Provider name - fixed width for alignment */}
-                    <div className="w-32 flex-shrink-0">
+                  {/* Header row with icon, name and actions */}
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <Suspense fallback={<div className="w-5 h-5" />}>
+                        <ProviderIcon type={provider.type} isActive />
+                      </Suspense>
                       <h5 className="font-medium truncate">{provider.name}</h5>
                     </div>
                     
-                    {/* Models section - flexible width */}
-                    <div className="flex-1 flex gap-2 items-center text-xs text-muted-foreground min-w-0">
-                      {provider.models && provider.models.length > 0 && (
-                        <>
-                          {provider.models
-                            .split(",")
-                            .slice(0, 2)
-                            .map((model) => (
-                              <span
-                                key={model}
-                                className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-muted-foreground"
-                              >
-                                {model}
-                              </span>
-                            ))}
-                          {(() => {
-                            const totalModels =
-                              provider.models.split(",").length
-                            if (totalModels > 2) {
-                              const remainingCount = totalModels - 2
-                              return (
-                                <span className="italic shrink-0">
-                                  {t("common.more", {
-                                    count: remainingCount,
-                                  })}
-                                </span>
-                              )
-                            }
-                            return null
-                          })()}
-                        </>
-                      )}
-                    </div>
-                    
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    {/* Action buttons - always visible on mobile, hover on desktop */}
+                    <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -243,6 +208,37 @@ export function GlobalAISettings() {
                       </Button>
                     </div>
                   </div>
+                  
+                  {/* Models section - full width with flex wrap */}
+                  {provider.models && provider.models.length > 0 && (
+                    <div className="flex flex-wrap gap-2 items-center text-xs text-muted-foreground w-full">
+                      {provider.models
+                        .split(",")
+                        .slice(0, 5)
+                        .map((model) => (
+                          <span
+                            key={model}
+                            className="whitespace-nowrap rounded bg-muted px-2 py-1 text-muted-foreground"
+                          >
+                            {model}
+                          </span>
+                        ))}
+                      {(() => {
+                        const totalModels = provider.models.split(",").length
+                        if (totalModels > 5) {
+                          const remainingCount = totalModels - 5
+                          return (
+                            <span className="italic shrink-0 text-muted-foreground">
+                              {t("common.more", {
+                                count: remainingCount,
+                              })}
+                            </span>
+                          )
+                        }
+                        return null
+                      })()}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -251,8 +247,8 @@ export function GlobalAISettings() {
       </div>
 
       {/* Model Preferences Section */}
-      <div className="py-4">
-        <div className="flex items-center justify-between">
+      <div className="py-4 lg:py-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h3 className="text-lg font-medium">
             {t("settings.ai.modelPreferences")}
           </h3>
@@ -279,7 +275,7 @@ export function GlobalAISettings() {
 
       <hr className="border-border" />
 
-      <div className="py-4">
+      <div className="py-4 lg:py-6">
         <AITaskConfigForm onDirtyChange={setIsFormDirty} />
       </div>
 

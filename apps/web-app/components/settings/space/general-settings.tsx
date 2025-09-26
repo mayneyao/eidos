@@ -79,12 +79,17 @@ export function GeneralSettings() {
 
   return (
     <div className="space-y-0">
+      <div className="py-4">
+        <h3 className="text-lg font-medium">
+          {t("space.settings.spaceInfo")}
+        </h3>
+      </div>
+
+      <hr className="border-border" />
+
       <div className="py-6">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <h3 className="text-lg font-medium mb-1">
-              {t("space.settings.spaceInfo")}
-            </h3>
             <p className="text-sm text-muted-foreground mb-4">
               {t("space.settings.spaceDescription")}
             </p>
@@ -105,14 +110,17 @@ export function GeneralSettings() {
         </div>
       </div>
 
+      <div className="py-4">
+        <h3 className="text-lg font-medium">
+          {t("space.settings.dataManagement")}
+        </h3>
+      </div>
+
       <hr className="border-border" />
 
       <div className="py-6">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <h3 className="text-lg font-medium mb-1">
-              {t("space.settings.dataManagement")}
-            </h3>
             <p className="text-sm text-muted-foreground mb-4">
               {t("space.settings.dataDescription")}
             </p>
@@ -179,14 +187,17 @@ export function GeneralSettings() {
         </div>
       </div>
 
+      <div className="py-4">
+        <h3 className="text-lg font-medium text-destructive">
+          {t("space.settings.dangerZone")}
+        </h3>
+      </div>
+
       <hr className="border-border" />
 
       <div className="py-6">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <h3 className="text-lg font-medium mb-1 text-destructive">
-              {t("space.settings.dangerZone")}
-            </h3>
             <p className="text-sm text-muted-foreground mb-4">
               {t("space.settings.dangerDescription")}
             </p>

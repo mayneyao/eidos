@@ -28,7 +28,7 @@ export function UnifiedSettings({
     useState<SettingsSection>(initialSection)
 
   return (
-    <div className="flex h-[85vh]">
+    <div className="flex flex-col lg:flex-row h-[85vh]">
       <SettingsSidebar
         activeSection={activeSection}
         onSectionChange={setActiveSection}

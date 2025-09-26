@@ -124,16 +124,17 @@ export function SettingsSidebar({
   const spaceSections = settingsSections.filter((s) => s.category === "space")
   const globalSections = settingsSections.filter((s) => s.category === "global")
 
-  return (
-    <div className="w-64 border-r bg-muted/30 flex flex-col">
-      <div className="p-4 overflow-y-auto flex-1">
-        <div className="space-y-6">
+  // Mobile top navigation component
+  const MobileTopNav = () => (
+    <div className="lg:hidden border-b bg-muted/30">
+      <div className="p-4">
+        <div className="space-y-4">
           {/* Global Settings Section */}
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               {t("settings.title")}
             </h3>
-            <div className="space-y-1">
+            <div className="flex gap-2 overflow-x-auto pb-2">
               {globalSections.map((section) => (
                 <button
                   key={section.id}
@@ -141,7 +142,7 @@ export function SettingsSidebar({
                     !section.disabled && onSectionChange(section.id)
                   }
                   disabled={section.disabled}
-                  className={`w-full flex items-center justify-between px-3 py-3 rounded-md text-left transition-all duration-200 border ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-all duration-200 border ${
                     activeSection === section.id
                       ? "bg-background shadow-sm border-border"
                       : "border-transparent hover:bg-muted"
@@ -151,28 +152,23 @@ export function SettingsSidebar({
                       : "cursor-pointer"
                   }`}
                 >
-                  <div className="flex items-center space-x-3 min-h-[1rem]">
-                    <div
-                      className={`${
-                        activeSection === section.id
-                          ? "text-primary"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {section.icon}
-                    </div>
-                    <div className="flex-1 min-h-[1rem] flex flex-col justify-center">
-                      <div className="font-medium text-sm leading-tight flex items-center gap-2">
-                        {section.title}
-                        {section.isAlpha && (
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
-                            {t("common.badge.alpha")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                  <div
+                    className={`${
+                      activeSection === section.id
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {section.icon}
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="font-medium">
+                    {section.title}
+                    {section.isAlpha && (
+                      <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
+                        {t("common.badge.alpha")}
+                      </span>
+                    )}
+                  </span>
                 </button>
               ))}
             </div>
@@ -184,18 +180,111 @@ export function SettingsSidebar({
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 {t("space.settings.title")}
               </h3>
-              <div className="space-y-1">
+              <div className="flex gap-2 overflow-x-auto pb-2">
                 {spaceSections.map((section) => (
                   <button
                     key={section.id}
                     onClick={() => onSectionChange(section.id)}
-                    className={`w-full flex items-center justify-between px-3 py-3 rounded-md text-left transition-all duration-200 border ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-all duration-200 border ${
                       activeSection === section.id
                         ? "bg-background shadow-sm border-border"
                         : "border-transparent hover:bg-muted"
                     }`}
                   >
-                    <div className="flex items-center space-x-3 min-h-[1rem]">
+                    <div
+                      className={`${
+                        activeSection === section.id
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {section.icon}
+                    </div>
+                    <span className="font-medium">{section.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <MobileTopNav />
+      <div className="w-56 border-r bg-muted/30 hidden lg:flex lg:flex-col">
+      <div className="p-3 overflow-y-auto flex-1">
+        <div className="space-y-4">
+          {/* Global Settings Section */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              {t("settings.title")}
+            </h3>
+            <div className="space-y-0.5">
+              {globalSections.map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() =>
+                    !section.disabled && onSectionChange(section.id)
+                  }
+                  disabled={section.disabled}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 border ${
+                    activeSection === section.id
+                      ? "bg-background shadow-sm border-border"
+                      : "border-transparent hover:bg-muted"
+                  } ${
+                    section.disabled
+                      ? "opacity-50 cursor-not-allowed"
+                      : "cursor-pointer"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5 min-h-[1rem]">
+                    <div
+                      className={`${
+                        activeSection === section.id
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {section.icon}
+                    </div>
+                    <div className="flex-1 min-h-[1rem] flex flex-col justify-center">
+                      <div className="font-medium text-sm leading-tight flex items-center gap-1.5">
+                        {section.title}
+                        {section.isAlpha && (
+                          <span className="px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
+                            {t("common.badge.alpha")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Space Settings Section */}
+          {showSpaceSettings && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {t("space.settings.title")}
+              </h3>
+              <div className="space-y-0.5">
+                {spaceSections.map((section) => (
+                  <button
+                    key={section.id}
+                    onClick={() => onSectionChange(section.id)}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 border ${
+                      activeSection === section.id
+                        ? "bg-background shadow-sm border-border"
+                        : "border-transparent hover:bg-muted"
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2.5 min-h-[1rem]">
                       <div
                         className={`${
                           activeSection === section.id
@@ -211,7 +300,7 @@ export function SettingsSidebar({
                         </div>
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                   </button>
                 ))}
               </div>
@@ -220,5 +309,6 @@ export function SettingsSidebar({
         </div>
       </div>
     </div>
+    </>
   )
 }

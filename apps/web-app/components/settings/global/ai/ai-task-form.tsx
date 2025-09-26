@@ -69,15 +69,15 @@ export function AITaskConfigForm({
           </p>
         </div>
 
-        <div className="space-y-4">
-          <div className="flex items-start justify-between gap-4">
+        <div className="space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
             <div className="space-y-0.5 flex-1 min-w-0">
               <FormLabel>{t("settings.ai.translationModel")}</FormLabel>
               <p className="text-sm text-muted-foreground">
                 {t("settings.ai.translationModelDescription")}
               </p>
             </div>
-            <div className="w-64 flex-shrink-0">
+            <div className="w-full lg:w-64 flex-shrink-0">
               <FormField
                 control={form.control}
                 name="translationModel"
@@ -104,14 +104,14 @@ export function AITaskConfigForm({
             </div>
           </div>
 
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
             <div className="space-y-0.5 flex-1 min-w-0">
               <FormLabel>{t("settings.ai.codingModel")}</FormLabel>
               <p className="text-sm text-muted-foreground">
                 {t("settings.ai.codingModelDescription")}
               </p>
             </div>
-            <div className="w-64 flex-shrink-0">
+            <div className="w-full lg:w-64 flex-shrink-0">
               <FormField
                 control={form.control}
                 name="codingModel"
@@ -138,14 +138,14 @@ export function AITaskConfigForm({
             </div>
           </div>
 
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
             <div className="space-y-0.5 flex-1 min-w-0">
               <FormLabel>{t("settings.ai.applyCodeModel")}</FormLabel>
               <p className="text-sm text-muted-foreground">
                 {t("settings.ai.applyCodeModelDescription")}
               </p>
             </div>
-            <div className="w-64 flex-shrink-0">
+            <div className="w-full lg:w-64 flex-shrink-0">
               <FormField
                 control={form.control}
                 name="applyCodeModel"
@@ -172,14 +172,14 @@ export function AITaskConfigForm({
             </div>
           </div>
 
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
             <div className="space-y-0.5 flex-1 min-w-0">
               <FormLabel>{t("settings.ai.embeddingModel")}</FormLabel>
               <p className="text-sm text-muted-foreground">
                 {t("settings.ai.embeddingModelDescription")}
               </p>
             </div>
-            <div className="w-64 flex-shrink-0">
+            <div className="w-full lg:w-64 flex-shrink-0">
               <FormField
                 control={form.control}
                 name="embeddingModel"
