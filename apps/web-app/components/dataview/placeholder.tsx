@@ -1,8 +1,8 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react"
 import { formatSql } from "@/packages/core/sqlite/helper"
 import { ViewTypeEnum } from "@/packages/core/types/IView"
 import type { SQLNamespace } from "@codemirror/lang-sql"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { Database } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { shortenId } from "@/lib/utils"
@@ -22,7 +22,7 @@ import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 import { TableContext } from "../table/hooks"
 import { TableStoreProvider } from "../table/table-store-provider"
-import { TemplatePanel } from "./template-panel"
+import { TemplateModal } from "./template-modal"
 
 const SqlEditor = lazy(() => import("@/components/sql-editor"))
 
@@ -39,12 +39,12 @@ export const DataViewPlaceholder = ({
   const [isPreviewMode, setIsPreviewMode] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
-  const [isTemplatePanelCollapsed, setIsTemplatePanelCollapsed] =
-    useState(false)
   const { createDataView, createTempDataView } = useDataView()
   const { sqlite } = useSqlite()
   const { resetTableData } = useSqliteStore()
   const { t } = useTranslation()
+  
+  const sqlEditorRef = useRef<any>(null)
 
   useEffect(() => {
     const buildSchema = async () => {
@@ -79,6 +79,16 @@ export const DataViewPlaceholder = ({
 
   const { space } = useCurrentPathInfo()
 
+  // Auto-focus SQL editor when component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (sqlEditorRef.current?.focus) {
+        sqlEditorRef.current.focus()
+      }
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [])
+
   const handleCreate = () => {
     createDataView(shortenId(nodeId), sql).then(onCreated)
   }
@@ -86,6 +96,12 @@ export const DataViewPlaceholder = ({
   const handleTemplateSelect = (templateSql: string) => {
     setSql(formatSql(templateSql))
     setPreviewError(null)
+    // Focus the SQL editor after template selection
+    setTimeout(() => {
+      if (sqlEditorRef.current?.focus) {
+        sqlEditorRef.current.focus()
+      }
+    }, 100)
   }
 
   const handleSqlChange = (newSql: string) => {
@@ -198,39 +214,27 @@ export const DataViewPlaceholder = ({
 
   return (
     <div className="flex h-full px-4 gap-4">
-      {/* Template Panel */}
-      <TemplatePanel
-        isCollapsed={isTemplatePanelCollapsed}
-        onTemplateSelect={handleTemplateSelect}
-        space={space}
-      />
-
       <div className="flex-1 h-full">
         <ResizablePanelGroup direction="vertical" className="h-full">
           <ResizablePanel defaultSize={50} minSize={30}>
             <div className="h-full flex flex-col">
               <div className="flex justify-between items-center mb-2 flex-shrink-0 py-2">
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() =>
-                      setIsTemplatePanelCollapsed(!isTemplatePanelCollapsed)
-                    }
-                    className="h-5 w-5 p-0 mx-2"
-                  >
-                    {isTemplatePanelCollapsed ? (
-                      <ChevronRight className="h-3 w-3" />
-                    ) : (
-                      <ChevronLeft className="h-3 w-3" />
-                    )}
-                  </Button>
+                <div className="flex items-center gap-2 justify-between w-full">
                   <label
                     htmlFor="sql"
                     className="block text-sm font-medium text-muted-foreground"
                   >
                     {t("common.sqlQuery")}
                   </label>
+                  <TemplateModal
+                    onTemplateSelect={handleTemplateSelect}
+                    space={space}
+                  >
+                    <Button variant="outline" size="xs" className="gap-1 mx-2">
+                      <Database className="h-3 w-3" />
+                      {t("common.templates")}
+                    </Button>
+                  </TemplateModal>
                 </div>
               </div>
               {previewError && (
@@ -239,8 +243,15 @@ export const DataViewPlaceholder = ({
                 </div>
               )}
               <div className="flex-1 min-h-0 px-2">
-                <Suspense fallback={<div className="flex items-center justify-center h-full">Loading SQL Editor...</div>}>
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center h-full">
+                      Loading SQL Editor...
+                    </div>
+                  }
+                >
                   <SqlEditor
+                    ref={sqlEditorRef}
                     value={sql}
                     onChange={handleSqlChange}
                     schema={schema}
