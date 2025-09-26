@@ -6,10 +6,10 @@
   </picture>
   </h1>
 <h3>
-   An extensible framework for Personal Data Management.
+   一个可扩展的个人数据管理框架
 </h3>
 <p align="center">
-  Transform SQLite into a personal pocket database that everyone can use.
+  将 SQLite 转化为每个人都可以使用的个人口袋数据库
 </p>
 <div align="center">
   <a target="_blank" href="https://eidos.space/download"><img src="https://img.shields.io/badge/download-eidos-cyan.svg?style=flat-square&sanitize=true" /></a>
@@ -30,55 +30,55 @@
 ![eidos](/static/assets/images/eidos-table-and-doc.webp)
 
 > [!IMPORTANT]
-> Eidos is under active development. While you can try it out, it's not recommended for production use. Stay tuned for updates on the official release.
+> Eidos 正在积极开发中。虽然您可以试用，但不建议用于生产环境。请关注官方发布的更新。
 
-## Features
+## 功能特性
 
-- **Personal Data Management**: A comprehensive framework for organizing, storing, and managing your personal data with Notion-like documents and databases
-- **Offline Support**: Everything runs inside your local machine. Access your data without an internet connection. Data is stored locally for blazing-fast performance.
-- **AI Features**: Deeply integrated with LLM for AI-powered capabilities. Translate, summarize, and interact with your data within Eidos.
-- **Extensible**: Simple and powerful extension system, make Eidos a malleable software, write extension code manually or use AI to generate extension code. Build tools and use tools, unlimited extension.
+- **个人数据管理**：一个全面的框架，用于组织、存储和管理您的个人数据，提供类似 Notion 的文档和数据库
+- **离线支持**：一切都在您的本地机器上运行。无需网络连接即可访问您的数据。数据本地存储，性能极速。
+- **AI 功能**：深度集成大语言模型，提供 AI 驱动的功能。在 Eidos 内翻译、总结和与您的数据交互。
+- **可扩展性**：简单而强大的扩展系统，让 Eidos 成为可塑的软件，手动编写扩展代码或使用 AI 生成扩展代码。构建工具并使用工具，无限扩展。
 
   <details>
   <summary>
-    Block: UI components for customized data display and interaction.
+    Block：用于自定义数据显示和交互的 UI 组件。
   </summary>
     <img src="./static/assets/images/eidos-extension-micro-block.webp" alt="edios block extension" />
   </details>
   <details>
   <summary>
-    Script: Create powerful data processing logic with TypeScript/JavaScript/Python. 
+    Script：使用 TypeScript/JavaScript/Python 创建强大的数据处理逻辑。
   </summary>
     <img src="./static/assets/images/eidos-extension-script-as-llm-tools.webp" alt="extension script" />
     <img src="./static/assets/images/eidos-llm-call-custom-script-tools.webp" alt="eidos ai call custom script tools" />
   </details>
 
-- Open Format: You get the raw data, everything in sqlite is open.
+- **开放格式**：您获得原始数据，SQLite 中的一切都是开放的。
 
-## How to use
+## 如何使用
 
-Get the app from: https://eidos.space/download
+从以下地址获取应用：https://eidos.space/download
 
-## How to develop
+## 如何开发
 
-1. Clone the repository `git clone https://github.com/mayneyao/eidos.git`
-2. Run `pnpm install` to install dependencies
-3. For desktop development:
-   - Run `cd apps/desktop && node scripts/download-libsimple.cjs` to download libsimple (only for the first time)
-   - Run `pnpm dev:desktop` to start the desktop app
-4. For web development:
-   - Run `pnpm dev` to start the web app (PWA)
+1. 克隆仓库 `git clone https://github.com/mayneyao/eidos.git`
+2. 运行 `pnpm install` 安装依赖
+3. 桌面端开发：
+   - 运行 `cd apps/desktop && node scripts/download-libsimple.cjs` 下载 libsimple（仅首次需要）
+   - 运行 `pnpm dev:desktop` 启动桌面应用
+4. Web 端开发：
+   - 运行 `pnpm dev` 启动 Web 应用（PWA）
 
-## How Eidos works
+## Eidos 工作原理
 
-For more details, visit https://docs.eidos.space/
+更多详细信息，请访问：https://docs.eidos.space/
 
-## Contributors
+## 贡献者
 
 <a href="https://github.com/mayneyao/eidos/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=mayneyao/eidos" />
 </a>
 
-## License
+## 许可证
 
-This project is licensed under the terms of the AGPL license.
+本项目采用 AGPL 许可证条款。
