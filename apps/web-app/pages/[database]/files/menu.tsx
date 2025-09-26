@@ -8,7 +8,7 @@ import { useFileSystem } from "@/apps/web-app/hooks/use-files"
 import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useAIConfigStore } from "@/apps/web-app/pages/settings/ai/store"
+import { useAIConfigStore } from "@/components/settings/stores"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 

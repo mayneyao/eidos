@@ -1,4 +1,4 @@
-import { useConfigStore } from "@/apps/web-app/pages/settings/store"
+import { useConfigStore } from "@/components/settings/stores"
 
 export const useCurrentUser = () => {
   const { profile } = useConfigStore()

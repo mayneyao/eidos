@@ -28,7 +28,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
-import { useConfigStore } from "@/apps/web-app/pages/settings/store"
+import { useConfigStore } from "@/components/settings/stores"
 
 const apiKeyFormSchema = z.object({
   value: z.string().optional(),

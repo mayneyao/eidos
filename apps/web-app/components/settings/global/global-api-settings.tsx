@@ -31,8 +31,8 @@ import {
   FormMessage,
 } from "@/components/react-hook-form/form"
 import { useApiAgentStatus } from "@/apps/desktop/renderer/hooks/useApiAgentStatus"
-import { CodeExample } from "@/apps/desktop/renderer/settings/api/code-example"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
+import { CodeExample } from "./api/code-example"
 
 const apiAgentFormSchema = z.object({
   url: z.string().url(),

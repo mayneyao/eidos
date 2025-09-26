@@ -34,7 +34,8 @@ import { useActivationCodeStore } from "@/apps/web-app/hooks/use-activation"
 import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useUpdateStatus } from "@/apps/web-app/hooks/use-update-status"
-import { useConfigStore } from "@/apps/web-app/pages/settings/store"
+import { useConfigStore } from "@/components/settings/stores"
+import { uuidv7 } from "@/lib/utils"
 
 const profileFormSchema = z.object({
   username: z
@@ -168,7 +169,11 @@ export function GlobalGeneralSettings() {
       field.onChange(url)
 
       const currentProfile = profileForm.getValues()
-      setProfile({ ...currentProfile, avatar: url })
+      setProfile({ 
+        ...currentProfile, 
+        avatar: url,
+        userId: currentProfile.userId || uuidv7()
+      })
 
       toast({
         title: t("settings.profile.avatarUpdateSuccess"),

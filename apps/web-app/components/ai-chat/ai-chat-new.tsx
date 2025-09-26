@@ -13,7 +13,7 @@ import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { useAIFunctions } from "@/apps/web-app/hooks/use-ai-functions"
 import { useCurrentExtension } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useExperimentConfigStore } from "@/apps/web-app/pages/settings/experiment/store"
+import { useExperimentConfigStore } from "@/components/settings/stores"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 
 import type { UIBlock } from "../remix-chat/components/block"

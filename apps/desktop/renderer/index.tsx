@@ -6,10 +6,6 @@ import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6"
 
 import CreateSpacePage from "@/apps/desktop/renderer/initial-setup/create-space"
 import InitialSetupPage from "@/apps/desktop/renderer/initial-setup/storage-setup"
-import SettingsApiPage from "@/apps/desktop/renderer/settings/api/page"
-import SettingsSecurityPage from "@/apps/desktop/renderer/settings/security/page"
-import SettingsStoragePage from "@/apps/desktop/renderer/settings/storage/page"
-import SettingsSyncPage from "@/apps/desktop/renderer/settings/sync/page"
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
 import EverydayPage from "@/apps/web-app/pages/[database]/everyday/[day]/page"
 import EverydayHomePage from "@/apps/web-app/pages/[database]/everyday/page"
@@ -31,17 +27,6 @@ import { ErrorBoundary } from "@/apps/web-app/pages/error"
 import { LabPage } from "@/apps/web-app/pages/lab"
 import { LicenseManagePage } from "@/apps/web-app/pages/license-manage/page"
 import { LandingPage } from "@/apps/web-app/pages/page"
-import { SettingsAILayout } from "@/apps/web-app/pages/settings/ai/layout"
-import SettingsAIPage from "@/apps/web-app/pages/settings/ai/page"
-import { ProviderPage } from "@/apps/web-app/pages/settings/ai/provider/page"
-import SettingsApiKeyPage from "@/apps/web-app/pages/settings/api-key/page"
-import SettingsAppearancePage from "@/apps/web-app/pages/settings/appearance/page"
-import { BackupSettings } from "@/apps/web-app/pages/settings/backup/page"
-import { DevtoolsPage } from "@/apps/web-app/pages/settings/dev/page"
-import SettingsExperimentPage from "@/apps/web-app/pages/settings/experiment/page"
-// settings
-import SettingsPage from "@/apps/web-app/pages/settings/general/page"
-import SettingsLayout from "@/apps/web-app/pages/settings/layout"
 import ShareNodePage from "@/apps/web-app/pages/share/[database]/[table]/page"
 import ShareLayout from "@/apps/web-app/pages/share/[database]/layout"
 // share
@@ -98,71 +83,6 @@ const router = createBrowserRouter([
       {
         path: "lab",
         element: <LabPage />,
-      },
-      {
-        path: "settings",
-        element: <SettingsLayout />,
-        children: [
-          {
-            index: true,
-            element: <SettingsPage />,
-          },
-          {
-            path: "dev",
-            element: <DevtoolsPage />,
-          },
-          {
-            path: "storage",
-            element: <SettingsStoragePage />,
-          },
-          {
-            path: "api",
-            element: <SettingsApiPage />,
-          },
-          {
-            path: "api-key",
-            element: <SettingsApiKeyPage />,
-          },
-          {
-            path: "ai",
-            element: <SettingsAILayout />,
-            children: [
-              {
-                index: true,
-                element: <SettingsAIPage />,
-              },
-              {
-                path: "provider",
-                children: [
-                  {
-                    path: ":providerId",
-                    element: <ProviderPage />, // Target component for /settings/ai/provider/:providerId
-                  },
-                ],
-              },
-            ],
-          },
-          {
-            path: "appearance",
-            element: <SettingsAppearancePage />,
-          },
-          {
-            path: "experiment",
-            element: <SettingsExperimentPage />,
-          },
-          {
-            path: "security",
-            element: <SettingsSecurityPage />,
-          },
-          {
-            path: "backup",
-            element: <BackupSettings />,
-          },
-          {
-            path: "sync",
-            element: <SettingsSyncPage />,
-          },
-        ],
       },
       {
         path: ":database",

@@ -23,7 +23,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { uuidv7 } from "@/lib/utils"
 
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
-import { useAIConfigStore } from "../settings/ai/store"
+import { useAIConfigStore } from "@/components/settings/stores"
 import { useReadSqliteStore } from "@/apps/web-app/hooks/use-readonly-sqlite"
 import { useSyncExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useSyncMblocks } from "@/apps/web-app/hooks/use-all-mblocks"

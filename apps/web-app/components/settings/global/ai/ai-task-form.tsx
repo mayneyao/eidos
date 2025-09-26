@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router-dom"
 
-import { useAIConfigStore } from "@/apps/web-app/pages/settings/ai/store"
+import { useAIConfigStore } from "@/components/settings/stores"
 import { AIModelSelect } from "@/components/ai-chat/ai-chat-model-select"
 import {
   Form,

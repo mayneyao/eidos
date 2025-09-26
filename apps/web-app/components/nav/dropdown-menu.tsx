@@ -51,7 +51,7 @@ import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useOpenInPlayground } from "@/apps/web-app/hooks/use-open-in-playground"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
-import { useExperimentConfigStore } from "@/apps/web-app/pages/settings/experiment/store"
+import { useExperimentConfigStore } from "@/components/settings/stores"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"

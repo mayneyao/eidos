@@ -87,6 +87,7 @@ export function SettingsSidebar({
       icon: <Cable className="h-5 w-5" />,
       isAlpha: true,
       category: "global",
+      disabled: !isDesktopMode,
     },
     {
       id: "key-store",
@@ -100,6 +101,7 @@ export function SettingsSidebar({
       title: t("settings.storage"),
       description: t("settings.storageDescription"),
       icon: <Database className="h-5 w-5" />,
+      disabled: !isDesktopMode,
       category: "global",
     },
     // {

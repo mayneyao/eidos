@@ -2,9 +2,23 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
 import { uuidv7 } from "@/lib/utils"
-import type { BackupServerFormValues } from "@/apps/web-app/pages/settings/backup/page"
+// Define BackupServerFormValues locally since we're moving away from the old structure
+export interface BackupServerFormValues {
+  Github__repo: string
+  Github__token: string
+  Github__enabled: boolean
+  S3__endpointUrl: string
+  S3__accessKeyId: string
+  S3__secretAccessKey: string
+  autoSaveGap: number
+}
 
-import type { ProfileFormValues } from "./general/profile-form"
+// Define ProfileFormValues locally since we're moving away from the old structure
+export interface ProfileFormValues {
+  username: string
+  userId: string
+  avatar?: string
+}
 
 export interface ApiKey {
   id: string;

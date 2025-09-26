@@ -38,7 +38,7 @@ import NewMentionsPlugin from "@/components/doc/blocks/mention/plugin"
 import { allTransformers } from "@/components/doc/plugins/const"
 import { useEmbedding } from "@/apps/web-app/hooks/use-embedding"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
-import { useAIConfigStore } from "@/apps/web-app/pages/settings/ai/store"
+import { useAIConfigStore } from "@/components/settings/stores"
 
 import { useContextNodes } from "../hooks/use-context-nodes"
 import { AutoEditable } from "./plugins/auto-editable"

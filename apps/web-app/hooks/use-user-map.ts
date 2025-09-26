@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-import { useConfigStore } from "@/apps/web-app/pages/settings/store"
+import { useConfigStore } from "@/components/settings/stores"
 
 export const useUserMap = () => {
   // for now only one user, when collaboration is ready, we will query user data from database

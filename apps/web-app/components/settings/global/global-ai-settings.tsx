@@ -12,14 +12,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
-import { useAIConfigStore } from "@/apps/web-app/pages/settings/ai/store"
+import { useAIConfigStore } from "@/components/settings/stores"
 
 import { AIProviderModal } from "./ai/ai-provider-modal"
 import { AITaskConfigForm } from "./ai/ai-task-form"
 
 // lazy import ProviderIcon
 const ProviderIcon = lazy(
-  () => import("@/apps/web-app/pages/settings/ai/provider/provider-icon")
+  () => import("./ai/provider-icon")
 )
 
 export function GlobalAISettings() {

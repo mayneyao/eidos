@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 // TODO: Import a store or context to get the API key
 // Example: import { useApiKeyStore } from "@/stores/api-key-store";
-import { useConfigStore } from "@/apps/web-app/pages/settings/store"
+import { useConfigStore } from "@/components/settings/stores"
 
 // import { LoginDialog } from "@/components/login-dialog"
 
