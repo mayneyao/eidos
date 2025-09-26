@@ -134,6 +134,49 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
 
         {/* Property List */}
         <div className="max-h-72 overflow-y-auto">
+          {/* System Properties Section */}
+          {filteredSystemProperties.length > 0 && (
+            <>
+              <div className="px-2 py-1 text-xs text-muted-foreground bg-muted border-b flex items-center gap-1">
+                System Properties (read-only)
+                <a
+                  href="https://docs.eidos.space/nodes/doc/#what-each-field-means"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <BookOpen className="w-3 h-3" />
+                </a>
+              </div>
+              {filteredSystemProperties.map(([propertyName, value], index) => {
+                const propertyType = inferType(value, propertyName)
+                const isSelected = selectedIndex === index
+                return (
+                  <button
+                    key={propertyName}
+                    onClick={() => onSelectProperty(propertyName)}
+                    className={`w-full px-2 py-1 text-sm text-left hover:bg-accent hover:border hover:border-border border border-transparent flex items-center gap-2 transition-colors ${
+                      isSelected ? "bg-accent border-border" : ""
+                    }`}
+                  >
+                    <span className="text-muted-foreground">
+                      <PropertyIcon type={propertyType} />
+                    </span>
+                    <span className="text-foreground">{propertyName}</span>
+                    <span className="text-xs text-muted-foreground ml-auto truncate">
+                      {String(value).substring(0, 24)}
+                      {String(value).length > 24 ? "..." : ""}
+                    </span>
+                  </button>
+                )
+              })}
+              {filteredSelectableProperties.length > 0 && (
+                <div className="border-t" />
+              )}
+            </>
+          )}
+
           {/* Custom Properties Section */}
           {filteredSelectableProperties.length > 0 ? (
             <>
@@ -188,49 +231,6 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
               No existing properties found
             </div>
           ) : null}
-
-          {/* System Properties Section */}
-          {filteredSystemProperties.length > 0 && (
-            <>
-              <div className="px-2 py-1 text-xs text-muted-foreground bg-muted border-b flex items-center gap-1">
-                System Properties (read-only)
-                <a
-                  href="https://docs.eidos.space/nodes/doc/#what-each-field-means"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 hover:text-foreground transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <BookOpen className="w-3 h-3" />
-                </a>
-              </div>
-              {filteredSystemProperties.map(([propertyName, value], index) => {
-                const propertyType = inferType(value, propertyName)
-                const isSelected = selectedIndex === index
-                return (
-                  <button
-                    key={propertyName}
-                    onClick={() => onSelectProperty(propertyName)}
-                    className={`w-full px-2 py-1 text-sm text-left hover:bg-accent hover:border hover:border-border border border-transparent flex items-center gap-2 transition-colors ${
-                      isSelected ? "bg-accent border-border" : ""
-                    }`}
-                  >
-                    <span className="text-muted-foreground">
-                      <PropertyIcon type={propertyType} />
-                    </span>
-                    <span className="text-foreground">{propertyName}</span>
-                    <span className="text-xs text-muted-foreground ml-auto truncate">
-                      {String(value).substring(0, 24)}
-                      {String(value).length > 24 ? "..." : ""}
-                    </span>
-                  </button>
-                )
-              })}
-              {filteredSelectableProperties.length > 0 && (
-                <div className="border-t" />
-              )}
-            </>
-          )}
 
           {/* Create New Property Button */}
           <button
