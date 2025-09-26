@@ -71,7 +71,7 @@ export const ExtensionItem = ({
       <Link
         to={`/${space}/extensions/${extension.id}`}
         className={cn(
-          "flex items-center gap-2 rounded-sm px-2 py-1 text-sm transition-colors w-full text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
+          "flex items-center gap-2 rounded-sm pl-2 py-1 text-sm transition-colors w-full text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
           isActive ? "bg-muted/80" : "hover:bg-muted/80"
         )}
         onKeyDown={handleKeyDown}
@@ -82,7 +82,7 @@ export const ExtensionItem = ({
 
         {/* show pin icon if it is pinned */}
         {isFavorite(extension.id) && (
-          <PinIcon className="mr-2 h-4 w-4" />
+          <PinIcon className="h-4 w-4" />
         )}
       </Link>
     </ExtensionContextMenu>

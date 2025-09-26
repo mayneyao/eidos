@@ -195,5 +195,21 @@ export const useCommonKeyboardShortcuts = () => {
       key: "Shift + Ctrl/Cmd + C",
       description: t('kbd.shortcuts.common.copyUrlDescription'),
     },
+    {
+      key: "Ctrl/Cmd + 1",
+      description: t('kbd.shortcuts.common.switchToNodesDescription'),
+    },
+    {
+      key: "Ctrl/Cmd + 2",
+      description: t('kbd.shortcuts.common.switchToExtensionsDescription'),
+    },
+    {
+      key: "Ctrl/Cmd + 3",
+      description: t('kbd.shortcuts.common.switchToEverydayDescription'),
+    },
+    {
+      key: "Ctrl/Cmd + 4-9",
+      description: t('kbd.shortcuts.common.switchToBlockDescription', { index: "4-9" }),
+    },
   ];
 };

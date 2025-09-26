@@ -89,7 +89,7 @@ export const ExtensionSidebar = ({ className }: ExtensionSidebarProps) => {
     >
       <ExtensionSidebarHeader />
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 px-2">
         <ExtensionList
           extensions={allExtensions}
           space={space}

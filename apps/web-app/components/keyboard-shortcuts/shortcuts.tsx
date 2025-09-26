@@ -3,6 +3,7 @@
 import { useKeyPress } from "ahooks"
 import { useTheme } from "next-themes"
 import { useNavigate, useParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { getDate, getToday, isDayPageId } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
@@ -16,6 +17,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
  * @returns
  */
 export function ShortCuts() {
+  const { t } = useTranslation()
   const { setTheme, theme } = useTheme()
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
@@ -80,7 +82,7 @@ export function ShortCuts() {
     e.preventDefault()
     navigator.clipboard.writeText(window.location.href).then(() => {
       toast({
-        description: "链接已复制到剪贴板",
+        description: t("common.linkCopied"),
         duration: 2000,
       })
     })

@@ -8,7 +8,7 @@ import { NewExtensionButton } from "./new-extension-button"
 
 export const ExtensionSidebarHeader = () => {
   return (
-    <div className="pt-1 px-1 flex-shrink-0">
+    <div className="px-1 flex-shrink-0">
       {/* Search and Action Buttons Row */}
       <div className="flex items-center gap-2 ml-3">
         {/* Search Component - takes full width */}

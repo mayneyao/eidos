@@ -9,7 +9,7 @@ import {
   SettingsIcon,
   ToyBrickIcon,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
@@ -39,6 +39,13 @@ const iconMap = {
   settings: SettingsIcon,
   everyday: CalendarDays,
 }
+
+// Shortcut mapping
+const shortcutMap = {
+  nodes: "1",
+  extensions: "2", 
+  everyday: "3",
+} as const
 
 const BlockIcon = ({ id }: { id: string }) => {
   const extension = useExtensionByIdOrSlug(id)
@@ -80,6 +87,49 @@ export const SidebarTabs = () => {
     // Navigate to the block page using React Router
     navigate(`/${space}/blocks/${blockId}`)
   }
+
+  // Keyboard shortcut handling
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    // Check if Cmd/Ctrl + number key is pressed
+    if ((event.metaKey || event.ctrlKey) && event.key >= "1" && event.key <= "9") {
+      event.preventDefault()
+      
+      const key = event.key
+      const keyNum = parseInt(key)
+      
+      // First check if it's a regular tab
+      const tabId = Object.entries(shortcutMap).find(([, shortcut]) => shortcut === key)?.[0] as SidebarApp | undefined
+      
+      if (tabId) {
+        const tab = tabs.find(t => t.id === tabId)
+        if (tab) {
+          if (tab.isNavigation && tab.href) {
+            // Navigation type tab
+            const href = tab.id === "everyday"
+              ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
+              : `/${space}${tab.href}`
+            navigate(href)
+          } else {
+            // Regular tab
+            setCurrentApp(tabId)
+          }
+        }
+      } else {
+        // Check if it's a favorite block
+        const blockIndex = keyNum - tabs.length - 1 // Subtract 1 because array is 0-based
+        if (blockIndex >= 0 && blockIndex < favBlocks.length) {
+          const block = favBlocks[blockIndex]
+          handleBlockClick(block.id)
+        }
+      }
+    }
+  }, [navigate, space, setCurrentApp, tabs, favBlocks, handleBlockClick])
+
+  // Add keyboard event listener
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [handleKeyDown])
 
   // Calculate how many tabs can fit
   useEffect(() => {
@@ -147,7 +197,7 @@ export const SidebarTabs = () => {
             )}
             style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             onClick={() => handleTabClick(tab)}
-            title={tab.label}
+            title={`${tab.label} (${isMacDesktop() ? '⌘' : 'Ctrl'}+${shortcutMap[tab.id]})`}
           >
             <Icon className="h-4 w-4" />
           </Button>
@@ -171,19 +221,22 @@ export const SidebarTabs = () => {
       })}
 
       {/* Visible favorite blocks as tabs */}
-      {visibleBlocks.map((block) => (
-        <Button
-          key={`block-${block.id}`}
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0 transition-colors flex-shrink-0"
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-          onClick={() => handleBlockClick(block.id)}
-          title={block.name || block.id}
-        >
-          <BlockIcon id={block.id} />
-        </Button>
-      ))}
+      {visibleBlocks.map((block, index) => {
+        const shortcutNum = tabs.length + index + 1
+        return (
+          <Button
+            key={`block-${block.id}`}
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 transition-colors flex-shrink-0"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            onClick={() => handleBlockClick(block.id)}
+            title={`${block.name || block.id} (${isMacDesktop() ? '⌘' : 'Ctrl'}+${shortcutNum})`}
+          >
+            <BlockIcon id={block.id} />
+          </Button>
+        )
+      })}
 
       {/* Overflow dropdown */}
       {showDropdown && (
@@ -222,25 +275,36 @@ export const SidebarTabs = () => {
                   key={tab.id}
                   onClick={handleClick}
                   className="flex items-center gap-2 whitespace-nowrap"
+                  title={`${tab.label} (${isMacDesktop() ? '⌘' : 'Ctrl'}+${shortcutMap[tab.id]})`}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
                   <span className="truncate">{tab.label}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {isMacDesktop() ? '⌘' : 'Ctrl'}+{shortcutMap[tab.id]}
+                  </span>
                 </DropdownMenuItem>
               )
             })}
             {/* Overflow favorite blocks */}
-            {overflowBlocks.map((block) => (
-              <DropdownMenuItem
-                key={`overflow-block-${block.id}`}
-                onClick={() => handleBlockClick(block.id)}
-                className="flex items-center gap-2 whitespace-nowrap"
-              >
-                <div className="h-4 w-4 flex-shrink-0">
-                  <BlockIcon id={block.id} />
-                </div>
-                <span className="truncate">{block.name || block.id}</span>
-              </DropdownMenuItem>
-            ))}
+            {overflowBlocks.map((block, index) => {
+              const shortcutNum = tabs.length + visibleBlocks.length + index + 1
+              return (
+                <DropdownMenuItem
+                  key={`overflow-block-${block.id}`}
+                  onClick={() => handleBlockClick(block.id)}
+                  className="flex items-center gap-2 whitespace-nowrap"
+                  title={`${block.name || block.id} (${isMacDesktop() ? '⌘' : 'Ctrl'}+${shortcutNum})`}
+                >
+                  <div className="h-4 w-4 flex-shrink-0">
+                    <BlockIcon id={block.id} />
+                  </div>
+                  <span className="truncate">{block.name || block.id}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {isMacDesktop() ? '⌘' : 'Ctrl'}+{shortcutNum}
+                  </span>
+                </DropdownMenuItem>
+              )
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       )}

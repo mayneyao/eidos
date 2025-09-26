@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo } from "react"
 import { ListTreeIcon } from "lucide-react"
+import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
@@ -9,7 +9,6 @@ import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
 import { ExtensionSidebar } from "../../pages/[database]/extensions/components/extension-sidebar"
-import { FileManager } from "../file-manager"
 import { CurrentItemTree } from "./tree"
 
 const NodesContent = () => {
