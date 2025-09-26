@@ -36,6 +36,7 @@ export class MentionNode extends DecoratorNode<ReactNode> {
   createDOM(): HTMLElement {
     const node = document.createElement("span")
     // node.style.display = "inline-block"
+    node.setAttribute("data-type", "mention")
     return node
   }
 
