@@ -21,6 +21,7 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 import { TableContext } from "../table/hooks"
+import { TableStoreProvider } from "../table/table-store-provider"
 import { TemplatePanel } from "./template-panel"
 
 const SqlEditor = lazy(() => import("@/components/sql-editor"))
@@ -280,15 +281,17 @@ export const DataViewPlaceholder = ({
             <div className="h-full flex flex-col">
               <div className="flex-1 min-h-0">
                 {isPreviewMode ? (
-                  <TableContext.Provider value={tableContext}>
-                    <GridViewForView
-                      tableName={`vw_${nodeId}`}
-                      databaseName={space}
-                      view={view}
-                      isEditable={false}
-                      className="h-full"
-                    />
-                  </TableContext.Provider>
+                  <TableStoreProvider>
+                    <TableContext.Provider value={tableContext}>
+                      <GridViewForView
+                        tableName={`vw_${nodeId}`}
+                        databaseName={space}
+                        view={view}
+                        isEditable={false}
+                        className="h-full"
+                      />
+                    </TableContext.Provider>
+                  </TableStoreProvider>
                 ) : (
                   <div className="flex-1 min-h-0 h-full flex items-center justify-center">
                     <p className="text-sm text-muted-foreground">
