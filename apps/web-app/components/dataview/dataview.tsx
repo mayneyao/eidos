@@ -1,11 +1,12 @@
+import { useAllDataViewIds } from "@/hooks/use-all-dataview-ids"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useDataViewById } from "@/apps/web-app/hooks/use-data-view"
 
 import { Table } from "../table"
 import { DataViewPlaceholder } from "./placeholder"
 
 export const DataView = ({ nodeId }: { nodeId: string }) => {
-  const { isDataViewExist, reload } = useDataViewById(nodeId!)
+  const { dataViewIds, reload } = useAllDataViewIds()
+  const isDataViewExist = dataViewIds.includes(nodeId)
 
   const { space } = useCurrentPathInfo()
 

@@ -28,6 +28,11 @@ export class SqlDataView {
         }
     }
 
+    async getAllDataViewIds() {
+        const views = await this.dataSpace.exec2(`SELECT name FROM sqlite_master WHERE type='view' and name like 'vw_%';`)
+        return views.map((view: any) => view.name.replace('vw_', ''))
+    }
+
     async isDataViewExist(id: string) {
         const viewName = `vw_${id}`
         const view = await this.dataSpace.db.exec({
