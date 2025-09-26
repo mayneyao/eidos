@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 
 import { SettingsContent } from "./settings-content"
@@ -26,6 +26,11 @@ export function UnifiedSettings({
 }: UnifiedSettingsProps) {
   const [activeSection, setActiveSection] =
     useState<SettingsSection>(initialSection)
+
+  // Update active section when initialSection changes
+  useEffect(() => {
+    setActiveSection(initialSection)
+  }, [initialSection])
 
   return (
     <div className="flex flex-col lg:flex-row h-[85vh]">

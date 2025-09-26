@@ -20,6 +20,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { useAIConfigStore } from "@/components/settings/stores"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
 import { ScrollArea } from "../ui/scroll-area"
 
@@ -66,6 +67,7 @@ export function AIModelSelect({
 }) {
   const [open, setOpen] = React.useState(false)
   const { models } = useModels()
+  const { openSettingsModal } = useSettings()
 
   const _allLocalModels = localModels || allLocalModels || []
 
@@ -141,9 +143,12 @@ export function AIModelSelect({
                       No local model found.
                       <br />
                       Add some models in the{" "}
-                      <Link to="/settings/ai" className=" text-blue-500">
+                      <button 
+                        onClick={() => openSettingsModal("ai")} 
+                        className="text-blue-500 underline cursor-pointer"
+                      >
                         settings
-                      </Link>{" "}
+                      </button>{" "}
                       page.
                     </p>
                   )}

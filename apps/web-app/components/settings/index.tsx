@@ -1,11 +1,13 @@
 import { SettingsIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { useEffect, useState } from "react"
 
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { Button } from "../ui/button"
 import { UnifiedSettings } from "./unified-settings"
+import { onSettingsOpen, onSettingsClose, type SettingsSection } from "./settings-events"
 
 export function Settings() {
   return (
@@ -19,6 +21,26 @@ export function Settings() {
 export const SpaceSettings = () => {
   const { t } = useTranslation()
   const { isSpaceSettingsOpen, setSpaceSettingsOpen } = useAppRuntimeStore()
+  const [activeSection, setActiveSection] = useState<SettingsSection>("general")
+  const [showSpaceSettings, setShowSpaceSettings] = useState(true)
+  
+  useEffect(() => {
+    const unsubscribeOpen = onSettingsOpen((event) => {
+      const { section = "general", showSpaceSettings: showSpace = true } = event.detail
+      setActiveSection(section)
+      setShowSpaceSettings(showSpace)
+      setSpaceSettingsOpen(true)
+    })
+    
+    const unsubscribeClose = onSettingsClose(() => {
+      setSpaceSettingsOpen(false)
+    })
+    
+    return () => {
+      unsubscribeOpen()
+      unsubscribeClose()
+    }
+  }, [setSpaceSettingsOpen])
   
   return (
     <Dialog open={isSpaceSettingsOpen} onOpenChange={setSpaceSettingsOpen}>
@@ -33,7 +55,10 @@ export const SpaceSettings = () => {
         </Button>
       </DialogTrigger>
       <DialogContent className="h-[85vh] w-[75vw] max-w-6xl p-0">
-        <Settings />
+        <UnifiedSettings 
+          initialSection={activeSection}
+          showSpaceSettings={showSpaceSettings}
+        />
       </DialogContent>
     </Dialog>
   )

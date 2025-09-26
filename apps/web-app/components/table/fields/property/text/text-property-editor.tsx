@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { toast } from "sonner"
 
 import type { TextProperty } from "@/packages/core/fields/text"
@@ -41,6 +42,7 @@ interface IFieldPropertyEditorProps {
 
 export const TextPropertyEditor = (props: IFieldPropertyEditorProps) => {
   const { t } = useTranslation()
+  const { openSettingsModal } = useSettings()
   const [open, setOpen] = useState(false)
   const [enableEmbedding, setEnableEmbedding] = useState(
     props.uiColumn.property?.enableEmbedding ?? false
@@ -202,17 +204,23 @@ export const TextPropertyEditor = (props: IFieldPropertyEditorProps) => {
         {!embeddingModel && (
           <p className="text-sm text-destructive">
             {t("table.propertyEditor.noEmbeddingModelHint")}{" "}
-            <Link to="/settings/ai#model-preferences" className="underline">
+            <button 
+              onClick={() => openSettingsModal("ai")} 
+              className="underline cursor-pointer"
+            >
               {t("table.propertyEditor.configureNow")}
-            </Link>
+            </button>
           </p>
         )}
         {embeddingModel && (
           <p className="text-sm text-muted-foreground">
             {t("table.propertyEditor.currentEmbeddingModel")}:{" "}
-            <Link to="/settings/ai#model-preferences" className="underline">
+            <button 
+              onClick={() => openSettingsModal("ai")} 
+              className="underline cursor-pointer"
+            >
               {embeddingModel}
-            </Link>{" "}
+            </button>{" "}
           </p>
         )}
         {modelMismatch && (

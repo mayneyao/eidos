@@ -34,6 +34,7 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
 import { ThemeStudio } from "../theme-studio"
 import { DocActionCommandItems } from "./doc-actions"
@@ -51,6 +52,7 @@ type SecondaryView = {
 export function CommandDialogDemo() {
   const { isCmdkOpen, setCmdkOpen, isGodMode, setGodMode } =
     useAppRuntimeStore()
+  const { openSettingsModal } = useSettings()
   const { input, setInput, mode } = useInput()
   const { queryNodes, fullTextSearch } = useQueryNode()
   const { theme, setTheme } = useTheme()
@@ -213,7 +215,7 @@ export function CommandDialogDemo() {
                 <span>{t("cmdk.themeStudio", "Theme Studio")}</span>
               </CommandItem>
               {!isInkServiceMode && (
-                <CommandItem onSelect={goto("/settings")}>
+                <CommandItem onSelect={() => openSettingsModal("general")}>
                   <Settings className="mr-2 h-4 w-4" />
                   <span>{t("common.settings")}</span>
                 </CommandItem>

@@ -52,6 +52,7 @@ import { useOpenInPlayground } from "@/apps/web-app/hooks/use-open-in-playground
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
 import { useExperimentConfigStore } from "@/components/settings/stores"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"
@@ -127,9 +128,7 @@ export function NavDropdownMenu() {
   const toggleCMDK = () => {
     setCmdkOpen(!isCmdkOpen)
   }
-  const goSettings = () => {
-    router("/settings")
-  }
+  const { openSettingsModal } = useSettings()
 
   const deleteCurrentNode = () => {
     if (node) {
