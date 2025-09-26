@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
-import { DOMAINS } from "@/lib/const"
+import { URLS } from "@/lib/const"
 import { getToday, uuidv7 } from "@/lib/utils"
 import {
   AlertDialog,
@@ -99,7 +99,7 @@ export function GlobalAPISettings() {
   }
 
   const handleRegen = () => {
-    const url = new URL(DOMAINS.API_AGENT_SERVER)
+    const url = new URL(URLS.API_AGENT_SERVER)
     url.pathname = `/rpc/${uuidv7()}`
     url.protocol = "https:"
     form.setValue("url", url.toString())

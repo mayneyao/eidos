@@ -17,7 +17,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
-import { DOMAINS } from "@/lib/const"
+import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { isDayPageId } from "@/lib/utils"
@@ -192,13 +192,13 @@ export function NavDropdownMenu() {
                 <span>GitHub</span>
               </DropdownMenuItem>
             </Link>
-            <Link to={DOMAINS.DISCORD_INVITE} target="_blank">
+            <Link to={URLS.DISCORD_INVITE} target="_blank">
               <DropdownMenuItem>
                 <DiscordIcon className="mr-2 h-4 w-4" />
                 <span>Discord</span>
               </DropdownMenuItem>
             </Link>
-            <Link to={DOMAINS.HOME} target="_blank">
+            <Link to={URLS.HOME} target="_blank">
               <DropdownMenuItem>
                 <HomeIcon className="mr-2 h-4 w-4" />
                 <span>{t("nav.dropdown.menu.website")}</span>
@@ -283,7 +283,7 @@ export function NavDropdownMenu() {
               </>
             )}
             <DropdownMenuSeparator />
-            <Link to={DOMAINS.DOWNLOAD} target="_blank">
+            <Link to={URLS.DOWNLOAD} target="_blank">
               <DropdownMenuItem>
                 <Download className="mr-2 h-4 w-4" />
                 <span>{t("common.download")}</span>

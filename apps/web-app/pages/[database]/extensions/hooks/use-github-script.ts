@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 
-import { DOMAINS } from "@/lib/const"
+import { URLS } from "@/lib/const"
 
 export const getRawUrl = (url: string, branch: string = "main") => {
   const urlParts = url.split("/")

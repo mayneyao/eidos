@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { Link, useRouteError } from "react-router-dom"
 import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
-import { DOMAINS } from "@/lib/const"
+import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
@@ -68,7 +68,7 @@ ${errorStack}
       body: systemInfo,
     })
 
-    return `${DOMAINS.GITHUB_ISSUES}/new?${params.toString()}`
+    return `${URLS.GITHUB_ISSUES}/new?${params.toString()}`
   }
 
   return (
@@ -111,7 +111,7 @@ ${errorStack}
         <p>
           {t("common.error.tryAgainLater")}{" "}
           <Link
-            to={DOMAINS.DISCORD_INVITE}
+            to={URLS.DISCORD_INVITE}
             target="_blank"
             className="text-blue-500"
           >

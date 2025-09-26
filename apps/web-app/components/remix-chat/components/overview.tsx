@@ -1,9 +1,7 @@
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { motion } from "framer-motion"
 import { BlocksIcon } from "lucide-react"
-import { Link } from "react-router-dom"
-import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
-import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 
 import { MessageIcon } from "./icons"
 

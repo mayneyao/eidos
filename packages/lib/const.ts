@@ -83,7 +83,7 @@ export const EidosSharedEnvChannelName = "eidos-shared-env"
 export const EidosMessageChannelName = "eidos-message"
 export const EidosProtocolUrlChannelName = "eidos-protocol-url"
 // TODO: replace hard-coded link
-export const DOMAINS = {
+export const URLS = {
   HOME: "https://eidos.space",
   LINK_PREVIEW: "https://link-preview.eidos.space",
   WIKI: "https://wiki.eidos.space",

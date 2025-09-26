@@ -1,4 +1,4 @@
-import { DOMAINS } from "@/lib/const";
+import { URLS } from "@/lib/const";
 import type { BrowserWindow } from "electron";
 
 /**
@@ -13,7 +13,7 @@ export function setupGeolocationHandler(win: BrowserWindow) {
 
             try {
                 // Get location from custom API
-                const response = await fetch(DOMAINS.GEOLOCATION_API);
+                const response = await fetch(URLS.GEOLOCATION_API);
                 const locationData = await response.json();
 
                 // Use debugger API to set location
