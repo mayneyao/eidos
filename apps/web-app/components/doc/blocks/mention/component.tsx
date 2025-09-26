@@ -3,6 +3,7 @@ import { PropertyMentionComponent } from "./PropertyMentionComponent"
 
 export const MentionComponent = (props: {
   id: string
+  nodeKey: string
   title?: string
   disablePreview?: boolean
 }) => {

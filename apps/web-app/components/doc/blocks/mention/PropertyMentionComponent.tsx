@@ -1,7 +1,10 @@
+import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection"
 import { useEditorInstance } from "@/components/doc/hooks/editor-instance-context"
+import { cn } from "@/lib/utils"
 
 interface PropertyMentionComponentProps {
   id: string
+  nodeKey: string
   title?: string
 }
 
@@ -9,7 +12,8 @@ export const PropertyMentionComponent = (
   props: PropertyMentionComponentProps
 ) => {
   const { docProperties } = useEditorInstance()
-  const { id } = props
+  const { id, nodeKey } = props
+  const [isNodeSelected] = useLexicalNodeSelection(nodeKey)
 
   // Parse the ID to get property name: <nodeid>#<property>
   const [, propertyName] = id.split("#", 2)
@@ -54,9 +58,15 @@ export const PropertyMentionComponent = (
 
   return (
     <span
-      className={`inline-flex shrink-0 items-baseline rounded-sm px-1 ${
-        isError ? "text-red-500" : "text-blue-500"
-      }`}
+      className={cn(
+        "inline-flex shrink-0 items-baseline rounded-sm px-1",
+        {
+          "text-red-500": isError,
+          "text-blue-500": !isError,
+          "ring-1 ring-ring": isNodeSelected,
+          "bg-secondary": isNodeSelected,
+        }
+      )}
       id={id}
     >
       <span>{displayValue}</span>

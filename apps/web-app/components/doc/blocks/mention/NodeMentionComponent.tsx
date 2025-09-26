@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
+import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection"
 import { useNavigate } from "react-router-dom"
 
 import { cn, isDayPageId } from "@/lib/utils"
@@ -21,6 +22,7 @@ import { useEditorInstance } from "../../hooks/editor-instance-context"
 
 interface NodeMentionComponentProps {
   id: string
+  nodeKey: string
   title?: string
   disablePreview?: boolean
 }
@@ -35,6 +37,8 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
   const { properties } = useDocProperty({ docId: id })
   const { setTempPanelNode, setIsRightPanelOpen, clearCurrentApp } =
     useSpaceAppStore()
+
+  const [isNodeSelected] = useLexicalNodeSelection(props.nodeKey)
 
   const onClick = (event: React.MouseEvent) => {
     if (event.altKey) {
@@ -85,6 +89,8 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
                 "items-baseline rounded-sm px-1 underline hover:bg-secondary",
                 {
                   "text-red-400": node?.is_deleted,
+                  "ring-1 ring-ring": isNodeSelected,
+                  "bg-secondary": isNodeSelected,
                 }
               )}
               id={id}

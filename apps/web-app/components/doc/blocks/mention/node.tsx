@@ -1,8 +1,13 @@
 import type { ReactNode } from "react"
-import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
-import type { EditorConfig, LexicalEditor, NodeKey, LexicalNode } from "lexical";
-import { DecoratorNode } from "lexical"
 import type { TextMatchTransformer } from "@lexical/markdown"
+import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
+import {
+  DecoratorNode,
+  type EditorConfig,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+} from "lexical"
 
 import { MentionComponent } from "./component"
 
@@ -39,22 +44,12 @@ export class MentionNode extends DecoratorNode<ReactNode> {
   }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
-    const nodeKey = this.getKey()
-    const embedBlockTheme = config.theme.embedBlock || {}
-
-    const className = {
-      base: embedBlockTheme.base || "",
-      focus: embedBlockTheme.focus || "",
-    }
     return (
-      <div className="inline-block">
-        <BlockWithAlignableContents className={className} nodeKey={nodeKey}>
-          <MentionComponent 
-            id={this.__id} 
-            title={this.__title}
-          />
-        </BlockWithAlignableContents>
-      </div>
+      <MentionComponent
+        id={this.__id}
+        title={this.__title}
+        nodeKey={this.getKey()}
+      />
     )
   }
 
