@@ -47,7 +47,19 @@ export class SqlDataView {
             sql: `SELECT sql FROM sqlite_master WHERE type='view' and name = ?;`,
             bind: [tableName]
         })
-        return view[0]?.sql || ""
+        const fullSql = view[0]?.sql || ""
+        
+        // Extract only the query part, removing CREATE VIEW statement
+        // Match pattern: CREATE VIEW view_name AS query_statement
+        const createViewRegex = /^CREATE\s+(?:TEMPORARY\s+)?VIEW\s+\w+\s+AS\s+(.*)$/is
+        const match = fullSql.match(createViewRegex)
+        
+        if (match && match[1]) {
+            return match[1].trim()
+        }
+        
+        // Fallback to original SQL if pattern doesn't match
+        return fullSql
     }
 
     async getViewColumns(id: string) {
