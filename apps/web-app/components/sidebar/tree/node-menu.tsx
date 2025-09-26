@@ -10,12 +10,12 @@ import {
   FolderPlusIcon,
   MessageSquareIcon,
   PackageIcon,
+  PanelRightIcon,
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
   ScissorsIcon,
   Trash2Icon,
-  PanelRightIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -42,7 +42,10 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useNodeTree } from "@/apps/web-app/hooks/use-node-tree"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useSpaceAppStore, useAppsStore } from "@/apps/web-app/pages/[database]/store"
+import {
+  useAppsStore,
+  useSpaceAppStore,
+} from "@/apps/web-app/pages/[database]/store"
 
 import { NodeMoveInto } from "../../node-menu/move-into"
 import { NodeExportContextMenu } from "../../node-menu/node-export"
@@ -135,10 +138,10 @@ export function NodeItem({
   const handleAddToPanel = () => {
     // Create node app URL in the format node://<nodeid>@<space>
     const nodeApp = `node://${node.id}@${space}`
-    
+
     // Add the node app to the apps list
     addApp(nodeApp)
-    
+
     // Open right panel and set the current app to the node
     setIsRightPanelOpen(true)
     setCurrentApp(nodeApp)
@@ -218,13 +221,6 @@ export function NodeItem({
           {t("node.menu.addToChat", "Add to Chat")}
         </ContextMenuItem>
 
-        {node.type === "dataview" && (
-          <ContextMenuItem onClick={handleAddToPanel}>
-            <PanelRightIcon className="pr-1.5" />
-            {t("node.menu.addToPanel", "Add to Panel")}
-          </ContextMenuItem>
-        )}
-
         <ContextMenuItem
           onClick={() => handleCut(node.id)}
           disabled={Boolean(currentCut && currentCut !== node.id)}
@@ -262,6 +258,13 @@ export function NodeItem({
         )}
 
         <ContextMenuSeparator />
+        {node.type === "dataview" && (
+          <ContextMenuItem onClick={handleAddToPanel}>
+            <PanelRightIcon className="pr-1.5" />
+            {t("node.menu.addToPanel", "Add to Panel")}
+          </ContextMenuItem>
+        )}
+
         {node.type === "folder" && (
           <>
             <ContextMenuItem onClick={handleCreateDoc}>

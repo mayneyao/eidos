@@ -9,9 +9,11 @@ import {
   LockIcon,
   LockOpenIcon,
   MailIcon,
+  MessageSquareIcon,
   MoreHorizontal,
   MoveHorizontal,
   PackageIcon,
+  PanelRightIcon,
   Trash2Icon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -19,7 +21,6 @@ import { Link, useNavigate } from "react-router-dom"
 
 import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { isDayPageId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,17 +43,23 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { DiscordIcon } from "@/components/icons/discord"
 import { NodeUpdateTime } from "@/components/nav/node-update-time"
+import { useExperimentConfigStore } from "@/components/settings/stores"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useEmbedding } from "@/apps/web-app/hooks/use-embedding"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useOpenInPlayground } from "@/apps/web-app/hooks/use-open-in-playground"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
-import { useExperimentConfigStore } from "@/components/settings/stores"
-import { useSettings } from "@/apps/web-app/hooks/use-settings"
+import {
+  useAppsStore,
+  useSpaceAppStore,
+} from "@/apps/web-app/pages/[database]/store"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"
@@ -71,6 +78,9 @@ export function NavDropdownMenu() {
   const { deleteNode, toggleNodeFullWidth, toggleNodeLock } = useSqlite()
   const { isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
     useAppRuntimeStore()
+  const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
+  const { addNode } = useContextNodes()
+  const { addApp } = useAppsStore()
 
   const toggleKeyboardShortcuts = () => {
     setKeyboardShortcutsOpen(!isKeyboardShortcutsOpen)
@@ -128,13 +138,25 @@ export function NavDropdownMenu() {
   const toggleCMDK = () => {
     setCmdkOpen(!isCmdkOpen)
   }
-  const { openSettingsModal } = useSettings()
 
   const deleteCurrentNode = () => {
     if (node) {
       deleteNode(node)
       router(`/${space}`)
     }
+  }
+
+  const handleAddToPanel = () => {
+    if (!node) return
+    // Create node app URL in the format node://<nodeid>@<space>
+    const nodeApp = `node://${node.id}@${space}`
+
+    // Add the node app to the apps list
+    addApp(nodeApp)
+
+    // Open right panel and set the current app to the node
+    setIsRightPanelOpen(true)
+    setCurrentApp(nodeApp)
   }
 
   return (
@@ -209,7 +231,6 @@ export function NavDropdownMenu() {
               <>
                 {node.type === "doc" && !isDayPageId(node.id) && (
                   <>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="flex justify-between"
                       onClick={(e) => {
@@ -260,6 +281,12 @@ export function NavDropdownMenu() {
                   node={node}
                   openInPlayground={openInPlayground}
                 />
+                {node.type === "dataview" && (
+                  <DropdownMenuItem onClick={handleAddToPanel}>
+                    <PanelRightIcon className="mr-2 h-4 w-4" />
+                    {t("node.menu.addToPanel", "Add to Panel")}
+                  </DropdownMenuItem>
+                )}
                 {node.type === "doc" && !isDayPageId(node.id) && (
                   <>
                     <DropdownMenuSub>
