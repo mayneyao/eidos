@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react"
 import { TreeNodeType, type ITreeNode } from "@/packages/core/types/ITreeNode"
-import { useKeyPress } from "ahooks"
 import {
   CalendarDaysIcon,
   File,
@@ -17,7 +16,6 @@ import { cn } from "@/lib/utils"
 
 import type { IHoverTarget } from "./store"
 import { TreeSidebarHeader } from "./tree-sidebar-header"
-import { useTreeSidebarStore } from "./tree-sidebar-store"
 import { VirtualNodeTreeContainer } from "./virtual-node-tree"
 
 export const CurrentItemTree = ({
@@ -43,15 +41,6 @@ export const CurrentItemTree = ({
   const [targetFolderId, setTargetFolderId] = useState<string | null>(null)
   const [target, setTarget] = useState<IHoverTarget | null>(null)
 
-  // Use store for search state
-  const { toggleSearch } = useTreeSidebarStore()
-
-  // Keyboard shortcut: Shift + Cmd/Ctrl + F to toggle search
-  useKeyPress(["shift.ctrl.f", "shift.meta.f"], (e) => {
-    e.preventDefault()
-    console.log("Keyboard shortcut triggered, toggling search")
-    toggleSearch()
-  })
 
   const handleSetTarget = useCallback((newTarget: IHoverTarget | null) => {
     setTarget(newTarget)

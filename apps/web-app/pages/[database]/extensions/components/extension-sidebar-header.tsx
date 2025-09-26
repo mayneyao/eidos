@@ -6,29 +6,18 @@ import { ExtensionSearch } from "./extension-search"
 import { ExtensionSortDropdown } from "./extension-sort-dropdown"
 import { NewExtensionButton } from "./new-extension-button"
 
-interface ExtensionSidebarHeaderProps {
-  showSearch: boolean
-  onToggleSearch: () => void
-  onExitSearch: () => void
-}
-
-export const ExtensionSidebarHeader = ({
-  showSearch,
-  onToggleSearch,
-  onExitSearch,
-}: ExtensionSidebarHeaderProps) => {
+export const ExtensionSidebarHeader = () => {
   return (
-    <div className="px-1 flex-shrink-0">
-      {/* Icon Buttons Row with Search */}
-      <div className="flex items-center justify-end gap-2">
-        <div className="flex items-center gap-1 h-8">
-          {/* Search Component */}
-          <ExtensionSearch
-            showSearch={showSearch}
-            onToggleSearch={onToggleSearch}
-            onExitSearch={onExitSearch}
-          />
+    <div className="pt-1 px-1 flex-shrink-0">
+      {/* Search and Action Buttons Row */}
+      <div className="flex items-center gap-2 ml-3">
+        {/* Search Component - takes full width */}
+        <div className="flex-1">
+          <ExtensionSearch />
+        </div>
 
+        {/* Action Buttons */}
+        <div className="flex items-center gap-1">
           {/* Sort Dropdown */}
           <ExtensionSortDropdown />
 

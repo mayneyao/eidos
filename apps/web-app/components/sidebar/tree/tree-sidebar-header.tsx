@@ -10,13 +10,16 @@ export const TreeSidebarHeader = ({
   disableAdd = false,
 }: TreeSidebarHeaderProps) => {
   return (
-    <div className="px-1 flex-shrink-0">
-      {/* Icon Buttons Row with Search */}
-      <div className="flex items-center justify-end gap-2">
-        <div className="flex items-center gap-1">
-          {/* Search Component */}
+    <div className="pt-1 px-1 flex-shrink-0">
+      {/* Search and Action Buttons Row */}
+      <div className="flex items-center gap-2 ml-3">
+        {/* Search Component - takes full width */}
+        <div className="flex-1">
           <TreeSearch />
+        </div>
 
+        {/* Action Buttons */}
+        <div className="flex items-center gap-1">
           {/* Sort Dropdown */}
           <TreeSortDropdown />
 

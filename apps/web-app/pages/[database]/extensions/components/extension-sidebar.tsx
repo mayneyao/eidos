@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { useKeyPress } from "ahooks"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import { useAllExtensions } from "@/apps/web-app/hooks/use-all-extensions"
@@ -24,19 +23,12 @@ export const ExtensionSidebar = ({ className }: ExtensionSidebarProps) => {
     renameExtension,
     searchTerm,
   } = useAllExtensions()
-  const [showSearch, setShowSearch] = useState(false)
   const [renamingExtension, setRenamingExtension] = useState<{
     id: string
     currentSlug: string
   } | null>(null)
   const [newSlug, setNewSlug] = useState("")
   const [isRenaming, setIsRenaming] = useState(false)
-
-  // Keyboard shortcut: Shift + Cmd/Ctrl + F to toggle search
-  useKeyPress(["shift.ctrl.f", "shift.meta.f"], (e) => {
-    e.preventDefault()
-    setShowSearch(!showSearch)
-  })
 
   // Handle extension deletion with navigation
   const handleDeleteExtension = async (id: string) => {
@@ -95,11 +87,7 @@ export const ExtensionSidebar = ({ className }: ExtensionSidebarProps) => {
         className
       )}
     >
-      <ExtensionSidebarHeader
-        showSearch={showSearch}
-        onToggleSearch={() => setShowSearch(!showSearch)}
-        onExitSearch={() => setShowSearch(false)}
-      />
+      <ExtensionSidebarHeader />
 
       <div className="flex-1 min-h-0">
         <ExtensionList

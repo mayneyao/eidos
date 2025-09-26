@@ -1,17 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { SearchIcon } from "lucide-react"
+import { useKeyPress } from "ahooks"
 
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAllExtensions } from "@/apps/web-app/hooks/use-all-extensions"
 
-interface ExtensionSearchProps {
-  showSearch: boolean
-  onToggleSearch: () => void
-  onExitSearch: () => void
-}
-
-export const ExtensionSearch = ({ showSearch, onToggleSearch, onExitSearch }: ExtensionSearchProps) => {
+export const ExtensionSearch = () => {
   const { searchTerm, updateSearch } = useAllExtensions()
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -40,60 +33,40 @@ export const ExtensionSearch = ({ showSearch, onToggleSearch, onExitSearch }: Ex
     setLocalSearchTerm(searchTerm)
   }, [searchTerm])
 
-  // Focus input after search becomes visible and animation completes
+  // Focus input when component mounts
   useEffect(() => {
-    if (showSearch && inputRef.current) {
-      // Use a timeout to wait for the CSS transition to complete
-      const timeoutId = setTimeout(() => {
-        inputRef.current?.focus()
-      }, 350) // Slightly longer than the 300ms transition duration
-
-      return () => clearTimeout(timeoutId)
+    if (inputRef.current) {
+      inputRef.current.focus()
     }
-  }, [showSearch])
+  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
       e.preventDefault()
       setLocalSearchTerm("")
       updateSearch("")
-      onExitSearch()
     }
   }
 
-  return (
-    <div className="flex items-center gap-1">
-      {/* Search Input with Slide Animation */}
-      <div
-        className={`h-8 transition-all duration-300 ease-out flex items-center ${
-          showSearch ? "w-48 opacity-100" : "w-0 opacity-0"
-        }`}
-        style={{
-          transitionProperty: "width, opacity",
-          transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
-        }}
-      >
-        <div className="whitespace-nowrap h-full w-full flex items-center px-1">
-          <Input
-            ref={inputRef}
-            placeholder="Search extensions..."
-            value={localSearchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="h-6 text-xs w-full"
-          />
-        </div>
-      </div>
+  // Keyboard shortcut: Shift + Cmd/Ctrl + F to focus search
+  useKeyPress(["shift.ctrl.f", "shift.meta.f"], (e) => {
+    e.preventDefault()
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+  })
 
-      {/* Search Toggle */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0"
-        onClick={onToggleSearch}
-      >
-        <SearchIcon className="h-4 w-4" />
-      </Button>
+  return (
+    <div className="flex items-center w-full">
+      <Input
+        ref={inputRef}
+        placeholder="Search extensions..."
+        value={localSearchTerm}
+        onChange={(e) => handleSearchChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        className="h-7 text-sm w-full"
+      />
     </div>
   )
 }
+
