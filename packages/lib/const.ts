@@ -98,6 +98,8 @@ export const URLS = {
 
   // Account Registration
   ACCOUNT_REGISTRATION: "https://eidos.space/auth/register",
+
+  CHANGELOG: "https://eidos.space/changelog",
 }
 
 // custom Event, dispatch via window

@@ -15,6 +15,7 @@ import * as z from "zod"
 
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
+import { URLS } from "@/lib/const"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -62,6 +63,16 @@ const appearanceFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>
 type AppearanceFormValues = z.infer<typeof appearanceFormSchema>
+
+/**
+ * Constructs a changelog URL for a specific version
+ * @param version - The version string (e.g., "0.24.6")
+ * @param lang - The language code (default: "en")
+ * @returns The complete changelog URL with version anchor
+ */
+function getChangelogUrl(version: string, lang: string = "en"): string {
+  return `${URLS.CHANGELOG}/?lang=${lang}#v${version}`
+}
 
 export function GlobalGeneralSettings() {
   const { t } = useTranslation()
@@ -221,7 +232,15 @@ export function GlobalGeneralSettings() {
                 {EIDOS_VERSION}{" "}
                 {isDesktopMode
                   ? t("nav.dropdown.menu.desktop")
-                  : t("nav.dropdown.menu.web")}
+                  : t("nav.dropdown.menu.web")}{" "}
+                <a
+                  href={getChangelogUrl(EIDOS_VERSION, appearanceForm.getValues("language"))}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  {t("settings.general.whatsNew")}
+                </a>
               </p>
             </div>
             <div className="text-sm font-mono text-muted-foreground">
@@ -238,7 +257,15 @@ export function GlobalGeneralSettings() {
                   {updateStatus === "available" && updateInfo?.version && (
                     <span className="text-green-600">
                       {t("settings.general.updateAvailable")} v
-                      {updateInfo.version}
+                      {updateInfo.version}{" "}
+                      <a
+                        href={getChangelogUrl(updateInfo.version, appearanceForm.getValues("language"))}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        {t("settings.general.whatsNew")}
+                      </a>
                     </span>
                   )}
                   {updateStatus === "not-available" && (
