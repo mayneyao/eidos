@@ -4,6 +4,16 @@ import { ALL_PROVIDERS, type LLMProviderType } from "@/packages/ai/helper"
 import { Edit, Plus, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -34,6 +44,8 @@ export function GlobalAISettings() {
     LLMProviderType | undefined
   >()
   const [isFormDirty, setIsFormDirty] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [providerToDelete, setProviderToDelete] = useState<string | null>(null)
 
   const configuredProviderTypes = new Set<LLMProviderType>(
     aiConfig.llmProviders.map((p) => p.type)
@@ -106,13 +118,20 @@ export function GlobalAISettings() {
     }
   }
 
-  const handleDeleteProvider = async (providerName: string) => {
+  const handleDeleteProvider = (providerName: string) => {
+    setProviderToDelete(providerName)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteProvider = async () => {
+    if (!providerToDelete) return
+    
     try {
-      removeLLMProvider(providerName)
+      removeLLMProvider(providerToDelete)
       toast({
         title: t("common.success"),
         description: t("settings.ai.providerDeletedSuccess", {
-          name: providerName,
+          name: providerToDelete,
         }),
       })
     } catch (error) {
@@ -121,6 +140,9 @@ export function GlobalAISettings() {
         description: t("settings.ai.providerDeleteError"),
         variant: "destructive",
       })
+    } finally {
+      setIsDeleteDialogOpen(false)
+      setProviderToDelete(null)
     }
   }
 
@@ -179,66 +201,74 @@ export function GlobalAISettings() {
               return (
                 <div
                   key={provider.name}
-                  className="group flex flex-col sm:flex-row sm:items-center p-3 rounded-lg border hover:bg-accent/50 transition-colors gap-3"
+                  className="group flex items-center p-3 rounded-lg border hover:bg-accent/50 transition-colors gap-3"
                 >
-                  {/* Header row with icon, name and actions */}
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      <Suspense fallback={<div className="w-5 h-5" />}>
-                        <ProviderIcon type={provider.type} isActive />
-                      </Suspense>
-                      <h5 className="font-medium truncate">{provider.name}</h5>
-                    </div>
-                    
-                    {/* Action buttons - always visible on mobile, hover on desktop */}
-                    <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditProvider(provider)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteProvider(provider.name)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                  {/* Icon */}
+                  <div className="flex-shrink-0">
+                    <Suspense fallback={<div className="w-5 h-5" />}>
+                      <ProviderIcon type={provider.type} isActive />
+                    </Suspense>
                   </div>
                   
-                  {/* Models section - full width with flex wrap */}
-                  {provider.models && provider.models.length > 0 && (
-                    <div className="flex flex-wrap gap-2 items-center text-xs text-muted-foreground w-full">
-                      {provider.models
-                        .split(",")
-                        .slice(0, 5)
-                        .map((model) => (
-                          <span
-                            key={model}
-                            className="whitespace-nowrap rounded bg-muted px-2 py-1 text-muted-foreground"
-                          >
-                            {model}
-                          </span>
-                        ))}
-                      {(() => {
-                        const totalModels = provider.models.split(",").length
-                        if (totalModels > 5) {
-                          const remainingCount = totalModels - 5
-                          return (
-                            <span className="italic shrink-0 text-muted-foreground">
-                              {t("common.more", {
-                                count: remainingCount,
-                              })}
+                  {/* Name */}
+                  <div className="min-w-0 flex-shrink-0">
+                    <h5 className="font-medium truncate">{provider.name}</h5>
+                  </div>
+                  
+                  {/* Models */}
+                  <div className="flex-1 min-w-0">
+                    {provider.models && provider.models.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 items-center text-xs text-muted-foreground">
+                        {provider.models
+                          .split(",")
+                          .slice(0, 5)
+                          .map((model) => (
+                            <span
+                              key={model}
+                              className="whitespace-nowrap rounded bg-muted px-2 py-1 text-muted-foreground"
+                            >
+                              {model}
                             </span>
-                          )
-                        }
-                        return null
-                      })()}
-                    </div>
-                  )}
+                          ))}
+                        {(() => {
+                          const totalModels = provider.models.split(",").length
+                          if (totalModels > 5) {
+                            const remainingCount = totalModels - 5
+                            return (
+                              <span className="italic shrink-0 text-muted-foreground">
+                                {t("common.more", {
+                                  count: remainingCount,
+                                })}
+                              </span>
+                            )
+                          }
+                          return null
+                        })()}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">
+                        {t("settings.ai.noModelsConfigured")}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditProvider(provider)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteProvider(provider.name)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )
             })}
@@ -288,6 +318,31 @@ export function GlobalAISettings() {
         onDelete={editingProvider ? handleDeleteProvider : undefined}
         existingNames={aiConfig.llmProviders.map((p) => p.name)}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("settings.ai.deleteProviderTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("settings.ai.deleteProviderDescription", {
+                name: providerToDelete,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteProvider}>
+              {t("common.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
