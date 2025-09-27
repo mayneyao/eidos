@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-export type TreeSortField = "name" | "created_at" | "updated_at" | "type"
+export type TreeSortField = "name" | "created_at" | "type"
 export type TreeSortOrder = "ASC" | "DESC"
 
 interface TreeSidebarState {

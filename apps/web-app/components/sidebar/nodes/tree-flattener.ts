@@ -86,10 +86,6 @@ const sortNodes = (
         aValue = new Date(a.created_at || 0).getTime()
         bValue = new Date(b.created_at || 0).getTime()
         break
-      case "updated_at":
-        aValue = new Date(a.updated_at || 0).getTime()
-        bValue = new Date(b.updated_at || 0).getTime()
-        break
       default:
         aValue = a.name.toLowerCase()
         bValue = b.name.toLowerCase()

@@ -98,36 +98,6 @@ export const TreeSortDropdown = () => {
             <CheckIcon className="h-4 w-4" />
           )}
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => handleSortChange("updated_at", "DESC")}
-          className={cn(
-            sortField === "updated_at" &&
-              sortOrder === "DESC" &&
-              "bg-accent"
-          )}
-        >
-          <span className="flex-1 whitespace-nowrap">
-            Recently Updated
-          </span>
-          {sortField === "updated_at" && sortOrder === "DESC" && (
-            <CheckIcon className="h-4 w-4" />
-          )}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => handleSortChange("updated_at", "ASC")}
-          className={cn(
-            sortField === "updated_at" &&
-              sortOrder === "ASC" &&
-              "bg-accent"
-          )}
-        >
-          <span className="flex-1 whitespace-nowrap">
-            Least Updated
-          </span>
-          {sortField === "updated_at" && sortOrder === "ASC" && (
-            <CheckIcon className="h-4 w-4" />
-          )}
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
