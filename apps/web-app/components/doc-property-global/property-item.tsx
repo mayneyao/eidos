@@ -217,7 +217,7 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
             onDelete(propertyName)
           }}
           className="opacity-0 group-hover:opacity-100 ml-2 p-1 text-muted-foreground hover:text-destructive transition-opacity"
-          title={isSystemProperty ? "Hide system property" : "Delete property"}
+          title="Hide property"
         >
           <X className="w-3 h-3" />
         </button>
