@@ -1,28 +1,33 @@
 "use client"
 
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   BlocksIcon,
   CalendarDays,
   ChevronDownIcon,
   FileBoxIcon,
+  GripVertical,
   ListTreeIcon,
   SettingsIcon,
   ToyBrickIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
-import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
-import {
-  useSidebarStore,
-  type SidebarApp,
-} from "@/apps/web-app/store/sidebar-store"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import { cn } from "@/lib/utils"
 import { isMacDesktop } from "@/lib/web/helper"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
+import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
+import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
+import {
+  TAB_CONFIG,
+  useSidebarStore,
+  type SidebarApp,
+  type TabId,
+} from "@/apps/web-app/store/sidebar-store"
 
+import { SortableContainer, SortableItem } from "../table/sortable"
 import { Button } from "../ui/button"
 import {
   DropdownMenu,
@@ -32,20 +37,17 @@ import {
 } from "../ui/dropdown-menu"
 import { IconRenderer } from "../ui/icon-picker"
 
-const iconMap = {
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   nodes: ListTreeIcon,
   files: FileBoxIcon,
   extensions: BlocksIcon,
   settings: SettingsIcon,
-  everyday: CalendarDays,
+  today: CalendarDays,
 }
 
-// Shortcut mapping
-const shortcutMap = {
-  nodes: "1",
-  extensions: "2", 
-  everyday: "3",
-} as const
+const getIconForTab = (tabId: string) => {
+  return iconMap[tabId] || (() => <BlockIcon id={tabId} />)
+}
 
 const BlockIcon = ({ id }: { id: string }) => {
   const extension = useExtensionByIdOrSlug(id)
@@ -64,66 +66,129 @@ const BlockIcon = ({ id }: { id: string }) => {
   return <IconRenderer name={extension.icon as any} className="h-4 w-4" />
 }
 
+// Memoized component to render block tab with name
+const BlockTab = memo(
+  ({
+    tabId,
+    index,
+    isVisible,
+    blocks,
+    currentApp,
+    setCurrentApp,
+    navigate,
+    space,
+  }: {
+    tabId: string
+    index: number
+    isVisible: boolean
+    blocks: Record<string, any>
+    currentApp: string
+    setCurrentApp: (app: string) => void
+    navigate: (path: string) => void
+    space: string
+  }) => {
+    const block = blocks[tabId]
+    const shortcutNum = index + 1
+    const Icon = useMemo(() => getIconForTab(tabId), [tabId])
+    const isActive = currentApp === tabId
+    const label = block?.name || tabId
+
+    const handleClick = useCallback(() => {
+      // Set current app and navigate to block page
+      setCurrentApp(tabId)
+      navigate(`/${space}/blocks/${tabId}`)
+    }, [setCurrentApp, navigate, space, tabId])
+
+    return (
+      <div key={tabId}>
+        <Button
+          variant={isActive ? "secondary" : "ghost"}
+          size="sm"
+          className={cn(
+            "h-8 w-8 p-0 transition-colors flex-shrink-0",
+            isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          onClick={handleClick}
+          title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
+        >
+          <Icon className="h-4 w-4" />
+        </Button>
+      </div>
+    )
+  }
+)
+
 export const SidebarTabs = () => {
   const { t } = useTranslation()
-  const { currentApp, setCurrentApp, tabs } = useSidebarStore()
+  const { currentApp, setCurrentApp } = useSidebarStore()
+  const { tabs: tabIds, addTab, removeTab, reorderTabs } = useTabsKV()
   const { space } = useCurrentPathInfo()
-  const { favBlocks } = useFavBlocks()
   const navigate = useNavigate()
 
-  const [visibleTabsCount, setVisibleTabsCount] = useState(
-    tabs.length + favBlocks.length
+  // Get block IDs (non-fixed tabs)
+  const blockIds = useMemo(
+    () => tabIds.filter((id) => !["nodes", "extensions", "today"].includes(id)),
+    [tabIds]
   )
-  const [showDropdown, setShowDropdown] = useState(false)
+
+  // Batch fetch block information
+  const { blocks } = useMblocksBatch(blockIds)
+
+  const [visibleTabsCount, setVisibleTabsCount] = useState(tabIds.length)
+  const [showDropdown, setShowDropdown] = useState(true) // Always show dropdown
+  const [sortedTabs, setSortedTabs] = useState(tabIds)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const handleTabClick = (tab: (typeof tabs)[0]) => {
-    if (!tab.isNavigation) {
-      setCurrentApp(tab.id as SidebarApp)
-    }
-  }
+  const handleTabClick = (tabId: string) => {
+    const tabConfig = TAB_CONFIG[tabId]
 
-  const handleBlockClick = (blockId: string) => {
-    // Navigate to the block page using React Router
-    navigate(`/${space}/blocks/${blockId}`)
-  }
-
-  // Keyboard shortcut handling
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    // Check if Cmd/Ctrl + number key is pressed
-    if ((event.metaKey || event.ctrlKey) && event.key >= "1" && event.key <= "9") {
-      event.preventDefault()
-      
-      const key = event.key
-      const keyNum = parseInt(key)
-      
-      // First check if it's a regular tab
-      const tabId = Object.entries(shortcutMap).find(([, shortcut]) => shortcut === key)?.[0] as SidebarApp | undefined
-      
-      if (tabId) {
-        const tab = tabs.find(t => t.id === tabId)
-        if (tab) {
-          if (tab.isNavigation && tab.href) {
-            // Navigation type tab
-            const href = tab.id === "everyday"
-              ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
-              : `/${space}${tab.href}`
-            navigate(href)
-          } else {
-            // Regular tab
-            setCurrentApp(tabId)
-          }
-        }
+    if (tabConfig?.isNavigation && tabConfig?.href) {
+      // Navigation type tab - set current app and navigate
+      setCurrentApp(tabId as SidebarApp)
+      const href =
+        tabId === "today"
+          ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
+          : `/${space}${tabConfig.href}`
+      navigate(href)
+    } else {
+      // Regular tab or block tab
+      if (tabId === "nodes" || tabId === "extensions") {
+        setCurrentApp(tabId as SidebarApp)
       } else {
-        // Check if it's a favorite block
-        const blockIndex = keyNum - tabs.length - 1 // Subtract 1 because array is 0-based
-        if (blockIndex >= 0 && blockIndex < favBlocks.length) {
-          const block = favBlocks[blockIndex]
-          handleBlockClick(block.id)
-        }
+        // Block tab - set current app and navigate to block page
+        setCurrentApp(tabId)
+        navigate(`/${space}/blocks/${tabId}`)
       }
     }
-  }, [navigate, space, setCurrentApp, tabs, favBlocks, handleBlockClick])
+  }
+
+  // Keyboard shortcut handling - based on display order
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      // Check if Cmd/Ctrl + number key is pressed
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key >= "1" &&
+        event.key <= "9"
+      ) {
+        event.preventDefault()
+
+        const key = event.key
+        const keyNum = parseInt(key)
+
+        // Get all tabs in display order
+        const allTabs = sortedTabs
+        const itemIndex = keyNum - 1 // Convert to 0-based index
+
+        if (itemIndex >= 0 && itemIndex < allTabs.length) {
+          const tabId = allTabs[itemIndex]
+          handleTabClick(tabId)
+        }
+      }
+    },
+    [navigate, space, setCurrentApp, sortedTabs, handleTabClick]
+  )
 
   // Add keyboard event listener
   useEffect(() => {
@@ -131,182 +196,243 @@ export const SidebarTabs = () => {
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [handleKeyDown])
 
-  // Calculate how many tabs can fit
+  // Calculate how many tabs can fit (with dropdown always visible)
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout
+
     const calculateVisibleTabs = () => {
       if (!containerRef.current) return
 
-      const containerWidth = containerRef.current.offsetWidth
+      // Fixed sidebar width: 20rem = 320px
+      const sidebarWidth = 320 // 20rem in pixels
       const tabWidth = 32 // w-8 = 32px
-      const gap = 4 // gap-1 = 4px
+      const gap = 2 // gap-0.5 = 2px (reduced for more space)
       const dropdownWidth = 32 // dropdown button width
+      const padding = isMacDesktop() ? 60 : 0 // Account for Mac padding (reduced for 6 tabs)
+      const sidePadding = 8 // px-1 = 4px on each side
 
-      const totalTabs = tabs.length + favBlocks.length
-      const availableWidth = containerWidth - (isMacDesktop() ? 80 : 0) // Account for Mac padding
+      const totalTabs = tabIds.length
+      const availableWidth = sidebarWidth - padding - sidePadding
 
-      // Calculate how many tabs can fit
-      let canFit = Math.floor((availableWidth + gap) / (tabWidth + gap))
+      // Calculate how many tabs can fit with dropdown always visible
+      const dropdownSpace = dropdownWidth + gap
+      const availableWidthForTabs = availableWidth - dropdownSpace
 
-      // If we need dropdown, reserve space for it
-      if (canFit < totalTabs) {
-        canFit = Math.max(0, canFit - 1) // Reserve space for dropdown
+      // More precise calculation for 6 tabs with reduced gap
+      // 6 tabs need: 6 * 32 + 5 * 2 = 192 + 10 = 202px
+      // 7 tabs need: 7 * 32 + 6 * 2 = 224 + 12 = 236px
+      const spaceFor6Tabs = 6 * tabWidth + 5 * gap // 202px
+      const spaceFor7Tabs = 7 * tabWidth + 6 * gap // 236px
+
+      let tabsWithDropdown
+      if (availableWidthForTabs >= spaceFor7Tabs) {
+        tabsWithDropdown = 7
+      } else if (availableWidthForTabs >= spaceFor6Tabs) {
+        tabsWithDropdown = 6
+      } else {
+        tabsWithDropdown = Math.floor(
+          (availableWidthForTabs + gap) / (tabWidth + gap)
+        )
       }
 
-      setVisibleTabsCount(Math.min(canFit, totalTabs))
-      setShowDropdown(canFit < totalTabs)
+      // Show as many tabs as possible, but always keep dropdown
+      const visibleCount = Math.max(0, Math.min(totalTabs, tabsWithDropdown))
+
+      setVisibleTabsCount(visibleCount)
+      setShowDropdown(true) // Always show dropdown
+    }
+
+    const debouncedCalculate = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(calculateVisibleTabs, 16) // ~60fps
     }
 
     calculateVisibleTabs()
-    window.addEventListener("resize", calculateVisibleTabs)
-    return () => window.removeEventListener("resize", calculateVisibleTabs)
-  }, [tabs.length, favBlocks.length])
+    window.addEventListener("resize", debouncedCalculate)
+    return () => {
+      window.removeEventListener("resize", debouncedCalculate)
+      clearTimeout(timeoutId)
+    }
+  }, [tabIds.length])
 
-  const visibleTabs = tabs.slice(0, visibleTabsCount)
-  const visibleBlocks = favBlocks.slice(
-    0,
-    Math.max(0, visibleTabsCount - tabs.length)
-  )
-  const overflowTabs = tabs.slice(visibleTabsCount)
-  const overflowBlocks = favBlocks.slice(
-    Math.max(0, visibleTabsCount - tabs.length)
-  )
+  // Sync sorted state with external data
+  useEffect(() => {
+    setSortedTabs(tabIds)
+  }, [tabIds])
+
+  // Create list for display - convert string IDs to SortableItem objects
+  const allTabs = sortedTabs.map((id) => ({ id }))
+  const visibleItems = allTabs.slice(0, visibleTabsCount)
 
   return (
     <div
       ref={containerRef}
       className={cn(
-        "flex h-[38px] items-center gap-1 px-2 border-b border-sidebar-border",
+        "flex h-[38px] items-center justify-between px-1 border-b border-sidebar-border transition-all duration-200",
         {
-          "pl-[5rem]": isMacDesktop(),
+          "pl-[76px]": isMacDesktop(),
         }
       )}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
-      {/* Visible regular tabs */}
-      {visibleTabs.map((tab) => {
-        const Icon = iconMap[tab.id]
-        const isActive = currentApp === tab.id
+      {/* Left side - Visible items in unified order */}
+      <div className="flex items-center gap-0.5">
+        {visibleItems.map((tab, index) => {
+          const tabId = tab.id
+          const tabConfig = TAB_CONFIG[tabId]
+          const isFixedTab = ["nodes", "extensions", "today"].includes(tabId)
 
-        const buttonContent = (
-          <Button
-            variant={isActive ? "secondary" : "ghost"}
-            size="sm"
-            className={cn(
-              "h-8 w-8 p-0 transition-colors flex-shrink-0",
-              isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
-            )}
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            onClick={() => handleTabClick(tab)}
-            title={`${tab.label} (${isMacDesktop() ? '⌘' : 'Ctrl'}+${shortcutMap[tab.id]})`}
-          >
-            <Icon className="h-4 w-4" />
-          </Button>
-        )
+          if (isFixedTab) {
+            // Fixed tabs (nodes, extensions, today)
+            const shortcutNum = index + 1
+            const Icon = getIconForTab(tabId)
+            const isActive = currentApp === tabId
+            const label = tabConfig?.label || tabId
 
-        if (tab.isNavigation && tab.href) {
-          // Special handling for everyday tab - go to current local date
-          // en-CA = Canadian English locale, which formats dates as YYYY-MM-DD
-          const href =
-            tab.id === "everyday"
-              ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
-              : `/${space}${tab.href}`
+            const buttonContent = (
+              <Button
+                variant={isActive ? "secondary" : "ghost"}
+                size="sm"
+                className={cn(
+                  "h-8 w-8 p-0 transition-colors flex-shrink-0",
+                  isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
+                )}
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                onClick={() => handleTabClick(tabId)}
+                title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
+              >
+                <Icon className="h-4 w-4" />
+              </Button>
+            )
 
-          return (
-            <Link key={tab.id} to={href}>
-              {buttonContent}
-            </Link>
-          )
-        }
-        return <div key={tab.id}>{buttonContent}</div>
-      })}
+            if (tabConfig?.isNavigation && tabConfig?.href) {
+              // Special handling for today tab - go to current local date
+              // en-CA = Canadian English locale, which formats dates as YYYY-MM-DD
+              const href =
+                tabId === "today"
+                  ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
+                  : `/${space}${tabConfig.href}`
 
-      {/* Visible favorite blocks as tabs */}
-      {visibleBlocks.map((block, index) => {
-        const shortcutNum = tabs.length + index + 1
-        return (
-          <Button
-            key={`block-${block.id}`}
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 transition-colors flex-shrink-0"
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            onClick={() => handleBlockClick(block.id)}
-            title={`${block.name || block.id} (${isMacDesktop() ? '⌘' : 'Ctrl'}+${shortcutNum})`}
-          >
-            <BlockIcon id={block.id} />
-          </Button>
-        )
-      })}
+              return (
+                <Link key={tabId} to={href}>
+                  {buttonContent}
+                </Link>
+              )
+            }
+            return <div key={tabId}>{buttonContent}</div>
+          } else {
+            // Block tabs - use BlockTab component
+            return (
+              <BlockTab
+                key={tabId}
+                tabId={tabId}
+                index={index}
+                isVisible={true}
+                blocks={blocks}
+                currentApp={currentApp}
+                setCurrentApp={setCurrentApp}
+                navigate={navigate}
+                space={space}
+              />
+            )
+          }
+        })}
+      </div>
 
-      {/* Overflow dropdown */}
+      {/* Right side - Overflow dropdown (aligned with + button below) */}
       {showDropdown && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 transition-colors flex-shrink-0"
-              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-              title="More tabs"
-            >
-              <ChevronDownIcon className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            {/* Overflow regular tabs */}
-            {overflowTabs.map((tab) => {
-              const Icon = iconMap[tab.id]
-              const handleClick = () => {
-                if (tab.isNavigation && tab.href) {
-                  // Special handling for everyday tab - go to current local date
-                  // en-CA = Canadian English locale, which formats dates as YYYY-MM-DD
-                  const href =
-                    tab.id === "everyday"
-                      ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
-                      : `/${space}${tab.href}`
-                  navigate(href)
-                } else {
-                  handleTabClick(tab)
-                }
-              }
+        <div className="flex items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 transition-all duration-200 flex-shrink-0 hover:bg-sidebar-accent/50"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                title="More tabs"
+              >
+                <ChevronDownIcon className="h-4 w-4 transition-transform duration-200" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              {/* Unified sortable list */}
+              <div className="p-1">
+                <SortableContainer
+                  items={allTabs}
+                  onReorder={(newTabs) => {
+                    // Extract IDs from SortableItem objects
+                    const newTabIds = newTabs.map((tab) => tab.id)
+                    // Update tabs with their new order
+                    setSortedTabs(newTabIds)
+                    reorderTabs(newTabIds)
+                  }}
+                  className="space-y-1"
+                  itemClassName=""
+                  renderItem={(tab, index) => {
+                    const tabId = tab.id
+                    const shortcutNum = index + 1 // Based on display order
+                    const Icon = getIconForTab(tabId)
+                    const isVisible = visibleItems.some((vt) => vt.id === tabId)
+                    const isFixedTab = [
+                      "nodes",
+                      "extensions",
+                      "today",
+                    ].includes(tabId)
+                    const tabConfig = TAB_CONFIG[tabId]
+                    const label = isFixedTab ? tabConfig?.label || tabId : null
 
-              return (
-                <DropdownMenuItem
-                  key={tab.id}
-                  onClick={handleClick}
-                  className="flex items-center gap-2 whitespace-nowrap"
-                  title={`${tab.label} (${isMacDesktop() ? '⌘' : 'Ctrl'}+${shortcutMap[tab.id]})`}
-                >
-                  <Icon className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{tab.label}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {isMacDesktop() ? '⌘' : 'Ctrl'}+{shortcutMap[tab.id]}
-                  </span>
-                </DropdownMenuItem>
-              )
-            })}
-            {/* Overflow favorite blocks */}
-            {overflowBlocks.map((block, index) => {
-              const shortcutNum = tabs.length + visibleBlocks.length + index + 1
-              return (
-                <DropdownMenuItem
-                  key={`overflow-block-${block.id}`}
-                  onClick={() => handleBlockClick(block.id)}
-                  className="flex items-center gap-2 whitespace-nowrap"
-                  title={`${block.name || block.id} (${isMacDesktop() ? '⌘' : 'Ctrl'}+${shortcutNum})`}
-                >
-                  <div className="h-4 w-4 flex-shrink-0">
-                    <BlockIcon id={block.id} />
-                  </div>
-                  <span className="truncate">{block.name || block.id}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {isMacDesktop() ? '⌘' : 'Ctrl'}+{shortcutNum}
-                  </span>
-                </DropdownMenuItem>
-              )
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                    const handleClick = () => {
+                      if (tabConfig?.isNavigation && tabConfig?.href) {
+                        // Navigation type tab - set current app and navigate
+                        setCurrentApp(tabId as SidebarApp)
+                        const href =
+                          tabId === "today"
+                            ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
+                            : `/${space}${tabConfig.href}`
+                        navigate(href)
+                      } else {
+                        // Regular tab or block tab
+                        if (isFixedTab) {
+                          setCurrentApp(tabId as SidebarApp)
+                        } else {
+                          // Block tab - set current app and navigate to block page
+                          setCurrentApp(tabId)
+                          navigate(`/${space}/blocks/${tabId}`)
+                        }
+                      }
+                    }
+
+                    return (
+                      <SortableItem key={tabId} id={tabId} className="">
+                        <div className="flex items-center gap-1">
+                          <DropdownMenuItem
+                            onClick={handleClick}
+                            className={cn(
+                              "flex items-center gap-2 cursor-pointer flex-1 min-w-0",
+                              isVisible && "bg-sidebar-accent/50"
+                            )}
+                            title={`${isFixedTab ? label : tabId} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
+                          >
+                            <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <Icon className="h-4 w-4 flex-shrink-0" />
+                            <span className="flex-1 min-w-0 truncate">
+                              {isFixedTab
+                                ? label
+                                : blocks[tabId]?.name || tabId}
+                            </span>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {isMacDesktop() ? "⌘" : "Ctrl"}+{shortcutNum}
+                            </span>
+                          </DropdownMenuItem>
+                        </div>
+                      </SortableItem>
+                    )
+                  }}
+                />
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       )}
     </div>
   )

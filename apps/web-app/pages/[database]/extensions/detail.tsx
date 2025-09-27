@@ -23,7 +23,7 @@ import { ExtensionToolbar } from "./components/extension-toolbar"
 import { ExtensionConfig } from "./config/config"
 import { getEditorLanguage } from "./helper"
 import { useEditorStore } from "./stores/editor-store"
-import { useExtensionSidebarStore } from "./stores/sidebar-store"
+import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
 
 // const CodeEditor = lazy(() => import("./editor/code-editor"))
 const SimpleCodeEditorWrapper = lazy(

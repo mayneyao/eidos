@@ -1,5 +1,5 @@
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useExtensionSidebarStore } from "@/apps/web-app/pages/[database]/extensions/stores/sidebar-store"
+import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
 import type { EidosDataEventChannelMsg } from "@/lib/const";
 import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const"
 import { ExtensionTableName } from "@/packages/core/sqlite/const"

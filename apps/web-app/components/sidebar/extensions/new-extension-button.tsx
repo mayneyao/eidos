@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-import { useNewExtension } from "@/apps/web-app/components/sidebar/extensions/hooks/use-new-extension"
+import { useNewExtension } from "./hooks"
 
 const ExtensionTooltip = ({ children }: { children: React.ReactNode }) => {
   return (

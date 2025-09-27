@@ -4,7 +4,7 @@ import { EIDOS_SPACE_BASE_URL } from "@/lib/const"
 import { Button } from "@/components/ui/button"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
-import { useExtensionSidebarStore } from "./stores/sidebar-store"
+import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
 
 export const ExtensionsEmptyState = () => {
   const { space } = useCurrentPathInfo()

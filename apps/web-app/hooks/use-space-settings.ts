@@ -15,7 +15,7 @@ export interface SpaceSettings {
 
 export const useSpaceSettings = (scope: 'doc', defaultSettings: any) => {
     const { sqlite } = useSqlite()
-    const spaceSettings = useSqliteKV<SpaceSettings>(`eidos:space:settings:${scope}`, defaultSettings)
+    const [spaceSettings, setSpaceSettings] = useSqliteKV<SpaceSettings>(`eidos:space:settings:${scope}`, defaultSettings)
 
     const update = useCallback(async (newSettings: any) => {
         if (!sqlite) return

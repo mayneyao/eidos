@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useDocProperty } from "@/components/doc-property-global/hook"
-import { ItemIcon } from "@/components/sidebar/tree"
+import { ItemIcon } from "@/components/sidebar/nodes"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
 import { NodeIconEditor } from "@/apps/web-app/pages/[database]/[node]/node-icon"

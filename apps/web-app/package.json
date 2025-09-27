@@ -84,6 +84,7 @@
     "@radix-ui/react-portal": "^1.1.4",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@sqlite.org/sqlite-wasm": "3.45.3-build2",
     "@tailwindcss/vite": "^4.1.11",
     "@tanstack/react-virtual": "^3.13.12",

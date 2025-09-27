@@ -129,6 +129,39 @@ export class ExtensionTable
     return true
   }
 
+  /**
+   * Batch get extensions by IDs
+   * @param ids Array of extension IDs
+   * @returns Record mapping ID to extension data (or null if not found)
+   */
+  async getBatch(ids: string[]): Promise<Record<string, IExtension | null>> {
+    if (ids.length === 0) {
+      return {}
+    }
+
+    // Create placeholders for the IN clause
+    const placeholders = ids.map(() => '?').join(',')
+    const sql = `SELECT * FROM ${this.name} WHERE id IN (${placeholders})`
+    
+    const res = await this.dataSpace.exec2(sql, ids)
+    
+    // Create a map of results
+    const result: Record<string, IExtension | null> = {}
+    
+    // Initialize all requested IDs as null
+    ids.forEach(id => {
+      result[id] = null
+    })
+    
+    // Fill in the found extensions
+    res.forEach((item: any) => {
+      const extension = this.toJson(item)
+      result[extension.id] = extension
+    })
+    
+    return result
+  }
+
   async enable(id: string): Promise<boolean> {
     this.dataSpace.exec2(`UPDATE ${this.name} SET enabled = 1 WHERE id = ?`, [
       id,

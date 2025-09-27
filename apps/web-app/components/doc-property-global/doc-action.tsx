@@ -30,7 +30,7 @@ import { useScriptFunction } from "@/components/script-container/hook"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useExtensionNavigateById } from "@/apps/web-app/hooks/use-extension-navigate"
-import { useNewExtension } from "@/apps/web-app/pages/[database]/extensions/hooks/use-new-extension"
+import { useNewExtension } from "@/apps/web-app/components/sidebar/extensions/hooks/use-new-extension"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useGenerateTitle } from "@/apps/web-app/pages/[database]/[node]/hooks/use-generate-title"
 

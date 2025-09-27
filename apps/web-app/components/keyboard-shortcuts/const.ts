@@ -205,7 +205,7 @@ export const useCommonKeyboardShortcuts = () => {
     },
     {
       key: "Ctrl/Cmd + 3",
-      description: t('kbd.shortcuts.common.switchToEverydayDescription'),
+      description: t('kbd.shortcuts.common.switchToTodayDescription'),
     },
     {
       key: "Ctrl/Cmd + 4-9",
