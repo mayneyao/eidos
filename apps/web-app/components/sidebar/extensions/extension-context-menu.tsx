@@ -1,9 +1,19 @@
+import { useState } from "react"
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import {
@@ -35,6 +45,7 @@ export const ExtensionContextMenu = ({
 }: ExtensionContextMenuProps) => {
   const { toast } = useToast()
   const { isFavorite, toggleFavBlock } = useFavBlocks()
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   const handleCopySlug = () => {
     const slug = `${extension.slug}`
@@ -43,6 +54,15 @@ export const ExtensionContextMenu = ({
       title: "Slug copied to clipboard",
       description: slug,
     })
+  }
+
+  const handleDeleteClick = () => {
+    setShowDeleteDialog(true)
+  }
+
+  const handleConfirmDelete = () => {
+    onDelete(extension.id)
+    setShowDeleteDialog(false)
   }
 
   return (
@@ -78,13 +98,35 @@ export const ExtensionContextMenu = ({
           Copy Slug
         </ContextMenuItem>
         <ContextMenuItem
-          onSelect={() => onDelete(extension.id)}
+          onSelect={handleDeleteClick}
           className="text-destructive focus:text-destructive"
         >
           <Trash2Icon className="mr-2 h-4 w-4" />
           Delete
         </ContextMenuItem>
       </ContextMenuContent>
+      
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Extension</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{extension.name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ContextMenu>
   )
 }
