@@ -271,7 +271,7 @@ export function GridViewForView(props: IGridProps) {
   }
   return (
     <div
-      className={cn("h-full w-full p-2 pt-0", props.className)}
+      className={cn("h-full w-full pt-0", props.className)}
       ref={containerRef}
     >
       <div

@@ -271,6 +271,7 @@ export const SidebarTabs = () => {
         "flex h-[38px] items-center justify-between px-1 border-b border-sidebar-border transition-all duration-200",
         {
           "pl-[76px]": isMacDesktop(),
+          "pl-4": !isMacDesktop(),
         }
       )}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
