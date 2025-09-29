@@ -126,19 +126,6 @@ export const useAIFunctions = () => {
           return await handleRunSql(sql)
         }
         return "permission denied"
-      case "createQuickAction":
-        const { name, params, nodes } = parameters
-        try {
-          await sqlite?.action.add({
-            id: uuidv7(),
-            name,
-            params,
-            nodes,
-          })
-          return "ok"
-        } catch (error: any) {
-          return error.message
-        }
       case "startRecorder":
         const res = await startRecorder()
         return `recorder id: ${res}`

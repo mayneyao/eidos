@@ -15,7 +15,6 @@ import { SQLiteUndoRedo } from "../data-pipeline/UndoRedo";
 import { DbMigrator } from "../db-migrator/DbMigrator";
 import { CsvImportAndExport } from "../import-and-export/csv";
 import { MarkdownImportAndExport } from "../import-and-export/markdown";
-import { ActionTable } from "../meta-table/action";
 import type { BaseTable } from "../meta-table/base";
 import { ChatTable } from "../meta-table/chat";
 import { ColumnTable } from "../meta-table/column";
@@ -38,7 +37,6 @@ import { withSqlite3AllUDF } from "../udf";
 
 export type EidosTable =
   | DocTable
-  | ActionTable
   | ExtensionTable
   | TreeTable
   | ViewTable
@@ -57,7 +55,6 @@ export abstract class BaseDataSpace {
   dbName: string
   //  meta table
   doc: DocTable
-  action: ActionTable
   // script is deprecated, use extension instead
   script: ExtensionTable
   extension: ExtensionTable
@@ -157,7 +154,6 @@ export abstract class BaseDataSpace {
     )
     // meta table
     this.doc = new DocTable(this as any)
-    this.action = new ActionTable(this as any)
     this.script = new ExtensionTable(this as any)
     this.extension = new ExtensionTable(this as any)
     this.tree = new TreeTable(this as any)
@@ -176,7 +172,6 @@ export abstract class BaseDataSpace {
     //
     this.allTables = [
       this.doc,
-      this.action,
       this.script,
       this.tree,
       this.view,

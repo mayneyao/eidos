@@ -1,8 +1,8 @@
 import { TreeNodeType, type ITreeNode } from "@/packages/core/types/ITreeNode"
 import { Plus } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { isDesktopMode } from "@/lib/env"
 
+import { isDesktopMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -22,8 +22,14 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
 
   const { extNodes } = useAllExtNodes()
 
-  const { createDoc, createTable, createFolder, createExtNode, createView } =
-    useSqlite(space)
+  const {
+    createDoc,
+    createTable,
+    createFolder,
+    createExtNode,
+    createView,
+    sqlite,
+  } = useSqlite(space)
   const goto = useGoto()
 
   const handleCreateDoc = async () => {
@@ -84,10 +90,10 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
   }
 
   const triggerFileInput = (accept: string, handler: (file: File) => void) => {
-    const input = document.createElement('input')
-    input.type = 'file'
+    const input = document.createElement("input")
+    input.type = "file"
     input.accept = accept
-    input.style.display = 'none'
+    input.style.display = "none"
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (file) {
@@ -160,14 +166,14 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {
-            triggerFileInput('.csv', handleImportCsv)
+            triggerFileInput(".csv", handleImportCsv)
           }}
         >
           {t("sidebar.importFile.importCSV")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
-            triggerFileInput('.md,.markdown', handleImportMarkdown)
+            triggerFileInput(".md,.markdown", handleImportMarkdown)
           }}
         >
           {t("sidebar.importFile.importMarkdown")}

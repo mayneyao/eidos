@@ -17,8 +17,6 @@ export const FileTableName = `eidos__files`
 // store doc
 export const DocTableName = `eidos__docs`
 
-// quick actions
-export const ActionTableName = `eidos__actions`
 
 // scripts
 export const ScriptTableName = `eidos__scripts`
