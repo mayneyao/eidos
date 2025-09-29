@@ -3,21 +3,11 @@ import type {
   DocActionMeta,
   IExtension,
 } from "@/packages/core/types/IExtension"
-import {
-  BookOpen,
-  ExternalLink,
-  Loader2,
-  Sparkles,
-  Zap,
-} from "lucide-react"
+import { BookOpen, ExternalLink, Loader2, Sparkles, Zap } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Badge } from "@/components/ui/badge"
-import {
-  CommandGroup,
-  CommandItem,
-  CommandSeparator,
-} from "../ui/command"
+import { toast } from "@/components/ui/use-toast"
 import { useScriptFunction } from "@/components/script-container/hook"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
@@ -25,8 +15,8 @@ import { useExtensionNavigateById } from "@/apps/web-app/hooks/use-extension-nav
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useGenerateTitle } from "@/apps/web-app/pages/[database]/[node]/hooks/use-generate-title"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { toast } from "@/components/ui/use-toast"
 
+import { CommandGroup, CommandItem, CommandSeparator } from "../ui/command"
 import { IconRenderer } from "../ui/icon-picker"
 
 export const DocActionCommandItems = () => {
@@ -43,11 +33,6 @@ export const DocActionCommandItems = () => {
     IExtension<DocActionMeta>[]
   >([])
   const [isScriptRunning, setIsScriptRunning] = useState(false)
-
-  // Only show doc actions when current node is a doc
-  if (node?.type !== "doc") {
-    return null
-  }
 
   useEffect(() => {
     if (!sqlite) return

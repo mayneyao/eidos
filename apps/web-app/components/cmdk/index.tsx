@@ -30,11 +30,11 @@ import {
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
 import { ThemeStudio } from "../theme-studio"
 import { DocActionCommandItems } from "./doc-actions"
@@ -178,7 +178,7 @@ export function CommandDialogDemo() {
                   </CommandGroup>
                 )}
 
-                <DocActionCommandItems />
+                {currentNode?.type === "doc" && <DocActionCommandItems />}
                 {!isInkServiceMode && (
                   <>
                     <NodeCommandItems />

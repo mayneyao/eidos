@@ -50,7 +50,6 @@ const ExtensionsContent = () => {
 
 export const SidebarContent = () => {
   const { currentApp } = useSidebarStore()
-  console.log("currentApp", currentApp)
 
   const renderContent = () => {
     switch (currentApp) {
