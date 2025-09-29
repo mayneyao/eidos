@@ -139,7 +139,8 @@ export const useSqlite = (dbName?: string) => {
       hide_properties: true,
     })
     await sqlWorker.addDoc(docId, JSON.stringify(DefaultState), "")
-    addNode(node)
+    const newNode = await sqlWorker.tree.getNode(docId)
+    newNode && addNode(newNode)
     return docId
   }
 
