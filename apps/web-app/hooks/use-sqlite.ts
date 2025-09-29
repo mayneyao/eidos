@@ -12,6 +12,7 @@ import { DefaultState } from "@/components/doc/plugins/AutoLoadSavePlugin"
 import { createTemplateTableSql } from "@/components/table/views/grid/helper"
 
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
+import { useNodeStore } from "@/apps/web-app/store/node-store"
 import { useAllNodes } from "./use-nodes"
 import { isDesktopMode } from "@/lib/env"
 
@@ -20,13 +21,15 @@ export const useSqlite = (dbName?: string) => {
   const {
     isInitialized,
     sqliteProxy: sqlWorker,
+    setAllUiColumns,
+    resetTableData,
+  } = useSqliteStore()
+  const {
     setAllNodes,
     setNode,
     addNode,
     delNode,
-    setAllUiColumns,
-    resetTableData,
-  } = useSqliteStore()
+  } = useNodeStore()
   const allNodes = useAllNodes()
   const { isShareMode } = useAppRuntimeStore()
 
@@ -202,7 +205,7 @@ export const useSqlite = (dbName?: string) => {
     await sqlWorker.sql`UPDATE ${Symbol(
       TreeTableName
     )} SET name = ${newName} WHERE id = ${nodeId};`
-    setNode({ id: nodeId, name: newName })
+    // State will be updated automatically via database triggers
   }
 
   const updateTableListWithSql = async (sql: string) => {
@@ -281,28 +284,19 @@ export const useSqlite = (dbName?: string) => {
   const restoreNode = async (node: ITreeNode) => {
     if (!sqlWorker) return
     sqlWorker.tree.restoreNode(node.id)
-    setNode({
-      id: node.id,
-      is_deleted: false,
-    })
+    // State will be updated automatically via database triggers
   }
 
   const toggleNodeFullWidth = async (node: ITreeNode) => {
     if (!sqlWorker) return
     sqlWorker.tree.toggleNodeFullWidth(node.id, !node.is_full_width)
-    setNode({
-      id: node.id,
-      is_full_width: !node.is_full_width,
-    })
+    // State will be updated automatically via database triggers
   }
 
   const toggleNodeLock = async (node: ITreeNode) => {
     if (!sqlWorker) return
     sqlWorker.tree.toggleNodeLock(node.id, !node.is_locked)
-    setNode({
-      id: node.id,
-      is_locked: !node.is_locked,
-    })
+    // State will be updated automatically via database triggers
   }
   const deleteNode = async (node: ITreeNode) => {
     if (!sqlWorker) return
@@ -310,10 +304,7 @@ export const useSqlite = (dbName?: string) => {
       await deleteView(node.id)
     } else {
       sqlWorker.tree.deleteNode(node.id)
-      setNode({
-        id: node.id,
-        is_deleted: true,
-      })
+      // State will be updated automatically via database triggers
     }
   }
 
@@ -394,10 +385,7 @@ export const useSqlite = (dbName?: string) => {
   const updateNodeName = async (nodeId: string, newName: string) => {
     if (!sqlWorker) return
     await sqlWorker.tree.updateNodeName(nodeId, newName)
-    setNode({
-      id: nodeId,
-      name: newName,
-    })
+    // State will be updated automatically via database triggers
   }
 
   const rebuildFTS = async (tableId: string) => {

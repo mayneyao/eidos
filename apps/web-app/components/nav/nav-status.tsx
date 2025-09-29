@@ -21,7 +21,7 @@ import {
 import { AvatarList } from "@/components/avatar-list"
 import { useAPIAgent } from "@/apps/web-app/hooks/use-api-agent"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
-import { useNodeTree } from "@/apps/web-app/hooks/use-node-tree"
+import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { usePeer } from "@/apps/web-app/hooks/use-peer"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -39,7 +39,7 @@ export const NavStatus = () => {
   const { currentCollaborators } = usePeer()
   const nameList = currentCollaborators.map((c) => c.name)
   const currentNode = useCurrentNode()
-  const { pin, unpin } = useNodeTree()
+  const { pin, unpin } = useNode()
 
   const toggleGodMode = () => {
     setGodMode(!isGodMode)

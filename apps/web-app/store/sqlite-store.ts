@@ -1,27 +1,17 @@
 "use client"
 
-import orderBy from "lodash/orderBy"
 import { create } from "zustand"
 
 import type { IDataStore } from "@/apps/web-app/store/interface"
 import type { DataSpace } from "@/packages/core/DataSpace"
 import type { IField } from "@/packages/core/types/IField"
-import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import type { IView } from "@/packages/core/types/IView"
 
 interface SqliteState {
   isInitialized: boolean
   setInitialized: (isInitialized: boolean) => void
 
-  currentNode: ITreeNode | null
-  setCurrentNode: (node: ITreeNode | null) => void
-
   dataStore: IDataStore
-  setAllNodes: (tables: ITreeNode[]) => void
-  setNode: (node: Partial<ITreeNode> & { id: string }) => void
-  delNode: (nodeId: string) => void
-  addNode: (node: ITreeNode) => void
-
   allUiColumns: IField[]
   setAllUiColumns: (columns: IField[]) => void
 
@@ -55,8 +45,6 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
   setInitialized: (isInitialized) => set({ isInitialized }),
 
   dataStore: {
-    nodeIds: [],
-    nodeMap: {},
     tableMap: {},
   },
 
@@ -207,18 +195,6 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
     return tableMap[tableId].rowMap[rowId]
   },
 
-  currentNode: null,
-  setCurrentNode: (node) => set({ currentNode: node }),
-
-  setAllNodes: (nodes) =>
-    set((state) => {
-      const nodeIds = nodes.map((table) => table.id)
-      const nodeMap = nodes.reduce((acc, cur) => {
-        acc[cur.id] = cur
-        return acc
-      }, {} as Record<string, ITreeNode>)
-      return { dataStore: { ...state.dataStore, nodeIds, nodeMap } }
-    }),
 
   allUiColumns: [],
   setAllUiColumns: (columns) => set({ allUiColumns: columns }),
@@ -236,51 +212,4 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
     return set({ sqliteProxy: sqlWorker })
   },
 
-  setNode: (node: Partial<ITreeNode> & { id: string }) => {
-    set((state) => {
-      // Create a new nodeMap object
-      const newNodeMap = {
-        ...state.dataStore.nodeMap,
-        [node.id]: { ...state.dataStore.nodeMap[node.id], ...node },
-      }
-      const nodeIds = orderBy(
-        Object.keys(newNodeMap),
-        (id) => newNodeMap[id].position,
-        "desc"
-      )
-      // Return the new nodeMap in the updated state
-      return { dataStore: { ...state.dataStore, nodeMap: newNodeMap, nodeIds } }
-    })
-  },
-
-
-  delNode: (nodeId: string) => {
-    set((state) => {
-      const { nodeIds, nodeMap } = state.dataStore
-      const index = nodeIds.findIndex((id) => id === nodeId)
-      if (index > -1) {
-        nodeIds.splice(index, 1)
-      }
-      delete nodeMap[nodeId]
-      const _nodeIds = orderBy(
-        Object.keys(nodeMap),
-        (id) => nodeMap[id].position,
-        "desc"
-      )
-      return { dataStore: { ...state.dataStore, nodeIds: _nodeIds, nodeMap } }
-    })
-  },
-  addNode: (node: ITreeNode) => {
-    set((state) => {
-      const { nodeIds, nodeMap } = state.dataStore
-      nodeIds.push(node.id)
-      nodeMap[node.id] = node
-      const _nodeIds = orderBy(
-        Object.keys(nodeMap),
-        (id) => nodeMap[id].position,
-        "desc"
-      )
-      return { dataStore: { ...state.dataStore, nodeIds: _nodeIds, nodeMap } }
-    })
-  },
 }))

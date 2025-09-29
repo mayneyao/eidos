@@ -2,14 +2,14 @@ import type { ITreeNode} from "@/packages/core/types/ITreeNode";
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 
 import { useSqlite } from "./use-sqlite"
-import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
+import { useNodeStore } from "@/apps/web-app/store/node-store"
 
 export const useAllNodes = (opts?: {
   isDeleted?: boolean
   parent_id?: string
   type?: ITreeNode["type"] | ITreeNode["type"][]
 }) => {
-  const { nodeIds, nodeMap } = useSqliteStore((state) => state.dataStore)
+  const { nodeIds, nodeMap } = useNodeStore()
   const { isDeleted = false, type, parent_id } = opts || {}
   const types = type
     ? Array.isArray(type)
@@ -34,47 +34,32 @@ export const useAllNodes = (opts?: {
 
 export const useNode = () => {
   const { sqlite } = useSqlite()
-  const {
-    setNode,
-    dataStore: { nodeMap },
-  } = useSqliteStore()
+  const { addNode, delNode } = useNodeStore()
 
   const updateIcon = async (id: string, icon: string) => {
     await sqlite?.tree.set(id, {
       icon,
     })
-    setNode({
-      id,
-      icon,
-    })
+    // State will be updated automatically via database triggers
   }
 
   const updatePosition = async (id: string, position: number) => {
     await sqlite?.tree.updateNodePosition(id, position)
-    setNode({
-      id,
-      position,
-    })
+    // State will be updated automatically via database triggers
   }
 
   const updateCover = async (id: string, cover: string) => {
     await sqlite?.tree.set(id, {
       cover,
     })
-    setNode({
-      id,
-      cover,
-    })
+    // State will be updated automatically via database triggers
   }
 
   const updateHideProperties = async (id: string, hideProperties: boolean) => {
-    setNode({
-      id,
-      hide_properties: hideProperties,
-    })
     await sqlite?.tree.set(id, {
       hide_properties: hideProperties,
     })
+    // State will be updated automatically via database triggers
   }
 
   const moveIntoTable = async (
@@ -84,10 +69,7 @@ export const useNode = () => {
   ) => {
     if (!sqlite) return
     await sqlite.tree.moveIntoTable(nodeId, tableId, parentId)
-    setNode({
-      id: nodeId,
-      parent_id: tableId,
-    })
+    // State will be updated automatically via database triggers
   }
 
   const updateParentId = async (
@@ -101,12 +83,24 @@ export const useNode = () => {
     if (id == parentId) {
       return
     }
-    const res = await sqlite?.tree.nodeChangeParent(id, parentId, opts)
-    setNode({
-      id,
-      parent_id: parentId,
-      ...(res || {}),
-    })
+    await sqlite?.tree.nodeChangeParent(id, parentId, opts)
+    // State will be updated automatically via database triggers
+  }
+
+  const pin = (id: string) => {
+    if (!sqlite) {
+      return
+    }
+    sqlite?.tree.pinNode(id, true)
+    // State will be updated automatically via database triggers
+  }
+
+  const unpin = (id: string) => {
+    if (!sqlite) {
+      return
+    }
+    sqlite?.tree.pinNode(id, false)
+    // State will be updated automatically via database triggers
   }
 
   return {
@@ -116,5 +110,10 @@ export const useNode = () => {
     updateParentId,
     updateHideProperties,
     moveIntoTable,
+    addNode,
+    delNode,
+    pin,
+    unpin,
   }
 }
+

@@ -40,7 +40,7 @@ import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { useAllExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
-import { useNodeTree } from "@/apps/web-app/hooks/use-node-tree"
+import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import {
   useAppsStore,
@@ -78,7 +78,7 @@ export function NodeItem({
     createFolder,
     createView,
   } = useSqlite(databaseName)
-  const { setNode, pin, unpin } = useNodeTree()
+  const { pin, unpin } = useNode()
   const { handleCut, handlePaste } = useTreeOperations()
   const { currentCut } = useFolderStore()
   const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()

@@ -1,8 +1,6 @@
+import { TreeNodeType, type ITreeNode } from "@/packages/core/types/ITreeNode"
 import { useTranslation } from "react-i18next"
 
-import type { ITreeNode} from "@/packages/core/types/ITreeNode";
-import { TreeNodeType } from "@/packages/core/types/ITreeNode"
-import { useNodeTree } from "@/apps/web-app/hooks/use-node-tree"
 import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 
@@ -24,15 +22,12 @@ export const NodeMoveInto = ({ node }: { node: ITreeNode }) => {
   })
   const { t } = useTranslation()
   const { sqlite } = useSqlite()
-  const { setNode } = useNodeTree()
+  // setNode is no longer needed as state updates are handled by database triggers
 
   const moveDraftIntoTable = async (nodeId: string, tableId: string) => {
     if (!sqlite) return
     await sqlite.tree.moveIntoTable(nodeId, tableId)
-    setNode({
-      id: nodeId,
-      parent_id: tableId,
-    })
+    // State will be updated automatically via database triggers
   }
   return (
     <Command>

@@ -20,6 +20,7 @@ import {
 import type { IField } from "@/packages/core/types/IField"
 import { useSqlWorker } from "./use-sql-worker"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
+import { useNodeStore } from "@/apps/web-app/store/node-store"
 import { useUiColumns } from "./use-ui-columns"
 
 export const useTableFields = (tableIdOrName: string | undefined) => {
@@ -52,7 +53,8 @@ export const useTableViews = (tableId: string, databaseName?: string) => {
 
 export const useTableOperation = (tableName: string, databaseName: string) => {
   const sqlite = useSqlWorker()
-  const { setViews, setNode, setRows, cleanFieldData } = useSqliteStore()
+  const { setViews, setRows, cleanFieldData } = useSqliteStore()
+  const { setNode } = useNodeStore()
   const tableId = getTableIdByRawTableName(tableName)
   const rowMap = useSqliteStore(
     (state) => state.dataStore.tableMap?.[tableId]?.rowMap || {}

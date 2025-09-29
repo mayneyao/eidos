@@ -13,9 +13,10 @@ import type { ITreeNode } from "@/packages/core/types/ITreeNode";
 
 import { useEngine } from "./use-engine";
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store";
+import { useNodeStore } from "@/apps/web-app/store/node-store";
 
 export const useSqliteMetaTableSubscribe = () => {
-  const { addNode, setNode } = useSqliteStore()
+  const { addNode, setNode } = useNodeStore()
 
   const { reload } = useEngine()
   useEffect(() => {
