@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import type { ITreeNode} from "@/packages/core/types/ITreeNode";
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 
@@ -11,25 +12,33 @@ export const useAllNodes = (opts?: {
 }) => {
   const { nodeIds, nodeMap } = useNodeStore()
   const { isDeleted = false, type, parent_id } = opts || {}
-  const types = type
-    ? Array.isArray(type)
-      ? type
-      : [type]
-    : [TreeNodeType.Table, TreeNodeType.Doc, TreeNodeType.Folder, TreeNodeType.Dataview]
+  
+  return useMemo(() => {
+    const types = type
+      ? Array.isArray(type)
+        ? type
+        : [type]
+      : [TreeNodeType.Table, TreeNodeType.Doc, TreeNodeType.Folder, TreeNodeType.Dataview]
 
-  if (isDeleted) {
+    if (isDeleted) {
+      return nodeIds
+        .map((id) => nodeMap[id])
+        .filter((node): node is ITreeNode => 
+          node !== undefined && 
+          Boolean(node.is_deleted) && 
+          (types.includes(node.type) || node.type.startsWith('ext__'))
+        )
+    }
+    
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node) => node.is_deleted && (types.includes(node.type) || node.type.startsWith('ext__')))
-  }
-  return nodeIds
-    .map((id) => nodeMap[id])
-    .filter(
-      (node) =>
+      .filter((node): node is ITreeNode =>
+        node !== undefined &&
         (types.includes(node.type) || node.type.startsWith('ext__')) &&
-        !node.is_deleted &&
+        !Boolean(node.is_deleted) &&
         (parent_id ? node.parent_id === parent_id : true)
-    )
+      )
+  }, [nodeIds, nodeMap, isDeleted, type, parent_id])
 }
 
 export const useNode = () => {

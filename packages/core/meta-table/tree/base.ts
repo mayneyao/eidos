@@ -31,7 +31,7 @@ export class BaseTreeTable extends BaseTableImpl implements BaseTable<ITreeNode>
     'is_full_width', 'is_locked', 'icon', 'cover',
     'is_deleted', 'hide_properties', 'position',
     'created_at', 'updated_at'
-  ])}
+  ], 'all')}
   `
 
   getNextRowId = async () => {

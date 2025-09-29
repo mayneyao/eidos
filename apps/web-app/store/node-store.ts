@@ -68,17 +68,15 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
   delNode: (nodeId: string) => {
     set((state) => {
       const { nodeIds, nodeMap } = state
-      const index = nodeIds.findIndex((id) => id === nodeId)
-      if (index > -1) {
-        nodeIds.splice(index, 1)
-      }
-      delete nodeMap[nodeId]
+      const newNodeIds = nodeIds.filter((id) => id !== nodeId)
+      const newNodeMap = { ...nodeMap }
+      delete newNodeMap[nodeId]
       const _nodeIds = orderBy(
-        Object.keys(nodeMap),
-        (id) => nodeMap[id].position,
+        Object.keys(newNodeMap),
+        (id) => newNodeMap[id].position,
         "desc"
       )
-      return { nodeIds: _nodeIds, nodeMap }
+      return { nodeIds: _nodeIds, nodeMap: newNodeMap }
     })
   },
 
@@ -86,14 +84,14 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
   addNode: (node: ITreeNode) => {
     set((state) => {
       const { nodeIds, nodeMap } = state
-      nodeIds.push(node.id)
-      nodeMap[node.id] = node
+      const newNodeIds = [...nodeIds, node.id]
+      const newNodeMap = { ...nodeMap, [node.id]: node }
       const _nodeIds = orderBy(
-        Object.keys(nodeMap),
-        (id) => nodeMap[id].position,
+        Object.keys(newNodeMap),
+        (id) => newNodeMap[id].position,
         "desc"
       )
-      return { nodeIds: _nodeIds, nodeMap }
+      return { nodeIds: _nodeIds, nodeMap: newNodeMap }
     })
   },
 
@@ -108,20 +106,29 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
     const types = Array.isArray(type) ? type : [type]
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node) => types.includes(node.type) || node.type.startsWith('ext__'))
+      .filter((node): node is ITreeNode => 
+        node !== undefined && 
+        (types.includes(node.type) || node.type.startsWith('ext__'))
+      )
   },
 
   getNodesByParent: (parentId: string) => {
     const { nodeIds, nodeMap } = get()
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node) => node.parent_id === parentId)
+      .filter((node): node is ITreeNode => 
+        node !== undefined && 
+        node.parent_id === parentId
+      )
   },
 
   getRootNodes: () => {
     const { nodeIds, nodeMap } = get()
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node) => !node.parent_id)
+      .filter((node): node is ITreeNode => 
+        node !== undefined && 
+        !node.parent_id
+      )
   },
 }))

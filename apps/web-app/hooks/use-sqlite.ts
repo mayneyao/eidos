@@ -203,9 +203,7 @@ export const useSqlite = (dbName?: string) => {
 
   const renameNode = async (nodeId: string, newName: string) => {
     if (!sqlWorker) return
-    await sqlWorker.sql`UPDATE ${Symbol(
-      TreeTableName
-    )} SET name = ${newName} WHERE id = ${nodeId};`
+    await sqlWorker.tree.updateNodeName(nodeId, newName)
     // State will be updated automatically via database triggers
   }
 

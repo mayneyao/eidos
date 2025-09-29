@@ -11,12 +11,11 @@ import {
 import { ExtensionTableName, TreeTableName } from "@/packages/core/sqlite/const";
 import type { ITreeNode } from "@/packages/core/types/ITreeNode";
 
-import { useEngine } from "./use-engine";
-import { useSqliteStore } from "@/apps/web-app/store/sqlite-store";
 import { useNodeStore } from "@/apps/web-app/store/node-store";
+import { useEngine } from "./use-engine";
 
 export const useSqliteMetaTableSubscribe = () => {
-  const { addNode, setNode } = useNodeStore()
+  const { addNode, setNode, delNode } = useNodeStore()
 
   const { reload } = useEngine()
   useEffect(() => {
@@ -38,8 +37,8 @@ export const useSqliteMetaTableSubscribe = () => {
             break
           case DataUpdateSignalType.Delete:
             if (table === TreeTableName) {
-              // Handle tree node deletion - reload to sync state
-              reload()
+              // Handle tree node deletion
+              delNode(_old.id)
             }
             break
           default:
