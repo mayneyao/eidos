@@ -83,6 +83,8 @@ export class ProxyHandler {
         return headers;
     }
 
+
+    
     /**
      * Add CORS headers to response
      */
@@ -91,6 +93,46 @@ export class ProxyHandler {
         response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         response.headers.set('Access-Control-Allow-Headers', '*');
         response.headers.set('Access-Control-Allow-Credentials', 'false');
+        
+        // Add specific headers for resource types (images, videos, audio, etc.)
+        const contentType = response.headers.get('content-type') || '';
+        
+        if (this.isResourceType(contentType)) {
+            // Enable cross-origin resource sharing for media resources
+            response.headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
+            response.headers.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+            
+            // Add cache headers for better performance
+            response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+            
+            // Ensure proper content type handling
+            if (contentType.startsWith('image/')) {
+                response.headers.set('X-Content-Type-Options', 'nosniff');
+            }
+        }
+    }
+
+    /**
+     * Check if content type is a resource type that needs special CORS handling
+     */
+    private isResourceType(contentType: string): boolean {
+        const resourceTypes = [
+            'image/',
+            'video/',
+            'audio/',
+            'application/pdf',
+            'application/zip',
+            'application/octet-stream',
+            'text/css',
+            'text/javascript',
+            'application/javascript',
+            'application/json',
+            'font/',
+            'application/font-woff',
+            'application/font-woff2'
+        ];
+        
+        return resourceTypes.some(type => contentType.toLowerCase().startsWith(type));
     }
 
     /**
