@@ -44,6 +44,7 @@ interface IGridProps {
   view?: IView<IGridViewProperties>
   isEmbed?: boolean
   isEditable?: boolean
+  isPreview?: boolean
   className?: string
 }
 
@@ -104,6 +105,7 @@ export function GridViewForView(props: IGridProps) {
     gridRef: glideDataGridRef,
     viewCount,
     view: currentView,
+    isPreview: props.isPreview,
   })
 
   const { customHighlightRegions } = useHighlightRow(

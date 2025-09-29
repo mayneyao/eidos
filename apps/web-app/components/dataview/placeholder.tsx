@@ -319,6 +319,7 @@ export const DataViewPlaceholder = ({
                         databaseName={space}
                         view={view}
                         isEditable={false}
+                        isPreview
                         className="h-full"
                       />
                     </TableContext.Provider>
