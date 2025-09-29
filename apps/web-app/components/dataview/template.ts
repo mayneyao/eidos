@@ -54,16 +54,15 @@ WITH valid_docs AS (
     WHERE json_valid(content) = 1
 )
 SELECT
-    d.id as doc_id,
-    d.created_at as created_at,
-    json_extract(j.value, '$.type') as type,
     json_extract(j.value, '$.title') as title,
-    json_extract(j.value, '$.url') as url,
     json_extract(j.value, '$.description') as description,
-    json_extract(j.value, '$.image') as image,
     json_extract(j.value, '$.fetched') as fetched,
-    j.value as raw_node,
-    '/${space}/' || d.id AS pathname
+    '/${space}/' || d.id AS pathname,
+    d.created_at as created_at,
+    json_extract(j.value, '$.url') as url,
+    json_extract(j.value, '$.image') as image,
+    d.id as doc_id,
+    json_extract(j.value, '$.type') as type
 FROM valid_docs d,
     json_tree(d.content, '$.root.children') AS j
 WHERE j.type = 'object'
@@ -93,10 +92,9 @@ WITH
 SELECT
   json_extract(j.value, '$.children[0].text') as text,
   json_extract(j.value, '$.checked') as checked,
-  d.id as doc_id,
-  j.value as raw_node,
+  '/${space}/' || d.id AS pathname,
   d.created_at as created_at,
-  '/${space}/' || d.id AS pathname
+  d.id as doc_id
 FROM
   valid_docs d,
   json_tree(d.content, '$.root.children') AS parent,
@@ -107,6 +105,50 @@ WHERE
   AND json_extract(parent.value, '$.listType') = 'check'
   AND j.type = 'object'
   AND json_extract(j.value, '$.type') = 'listitem'
+        `
+  },
+  {
+    name: "queryRecentChecklistsInDocs",
+    i18nKey: "dataview.template.queryRecentChecklistsInDocs",
+    descriptionKey: "dataview.template.queryRecentChecklistsInDocs.description",
+    tags: ["doc", "checklist", "recent"],
+    category: "doc",
+    difficulty: "intermediate",
+    sql: `
+-- [checked:checkbox]
+-- [pathname:url]
+WITH
+  valid_docs AS (
+    SELECT
+      id,
+      content,
+      created_at,
+      updated_at
+    FROM
+      eidos__docs
+    WHERE
+      json_valid(content) = 1
+      AND created_at >= datetime('now', '-7 days')
+  )
+SELECT
+  json_extract(j.value, '$.children[0].text') as text,
+  json_extract(j.value, '$.checked') as checked,
+  '/${space}/' || d.id AS pathname,
+  d.created_at as created_at,
+  d.updated_at as updated_at,
+  d.id as doc_id
+FROM
+  valid_docs d,
+  json_tree(d.content, '$.root.children') AS parent,
+  json_tree(parent.value, '$.children') AS j
+WHERE
+  parent.type = 'object'
+  AND json_extract(parent.value, '$.type') = 'list'
+  AND json_extract(parent.value, '$.listType') = 'check'
+  AND j.type = 'object'
+  AND json_extract(j.value, '$.type') = 'listitem'
+ORDER BY
+  d.updated_at DESC, d.created_at DESC
         `
   },
   {
@@ -130,15 +172,80 @@ WITH
   )
 SELECT
   json_extract(j.value, '$.text') as text,
-  d.id as doc_id,
-  j.value as raw_node,
-  '/${space}/' || d.id AS pathname
+  '/${space}/' || d.id AS pathname,
+  d.id as doc_id
 FROM
   valid_docs d,
   json_tree(d.content, '$.root.children') AS j
 WHERE
   j.type = 'object'
   AND json_extract(j.value, '$.type') = 'mermaid'
+    `
+  },
+  {
+    name: "queryAllUrlsInDocs",
+    i18nKey: "dataview.template.queryAllUrlsInDocs",
+    descriptionKey: "dataview.template.queryAllUrlsInDocs.description",
+    tags: ["doc", "url", "link"],
+    category: "doc",
+    difficulty: "intermediate",
+    sql: `
+-- [url:url]
+-- [pathname:url]
+WITH
+  valid_docs AS (
+    SELECT
+      id,
+      content,
+      created_at
+    FROM
+      eidos__docs
+    WHERE
+      json_valid(content) = 1
+  ),
+  autolink_urls AS (
+    SELECT
+      json_extract(j.value, '$.url') as url,
+      json_extract(j.value, '$.text') as text,
+      json_extract(j.value, '$.type') as type,
+      d.id as doc_id,
+      d.created_at as created_at
+    FROM
+      valid_docs d,
+      json_tree(d.content, '$.root.children') AS j
+    WHERE
+      j.type = 'object'
+      AND json_extract(j.value, '$.type') IN ('autolink', 'link')
+      AND json_extract(j.value, '$.url') IS NOT NULL
+  ),
+  bookmark_urls AS (
+    SELECT
+      json_extract(j.value, '$.url') as url,
+      json_extract(j.value, '$.title') as text,
+      'bookmark' as type,
+      d.id as doc_id,
+      d.created_at as created_at
+    FROM
+      valid_docs d,
+      json_tree(d.content, '$.root.children') AS j
+    WHERE
+      j.type = 'object'
+      AND json_extract(j.value, '$.type') = 'bookmark'
+      AND json_extract(j.value, '$.url') IS NOT NULL
+  )
+SELECT
+  text,
+  url,
+  type,
+  '/${space}/' || doc_id AS pathname,
+  created_at,
+  doc_id
+FROM (
+  SELECT * FROM autolink_urls
+  UNION ALL
+  SELECT * FROM bookmark_urls
+)
+ORDER BY created_at DESC
     `
   },
   {
