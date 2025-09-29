@@ -2,7 +2,7 @@ import type { EidosDataEventChannelMsg } from "@/lib/const";
 import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const";
 import type { KVGetType } from "@/packages/core/meta-table/kv";
 import { KVTableName } from "@/packages/core/sqlite/const";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSqlite } from "./use-sqlite";
 
 
@@ -29,14 +29,14 @@ export const useSqliteKV = <T = any>(key: string, defaultValue: T): [T | null, (
     const [value, setValue] = useState<T | null>(defaultValue)
     const { sqlite } = useSqlite()
 
-    const dataType = getDataType(defaultValue)
+    const dataType = useMemo(() => getDataType(defaultValue), [defaultValue])
 
     useEffect(() => {
         if (!sqlite || !key) return
         sqlite.kv.get(key, dataType).then((result) => {
             setValue(result || defaultValue)
         })
-    }, [sqlite, key, defaultValue, dataType])
+    }, [sqlite, key, dataType])
 
     const _setValue = useCallback((newValue: T) => {
         setValue(newValue)
