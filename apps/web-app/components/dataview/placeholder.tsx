@@ -236,15 +236,6 @@ export const DataViewPlaceholder = ({
                     >
                       {t("common.sqlQuery")}
                     </label>
-                    <a
-                      href={getDocumentationUrl()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group"
-                      title={t("common.viewDocumentation")}
-                    >
-                      <BookOpen className="h-3 w-3" />
-                    </a>
                   </div>
                   <TemplateModal
                     onTemplateSelect={handleTemplateSelect}

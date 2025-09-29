@@ -105,6 +105,8 @@ WHERE
   AND json_extract(parent.value, '$.listType') = 'check'
   AND j.type = 'object'
   AND json_extract(j.value, '$.type') = 'listitem'
+  AND json_extract(j.value, '$.children[0].text') IS NOT NULL
+  AND trim(json_extract(j.value, '$.children[0].text')) != ''
         `
   },
   {
@@ -147,8 +149,10 @@ WHERE
   AND json_extract(parent.value, '$.listType') = 'check'
   AND j.type = 'object'
   AND json_extract(j.value, '$.type') = 'listitem'
+  AND json_extract(j.value, '$.children[0].text') IS NOT NULL
+  AND trim(json_extract(j.value, '$.children[0].text')) != ''
 ORDER BY
-  d.updated_at DESC, d.created_at DESC
+  d.created_at DESC
         `
   },
   {
