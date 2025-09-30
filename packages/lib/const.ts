@@ -19,6 +19,7 @@ export enum MsgType {
   QueryResp = "QueryResp",
   Notify = "Notify",
   BlockUIMsg = "BlockUIMsg",
+  Navigate = "Navigate",
   DataUpdateSignal = "DataUpdateSignal",
   WebSocketConnected = "WebSocketConnected",
   WebSocketDisconnected = "WebSocketDisconnected",

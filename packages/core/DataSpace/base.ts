@@ -392,6 +392,23 @@ export abstract class BaseDataSpace {
     })
   }
 
+  /**
+   * navigate to node in the same space
+   * @param path e.g. "/<nodeId>"
+   * @example
+   * eidos.currentSpace.navigate("/<tableId>")
+   * eidos.currentSpace.navigate("/<docId>")
+   * eidos.currentSpace.navigate("/2025-09-30")
+   * eidos.currentSpace.navigate("/extensions/<extensionId>")
+   * eidos.currentSpace.navigate("/blocks/<blockId>")
+   */
+  public navigate(path: string) {
+    this.postMessage?.({
+      type: MsgType.Navigate,
+      data: path,
+    })
+  }
+
   public blockUIMsg(msg: string | null, data?: Record<string, any>) {
     console.log("blockUIMsg", msg, data)
     this.postMessage?.({

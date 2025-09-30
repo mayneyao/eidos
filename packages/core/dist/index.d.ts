@@ -1,5 +1,5 @@
 import { Message } from "ai";
-import * as postal_mime10 from "postal-mime";
+import * as postal_mime6 from "postal-mime";
 import { JsonSchema7ObjectType } from "zod-to-json-schema";
 
 //#region fields/const.d.ts
@@ -266,6 +266,7 @@ declare enum MsgType {
   QueryResp = "QueryResp",
   Notify = "Notify",
   BlockUIMsg = "BlockUIMsg",
+  Navigate = "Navigate",
   DataUpdateSignal = "DataUpdateSignal",
   WebSocketConnected = "WebSocketConnected",
   WebSocketDisconnected = "WebSocketDisconnected",
@@ -876,33 +877,6 @@ declare class SQLiteUndoRedo {
   private _step;
 }
 //#endregion
-//#region meta-table/action.d.ts
-type ParamType = "string" | "number" | "boolean";
-interface IFunction {
-  name: string;
-  params: {
-    name: string;
-    value: any;
-  }[];
-}
-interface IAction {
-  id: string;
-  name: string;
-  params: {
-    name: string;
-    type: ParamType;
-  }[];
-  nodes: IFunction[];
-}
-declare class ActionTable extends BaseTableImpl implements BaseTable<IAction> {
-  name: string;
-  createTableSql: string;
-  JSONFields: string[];
-  add(data: IAction): Promise<IAction>;
-  set(id: string, data: IAction): Promise<boolean>;
-  del(id: string): Promise<boolean>;
-}
-//#endregion
 //#region meta-table/message.d.ts
 type ChatMessage = {
   id: string;
@@ -1056,7 +1030,7 @@ declare const ComposedDocTable: {
     }>;
     createOrUpdate(data: {
       id: string;
-      text: string | postal_mime10.Email;
+      text: string | postal_mime6.Email;
       type: "html" | "markdown" | "email";
       mode?: "replace" | "append" | "prepend";
     }): Promise<{
@@ -1394,6 +1368,12 @@ declare class ExtensionTable extends BaseTableImpl<IExtension> implements BaseTa
   getTableViewExtensionInfoByExtType(viewType: string): Promise<IExtension<TableViewMeta>[]>;
   getTableViewsInfo(): Promise<IExtension<TableViewMeta>[]>;
   del(id: string): Promise<boolean>;
+  /**
+   * Batch get extensions by IDs
+   * @param ids Array of extension IDs
+   * @returns Record mapping ID to extension data (or null if not found)
+   */
+  getBatch(ids: string[]): Promise<Record<string, IExtension | null>>;
   enable(id: string): Promise<boolean>;
   disable(id: string): Promise<boolean>;
   updateBindings(id: string, bindings: IBindings): Promise<boolean>;
@@ -1516,7 +1496,7 @@ type KV = {
   value: string;
   created_at: string;
   updated_at: string;
-  metadata: Record<string, any>;
+  meta: Record<string, any>;
 };
 type KVGetType = "text" | "integer" | "real" | "json";
 declare class KVTable extends BaseTableImpl<KV> implements BaseTable<KV> {
@@ -1537,7 +1517,7 @@ declare class KVTable extends BaseTableImpl<KV> implements BaseTable<KV> {
    * @param options The options for the KV pair
    */
   put(key: string, value: any, options?: {
-    metadata: Record<string, any>;
+    meta: Record<string, any>;
   }): Promise<void>;
   /**
    * Delete a value from the KV store
@@ -1571,8 +1551,8 @@ declare class ReferenceTable extends BaseTableImpl implements BaseTable<IReferen
 }
 //# sourceMappingURL=reference.d.ts.map
 //#endregion
-//#region meta-table/tree.d.ts
-declare class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
+//#region meta-table/tree/base.d.ts
+declare class BaseTreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
   name: string;
   createTableSql: string;
   getNextRowId: () => Promise<any>;
@@ -1594,32 +1574,203 @@ declare class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
    * @param idOrMiniId
    */
   getNode(idOrMiniId: string): Promise<ITreeNode | null>;
-  checkLoop(id: string, parentId: string): Promise<void>;
-  private getAdjacencyList;
-  private dfs;
-  getPosition(props: {
-    parentId?: string;
-    targetId: string;
-    targetDirection: "up" | "down";
-  }): Promise<number>;
-  listNodes(query?: string, withSubNode?: boolean): Promise<ITreeNode[]>;
-  updateNodePosition(id: string, position: number): Promise<boolean>;
-  pinNode(id: string, isPinned: boolean): Promise<boolean>;
-  toggleNodeFullWidth(id: string, isFullWidth: boolean): Promise<boolean>;
-  toggleNodeLock(id: string, isLocked: boolean): Promise<boolean>;
-  updateNodeName(id: string, name: string): Promise<void>;
-  addNode(data: ITreeNode): Promise<ITreeNode>;
-  getOrCreateNode(data: ITreeNode): Promise<ITreeNode>;
-  nodeChangeParent(id: string, parentId?: string, opts?: {
-    targetId: string;
-    targetDirection: "up" | "down";
-  }): Promise<Partial<ITreeNode>>;
-  restoreNode(id: string): Promise<boolean>;
-  deleteNode(id: string): Promise<boolean>;
-  createExtNode(ext_node_type: string, parent_id?: string): Promise<string>;
-  permanentlyDeleteExtNode(nodeId: string): Promise<void>;
 }
-//# sourceMappingURL=tree.d.ts.map
+//# sourceMappingURL=base.d.ts.map
+//#endregion
+//#region meta-table/tree/index.d.ts
+declare const ComposedTreeTable: {
+  new (...args: any[]): {
+    createExtNode(ext_node_type: string, parent_id?: string): Promise<string>;
+    permanentlyDeleteExtNode(nodeId: string): Promise<void>;
+    name: string;
+    createTableSql: string;
+    getNextRowId: () => Promise<any>;
+    add(data: ITreeNode): Promise<ITreeNode>;
+    get(id: string): Promise<ITreeNode | null>;
+    updateName(id: string, name: string): Promise<boolean>;
+    pin(id: string, is_pinned: boolean): Promise<boolean>;
+    del(id: string, db?: BaseServerDatabase): Promise<boolean>;
+    makeProxyRow(row: any): ITreeNode;
+    query(qs: {
+      query?: string;
+      withSubNode?: boolean;
+    }): Promise<ITreeNode[]>;
+    moveIntoTable(id: string, tableId: string, parentId?: string): Promise<boolean>;
+    duplicateNode(id: string): Promise<ITreeNode | null>;
+    getNode(idOrMiniId: string): Promise<ITreeNode | null>;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    delBy(data: Partial<any>, db?: BaseServerDatabase): Promise<boolean>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    set(id: string, data: Partial<any>): Promise<boolean>;
+    list(query?: Partial<any> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<any[]>;
+    findMany(options?: FindManyOptions<any>): Promise<any[]>;
+    count(options?: Omit<FindManyOptions<any>, "select" | "orderBy" | "skip" | "take">): Promise<number>;
+  };
+} & {
+  new (...args: any[]): {
+    searchTreeByPath(searchTerm: string): Promise<{
+      id: string;
+      name: string;
+      full_path: string;
+      depth: number;
+      position: number;
+      type: string;
+    }[]>;
+    getNodeFullPath(nodeId: string): Promise<string | null>;
+    getAllTreePaths(): Promise<{
+      id: string;
+      name: string;
+      full_path: string;
+      depth: number;
+      position: number;
+      type: string;
+    }[]>;
+    name: string;
+    createTableSql: string;
+    getNextRowId: () => Promise<any>;
+    add(data: ITreeNode): Promise<ITreeNode>;
+    get(id: string): Promise<ITreeNode | null>;
+    updateName(id: string, name: string): Promise<boolean>;
+    pin(id: string, is_pinned: boolean): Promise<boolean>;
+    del(id: string, db?: BaseServerDatabase): Promise<boolean>;
+    makeProxyRow(row: any): ITreeNode;
+    query(qs: {
+      query?: string;
+      withSubNode?: boolean;
+    }): Promise<ITreeNode[]>;
+    moveIntoTable(id: string, tableId: string, parentId?: string): Promise<boolean>;
+    duplicateNode(id: string): Promise<ITreeNode | null>;
+    getNode(idOrMiniId: string): Promise<ITreeNode | null>;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    delBy(data: Partial<any>, db?: BaseServerDatabase): Promise<boolean>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    set(id: string, data: Partial<any>): Promise<boolean>;
+    list(query?: Partial<any> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<any[]>;
+    findMany(options?: FindManyOptions<any>): Promise<any[]>;
+    count(options?: Omit<FindManyOptions<any>, "select" | "orderBy" | "skip" | "take">): Promise<number>;
+  };
+} & {
+  new (...args: any[]): {
+    listNodes(query?: string, withSubNode?: boolean): Promise<any[]>;
+    pinNode(id: string, isPinned: boolean): Promise<boolean>;
+    toggleNodeFullWidth(id: string, isFullWidth: boolean): Promise<boolean>;
+    toggleNodeLock(id: string, isLocked: boolean): Promise<boolean>;
+    updateNodeName(id: string, name: string): Promise<void>;
+    addNode(data: any): Promise<any>;
+    getOrCreateNode(data: any): Promise<any>;
+    nodeChangeParent(id: string, parentId?: string, opts?: {
+      targetId: string;
+      targetDirection: "up" | "down";
+    } | undefined): Promise<Partial<any>>;
+    restoreNode(id: string): Promise<boolean>;
+    deleteNode(id: string): Promise<boolean>;
+    checkLoop(id: string, parentId: string): Promise<void>;
+    getAdjacencyList(): Promise<Map<string, string[]>>;
+    getPosition(props: {
+      parentId?: string;
+      targetId: string;
+      targetDirection: "up" | "down";
+    }): Promise<number>;
+    updateNodePosition(id: string, position: number): Promise<boolean>;
+    name: string;
+    createTableSql: string;
+    getNextRowId: () => Promise<any>;
+    add(data: ITreeNode): Promise<ITreeNode>;
+    get(id: string): Promise<ITreeNode | null>;
+    updateName(id: string, name: string): Promise<boolean>;
+    pin(id: string, is_pinned: boolean): Promise<boolean>;
+    del(id: string, db?: BaseServerDatabase): Promise<boolean>;
+    makeProxyRow(row: any): ITreeNode;
+    query(qs: {
+      query?: string;
+      withSubNode?: boolean;
+    }): Promise<ITreeNode[]>;
+    moveIntoTable(id: string, tableId: string, parentId?: string): Promise<boolean>;
+    duplicateNode(id: string): Promise<ITreeNode | null>;
+    getNode(idOrMiniId: string): Promise<ITreeNode | null>;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    delBy(data: Partial<any>, db?: BaseServerDatabase): Promise<boolean>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    set(id: string, data: Partial<any>): Promise<boolean>;
+    list(query?: Partial<any> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<any[]>;
+    findMany(options?: FindManyOptions<any>): Promise<any[]>;
+    count(options?: Omit<FindManyOptions<any>, "select" | "orderBy" | "skip" | "take">): Promise<number>;
+  };
+} & typeof BaseTreeTable;
+declare class TreeTable extends ComposedTreeTable {}
+//# sourceMappingURL=index.d.ts.map
 //#endregion
 //#region meta-table/view.d.ts
 declare class ViewTable extends BaseTableImpl implements BaseTable<IView> {
@@ -1668,6 +1819,7 @@ declare class SqlDataView {
   private dataSpace;
   constructor(dataSpace: DataSpace);
   delete(id: string): Promise<void>;
+  getAllDataViewIds(): Promise<any>;
   isDataViewExist(id: string): Promise<boolean>;
   getViewRawQuery(tableName: string): Promise<any>;
   getViewColumns(id: string): Promise<any[]>;
@@ -1684,6 +1836,12 @@ declare class SqlDataView {
     property: any;
   }): Promise<void>;
   createDataView(id: string, createViewSql: string, isTemp?: boolean): Promise<boolean>;
+  /**
+   * Create column metadata from SQL comments
+   * @param viewName The view name
+   * @param createViewSql The SQL used to create the view
+   */
+  private createColumnMetadataFromComments;
 }
 //# sourceMappingURL=sql-data-view.d.ts.map
 //#endregion
@@ -1709,7 +1867,6 @@ declare abstract class BaseDataSpace {
   activeUndoManager: boolean;
   dbName: string;
   doc: DocTable;
-  action: ActionTable;
   script: ExtensionTable;
   extension: ExtensionTable;
   tree: TreeTable;
@@ -1799,6 +1956,7 @@ declare abstract class BaseDataSpace {
     title: string;
     description: string;
   }): void;
+  navigate(path: string): void;
   blockUIMsg(msg: string | null, data?: Record<string, any>): void;
 }
 //# sourceMappingURL=base.d.ts.map
