@@ -2,8 +2,6 @@
 title: API & SDK
 ---
 
-## Design Philosophy
-
 Eidos doesn't provide traditional REST APIs. Instead, it exposes Eidos's core capabilities through a unified SDK interface. This means that official features, extension development, and API calls all use the same interfaces and methods.
 
 ## Unified Calling Approach
@@ -113,11 +111,9 @@ app.post("/api/users", async (req, res) => {
 })
 ```
 
-## Advantages
+## API Reference
 
-This unified design brings the following advantages:
+Eidos provides complete API reference documentation with detailed descriptions of all available methods and functionality:
 
-- **Low Learning Curve**: Learn once, use everywhere
-- **Code Reusability**: Extension code can be easily migrated to other environments
-- **Feature Consistency**: Ensures all calling methods have the same capabilities
-- **High Development Efficiency**: No need to learn different APIs for different scenarios
+- [Space API Reference](../api-reference/space.md) - Navigation, document management, and extension node operations
+- [AI API Reference](../api-reference/ai.md) - Text generation and structured data processing
