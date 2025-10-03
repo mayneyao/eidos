@@ -31,7 +31,7 @@ navigate(path: string): void
 
 - `"/<nodeId>"` - Navigate to a specific node by ID
 - `"/<tableId>"` - Navigate to a table view
-- `"/<docId>"` - Navigate to a document
+- `"/<docId>#<hash>"` - Navigate to a document (supports hash anchors, e.g., `#title`)
 - `"/2025-09-30"` - Navigate to a date-based node
 - `"/extensions/<extensionId>"` - Navigate to an extension
 - `"/blocks/<blockId>"` - Navigate to a block
@@ -44,6 +44,9 @@ eidos.currentSpace.navigate("/table_123")
 
 // Navigate to a document
 eidos.currentSpace.navigate("/doc_456")
+
+// Navigate to a specific title in a document
+eidos.currentSpace.navigate("/doc_456#my-title")
 
 // Navigate to today's page
 const today = new Date().toISOString().split("T")[0]

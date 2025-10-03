@@ -29,7 +29,7 @@ navigate(path: string): void
 
 - `"/<nodeId>"` - 通过 ID 导航到特定节点
 - `"/<tableId>"` - 导航到表格视图
-- `"/<docId>"` - 导航到文档
+- `"/<docId>#<hash>" - 导航到文档（支持 hash 锚点，如 `#标题`）
 - `"/2025-09-30"` - 导航到基于日期的节点
 - `"/extensions/<extensionId>"` - 导航到扩展
 - `"/blocks/<blockId>"` - 导航到块
@@ -42,6 +42,9 @@ eidos.currentSpace.navigate("/table_123")
 
 // 导航到文档
 eidos.currentSpace.navigate("/doc_456")
+
+// 导航到文档的特定标题
+eidos.currentSpace.navigate("/doc_456#我的标题")
 
 // 导航到今日页面
 const today = new Date().toISOString().split("T")[0]
