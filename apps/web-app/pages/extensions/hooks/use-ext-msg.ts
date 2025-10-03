@@ -55,54 +55,56 @@ export const useExtMsg = (source: ExtensionSourceType) => {
   const { getExtensionIndex } = useExtensions()
   const { setRunningCommand } = useAppRuntimeStore()
 
-  const { getLLModel, textModel } = useAiConfig()
+  const { getLLModel, textModel, getConfigByModel } = useAiConfig()
   const { callScript } = useScriptCall()
 
   const { efsManager } = useEidosFileSystemManager()
   const handleMsg = useCallback(
-    (event: MessageEvent) => {
+    async (event: MessageEvent) => {
       if (!shouldHandle(event, source)) {
         return
       }
       const { type, name } = event.data
       switch (type) {
         case ExtMsgType.loadExtension:
-          getExtensionIndex(name).then((text) => {
+          try {
+            const text = await getExtensionIndex(name)
             event.ports[0].postMessage({
               type: ExtMsgType.loadExtensionResp,
               text,
             })
-          })
+          } catch (error) {
+            console.error("Error loading extension:", error)
+          }
           break
         case ExtMsgType.loadExtensionAsset:
-          const { url } = event.data
-          const _url = new URL(url)
-          const extName = _url.hostname.split(".")[0]
-          const paths = _url.pathname.split("/").filter(Boolean)
-          efsManager
-            .getFile(["extensions", "apps", extName, ...paths])
-            .then((file) => {
-              const contentType = file.type
-              if (contentType.startsWith("text")) {
-                file.text().then((text) => {
-                  const data = {
-                    type: "loadExtensionAssetResp",
-                    text,
-                    contentType,
-                  }
-                  event.ports[0].postMessage(data)
-                })
-              } else {
-                file.arrayBuffer().then((buffer) => {
-                  const data = {
-                    type: "loadExtensionAssetResp",
-                    text: buffer,
-                    contentType,
-                  }
-                  event.ports[0].postMessage(data)
-                })
+          try {
+            const { url } = event.data
+            const _url = new URL(url)
+            const extName = _url.hostname.split(".")[0]
+            const paths = _url.pathname.split("/").filter(Boolean)
+            const file = await efsManager.getFile(["extensions", "apps", extName, ...paths])
+            const contentType = file.type
+            if (contentType.startsWith("text")) {
+              const text = await file.text()
+              const data = {
+                type: "loadExtensionAssetResp",
+                text,
+                contentType,
               }
-            })
+              event.ports[0].postMessage(data)
+            } else {
+              const buffer = await file.arrayBuffer()
+              const data = {
+                type: "loadExtensionAssetResp",
+                text: buffer,
+                contentType,
+              }
+              event.ports[0].postMessage(data)
+            }
+          } catch (error) {
+            console.error("Error loading extension asset:", error)
+          }
           break
         case ExtMsgType.scriptCallMain:
           // script container => main thread, does not include database operation
@@ -110,58 +112,72 @@ export const useExtMsg = (source: ExtensionSourceType) => {
           const { method: _method, args: _args } = event.data.data
           switch (_method) {
             case "fetchBlob":
-              fetch(_args[0], _args[1]).then(async (res) => {
+              try {
+                const res = await fetch(_args[0], _args[1])
                 const blob = await res.blob()
                 event.ports[0].postMessage({
                   type: ExtMsgType.scriptCallMainResp,
                   data: blob,
-                })
-              })
-              break
-            case "callScript":
-              const [scriptId, input] = _args
-              callScript(scriptId, input).then((res) => {
-                event.ports[0].postMessage({
-                  type: ExtMsgType.scriptCallMainResp,
-                  data: res,
-                })
-              }).catch((error) => {
-                event.ports[0].postMessage({
-                  type: ExtMsgType.scriptCallMainError,
-                  data: error,
-                })
-                setRunningCommand(null)
-              })
-              break
-            case "generateObject":
-              try {
-                console.log("receive generate object", _args)
-                const payload = _args[0]
-                const llmodel = getLLModel(payload.model || textModel)
-                let _generateObject = isDesktopMode ? window.eidos.AI.generateObject : generateObject
-                _generateObject({
-                  model: llmodel,
-                  prompt: payload.prompt,
-                  schema: jsonSchema(payload.schema),
-                }).then(({ object }) => {
-                  console.log("generate object", object)
-                  event.ports[0].postMessage({
-                    type: ExtMsgType.scriptCallMainResp,
-                    data: object,
-                  })
-                }).catch((error) => {
-                  event.ports[0].postMessage({
-                    type: ExtMsgType.scriptCallMainError,
-                    data: error,
-                  })
-                  console.log("generate object error", error)
-                  setRunningCommand(null)
                 })
               } catch (error) {
                 event.ports[0].postMessage({
                   type: ExtMsgType.scriptCallMainError,
                   data: error,
                 })
+              }
+              break
+            case "callScript":
+              try {
+                const [scriptId, input] = _args
+                const res = await callScript(scriptId, input)
+                event.ports[0].postMessage({
+                  type: ExtMsgType.scriptCallMainResp,
+                  data: res,
+                })
+              } catch (error) {
+                event.ports[0].postMessage({
+                  type: ExtMsgType.scriptCallMainError,
+                  data: error,
+                })
+                setRunningCommand(null)
+              }
+              break
+            case "generateObject":
+              try {
+                console.log("receive generate object", _args)
+                const payload = _args[0]
+                const llmodel = getLLModel(payload.model || textModel)
+                
+                if (isDesktopMode) {
+                  const { object } = await window.eidos.AI.generateObject({
+                    model: payload.model || textModel,
+                    prompt: payload.prompt,
+                    schema: jsonSchema(payload.schema),
+                  })
+                  console.log("generate object", object)
+                  event.ports[0].postMessage({
+                    type: ExtMsgType.scriptCallMainResp,
+                    data: object,
+                  })
+                } else {
+                  const { object } = await generateObject({
+                    model: llmodel,
+                    prompt: payload.prompt,
+                    schema: jsonSchema(payload.schema),
+                  })
+                  console.log("generate object", object)
+                  event.ports[0].postMessage({
+                    type: ExtMsgType.scriptCallMainResp,
+                    data: object,
+                  })
+                }
+              } catch (error) {
+                event.ports[0].postMessage({
+                  type: ExtMsgType.scriptCallMainError,
+                  data: error,
+                })
+                console.log("generate object error", error)
+              } finally {
                 setRunningCommand(null)
               }
               break
@@ -170,28 +186,32 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                 console.log("receive generate text", _args)
                 const payload = _args[0]
                 const llmodel = getLLModel(payload.model || textModel)
-                // forward request to backend avoid CORS issue
-                let _generateText = isDesktopMode ? window.eidos.AI.generateText : generateText
-                _generateText({
-                  model: llmodel,
-                  prompt: payload.prompt,
-                }).then(({ text }) => {
+                
+                if (isDesktopMode) {
+                  const { text } = await window.eidos.AI.generateText({
+                    model: payload.model || textModel,
+                    prompt: payload.prompt,
+                  })
                   event.ports[0].postMessage({
                     type: ExtMsgType.scriptCallMainResp,
                     data: text,
                   })
-                }).catch((error) => {
-                  event.ports[0].postMessage({
-                    type: ExtMsgType.scriptCallMainError,
-                    data: error,
+                } else {
+                  const { text } = await generateText({
+                    model: llmodel,
+                    prompt: payload.prompt,
                   })
-                  setRunningCommand(null)
-                })
+                  event.ports[0].postMessage({
+                    type: ExtMsgType.scriptCallMainResp,
+                    data: text,
+                  })
+                }
               } catch (error) {
                 event.ports[0].postMessage({
                   type: ExtMsgType.scriptCallMainError,
                   data: error,
                 })
+              } finally {
                 setRunningCommand(null)
               }
               break
@@ -230,22 +250,28 @@ export const useExtMsg = (source: ExtensionSourceType) => {
             id: thisCallId,
           })
           if (res) {
-            res.then((_res) => {
+            try {
+              const _res = await res
               console.log(thisCallId, "receive data from worker", _res)
               event.ports[0].postMessage({
                 type: ExtMsgType.rpcCallResp,
                 data: _res,
               })
-            })
+            } catch (error) {
+              console.error("Error in RPC call:", error)
+            }
             return
           }
-          sqlite.onCallBack(thisCallId).then((res) => {
+          try {
+            const res = await sqlite.onCallBack(thisCallId)
             console.log(thisCallId, "receive data from worker", res)
             event.ports[0].postMessage({
               type: ExtMsgType.rpcCallResp,
               data: res,
             })
-          })
+          } catch (error) {
+            console.error("Error in RPC callback:", error)
+          }
           break
         default:
           // console.log("unknown msg type", type)
