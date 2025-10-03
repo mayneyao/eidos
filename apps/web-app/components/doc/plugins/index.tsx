@@ -27,6 +27,7 @@ import { PropertyNavigationPlugin } from "./PropertyNavigationPlugin/PropertyNav
 import { ShortcutPlugin } from "./ShortcutPlugin"
 import TableCellResizer from "./TableCellResizer"
 import TableHoverActionsPlugin from "./TableHoverActionsPlugin"
+import { HashNavigationPlugin } from "./HashNavigationPlugin"
 import { allTransformers } from "./const"
 
 export const AllPlugins = ({
@@ -72,6 +73,7 @@ export const AllPlugins = ({
       <DragDropPaste />
       <ClickableLinkPlugin />
       <ComponentPickerMenuPlugin />
+      <HashNavigationPlugin />
       <MarkdownShortcutPlugin transformers={__allTransformers} />
       <FloatingLinkEditorPlugin />
       {BuiltInBlocks.map((block) => (
