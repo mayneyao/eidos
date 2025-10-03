@@ -86,13 +86,10 @@ export const Trash = () => {
           <Button
             variant={"ghost"}
             size="sm"
-            className="w-full cursor-pointer justify-start font-normal"
-            asChild
+            className="h-8 w-8 p-0 cursor-pointer"
+            title={t("common.trash")}
           >
-            <span className="[&>svg]:!size-5">
-              <Trash2Icon className="pr-1" />
-              {t("common.trash")}
-            </span>
+            <Trash2Icon className="h-4 w-4" />
           </Button>
         </DialogTrigger>
         <DialogContent className="min-w-[400px]">

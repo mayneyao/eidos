@@ -13,6 +13,7 @@ import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
+import { TempPanel } from "@/components/nav/temp-panel"
 import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -31,7 +32,7 @@ export function PWALayoutBase({
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { efsManager, isLoading, error } = useEidosFileSystemManager()
-  const { isRightPanelOpen, currentAppIndex, apps } = useSpaceAppStore()
+  const { isRightPanelOpen, currentAppIndex, apps, tempPanelNode } = useSpaceAppStore()
   const currentApp = apps[currentAppIndex]
 
   if (!efsManager || isLoading || error) {
@@ -85,15 +86,21 @@ export function PWALayoutBase({
                     maxSize={50}
                   >
                     <div className={cn("h-full shrink-0 overflow-x-hidden")}>
-                      {currentApp === "chat" && (
-                        <Suspense fallback={<Loading />}>
-                          <AIChat />
-                        </Suspense>
-                      )}
-                      {currentApp === "file-manager" && (
-                        <Suspense fallback={<Loading />}>
-                          <FileManager />
-                        </Suspense>
+                      {tempPanelNode ? (
+                        <TempPanel />
+                      ) : (
+                        <>
+                          {currentApp === "chat" && (
+                            <Suspense fallback={<Loading />}>
+                              <AIChat />
+                            </Suspense>
+                          )}
+                          {currentApp === "file-manager" && (
+                            <Suspense fallback={<Loading />}>
+                              <FileManager />
+                            </Suspense>
+                          )}
+                        </>
                       )}
                     </div>
                   </ResizablePanel>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react"
+import type { IView } from "@/packages/core/types/IView"
 import { useKeyPress } from "ahooks"
 import {
   ChevronDownIcon,
@@ -9,22 +10,18 @@ import {
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import type { IView } from "@/packages/core/types/IView"
-import { cn, shortenId } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { cn, getTableIdByRawTableName, shortenId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 
+import { useTableContext } from "./hooks"
 import { useTableSearch } from "./hooks/use-table-search"
-import type {
-  SemanticSearchResultData} from "./hooks/use-table-search-store";
-import {
-  useTableSearchStore,
-} from "./hooks/use-table-search-store"
+import type { SemanticSearchResultData } from "./hooks/use-table-search-store"
 import { useTableSemanticSearch } from "./hooks/use-table-semantic-search"
 import { SemanticSearchResultsList } from "./semantic-search-results-list"
+import { useTableSearchStore } from "./table-store-provider"
 
 const Spinner = () => (
   <svg
@@ -156,9 +153,12 @@ export const ViewSearch = (props: { view: IView }) => {
     setSemanticSearchResult,
   ])
 
-  const { space, tableId } = useCurrentPathInfo()
+  const { space, tableName } = useTableContext()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const { setSubPage } = useCurrentSubPage()
+
+  // Convert rawTableName to tableId
+  const tableId = getTableIdByRawTableName(tableName)
 
   const handleSemanticSearchResultClick = useCallback(
     async (result: SemanticSearchResultData) => {
@@ -190,7 +190,7 @@ export const ViewSearch = (props: { view: IView }) => {
       >
         <div
           className={cn(
-            "flex h-8 items-center rounded-md border bg-background",
+            "flex h-8 items-center bg-background px-1",
             "overflow-hidden transition-all duration-200 ease-in-out",
             showSearch ? "w-96" : "w-0"
           )}
@@ -201,7 +201,7 @@ export const ViewSearch = (props: { view: IView }) => {
             placeholder={`${t("common.search")} (alt/opt + ↩︎ for semantic)`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 w-96 border-0 pl-8 pr-24"
+            className="h-6 w-96 border-0 pl-8 pr-24"
           />
           <SearchIcon className="absolute left-2 h-4 w-4 text-muted-foreground" />
 

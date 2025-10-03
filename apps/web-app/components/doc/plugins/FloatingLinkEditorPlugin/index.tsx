@@ -6,8 +6,7 @@
  *
  */
 import "./index.css"
-import type { Dispatch} from "react";
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type Dispatch } from "react"
 import * as React from "react"
 import {
   $isAutoLinkNode,
@@ -16,8 +15,6 @@ import {
 } from "@lexical/link"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $findMatchingParent, mergeRegister } from "@lexical/utils"
-import type {
-  LexicalEditor} from "lexical";
 import {
   $getSelection,
   $isRangeSelection,
@@ -29,6 +26,7 @@ import {
   RangeSelection,
   SELECTION_CHANGE_COMMAND,
   type BaseSelection,
+  type LexicalEditor,
 } from "lexical"
 import { Pencil, Trash } from "lucide-react"
 import { createPortal } from "react-dom"
@@ -195,74 +193,122 @@ function FloatingLinkEditor({
   }
 
   return (
-    <div ref={editorRef} className="link-editor bg-slate-50 dark:bg-slate-700">
-      {!isLink ? null : isEditMode ? (
-        <div className="flex w-full items-center justify-between gap-2">
-          <Input
-            ref={inputRef}
-            className="box-shadow-none"
-            value={editedLinkUrl}
-            onChange={(event) => {
-              setEditedLinkUrl(event.target.value)
-            }}
-            onKeyDown={(event) => {
-              monitorInputInteraction(event)
-            }}
-          />
-          <div className="flex">
-            <Button
-              variant="ghost"
-              tabIndex={0}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                setEditMode(false)
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              tabIndex={0}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={handleLinkSubmission}
-            >
-              <Trash className="h-4 w-4" />
-            </Button>
+    <div
+      ref={editorRef}
+      className="link-editor bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-slate-200 dark:border-slate-700"
+    >
+      {!isLink ? null : (
+        <div className="flex items-center gap-1.5 px-2 py-1 w-full h-full">
+          <div className="flex-1 min-w-0">
+            {isEditMode ? (
+              <Input
+                ref={inputRef}
+                className="w-full h-6 text-sm border-0 shadow-none focus-visible:ring-0 bg-transparent px-2 py-0 rounded-none transition-none"
+                placeholder="Enter URL..."
+                value={editedLinkUrl}
+                onChange={(event) => {
+                  setEditedLinkUrl(event.target.value)
+                }}
+                onKeyDown={(event) => {
+                  monitorInputInteraction(event)
+                }}
+              />
+            ) : (
+              <a
+                className="block w-full h-6 px-2 py-0 overflow-hidden whitespace-nowrap text-sm text-primary hover:text-primary/80 transition-colors leading-6"
+                href={sanitizeUrl(linkUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={linkUrl}
+              >
+                {linkUrl}
+              </a>
+            )}
           </div>
-        </div>
-      ) : (
-        <div className="flex w-full items-center justify-between gap-2">
-          <a
-            className="overflow-hidden whitespace-nowrap text-blue-500"
-            href={sanitizeUrl(linkUrl)}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {linkUrl}
-          </a>
-          <div className="flex">
-            <Button
-              variant="ghost"
-              role="button"
-              tabIndex={0}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                setEditedLinkUrl(linkUrl)
-                setEditMode(true)
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              tabIndex={0}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                editor.dispatchCommand(TOGGLE_LINK_COMMAND, null)
-              }}
-            >
-              <Trash className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            {isEditMode ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 hover:bg-muted"
+                  tabIndex={0}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setEditMode(false)
+                  }}
+                  title="Cancel"
+                >
+                  <svg
+                    className="h-3 w-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+                  tabIndex={0}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={handleLinkSubmission}
+                  title="Save"
+                >
+                  <svg
+                    className="h-3 w-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 hover:bg-muted"
+                  role="button"
+                  tabIndex={0}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setEditedLinkUrl(linkUrl)
+                    setEditMode(true)
+                  }}
+                  title="Edit link"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 hover:bg-destructive/10 text-destructive hover:text-destructive"
+                  tabIndex={0}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    editor.dispatchCommand(TOGGLE_LINK_COMMAND, null)
+                  }}
+                  title="Remove link"
+                >
+                  <Trash className="h-3 w-3" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -311,6 +357,10 @@ function useFloatingLinkEditorToolbar(
       )
     )
   }, [editor, updateToolbar])
+
+  if (!isLink) {
+    return null
+  }
 
   return createPortal(
     <FloatingLinkEditor

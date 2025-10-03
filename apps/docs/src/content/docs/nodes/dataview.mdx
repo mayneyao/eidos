@@ -83,6 +83,24 @@ WHERE
 
 This query will find all todos in all documents. You get a view called `vw_<node_id>` that contains all todos in your system, regardless of which document they originally lived in.
 
+I know this looks somewhat complex because we need to extract todos from rich text format. But don't worry, Eidos has many built-in templates to help you quickly implement this functionality. With AI assistance, you can easily create a view to query all todos. In fact, we can completely provide a simple markdown-related extension function to implement this type of functionality, such as:
+
+```sql
+-- Using table-valued function to get all todos from documents
+SELECT
+  doc_id,
+  doc_title,
+  todo_text,
+  is_checked,
+  created_at
+FROM md_extract_checkboxes(
+  (SELECT id, title, markdown, created_at FROM eidos__docs)
+)
+ORDER BY created_at DESC, doc_title
+```
+
+But for data transparency, portability, and vendor independence, using generic JSON functions is the safest approach. This way, the dataview can be viewed in any SQLite client.
+
 ## Going further: Aggregating different types of data
 
 Now suppose you also have a dedicated project task table for tracking bugs:
@@ -107,6 +125,55 @@ Want to see todos from the past week? Build another view based on the existing o
 ```sql
 SELECT * FROM vw_<node_id> WHERE created_at >= date('now', '-7 days')
 ```
+
+## Column type annotations
+
+When creating dataviews, you can specify column types using SQL comments. This helps Eidos understand how to display and interact with your data.
+
+### Example: Document navigation
+
+Here's a practical example that creates a document navigation dataview:
+
+```sql
+
+SELECT
+  t.name as title,
+  '/<space>/' || t.id AS pathname, -- [pathname:url]
+  d.*
+FROM
+  eidos__tree t
+  JOIN eidos__docs d ON t.id = d.id
+```
+
+This example demonstrates how to:
+
+- **Create clickable links**: The `pathname` field uses `'/<space>/' || t.id` to generate clickable URLs that navigate to specific documents
+- **Join multiple tables**: Combines the tree structure (`eidos__tree`) with document content (`eidos__docs`)
+- **Use space variables**: Replace `<space>` with your actual workspace name to make the links work correctly
+- **Build document navigation**: Perfect for creating a searchable, sortable list of all your documents
+
+The resulting dataview will show document titles in one column and clickable pathname links in another column that take you directly to each document when clicked.
+
+### Comment format
+
+You can add column type annotations directly in your SQL queries using this format:
+
+```sql
+-- [column_name:field_type]
+```
+
+### Field types reference
+
+- **text** - For words and sentences
+- **number** - For quantities and calculations
+- **checkbox** - For yes/no decisions
+- **date** - For dates (YYYY-MM-DD format)
+- **datetime** - For timestamps
+- **select** - For choosing from a predefined list
+- **multi-select** - For tags and categories
+- **file** - For attachments and media
+- **url** - For web links
+- **rating** - For star ratings (1-5)
 
 ## Why this matters
 

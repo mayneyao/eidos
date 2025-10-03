@@ -1,7 +1,7 @@
-import type { IView } from "../types/IView"
 import { generateColumnName, getRawTableNameById } from "@/lib/utils"
 import { v4 as uuidv4 } from "uuid"
 import { generateMergeTableWithNewColumnsSql } from "../sqlite/sql-merge-table-with-new-columns"
+import type { IView } from "../types/IView"
 
 import { isDesktopMode } from "@/lib/env"
 import type { DataSpace, EidosDatabase } from "../DataSpace"
@@ -45,13 +45,16 @@ export class TableManager {
   }
 
   async isExist(id: string): Promise<boolean> {
-    const tableNode = await this.dataSpace.getTreeNode(id)
+    const tableNode = await this.dataSpace.tree.getNode(id)
     return Boolean(tableNode)
   }
 
   async get(id: string): Promise<ITable | null> {
-    const views = await this.dataSpace.listViews(id)
-    const tableNode = await this.dataSpace.getTreeNode(id)
+    const views = await this.dataSpace.view.list({ table_id: id }, {
+      order: 'ASC',
+      orderBy: 'position'
+    })
+    const tableNode = await this.dataSpace.tree.getNode(id)
     if (!tableNode) {
       return null
     }

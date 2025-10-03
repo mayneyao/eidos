@@ -46,6 +46,21 @@ export interface Eidos {
             prompt: string;
             [key: string]: any;
         }): Promise<string>
+
+        /**
+         * Generate object using AI
+         * @param options Generation options including model and prompt
+         * @param options.model The AI model to use
+         * @param options.prompt The prompt text
+         * @param options.schema The json schema of the object
+         * @returns The generated object
+         */
+        generateObject(options: {
+            model?: string;
+            prompt: string;
+            schema: Record<string, any>;
+            [key: string]: any;
+        }): Promise<Record<string, any>>
     }
 
     utils: {

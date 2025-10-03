@@ -1,20 +1,7 @@
-import { TaskType } from "@/apps/web-app/pages/settings/ai/hooks"
+import { TaskType } from "@/components/settings/global/ai/hooks"
 
 export const useBuiltInPrompts = () => {
   return [
-    {
-      id: 'mermaid',
-      name: 'Mermaid',
-      type: TaskType.Coding,
-      icon: 'Network',
-      content: `Generate a mermaid diagram from the given text. Follow these rules:
-1. Always return the mermaid code that best matches the user's intent, providing the most likely chart type.
-2. Ensure the generated chart is clear, concise, and easy to understand. Intelligently infer the most suitable chart type based on the context (flowcharts, sequence diagrams, Gantt charts, etc). Optimize layout for readability.
-3. For node text containing special characters, use proper HTML entity encoding where needed (e.g., &quot; for quotes).
-4. When defining nodes like A[Text], wrap any text containing spaces or special characters in double quotes and use HTML entities inside them.
-5. Return only the mermaid content without explanations, enclosed in a markdown code block with language specified as mermaid.
-6. Test your generated diagram syntax mentally before returning it to ensure it's valid and properly escaped.`,
-    },
     {
       id: 'translate',
       name: 'Translate',
@@ -34,6 +21,19 @@ export const useBuiltInPrompts = () => {
           required: true,
         }
       ]
+    },
+    {
+      id: 'mermaid',
+      name: 'Mermaid',
+      type: TaskType.Coding,
+      icon: 'Network',
+      content: `Generate a mermaid diagram from the given text. Follow these rules:
+1. Always return the mermaid code that best matches the user's intent, providing the most likely chart type.
+2. Ensure the generated chart is clear, concise, and easy to understand. Intelligently infer the most suitable chart type based on the context (flowcharts, sequence diagrams, Gantt charts, etc). Optimize layout for readability.
+3. For node text containing special characters, use proper HTML entity encoding where needed (e.g., &quot; for quotes).
+4. When defining nodes like A[Text], wrap any text containing spaces or special characters in double quotes and use HTML entities inside them.
+5. Return only the mermaid content without explanations, enclosed in a markdown code block with language specified as mermaid.
+6. Test your generated diagram syntax mentally before returning it to ensure it's valid and properly escaped.`,
     },
   ]
 } 

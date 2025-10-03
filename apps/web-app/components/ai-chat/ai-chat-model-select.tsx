@@ -19,7 +19,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useAIConfigStore } from "@/apps/web-app/pages/settings/ai/store"
+import { useAIConfigStore } from "@/components/settings/stores"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
 import { ScrollArea } from "../ui/scroll-area"
 
@@ -66,6 +67,7 @@ export function AIModelSelect({
 }) {
   const [open, setOpen] = React.useState(false)
   const { models } = useModels()
+  const { openSettingsModal } = useSettings()
 
   const _allLocalModels = localModels || allLocalModels || []
 
@@ -86,10 +88,10 @@ export function AIModelSelect({
           role="combobox"
           aria-expanded={open}
           size={size}
-          className={cn("grow gap-1", className)}
+          className={cn("w-full gap-1 min-w-0 overflow-hidden", className)}
         >
           <p
-            className="max-w-[200px] truncate"
+            className="flex-1 min-w-0 truncate text-left"
             title={currentModel || "Select model..."}
           >
             {value ? currentModel : "Select model..."}
@@ -117,18 +119,19 @@ export function AIModelSelect({
                         )
                         setOpen(false)
                       }}
+                      className="flex items-center gap-2 min-w-0"
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "h-4 w-4 shrink-0",
                           value.toLowerCase() === model.toLowerCase()
                             ? "opacity-100"
                             : "opacity-0"
                         )}
                       />
-                      <p className="max-w-[250px] truncate" title={model}>
+                      <p className="flex-1 min-w-0 truncate" title={model}>
                         {model}
-                      </p>{" "}
+                      </p>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -140,9 +143,12 @@ export function AIModelSelect({
                       No local model found.
                       <br />
                       Add some models in the{" "}
-                      <Link to="/settings/ai" className=" text-blue-500">
+                      <button 
+                        onClick={() => openSettingsModal("ai")} 
+                        className="text-blue-500 underline cursor-pointer"
+                      >
                         settings
-                      </Link>{" "}
+                      </button>{" "}
                       page.
                     </p>
                   )}
@@ -154,14 +160,15 @@ export function AIModelSelect({
                         setValue(model === value ? "" : model)
                         setOpen(false)
                       }}
+                      className="flex items-center gap-2 min-w-0"
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "h-4 w-4 shrink-0",
                           value === model ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      <p className="max-w-[250px] truncate" title={model}>
+                      <p className="flex-1 min-w-0 truncate" title={model}>
                         {model}
                       </p>
                     </CommandItem>

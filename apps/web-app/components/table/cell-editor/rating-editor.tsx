@@ -5,24 +5,52 @@ interface IRatingEditorProps {
   value: number
   onChange: (value: number) => void
   isEditing: boolean
+  onFinishEditing?: () => void
 }
 
-export const RatingEditor = ({ value, onChange }: IRatingEditorProps) => {
+export const RatingEditor = ({ value, onChange, isEditing, onFinishEditing }: IRatingEditorProps) => {
   const [_value, setValue] = useState<number>(value)
   const [hover, setHover] = useState(0)
+  const [isInternalEditing, setIsInternalEditing] = useState(false)
 
   useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !isEditing) {
+      e.preventDefault()
+      setIsInternalEditing(true)
+    }
+  }
+
+  const handleClick = () => {
+    if (!isEditing) {
+      setIsInternalEditing(true)
+    }
+  }
+
+  const handleStarClick = (ratingValue: number) => {
+    setValue(ratingValue)
+    setIsInternalEditing(false)
+    onFinishEditing?.()
+  }
+
+  const isActuallyEditing = isEditing || isInternalEditing
+
   return (
-    <div className="flex h-10 items-center">
+    <div 
+      className="flex h-full w-full items-center px-2"
+      onKeyDown={handleKeyDown}
+      onClick={handleClick}
+      tabIndex={0}
+    >
       {[...Array(5)].map((star, i) => {
         const ratingValue = i + 1
         return (
           <label key={i}>
             <svg
-              onClick={() => setValue(ratingValue)}
+              onClick={() => handleStarClick(ratingValue)}
               className="h-5 w-5 text-gray-400"
               fill={ratingValue <= (hover || _value) ? "currentColor" : "none"}
               stroke="currentColor"

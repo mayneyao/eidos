@@ -1,12 +1,11 @@
-import { startTransition, useRef } from "react"
+import { startTransition, useEffect, useRef, useState } from "react"
+import { ViewTypeEnum, type IView } from "@/packages/core/types/IView"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useClickAway } from "ahooks"
+import { LayoutGridIcon, SquareKanbanIcon, Table2Icon } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
-import type { IView} from "@/packages/core/types/IView";
-import { ViewTypeEnum } from "@/packages/core/types/IView"
 import { Input } from "@/components/ui/input"
 import {
   Form,
@@ -22,7 +21,6 @@ import { Button } from "../../ui/button"
 import { useViewOperation } from "../hooks"
 import { useViewCount } from "../hooks/use-view-count"
 import { ViewLayout } from "./view-layout"
-import { Table2Icon, LayoutGridIcon, SquareKanbanIcon } from "lucide-react"
 
 const formSchema = z.object({
   name: z.string(),
@@ -37,21 +35,18 @@ interface IViewEditorProps {
 
 const LIMIT_ROWS_FOR_OPTIMIZE_VIEW = 88888
 
-export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
+export const ViewEditor = ({
+  setEditDialogOpen,
+  view: initialView,
+}: IViewEditorProps) => {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const { updateView } = useViewOperation()
+  const [view, setView] = useState(initialView)
   const { count, loading } = useViewCount(view)
 
   const disabled = loading || count > LIMIT_ROWS_FOR_OPTIMIZE_VIEW
 
-  useClickAway(
-    (e) => {
-      setEditDialogOpen(false)
-    },
-    [ref],
-    ["mousedown", "touchstart"]
-  )
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -100,7 +95,7 @@ export const ViewEditor = ({ setEditDialogOpen, view }: IViewEditorProps) => {
             name="type"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("table.fieldType")}</FormLabel>
+                <FormLabel>{t("table.viewType")}</FormLabel>
                 <FormDescription>
                   {t("table.view.typeDescription")}
                 </FormDescription>

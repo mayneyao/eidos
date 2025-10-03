@@ -1,7 +1,7 @@
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { NodeIconEditor } from "@/apps/web-app/pages/[database]/[node]/node-icon"
 
-import { ItemIcon } from "./sidebar/item-tree"
+import { ItemIcon } from "./sidebar/nodes"
 
 export const NodeName = ({ node }: { node: ITreeNode }) => {
   return (

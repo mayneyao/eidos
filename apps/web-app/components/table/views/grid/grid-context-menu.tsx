@@ -1,4 +1,5 @@
-import { useCallback, useContext, useMemo } from "react"
+import { useCallback, useContext, useMemo, useState } from "react"
+import type { IField } from "@/packages/core/types/IField"
 import type { CompactSelectionRanges } from "@glideapps/glide-data-grid"
 import {
   ExternalLinkIcon,
@@ -8,12 +9,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import type { IField } from "@/packages/core/types/IField"
-import { shortenId } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
-import { useGoto } from "@/apps/web-app/hooks/use-goto"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -22,10 +18,24 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
+import { useGoto } from "@/apps/web-app/hooks/use-goto"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useTranslation } from "react-i18next"
 
-import { TableContext } from "../../hooks"
+import { TableContext, useTableContext } from "../../hooks"
 import { ScriptContextMenu } from "./script-context-menu"
-import { useTableAppStore } from "./store"
+import { useTableStore } from "../../table-store-provider"
 
 export function GridContextMenu({
   children,
@@ -40,19 +50,24 @@ export function GridContextMenu({
   children: React.ReactNode
   openAItools: () => void
 }) {
-  const { selection, clearSelection } = useTableAppStore()
+  const { t } = useTranslation()
+  const { selection, clearSelection } = useTableStore()
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const count = useMemo(() => {
-    let rowCount = 0;
+    let rowCount = 0
     if (selection.current) {
-      rowCount = selection.current.range.height;
+      rowCount = selection.current.range.height
     } else if (selection.rows.length) {
-      rowCount = selection.rows.length;
+      rowCount = selection.rows.length
     }
-    return rowCount.toLocaleString();
+    return rowCount.toLocaleString()
   }, [selection])
-  const { space, tableId } = useCurrentPathInfo()
+  const { space, tableName } = useTableContext()
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const { setSubPage } = useCurrentSubPage()
+
+  // Convert rawTableName to tableId
+  const tableId = getTableIdByRawTableName(tableName)
 
   const goto = useGoto()
   const getRow = useCallback(() => {
@@ -117,6 +132,10 @@ export function GridContextMenu({
     window.open(cell, "_blank")
   }
   const handleDelete = () => {
+    setShowDeleteDialog(true)
+  }
+
+  const handleDeleteConfirm = () => {
     if (!selection.current) {
       if (selection.rows.length) {
         const items = (selection.rows as any).items as CompactSelectionRanges
@@ -139,6 +158,7 @@ export function GridContextMenu({
       ])
     }
     clearSelection()
+    setShowDeleteDialog(false)
   }
   const { isReadOnly } = useContext(TableContext)
 
@@ -178,8 +198,28 @@ export function GridContextMenu({
             <ContextMenuShortcut>Alt+I</ContextMenuShortcut>
           </ContextMenuItem>
         )}
-        <ScriptContextMenu getRows={getRows} />
+        <ScriptContextMenu getRows={getRows} count={count} />
       </ContextMenuContent>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("table.rows.deleteConfirmTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("table.rows.deleteConfirmDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm}>
+              {t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ContextMenu>
   )
 }

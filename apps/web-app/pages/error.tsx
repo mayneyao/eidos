@@ -1,8 +1,9 @@
 import { CopyIcon, RefreshCcw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Link, useRouteError } from "react-router-dom"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
-import { DOMAINS } from "@/lib/const"
+import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
@@ -12,6 +13,7 @@ export function ErrorBoundary() {
   let error = useRouteError()
   const { toast } = useToast()
   const { t } = useTranslation()
+  const { openSettingsModal } = useSettings()
   console.error(error)
 
   const handleCopyErrorMessages = () => {
@@ -66,7 +68,7 @@ ${errorStack}
       body: systemInfo,
     })
 
-    return `${DOMAINS.GITHUB_ISSUES}/new?${params.toString()}`
+    return `${URLS.GITHUB_ISSUES}/new?${params.toString()}`
   }
 
   return (
@@ -83,12 +85,13 @@ ${errorStack}
           <>
             <p>{t("common.error.storagePermissionBlocked")}</p>
             <p>
-              <Link to="/settings/storage">
-                <Button size="xs">
-                  {t("settings.storage.grantPermission")}
-                </Button>
-                {t("common.error.willFixIssue")}
-              </Link>
+              <Button 
+                size="xs" 
+                onClick={() => openSettingsModal("storage")}
+              >
+                {t("settings.storage.grantPermission")}
+              </Button>
+              <span>{t("common.error.willFixIssue")}</span>
             </p>
           </>
         ) : (
@@ -108,7 +111,7 @@ ${errorStack}
         <p>
           {t("common.error.tryAgainLater")}{" "}
           <Link
-            to={DOMAINS.DISCORD_INVITE}
+            to={URLS.DISCORD_INVITE}
             target="_blank"
             className="text-blue-500"
           >

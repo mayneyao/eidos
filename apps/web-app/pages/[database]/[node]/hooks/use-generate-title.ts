@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { toast } from "@/components/ui/use-toast"
 import { uuidv7 } from "@/lib/utils"
-import { TaskType } from "@/apps/web-app/pages/settings/ai/hooks"
+import { TaskType } from "@/components/settings/global/ai/hooks"
 import { useState, useCallback, useRef, useMemo } from "react"
 
 export function useGenerateTitle() {
@@ -60,8 +60,8 @@ export function useGenerateTitle() {
 
 For example:
 If the content is in English: "The process of brewing coffee involves several steps...", output: How to Make Perfect Coffee
-If the content is in Chinese: "咖啡的冲泡过程包含以下步骤...", output: 如何冲泡完美咖啡
-If the content is in Japanese: "コーヒーの淹れ方について説明します...", output: 完璧なコーヒーの淹れ方
+If the content is in Chinese: "咖啡的冲泡过程包含以下步骤...", output: How to brew perfect coffee
+If the content is in Japanese: "コーヒーの淹れ方について説明します...", output: How to brew perfect coffee
 
 Content:`,
                     role: "system",

@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { persist } from 'zustand/middleware'
+import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 
 interface ISpaceAppState {
   apps: string[]
@@ -32,6 +33,13 @@ interface ISpaceAppState {
 
   isMobileSidebarOpen: boolean
   setMobileSidebarOpen: (isMobileSidebarOpen: boolean) => void
+
+  tempPanelNode: ITreeNode | null
+  setTempPanelNode: (node: ITreeNode | null) => void
+  clearCurrentApp: () => void
+  
+  // Helper to check if currentApp and tempPanelNode are mutually exclusive
+  hasActivePanel: () => boolean
 }
 
 interface IAppsState {
@@ -66,8 +74,8 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
   setCurrentAppIndex: (currentAppIndex) => set({ currentAppIndex }),
 
   currentApp: "chat",
-  setCurrentApp: (currentApp) => set({ currentApp }),
-  resetCurrentApp: () => set({ currentApp: "chat" }),
+  setCurrentApp: (currentApp) => set({ currentApp, tempPanelNode: null }),
+  resetCurrentApp: () => set({ currentApp: "chat", tempPanelNode: null }),
   isRightPanelOpen: false,
   setIsRightPanelOpen: (isRightPanelOpen, index) => {
     if (index == null) {
@@ -96,4 +104,14 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
 
   isMobileSidebarOpen: false,
   setMobileSidebarOpen: (isMobileSidebarOpen) => set({ isMobileSidebarOpen }),
+
+  tempPanelNode: null,
+  setTempPanelNode: (tempPanelNode) => set({ tempPanelNode, currentApp: tempPanelNode ? "" : get().currentApp }),
+  clearCurrentApp: () => set({ currentApp: "", currentAppIndex: -1, tempPanelNode: null }),
+  
+  // Helper to check if currentApp and tempPanelNode are mutually exclusive
+  hasActivePanel: () => {
+    const state = get()
+    return Boolean(state.currentApp && state.currentApp !== "") || Boolean(state.tempPanelNode)
+  },
 }))

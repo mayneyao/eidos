@@ -17,8 +17,8 @@ enum ItemTypes {
 }
 
 const style = {
-  padding: "0.5rem 1rem",
-  transition: "all 0.5s ease",
+  padding: "0.25rem 0.5rem",
+  transition: "all 0.3s ease",
   transform: "translate3d(0,0,0)",
 }
 
@@ -52,7 +52,7 @@ const FileRender = ({
         <img
           src={url}
           alt=""
-          className="max-h-[160px] cursor-pointer object-contain"
+          className="max-h-[120px] cursor-pointer object-contain rounded-sm"
         />
       )
     case "audio":
@@ -67,18 +67,18 @@ const FileRender = ({
       return (
         <video
           src={originalUrl}
-          className="max-h-[160px] cursor-pointer object-contain"
+          className="max-h-[120px] cursor-pointer object-contain rounded-sm"
           controls
         />
       )
     default:
       return (
         <div
-          className="flex h-10 cursor-pointer items-center gap-2"
+          className="flex h-8 cursor-pointer items-center gap-2"
           title={originalUrl}
         >
-          <FileIcon className="h-5 w-5 shrink-0" />
-          <p className="truncate">{originalUrl}</p>
+          <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <p className="truncate text-sm">{originalUrl}</p>
         </div>
       )
   }
@@ -178,28 +178,28 @@ export const Card: FC<CardProps> = ({
       ref={ref}
       style={{ ...style, opacity }}
       data-handler-id={handlerId}
-      className="space-between flex items-start justify-between hover:bg-secondary"
+      className="space-between flex items-start justify-between hover:bg-secondary/50 rounded-sm"
     >
       <div
         onClick={() => setCurrentPreviewIndex(index)}
-        className="max-w-[80%]"
+        className="max-w-[85%]"
       >
         <FileRender url={text} originalUrl={originalUrl} />
       </div>
       <DropdownMenu>
-        <DropdownMenuTrigger className="click-outside-ignore h-[32px]">
-          <MoreHorizontal className="m-1 h-4 w-4" />
+        <DropdownMenuTrigger className="click-outside-ignore h-6 w-6 flex items-center justify-center">
+          <MoreHorizontal className="h-3 w-3 text-muted-foreground" />
         </DropdownMenuTrigger>
         {/* z-index 10000 > gdg editor 9999 */}
         <DropdownMenuContent className="click-outside-ignore z-[10000]">
-          <DropdownMenuItem onClick={() => setCurrentPreviewIndex(index)}>
+          <DropdownMenuItem onClick={() => setCurrentPreviewIndex(index)} className="text-xs">
             Fullscreen
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleClickViewOriginal}>
+          <DropdownMenuItem onClick={handleClickViewOriginal} className="text-xs">
             View Original
           </DropdownMenuItem>
           {!isView && (
-            <DropdownMenuItem onClick={() => deleteByUrl(index)}>
+            <DropdownMenuItem onClick={() => deleteByUrl(index)} className="text-xs">
               Delete
             </DropdownMenuItem>
           )}

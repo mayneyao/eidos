@@ -1,23 +1,18 @@
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
-import {
-  getDaysByYearWeek,
-  getToday,
-  getTomorrow,
-  getYesterday,
-} from "@/lib/utils"
+import { getDaysByYearWeek } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Editor } from "@/components/doc/editor"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { getDisplayTitle } from "../utils"
 
 export const WeekPage = () => {
   const params = useCurrentPathInfo()
   const { day } = useParams()
-  const today = getToday()
-  const tomorrow = getTomorrow()
-  const yesterday = getYesterday()
   const [currentDay, setCurrentDay] = useState<string>("")
+  const { isCmdkOpen } = useAppRuntimeStore()
   const days: any[] = getDaysByYearWeek(day!).map((day) => {
     return {
       id: day,
@@ -26,12 +21,6 @@ export const WeekPage = () => {
   return (
     <div className="container prose mx-auto mt-2 flex flex-col gap-2 dark:prose-invert">
       {days.map((day, index) => {
-        const showTitle = (() => {
-          if (day.id == today) return "Today"
-          if (day.id == tomorrow) return "Tomorrow"
-          if (day.id == yesterday) return "Yesterday"
-          return day.id
-        })()
         return (
           <div
             key={day.id}
@@ -42,13 +31,13 @@ export const WeekPage = () => {
               className="text-2xl opacity-70 hover:opacity-90"
               to={`/${params.database}/everyday/${day.id}`}
             >
-              {showTitle}
+              {getDisplayTitle(day.id)}
             </Link>
             <Editor
               docId={day.id}
               namespace="eidos-notes-home-page"
               autoFocus={index === 0}
-              isEditable
+              isEditable={!isCmdkOpen}
               placeholder=""
               isActive={currentDay === day.id}
               disableSelectionPlugin

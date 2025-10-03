@@ -39,7 +39,7 @@ export const AddViewDropdown = ({
         <Button
           variant="ghost"
           size="sm"
-          data-eidos="eidos.currentSpace.createDefaultView(tableName, type)"
+          data-eidos="eidos.currentSpace.view.createDefaultView(tableName, type)"
         >
           <PlusIcon className="h-4 w-4" />
         </Button>

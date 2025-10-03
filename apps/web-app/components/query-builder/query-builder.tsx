@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select"
 import type { TableField } from "@/apps/web-app/hooks/use-table-fields"
 
-export type QueryTransformType = "aggregate" | "filter" | "sort" // 添加更多转换类型
+export type QueryTransformType = "aggregate" | "filter" | "sort" // Add more transform types
 
 export interface AggregateTransformConfig {
   aggregations: AggregateItem[]

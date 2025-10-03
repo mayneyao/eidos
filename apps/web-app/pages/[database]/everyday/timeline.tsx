@@ -20,16 +20,16 @@ const Timeline: React.FC<TimelineProps> = ({
     () => new (window.AudioContext || (window as any).webkitAudioContext)()
   )
 
-  // 添加上一次播放时间的引用
+  // Add reference to last play time
   const lastPlayTimeRef = useRef(0)
 
-  // 计算开始和结束日期
+  // Calculate start and end dates
   const startDate = useMemo(() => {
     if (recordDates.length === 0) return new Date()
     return new Date(Math.min(...recordDates.map((d) => d.getTime())))
   }, [recordDates])
 
-  const endDate = useMemo(() => new Date(), []) // 总是使用当前时间作为结束时间
+  const endDate = useMemo(() => new Date(), []) // Always use current time as end time
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -44,12 +44,12 @@ const Timeline: React.FC<TimelineProps> = ({
 
     const mainContent = document.getElementById("main-content")
     if (mainContent) {
-      // 创建 ResizeObserver 实例
+      // Create ResizeObserver instance
       const resizeObserver = new ResizeObserver(updateDimensions)
-      // 开始观察 main-content
+      // Start observing main-content
       resizeObserver.observe(mainContent)
 
-      // 同时保留对窗口 resize 的监听，因为窗口大小变化也会影响位置
+      // Also keep window resize listener as window size changes also affect position
       window.addEventListener("resize", updateDimensions)
 
       return () => {
@@ -59,9 +59,9 @@ const Timeline: React.FC<TimelineProps> = ({
     }
   }, [])
 
-  // 修改时间刻度生成逻辑
+  // Modify time scale generation logic
   const getTimeMarkers = () => {
-    // 按年份对记录进行分组
+    // Group records by year
     const recordsByYear = recordDates.reduce((acc, date) => {
       const year = date.getFullYear()
       if (!acc.has(year)) {
@@ -78,24 +78,24 @@ const Timeline: React.FC<TimelineProps> = ({
       return acc
     }, new Map<number, { dates: Date[]; firstDate: Date; lastDate: Date }>())
 
-    // 计算记录数的对数值
+    // Calculate logarithm of record count
     const logCounts = Array.from(recordsByYear.values()).map((data) =>
       Math.log(data.dates.length + 1)
     )
     const maxLogCount = Math.max(...logCounts)
     const minLogCount = Math.min(...logCounts)
 
-    // 计算每个年份的位置和高度
+    // Calculate position and height for each year
     return Array.from(recordsByYear.entries())
-      .sort((a, b) => b[0] - a[0]) // 按年份降序排序
+      .sort((a, b) => b[0] - a[0]) // Sort by year in descending order
       .map(([year, data]) => {
         const logCount = Math.log(data.dates.length + 1)
         const heightRatio =
           (logCount - minLogCount) / (maxLogCount - minLogCount)
-        const height = 5 + heightRatio * 25 // 高度范围：5% 到 30%
+        const height = 5 + heightRatio * 25 // Height range: 5% to 30%
 
-        // 修改：使用年份开始时间而不是年中
-        const yearStart = new Date(year, 0, 1).getTime() // 使用年初（1月1日）
+        // Modified: use year start time instead of mid-year
+        const yearStart = new Date(year, 0, 1).getTime() // Use beginning of year (January 1st)
         const position =
           100 -
           ((yearStart - startDate.getTime()) /
@@ -129,7 +129,7 @@ const Timeline: React.FC<TimelineProps> = ({
 
   // Function to create and play tick sound
   const playTickSound = () => {
-    // 确保音效之间至少间隔 50ms
+    // Ensure at least 50ms interval between sound effects
     const now = Date.now()
     if (now - lastPlayTimeRef.current < 50) {
       return
@@ -201,10 +201,10 @@ const Timeline: React.FC<TimelineProps> = ({
         onMouseLeave={() => setHoveredDate(null)}
         onClick={(e) => hoveredDate && onTimeSelect(hoveredDate)}
       >
-        {/* 时间轴竖线 */}
+        {/* Timeline vertical line */}
         <div className="absolute left-1/2 top-0 w-[2px] h-full bg-gray-200 -translate-x-1/2" />
 
-        {/* 固定时间刻度 */}
+        {/* Fixed time scale */}
         {getTimeMarkers().map((marker) => (
           <div
             key={marker.year}
@@ -224,7 +224,7 @@ const Timeline: React.FC<TimelineProps> = ({
           </div>
         ))}
 
-        {/* 悬浮位置刻度线和提示的样式也需要相应调整 */}
+        {/* Hover position scale line and tooltip styles also need corresponding adjustments */}
         {hoveredDate && (
           <>
             <div

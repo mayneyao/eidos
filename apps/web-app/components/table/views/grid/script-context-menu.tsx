@@ -7,21 +7,27 @@ import type {
 } from "@/packages/core/types/IExtension"
 
 import { ContextMenuItem } from "@/components/ui/context-menu"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useCurrentUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
+import { getTableIdByRawTableName } from "@/lib/utils"
 
 import { useScriptFunction } from "../../../script-container/hook"
+import { useTableContext } from "../../hooks"
 
 export const ScriptContextMenu = ({
   getRows,
+  count,
 }: {
   getRows: () => any[] | undefined
+  count: string
 }) => {
-  const { space, tableId, viewId } = useCurrentPathInfo()
+  const { space, viewId, tableName } = useTableContext()
   const { sqlite } = useSqlite(space)
   const { callFunction } = useScriptFunction()
   const { fieldRawColumnNameFieldMap } = useCurrentUiColumns()
+  
+  // Convert rawTableName to tableId
+  const tableId = getTableIdByRawTableName(tableName)
   const [tableActionScripts, setTableActionScripts] = useState<
     IExtension<TableActionMeta>[]
   >([])
@@ -78,7 +84,7 @@ export const ScriptContextMenu = ({
             }}
           >
             <ZapIcon className="pr-2" />
-            {script.meta!.tableAction.name}
+            {script.meta!.tableAction.name} ({count})
           </ContextMenuItem>
         )
       })}

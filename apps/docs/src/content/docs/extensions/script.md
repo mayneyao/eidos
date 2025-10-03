@@ -119,13 +119,80 @@ export async function toggleChecked(
 }
 ```
 
-### 2.3 User-Defined Function (UDF) Scripts
+### 2.3 Document Action Scripts
 
 #### 2.3.1 Overview
 
-When the `type` property is set to `"udf"`, scripts create database functions that can be invoked within SQL queries, extending the database's computational capabilities.
+When the `type` property is set to `"docAction"`, scripts function as document-level operations that can be triggered on specific documents. These actions are accessible through the document actions menu, making your documents more intelligent and automated.
 
 #### 2.3.2 Meta Configuration
+
+```typescript
+interface DocActionMeta {
+  type: "docAction"
+  funcName: string
+  docAction: {
+    name: string
+    description: string
+  }
+}
+```
+
+#### 2.3.3 Execution Context
+
+Document action functions receive two parameters:
+
+- `input`: Input parameters as `Record<string, any>`
+- `ctx`: Context object containing `docId`
+
+#### 2.3.4 Implementation Example
+
+```ts
+export const meta = {
+  type: "docAction",
+  funcName: "calculateCompletion",
+  docAction: {
+    name: "Calculate Completion",
+    description: "Calculates the completion percentage of the document",
+  },
+}
+
+export async function calculateCompletion(
+  input: Record<string, any>,
+  ctx: {
+    docId: string
+  }
+) {
+  const { docId } = ctx
+  const doc = await eidos.currentSpace.doc.getMarkdown(docId)
+  
+  // Extract completion ratio from markdown checkboxes
+  const uncheckedCount = doc
+    .split("\n")
+    .filter((line) => line.startsWith("- [ ]")).length
+  const checkedCount = doc
+    .split("\n")
+    .filter((line) => line.startsWith("- [x]")).length
+  const totalCount = uncheckedCount + checkedCount
+  const completion = totalCount > 0 ? (checkedCount / totalCount) * 100 : 0
+
+  await eidos.currentSpace.doc.setProperties(docId, {
+    completion,
+  })
+  
+  return {
+    completion,
+  }
+}
+```
+
+### 2.4 User-Defined Function (UDF) Scripts
+
+#### 2.4.1 Overview
+
+When the `type` property is set to `"udf"`, scripts create database functions that can be invoked within SQL queries, extending the database's computational capabilities.
+
+#### 2.4.2 Meta Configuration
 
 ```typescript
 interface UDFMeta {
@@ -138,9 +205,9 @@ interface UDFMeta {
 }
 ```
 
-#### 2.3.3 UDF Types
+#### 2.4.3 UDF Types
 
-##### 2.3.3.1 Scalar UDF
+##### 2.4.3.1 Scalar UDF
 
 Scalar UDFs operate on individual values and return a single result per invocation.
 

@@ -1,15 +1,16 @@
 import { memo, useEffect, useRef, useState } from "react"
+import cx from "classnames"
 import Prism from "prismjs"
 import ReactMarkdown, { type Components } from "react-markdown"
+import { useNavigate } from "react-router-dom"
 import rehypeRaw from "rehype-raw"
 import remarkGfm from "remark-gfm"
-import remarkInternalLinks from "./remark-internal-links"
-import { Badge } from "@/components/ui/badge"
-import { useNavigate } from "react-router-dom"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { isDayPageId } from "@/lib/utils"
-import cx from "classnames"
 
+import { isDayPageId } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+
+import remarkInternalLinks from "./remark-internal-links"
 import "prismjs/themes/prism-tomorrow.css"
 import "./prism-custom.css"
 import "prismjs/components/prism-typescript"
@@ -33,7 +34,7 @@ declare global {
 const NonMemoizedMarkdown = ({ children }: { children: string }) => {
   const navigate = useNavigate()
   const { space } = useCurrentPathInfo()
-  
+
   useEffect(() => {
     Prism.highlightAll()
   }, [children])
@@ -53,14 +54,14 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
       const [isCollapsed, setIsCollapsed] = useState(true)
 
       if (inline || !match) {
-        // 为用户消息中的内联代码提供更好的对比度
+        // Provide better contrast for inline code in user messages
         return (
           <code
             className={cx(
               "text-sm py-0.5 px-1 rounded-md",
-              // 默认样式（助手消息）
+              // Default style (assistant message)
               "bg-zinc-100 dark:bg-zinc-800",
-              // 用户消息中的样式 - 使用半透明的前景色作为背景
+              // Style in user messages - use semi-transparent foreground as background
               "group-data-[role=user]/message:bg-primary-foreground/20 group-data-[role=user]/message:text-primary-foreground",
               className
             )}
@@ -83,63 +84,77 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
           language === "python"
             ? "main.py"
             : language === "javascript"
-            ? "index.js"
-            : `index.${language}`
+              ? "index.js"
+              : `index.${language}`
         return (
-          <div className={cx(
-            "border rounded-lg p-3 mt-2",
-            // 默认样式
-            "border-zinc-200 dark:border-zinc-700",
-            // 用户消息中的样式
-            "group-data-[role=user]/message:border-primary-foreground/30"
-          )}>
+          <div
+            className={cx(
+              "border rounded-lg p-3 mt-2",
+              // Default style
+              "border-zinc-200 dark:border-zinc-700",
+              // Style in user messages
+              "group-data-[role=user]/message:border-primary-foreground/30"
+            )}
+          >
             <div
               className={cx(
                 "flex items-center gap-2 p-1 cursor-pointer rounded-md transition-colors",
-                // 默认悬停样式
+                // Default hover style
                 "hover:bg-zinc-100 dark:hover:bg-zinc-800",
-                // 用户消息中的悬停样式
+                // Hover style in user messages
                 "group-data-[role=user]/message:hover:bg-primary-foreground/10"
               )}
               onClick={() => setIsCollapsed(!isCollapsed)}
             >
               <span className="text-xs">{filename}</span>
-              <span className={cx(
-                "text-xs",
-                // 默认颜色
-                "text-green-600",
-                // 用户消息中的颜色
-                "group-data-[role=user]/message:text-primary-foreground/80"
-              )}>+{linesCount}</span>
-              <span className={cx(
-                "text-xs",
-                // 默认颜色
-                "text-zinc-500 dark:text-zinc-400",
-                // 用户消息中的颜色
-                "group-data-[role=user]/message:text-primary-foreground/70"
-              )}>
+              <span
+                className={cx(
+                  "text-xs",
+                  // Default color
+                  "text-green-600",
+                  // Color in user messages
+                  "group-data-[role=user]/message:text-primary-foreground/80"
+                )}
+              >
+                +{linesCount}
+              </span>
+              <span
+                className={cx(
+                  "text-xs",
+                  // Default color
+                  "text-zinc-500 dark:text-zinc-400",
+                  // Color in user messages
+                  "group-data-[role=user]/message:text-primary-foreground/70"
+                )}
+              >
                 lines
               </span>
               {isCollapsed ? (
-                <ChevronDownIcon className={cx(
-                  "w-3.5 h-3.5 ml-auto",
-                  "text-zinc-500",
-                  "group-data-[role=user]/message:text-primary-foreground/70"
-                )} />
+                <ChevronDownIcon
+                  className={cx(
+                    "w-3.5 h-3.5 ml-auto",
+                    "text-zinc-500",
+                    "group-data-[role=user]/message:text-primary-foreground/70"
+                  )}
+                />
               ) : (
-                <ChevronUpIcon className={cx(
-                  "w-3.5 h-3.5 ml-auto",
-                  "text-zinc-500",
-                  "group-data-[role=user]/message:text-primary-foreground/70"
-                )} />
+                <ChevronUpIcon
+                  className={cx(
+                    "w-3.5 h-3.5 ml-auto",
+                    "text-zinc-500",
+                    "group-data-[role=user]/message:text-primary-foreground/70"
+                  )}
+                />
               )}
             </div>
             <div className={isCollapsed ? "hidden" : ""}>
-              <pre className={cx(
-                "!m-0",
-                // 用户消息中的样式
-                "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground"
-              )}>
+              <pre
+                className={cx(
+                  "!m-0",
+                  // Style in user messages
+                  "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground"
+                )}
+              >
                 <code className={`language-${language}`}>{children}</code>
               </pre>
             </div>
@@ -152,9 +167,9 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
           {...(props as React.HTMLAttributes<HTMLPreElement>)}
           className={cx(
             "w-[80dvw] md:max-w-[500px] overflow-x-scroll p-3 rounded-lg mt-2",
-            // 默认样式
+            // Default style
             "bg-zinc-100 dark:bg-zinc-800",
-            // 用户消息中的样式
+            // Style in user messages
             "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground",
             className
           )}
@@ -163,7 +178,12 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
         </pre>
       )
     },
-    "internal-link": ({ node, "data-id": dataId, "data-title": dataTitle, ...props }: any) => {
+    "internal-link": ({
+      node,
+      "data-id": dataId,
+      "data-title": dataTitle,
+      ...props
+    }: any) => {
       return (
         <Badge
           className="inline-flex items-center gap-1 px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
@@ -193,20 +213,24 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
       }, [children, language])
 
       return (
-        <div className={cx(
-          "border rounded-lg my-4",
-          // 默认样式
-          "border-zinc-200 dark:border-zinc-700",
-          // 用户消息中的样式
-          "group-data-[role=user]/message:border-primary-foreground/30"
-        )}>
-          <pre className={cx(
-            "p-4 overflow-x-auto !m-0",
-            // 默认样式
-            "bg-zinc-50 dark:bg-zinc-900",
-            // 用户消息中的样式
-            "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground"
-          )}>
+        <div
+          className={cx(
+            "border rounded-lg my-4",
+            // Default style
+            "border-zinc-200 dark:border-zinc-700",
+            // Style in user messages
+            "group-data-[role=user]/message:border-primary-foreground/30"
+          )}
+        >
+          <pre
+            className={cx(
+              "p-4 overflow-x-auto !m-0",
+              // Default style
+              "bg-zinc-50 dark:bg-zinc-900",
+              // Style in user messages
+              "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground"
+            )}
+          >
             <code ref={codeRef} className={`language-${language}`}>
               {children}
             </code>
@@ -247,9 +271,9 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
         <a
           className={cx(
             "hover:underline",
-            // 默认样式
+            // Default style
             "text-blue-500",
-            // 用户消息中的样式 - 使用更明亮的前景色
+            // Style in user messages - 使用更明亮的前景色
             "group-data-[role=user]/message:text-primary-foreground group-data-[role=user]/message:opacity-90 group-data-[role=user]/message:hover:opacity-100"
           )}
           target="_blank"
@@ -262,60 +286,78 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
     },
     h1: ({ node, children, ...props }: any) => {
       return (
-        <h1 className={cx(
-          "text-3xl font-semibold mt-6 mb-2",
-          "group-data-[role=user]/message:text-primary-foreground"
-        )} {...props}>
+        <h1
+          className={cx(
+            "text-3xl font-semibold mt-6 mb-2",
+            "group-data-[role=user]/message:text-primary-foreground"
+          )}
+          {...props}
+        >
           {children}
         </h1>
       )
     },
     h2: ({ node, children, ...props }: any) => {
       return (
-        <h2 className={cx(
-          "text-2xl font-semibold mt-6 mb-2",
-          "group-data-[role=user]/message:text-primary-foreground"
-        )} {...props}>
+        <h2
+          className={cx(
+            "text-2xl font-semibold mt-6 mb-2",
+            "group-data-[role=user]/message:text-primary-foreground"
+          )}
+          {...props}
+        >
           {children}
         </h2>
       )
     },
     h3: ({ node, children, ...props }: any) => {
       return (
-        <h3 className={cx(
-          "text-xl font-semibold mt-6 mb-2",
-          "group-data-[role=user]/message:text-primary-foreground"
-        )} {...props}>
+        <h3
+          className={cx(
+            "text-xl font-semibold mt-6 mb-2",
+            "group-data-[role=user]/message:text-primary-foreground"
+          )}
+          {...props}
+        >
           {children}
         </h3>
       )
     },
     h4: ({ node, children, ...props }: any) => {
       return (
-        <h4 className={cx(
-          "text-lg font-semibold mt-6 mb-2",
-          "group-data-[role=user]/message:text-primary-foreground"
-        )} {...props}>
+        <h4
+          className={cx(
+            "text-lg font-semibold mt-6 mb-2",
+            "group-data-[role=user]/message:text-primary-foreground"
+          )}
+          {...props}
+        >
           {children}
         </h4>
       )
     },
     h5: ({ node, children, ...props }: any) => {
       return (
-        <h5 className={cx(
-          "text-base font-semibold mt-6 mb-2",
-          "group-data-[role=user]/message:text-primary-foreground"
-        )} {...props}>
+        <h5
+          className={cx(
+            "text-base font-semibold mt-6 mb-2",
+            "group-data-[role=user]/message:text-primary-foreground"
+          )}
+          {...props}
+        >
           {children}
         </h5>
       )
     },
     h6: ({ node, children, ...props }: any) => {
       return (
-        <h6 className={cx(
-          "text-sm font-semibold mt-6 mb-2",
-          "group-data-[role=user]/message:text-primary-foreground"
-        )} {...props}>
+        <h6
+          className={cx(
+            "text-sm font-semibold mt-6 mb-2",
+            "group-data-[role=user]/message:text-primary-foreground"
+          )}
+          {...props}
+        >
           {children}
         </h6>
       )
@@ -337,3 +379,5 @@ export const Markdown = memo(
   NonMemoizedMarkdown,
   (prevProps, nextProps) => prevProps.children === nextProps.children
 )
+
+export default Markdown

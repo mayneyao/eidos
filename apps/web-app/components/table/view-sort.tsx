@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import type { OrderByItem } from "@/packages/core/sqlite/sql-sort-parser"
 import type { IView } from "@/packages/core/types/IView"
 import { ArrowDownUpIcon } from "lucide-react"
@@ -24,6 +24,11 @@ import { ViewSortEditor } from "./view-sort-editor"
 export const ViewSort = ({ view }: { view?: IView }) => {
   const { updateView } = useViewOperation()
 
+  const hasOrderBy = useMemo(() => {
+    if (!view?.query) return false
+    return Boolean(view.query.match(/ORDER BY/i))
+  }, [view?.query])
+
   const handleOrderByChange = useCallback(
     (orderBy: OrderByItem[]) => {
       if (!view?.id) return
@@ -47,13 +52,11 @@ export const ViewSort = ({ view }: { view?: IView }) => {
     },
     [updateView, view?.id, view?.query]
   )
-  if (!view) return null
-  const hasOrderBy = Boolean(view.query?.match(/ORDER BY/i))
 
   return (
     <Popover>
       <PopoverTrigger
-        className={cn("rounded-md", {
+        className={cn("rounded transition-colors duration-150", {
           "bg-secondary": hasOrderBy,
         })}
         asChild

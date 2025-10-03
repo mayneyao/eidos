@@ -58,7 +58,7 @@ describe('lexical-compiler', () => {
 
         it('should return error for invalid code', async () => {
             const input = `
-        import { from 'lexical';  // 语法错误
+        import { from 'lexical';  // Syntax error
       `;
 
             const result = await compileLexicalCode(input);

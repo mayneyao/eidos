@@ -3,7 +3,7 @@ import type { Message } from 'ai'
 
 type EditorTab = 'preview' | 'editor'
 
-// 更新布局模式的类型
+// Update layout mode type
 type LayoutMode = 'code' | 'preview'
 
 interface EditorStore {

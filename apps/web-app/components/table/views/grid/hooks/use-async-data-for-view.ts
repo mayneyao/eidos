@@ -5,7 +5,8 @@ import type {
   EditableGridCell,
   GridCell,
   Item,
-  Rectangle} from "@glideapps/glide-data-grid";
+  Rectangle
+} from "@glideapps/glide-data-grid";
 import {
   CompactSelection,
   GridCellKind
@@ -13,7 +14,8 @@ import {
 import chunk from "lodash/chunk"
 import range from "lodash/range"
 import type {
-  MutableRefObject} from "react";
+  MutableRefObject
+} from "react";
 import {
   useCallback,
   useContext,
@@ -23,7 +25,8 @@ import {
 } from "react"
 
 import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
-import { useSqlite, useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import {
   rewriteQueryWithOffsetAndLimit,
   rewriteQueryWithSortedQuery
@@ -35,6 +38,7 @@ import { TableContext } from "@/components/table/hooks"
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { useDataMutation } from "./use-data-mutation"
 import { useNavigate } from "react-router-dom"
+import { useReadonlySqlite } from "@/hooks/use-readonly-sqlite";
 
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
@@ -56,6 +60,7 @@ export function useAsyncDataForView<TRowType>(data: {
   gridRef: MutableRefObject<DataEditorRef | null>
   viewCount: number
   view: IView
+  isPreview?: boolean
 }): Pick<
   DataEditorProps,
   | "getCellContent"
@@ -77,11 +82,16 @@ export function useAsyncDataForView<TRowType>(data: {
     gridRef,
     maxConcurrency,
     view,
+    isPreview,
   } = data
   const tableId = view.table_id
   const isView = tableName.startsWith("vw_")
   const qs = view.query
-  const { sqlite } = useSqlite()
+  const readonlySqlite = useReadonlySqlite()
+  const { sqlite: _sqlite } = useSqlite()
+  // when preview, the dataview is temporary view, only exists in memory, so we use sqlite. 
+  // when view is not preview, the dataview is permanent view, so we can use readonly sqlite.
+  const sqlite = isPreview ? _sqlite : readonlySqlite
   const pageSize = Math.min(_pageSize, 50)
   const loadingRef = useRef(CompactSelection.empty())
   const _loadingRef = useRef<number[]>([])

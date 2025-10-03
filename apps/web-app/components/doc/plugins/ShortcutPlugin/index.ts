@@ -34,6 +34,7 @@ export function ShortcutPlugin() {
   useKeyPress(
     ["ctrl.Enter", "meta.Enter"],
     (e) => {
+      if (!editor.isEditable()) return
       e.stopPropagation()
       toggleCheckList()
     },
@@ -44,6 +45,7 @@ export function ShortcutPlugin() {
   useKeyPress(
     ["shift.alt.uparrow"],
     (e) => {
+      if (!editor.isEditable()) return
       e.preventDefault()
       e.stopPropagation()
       duplicateParagraph(true)
@@ -55,6 +57,7 @@ export function ShortcutPlugin() {
   useKeyPress(
     ["shift.alt.downarrow"],
     (e) => {
+      if (!editor.isEditable()) return
       e.preventDefault()
       e.stopPropagation()
       duplicateParagraph(false)
@@ -66,6 +69,7 @@ export function ShortcutPlugin() {
   useKeyPress(
     ["alt.uparrow"],
     (e) => {
+      if (!editor.isEditable()) return
       e.preventDefault()
       e.stopPropagation()
       moveListItem(true)
@@ -77,6 +81,7 @@ export function ShortcutPlugin() {
   useKeyPress(
     ["alt.downarrow"],
     (e) => {
+      if (!editor.isEditable()) return
       e.preventDefault()
       e.stopPropagation()
       moveListItem(false)

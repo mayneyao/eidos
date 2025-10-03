@@ -2,6 +2,7 @@
 // oxlint-disable consistent-type-imports
 /// <reference types="vite-plugin-electron/electron-env" />
 
+
 declare namespace NodeJS {
     interface ProcessEnv {
         /**
@@ -50,6 +51,10 @@ interface Window {
         fetchAvailableModels: (apiKey: string, providerType: string, baseUrl?: string) => Promise<{ success: boolean, models?: any[], error?: string }>
         fetch: (url: string, options: RequestInit) => Promise<{ ok: boolean, status: number, statusText: string, headers: Record<string, string>, data: any, error?: string }>
         openUrl: (url: string) => Promise<void>
+        AI: {
+            generateText: typeof import('ai').generateText
+            generateObject: typeof import('ai').generateObject
+        }
     }
 
 }

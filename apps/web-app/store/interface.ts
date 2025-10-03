@@ -20,8 +20,4 @@ export interface IDataStore {
   tableMap: {
     [nodeId: string]: ITable
   }
-  nodeIds: string[]
-  nodeMap: {
-    [nodeId: string]: ITreeNode
-  }
 }

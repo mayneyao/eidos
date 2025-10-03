@@ -25,7 +25,7 @@ import { TableContext } from "@/components/table/hooks"
 import { useTableRowEvent } from "@/components/table/hooks/use-table-row-event"
 import { useViewCount } from "@/components/table/hooks/use-view-count"
 
-import { useTableAppStore } from "../store"
+import { useTableStore } from "../../../table-store-provider"
 import { useDataSource } from "./use-data-source"
 
 interface IUseDataMutationProps {
@@ -46,7 +46,7 @@ export const useDataMutation = ({
   visiblePagesRef,
   getRowDataByIndex,
 }: IUseDataMutationProps) => {
-  const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableAppStore()
+  const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableStore()
   const { setSubPage } = useCurrentSubPage()
   const { tableName, space } = useContext(TableContext)
   const { getViewSortedRows: _getViewSortedRows } = useViewSort(view.query)

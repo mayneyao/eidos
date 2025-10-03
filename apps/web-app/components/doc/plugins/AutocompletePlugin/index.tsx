@@ -18,8 +18,8 @@ import {
 } from "lexical"
 
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { useAIConfigStore } from "@/apps/web-app/pages/settings/ai/store"
-import { useConfigStore } from "@/apps/web-app/pages/settings/store"
+import { useAIConfigStore } from "@/components/settings/stores"
+import { useConfigStore } from "@/components/settings/stores"
 
 import { addSwipeRightListener } from "../../utils/swipe"
 import { AI_COMPLETE_COMMAND } from "./cmd"

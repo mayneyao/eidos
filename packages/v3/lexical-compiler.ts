@@ -24,19 +24,19 @@ function processLexicalImports(sourceCode: string): string {
     BUILT_IN_PACKAGES.forEach((packageName) => {
         const globalVarName = createGlobalVarName(packageName);
 
-        // 处理混合导入: import DefaultExport, { namedExport } from 'package'
+        // Handle mixed imports: import DefaultExport, { namedExport } from 'package'
         processedCode = processedCode.replace(
             new RegExp(`import\\s+([^\\s{]+)\\s*,\\s*{([^}]+)}\\s*from\\s*['"]${packageName}['"]\\s*;?`, 'g'),
             `const $1 = window["${globalVarName}"];\nconst {$2} = window["${globalVarName}"];`
         );
 
-        // 处理命名导入: import { a, b } from 'package'
+        // Handle named imports: import { a, b } from 'package'
         processedCode = processedCode.replace(
             new RegExp(`import\\s*{([^}]+)}\\s*from\\s*['"]${packageName}['"]\\s*;?`, 'g'),
             `const {$1} = window["${globalVarName}"];`
         );
 
-        // 处理默认导入: import xxx from 'package'
+        // Handle default imports: import xxx from 'package'
         processedCode = processedCode.replace(
             new RegExp(`import\\s+([^\\s{]+)\\s+from\\s*['"]${packageName}['"]\\s*;?`, 'g'),
             `const $1 = window["${globalVarName}"];`

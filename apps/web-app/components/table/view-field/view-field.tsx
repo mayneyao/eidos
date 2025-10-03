@@ -1,10 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { PlusIcon } from "@radix-ui/react-icons"
-import update from "immutability-helper"
 import sortBy from "lodash/sortBy"
 import { SlidersHorizontalIcon } from "lucide-react"
-import { DndProvider } from "react-dnd"
-import { HTML5Backend } from "react-dnd-html5-backend"
 import { useTranslation } from "react-i18next"
 
 import type { IView } from "@/packages/core/types/IView"
@@ -17,11 +14,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { CommonMenuItem } from "@/components/common-menu-item"
-import { useTableAppStore } from "@/components/table/views/grid/store"
+import { useTableStore } from "@/components/table/table-store-provider"
 
 import { TableContext, useTableContext, useViewOperation } from "../hooks"
 import { FieldItemCard } from "./view-field-item"
+import { SortableContainer } from "../sortable"
 
+// Refactored to use @dnd-kit for better performance
 export interface ContainerState {
   cards: IField[]
 }
@@ -29,8 +28,14 @@ export interface ContainerState {
 export const ViewField = (props: { view?: IView }) => {
   const { t } = useTranslation()
   const { isView } = useTableContext()
+  const { tableName, space } = useContext(TableContext)
+  const { uiColumns } = useUiColumns(tableName, space)
+  const { setIsAddFieldEditorOpen } = useTableStore()
+  const { updateView } = useViewOperation()
 
   const [open, setOpen] = useState(false)
+  const [cards, setCards] = useState<IField[]>([])
+  
   const orderMap = useMemo(
     () => props.view?.order_map || {},
     [props.view?.order_map]
@@ -39,10 +44,7 @@ export const ViewField = (props: { view?: IView }) => {
     () => props.view?.hidden_fields || [],
     [props.view?.hidden_fields]
   )
-  const { tableName, space } = useContext(TableContext)
-  const { uiColumns } = useUiColumns(tableName, space)
-  const { setIsAddFieldEditorOpen } = useTableAppStore()
-  const [cards, setCards] = useState<IField[]>([])
+  
   const sortedUiColumns = useMemo(
     () =>
       sortBy(uiColumns, (item) => {
@@ -55,24 +57,25 @@ export const ViewField = (props: { view?: IView }) => {
     setCards(sortedUiColumns)
   }, [sortedUiColumns])
 
-  const { updateView } = useViewOperation()
   const updateViewOrderMap = useCallback(
     (newOrderMap: IView["order_map"]) => {
-      props.view && updateView(props.view?.id, { order_map: newOrderMap })
+      if (!props.view) return
+      updateView(props.view.id, { order_map: newOrderMap })
     },
     [props.view, updateView]
   )
 
   const updateHiddenFields = useCallback(
     (newHiddenFields: string[]) => {
-      props.view &&
-        updateView(props.view?.id, { hidden_fields: newHiddenFields })
+      if (!props.view) return
+      updateView(props.view.id, { hidden_fields: newHiddenFields })
     },
     [props.view, updateView]
   )
 
   const handleHideField = useCallback(
     (fieldId: string) => {
+      if (!props.view) return
       const hiddenFieldsSet = new Set([...(hiddenFields || [])])
       if (hiddenFieldsSet.has(fieldId)) {
         hiddenFieldsSet.delete(fieldId)
@@ -81,93 +84,83 @@ export const ViewField = (props: { view?: IView }) => {
       }
       updateHiddenFields(Array.from(hiddenFieldsSet))
     },
-    [hiddenFields, updateHiddenFields]
+    [hiddenFields, updateHiddenFields, props.view]
   )
 
-  const showAllFields = () => {
+  const showAllFields = useCallback(() => {
+    if (!props.view) return
     updateHiddenFields([])
-  }
+  }, [updateHiddenFields, props.view])
 
-  const hideAllFields = () => {
+  const hideAllFields = useCallback(() => {
+    if (!props.view) return
     updateHiddenFields(
       uiColumns
         .filter((field) => field.table_column_name !== "title")
         .map((item) => item.table_column_name)
     )
-  }
+  }, [updateHiddenFields, uiColumns, props.view])
 
-  const moveCard = useCallback(
-    (dragIndex: number, hoverIndex: number) => {
-      setCards((prevCards: IField[]) => {
-        const newCards = update(prevCards, {
-          $splice: [
-            [dragIndex, 1],
-            [hoverIndex, 0, prevCards[dragIndex] as IField],
-          ],
-        })
-        const newOrderMap: IView["order_map"] = {}
-        newCards.forEach((item, index) => {
-          newOrderMap[item.table_column_name] = index
-        })
-        updateViewOrderMap(newOrderMap)
-        return newCards
+  const handleReorder = useCallback(
+    (newCards: IField[]) => {
+      if (!props.view) return
+      setCards(newCards)
+      const newOrderMap: IView["order_map"] = {}
+      newCards.forEach((item, index) => {
+        newOrderMap[item.table_column_name] = index
       })
+      updateViewOrderMap(newOrderMap)
     },
-    [updateViewOrderMap]
+    [updateViewOrderMap, props.view]
   )
 
-  const renderCard = useCallback(
-    (card: IField, index: number) => {
-      const isHidden =
-        (hiddenFields || []).indexOf(card.table_column_name) !== -1
-      return (
-        <FieldItemCard
-          field={card}
-          key={card.table_column_name}
-          index={index}
-          id={card.table_column_name}
-          isHidden={isHidden}
-          text={card.name}
-          onToggleHidden={handleHideField}
-          moveCard={moveCard}
-        />
-      )
-    },
-    [handleHideField, hiddenFields, moveCard]
-  )
-
-  const handleAddFieldClick = () => {
+  const handleAddFieldClick = useCallback(() => {
     setOpen(false)
     setIsAddFieldEditorOpen(true)
-  }
+  }, [setIsAddFieldEditorOpen])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={"rounded-md"} asChild>
+      <PopoverTrigger className={"rounded"} asChild>
         <Button size="xs" variant="ghost">
-          <SlidersHorizontalIcon className="h-4 w-4 opacity-60"></SlidersHorizontalIcon>
+          <SlidersHorizontalIcon className="h-3 w-3 opacity-60"></SlidersHorizontalIcon>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-2">
-        <div className="flex justify-between px-2">
-          <Button size="xs" variant="ghost" onClick={showAllFields}>
+      <PopoverContent className="w-auto p-1.5">
+        <div className="flex justify-between px-1">
+          <Button size="xs" variant="ghost" onClick={showAllFields} className="h-6 text-xs">
             {t("table.view.field.showAll")}
           </Button>
-          <Button size="xs" variant="ghost" onClick={hideAllFields}>
+          <Button size="xs" variant="ghost" onClick={hideAllFields} className="h-6 text-xs">
             {t("table.view.field.hideAll")}
           </Button>
         </div>
         <hr className="my-1" />
-        <DndProvider backend={HTML5Backend} context={window}>
-          <div className="max-h-[420px] w-[300px] overflow-y-auto">
-            {cards.map((card, i) => renderCard(card, i))}
-          </div>
-        </DndProvider>
+        <SortableContainer
+          items={cards.map(card => ({ ...card, id: card.table_column_name }))}
+          onReorder={handleReorder}
+          className="max-h-[320px] w-[280px] overflow-y-auto overflow-x-hidden"
+          renderItem={(item, index) => {
+            const card = item as IField
+            const isHidden = (hiddenFields || []).indexOf(card.table_column_name) !== -1
+            return (
+              <FieldItemCard
+                field={card}
+                key={card.table_column_name}
+                index={index}
+                id={card.table_column_name}
+                isHidden={isHidden}
+                text={card.name}
+                onToggleHidden={handleHideField}
+              />
+            )
+          }}
+        />
         {!isView && (
           <>
             <hr className="my-1" />
-            <CommonMenuItem className="pl-4" onClick={handleAddFieldClick}>
-              <PlusIcon className="mr-2 h-4 w-4" />
+            <CommonMenuItem className="pl-3 text-xs" onClick={handleAddFieldClick}>
+              <PlusIcon className="mr-1.5 h-3 w-3" />
               {t("table.view.field.addField")}
             </CommonMenuItem>
           </>

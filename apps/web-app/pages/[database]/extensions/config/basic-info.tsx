@@ -154,7 +154,7 @@ export const BasicInfo = () => {
                 value={formData.icon as any}
               />
               {formData.icon && (
-                <Button variant="outline" size="sm" onClick={handleClearIcon}>
+                <Button variant="outline" onClick={handleClearIcon}>
                   {t("common.clear")}
                 </Button>
               )}

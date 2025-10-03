@@ -6,6 +6,7 @@ import electron from 'vite-plugin-electron/simple'
 import { sharedAlias, sharedConfig } from "../../packages/shared/vite/base.config"
 import { createHtmlPlugin } from "../../packages/shared/vite/plugins"
 import fs from "fs/promises"
+// import { visualizer } from "rollup-plugin-visualizer"
 
 
 // desktop do not need android and windows11
@@ -102,6 +103,13 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         },
       },
     }),
+    // visualizer({
+    //   gzipSize: true,
+    //   brotliSize: true,
+    //   emitFile: false,
+    //   filename: "dev-pkg-vis.html",
+    //   open: true,
+    // }) as Plugin,
   ],
   build: {
     rollupOptions: {

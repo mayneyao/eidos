@@ -1,12 +1,13 @@
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { motion } from "framer-motion"
 import { BlocksIcon } from "lucide-react"
-import { Link } from "react-router-dom"
 
-import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 
 import { MessageIcon } from "./icons"
 
 export const Overview = ({ aiModel }: { aiModel: string }) => {
+  const { openSettingsModal } = useSettings()
+  
   return (
     <motion.div
       key="overview"
@@ -24,18 +25,24 @@ export const Overview = ({ aiModel }: { aiModel: string }) => {
         </p>
         <p>
           Build your own extensions with AI. This will use your configured{" "}
-          <Link to="/settings/ai#model-preferences" className="underline">
+          <button 
+            onClick={() => openSettingsModal("ai")} 
+            className="underline cursor-pointer"
+          >
             coding model({aiModel})
-          </Link>{" "}
+          </button>{" "}
           to generate code.
         </p>
         {!aiModel && (
           <p className="text-sm text-gray-500">
             No coding model selected. It will use the first available model.
             Please select a coding model in the{" "}
-            <Link to="/settings/ai#model-preferences" className="underline">
+            <button 
+              onClick={() => openSettingsModal("ai")} 
+              className="underline cursor-pointer"
+            >
               settings
-            </Link>{" "}
+            </button>{" "}
             for better results.
           </p>
         )}

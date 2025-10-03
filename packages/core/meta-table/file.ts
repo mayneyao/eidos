@@ -319,7 +319,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     }
 
     const fileId = getUuid()
-    // 将数据转换为 File 对象
+    // Convert data to File object
     const blob = typeof fileData === 'string'
       ? new Blob([Buffer.from(fileData, 'base64')], { type: mimeType })
       : new Blob([fileData], { type: mimeType })

@@ -1,9 +1,8 @@
 import React, { useMemo } from "react"
+import { SelectField, type SelectOption } from "@/packages/core/fields/select"
 import { XIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import type { SelectOption } from "@/packages/core/fields/select";
-import { SelectField } from "@/packages/core/fields/select"
 import { cn } from "@/lib/utils"
 import {
   Command,
@@ -11,6 +10,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command"
 import {
   Popover,
@@ -25,6 +25,8 @@ interface IMultiSelectEditorProps {
   onChange: (value: string) => void
   options: SelectOption[]
   isEditing: boolean
+  inline?: boolean
+  onFinishEditing?: () => void
 }
 
 export const MultiSelectEditor = ({
@@ -32,17 +34,23 @@ export const MultiSelectEditor = ({
   onChange,
   options,
   isEditing,
+  inline = false,
+  onFinishEditing,
 }: IMultiSelectEditorProps) => {
   const optionsMap = useMemo(
     () =>
-      options.reduce((res, option) => {
-        res[option.id] = option
-        return res
-      }, {} as Record<string, SelectOption>),
+      options.reduce(
+        (res, option) => {
+          res[option.id] = option
+          return res
+        },
+        {} as Record<string, SelectOption>
+      ),
     [options]
   )
 
   const [oldOptionsMap, setOldOptionsMap] = React.useState(optionsMap)
+  const [isPopoverOpen, setIsPopoverOpen] = React.useState(false)
 
   const { theme } = useTheme()
   const [values, setValues] = React.useState(value ? value.split(",") : [])
@@ -67,7 +75,7 @@ export const MultiSelectEditor = ({
     if (!value) return
     const set = new Set<string>(values)
     if (set.has(value)) {
-      set.delete(value)
+      return
     } else {
       set.add(value)
     }
@@ -111,37 +119,86 @@ export const MultiSelectEditor = ({
     }
   }
 
-  const [open, setOpen] = React.useState(false)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !isEditing) {
+      e.preventDefault()
+      setIsPopoverOpen(true)
+    }
+  }
+
+  const handlePopoverOpenChange = (open: boolean) => {
+    setIsPopoverOpen(open)
+    if (!open) {
+      onFinishEditing?.()
+    }
+  }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
       <PopoverTrigger className="w-full">
         {value ? (
-          <div className="flex gap-2">
+          <div
+            className={cn(
+              "flex h-full w-full items-center px-2 gap-1",
+              inline ? "flex-nowrap overflow-hidden" : "flex-wrap"
+            )}
+            onKeyDown={handleKeyDown}
+            onClick={() => setIsPopoverOpen(true)}
+            tabIndex={0}
+          >
             {values.map((optionId) => {
               const option = oldOptionsMap[optionId]
               if (!option) return null
-              return <SelectOptionItem theme={theme} option={option} />
+              return inline ? (
+                <span
+                  key={optionId}
+                  className="rounded-sm px-2 text-sm whitespace-nowrap"
+                  style={{
+                    background: SelectField.getColorValue(
+                      option?.color || SelectField.defaultColor,
+                      theme as any
+                    ),
+                  }}
+                >
+                  {option.name}
+                </span>
+              ) : (
+                <SelectOptionItem
+                  key={optionId}
+                  theme={theme}
+                  option={option}
+                />
+              )
             })}
           </div>
         ) : (
-          <EmptyValue />
+          <div 
+            className="flex h-full w-full items-center px-2"
+            onKeyDown={handleKeyDown}
+            onClick={() => setIsPopoverOpen(true)}
+            tabIndex={0}
+          >
+            <EmptyValue />
+          </div>
         )}
       </PopoverTrigger>
       <PopoverContent
         // z-index 10000 > gdg editor portal z index
-        className="click-outside-ignore z-[10000] w-[300px] p-0"
+        className={cn(
+          "click-outside-ignore z-[10000] min-w-[250px] p-0",
+          inline ? "w-full" : "w-full max-w-[300px]"
+        )}
         align="start"
-        sideOffset={-32}
+        sideOffset={-28}
         asChild={true}
       >
         <Command value={currentSelect} onValueChange={setCurrentSelect}>
-          <div className="flex w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
-            <div className="flex flex-wrap gap-2 px-2">
+          <div className="flex w-full rounded-md bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
+            <div className="flex flex-wrap gap-1 px-2">
               {allOptions.map((option) => (
                 <div
                   key={option.id}
-                  className="flex h-6 items-center gap-2 truncate rounded-sm px-2 text-sm"
+                  className="flex h-5 items-center gap-1 truncate rounded-sm px-1.5 text-xs"
                   style={{
                     background: SelectField.getColorValue(
                       option.color,
@@ -152,27 +209,37 @@ export const MultiSelectEditor = ({
                   {option.name}
                   <XIcon
                     onClick={clickRemoveOption}
-                    className="h-3 w-3 cursor-pointer opacity-60"
+                    className="h-2.5 w-2.5 cursor-pointer opacity-60"
                     data-id={option.id}
                   />
                 </div>
               ))}
-              <CommandInput
+              {/* <CommandInput
                 onKeyDown={handleBackspace}
                 value={inputValue}
                 onValueChange={setInputValue}
+                className="w-full"
                 autoFocus
-              />
+              /> */}
+              <div className="[&_[cmdk-input-wrapper]_svg]:hidden [&_[cmdk-input-wrapper]]:border-none">
+                <CommandInput
+                  onKeyDown={handleBackspace}
+                  value={inputValue}
+                  onValueChange={setInputValue}
+                  className="border-none p-0 focus:ring-0 focus-visible:ring-0 h-5 text-xs"
+                  autoFocus
+                />
+              </div>
             </div>
           </div>
-          <div
-            className={cn("max-h-[400px]", {
-              "overflow-y-scroll": allOptions.length * 32 > 400,
+          <CommandList
+            className={cn("max-h-[300px]", {
+              "overflow-y-scroll": options.length * 28 > 300,
             })}
           >
             <CommandEmpty>Create option</CommandEmpty>
             <CommandGroup className="h-full border-t">
-              {allOptions.map((option) => (
+              {options.map((option) => (
                 <CommandItem
                   key={option.id}
                   value={option.name}
@@ -184,21 +251,28 @@ export const MultiSelectEditor = ({
                 </CommandItem>
               ))}
               {Boolean(inputValue.length) &&
-                allOptions.findIndex((item) => item.name == inputValue) ==
-                  -1 && (
+                options.findIndex((item) => item.name == inputValue) == -1 && (
                   <CommandItem
-                    autoFocus
                     key={inputValue}
                     value={inputValue}
+                    className="flex items-center gap-2"
                     onSelect={(currentValue) => {
                       handleSelect(currentValue)
                     }}
                   >
-                    Create {inputValue}
+                    <span>Create</span>
+                    <SelectOptionItem
+                      theme={theme}
+                      option={{
+                        id: inputValue,
+                        name: inputValue,
+                        color: "default",
+                      }}
+                    />
                   </CommandItem>
                 )}
             </CommandGroup>
-          </div>
+          </CommandList>
         </Command>
       </PopoverContent>
     </Popover>

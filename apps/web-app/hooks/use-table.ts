@@ -19,7 +19,8 @@ import {
 
 import type { IField } from "@/packages/core/types/IField"
 import { useSqlWorker } from "./use-sql-worker"
-import { useSqliteStore } from "./use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
+import { useNodeStore } from "@/apps/web-app/store/node-store"
 import { useUiColumns } from "./use-ui-columns"
 
 export const useTableFields = (tableIdOrName: string | undefined) => {
@@ -52,7 +53,8 @@ export const useTableViews = (tableId: string, databaseName?: string) => {
 
 export const useTableOperation = (tableName: string, databaseName: string) => {
   const sqlite = useSqlWorker()
-  const { setViews, setNode, setRows, cleanFieldData } = useSqliteStore()
+  const { setViews, setRows, cleanFieldData } = useSqliteStore()
+  const { setNode } = useNodeStore()
   const tableId = getTableIdByRawTableName(tableName)
   const rowMap = useSqliteStore(
     (state) => state.dataStore.tableMap?.[tableId]?.rowMap || {}
@@ -64,7 +66,10 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
   const updateViews = useCallback(async () => {
     if (!sqlite) return
 
-    const res = await sqlite.listViews(tableId)
+    const res = await sqlite.view.list({ table_id: tableId }, {
+      order: 'ASC',
+      orderBy: 'position'
+    })
     setViews(tableId, res)
   }, [setViews, sqlite, tableId])
 
@@ -83,9 +88,9 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
         })
       }
       if (fieldId === "title") {
-        const node = await sqlite.getTreeNode(shortenId(rowId))
+        const node = await sqlite.tree.getNode(shortenId(rowId))
         if (node) {
-          await sqlite.updateTreeNodeName(node.id, value)
+          await sqlite.tree.updateNodeName(node.id, value)
           setNode({
             id: node.id,
             name: value,
@@ -109,13 +114,13 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
   const changeFieldType = async (field: IField, newType: FieldType) => {
     if (!sqlite) return
     const tableColumnName = field.table_column_name
-    await sqlite.changeColumnType(tableName, tableColumnName, newType)
+    await sqlite.column.changeType(tableName, tableColumnName, newType)
     await updateUiColumns()
   }
 
   const updateFieldProperty = async (field: IField, property: any) => {
     if (!sqlite) return
-    await sqlite.updateColumnProperty({
+    await sqlite.column.updateProperty({
       tableName,
       tableColumnName: field.table_column_name,
       property,

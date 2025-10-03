@@ -36,7 +36,7 @@ import {
 import { useTableFields } from "@/apps/web-app/hooks/use-table"
 
 import { useColumns } from "../views/grid/hooks/use-col"
-import { useTableAppStore } from "../views/grid/store"
+import { useTableStore } from "../table-store-provider"
 import { FieldNameEdit } from "./field-name-edit"
 
 interface IFieldEditorDropdownProps {
@@ -56,7 +56,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     currentUiColumn,
     setCurrentUiColumn,
     setFieldInsertPosition,
-  } = useTableAppStore()
+  } = useTableStore()
 
   const { isView } = useContext(TableContext)
   const isOpen = menu !== undefined
@@ -64,11 +64,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const ref2 = useRef<HTMLDivElement>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [currentColIndex, setCurrentColIndex] = useState<number>()
-  const { currentView } = useCurrentView<IGridViewProperties>({
-    space: databaseName,
-    tableName: tableName,
-    viewId: props.view?.id,
-  })
+  const { currentView } = useCurrentView<IGridViewProperties>()
   const { addSort, freezeColumn, updateView } = useViewOperation()
   const inputRef = useRef<HTMLInputElement>(null)
   const { fields } = useTableFields(tableName)

@@ -17,15 +17,6 @@ import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
 // extensions
 import RootLayout from "@/apps/web-app/pages/layout"
 import { LandingPage } from "@/apps/web-app/pages/page"
-import SettingsAIPage from "@/apps/web-app/pages/settings/ai/page"
-import SettingsApiPage from "@/apps/web-app/pages/settings/api/page"
-import SettingsAppearancePage from "@/apps/web-app/pages/settings/appearance/page"
-import { BackupSettings } from "@/apps/web-app/pages/settings/backup/page"
-import SettingsExperimentPage from "@/apps/web-app/pages/settings/experiment/page"
-import SettingsPage from "@/apps/web-app/pages/settings/general/page"
-// settings
-import SettingsLayout from "@/apps/web-app/pages/settings/layout"
-import SettingsStoragePage from "@/apps/web-app/pages/settings/storage/page"
 import ShareNodePage from "@/apps/web-app/pages/share/[database]/[table]/page"
 import ShareLayout from "@/apps/web-app/pages/share/[database]/layout"
 // share
@@ -37,16 +28,11 @@ import { BlocksPage } from "./[database]/blocks/page"
 import { ExtensionDetailPage } from "./[database]/extensions/detail"
 import { ExtensionsEmptyState } from "./[database]/extensions/empty-state"
 import { ExtensionsLayout } from "./[database]/extensions/layout"
-import { ScriptPage } from "./[database]/extensions/page"
 import { SpaceSetting } from "./[database]/settings/page"
 import { DocEditor } from "./eidtor/doc"
 import { ErrorBoundary } from "./error"
 import { LabPage } from "./lab"
 import { LicenseManagePage } from "./license-manage/page"
-import { SettingsAILayout } from "./settings/ai/layout"
-import { ProviderPage } from "./settings/ai/provider/page"
-import SettingsApiKeyPage from "./settings/api-key/page"
-import { DevtoolsPage } from "./settings/dev/page"
 
 // Create a wrapper component that includes QueryParamProvider
 const AppWithQueryParams = () => (
@@ -76,63 +62,6 @@ const router = createBrowserRouter([
       {
         path: "lab",
         element: <LabPage />,
-      },
-      {
-        path: "settings",
-        element: <SettingsLayout />,
-        children: [
-          {
-            index: true,
-            element: <SettingsPage />,
-          },
-          {
-            path: "dev",
-            element: <DevtoolsPage />,
-          },
-          {
-            path: "storage",
-            element: <SettingsStoragePage />,
-          },
-          {
-            path: "api",
-            element: <SettingsApiPage />,
-          },
-          {
-            path: "api-key",
-            element: <SettingsApiKeyPage />,
-          },
-          {
-            path: "ai",
-            element: <SettingsAILayout />,
-            children: [
-              {
-                index: true,
-                element: <SettingsAIPage />,
-              },
-              {
-                path: "provider",
-                children: [
-                  {
-                    path: ":providerId",
-                    element: <ProviderPage />, // /settings/ai/provider/:providerId 的目标组件
-                  },
-                ],
-              },
-            ],
-          },
-          {
-            path: "appearance",
-            element: <SettingsAppearancePage />,
-          },
-          {
-            path: "experiment",
-            element: <SettingsExperimentPage />,
-          },
-          {
-            path: "backup",
-            element: <BackupSettings />,
-          },
-        ],
       },
       {
         path: ":database",
@@ -191,7 +120,7 @@ const router = createBrowserRouter([
                   if (!(window as any)?.sqlite) {
                     return null
                   }
-                  return await (window as any)?.sqlite?.getScript(
+                  return await (window as any)?.sqlite?.extension.get(
                     params.scriptId
                   )
                 },

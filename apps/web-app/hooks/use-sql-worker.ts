@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react"
 
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
-import { useSqliteStore } from "./use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 export const useSqlWorker = () => {
   const { sqliteProxy: sqlWorker } = useSqliteStore()

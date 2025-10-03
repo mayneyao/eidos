@@ -56,7 +56,7 @@ export const ViewFilterGroupEditor = ({
       {_value?.operands.map((operand, index) => {
         return (
           <React.Fragment key={index}>
-            {index === 0 && <div>{t("table.view.where")}</div>}
+            {index === 0 && <div className="text-xs text-muted-foreground">{t("table.view.where")}</div>}
             {index === 1 && (
               <OpSelector
                 value={parentOperator}
@@ -64,7 +64,7 @@ export const ViewFilterGroupEditor = ({
               />
             )}
             {index > 1 && (
-              <div className="text-center text-sm">{parentOperator}</div>
+              <div className="text-center text-xs text-muted-foreground">{parentOperator}</div>
             )}
             <ViewFilterEditor
               value={operand as IFilterValue}
@@ -76,7 +76,7 @@ export const ViewFilterGroupEditor = ({
             ></ViewFilterEditor>
             <Trash2Icon
               onClick={() => handleDelete(index)}
-              className="m-1 h-4 w-4 cursor-pointer opacity-70"
+              className="m-0.5 h-3 w-3 cursor-pointer opacity-70 hover:opacity-100"
             ></Trash2Icon>
           </React.Fragment>
         )
@@ -99,13 +99,13 @@ export const OpSelector = ({
         <SelectValue placeholder="Field" />
       </SelectTrigger>
       <SelectContent position="popper">
-        <SelectItem value={BinaryOperator.And} className="pl-2">
-          <span className="flex items-center gap-2 text-sm">
+        <SelectItem value={BinaryOperator.And} className="pl-1.5">
+          <span className="flex items-center gap-1.5 text-xs">
             {t("table.view.and")}
           </span>
         </SelectItem>
-        <SelectItem value={BinaryOperator.Or} className="pl-2">
-          <span className="flex items-center gap-2 text-sm">
+        <SelectItem value={BinaryOperator.Or} className="pl-1.5">
+          <span className="flex items-center gap-1.5 text-xs">
             {t("table.view.or")}
           </span>
         </SelectItem>

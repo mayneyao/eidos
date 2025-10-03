@@ -1,9 +1,11 @@
 import { ExtensionTableName } from "../sqlite/const";
 import { createAllTriggersForFields } from "../sqlite/sql-meta-table-trigger";
 import type {
+  DocActionMeta,
   ExtensionStatus,
   IBindings,
   IExtension,
+  TableActionMeta,
   TableViewMeta,
   UDFMeta,
 } from "../types/IExtension";
@@ -125,6 +127,39 @@ export class ExtensionTable
       await Promise.all(chatIds.map(chatId => this.dataSpace.chat.del(chatId)))
     })
     return true
+  }
+
+  /**
+   * Batch get extensions by IDs
+   * @param ids Array of extension IDs
+   * @returns Record mapping ID to extension data (or null if not found)
+   */
+  async getBatch(ids: string[]): Promise<Record<string, IExtension | null>> {
+    if (ids.length === 0) {
+      return {}
+    }
+
+    // Create placeholders for the IN clause
+    const placeholders = ids.map(() => '?').join(',')
+    const sql = `SELECT * FROM ${this.name} WHERE id IN (${placeholders})`
+    
+    const res = await this.dataSpace.exec2(sql, ids)
+    
+    // Create a map of results
+    const result: Record<string, IExtension | null> = {}
+    
+    // Initialize all requested IDs as null
+    ids.forEach(id => {
+      result[id] = null
+    })
+    
+    // Fill in the found extensions
+    res.forEach((item: any) => {
+      const extension = this.toJson(item)
+      result[extension.id] = extension
+    })
+    
+    return result
   }
 
   async enable(id: string): Promise<boolean> {
@@ -249,59 +284,40 @@ export class ExtensionTable
    * Get Tool extensions by status
    */
   async getToolExtensions(status: ExtensionStatus = "enabled"): Promise<IExtension[]> {
-    const params: any[] = ['script', 'tool']
-    let sql = `
-      SELECT * FROM ${this.name}
-      WHERE type = ?
-      AND meta IS NOT NULL
-      AND meta != ''
-      AND JSON_VALID(meta) = 1
-      AND JSON_EXTRACT(meta, '$.type') = ?
-    `
-
-    if (status === "enabled") {
-      sql += " AND enabled = ?"
-      params.push(1)
-    } else if (status === "disabled") {
-      sql += " AND enabled = ?"
-      params.push(0)
-    }
-
-    const res = await this.dataSpace.exec2(sql, params)
-    return res.map((item: any) => this.toJson(item))
+    return this.getScriptExtensionsByType('tool', status)
   }
 
   /**
    * Get TableAction extensions by status
    */
-  async getTableActionExtensions(status: ExtensionStatus = "enabled"): Promise<IExtension[]> {
-    const params: any[] = ['script', 'tableAction']
-    let sql = `
-      SELECT * FROM ${this.name}
-      WHERE type = ?
-      AND meta IS NOT NULL
-      AND meta != ''
-      AND JSON_VALID(meta) = 1
-      AND JSON_EXTRACT(meta, '$.type') = ?
-    `
+  async getTableActionExtensions(status: ExtensionStatus = "enabled"): Promise<IExtension<TableActionMeta>[]> {
+    return this.getScriptExtensionsByType('tableAction', status) as Promise<IExtension<TableActionMeta>[]>
+  }
 
-    if (status === "enabled") {
-      sql += " AND enabled = ?"
-      params.push(1)
-    } else if (status === "disabled") {
-      sql += " AND enabled = ?"
-      params.push(0)
-    }
-
-    const res = await this.dataSpace.exec2(sql, params)
-    return res.map((item: any) => this.toJson(item))
+  /**
+   * Get DocAction extensions by status
+   */
+  async getDocActionExtensions(status: ExtensionStatus = "enabled"): Promise<IExtension<DocActionMeta>[]> {
+    return this.getScriptExtensionsByType('docAction', status) as Promise<IExtension<DocActionMeta>[]>
   }
 
   /**
    * Get UDF (User Defined Function) extensions by status
    */
   async getUDFExtensions(status: ExtensionStatus = "enabled"): Promise<IExtension<UDFMeta>[]> {
-    const params: any[] = ['script', 'udf']
+    return this.getScriptExtensionsByType('udf', status) as Promise<IExtension<UDFMeta>[]>
+  }
+
+  // ========== Private Helper Methods ==========
+
+  /**
+   * Generic method to get script extensions by type and status
+   */
+  private async getScriptExtensionsByType(
+    scriptType: string,
+    status: ExtensionStatus = "enabled"
+  ): Promise<IExtension[]> {
+    const params: any[] = ['script', scriptType]
     let sql = `
       SELECT * FROM ${this.name}
       WHERE type = ?

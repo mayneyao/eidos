@@ -11,11 +11,14 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { BlockApp } from "@/components/block-renderer/block-app"
+import { DevTools } from "@/components/dev-tools"
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
+import { NodeAppPanel } from "@/components/nav/node-app-panel"
 import { RightPanelNav } from "@/components/nav/right-panel-nav"
+import { TempPanel } from "@/components/nav/temp-panel"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
@@ -36,7 +39,8 @@ const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 export function DesktopSpaceLayout() {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
-  const { isRightPanelOpen, currentApp, resetCurrentApp } = useSpaceAppStore()
+  const { isRightPanelOpen, currentApp, resetCurrentApp, tempPanelNode } =
+    useSpaceAppStore()
   const navigate = useNavigate()
   const { isActivated } = useActivation()
   const isBlocksPath = isStandaloneBlocksPath(useLocation().pathname)
@@ -151,14 +155,14 @@ export function DesktopSpaceLayout() {
                 <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
                 <ResizablePanel
                   defaultSize={rightPanelSize}
-                  minSize={35}
+                  minSize={20}
                   maxSize={50}
                   className="min-w-[450px]"
                   onResize={(size) => setRightPanelSize(size)}
                 >
                   <div
                     className={cn(
-                      "mx-3 flex justify-end !h-[38px] items-center shrink-0",
+                      "px-1 flex justify-end h-[38px] items-center shrink-0 border-b",
                       {
                         "pr-[100px]": isWindowsDesktop && isRightPanelOpen,
                       }
@@ -167,18 +171,27 @@ export function DesktopSpaceLayout() {
                     <RightPanelNav />
                   </div>
                   <div
-                    className="grow border-t h-[calc(100%-38px)] overflow-y-auto"
+                    className="grow  h-[calc(100%-38px)] overflow-y-auto"
                     ref={rightPanelRef}
                   >
-                    {currentApp === "chat" && (
-                      <Suspense fallback={<Loading />}>
-                        <AIChat />
-                      </Suspense>
-                    )}
-                    {isCurrentAppABlock && (
-                      <Suspense fallback={<Loading />}>
-                        <BlockApp url={currentApp} height={size?.height} />
-                      </Suspense>
+                    {tempPanelNode ? (
+                      <TempPanel />
+                    ) : (
+                      <>
+                        {currentApp === "chat" && (
+                          <Suspense fallback={<Loading />}>
+                            <AIChat />
+                          </Suspense>
+                        )}
+                        {isCurrentAppABlock && (
+                          <Suspense fallback={<Loading />}>
+                            <BlockApp url={currentApp} height={size?.height} />
+                          </Suspense>
+                        )}
+                        {currentApp && currentApp.startsWith("node://") && (
+                          <NodeAppPanel />
+                        )}
+                      </>
                     )}
                   </div>
                 </ResizablePanel>

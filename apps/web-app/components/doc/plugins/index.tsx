@@ -23,9 +23,11 @@ import AdvancedListPlugin from "./DraggableBlockPlugin/advanced-list"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { PrettierPlugin } from "./PrettierPlugin"
+import { PropertyNavigationPlugin } from "./PropertyNavigationPlugin/PropertyNavigationPlugin"
 import { ShortcutPlugin } from "./ShortcutPlugin"
 import TableCellResizer from "./TableCellResizer"
 import TableHoverActionsPlugin from "./TableHoverActionsPlugin"
+import { HashNavigationPlugin } from "./HashNavigationPlugin"
 import { allTransformers } from "./const"
 
 export const AllPlugins = ({
@@ -65,11 +67,13 @@ export const AllPlugins = ({
       <CheckListPlugin />
       <AIToolsPlugin />
       <LinkPlugin />
+      <PropertyNavigationPlugin />
       <ShortcutPlugin />
       <AutoLinkPlugin />
       <DragDropPaste />
       <ClickableLinkPlugin />
       <ComponentPickerMenuPlugin />
+      <HashNavigationPlugin />
       <MarkdownShortcutPlugin transformers={__allTransformers} />
       <FloatingLinkEditorPlugin />
       {BuiltInBlocks.map((block) => (

@@ -140,6 +140,14 @@ export const useDocumentKeyboardShortcuts = () => {
       key: "--- + Space",
       description: t('kbd.shortcuts.document.horizontalRuleDescription'),
     },
+    {
+      key: "Option + ↑/↓",
+      description: t('kbd.shortcuts.document.optionArrowDescription'),
+    },
+    {
+      key: "Shift + Option + ↑/↓",
+      description: t('kbd.shortcuts.document.shiftOptionArrowDescription'),
+    },
   ];
 };
 
@@ -182,6 +190,26 @@ export const useCommonKeyboardShortcuts = () => {
     {
       key: "Ctrl/Cmd + ,",
       description: t('kbd.shortcuts.common.openSettingsDescription'),
+    },
+    {
+      key: "Shift + Ctrl/Cmd + C",
+      description: t('kbd.shortcuts.common.copyUrlDescription'),
+    },
+    {
+      key: "Ctrl/Cmd + 1",
+      description: t('kbd.shortcuts.common.switchToNodesDescription'),
+    },
+    {
+      key: "Ctrl/Cmd + 2",
+      description: t('kbd.shortcuts.common.switchToExtensionsDescription'),
+    },
+    {
+      key: "Ctrl/Cmd + 3",
+      description: t('kbd.shortcuts.common.switchToTodayDescription'),
+    },
+    {
+      key: "Ctrl/Cmd + 4-9",
+      description: t('kbd.shortcuts.common.switchToBlockDescription', { index: "4-9" }),
     },
   ];
 };

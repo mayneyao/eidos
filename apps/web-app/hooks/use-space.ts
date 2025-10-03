@@ -8,7 +8,8 @@ import { SpaceFileSystem } from "@/lib/storage/space"
 import { uuidv7 } from "@/lib/utils"
 
 import { isDesktopMode } from "@/lib/env"
-import { useSqlite, useSqliteStore } from "./use-sqlite"
+import { useSqlite } from "./use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 // Space File System Store
 interface SpaceFileSystemState {

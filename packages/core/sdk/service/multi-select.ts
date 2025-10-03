@@ -22,7 +22,7 @@ export class MultiSelectFieldService {
       selectFieldInstance.cellData2RawData(cellValue)
 
     if (shouldUpdateColumnProperty) {
-      await this.dataSpace.updateColumnProperty({
+      await this.dataSpace.column.updateProperty({
         tableColumnName: field.table_column_name,
         tableName: field.table_name,
         property: selectFieldInstance.column.property,

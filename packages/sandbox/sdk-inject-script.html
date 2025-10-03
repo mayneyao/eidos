@@ -234,6 +234,7 @@
               "extNode",
               "theme",
               "dataView",
+              "kv",
             ].includes(method)
           ) {
             return new Proxy(
@@ -289,7 +290,7 @@
             console.log("send via postMessage", data)
             window.parent.postMessage(
               {
-                type: "rpcCall",
+                type: "scriptCallMain",
                 data,
               },
               "*",
@@ -328,7 +329,7 @@
               setTimeout(() => {
                 if (simulatedPort.onmessage) {
                   simulatedPort.onmessage({
-                    data: { type: "rpcCallResp", data: data },
+                    data: { type: "scriptCallMainResp", data: data },
                   })
                 }
               }, 0)
@@ -385,24 +386,27 @@
         if (prop === "script") {
           return {
             call: (...args) => {
-              return createFunction("callScript")(...args)
+              return createFunction("script", "callScript")(...args)
             },
           }
         }
         if (prop === "AI" || prop === "ai") {
           return {
             generateText: (...args) => {
-              return createFunction("generateText")(...args)
+              return createFunction("AI", "generateText")(...args)
+            },
+            generateObject: (...args) => {
+              return createFunction("AI", "generateObject")(...args)
             },
           }
         }
         if (prop === "utils") {
           return {
             tableHighlightRow: (...args) => {
-              return createFunction("tableHighlightRow")(...args)
+              return createFunction("utils", "tableHighlightRow")(...args)
             },
             fetchBlob: (...args) => {
-              return createFunction("fetchBlob")(...args)
+              return createFunction("utils", "fetchBlob")(...args)
             },
           }
         }

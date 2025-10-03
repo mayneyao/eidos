@@ -1,6 +1,6 @@
 import { useMemo } from "react"
-
 import type { IField } from "@/packages/core/types/IField"
+
 import { cn } from "@/lib/utils"
 
 import { useRowDataOperation } from "../../../doc-property/hook"
@@ -93,7 +93,7 @@ export const DataCard = ({
           )}
           <div className="prose p-[8px] dark:prose-invert">
             <div
-              className={cn("h-[36px] truncate font-medium", {
+              className={cn("h-[36px] truncate font-medium px-2", {
                 hidden: isView,
               })}
               title={item?.[titleField]}
@@ -128,8 +128,9 @@ export const DataCard = ({
                               handleChange(uiColumn.table_column_name, _value)
                             }
                           }}
-                          className="flex h-8 w-full min-w-[100px] cursor-pointer items-center rounded-sm px-1 hover:bg-none"
+                          className="flex h-8 w-full min-w-[100px] max-w-[300px] cursor-pointer items-center rounded-sm px-1 hover:bg-none"
                           disableTextBaseEditor
+                          inline
                         />
                       </div>
                     </TooltipTrigger>

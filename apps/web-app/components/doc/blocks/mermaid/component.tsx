@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import html2canvas from "html2canvas"
-import type { NodeKey } from "lexical";
-import { $getNodeByKey } from "lexical"
+import { $getNodeByKey, type NodeKey } from "lexical"
 import { ChevronDown } from "lucide-react"
 import { useTheme } from "next-themes"
 
@@ -79,7 +77,9 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
             const svgText = mermaidRef.innerHTML
             await navigator.clipboard.writeText(svgText)
           } else {
-            const canvas = await html2canvas(mermaidRef as HTMLElement)
+            const canvas = await import("html2canvas").then((module) =>
+              module.default(mermaidRef as HTMLElement)
+            )
             canvas.toBlob((blob) => {
               if (blob) {
                 const item = new ClipboardItem({ [`image/${format}`]: blob })

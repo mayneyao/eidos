@@ -4,6 +4,7 @@ export enum FieldType {
   Title = "title",
   Checkbox = "checkbox",
   Date = "date",
+  DateTime = "datetime",
   File = "file",
   MultiSelect = "multi-select",
   Rating = "rating",
@@ -18,6 +19,7 @@ export enum FieldType {
   LastEditedTime = "last-edited-time",
   LastEditedBy = "last-edited-by",
 }
+
 
 export enum FieldValueType {
   String = "string",
@@ -45,6 +47,10 @@ export const FIELD_VALUE_TYPE_MAP = {
   [FieldType.Date]: {
     valueType: FieldValueType.String,
     example: "2024-03-20",
+  },
+  [FieldType.DateTime]: {
+    valueType: FieldValueType.String,
+    example: "2024-03-20 10:30:00",
   },
   [FieldType.File]: {
     valueType: FieldValueType.String,

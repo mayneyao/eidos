@@ -1,79 +1,74 @@
+import { useMemo } from "react"
 import type { ITreeNode} from "@/packages/core/types/ITreeNode";
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 
-import { useSqlite, useSqliteStore } from "./use-sqlite"
+import { useSqlite } from "./use-sqlite"
+import { useNodeStore } from "@/apps/web-app/store/node-store"
 
 export const useAllNodes = (opts?: {
   isDeleted?: boolean
   parent_id?: string
   type?: ITreeNode["type"] | ITreeNode["type"][]
 }) => {
-  const { nodeIds, nodeMap } = useSqliteStore((state) => state.dataStore)
+  const { nodeIds, nodeMap } = useNodeStore()
   const { isDeleted = false, type, parent_id } = opts || {}
-  const types = type
-    ? Array.isArray(type)
-      ? type
-      : [type]
-    : [TreeNodeType.Table, TreeNodeType.Doc, TreeNodeType.Folder, TreeNodeType.Dataview]
+  
+  return useMemo(() => {
+    const types = type
+      ? Array.isArray(type)
+        ? type
+        : [type]
+      : [TreeNodeType.Table, TreeNodeType.Doc, TreeNodeType.Folder, TreeNodeType.Dataview]
 
-  if (isDeleted) {
+    if (isDeleted) {
+      return nodeIds
+        .map((id) => nodeMap[id])
+        .filter((node): node is ITreeNode => 
+          node !== undefined && 
+          Boolean(node.is_deleted) && 
+          (types.includes(node.type) || node.type.startsWith('ext__'))
+        )
+    }
+    
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node) => node.is_deleted && (types.includes(node.type) || node.type.startsWith('ext__')))
-  }
-  return nodeIds
-    .map((id) => nodeMap[id])
-    .filter(
-      (node) =>
+      .filter((node): node is ITreeNode =>
+        node !== undefined &&
         (types.includes(node.type) || node.type.startsWith('ext__')) &&
-        !node.is_deleted &&
+        !Boolean(node.is_deleted) &&
         (parent_id ? node.parent_id === parent_id : true)
-    )
+      )
+  }, [nodeIds, nodeMap, isDeleted, type, parent_id])
 }
 
 export const useNode = () => {
   const { sqlite } = useSqlite()
-  const {
-    setNode,
-    dataStore: { nodeMap },
-  } = useSqliteStore()
+  const { addNode, delNode } = useNodeStore()
 
   const updateIcon = async (id: string, icon: string) => {
     await sqlite?.tree.set(id, {
       icon,
     })
-    setNode({
-      id,
-      icon,
-    })
+    // State will be updated automatically via database triggers
   }
 
   const updatePosition = async (id: string, position: number) => {
-    await sqlite?.updateTreeNodePosition(id, position)
-    setNode({
-      id,
-      position,
-    })
+    await sqlite?.tree.updateNodePosition(id, position)
+    // State will be updated automatically via database triggers
   }
 
   const updateCover = async (id: string, cover: string) => {
     await sqlite?.tree.set(id, {
       cover,
     })
-    setNode({
-      id,
-      cover,
-    })
+    // State will be updated automatically via database triggers
   }
 
   const updateHideProperties = async (id: string, hideProperties: boolean) => {
-    setNode({
-      id,
-      hide_properties: hideProperties,
-    })
     await sqlite?.tree.set(id, {
       hide_properties: hideProperties,
     })
+    // State will be updated automatically via database triggers
   }
 
   const moveIntoTable = async (
@@ -82,11 +77,8 @@ export const useNode = () => {
     parentId?: string
   ) => {
     if (!sqlite) return
-    await sqlite.moveDraftIntoTable(nodeId, tableId, parentId)
-    setNode({
-      id: nodeId,
-      parent_id: tableId,
-    })
+    await sqlite.tree.moveIntoTable(nodeId, tableId, parentId)
+    // State will be updated automatically via database triggers
   }
 
   const updateParentId = async (
@@ -100,12 +92,24 @@ export const useNode = () => {
     if (id == parentId) {
       return
     }
-    const res = await sqlite?.nodeChangeParent(id, parentId, opts)
-    setNode({
-      id,
-      parent_id: parentId,
-      ...(res || {}),
-    })
+    await sqlite?.tree.nodeChangeParent(id, parentId, opts)
+    // State will be updated automatically via database triggers
+  }
+
+  const pin = (id: string) => {
+    if (!sqlite) {
+      return
+    }
+    sqlite?.tree.pinNode(id, true)
+    // State will be updated automatically via database triggers
+  }
+
+  const unpin = (id: string) => {
+    if (!sqlite) {
+      return
+    }
+    sqlite?.tree.pinNode(id, false)
+    // State will be updated automatically via database triggers
   }
 
   return {
@@ -115,5 +119,10 @@ export const useNode = () => {
     updateParentId,
     updateHideProperties,
     moveIntoTable,
+    addNode,
+    delNode,
+    pin,
+    unpin,
   }
 }
+

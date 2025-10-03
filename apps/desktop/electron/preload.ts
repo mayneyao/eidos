@@ -8,7 +8,12 @@ import type { PlaygroundFile } from './file-system/playground';
 import nodeAdapter from './lib/node-adapter';
 import type { ApiAgentStatus } from './server/api-agent';
 
+// AI related
+import { generateText, generateObject } from 'ai';
+import { getProvider } from '@/packages/ai/helper';
+
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void;
+
 
 
 
@@ -35,6 +40,38 @@ const isSpaceExist = async (space: string) => {
 const checkIsDataFolderSet = async () => {
   const dataFolder = await ipcRenderer.invoke('get-config', 'dataFolder')
   return !!dataFolder
+}
+
+const getConfigByModel = async (model: string) => {
+  const aiConfig = await ipcRenderer.invoke('get-ai-config')
+  
+  if (!model?.includes('@')) {
+    throw new Error(`Model ${model} is not valid`)
+  }
+  const [modelId, provider] = model.split('@')
+  const llmProvider = aiConfig.llmProviders.find(
+    (item: any) =>
+      item?.name?.toLowerCase() === provider?.toLowerCase() &&
+      item.enabled
+  )
+  if (llmProvider) {
+    return {
+      baseUrl: llmProvider.baseUrl || '',
+      apiKey: llmProvider.apiKey || '',
+      modelId: modelId || '',
+      type: llmProvider.type,
+    }
+  }
+  throw new Error(`Provider ${provider} not found`)
+}
+
+const getModelByName = async (modelName: string) => {
+  const modelConfig = await getConfigByModel(modelName)
+  return getProvider({
+    apiKey: modelConfig.apiKey,
+    baseUrl: modelConfig.baseUrl,
+    type: modelConfig.type
+  })(modelConfig.modelId)
 }
 
 
@@ -210,13 +247,29 @@ function main() {
           }
         } as Response;
       });
+    },
+    AI: {
+      generateText: async (config: { model: string; prompt: string; [key: string]: any }) => {
+        console.log('preload generateText', config)
+        const { model, ...restConfig } = config
+        const reconstructedModel = await getModelByName(model)
+        
+        return generateText({
+          ...restConfig,
+          model: reconstructedModel
+        })
+      },
+      generateObject: async (config: { model: string; prompt: string; schema: any; [key: string]: any }) => {
+        console.log('preload generateObject', config)
+        const { model, ...restConfig } = config
+        const reconstructedModel = await getModelByName(model)
+        
+        return generateObject({
+          ...restConfig,
+          model: reconstructedModel
+        })
+      }
     }
   })
-
-
-
 }
-
-
-
 main()

@@ -19,6 +19,7 @@ export enum MsgType {
   QueryResp = "QueryResp",
   Notify = "Notify",
   BlockUIMsg = "BlockUIMsg",
+  Navigate = "Navigate",
   DataUpdateSignal = "DataUpdateSignal",
   WebSocketConnected = "WebSocketConnected",
   WebSocketDisconnected = "WebSocketDisconnected",
@@ -45,8 +46,13 @@ export enum MainServiceWorkerMsgType {
 }
 
 export enum EidosDataEventChannelMsgType {
+  // trigger when data of custom table tb_xxx changes
   DataUpdateSignalType = "DataUpdateSignalType",
+  // trigger when schema of custom table tb_xxx or eidos__docs changes
+  SchemaUpdateSignalType = "SchemaUpdateSignalType",
+  // trigger when data of system meta table eidos__xxx changes
   MetaTableUpdateSignalType = "MetaTableUpdateSignalType",
+
 }
 
 export type EidosDataEventChannelMsg = {
@@ -70,6 +76,7 @@ export enum DataUpdateSignalType {
   // just for generated column
   AddColumn = "addColumn",
   UpdateColumn = "updateColumn",
+  DeleteColumn = "deleteColumn",
 }
 
 export const EidosDataEventChannelName = "eidos-data-event"
@@ -77,7 +84,7 @@ export const EidosSharedEnvChannelName = "eidos-shared-env"
 export const EidosMessageChannelName = "eidos-message"
 export const EidosProtocolUrlChannelName = "eidos-protocol-url"
 // TODO: replace hard-coded link
-export const DOMAINS = {
+export const URLS = {
   HOME: "https://eidos.space",
   LINK_PREVIEW: "https://link-preview.eidos.space",
   WIKI: "https://wiki.eidos.space",
@@ -92,6 +99,8 @@ export const DOMAINS = {
 
   // Account Registration
   ACCOUNT_REGISTRATION: "https://eidos.space/auth/register",
+
+  CHANGELOG: "https://eidos.space/changelog",
 }
 
 // custom Event, dispatch via window

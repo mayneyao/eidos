@@ -8,6 +8,9 @@
 <h3>
    An extensible framework for Personal Data Management.
 </h3>
+<p align="center">
+  Transform SQLite into a personal pocket database that everyone can use.
+</p>
 <div align="center">
   <a target="_blank" href="https://eidos.space/download"><img src="https://img.shields.io/badge/download-eidos-cyan.svg?style=flat-square&sanitize=true" /></a>
   <a target="_blank" href="https://discord.gg/cGQqjeFpZq"><img src="https://img.shields.io/badge/chat-on%20discord-7289da.svg?style=flat-square&sanitize=true" /></a>
@@ -16,6 +19,10 @@
   </a>
   <a target="_blank" href="https://github.com/mayneyao/eidos/blob/dev/LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg?style=flat-square&sanitize=true" /></a>
   <a href="https://deepwiki.com/mayneyao/eidos"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+</div>
+
+<div align="center">
+  <a href="./README.md">English</a> | <a href="./README.zh.md">中文文档</a>
 </div>
 
 </div>
@@ -27,10 +34,10 @@
 
 ## Features
 
-- Out-of-the-box Notion-like documents and databases
-- Offline Support: Everything runs inside your local machine. Access your data without an internet connection. Data is stored locally for blazing-fast performance.
-- AI Features: Deeply integrated with LLM for AI-powered capabilities. Translate, summarize, and interact with your data within Eidos.
-- Extensible: Simple and powerful extension system, make Eidos a malleable software, write extension code manually or use AI to generate extension code. Build tools and use tools, unlimited extension.
+- **Personal Data Management**: A comprehensive framework for organizing, storing, and managing your personal data with Notion-like documents and databases
+- **Offline Support**: Everything runs inside your local machine. Access your data without an internet connection. Data is stored locally for blazing-fast performance.
+- **AI Features**: Deeply integrated with LLM for AI-powered capabilities. Translate, summarize, and interact with your data within Eidos.
+- **Extensible**: Simple and powerful extension system, make Eidos a malleable software, write extension code manually or use AI to generate extension code. Build tools and use tools, unlimited extension.
 
   <details>
   <summary>

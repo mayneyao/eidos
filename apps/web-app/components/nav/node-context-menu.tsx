@@ -1,0 +1,50 @@
+import { ArrowLeft, ArrowUpRight } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+
+import { getBlockIdFromUrl, isDayPageId } from "@/lib/utils"
+import { ContextMenuItem } from "@/components/ui/context-menu"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+
+export const NodeContextMenu = ({ url }: { url: string }) => {
+  const navigate = useNavigate()
+  const { space } = useCurrentPathInfo()
+
+  const handleGoToNode = (e: Event) => {
+    e.preventDefault()
+    const id = getBlockIdFromUrl(url)
+    const [nodeIdWithSchema, nodeSpace] = id.split("@")
+    const nodeId = nodeIdWithSchema.split("://")[1]
+
+    // Navigate to the node in the same space
+    if (nodeSpace === space) {
+      if (isDayPageId(nodeId)) {
+        navigate(`/${space}/everyday/${nodeId}`)
+      } else {
+        navigate(`/${space}/${nodeId}`)
+      }
+    }
+  }
+
+  const handleOpenInNewWindow = (e: Event) => {
+    e.preventDefault()
+    const id = getBlockIdFromUrl(url)
+    const [nodeIdWithSchema, nodeSpace] = id.split("@")
+    const nodeId = nodeIdWithSchema.split("://")[1]
+
+    // Open the node in a new window
+    if (isDayPageId(nodeId)) {
+      window.open(`/${nodeSpace}/everyday/${nodeId}`)
+    } else {
+      window.open(`/${nodeSpace}/${nodeId}`)
+    }
+  }
+
+  return (
+    <>
+      <ContextMenuItem onSelect={handleGoToNode}>
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        <span>Go to Node</span>
+      </ContextMenuItem>
+    </>
+  )
+}

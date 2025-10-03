@@ -8,10 +8,10 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { usePeerConnect } from "@/apps/web-app/hooks/use-peer"
-import { useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useCurrentUser } from "@/apps/web-app/hooks/user-current-user"
 import { DatabaseLayoutBase } from "@/apps/web-app/pages/[database]/base-layout"
-import { useConfigStore } from "@/apps/web-app/pages/settings/store"
+import { useConfigStore } from "@/components/settings/stores"
 
 const SwitchProxyWrapper = ({ children, conn }: any) => {
   const { setSqliteProxy } = useSqliteStore()

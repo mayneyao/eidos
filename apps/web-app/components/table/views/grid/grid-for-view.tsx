@@ -1,10 +1,10 @@
-import type {
-  DataEditorProps,
-  DataEditorRef,
-  HeaderClickedEventArgs,
-  Item,
-} from "@glideapps/glide-data-grid";
-import DataEditor from "@glideapps/glide-data-grid"
+import type { IGridViewProperties, IView } from "@/packages/core/types/IView"
+import DataEditor, {
+  type DataEditorProps,
+  type DataEditorRef,
+  type HeaderClickedEventArgs,
+  type Item,
+} from "@glideapps/glide-data-grid"
 
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 
@@ -16,18 +16,15 @@ import React, {
   useMemo,
   useRef,
 } from "react"
-import { Plus } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import type { IGridViewProperties, IView } from "@/packages/core/types/IView"
 import { cn } from "@/lib/utils"
 import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
-import { Button } from "../../../ui/button"
 import { TableContext, useCurrentView } from "../../hooks"
-import { useTableSearchStore } from "../../hooks/use-table-search-store"
 import { useViewCount } from "../../hooks/use-view-count"
+import { useTableSearchStore, useTableStore } from "../../table-store-provider"
 import { customCells } from "./cells"
 import { defaultConfig, getScrollbarWidth } from "./helper"
 import { useAsyncDataForView } from "./hooks/use-async-data-for-view"
@@ -38,7 +35,6 @@ import { ROW_NUMBER_COL_WIDTH, useFreezeLine } from "./hooks/use-freeze-line"
 import { useGridSearch } from "./hooks/use-grid-search"
 import { useHighlightRow } from "./hooks/use-highlight-row"
 import { useHover } from "./hooks/use-hover"
-import { useTableAppStore } from "./store"
 import "./styles.css"
 import { useDynamicTheme } from "./theme"
 
@@ -48,6 +44,7 @@ interface IGridProps {
   view?: IView<IGridViewProperties>
   isEmbed?: boolean
   isEditable?: boolean
+  isPreview?: boolean
   className?: string
 }
 
@@ -66,11 +63,9 @@ export function GridViewForView(props: IGridProps) {
   const r = containerRef.current?.querySelector(".dvn-scroll-inner")
   const hasScroll = r && r?.scrollWidth > r?.clientWidth
 
-  const { currentView } = useCurrentView<IGridViewProperties>({
-    space: databaseName,
-    tableName,
-    viewId: props.view?.id,
-  })
+  const { currentView: _currentView } = useCurrentView<IGridViewProperties>()
+  const currentView = props.view || _currentView
+
   const { count: viewCount } = useViewCount(currentView)
   const { tableSchema, getRowData, getRowDataById } = useTableOperation(
     tableName,
@@ -110,6 +105,7 @@ export function GridViewForView(props: IGridProps) {
     gridRef: glideDataGridRef,
     viewCount,
     view: currentView,
+    isPreview: props.isPreview,
   })
 
   const { customHighlightRegions } = useHighlightRow(
@@ -119,7 +115,7 @@ export function GridViewForView(props: IGridProps) {
   )
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
-    useTableAppStore()
+    useTableStore()
 
   // Get search state from context
   const { searchQuery, showSearch } = useTableSearchStore()
@@ -186,6 +182,7 @@ export function GridViewForView(props: IGridProps) {
     }
   }, [selection])
 
+  const rowMarkersWidth = props.isEmbed ? 0 : ROW_NUMBER_COL_WIDTH
   // Use the new hook
   const {
     freezeHandleRef,
@@ -198,6 +195,7 @@ export function GridViewForView(props: IGridProps) {
     currentView,
     columns, // Pass the columns array from useColumns
     gridRef: containerRef,
+    rowMarkersWidth: rowMarkersWidth,
   })
 
   // Re-introduce the config calculation using freezeColumns from the hook
@@ -205,6 +203,12 @@ export function GridViewForView(props: IGridProps) {
     let conf = {
       ...defaultConfig,
       freezeColumns: freezeColumns, // Use freezeColumns state from the hook
+      ...{
+        rowMarkers: {
+          kind: "both",
+          width: rowMarkersWidth,
+        } as DataEditorProps["rowMarkers"],
+      },
     }
     const sw = getScrollbarWidth()
     if (!hasScroll) {
@@ -218,7 +222,7 @@ export function GridViewForView(props: IGridProps) {
       }
     }
     return conf
-  }, [freezeColumns, hasScroll])
+  }, [freezeColumns, hasScroll, rowMarkersWidth])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
@@ -227,7 +231,7 @@ export function GridViewForView(props: IGridProps) {
   useEffect(() => {
     clearSelection()
   }, [tableName, databaseName, clearSelection])
-  const { menu, setMenu } = useTableAppStore()
+  const { menu, setMenu } = useTableStore()
 
   const onHeaderClicked = React.useCallback(
     (col: number, e: HeaderClickedEventArgs) => {
@@ -260,9 +264,16 @@ export function GridViewForView(props: IGridProps) {
     searchHighlightRegion,
   ])
 
+  if (!columns || columns.length === 0) {
+    return (
+      <div>
+        <div className="flex items-center justify-center h-full w-full"></div>
+      </div>
+    )
+  }
   return (
     <div
-      className={cn("h-full w-full p-2 pt-0", props.className)}
+      className={cn("h-full w-full pt-0", props.className)}
       ref={containerRef}
     >
       <div

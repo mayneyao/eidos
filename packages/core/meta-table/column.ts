@@ -13,7 +13,7 @@ import { getColumnIndexName, getTableIdByRawTableName } from "@/lib/utils"
 
 import type { BaseServerDatabase } from "../sqlite/interface"
 import { TableManager } from "../sdk/table"
-import type { BaseTable} from "./base";
+import type { BaseTable } from "./base";
 import { BaseTableImpl } from "./base"
 
 
@@ -50,6 +50,13 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   FOR EACH ROW
   BEGIN
       SELECT eidos_column_event_update(new.table_name, json_object('name', new.name, 'type', new.type, 'table_name', new.table_name, 'table_column_name', new.table_column_name, 'property', new.property), json_object('name', old.name, 'type', old.type, 'table_name', old.table_name, 'table_column_name', old.table_column_name, 'property', old.property));
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS column_delete_trigger_${ColumnTableName}
+  AFTER DELETE ON ${ColumnTableName}
+  FOR EACH ROW
+  BEGIN
+      SELECT eidos_column_event_delete(old.table_name, json_object('name', old.name, 'type', old.type, 'table_name', old.table_name, 'table_column_name', old.table_column_name, 'property', old.property));
   END;
 `
   JSONFields: string[] = ["property"]

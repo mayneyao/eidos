@@ -1,16 +1,16 @@
 import React, { useContext } from "react"
+import type { FieldType } from "@/packages/core/fields/const"
+import type { IField } from "@/packages/core/types/IField"
 import { useClickAway } from "ahooks"
 import { Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import type { FieldType } from "@/packages/core/fields/const"
-import type { IField } from "@/packages/core/types/IField"
-import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 import { Label } from "@/components/ui/label"
 import { CommonMenuItem } from "@/components/common-menu-item"
+import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 
 import { TableContext } from "../hooks"
-import { useTableAppStore } from "../views/grid/store"
+import { useTableStore } from "../table-store-provider"
 import { FieldDelete } from "./field-delete"
 import { FieldNameEdit } from "./field-name-edit"
 import { FieldTypeSelect } from "./field-type-select"
@@ -62,7 +62,7 @@ export const FieldPropertyEditor = ({
   const { t } = useTranslation()
   const ref = React.useRef<HTMLDivElement>(null)
   const { setIsFieldPropertiesEditorOpen, currentUiColumn: currentField } =
-    useTableAppStore()
+    useTableStore()
   const { updateViewColumn } = useTableOperation(tableName, databaseName)
   const { isView } = useContext(TableContext)
   const handleDeleteField = () => {
@@ -112,13 +112,11 @@ export const FieldPropertyEditor = ({
           <div className="flex-none space-y-2">
             <div className="flex items-center justify-between">
               <Label>{t("common.name")}</Label>
-              <div className="w-[200px]">
-                <FieldNameEdit
-                  field={currentField}
-                  tableName={tableName}
-                  databaseName={databaseName}
-                />
-              </div>
+              <FieldNameEdit
+                field={currentField}
+                tableName={tableName}
+                databaseName={databaseName}
+              />
             </div>
             <div className="flex items-center justify-between">
               <Label>{t("table.fieldType")}</Label>
@@ -129,7 +127,7 @@ export const FieldPropertyEditor = ({
             </div>
             <div className="flex items-center justify-between">
               <Label>{t("table.fieldConfiguration.databaseColumn")}</Label>
-              <div className="w-[200px] rounded border bg-muted px-2 py-1 text-sm text-muted-foreground">
+              <div className="w-[180px] rounded border bg-muted px-2 py-1 text-sm text-muted-foreground">
                 {currentField.table_column_name}
               </div>
             </div>

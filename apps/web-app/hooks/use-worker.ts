@@ -1,16 +1,16 @@
-import React, { useCallback } from "react"
+import React, { lazy, Suspense, useCallback } from "react"
 
-import { Markdown } from "@/components/remix-chat/components/markdown"
+// lazy import markdown
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useToast } from "@/components/ui/use-toast"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { EidosMessageChannelName, MsgType, WORKER_INIT_MESSAGES, WORKER_MESSAGE_TYPES } from "@/lib/const"
 import { getEmbeddingWorker } from "@/lib/embedding/worker"
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { getWorker } from "@/packages/core/sqlite/worker"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
-import { useSqliteStore } from "./use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useThemeStore } from "@/apps/web-app/store/theme-store"
+import { useNavigate } from "react-router-dom"
 import {
   _convertEmail2State,
   _convertHtml2State,
@@ -19,10 +19,13 @@ import {
 } from "./use-doc-editor"
 import { useCurrentUser } from "./user-current-user"
 
+const Markdown = lazy(() => import("@/components/remix-chat/components/markdown"))
+
+
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
+  const navigate = useNavigate()
   const { id: userId } = useCurrentUser()
-  const { } = useSqlite
   const {
     setWebsocketConnected,
     setBlockUIMsg,
@@ -59,8 +62,19 @@ export const useWorker = () => {
         case MsgType.Notify:
           toast({
             title: data.title,
-            description: React.createElement(Markdown, { children: data.description }),
+            description: React.createElement(Suspense, {
+              fallback: React.createElement("div", null, "Loading...")
+            }, React.createElement(Markdown, { children: data.description })),
           })
+          break
+        case MsgType.Navigate:
+          // Get current space from URL params at navigation time
+          const currentUrl = window.location.pathname
+          const urlParts = currentUrl.split('/').filter(Boolean)
+          const currentSpace = urlParts[0]
+          const path = `/${currentSpace}${data}`
+          console.warn("navigate", path, "currentSpace:", currentSpace)
+          navigate(path)
           break
         case MsgType.BlockUIMsg:
           setBlockUIMsg(data.msg)

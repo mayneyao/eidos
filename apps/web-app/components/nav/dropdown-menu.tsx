@@ -9,17 +9,18 @@ import {
   LockIcon,
   LockOpenIcon,
   MailIcon,
+  MessageSquareIcon,
   MoreHorizontal,
   MoveHorizontal,
   PackageIcon,
+  PanelRightIcon,
   Trash2Icon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
-import { DOMAINS } from "@/lib/const"
+import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { isDayPageId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,16 +43,23 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { DiscordIcon } from "@/components/icons/discord"
 import { NodeUpdateTime } from "@/components/nav/node-update-time"
+import { useExperimentConfigStore } from "@/components/settings/stores"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useEmbedding } from "@/apps/web-app/hooks/use-embedding"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useOpenInPlayground } from "@/apps/web-app/hooks/use-open-in-playground"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
-import { useExperimentConfigStore } from "@/apps/web-app/pages/settings/experiment/store"
+import {
+  useAppsStore,
+  useSpaceAppStore,
+} from "@/apps/web-app/pages/[database]/store"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"
@@ -70,6 +78,9 @@ export function NavDropdownMenu() {
   const { deleteNode, toggleNodeFullWidth, toggleNodeLock } = useSqlite()
   const { isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
     useAppRuntimeStore()
+  const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
+  const { addNode } = useContextNodes()
+  const { addApp } = useAppsStore()
 
   const toggleKeyboardShortcuts = () => {
     setKeyboardShortcutsOpen(!isKeyboardShortcutsOpen)
@@ -127,15 +138,25 @@ export function NavDropdownMenu() {
   const toggleCMDK = () => {
     setCmdkOpen(!isCmdkOpen)
   }
-  const goSettings = () => {
-    router("/settings")
-  }
 
   const deleteCurrentNode = () => {
     if (node) {
       deleteNode(node)
       router(`/${space}`)
     }
+  }
+
+  const handleAddToPanel = () => {
+    if (!node) return
+    // Create node app URL in the format node://<nodeid>@<space>
+    const nodeApp = `node://${node.id}@${space}`
+
+    // Add the node app to the apps list
+    addApp(nodeApp)
+
+    // Open right panel and set the current app to the node
+    setIsRightPanelOpen(true)
+    setCurrentApp(nodeApp)
   }
 
   return (
@@ -181,10 +202,10 @@ export function NavDropdownMenu() {
                 <Keyboard className="mr-2 h-4 w-4" />
                 <span>{t("nav.dropdown.menu.keyboardShortcuts")}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={goSettings}>
+              {/* <DropdownMenuItem onSelect={goSettings}>
                 <CogIcon className="mr-2 h-4 w-4" />
                 <span>{t("common.settings")}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem> */}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <Link to="https://github.com/mayneyao/eidos" target="_blank">
@@ -193,13 +214,13 @@ export function NavDropdownMenu() {
                 <span>GitHub</span>
               </DropdownMenuItem>
             </Link>
-            <Link to={DOMAINS.DISCORD_INVITE} target="_blank">
+            <Link to={URLS.DISCORD_INVITE} target="_blank">
               <DropdownMenuItem>
                 <DiscordIcon className="mr-2 h-4 w-4" />
                 <span>Discord</span>
               </DropdownMenuItem>
             </Link>
-            <Link to={DOMAINS.HOME} target="_blank">
+            <Link to={URLS.HOME} target="_blank">
               <DropdownMenuItem>
                 <HomeIcon className="mr-2 h-4 w-4" />
                 <span>{t("nav.dropdown.menu.website")}</span>
@@ -210,7 +231,6 @@ export function NavDropdownMenu() {
               <>
                 {node.type === "doc" && !isDayPageId(node.id) && (
                   <>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="flex justify-between"
                       onClick={(e) => {
@@ -261,6 +281,12 @@ export function NavDropdownMenu() {
                   node={node}
                   openInPlayground={openInPlayground}
                 />
+                {node.type === "dataview" && (
+                  <DropdownMenuItem onClick={handleAddToPanel}>
+                    <PanelRightIcon className="mr-2 h-4 w-4" />
+                    {t("node.menu.addToPanel", "Add to Panel")}
+                  </DropdownMenuItem>
+                )}
                 {node.type === "doc" && !isDayPageId(node.id) && (
                   <>
                     <DropdownMenuSub>
@@ -284,7 +310,7 @@ export function NavDropdownMenu() {
               </>
             )}
             <DropdownMenuSeparator />
-            <Link to={DOMAINS.DOWNLOAD} target="_blank">
+            <Link to={URLS.DOWNLOAD} target="_blank">
               <DropdownMenuItem>
                 <Download className="mr-2 h-4 w-4" />
                 <span>{t("common.download")}</span>

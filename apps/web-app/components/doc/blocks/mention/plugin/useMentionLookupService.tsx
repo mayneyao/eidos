@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
+
 import { getToday, getTomorrow, getYesterday } from "@/lib/utils"
+import { useDocPropertyTypes } from "@/apps/web-app/components/doc-property-global/property-type-hook"
 import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
 
 import { mentionsCache } from "./helper"
@@ -14,6 +15,7 @@ export function useMentionLookupService(
   const [results, setResults] = useState<Array<ITreeNode>>([])
 
   const { queryNodes } = useQueryNode()
+  const { customPropertyTypes } = useDocPropertyTypes()
 
   useEffect(() => {
     const cachedResults = mentionsCache.get(mentionString)
@@ -26,6 +28,8 @@ export function useMentionLookupService(
     mentionString &&
       queryNodes(mentionString ?? "").then((newResults) => {
         let _newResults = [...(newResults || [])] as any[]
+
+        // Add special days
         const specialDays = [
           {
             title: "Today",
@@ -52,6 +56,21 @@ export function useMentionLookupService(
             })
           }
         })
+
+        // Add document properties
+        const matchingProperties = customPropertyTypes.filter((prop) =>
+          prop.name.toLowerCase().includes(mentionString.toLowerCase().trim())
+        )
+        matchingProperties.forEach((prop) => {
+          _newResults.unshift({
+            id: `this#${prop.name}`,
+            name: prop.name,
+            type: "property",
+            mode: "property",
+            propertyType: prop.type,
+          })
+        })
+
         _newResults = _newResults.filter((result) => {
           return result.id !== currentDocId
         })
@@ -66,7 +85,13 @@ export function useMentionLookupService(
         mentionsCache.set(mentionString, _newResults)
         setResults(_newResults ?? [])
       })
-  }, [currentDocId, enabledCreate, mentionString, queryNodes])
+  }, [
+    currentDocId,
+    enabledCreate,
+    mentionString,
+    queryNodes,
+    customPropertyTypes,
+  ])
 
   return results
 }

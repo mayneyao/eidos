@@ -1,4 +1,4 @@
-import type { DataEditorProps} from "@glideapps/glide-data-grid";
+import type { DataEditorProps } from "@glideapps/glide-data-grid";
 import { GridCellKind } from "@glideapps/glide-data-grid"
 
 import { ColumnTableName } from "@/packages/core/sqlite/const"
@@ -16,7 +16,9 @@ export const defaultConfig: Partial<DataEditorProps> = {
   rowHeight: 36,
   headerHeight: 36,
   freezeColumns: 1,
-  rowMarkers: "both",
+  rowMarkers: {
+    kind: "both",
+  },
   trailingRowOptions: {
     tint: false,
     hint: "New",

@@ -187,8 +187,13 @@ export class TableFullTextSearch {
     }
 
     async updateTrigger(tableName: string, toDeleteColumns: string[]) {
-        const hasFTS = await this.hasFTS(tableName);
-        if (!hasFTS) {
+        try {
+            const hasFTS = await this.hasFTS(tableName);
+            if (!hasFTS) {
+                return;
+            }
+        } catch (error) {
+            console.warn(`Skip error updating trigger for table ${tableName}:`, error);
             return;
         }
         const triggerNames = [

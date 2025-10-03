@@ -4,14 +4,14 @@ import { useParams } from "react-router-dom"
 
 import { getFilePreviewImage } from "@/lib/mime/mime"
 import { cn, proxyURL } from "@/lib/utils"
-import { useFileSystem, useFiles } from "@/apps/web-app/hooks/use-files"
-import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
+import { useFileSystem, useFiles } from "@/apps/web-app/hooks/use-files"
+import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 
 export const DefaultColors = [
   "bg-red-500",
@@ -110,58 +110,53 @@ export function FileSelector(props: {
   return (
     <Tabs
       defaultValue={props.hideGallery ? "upload" : "gallery"}
-      className="w-[350px] rounded-lg p-4 shadow sm:w-[550px]"
+      className="w-[320px] rounded-md p-2 sm:w-[480px]"
     >
-      <div className="flex w-full justify-between">
-        <TabsList>
+      <div className="flex w-full justify-between items-center mb-2">
+        <TabsList className="h-8">
           {!props.hideGallery && (
-            <TabsTrigger value="gallery">Gallery</TabsTrigger>
+            <TabsTrigger value="gallery" className="text-xs px-2 py-1">Gallery</TabsTrigger>
           )}
-          {props.showBlock && <TabsTrigger value="block">Block</TabsTrigger>}
-          <TabsTrigger value="upload">Load</TabsTrigger>
-          <TabsTrigger value="url">URL</TabsTrigger>
+          {props.showBlock && <TabsTrigger value="block" className="text-xs px-2 py-1">Block</TabsTrigger>}
+          <TabsTrigger value="upload" className="text-xs px-2 py-1">Load</TabsTrigger>
+          <TabsTrigger value="url" className="text-xs px-2 py-1">URL</TabsTrigger>
         </TabsList>
         {!props.hideRemove && (
-          <Button size="sm" variant="destructive" onClick={props.onRemove}>
+          <Button size="sm" variant="destructive" onClick={props.onRemove} className="h-7 px-2 text-xs">
             Remove
           </Button>
         )}
       </div>
       {!props.hideGallery && (
-        <TabsContent value="gallery">
+        <TabsContent value="gallery" className="mt-0">
           <ScrollArea
             className={cn({
-              "h-[600px]": !props.height,
+              "h-[400px]": !props.height,
               [`h-[${props.height}px]`]: props.height,
             })}
           >
             {!props.disableColor && (
-              <div className="mb-6">
-                <h2 className="mb-3 text-lg font-semibold">Color & Gradient</h2>
-                <div className="grid grid-cols-4 gap-4">
+              <div className="mb-3">
+                <h3 className="mb-2 text-sm font-medium text-muted-foreground">Colors</h3>
+                <div className="grid grid-cols-6 gap-2">
                   {DefaultColors.map((color) => {
                     return (
-                      <AspectRatio
-                        ratio={16 / 9}
+                      <div
+                        className={cn(
+                          "aspect-square cursor-pointer rounded-md border border-border/20",
+                          color
+                        )}
                         key={color}
                         onClick={() => handleSelectColor(color)}
-                      >
-                        <div
-                          className={cn(
-                            "aspect-video cursor-pointer rounded-lg",
-                            color
-                          )}
-                          key={color}
-                        />
-                      </AspectRatio>
+                      />
                     )
                   })}
                 </div>
               </div>
             )}
-            <div className="mb-6">
-              <h2 className="mb-3 text-lg font-semibold">Space Images</h2>
-              <div className="grid grid-cols-4 gap-4">
+            <div>
+              <h3 className="mb-2 text-sm font-medium text-muted-foreground">Images</h3>
+              <div className="grid grid-cols-5 gap-2">
                 {images.map((image) => {
                   const url = efsManager.getFileUrlByPath(image.path, database)
                   const _url = getFilePreviewImage(url)
@@ -170,7 +165,7 @@ export function FileSelector(props: {
                       onClick={() => props.onSelected(url)}
                       key={image.id}
                       alt={image.name}
-                      className="aspect-video cursor-pointer rounded-lg object-cover"
+                      className="aspect-square cursor-pointer rounded-md object-cover border border-border/20"
                       src={_url}
                     />
                   )
@@ -181,18 +176,18 @@ export function FileSelector(props: {
         </TabsContent>
       )}
       {props.showBlock && (
-        <TabsContent value="block">
+        <TabsContent value="block" className="mt-0">
           <ScrollArea
             className={cn({
-              "h-[600px]": !props.height,
+              "h-[400px]": !props.height,
               [`h-[${props.height}px]`]: props.height,
             })}
           >
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-2">
               {allMblocks.map((block) => (
                 <div
                   key={block.id}
-                  className="cursor-pointer rounded-lg border p-2"
+                  className="cursor-pointer rounded-md border border-border/20 p-2 text-sm hover:bg-accent"
                   onClick={() => props.onSelected(`block://${block.id}`)}
                 >
                   {block.name}
@@ -202,39 +197,38 @@ export function FileSelector(props: {
           </ScrollArea>
         </TabsContent>
       )}
-      <TabsContent value="upload" ref={dropRef}>
+      <TabsContent value="upload" ref={dropRef} className="mt-0">
         <div
           className={cn(
-            "flex h-[300px] items-center justify-center rounded-lg border-2 border-dashed",
+            "flex h-[200px] items-center justify-center rounded-md border-2 border-dashed",
             {
-              "border-green-500": isHovering,
-              "border-gray-300": !isHovering,
+              "border-primary": isHovering,
+              "border-border": !isHovering,
             }
           )}
         >
           <div className="text-center">
-            <div className="mb-4 text-lg font-semibold">
-              {props.onlyImage ? "Load local image" : "Load local file"}
+            <div className="mb-2 text-sm font-medium">
+              {props.onlyImage ? "Upload Image" : "Upload File"}
             </div>
-            <div className="mb-4 text-sm">
-              Drag and drop your {props.onlyImage ? "image" : "file"} here or
-              click the button below.
+            <div className="mb-3 text-xs text-muted-foreground">
+              Drag & drop or click to select
             </div>
-            <Button size="sm" onClick={handleSelectLocalFile}>
-              Load
+            <Button size="sm" onClick={handleSelectLocalFile} className="h-7 px-3 text-xs">
+              Browse
             </Button>
           </div>
         </div>
       </TabsContent>
-      <TabsContent value="url">
-        <div className="mt-4 flex h-[60px] gap-2">
+      <TabsContent value="url" className="mt-0">
+        <div className="flex gap-2">
           <Input
-            className="grow rounded-lg border border-gray-300 px-3 py-2"
+            className="grow rounded-md border-border px-2 py-1 text-sm h-8"
             placeholder="https://example.com/image.png"
             id="web-image-url"
           />
-          <Button size="sm" onClick={handleSelectWebFile}>
-            Confirm
+          <Button size="sm" onClick={handleSelectWebFile} className="h-8 px-3 text-xs">
+            Add
           </Button>
         </div>
       </TabsContent>

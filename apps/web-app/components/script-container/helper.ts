@@ -90,7 +90,7 @@ export const callPythonScript = (props: IPythonScriptCallProps): Promise<any> =>
 }
 
 export const callScriptById = async (id: string, input: Record<string, any>, sqlite: DataSpace, scriptContainerRef: any, cmd?: string) => {
-    const script = await sqlite.getScript(id)
+    const script = await sqlite.extension.getExtensionBySlugOrId(id)
 
     const spaceName = await sqlite.getSpaceName()
     if (!script) {

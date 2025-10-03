@@ -4,17 +4,15 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- */
-
-import type { DragEvent as ReactDragEvent} from "react";
-import { useEffect, useRef, useState } from "react"
+ */ import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+} from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { eventFiles } from "@lexical/rich-text"
 import { mergeRegister } from "@lexical/utils"
-import type {
-  LexicalEditor,
-  LexicalNode,
-  NodeKey} from "lexical";
 import {
   $createParagraphNode,
   $createTextNode,
@@ -22,7 +20,10 @@ import {
   $getNodeByKey,
   COMMAND_PRIORITY_HIGH,
   DRAGOVER_COMMAND,
-  DROP_COMMAND
+  DROP_COMMAND,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
 } from "lexical"
 import { Trash2Icon } from "lucide-react"
 import { createPortal } from "react-dom"
@@ -286,7 +287,7 @@ function useDraggableBlockMenu(
     <>
       <div
         ref={menuRef}
-        className="draggable-block-menu flex gap-1"
+        className="draggable-block-menu flex gap-0.5"
         style={{
           position: "absolute",
           pointerEvents: "auto",
@@ -316,17 +317,18 @@ function useDraggableBlockMenu(
             style={{
               touchAction: "none",
               position: "relative",
-              width: "24px",
-              height: "24px",
+              width: "18px",
+              height: "18px",
               display: "block",
             }}
           />
           <DropdownMenuContent
             align="center"
             side="left"
-            className="min-w-[200px]"
+            className="min-w-[180px] p-1"
           >
             <DropdownMenuItem
+              className="px-2 py-1.5 text-sm"
               onSelect={() => {
                 editor.update(() => {
                   if (!currentNodeKey) return
@@ -337,7 +339,7 @@ function useDraggableBlockMenu(
                 })
               }}
             >
-              <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
+              <Trash2Icon className="mr-2 h-3.5 w-3.5"></Trash2Icon>
               <span>Delete</span>
             </DropdownMenuItem>
             {/* {currentNode?.__type == "audio" && (

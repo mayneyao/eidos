@@ -49,7 +49,7 @@ export const CheckForUpdatesButton = ({
     setRemoteCode(null)
     setNewVersionString(null)
     setPendingVersionUpdate(script.id, null) // Clear any previous pending version
-    setUpdateMessage(t("extension.checkForUpdates.checking", "正在检查更新..."))
+    setUpdateMessage(t("extension.checkForUpdates.checking", "Checking for updates..."))
     setDialogOpen(true) // Open dialog when checking starts
 
     try {

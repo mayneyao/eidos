@@ -11,6 +11,8 @@ import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 
 import "@glideapps/glide-data-grid/dist/index.css"
 import React, {
+  Suspense,
+  lazy,
   useCallback,
   useContext,
   useEffect,
@@ -28,8 +30,8 @@ import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { TwinkleSparkle } from "../../../loading"
 import { Button } from "../../../ui/button"
 import { TableContext, useCurrentView } from "../../hooks"
-import { useTableSearchStore } from "../../hooks/use-table-search-store"
 import { useViewCount } from "../../hooks/use-view-count"
+import { useTableSearchStore, useTableStore } from "../../table-store-provider"
 import { customCells } from "./cells"
 import { GridContextMenu } from "./grid-context-menu"
 import { defaultConfig, getScrollbarWidth } from "./helper"
@@ -42,12 +44,14 @@ import { useGridSearch } from "./hooks/use-grid-search"
 import { useHighlightRow } from "./hooks/use-highlight-row"
 import { useHover } from "./hooks/use-hover"
 import { AITools } from "./plugins/ai-tools"
-import { FormulaEditor } from "./plugins/formula-editor"
+// import { FormulaEditor } from "./plugins/formula-editor"
 import { useFormulaEditor } from "./plugins/use-formula-editor"
-import { useTableAppStore } from "./store"
 import "./styles.css"
 import { useUndoRedo } from "./hooks/use-undo-redo"
 import { useDynamicTheme } from "./theme"
+
+// lazy import FormulaEditor
+const FormulaEditor = lazy(() => import("./plugins/formula-editor"))
 
 interface IGridProps {
   tableName: string
@@ -76,11 +80,8 @@ export default function GridView(props: IGridProps) {
   const r = containerRef.current?.querySelector(".dvn-scroll-inner")
   const hasScroll = r && r?.scrollWidth > r?.clientWidth
 
-  const { currentView } = useCurrentView<IGridViewProperties>({
-    space: databaseName,
-    tableName,
-    viewId: props.view?.id,
-  })
+  const { currentView: _currentView } = useCurrentView<IGridViewProperties>()
+  const currentView = props.view || _currentView
   const { count: viewCount } = useViewCount(currentView)
   const { tableSchema, getRowData, getRowDataById } = useTableOperation(
     tableName,
@@ -154,7 +155,7 @@ export default function GridView(props: IGridProps) {
   }, [currentView?.id, reset])
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
-    useTableAppStore()
+    useTableStore()
   const [isAItoolsOpen, setIsAItoolsOpen] = React.useState(false)
 
   const onSelectionChange = useCallback(
@@ -257,6 +258,7 @@ export default function GridView(props: IGridProps) {
     }
   }, [selection])
 
+  const rowMarkersWidth = props.isEmbed ? 0 : ROW_NUMBER_COL_WIDTH
   // Use the new hook
   const {
     freezeHandleRef,
@@ -269,6 +271,7 @@ export default function GridView(props: IGridProps) {
     currentView,
     columns, // Pass the columns array from useColumns
     gridRef: containerRef,
+    rowMarkersWidth,
   })
 
   // Re-introduce the config calculation using freezeColumns from the hook
@@ -276,6 +279,12 @@ export default function GridView(props: IGridProps) {
     let conf = {
       ...defaultConfig,
       freezeColumns: freezeColumns, // Use freezeColumns state from the hook
+      ...{
+        rowMarkers: {
+          kind: props.isEmbed ? "none" : "both",
+          width: rowMarkersWidth,
+        } as DataEditorProps["rowMarkers"],
+      },
     }
     const sw = getScrollbarWidth()
     if (!hasScroll) {
@@ -289,7 +298,7 @@ export default function GridView(props: IGridProps) {
       }
     }
     return conf
-  }, [freezeColumns, hasScroll])
+  }, [freezeColumns, hasScroll, rowMarkersWidth])
 
   useEffect(() => {
     tableSchema && setCurrentTableSchema(tableSchema)
@@ -298,7 +307,7 @@ export default function GridView(props: IGridProps) {
   useEffect(() => {
     clearSelection()
   }, [tableName, databaseName, clearSelection])
-  const { menu, setMenu } = useTableAppStore()
+  const { menu, setMenu } = useTableStore()
 
   const onHeaderClicked = React.useCallback(
     (col: number, e: HeaderClickedEventArgs) => {
@@ -379,9 +388,16 @@ export default function GridView(props: IGridProps) {
     }
   })
 
+  if (!columns || columns.length === 0) {
+    return (
+      <div>
+        <div className="flex items-center justify-center h-full w-full"></div>
+      </div>
+    )
+  }
   return (
     <div
-      className={cn("h-full w-full p-2 pt-0", props.className)}
+      className={cn("h-full w-full pt-0", props.className)}
       ref={containerRef}
     >
       <div
@@ -481,13 +497,21 @@ export default function GridView(props: IGridProps) {
         )}
         <div ref={formulaEditorRef} className="fixed">
           {showEditor && (
-            <FormulaEditor
-              editorRef={editorRef}
-              closeEditor={closeEditor}
-              formulaField={formulaField}
-              uiColumns={uiColumns}
-              rowId={rowId}
-            />
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center p-4">
+                  Loading Formula Editor...
+                </div>
+              }
+            >
+              <FormulaEditor
+                editorRef={editorRef}
+                closeEditor={closeEditor}
+                formulaField={formulaField}
+                uiColumns={uiColumns}
+                rowId={rowId}
+              />
+            </Suspense>
           )}
         </div>
       </div>

@@ -56,7 +56,7 @@ export function getBlockElement(
     if (
         target.tagName === "LI" || 
         target.tagName === "TABLE" || 
-        target.hasAttribute('data-lexical-decorator')
+        (target.hasAttribute('data-lexical-decorator') && target.getAttribute('data-type') !== 'mention')
     ) {
         if (draggedElement && draggedElement.contains(target)) {
             return null
@@ -69,7 +69,7 @@ export function getBlockElement(
         if (
             currentElement.tagName === "LI" || 
             currentElement.tagName === "TABLE" || 
-            currentElement.hasAttribute('data-lexical-decorator')
+            (currentElement.hasAttribute('data-lexical-decorator') && currentElement.getAttribute('data-type') !== 'mention')
         ) {
             if (draggedElement && draggedElement.contains(currentElement)) {
                 return null

@@ -14,7 +14,7 @@ export const UserProfileEditor = ({ value }: IUserProfileEditorProps) => {
     avatar: "",
   }
   return (
-    <div className="not-prose flex items-center gap-2">
+    <div className="not-prose flex h-full w-full items-center px-1 gap-2">
       <Avatar className="h-6 w-6">
         <AvatarImage src={user.avatar} />
         <AvatarFallback>{user.name.slice(0, 1)}</AvatarFallback>

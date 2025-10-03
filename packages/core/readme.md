@@ -86,8 +86,8 @@ const dataSpace = new DataSpace({
 
 // standard meta table api
 const allNodes = await dataSpace.tree.list()
-// alias or wrapper for dataSpace.tree.list()
-const allNodes2 = await dataSpace.listTreeNodes()
+// direct access to tree methods  
+const allNodes2 = await dataSpace.tree.listNodes()
 
 // Query table rows
 await dataSpace.table("tableid").rows.query()

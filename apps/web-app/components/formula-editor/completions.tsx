@@ -1,4 +1,7 @@
-import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete"
+import type {
+  CompletionContext,
+  CompletionResult,
+} from "@codemirror/autocomplete"
 import type { EditorView } from "codemirror"
 import { parse } from "comment-parser"
 
@@ -8,6 +11,7 @@ import { createUdfTooltip } from "./tooltip"
 export interface UiColumn {
   name: string
   type?: string
+  info?: string
 }
 
 export interface Udf {
@@ -26,6 +30,7 @@ export const getCompletions = (uiColumns: UiColumn[], udfs: Udf[]) => {
         label: `${column.name}`,
         type: "variable",
         detail: column.type || "column",
+        info: column.info,
       })
     })
   }

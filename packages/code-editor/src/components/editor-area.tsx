@@ -13,13 +13,13 @@ import { FileType, type EditorRef, type FileModel } from "../types"
 import { createEditorDebounce } from "../utils/debounce"
 
 /**
- * 依赖文件管理 - 仅用于类型推断
+ * Dependency file management - only for type inference
  */
-// 跟踪已添加到 TypeScript 语言服务的库
+// Track libraries added to TypeScript language service
 const addedExtraLibs = new Set<string>()
 
 /**
- * 为依赖文件创建模型，不会影响当前编辑的文件
+ * Create models for dependency files, won't affect currently editing file
  */
 function createModelSafelyForDependency(
   content: string,
@@ -29,7 +29,7 @@ function createModelSafelyForDependency(
 ): monaco.editor.ITextModel {
   const uriString = uri.toString()
 
-  // 如果是当前文件，绝对不要修改其内容
+  // If it's the current file, never modify its content
   if (currentFileUri && uriString === currentFileUri) {
     const existingModel = monaco.editor.getModel(uri)
     if (existingModel) {
@@ -38,7 +38,7 @@ function createModelSafelyForDependency(
     }
   }
 
-  // 对于依赖文件，可以正常创建或更新
+  // For dependency files, can create or update normally
   return createModelSafely(content, language, uri)
 }
 
@@ -51,17 +51,17 @@ function setupDependencyModels(
     `🔧 Setting up ${dependencies.length} dependency models for type context`
   )
 
-  // 获取现有的依赖 models
+  // Get existing dependency models
   const existingModels = monaco.editor.getModels()
   const dependencyUris = new Set(
     dependencies.map((file) => `file:///${file.path}`)
   )
 
-  // 清理不再需要的依赖 models（保留当前编辑的文件）
+  // Clean up no longer needed dependency models (keep currently editing file)
   existingModels.forEach((model) => {
     const uriString = model.uri.toString()
     if (uriString.startsWith("file:///") && !dependencyUris.has(uriString)) {
-      // 如果提供了当前文件URI，确保不清理当前文件的模型
+      // If current file URI is provided, ensure not to clean up current file's model
       if (currentFileUri && uriString === currentFileUri) {
         console.log(
           `🔒 Protecting current file model from cleanup: ${uriString}`
@@ -74,7 +74,7 @@ function setupDependencyModels(
     }
   })
 
-  // 为每个依赖文件创建或更新 model
+  // Create or update model for each dependency file
   const extraLibsToAdd: Array<{ content: string; filePath: string }> = []
   let hasModelUpdates = false
 
@@ -83,7 +83,7 @@ function setupDependencyModels(
       const uri = monaco.Uri.parse(`file:///${file.path}`)
       const uriString = uri.toString()
 
-      // 跳过与当前文件相同 URI 的依赖文件，避免覆盖用户输入
+      // Skip dependency files with same URI as current file to avoid overwriting user input
       if (currentFileUri && uriString === currentFileUri) {
         console.log(
           `⏭️ Skipping dependency file with same URI as current file: ${uriString}`
@@ -132,7 +132,7 @@ function setupDependencyModels(
           )
         }
 
-        // 添加到 TypeScript 语言服务
+        // Add to TypeScript language service
         extraLibsToAdd.push({
           content: file.content,
           filePath: `file:///${file.path}`,
@@ -148,9 +148,9 @@ function setupDependencyModels(
     }
   })
 
-  // 更新 TypeScript extra libraries
+  // Update TypeScript extra libraries
   if (extraLibsToAdd.length > 0) {
-    // 只添加尚未添加的依赖文件到语言服务
+    // Only add dependency files not yet added to language service
     extraLibsToAdd.forEach(({ content, filePath }) => {
       if (!addedExtraLibs.has(filePath)) {
         try {
@@ -170,13 +170,13 @@ function setupDependencyModels(
     )
   }
 
-  // 如果有模型更新，强制刷新 TypeScript 语言服务
+  // If there are model updates, force refresh TypeScript language service
   if (hasModelUpdates) {
     console.log(
       `🔄 Forcing TypeScript language service refresh due to dependency updates`
     )
     try {
-      // 更温和的方式：重新添加 extra libraries 来触发 TypeScript 语言服务更新
+      // Gentler approach: re-add extra libraries to trigger TypeScript language service update
       extraLibsToAdd.forEach(({ content, filePath }) => {
         try {
           monaco.languages.typescript.typescriptDefaults.addExtraLib(
@@ -195,31 +195,31 @@ function setupDependencyModels(
 }
 
 /**
- * 重构后的 EditorArea Props - 职责分离
+ * Refactored EditorArea Props - separation of concerns
  */
 interface EditorAreaProps {
-  /** 当前正在编辑的文件 */
+  /** Currently editing file */
   currentFile: FileModel | null
 
-  /** 依赖的文件列表，用于类型推断（内容相对稳定）*/
+  /** List of dependency files for type inference (content relatively stable) */
   dependencies: readonly FileModel[]
 
-  /** 可选的原始代码用于 diff 模式 */
+  /** Optional original code for diff mode */
   diffCode?: string
 
-  /** 编辑器主题 */
+  /** Editor theme */
   theme: string
 
-  /** 保存回调 */
+  /** Save callback */
   onSave: (fileId: string, code: string) => void
 
-  /** 内容变化回调 */
+  /** Content change callback */
   onChange?: (fileId: string, code: string) => void
 
-  /** 文件跳转回调 */
+  /** File navigation callback */
   onFileJump?: (fileId: string) => void
 
-  /** 可选的动态插件管理器实例 */
+  /** Optional dynamic plugin manager instance */
   pluginManager?: DynamicPluginManager | null
 }
 
@@ -252,13 +252,13 @@ export const EditorArea = ({
   const containerRef = useRef<HTMLDivElement>(null)
   const [isEditorReady, setIsEditorReady] = useState(false)
 
-  // 追踪当前文件的 model，避免重复创建
+  // Track current file's model to avoid duplicate creation
   const currentModelRef = useRef<monaco.editor.ITextModel | null>(null)
 
-  // 存储光标位置（当前文件）
+  // Store cursor position (current file)
   const cursorPositionRef = useRef<monaco.Position | null>(null)
 
-  // 标记是否正在进行程序性内容更新，避免触发 onChange
+  // Mark if programmatic content update is in progress to avoid triggering onChange
   const isProgrammaticUpdateRef = useRef(false)
 
   // Debug state for model information
@@ -297,7 +297,7 @@ export const EditorArea = ({
     return () => clearInterval(interval)
   }, [])
 
-  // 1. 设置依赖文件的类型上下文（dependencies 变化时）
+  // 1. Set up dependency files type context (when dependencies change)
   useEffect(() => {
     if (dependencies.length > 0) {
       console.log(
@@ -305,17 +305,17 @@ export const EditorArea = ({
       )
 
       try {
-        // 获取当前活跃编辑器的模型URI作为保护（如果存在）
+        // Get current active editor's model URI as protection (if exists)
         const editor = editorRef.current.editor
         const currentModel = editor?.getModel()
         const currentFileUri = currentModel
           ? currentModel.uri.toString()
           : undefined
 
-        // 为依赖文件创建 models（仅用于类型推断），避免与当前文件冲突
+        // Create models for dependency files (only for type inference), avoid conflicts with current file
         setupDependencyModels(dependencies, currentFileUri, pluginManager)
 
-        // 配置语言支持
+        // Configure language support
         const context = {
           scriptPathMappings: {
             "@/scripts/*": ["file:///scripts/*"],
@@ -338,9 +338,9 @@ export const EditorArea = ({
         console.error("❌ Failed to setup dependency context:", error)
       }
     }
-  }, [dependencies]) // 只依赖 dependencies，不依赖 currentFile
+  }, [dependencies]) // Only depend on dependencies, not currentFile
 
-  // 2. 处理当前文件变化（currentFile 变化时 + 编辑器准备好后）
+  // 2. Handle current file changes (when currentFile changes + after editor is ready)
   useEffect(() => {
     const editor = editorRef.current.editor
     if (!editor || !isEditorReady) {
@@ -352,7 +352,7 @@ export const EditorArea = ({
     }
 
     if (!currentFile) {
-      // 如果没有当前文件，清空编辑器
+      // If no current file, clear editor
       console.log(`📄 No current file, clearing editor`)
       editor.setModel(null)
       currentModelRef.current = null
@@ -368,7 +368,7 @@ export const EditorArea = ({
     try {
       const uri = monaco.Uri.parse(`file:///${currentFile.path}`)
 
-      // 获取或创建当前文件的 model
+      // Get or create current file's model
       let model = monaco.editor.getModel(uri)
 
       if (!model) {
@@ -417,13 +417,13 @@ export const EditorArea = ({
         }
       }
 
-      // 切换到当前文件的 model
+      // Switch to current file's model
       const currentModel = editor.getModel()
       if (
         !currentModel ||
         currentModel.uri.toString() !== model.uri.toString()
       ) {
-        // 保存之前的光标位置
+        // Save previous cursor position
         if (currentModel) {
           const position = editor.getPosition()
           if (position) {
@@ -435,7 +435,7 @@ export const EditorArea = ({
         editor.setModel(model)
         currentModelRef.current = model
 
-        // 恢复光标位置
+        // Restore cursor position
         if (cursorPositionRef.current) {
           setTimeout(() => {
             editor.setPosition(cursorPositionRef.current!)
@@ -443,7 +443,7 @@ export const EditorArea = ({
           }, 10)
         }
 
-        // 同步到虚拟文件系统
+        // Sync to virtual file system
         syncEditorContentToVirtualFileSystem(
           monaco,
           currentFile.path,

@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useKeyPress } from "ahooks"
-import type {
-  LexicalNode} from "lexical";
 import {
   $getNearestNodeFromDOMNode,
   $getNodeByKey,
-  $getRoot
+  $getRoot,
+  type LexicalNode,
 } from "lexical"
 
 import { useEditorInstance } from "../../hooks/editor-instance-context"
@@ -114,14 +113,20 @@ export function useMouseSelection(
       const docTitle = document.querySelector("#doc-title")
       const editorContainer = document.querySelector(".editor-input")
       const dragHandle = document.querySelector(".draggable-block-menu")
+      const docPropertyGlobalContainer = document.querySelector(
+        "#doc-property-container"
+      )
       const isClickOnEditor = editorContainer?.contains(e.target as Node)
       const isClickOnDragHandle = dragHandle?.contains(e.target as Node)
       const isClickOnDocTitle = docTitle?.contains(e.target as Node)
+      const isClickOnDocPropertyGlobalContainer =
+        docPropertyGlobalContainer?.contains(e.target as Node)
       if (
         isSelecting ||
         isClickOnEditor ||
         isClickOnDragHandle ||
-        isClickOnDocTitle
+        isClickOnDocTitle ||
+        isClickOnDocPropertyGlobalContainer
       ) {
         return
       }

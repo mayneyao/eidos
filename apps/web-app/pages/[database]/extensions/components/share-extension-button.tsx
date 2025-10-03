@@ -18,7 +18,8 @@ import {
 import { Button } from "@/components/ui/button"
 // TODO: Import a store or context to get the API key
 // Example: import { useApiKeyStore } from "@/stores/api-key-store";
-import { useConfigStore } from "@/apps/web-app/pages/settings/store"
+import { useConfigStore } from "@/components/settings/stores"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
 // import { LoginDialog } from "@/components/login-dialog"
 
@@ -67,15 +68,17 @@ export const ShareExtensionButton = ({
     setShareDialogOpen(false)
   }, [script, publishingApiKey, publishNewVersion, submitExtension, onSuccess])
 
+  const { openSettingsModal } = useSettings()
+  
   const handleConfirmClick = useCallback(() => {
     if (!publishingApiKey) {
-      // Navigate to API key settings page
-      window.location.href = "/settings/api-key"
+      // Open settings modal to API key section
+      openSettingsModal("key-store")
       setShareDialogOpen(false)
       return
     }
     handleSubmitOrPublish()
-  }, [handleSubmitOrPublish, publishingApiKey])
+  }, [handleSubmitOrPublish, publishingApiKey, openSettingsModal])
 
   // const handleLoginSuccess = useCallback(() => {
   //   refetch()

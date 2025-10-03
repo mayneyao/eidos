@@ -15,10 +15,10 @@ export class ProxyHandler {
     async handleProxyRequest(url: URL, c: Ctx): Promise<Response> {
         try {
             log(`Handling proxy request: ${url.toString()}`);
-            
+
             // Get the target URL from query parameters
             const targetUrl = url.searchParams.get('url');
-            
+
             if (!targetUrl) {
                 return c.text('Missing target URL parameter', 400);
             }
@@ -46,7 +46,7 @@ export class ProxyHandler {
 
             // Add CORS headers to the response
             this.addCorsHeaders(response);
-            
+
             // Clean up potentially problematic headers
             this.cleanupResponseHeaders(response);
 
@@ -64,7 +64,7 @@ export class ProxyHandler {
      */
     private buildProxyHeaders(c: Ctx): Record<string, string | undefined> {
         const headers: Record<string, string | undefined> = {};
-        
+
         // Headers to skip (security/proxy-related)
         const skipHeaders = new Set([
             'host', 'connection', 'upgrade', 'proxy-connection',
@@ -83,6 +83,8 @@ export class ProxyHandler {
         return headers;
     }
 
+
+
     /**
      * Add CORS headers to response
      */
@@ -91,6 +93,47 @@ export class ProxyHandler {
         response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         response.headers.set('Access-Control-Allow-Headers', '*');
         response.headers.set('Access-Control-Allow-Credentials', 'false');
+
+        // Add specific headers for resource types (images, videos, audio, etc.)
+        const contentType = response.headers.get('content-type') || '';
+
+        if (this.isResourceType(contentType)) {
+            // Enable cross-origin resource sharing for media resources
+            response.headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
+            response.headers.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+
+            // Add cache headers for better performance
+            // disable cache, cache respect the original server's cache headers
+            // response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+
+            // Ensure proper content type handling
+            if (contentType.startsWith('image/')) {
+                response.headers.set('X-Content-Type-Options', 'nosniff');
+            }
+        }
+    }
+
+    /**
+     * Check if content type is a resource type that needs special CORS handling
+     */
+    private isResourceType(contentType: string): boolean {
+        const resourceTypes = [
+            'image/',
+            'video/',
+            'audio/',
+            'application/pdf',
+            'application/zip',
+            'application/octet-stream',
+            'text/css',
+            'text/javascript',
+            'application/javascript',
+            'application/json',
+            'font/',
+            'application/font-woff',
+            'application/font-woff2'
+        ];
+
+        return resourceTypes.some(type => contentType.toLowerCase().startsWith(type));
     }
 
     /**
@@ -130,7 +173,7 @@ export class ProxyHandler {
     private isValidTargetUrl(targetUrl: string): boolean {
         try {
             const url = new URL(targetUrl);
-            
+
             // Only allow HTTP and HTTPS protocols
             if (!['http:', 'https:'].includes(url.protocol)) {
                 return false;
@@ -138,21 +181,21 @@ export class ProxyHandler {
 
             // Block localhost and private IP ranges for security
             const hostname = url.hostname.toLowerCase();
-            
+
             // Block localhost variations
             if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
                 return false;
             }
 
             // Block private IP ranges (basic check)
-            if (hostname.startsWith('192.168.') || 
-                hostname.startsWith('10.') || 
+            if (hostname.startsWith('192.168.') ||
+                hostname.startsWith('10.') ||
                 hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
                 return false;
             }
 
             // Block internal domains
-            if (hostname.endsWith('.localhost') || 
+            if (hostname.endsWith('.localhost') ||
                 hostname.endsWith('.local') ||
                 hostname.includes('eidos.localhost')) {
                 return false;

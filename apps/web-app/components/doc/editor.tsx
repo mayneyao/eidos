@@ -53,6 +53,7 @@ interface EditorProps {
   propertyComponent?: React.ReactNode
   plugins?: React.ReactNode
   disableExtPlugins?: boolean
+  disablePlaceholder?: boolean
 }
 
 export function InnerEditor(props: EditorProps) {
@@ -104,9 +105,11 @@ export function InnerEditor(props: EditorProps) {
                 </div>
               }
               placeholder={
-                <div className="pointer-events-none absolute left-1 top-[1px] text-base text-[#aaa]">
-                  <span>{props.placeholder ?? t("doc.pressForCommand")}</span>
-                </div>
+                !props.disablePlaceholder ? (
+                  <div className="pointer-events-none absolute left-1 top-[1px] text-base text-[#aaa]">
+                    <span>{props.placeholder ?? t("doc.pressForCommand")}</span>
+                  </div>
+                ) : null
               }
               ErrorBoundary={LexicalErrorBoundary}
             />

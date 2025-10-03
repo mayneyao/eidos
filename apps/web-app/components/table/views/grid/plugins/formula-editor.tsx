@@ -1,4 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from "react"
+import { FieldType } from "@/packages/core/fields/const"
+import type { FormulaProperty } from "@/packages/core/fields/formula"
+import type { IField } from "@/packages/core/types/IField"
 import { useDebounceFn } from "ahooks"
 import {
   Calculator,
@@ -13,13 +16,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
-import type { FormulaProperty } from "@/packages/core/fields/formula"
-import type { IField } from "@/packages/core/types/IField"
 import { cn } from "@/lib/utils"
-import { useFormulaUpdate } from "@/apps/web-app/hooks/use-formula-update"
-import { useFormulaValidation } from "@/apps/web-app/hooks/use-formula-validation"
-import { usePreviewTableFormula } from "@/apps/web-app/hooks/use-preview-table-formula"
-import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
@@ -27,17 +24,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type {
-  CodeMirrorFormulaEditorRef} from "@/components/formula-editor/codemirror-editor";
 import {
-  CodeMirrorFormulaEditor
+  CodeMirrorFormulaEditor,
+  type CodeMirrorFormulaEditorRef,
 } from "@/components/formula-editor/codemirror-editor"
-import type {
-  UiColumn} from "@/components/formula-editor/completions";
 import {
   getCompletions,
+  type UiColumn,
 } from "@/components/formula-editor/completions"
 import { TableContext } from "@/components/table/hooks"
+import { useFormulaUpdate } from "@/apps/web-app/hooks/use-formula-update"
+import { useFormulaValidation } from "@/apps/web-app/hooks/use-formula-validation"
+import { usePreviewTableFormula } from "@/apps/web-app/hooks/use-preview-table-formula"
+import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 
 import { useGenerateFormula } from "./use-generate-formula"
 
@@ -65,6 +64,19 @@ export const FormulaEditor = ({
   const validateFormula = useFormulaValidation()
   const [isAiPromptMode, setIsAiPromptMode] = useState(false)
   const [showFullError, setShowFullError] = useState(false)
+  const uiColumnsWithSystemFields = useMemo(() => {
+    return [
+      {
+        name: "_id",
+        type: FieldType.Text,
+        table_column_name: "_id",
+        table_name: tableName,
+        property: {},
+        info: "Unique ID for each row",
+      },
+      ...uiColumns,
+    ]
+  }, [uiColumns, tableName])
 
   const { generateFormulaConfig, isLoading: isGeneratingFormula } =
     useGenerateFormula()
@@ -121,8 +133,8 @@ export const FormulaEditor = ({
   }
 
   const completionItems = useMemo(() => {
-    return getCompletions(uiColumns, udfs || [])
-  }, [uiColumns, udfs])
+    return getCompletions(uiColumnsWithSystemFields, udfs || [])
+  }, [uiColumnsWithSystemFields, udfs])
 
   const handleCurrentTokenChange = (
     token: { text: string; type: string } | null
@@ -234,7 +246,7 @@ export const FormulaEditor = ({
 
   const handleAiComplete = async (prompt: string) => {
     console.log("handleAiComplete", prompt)
-    const tableFields = uiColumns.map((column) => column.name)
+    const tableFields = uiColumnsWithSystemFields.map((column) => column.name)
     const result = await generateFormulaConfig(prompt, tableFields)
     console.log("result", result)
     if (result) {
@@ -268,7 +280,7 @@ export const FormulaEditor = ({
           onArrowUp={handleArrowUp}
           onArrowDown={handleArrowDown}
           onEnter={handleEnter}
-          columns={uiColumns}
+          columns={uiColumnsWithSystemFields}
           udfs={udfs}
           height="100px"
           placeholder="Enter a SQL expression or tap // to start an AI prompt"
@@ -383,3 +395,5 @@ export const FormulaEditor = ({
     </div>
   )
 }
+
+export default FormulaEditor

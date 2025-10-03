@@ -25,7 +25,8 @@ import {
 import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
 import { useViewCount } from "@/components/table/hooks/use-view-count"
 import { useViewLoadingStore } from "@/components/table/hooks/use-view-loading"
-import { useSqlite, useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import {
   _rewriteQuery2getSortedSqliteRowIds,
   rewriteQuery2getSortedSqliteRowIds,

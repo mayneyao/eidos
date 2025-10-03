@@ -14,12 +14,15 @@ import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 
 import { useAIChatSettingsStore } from "./ai-chat-settings-store"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { SourceLangSelector } from "./lang-selector"
 import { VoiceSelector } from "./voice-selector"
 
 export function AIChatSettings() {
   const { pitch, setPitch, rate, setRate, autoSpeak, setAutoSpeak } =
     useAIChatSettingsStore()
+  const { openSettingsModal } = useSettings()
+  
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -32,9 +35,12 @@ export function AIChatSettings() {
           <DialogTitle>AI Chat Settings</DialogTitle>
           <DialogDescription>
             Configure speaking performance or{" "}
-            <a href="/settings/ai" className="text-cyan-500">
+            <button 
+              onClick={() => openSettingsModal("ai")} 
+              className="text-cyan-500 underline cursor-pointer"
+            >
               other settings
-            </a>
+            </button>
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">

@@ -112,6 +112,10 @@ ipcMain.handle('set-config', (event, key, value) => {
     getConfigManager().set(key, value);
 });
 
+ipcMain.handle('get-ai-config', () => {
+    return getConfigManager().get('ai');
+});
+
 ipcMain.handle('get-user-config-path', () => {
     return path.join(app.getPath('userData'), 'config.json');
 });

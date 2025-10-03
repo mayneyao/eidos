@@ -30,7 +30,7 @@ export const getAllLLMResponseCodeBlocks = (
   const llmResponses = markdown.matchAll(llmResponseRegex)
   const code = Array.from(llmResponses).map((response) => ({
     code: response[2].trim(),
-    lang: response[1] || "markdown", // 默认为 markdown
+    lang: response[1] || "markdown", // Default to markdown
   }))
   return code
 }

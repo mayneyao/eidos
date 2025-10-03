@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import html2canvas from "html2canvas"
-import type { NodeKey } from "lexical";
-import { $getNodeByKey } from "lexical"
+import { $getNodeByKey, type NodeKey } from "lexical"
 import { ChevronDown } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -13,8 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
-import type { ChartConfig } from "@/components/chart";
-import { Chart } from "@/components/chart"
+import { Chart, type ChartConfig } from "@/components/chart"
 import { ChartConfigForm } from "@/components/chart/config-form/chart-config-form"
 import type {
   DataSourceConfig,
@@ -106,7 +103,9 @@ export const ChartBlock: React.FC<ChartBlockProps> = ({
             const svgText = chartRef.innerHTML
             await navigator.clipboard.writeText(svgText)
           } else {
-            const canvas = await html2canvas(chartRef as HTMLElement)
+            const canvas = await import("html2canvas").then((module) =>
+              module.default(chartRef as HTMLElement)
+            )
             canvas.toBlob((blob) => {
               if (blob) {
                 const item = new ClipboardItem({ [`image/${format}`]: blob })

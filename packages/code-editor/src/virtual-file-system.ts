@@ -54,14 +54,14 @@ export function syncEditorContentToVirtualFileSystem(
     const existingModel = monacoInstance.editor.getModel(currentUri)
 
     if (existingModel) {
-      // 对于当前正在编辑的文件，不要修改其内容，只更新 extra lib
-      // 只有当模型不是当前活跃编辑器的模型时才更新内容
+      // For currently editing file, don't modify its content, only update extra lib
+      // Only update content when model is not the current active editor's model
       const activeEditor = monacoInstance.editor.getEditors().find(editor => 
         editor.getModel() === existingModel
       )
       
       if (!activeEditor) {
-        // 这是一个依赖文件的模型，可以安全更新
+        // This is a dependency file's model, can safely update
         if (existingModel.getValue() !== fileContent) {
           existingModel.setValue(fileContent)
           console.log(`Updated dependency model content for: ${filePath}`)
@@ -70,7 +70,7 @@ export function syncEditorContentToVirtualFileSystem(
         console.log(`⏭️ Skipping content update for active editor model: ${filePath}`)
       }
       
-      // 确保语言设置正确
+      // Ensure language setting is correct
       if (existingModel.getLanguageId() !== language) {
         monacoInstance.editor.setModelLanguage(existingModel, language)
         console.log(`Updated language to ${language} for: ${filePath}`)

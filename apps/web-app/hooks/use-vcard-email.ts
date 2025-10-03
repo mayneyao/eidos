@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react"
 
-import { DOMAINS } from "@/lib/const"
-import { useAPIConfigStore } from "@/apps/web-app/pages/settings/api/store"
+import { URLS } from "@/lib/const"
+import { useAPIConfigStore } from "@/components/settings/stores"
 
 export const useVCardEmail = () => {
   const { apiAgentConfig } = useAPIConfigStore()
@@ -19,7 +19,7 @@ export const useVCardEmail = () => {
       return (
         apiAgentConfig.enabled &&
         new URL(apiAgentConfig.url).host ==
-          new URL(DOMAINS.API_AGENT_SERVER).host
+          new URL(URLS.API_AGENT_SERVER).host
       )
     } catch (error) {
       return false

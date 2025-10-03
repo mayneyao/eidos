@@ -17,8 +17,6 @@ export const FileTableName = `eidos__files`
 // store doc
 export const DocTableName = `eidos__docs`
 
-// quick actions
-export const ActionTableName = `eidos__actions`
 
 // scripts
 export const ScriptTableName = `eidos__scripts`
@@ -45,3 +43,6 @@ export const QueueTableName = `eidos__queue`
 
 // store ext_node
 export const ExtNodeTableName = `eidos__extnodes`
+
+// store kv
+export const KVTableName = `eidos__kv`

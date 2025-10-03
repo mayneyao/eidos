@@ -10,7 +10,6 @@ import sqlQuery from "./sql-query"
 export const allFunctions = [
   sqlQuery,
   createDoc,
-  // createQuickAction,
   startRecorder,
   stopRecorder,
   saveFile2EFS,

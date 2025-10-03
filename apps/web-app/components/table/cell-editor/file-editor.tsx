@@ -1,16 +1,15 @@
-import { useClickAway } from "ahooks"
 import { useRef, useState } from "react"
+import { useClickAway } from "ahooks"
 
-import type {
-  FileCell} from "@/components/table/views/grid/cells/file/file-cell";
-import {
-  FileCellEditor,
-} from "@/components/table/views/grid/cells/file/file-cell"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  FileCellEditor,
+  type FileCell,
+} from "@/components/table/views/grid/cells/file/file-cell"
 
 import useChangeEffect from "../hooks/use-change-effect"
 import { EmptyValue } from "./common"
@@ -63,7 +62,7 @@ IFileEditorProps) => {
       <Popover open={isEditing}>
         <PopoverTrigger asChild>
           <div
-            className="flex h-full w-full items-center gap-2 py-1"
+            className="flex h-full w-full items-center gap-2 px-2"
             onClick={() => setIsEditing(true)}
           >
             {_value?.data.displayData.length ? (

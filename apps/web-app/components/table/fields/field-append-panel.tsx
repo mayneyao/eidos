@@ -25,17 +25,18 @@ import {
   generateColumnNameFromFieldName,
   generateValidSqliteColumnName,
   validateSqliteColumnName,
+  EIDOS_RESERVED_FIELDS,
 } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
-import { useTableAppStore } from "../views/grid/store"
+import { useTableStore } from "../table-store-provider"
 import {
   NotImplementEditor,
   PropertyEditorTypeMap,
 } from "./field-property-editor"
+import { useTableContext } from "../hooks"
 
 export function FieldAppendPanel({
   addField,
@@ -55,9 +56,9 @@ export function FieldAppendPanel({
 }) {
   const { t } = useTranslation()
   const [currentField, setCurrentField] = React.useState<IField>()
-  const { tableName } = useCurrentPathInfo()
+  const { tableName } = useTableContext()
   const ref = React.useRef<HTMLDivElement>(null)
-  const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableAppStore()
+  const { isAddFieldEditorOpen, setIsAddFieldEditorOpen } = useTableStore()
   const fieldTypes = [
     { name: t("table.field.text"), value: FieldType.Text, icon: BaselineIcon },
     { name: t("table.field.number"), value: FieldType.Number, icon: HashIcon },
@@ -160,7 +161,8 @@ export function FieldAppendPanel({
       // Validate column name before saving
       const columnNameValidation = validateSqliteColumnName(
         currentField.table_column_name,
-        uiColumns.map((col) => col.table_column_name)
+        uiColumns.map((col) => col.table_column_name),
+        EIDOS_RESERVED_FIELDS
       )
       if (!columnNameValidation.isValid) {
         console.error("Invalid column name:", columnNameValidation.error)
@@ -276,7 +278,8 @@ export function FieldAppendPanel({
                 {(() => {
                   const validation = validateSqliteColumnName(
                     currentField.table_column_name,
-                    uiColumns.map((col) => col.table_column_name)
+                    uiColumns.map((col) => col.table_column_name),
+                    EIDOS_RESERVED_FIELDS
                   )
                   if (validation.isValid) {
                     return (
@@ -312,7 +315,8 @@ export function FieldAppendPanel({
               disabled={
                 !validateSqliteColumnName(
                   currentField.table_column_name,
-                  uiColumns.map((col) => col.table_column_name)
+                  uiColumns.map((col) => col.table_column_name),
+                  EIDOS_RESERVED_FIELDS
                 ).isValid
               }
             >

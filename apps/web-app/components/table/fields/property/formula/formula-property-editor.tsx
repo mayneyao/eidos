@@ -1,8 +1,9 @@
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
+import { FieldType } from "@/packages/core/fields/const"
+import type { FormulaProperty } from "@/packages/core/fields/formula"
+import type { IField } from "@/packages/core/types/IField"
 import { FunctionSquareIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
 
-import { useCurrentUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
-import type { CodeMirrorFormulaEditorRef } from "@/components/formula-editor/codemirror-editor"
 import { Label } from "@/components/ui/label"
 import {
   Popover,
@@ -10,11 +11,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { FieldType } from "@/packages/core/fields/const"
-import type { FormulaProperty } from "@/packages/core/fields/formula"
-import type { IField } from "@/packages/core/types/IField"
+import type { CodeMirrorFormulaEditorRef } from "@/components/formula-editor/codemirror-editor"
+import { useCurrentUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
-import { FormulaEditor } from "../../../views/grid/plugins/formula-editor"
+// lazy import FormulaEditor
+const FormulaEditor = lazy(
+  () => import("../../../views/grid/plugins/formula-editor")
+)
+// import { FormulaEditor } from "../../../views/grid/plugins/formula-editor"
 
 interface IFieldPropertyEditorProps {
   uiColumn: IField<FormulaProperty>
@@ -63,13 +67,15 @@ export const FormulaPropertyEditor = (props: IFieldPropertyEditorProps) => {
             align="start"
             alignOffset={20}
           >
-            <FormulaEditor
-              editorRef={editorRef}
-              closeEditor={() => setIsOpen(false)}
-              formulaField={props.uiColumn}
-              uiColumns={uiColumns}
-              rowId={null}
-            />
+            <Suspense fallback={<div className="flex items-center justify-center p-4">Loading Formula Editor...</div>}>
+              <FormulaEditor
+                editorRef={editorRef}
+                closeEditor={() => setIsOpen(false)}
+                formulaField={props.uiColumn}
+                uiColumns={uiColumns}
+                rowId={null}
+              />
+            </Suspense>
           </PopoverContent>
         </Popover>
         <div className="flex items-center gap-2 justify-between">

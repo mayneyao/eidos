@@ -3,21 +3,25 @@
 import { useKeyPress } from "ahooks"
 import { useTheme } from "next-themes"
 import { useNavigate, useParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { getDate, getToday, isDayPageId } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useToast } from "@/components/ui/use-toast"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 /**
  * global shortcuts, register here
  * @returns
  */
 export function ShortCuts() {
+  const { t } = useTranslation()
   const { setTheme, theme } = useTheme()
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
+  const { setSpaceSettingsOpen } = useAppRuntimeStore()
   const navigate = useNavigate()
   const { toast } = useToast()
   const { createDoc } = useSqlite()
@@ -70,7 +74,7 @@ export function ShortCuts() {
   })
 
   useKeyPress(["ctrl.comma", "meta.comma"], () => {
-    navigate("/settings")
+    setSpaceSettingsOpen(true)
   })
 
   // Add new shortcut for copying current URL
@@ -78,7 +82,7 @@ export function ShortCuts() {
     e.preventDefault()
     navigator.clipboard.writeText(window.location.href).then(() => {
       toast({
-        description: "链接已复制到剪贴板",
+        description: t("common.linkCopied"),
         duration: 2000,
       })
     })

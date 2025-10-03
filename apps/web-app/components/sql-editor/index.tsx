@@ -1,27 +1,22 @@
 "use client"
 
-import type { KeyboardEventHandler} from "react";
-import { forwardRef, useMemo } from "react"
+import { forwardRef, useMemo, type KeyboardEventHandler } from "react"
+import { formatSql } from "@/packages/core/sqlite/helper"
 import {
   acceptCompletion,
   completionStatus,
   startCompletion,
 } from "@codemirror/autocomplete"
 import { defaultKeymap, insertTab } from "@codemirror/commands"
-import type { SQLNamespace} from "@codemirror/lang-sql";
-import { sql } from "@codemirror/lang-sql"
-import type { LanguageSupport} from "@codemirror/language";
-import { indentUnit } from "@codemirror/language"
+import { sql, type SQLNamespace } from "@codemirror/lang-sql"
+import { indentUnit, type LanguageSupport } from "@codemirror/language"
 import { keymap } from "@codemirror/view"
-import type {
-  Extension,
-  ReactCodeMirrorRef} from "@uiw/react-codemirror";
 import CodeMirror, {
-  EditorView
+  EditorView,
+  type Extension,
+  type ReactCodeMirrorRef,
 } from "@uiw/react-codemirror"
 import { toast } from "sonner"
-
-import { formatSql } from "@/packages/core/sqlite/helper"
 
 import sqliteFunctionList from "./function-tooltip.json"
 import { functionTooltip } from "./function-tooltips"
@@ -178,6 +173,13 @@ const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           },
           "& .cm-focused": {
             outline: "none !important",
+            border: "none !important",
+            borderStyle: "none !important",
+          },
+          "&.cm-focused": {
+            outline: "none !important",
+            border: "none !important",
+            borderStyle: "none !important",
           },
         }),
         keyExtensions,

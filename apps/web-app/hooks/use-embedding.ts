@@ -1,4 +1,4 @@
-import { useAIConfigStore } from "@/apps/web-app/pages/settings/ai/store";
+import { useAIConfigStore } from "@/components/settings/stores";
 import { getProvider } from "@/packages/ai/helper";
 import { embed, embedMany } from 'ai';
 import { useAiConfig } from "./use-ai-config";

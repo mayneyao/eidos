@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { DOMAINS } from "@/lib/const"
+import { URLS } from "@/lib/const"
 import { isDesktopMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -141,7 +141,7 @@ export const Activation = () => {
       <p className="text-xs text-center text-gray-500">
         Eidos is in development. Join our{" "}
         <Link
-          to={DOMAINS.DISCORD_INVITE}
+          to={URLS.DISCORD_INVITE}
           target="_blank"
           className="text-blue-500 hover:underline"
         >

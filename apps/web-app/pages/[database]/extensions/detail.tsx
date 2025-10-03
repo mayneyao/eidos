@@ -23,7 +23,7 @@ import { ExtensionToolbar } from "./components/extension-toolbar"
 import { ExtensionConfig } from "./config/config"
 import { getEditorLanguage } from "./helper"
 import { useEditorStore } from "./stores/editor-store"
-import { useExtensionSidebarStore } from "./stores/sidebar-store"
+import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
 
 // const CodeEditor = lazy(() => import("./editor/code-editor"))
 const SimpleCodeEditorWrapper = lazy(
@@ -147,7 +147,7 @@ export const ExtensionDetailPage = () => {
       onValueChange={(value) => {
         setSearchParams({ tab: value })
       }}
-      className="flex h-full w-full flex-col overflow-hidden p-2 px-4 pt-0"
+      className="flex h-full w-full flex-col overflow-hidden p-3 pt-0"
     >
       <TabsList className="flex w-full border-b justify-between">
         <div className="flex items-center gap-1">

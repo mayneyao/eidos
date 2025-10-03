@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils"
-import { ItemIcon } from "@/components/sidebar/item-tree"
+import { ItemIcon } from "@/components/sidebar/nodes"
 
 import type { MentionTypeaheadOption } from "./MentionTypeaheadOption"
 

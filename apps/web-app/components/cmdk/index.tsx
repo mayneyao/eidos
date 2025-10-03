@@ -30,12 +30,14 @@ import {
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
+import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { ThemeStudio } from "../theme-studio"
+import { DocActionCommandItems } from "./doc-actions"
 // import { ExtensionCommandItems } from "./extension"
 import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
 import { NodeCommandItems } from "./nodes"
@@ -50,6 +52,7 @@ type SecondaryView = {
 export function CommandDialogDemo() {
   const { isCmdkOpen, setCmdkOpen, isGodMode, setGodMode } =
     useAppRuntimeStore()
+  const { openSettingsModal } = useSettings()
   const { input, setInput, mode } = useInput()
   const { queryNodes, fullTextSearch } = useQueryNode()
   const { theme, setTheme } = useTheme()
@@ -160,7 +163,7 @@ export function CommandDialogDemo() {
                     </CommandItem>
                   </CommandGroup>
                 )}
-
+                <CommandSeparator />
                 {isDesktopMode && currentNode?.type === "table" && (
                   <CommandGroup heading={t("cmdk.table")}>
                     <CommandItem
@@ -174,7 +177,8 @@ export function CommandDialogDemo() {
                     </CommandItem>
                   </CommandGroup>
                 )}
-                <CommandSeparator />
+
+                {currentNode?.type === "doc" && <DocActionCommandItems />}
                 {!isInkServiceMode && (
                   <>
                     <NodeCommandItems />
@@ -211,7 +215,7 @@ export function CommandDialogDemo() {
                 <span>{t("cmdk.themeStudio", "Theme Studio")}</span>
               </CommandItem>
               {!isInkServiceMode && (
-                <CommandItem onSelect={goto("/settings")}>
+                <CommandItem onSelect={() => openSettingsModal("general")}>
                   <Settings className="mr-2 h-4 w-4" />
                   <span>{t("common.settings")}</span>
                 </CommandItem>

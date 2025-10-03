@@ -5,7 +5,8 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useIndexedDB } from "@/apps/web-app/hooks/use-indexed-db"
 import { usePeer } from "@/apps/web-app/hooks/use-peer"
 import { useRegisterPeriodicSync } from "@/apps/web-app/hooks/use-register-period-sync"
-import { useSqlite, useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useSqliteMetaTableSubscribe } from "@/apps/web-app/hooks/use-sqlite-meta-table-subscribe"
 import { useWorker } from "@/apps/web-app/hooks/use-worker"
 import { useCurrentUser } from "@/apps/web-app/hooks/user-current-user"
@@ -22,10 +23,11 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { uuidv7 } from "@/lib/utils"
 
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
-import { useAIConfigStore } from "../settings/ai/store"
+import { useAIConfigStore } from "@/components/settings/stores"
 import { useReadSqliteStore } from "@/apps/web-app/hooks/use-readonly-sqlite"
 import { useSyncExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useSyncMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
+import { useDocPropertyTypes } from "@/components/doc-property-global/property-type-hook"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
@@ -77,10 +79,22 @@ export const useLayoutInit = () => {
   const { isInitialized, initWorker, initEmbeddingWorker } = useWorker()
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
 
+  const { getPropertyTypes } = useDocPropertyTypes()
   const { initPeer } = usePeer()
+  const { updateNodeList } = useSqlite()
 
   useSyncExtNodes()
   useSyncMblocks()
+  useEffect(() => {
+    updateNodeList()
+  }, [updateNodeList])
+
+  useEffect(() => {
+    // refresh property types when space changed
+    if (database) {
+      getPropertyTypes()
+    }
+  }, [database, getPropertyTypes])
 
   useKeyPress(["ctrl.backslash", "meta.backslash"], () => {
     setSidebarOpen(!isSidebarOpen)

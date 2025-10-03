@@ -10,6 +10,7 @@ export type ExtensionMeta =
     | ExtNodeMeta
     | ToolMeta
     | TableActionMeta
+    | DocActionMeta
     | UDFMeta
 
 
@@ -44,6 +45,7 @@ export interface IExtension<T extends ExtensionMeta = ExtensionMeta> {
 
 export enum ScriptExtensionType {
     TableAction = "tableAction",
+    DocAction = "docAction",
     Tool = "tool",
     UDF = "udf",
 }
@@ -100,6 +102,15 @@ export interface TableActionMeta {
     }
 }
 
+export interface DocActionMeta {
+    type: ScriptExtensionType.DocAction
+    funcName: string
+    docAction: {
+        name: string
+        description: string
+    }
+}
+
 export interface UDFMeta {
     type: ScriptExtensionType.UDF
     funcName: string
@@ -123,6 +134,11 @@ export interface ITableActionContext {
     rowId: string
 }
 
+export interface IDocActionContext {
+    docId: string
+    databaseId: string
+}
+
 // Block Extension interfaces
 export interface IBlockExtension extends Omit<IExtension, 'type' | 'meta'> {
     type: "block"
@@ -132,6 +148,6 @@ export interface IBlockExtension extends Omit<IExtension, 'type' | 'meta'> {
 // Script Extension interfaces
 export interface IScriptExtension extends Omit<IExtension, 'type' | 'meta'> {
     type: "script"
-    meta: ToolMeta | TableActionMeta | UDFMeta
+    meta: ToolMeta | TableActionMeta | DocActionMeta | UDFMeta
 }
 

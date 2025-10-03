@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from "react"
 
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useSqlite, useSqliteStore } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { useViewSort } from "@/apps/web-app/hooks/use-view-sort"
 import type {
@@ -22,14 +22,13 @@ type RowData = Record<string, any> & {
 
 export const useGalleryViewData = (view: IView) => {
   const { table_id: tableId, query } = view
-  const { tableName, isView } = useContext(TableContext)
+  const { tableName, isView, space } = useContext(TableContext)
   const { sqlite } = useSqlite()
   const { setRows } = useSqliteStore()
   const { getViewSortedRows } = useViewSort(query)
   const [data, setData] = useState<string[]>([])
   const [list, setList] = useState<RowData[]>([])
   const [loading, setLoading] = useState(false)
-  const { space } = useCurrentPathInfo()
   const { nameRawIdMap, uiColumnMap } = useUiColumns(tableName, space)
 
   useEffect(() => {
