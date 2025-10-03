@@ -30,6 +30,11 @@ interface SqliteState {
   selectedTable: string
   setSelectedTable: (table: string) => void
 
+  // Table current view management
+  tableCurrentViewIds: Record<string, string>
+  setTableCurrentViewId: (tableId: string, viewId: string) => void
+  getTableCurrentViewId: (tableId: string) => string | undefined
+
   spaceList: string[]
   setSpaceList: (spaceList: string[]) => void
 
@@ -201,6 +206,21 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
 
   selectedTable: "",
   setSelectedTable: (table) => set({ selectedTable: table }),
+
+  // Table current view management
+  tableCurrentViewIds: {},
+  setTableCurrentViewId: (tableId, viewId) => {
+    set((state) => ({
+      tableCurrentViewIds: {
+        ...state.tableCurrentViewIds,
+        [tableId]: viewId,
+      },
+    }))
+  },
+  getTableCurrentViewId: (tableId) => {
+    const state = get()
+    return state.tableCurrentViewIds[tableId]
+  },
 
   spaceList: [],
   setSpaceList: (spaceList) => set({ spaceList }),

@@ -5,6 +5,7 @@ import { getTableIdByRawTableName } from "@/lib/utils"
 import { useTableOperation } from "@/hooks/use-table"
 import { useSqliteTableSubscribe } from "@/apps/web-app/hooks/use-sqlite-table-subscribe"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 import { ExtTableViewBlockApp } from "../block-renderer/ext-table-view-block-app"
 import { FieldEditor } from "./fields"
@@ -38,8 +39,9 @@ export const Table = ({
   isEditable,
   isReadOnly,
 }: ITableProps) => {
-  const [currentViewId, setCurrentViewId] = useState<string | undefined>(viewId)
   const udfs = useUDFs()
+  const tableId = getTableIdByRawTableName(tableName)
+  const { getTableCurrentViewId, setTableCurrentViewId } = useSqliteStore()
 
   const { updateUiColumns } = useUiColumns(tableName, space)
   const { updateViews, views } = useTableOperation(tableName, space)
@@ -52,11 +54,21 @@ export const Table = ({
   }, [updateViews, tableName])
 
   const currentView = useMemo(() => {
+    // First try to get from global state
+    const globalViewId = getTableCurrentViewId(tableId)
+    const currentViewId = viewId || globalViewId
+    
     if (currentViewId) {
       return views.find((v) => v.id === currentViewId)
     }
     return views[0]
-  }, [views, currentViewId])
+  }, [views, viewId, tableId, getTableCurrentViewId])
+
+  const setCurrentViewId = (newViewId: string | undefined) => {
+    if (newViewId && tableId) {
+      setTableCurrentViewId(tableId, newViewId)
+    }
+  }
 
   const extView = useTableViewInfoByExtType(currentView?.type)
   const isView = tableName.startsWith("vw_")
@@ -69,7 +81,7 @@ export const Table = ({
         value={{
           tableName,
           space,
-          viewId: currentViewId,
+          viewId: currentView?.id,
           setViewId: setCurrentViewId,
           isReadOnly,
           isView,
