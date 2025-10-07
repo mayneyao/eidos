@@ -9,7 +9,6 @@ import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
 import { ExtensionSidebar } from "./extensions"
 import { CurrentItemTree } from "./nodes"
-import { TodayContent } from "./today-content"
 
 const NodesContent = () => {
   const { t } = useTranslation()
@@ -50,17 +49,12 @@ const ExtensionsContent = () => {
 
 export const SidebarContent = () => {
   const { currentApp } = useSidebarStore()
-
   const renderContent = () => {
     switch (currentApp) {
-      case "nodes":
-        return <NodesContent />
       case "extensions":
         return <ExtensionsContent />
-      case "today":
-        return <TodayContent />
       default:
-        return <ExtensionsContent />
+        return <NodesContent />
     }
   }
 
