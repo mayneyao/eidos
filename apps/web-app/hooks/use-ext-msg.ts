@@ -4,13 +4,11 @@ import { MsgType } from "@/lib/const"
 import { uuidv7 } from "@/lib/utils"
 
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
-import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useScriptCall } from "@/apps/web-app/hooks/use-script-call"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { isDesktopMode } from "@/lib/env"
 import { getSqliteChannel } from "@/packages/core/sqlite/channel"
 import { generateObject, generateText, jsonSchema } from "ai"
-import { useExtensions } from "./use-extensions"
-import { isDesktopMode } from "@/lib/env"
 
 
 export enum ExtMsgType {
@@ -52,13 +50,11 @@ const shouldHandle = (event: MessageEvent, source: ExtensionSourceType) => {
 }
 
 export const useExtMsg = (source: ExtensionSourceType) => {
-  const { getExtensionIndex } = useExtensions()
   const { setRunningCommand } = useAppRuntimeStore()
 
   const { getLLModel, textModel, getConfigByModel } = useAiConfig()
   const { callScript } = useScriptCall()
 
-  const { efsManager } = useEidosFileSystemManager()
   const handleMsg = useCallback(
     async (event: MessageEvent) => {
       if (!shouldHandle(event, source)) {
@@ -66,46 +62,46 @@ export const useExtMsg = (source: ExtensionSourceType) => {
       }
       const { type, name } = event.data
       switch (type) {
-        case ExtMsgType.loadExtension:
-          try {
-            const text = await getExtensionIndex(name)
-            event.ports[0].postMessage({
-              type: ExtMsgType.loadExtensionResp,
-              text,
-            })
-          } catch (error) {
-            console.error("Error loading extension:", error)
-          }
-          break
-        case ExtMsgType.loadExtensionAsset:
-          try {
-            const { url } = event.data
-            const _url = new URL(url)
-            const extName = _url.hostname.split(".")[0]
-            const paths = _url.pathname.split("/").filter(Boolean)
-            const file = await efsManager.getFile(["extensions", "apps", extName, ...paths])
-            const contentType = file.type
-            if (contentType.startsWith("text")) {
-              const text = await file.text()
-              const data = {
-                type: "loadExtensionAssetResp",
-                text,
-                contentType,
-              }
-              event.ports[0].postMessage(data)
-            } else {
-              const buffer = await file.arrayBuffer()
-              const data = {
-                type: "loadExtensionAssetResp",
-                text: buffer,
-                contentType,
-              }
-              event.ports[0].postMessage(data)
-            }
-          } catch (error) {
-            console.error("Error loading extension asset:", error)
-          }
-          break
+        // case ExtMsgType.loadExtension:
+        //   try {
+        //     const text = await getExtensionIndex(name)
+        //     event.ports[0].postMessage({
+        //       type: ExtMsgType.loadExtensionResp,
+        //       text,
+        //     })
+        //   } catch (error) {
+        //     console.error("Error loading extension:", error)
+        //   }
+        //   break
+        // case ExtMsgType.loadExtensionAsset:
+        //   try {
+        //     const { url } = event.data
+        //     const _url = new URL(url)
+        //     const extName = _url.hostname.split(".")[0]
+        //     const paths = _url.pathname.split("/").filter(Boolean)
+        //     const file = await efsManager.getFile(["extensions", "apps", extName, ...paths])
+        //     const contentType = file.type
+        //     if (contentType.startsWith("text")) {
+        //       const text = await file.text()
+        //       const data = {
+        //         type: "loadExtensionAssetResp",
+        //         text,
+        //         contentType,
+        //       }
+        //       event.ports[0].postMessage(data)
+        //     } else {
+        //       const buffer = await file.arrayBuffer()
+        //       const data = {
+        //         type: "loadExtensionAssetResp",
+        //         text: buffer,
+        //         contentType,
+        //       }
+        //       event.ports[0].postMessage(data)
+        //     }
+        //   } catch (error) {
+        //     console.error("Error loading extension asset:", error)
+        //   }
+        //   break
         case ExtMsgType.scriptCallMain:
           // script container => main thread, does not include database operation
           console.log("receive script call main", event.data)
@@ -147,7 +143,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                 console.log("receive generate object", _args)
                 const payload = _args[0]
                 const llmodel = getLLModel(payload.model || textModel)
-                
+
                 if (isDesktopMode) {
                   const { object } = await window.eidos.AI.generateObject({
                     model: payload.model || textModel,
@@ -186,7 +182,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                 console.log("receive generate text", _args)
                 const payload = _args[0]
                 const llmodel = getLLModel(payload.model || textModel)
-                
+
                 if (isDesktopMode) {
                   const { text } = await window.eidos.AI.generateText({
                     model: payload.model || textModel,
@@ -278,7 +274,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
           break
       }
     },
-    [getExtensionIndex, source]
+    [source]
   )
 
   return {
