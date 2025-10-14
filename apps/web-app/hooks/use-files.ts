@@ -161,12 +161,12 @@ export const useFileSystem = (rootDir?: FileSystemDirectoryHandle) => {
   const getFileUrlPath = useCallback(
     (name: string) => {
       if (isRootDir) {
-        return `/${space}/files/${name}`
+        return `/files/${name}`
       } else {
-        return `/${space}/files/${currentPath.join("/")}/${name}`
+        return `/files/${currentPath.join("/")}/${name}`
       }
     },
-    [currentPath, isRootDir, space]
+    [currentPath, isRootDir]
   )
 
   const deleteFiles = useCallback(

@@ -36,9 +36,9 @@ export function useFileOp() {
   const getFileUrlPath = (name: string) => {
     if (isCurrentSpaceDir && rootDir?.name === "files") {
       if (paths.length) {
-        return `/${space}/files/${paths.join("/")}/${name}`
+        return `/files/${paths.join("/")}/${name}`
       } else {
-        return `/${space}/files/${name}`
+        return `/files/${name}`
       }
     }
     if (paths.length) {

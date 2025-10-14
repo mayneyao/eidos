@@ -41,9 +41,9 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
 
   const handleInternalLinkClick = (id: string) => {
     if (isDayPageId(id)) {
-      navigate(`/${space}/everyday/${id}`)
+      navigate(`/everyday/${id}`)
     } else {
-      navigate(`/${space}/${id}`)
+      navigate(`/${id}`)
     }
   }
 
@@ -273,7 +273,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
             "hover:underline",
             // Default style
             "text-blue-500",
-            // Style in user messages - 使用更明亮的前景色
+            // Style in user messages - use brighter foreground color
             "group-data-[role=user]/message:text-primary-foreground group-data-[role=user]/message:opacity-90 group-data-[role=user]/message:hover:opacity-100"
           )}
           target="_blank"

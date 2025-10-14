@@ -68,12 +68,33 @@ const router = createBrowserRouter([
         element: <SpaceLayout />,
         loader: async ({ params }) => {
           // check the space is exist
-
-          const spaceNames = await new SpaceFileSystem().list()
-          if (params.database && !spaceNames.includes(params.database)) {
-            return redirect("/404")
+          try {
+            let spaceNames: string[] = []
+            
+            // In desktop mode, use IPC to get workspace list
+            if (typeof window !== 'undefined' && window.eidos) {
+              try {
+                const spaces = await window.eidos.invoke('list-spaces')
+                spaceNames = spaces.map((space: any) => space.id)
+              } catch (error) {
+                console.warn('Failed to get spaces from Electron, falling back to SpaceFileSystem:', error)
+                const spaceFileSystem = new SpaceFileSystem()
+                spaceNames = await spaceFileSystem.list()
+              }
+            } else {
+              // In web mode, use existing method
+              const spaceFileSystem = new SpaceFileSystem()
+              spaceNames = await spaceFileSystem.list()
+            }
+            
+            if (params.database && !spaceNames.includes(params.database)) {
+              return redirect("/404")
+            }
+            return null
+          } catch (error) {
+            console.error('Error checking space existence:', error)
+            return null
           }
-          return null
         },
         children: [
           {

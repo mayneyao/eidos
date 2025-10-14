@@ -67,7 +67,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
         }
       }
     }
-    navigate(`/${space}/everyday`)
+    navigate(`/everyday`)
     setOpen(false)
     setImporting(false)
   }
@@ -83,7 +83,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
             asChild
           >
             <Link
-              to={`/${space}/everyday/${today}`}
+              to={`/everyday/${today}`}
               className="[&>svg]:!size-5"
             >
               <CalendarDays className="pr-1" />

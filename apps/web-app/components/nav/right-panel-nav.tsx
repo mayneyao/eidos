@@ -209,18 +209,18 @@ export const RightPanelNav = () => {
     if (!tempPanelNode) return
 
     if (isDayPageId(tempPanelNode.id)) {
-      navigate(`/${space}/everyday/${tempPanelNode.id}`)
+      navigate(`/everyday/${tempPanelNode.id}`)
     } else {
-      navigate(`/${space}/${tempPanelNode.id}`)
+      navigate(`/${tempPanelNode.id}`)
     }
-    // 清空临时节点并关闭面板，确保互斥性
+    // Clear temp node and close panel to ensure mutual exclusion
     setTempPanelNode(null)
     setCurrentApp("chat")
     setIsRightPanelOpen(false)
   }
 
   const handleCloseTempNode = () => {
-    // 清空临时节点，确保互斥性
+    // Clear temp node to ensure mutual exclusion
     setTempPanelNode(null)
     setCurrentApp("chat")
     setIsRightPanelOpen(false)
@@ -344,7 +344,7 @@ export const RightPanelNav = () => {
               <p className="p-2 text-sm text-gray-500">
                 There are no blocks in this space. Try to{" "}
                 <Link
-                  to={`/${space}/extensions`}
+                  to={`/extensions`}
                   className="flex items-center gap-2 text-blue-500"
                 >
                   <span>create block</span>

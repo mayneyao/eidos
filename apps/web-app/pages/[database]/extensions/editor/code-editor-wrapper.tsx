@@ -124,7 +124,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
     const stableSuggestions = customImportSuggestions.suggestions
 
     const jumpToExtension = (id: string) => {
-      navigate(`/${space}/extensions/${id}`)
+      navigate(`/extensions/${id}`)
     }
 
     const getExtensionBySlug = useCallback(

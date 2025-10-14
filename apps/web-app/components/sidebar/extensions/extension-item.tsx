@@ -69,7 +69,7 @@ export const ExtensionItem = ({
       onDelete={onDelete}
     >
       <Link
-        to={`/${space}/extensions/${extension.id}`}
+        to={`/extensions/${extension.id}`}
         className={cn(
           "flex items-center gap-2 rounded-sm pl-2 py-1 text-sm transition-colors w-full text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
           isActive ? "bg-muted/80" : "hover:bg-muted/80"

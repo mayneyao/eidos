@@ -31,7 +31,7 @@ export const ScriptBreadcrumb = ({ scriptIdOrSlug }: ScriptBreadcrumbProps) => {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to={`/${space}/extensions`}>
+            <Link to={`/extensions`}>
               {t("extension.breadcrumb.extensions")}
             </Link>
           </BreadcrumbLink>

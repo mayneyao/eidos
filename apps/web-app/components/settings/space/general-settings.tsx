@@ -37,7 +37,7 @@ export function GeneralSettings() {
     const loadDataFolder = async () => {
       if (isDesktopMode) {
         const folder = await window.eidos.config.get("dataFolder")
-        setDataFolder(folder)
+        setDataFolder(folder || "")
       }
     }
     loadDataFolder()
@@ -70,10 +70,19 @@ export function GeneralSettings() {
     }
   }
 
-  const handleOpenFolder = () => {
-    if (dataFolder) {
-      const spacePath = `${dataFolder}/spaces/${space}`
-      window.eidos.openFolder(spacePath)
+  const handleOpenFolder = async () => {
+    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+      try {
+        // Get current workspace info via IPC
+        const spaceInfo = await window.eidos.invoke('get-current-space');
+        if (spaceInfo && spaceInfo.path) {
+          window.eidos.openFolder(spaceInfo.path);
+        } else {
+          console.error('No space path found');
+        }
+      } catch (error) {
+        console.error('Error getting space info:', error);
+      }
     }
   }
 

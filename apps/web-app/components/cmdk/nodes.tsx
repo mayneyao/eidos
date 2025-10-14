@@ -18,9 +18,9 @@ export const NodeCommandItems = () => {
   const goto = useCMDKGoto()
   const handleGoto = (id: string) => {
     if (id.length === 10) {
-      return goto(`/${space}/everyday/${id}`)
+      return goto(`/everyday/${id}`)
     }
-    return goto(`/${space}/${id}`)
+    return goto(`/${id}`)
   }
   return (
     <>

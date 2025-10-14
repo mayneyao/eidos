@@ -36,7 +36,7 @@ export const ExtensionSidebar = ({ className }: ExtensionSidebarProps) => {
     const success = await deleteExtension(id)
     if (success) {
       // Navigate to extensions index page after successful deletion
-      navigate(`/${space}/extensions`)
+      navigate(`/extensions`)
     } else {
       // Show error toast if deletion failed
       toast({

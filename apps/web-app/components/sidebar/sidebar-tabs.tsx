@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
+import { isDesktopMode } from "@/lib/env"
 import { isMacDesktop } from "@/lib/web/helper"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
@@ -96,8 +97,8 @@ const BlockTab = memo(
     const handleClick = useCallback(() => {
       // Set current app and navigate to block page
       setCurrentApp(tabId)
-      navigate(`/${space}/blocks/${tabId}`)
-    }, [setCurrentApp, navigate, space, tabId])
+      navigate(`/blocks/${tabId}`)
+    }, [setCurrentApp, navigate, tabId])
 
     return (
       <div key={tabId}>
@@ -148,8 +149,8 @@ export const SidebarTabs = () => {
       setCurrentApp(tabId as SidebarApp)
       const href =
         tabId === "today"
-          ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
-          : `/${space}${tabConfig.href}`
+          ? `/everyday/${new Date().toLocaleDateString("en-CA")}`
+          : tabConfig.href
       navigate(href)
     } else {
       // Regular tab or block tab
@@ -158,7 +159,7 @@ export const SidebarTabs = () => {
       } else {
         // Block tab - set current app and navigate to block page
         setCurrentApp(tabId)
-        navigate(`/${space}/blocks/${tabId}`)
+        navigate(`/blocks/${tabId}`)
       }
     }
   }
@@ -311,8 +312,8 @@ export const SidebarTabs = () => {
               // en-CA = Canadian English locale, which formats dates as YYYY-MM-DD
               const href =
                 tabId === "today"
-                  ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
-                  : `/${space}${tabConfig.href}`
+                  ? `/everyday/${new Date().toLocaleDateString("en-CA")}`
+                  : tabConfig.href
 
               return (
                 <Link key={tabId} to={href}>
@@ -388,8 +389,8 @@ export const SidebarTabs = () => {
                         setCurrentApp(tabId as SidebarApp)
                         const href =
                           tabId === "today"
-                            ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
-                            : `/${space}${tabConfig.href}`
+                            ? `/everyday/${new Date().toLocaleDateString("en-CA")}`
+                            : tabConfig.href
                         navigate(href)
                       } else {
                         // Regular tab or block tab
@@ -398,7 +399,7 @@ export const SidebarTabs = () => {
                         } else {
                           // Block tab - set current app and navigate to block page
                           setCurrentApp(tabId)
-                          navigate(`/${space}/blocks/${tabId}`)
+                          navigate(`/blocks/${tabId}`)
                         }
                       }
                     }

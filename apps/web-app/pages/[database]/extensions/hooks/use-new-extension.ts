@@ -198,7 +198,7 @@ export const useNewExtension = () => {
     // Set the focused extension ID to scroll to it in the sidebar
     setFocusedExtensionId(newScriptId)
 
-    router(`/${space}/extensions/${newScriptId}`)
+    router(`/extensions/${newScriptId}`)
   }
 
   return {

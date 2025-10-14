@@ -89,10 +89,12 @@ export function CommandDialogDemo() {
 
   const { createDoc, rebuildFTS } = useSqlite()
   const goto = useCMDKGoto()
-  const goEveryday = goto(`/${lastOpenedDatabase}/everyday`)
+  
+  // Use current workspace in desktop mode, otherwise use lastOpenedDatabase
+  const goEveryday = goto(`/everyday`)
 
   const today = getToday()
-  const goToday = goto(`/${lastOpenedDatabase}/everyday/${today}`)
+  const goToday = goto(`/everyday/${today}`)
   const goShare = goto("/share")
 
   const switchTheme = () => {

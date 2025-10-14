@@ -7,7 +7,6 @@ import { Link, useSearchParams } from "react-router-dom"
 
 import { isInkServiceMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ExtNodeBadge } from "@/components/ext-node-badge"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
@@ -18,7 +17,6 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { ItemIcon } from "."
 import { NodeItem } from "./node-menu"
-import { NodeTreeContainer } from "./node-tree"
 import { useFolderStore, type IHoverTarget } from "./store"
 
 export const ItemTypes = {
@@ -193,7 +191,7 @@ export const Card: FC<CardProps> = ({
 
   const link = isShareMode
     ? `/share/${spaceName}/${node.id}?` + searchParams.toString()
-    : `/${spaceName}/${node.id}`
+    : `/${node.id}` // No space included, workspace identified by subdomain
 
   return (
     <div

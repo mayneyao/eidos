@@ -26,9 +26,9 @@ export const AIContextNodes = ({
 
   const handleNodeClick = (node: ITreeNode) => {
     if (isDayPageId(node.id)) {
-      navigate(`/${space}/everyday/${node.id}`)
+      navigate(`/everyday/${node.id}`)
     } else {
-      navigate(`/${space}/${node.id}`)
+      navigate(`/${node.id}`)
     }
   }
 

@@ -18,9 +18,9 @@ export const NodeContextMenu = ({ url }: { url: string }) => {
     // Navigate to the node in the same space
     if (nodeSpace === space) {
       if (isDayPageId(nodeId)) {
-        navigate(`/${space}/everyday/${nodeId}`)
+        navigate(`/everyday/${nodeId}`)
       } else {
-        navigate(`/${space}/${nodeId}`)
+        navigate(`/${nodeId}`)
       }
     }
   }

@@ -35,6 +35,7 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSpace, useSpaceFileSystem } from "@/apps/web-app/hooks/use-space"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
+import { isDesktopMode } from "@/lib/env"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -101,10 +102,26 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [loading, setLoading] = React.useState(false)
   const { updateSpaceList } = useSpace()
 
-  const handleSelect = (currentValue: string) => {
+  const handleSelect = async (currentValue: string) => {
     setLastOpenedDatabase(currentValue)
     setOpen(false)
-    goto(currentValue)
+    
+    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+      // Desktop mode: use Electron IPC to switch workspace
+      try {
+        const result = await window.eidos.invoke('switch-space', currentValue);
+        if (result.success) {
+          // Workspace switched successfully, Electron will automatically reload to new subdomain
+        } else {
+          console.error('Failed to switch space:', result.error);
+        }
+      } catch (error) {
+        console.error('Error switching space:', error);
+      }
+    } else {
+      // Web mode: use route navigation
+      goto(currentValue)
+    }
   }
 
   const handleCreateDatabase = async () => {
