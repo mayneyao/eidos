@@ -110,14 +110,14 @@ export class SpaceRegistry {
 
                 // Only migrate spaces that have database files
                 if (fs.existsSync(oldDbPath)) {
-                    // Create new space directory structure
-                    const newSpacePath = path.join(app.getPath('userData'), 'eidos-data', 'spaces', folder);
-                    const newEidosDir = path.join(newSpacePath, '.eidos');
-                    const newDbPath = path.join(newEidosDir, 'db.sqlite3');
-                    const newFilesPath = path.join(newEidosDir, 'files');
+                    // Keep the same space path (in-place migration)
+                    const spacePath = oldSpacePath;
+                    const eidosDir = path.join(spacePath, '.eidos');
+                    const newDbPath = path.join(eidosDir, 'db.sqlite3');
+                    const newFilesPath = path.join(eidosDir, 'files');
 
-                    // Create new directory structure
-                    fs.mkdirSync(newEidosDir, { recursive: true });
+                    // Create new directory structure within the existing space
+                    fs.mkdirSync(eidosDir, { recursive: true });
                     fs.mkdirSync(newFilesPath, { recursive: true });
 
                     // Migrate database file
@@ -135,7 +135,7 @@ export class SpaceRegistry {
                     spaces.push({
                         id: folder,
                         name: folder.charAt(0).toUpperCase() + folder.slice(1), // Capitalize first letter
-                        path: newSpacePath
+                        path: spacePath
                     });
                 }
             }
