@@ -11,11 +11,13 @@ import {
   RefreshCcwIcon,
   Settings,
   Wand2,
+  Wrench,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
+import { useToast } from "@/components/ui/use-toast"
 import { getToday } from "@/lib/utils"
 import {
   CommandDialog,
@@ -87,8 +89,10 @@ export function CommandDialogDemo() {
     useSpaceAppStore()
   const { lastOpenedDatabase } = useLastOpened()
 
-  const { createDoc, rebuildFTS } = useSqlite()
+  const { createDoc, rebuildFTS, migrateFilePaths, needsPathMigration } = useSqlite()
   const goto = useCMDKGoto()
+  const [isMigrating, setIsMigrating] = useState(false)
+  const { toast } = useToast()
   
   // Use current workspace in desktop mode, otherwise use lastOpenedDatabase
   const goEveryday = goto(`/journals`)
@@ -111,6 +115,50 @@ export function CommandDialogDemo() {
     if (currentNode?.type === "table") {
       await rebuildFTS(id)
       setCmdkOpen(false)
+    }
+  }
+
+  const handleMigrateFilePaths = async () => {
+    setIsMigrating(true)
+    try {
+      const needsMigration = await needsPathMigration()
+      if (!needsMigration) {
+        toast({
+          title: t("cmdk.migrateFilePaths.noMigrationNeeded", "No Migration Needed"),
+          description: t("cmdk.migrateFilePaths.noMigrationNeededDesc", "All file paths are already in the correct format."),
+        })
+        setCmdkOpen(false)
+        return
+      }
+      
+      const result = await migrateFilePaths()
+      if (result) {
+        if (result.errors > 0) {
+          toast({
+            title: t("cmdk.migrateFilePaths.migrationCompletedWithErrors", "Migration Completed with Errors"),
+            description: t("cmdk.migrateFilePaths.migrationCompletedWithErrorsDesc", 
+              `Successfully migrated ${result.migrated} files, but ${result.errors} files had errors. Check the console for details.`),
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: t("cmdk.migrateFilePaths.migrationCompleted", "Migration Completed"),
+            description: t("cmdk.migrateFilePaths.migrationCompletedDesc", 
+              `Successfully migrated ${result.migrated} file paths.`),
+          })
+        }
+      }
+      setCmdkOpen(false)
+    } catch (error) {
+      console.error("File path migration failed:", error)
+      toast({
+        title: t("cmdk.migrateFilePaths.migrationFailed", "Migration Failed"),
+        description: t("cmdk.migrateFilePaths.migrationFailedDesc", 
+          error instanceof Error ? error.message : "An unknown error occurred during migration."),
+        variant: "destructive",
+      })
+    } finally {
+      setIsMigrating(false)
     }
   }
 
@@ -215,6 +263,18 @@ export function CommandDialogDemo() {
               >
                 <PaintBucket className="mr-2 h-4 w-4" />
                 <span>{t("cmdk.themeStudio", "Theme Studio")}</span>
+              </CommandItem>
+              <CommandItem 
+                onSelect={handleMigrateFilePaths}
+                disabled={isMigrating}
+                value="migrate file paths"
+              >
+                {isMigrating ? (
+                  <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Wrench className="mr-2 h-4 w-4" />
+                )}
+                <span>{t("cmdk.migrateFilePaths", "Fix File Paths")}</span>
               </CommandItem>
               {!isInkServiceMode && (
                 <CommandItem onSelect={() => openSettingsModal("general")}>

@@ -395,6 +395,17 @@ export const useSqlite = (dbName?: string) => {
     }
   }
 
+  const migrateFilePaths = async () => {
+    if (!sqlWorker) return
+    const result = await sqlWorker.file.migrateFilePaths()
+    return result
+  }
+
+  const needsPathMigration = async () => {
+    if (!sqlWorker) return false
+    return await sqlWorker.file.needsPathMigration()
+  }
+
   return {
     sqlite: isShareMode ? sqlWorker : isInitialized ? sqlWorker : null,
     createTable,
@@ -424,6 +435,8 @@ export const useSqlite = (dbName?: string) => {
     getOrCreateTableSubDoc,
     updateNodeName,
     rebuildFTS,
+    migrateFilePaths,
+    needsPathMigration,
     resetTableData
   }
 }
