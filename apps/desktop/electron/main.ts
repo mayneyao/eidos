@@ -17,6 +17,7 @@ import { createWindow } from './window-manager/createWindow';
 import { WorkerManager } from './worker-manager';
 import console from 'electron-log';
 import { fetchAvailableModels } from '@/packages/ai/helper';
+import { migrateFromLegacyConfig, getSpaceRegistry } from './space-registry';
 
 
 process.on('uncaughtException', (error) => {
@@ -121,20 +122,34 @@ ipcMain.handle('get-user-config-path', () => {
 });
 
 ipcMain.handle('sqlite-msg', async (event, payload) => {
-    let dataSpace = getDataSpace()
-    const { space, dbName } = payload.data
-    const spaceId = space || dbName
-    if (!dataSpace) {
-        electronLog.info('not found data space')
+    try {
+        let dataSpace = getDataSpace()
         const { space, dbName } = payload.data
-        dataSpace = await getOrSetDataSpace(dbName || space)
-        electronLog.info('switch to data space', dataSpace.dbName)
-    } else if (spaceId !== dataSpace.dbName) {
-        electronLog.info('switch to data space', dataSpace.dbName)
-        dataSpace = await getOrSetDataSpace(dbName || space)
+        const spaceId = space || dbName
+
+        if (!spaceId) {
+            throw new Error('No space ID provided in sqlite-msg');
+        }
+
+        if (!dataSpace) {
+            electronLog.info('not found data space')
+            dataSpace = await getOrSetDataSpace(spaceId)
+            electronLog.info('switch to data space', dataSpace.dbName)
+        } else if (spaceId !== dataSpace.dbName) {
+            electronLog.info('switch to data space', spaceId)
+            dataSpace = await getOrSetDataSpace(spaceId)
+        }
+
+        if (!dataSpace) {
+            throw new Error('Failed to initialize data space');
+        }
+
+        const res = await handleFunctionCall(payload.data, dataSpace)
+        return res
+    } catch (error) {
+        console.error('sqlite-msg error:', error);
+        throw error;
     }
-    const res = await handleFunctionCall(payload.data, dataSpace)
-    return res
 });
 
 
@@ -329,12 +344,35 @@ app.on('second-instance', (event, commandLine) => {
     }
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     corsManager.initialize();
 
-    win = createWindow();
-    const configManager = getConfigManager();
+    await migrateFromLegacyConfig();
 
+    const registry = getSpaceRegistry();
+
+    const configManager = getConfigManager();
+    let spaceId = configManager.getLastOpenedSpace();
+
+    if (!spaceId) {
+        const firstSpace = registry.getFirstSpace();
+        spaceId = firstSpace?.id;
+
+        if (spaceId) {
+            configManager.setLastOpenedSpace(spaceId);
+        }
+    }
+
+    if (spaceId && !registry.validateSpace(spaceId)) {
+        console.warn(`Space ${spaceId} is invalid, falling back to first available space`);
+        const firstSpace = registry.getFirstSpace();
+        spaceId = firstSpace?.id;
+        if (spaceId) {
+            configManager.setLastOpenedSpace(spaceId);
+        }
+    }
+
+    win = createWindow(spaceId);
     configManager.on('configChanged', ({ key, newValue }: { key: string, newValue: unknown }) => {
         if (key === 'security') {
             console.log('security changed', newValue)
@@ -363,6 +401,65 @@ app.whenReady().then(() => {
 
     ipcMain.handle('get-api-agent-status', () => {
         return getApiAgentStatus();
+    });
+
+    ipcMain.handle('list-spaces', () => {
+        const registry = getSpaceRegistry();
+        return registry.getAllSpaces();
+    });
+
+    ipcMain.handle('switch-space', async (_, spaceId: string) => {
+        const registry = getSpaceRegistry();
+        const space = registry.getSpace(spaceId);
+
+        if (!space) {
+            throw new Error(`Space not found: ${spaceId}`);
+        }
+
+        const configManager = getConfigManager();
+        configManager.setLastOpenedSpace(spaceId);
+
+        if (win) {
+            if (process.env.VITE_DEV_SERVER_URL) {
+                const devUrl = new URL(process.env.VITE_DEV_SERVER_URL);
+                const devSubdomainUrl = `http://${spaceId}.eidos.localhost:${devUrl.port}/`;
+                console.log(`🔄 Switching to space in development mode: ${devSubdomainUrl}`);
+                win.loadURL(devSubdomainUrl);
+            } else {
+                const prodSubdomainUrl = `http://${spaceId}.eidos.localhost:${PORT}/`;
+                console.log(`🔄 Switching to space in production mode: ${prodSubdomainUrl}`);
+                win.loadURL(prodSubdomainUrl);
+            }
+        }
+
+        return { success: true };
+    });
+
+    ipcMain.handle('register-space', async (_, spacePath: string, customName?: string) => {
+        const registry = getSpaceRegistry();
+        try {
+            const space = registry.registerSpace(spacePath, customName);
+            return { success: true, space };
+        } catch (error: any) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('remove-space', async (_, spaceId: string) => {
+        const registry = getSpaceRegistry();
+        const success = registry.removeSpace(spaceId);
+        return { success };
+    });
+
+    ipcMain.handle('get-current-space', () => {
+        const configManager = getConfigManager();
+        const spaceId = configManager.getLastOpenedSpace();
+        if (!spaceId) {
+            return null;
+        }
+
+        const registry = getSpaceRegistry();
+        return registry.getSpace(spaceId);
     });
 });
 

@@ -8,54 +8,54 @@ import { getFileFromPath, getSpaceFileFromPath } from '../file-system/space';
 import { serveStatic } from './server-static';
 import { interceptExtensionRequest } from './ext-server';
 import { ProxyHandler } from '@/packages/sandbox/proxy-handler';
+import { getSpaceRegistry } from '../space-registry';
 
 const app = new Hono();
 
-app.use('*', async (c, next) => {
-    const url = new URL(c.req.url);
-    const hostname = url.hostname;
 
-    // Skip CORS handling for proxy requests - they handle their own CORS
-    if (hostname === 'proxy.eidos.localhost') {
-        await next();
-        return;
-    }
+function extractSpaceIdFromHostname(hostname: string): string | null {
+    if (hostname.endsWith('.eidos.localhost')) {
+        const parts = hostname.split('.');
 
-    const requestOrigin = c.req.header('Origin');
-    let isAllowedOrigin = false;
-
-    if (requestOrigin) {
-        try {
-            const originUrl = new URL(requestOrigin);
-            // Allow requests from *.eidos.localhost
-            // e.g. http://3ujmmomr.block.25-w19.eidos.localhost:13127
-            if (originUrl.hostname.endsWith('.eidos.localhost')) {
-                isAllowedOrigin = true;
-                c.header('Access-Control-Allow-Origin', requestOrigin);
-                c.header('Vary', 'Origin');
-                c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-                c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-                c.header('Access-Control-Allow-Credentials', 'true');
-            }
-        } catch (e) {
-            // Use the existing log from 'electron-log' if available in this scope,
-            // or consider adding error logging if needed.
-            log('Invalid Origin header:', requestOrigin, e);
+        if (parts.length >= 2) {
+            return parts[0];
         }
     }
+    return null;
+}
 
-    // Handle preflight (OPTIONS) requests for allowed origins
-    if (c.req.method === 'OPTIONS' && isAllowedOrigin) {
-        // Respond to preflight requests with 204 No Content.
-        // CORS headers are already set if isAllowedOrigin is true.
+function isValidEidosOrigin(origin: string): boolean {
+    try {
+        const url = new URL(origin);
+        
+        // Check if the hostname ends with .eidos.localhost
+        // This ensures we only allow legitimate eidos subdomains
+        return url.hostname.endsWith('.eidos.localhost') || url.hostname === 'eidos.localhost';
+    } catch {
+        // If URL parsing fails, it's not a valid origin
+        return false;
+    }
+}
+
+// CORS middleware - must be first
+app.use('*', async (c, next) => {
+    const origin = c.req.header('Origin');
+
+    // Set CORS headers for all requests from eidos.localhost domains
+    if (origin && isValidEidosOrigin(origin)) {
+        c.header('Access-Control-Allow-Origin', origin);
+        c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+        c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+        c.header('Access-Control-Allow-Credentials', 'true');
+        c.header('Vary', 'Origin');
+    }
+
+    // Handle OPTIONS requests immediately
+    if (c.req.method === 'OPTIONS') {
         return c.body(null, 204);
     }
 
-    // These COOP/COEP headers were in the original middleware.
-    c.header("Cross-Origin-Opener-Policy", "same-origin");
-    c.header("Cross-Origin-Embedder-Policy", "require-corp");
-
-    await next(); // Continue to the next middleware or route handler
+    await next();
 });
 
 
@@ -108,15 +108,25 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
     // handle api calls
     app.post('/rpc', async (c) => {
         try {
-            const { space, method, params, scope } = await c.req.json();
-            if (space) {
-                const dataSpace = await getOrSetDataSpace(space);
-                log('rpc', method, params, space, dataSpace.dbName)
-                const result = await handleFunctionCall({ method, params, space, dbName: space, userId: 'unknown' }, dataSpace);
-                return c.json({ success: true, data: result });
-            } else {
-                throw new Error('Invalid request, space is required')
+            const url = new URL(c.req.url);
+            const spaceId = extractSpaceIdFromHostname(url.hostname);
+
+            if (!spaceId) {
+                throw new Error('Invalid request, space ID not found in hostname');
             }
+
+            const registry = getSpaceRegistry();
+            const space = registry.getSpace(spaceId);
+            if (!space) {
+                throw new Error(`Space not found: ${spaceId}`);
+            }
+
+            const { method, params, scope } = await c.req.json();
+            const dataSpace = await getOrSetDataSpace(spaceId);
+            log('rpc', method, params, spaceId, dataSpace.dbName)
+            const result = await handleFunctionCall({ method, params, space: spaceId, dbName: spaceId, userId: 'unknown' }, dataSpace);
+
+            return c.json({ success: true, data: result });
         } catch (error: any) {
             return c.json({ success: false, error: error.message }, 400);
         }
@@ -142,38 +152,52 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
         return response;
     });
 
-    // 
-    app.get('/:space/files/*', async (c) => {
-        const space = c.req.param('space');
-        const fullPath = c.req.path;
-        const filePath = fullPath.replace(`/${space}/files/`, '');
-        const pathname = `/${space}/files/${filePath}`;
+    app.get('/files/*', async (c) => {
+        try {
+            const url = new URL(c.req.url);
+            const spaceId = extractSpaceIdFromHostname(url.hostname);
 
-        const file = getSpaceFileFromPath(pathname)
-        const headers = new Headers()
-        headers.append("Content-Type", file.type)
-        headers.append("Cross-Origin-Embedder-Policy", "require-corp")
-        headers.append("Cross-Origin-Resource-Policy", "cross-origin")
-        headers.append("Accept-Ranges", "bytes")
-
-        const rangeHeader = c.req.header('range')
-        if (rangeHeader) {
-            const match = rangeHeader.match(/bytes=(\d+)-(\d*)/)
-            if (match) {
-                const start = parseInt(match[1])
-                const end = match[2] ? parseInt(match[2]) : file.size - 1
-                const chunk = file.slice(start, end + 1)
-
-                headers.append("Content-Range", `bytes ${start}-${end}/${file.size}`)
-                headers.append("Content-Length", String(chunk.size))
-                return new Response(chunk, {
-                    status: 206,
-                    headers
-                })
+            if (!spaceId) {
+                return c.text('Space ID not found in hostname', 400);
             }
-        }
 
-        return new Response(file, { headers })
+            const registry = getSpaceRegistry();
+            const space = registry.getSpace(spaceId);
+            if (!space) {
+                return c.text(`Space not found: ${spaceId}`, 404);
+            }
+
+            const fullPath = c.req.path;
+            const filePath = fullPath.replace('/files/', '');
+
+            const file = getSpaceFileFromPath(spaceId, filePath);
+            const headers = new Headers();
+            headers.append("Content-Type", file.type);
+            headers.append("Cross-Origin-Embedder-Policy", "require-corp");
+            headers.append("Cross-Origin-Resource-Policy", "cross-origin");
+            headers.append("Accept-Ranges", "bytes");
+
+            const rangeHeader = c.req.header('range');
+            if (rangeHeader) {
+                const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+                if (match) {
+                    const start = parseInt(match[1]);
+                    const end = match[2] ? parseInt(match[2]) : file.size - 1;
+                    const chunk = file.slice(start, end + 1);
+
+                    headers.append("Content-Range", `bytes ${start}-${end}/${file.size}`);
+                    headers.append("Content-Length", String(chunk.size));
+                    return new Response(chunk, {
+                        status: 206,
+                        headers
+                    });
+                }
+            }
+
+            return new Response(file, { headers });
+        } catch (error: any) {
+            return c.text(`Error serving file: ${error.message}`, 500);
+        }
     })
 
     app.get('/static/*', async (c) => handleStaticFile(c))

@@ -1,4 +1,4 @@
-import type { WebContentsViewConstructorOptions} from 'electron';
+import type { WebContentsViewConstructorOptions } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import os from "node:os";
 import path from 'path';
@@ -18,7 +18,7 @@ const defaultViewOptions: WebContentsViewConstructorOptions = {
 }
 
 
-export function createWindow(url?: string) {
+export function createWindow(spaceId?: string) {
     let baseWindowConfig: Electron.BrowserWindowConstructorOptions = {
         width: 1440,
         height: 900,
@@ -65,15 +65,26 @@ export function createWindow(url?: string) {
         return windowManager.tabs
     })
 
-    if (url) {
-        win.webContents.loadURL(url)
+    if (spaceId) {
+        if (process.env.VITE_DEV_SERVER_URL) {
+            const devUrl = new URL(process.env.VITE_DEV_SERVER_URL);
+            const devSubdomainUrl = `http://${spaceId}.eidos.localhost:${devUrl.port}/`;
+            console.log(`🌐 Development mode: Loading subdomain URL: ${devSubdomainUrl}`);
+            win.loadURL(devSubdomainUrl);
+            win.webContents.openDevTools();
+        } else {
+            const prodSubdomainUrl = `http://${spaceId}.eidos.localhost:${PORT}/`;
+            console.log(`🌐 Production mode: Loading subdomain URL: ${prodSubdomainUrl}`);
+            win.loadURL(prodSubdomainUrl);
+        }
     } else if (process.env.VITE_DEV_SERVER_URL) {
+        console.log(`🌐 Loading window with Vite dev server URL: ${process.env.VITE_DEV_SERVER_URL}`);
         win.loadURL(process.env.VITE_DEV_SERVER_URL);
         win.webContents.openDevTools();
     } else {
-        // win.loadFile('dist/index.html')
-        // win.loadFile(path.join(process.env.DIST, 'index.html'))
-        win.loadURL(`http://localhost:${PORT}`);
+        const localhostUrl = `http://localhost:${PORT}`;
+        console.log(`🌐 Loading window with localhost URL: ${localhostUrl}`);
+        win.loadURL(localhostUrl);
     }
 
     ipcMain.on('window-control', (_, action: string) => {

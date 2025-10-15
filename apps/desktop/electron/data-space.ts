@@ -185,15 +185,15 @@ export class DataSpaceManager {
         return true;
     }
 
-    public async getOrSetDataSpace(spaceName: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
-        if (this.dataSpace && this.dataSpace.dbName !== spaceName) {
+    public async getOrSetDataSpace(spaceId: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
+        if (this.dataSpace && this.dataSpace.dbName !== spaceId) {
             // Close both main and draft databases when switching to a different space
             this.dataSpace.close();
         } else if (this.dataSpace) {
             // If same space, return existing instance
             return this.dataSpace;
         }
-        console.log("init space", spaceName)
+        console.log("init space", spaceId)
         const libPath = getResourcePath(`dist-sqlite-ext/libsimple`);
         const dictPath = getResourcePath('dist-sqlite-ext/dict');
         const graftLibPath = getResourcePath('dist-sqlite-ext/libgraft');
@@ -204,7 +204,7 @@ export class DataSpaceManager {
         // --- END: Set Graft Environment Variables from Config ---
 
         const serverDb = new NodeServerDatabase({
-            path: getSpaceDbPath(spaceName),
+            path: getSpaceDbPath(spaceId),
             options: {
                 timeout: 3000,
             }
@@ -245,7 +245,7 @@ export class DataSpaceManager {
             dataEventChannel: new BroadcastChannel('draft-data-event-channel')
         });
 
-        const efsManager = await getEidosFileSystemManager();
+        const efsManager = await getEidosFileSystemManager(spaceId);
 
         const dataEventEmitter = new EventEmitter();
 
@@ -283,7 +283,7 @@ export class DataSpaceManager {
         this.dataSpace = new DataSpace({
             db: serverDb,
             activeUndoManager: false,
-            dbName: spaceName,
+            dbName: spaceId,
             context: {
                 setInterval,
                 embedding
@@ -313,8 +313,8 @@ export function getDataSpace(): DataSpace | null {
     return DataSpaceManager.getInstance().getDataSpace();
 }
 
-export function getOrSetDataSpace(spaceName: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
-    return DataSpaceManager.getInstance().getOrSetDataSpace(spaceName, enableSync, volumeId);
+export function getOrSetDataSpace(spaceId: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
+    return DataSpaceManager.getInstance().getOrSetDataSpace(spaceId, enableSync, volumeId);
 }
 
 export function reloadDataSpace(): Promise<{ success: boolean }> {

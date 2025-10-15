@@ -24,9 +24,31 @@ async function getSpaceFileSystem() {
 }
 
 async function getEfsManager() {
+  // Extract space ID from subdomain
+  const hostname = window.location.hostname;
+  let spaceId: string | null = null;
+  
+  if (hostname.endsWith('.eidos.localhost')) {
+    const parts = hostname.split('.');
+    if (parts.length >= 2) {
+      spaceId = parts[0];
+    }
+  }
+  
+  if (spaceId) {
+    // Use new structure: {userDir}/.eidos (EFS root)
+    const spaceInfo = await ipcRenderer.invoke('get-current-space');
+    if (spaceInfo && spaceInfo.path) {
+      const eidosDir = `${spaceInfo.path}/.eidos`;
+      const dirHandle = await getOriginPrivateDirectory(nodeAdapter, eidosDir);
+      return new EidosFileSystemManager(dirHandle as any);
+    }
+  }
+  
+  // Fallback to old structure
   const userDataPath = (await ipcRenderer.invoke('get-app-data-folder'));
-  const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath)
-  return new EidosFileSystemManager(dirHandle as any)
+  const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath);
+  return new EidosFileSystemManager(dirHandle as any);
 }
 
 
