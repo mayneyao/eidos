@@ -149,7 +149,7 @@ export const SidebarTabs = () => {
       setCurrentApp(tabId as SidebarApp)
       const href =
         tabId === "today"
-          ? `/everyday/${new Date().toLocaleDateString("en-CA")}`
+          ? `/journals/${new Date().toLocaleDateString("en-CA")}`
           : tabConfig.href
       navigate(href)
     } else {
@@ -312,7 +312,7 @@ export const SidebarTabs = () => {
               // en-CA = Canadian English locale, which formats dates as YYYY-MM-DD
               const href =
                 tabId === "today"
-                  ? `/everyday/${new Date().toLocaleDateString("en-CA")}`
+                  ? `/journals/${new Date().toLocaleDateString("en-CA")}`
                   : tabConfig.href
 
               return (
@@ -389,7 +389,7 @@ export const SidebarTabs = () => {
                         setCurrentApp(tabId as SidebarApp)
                         const href =
                           tabId === "today"
-                            ? `/everyday/${new Date().toLocaleDateString("en-CA")}`
+                            ? `/journals/${new Date().toLocaleDateString("en-CA")}`
                             : tabConfig.href
                         navigate(href)
                       } else {

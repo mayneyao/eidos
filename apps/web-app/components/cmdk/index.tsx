@@ -91,10 +91,10 @@ export function CommandDialogDemo() {
   const goto = useCMDKGoto()
   
   // Use current workspace in desktop mode, otherwise use lastOpenedDatabase
-  const goEveryday = goto(`/everyday`)
+  const goEveryday = goto(`/journals`)
 
   const today = getToday()
-  const goToday = goto(`/everyday/${today}`)
+  const goToday = goto(`/journals/${today}`)
   const goShare = goto("/share")
 
   const switchTheme = () => {

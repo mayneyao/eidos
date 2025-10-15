@@ -83,7 +83,7 @@ export const useProtocolUrl = () => {
                 } else if ('prepend' in searchParams) {
                     await createDocWithMarkdown({ spaceId, docId, markdown: content, title: undefined, mode: "prepend" });
                 } else {
-                    navigate(`/everyday/${date}`);
+                    navigate(`/journals/${date}`);
                 }
                 break;
 

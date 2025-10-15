@@ -6,8 +6,8 @@ import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6"
 
 import { SpaceFileSystem } from "@/lib/storage/space"
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
-import EverydayPage from "@/apps/web-app/pages/[database]/everyday/[day]/page"
-import EverydayHomePage from "@/apps/web-app/pages/[database]/everyday/page"
+import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
+import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
 import { FileManager } from "@/apps/web-app/pages/[database]/files/page"
 
 import "@/locales/i18n"
@@ -23,7 +23,6 @@ import ShareLayout from "@/apps/web-app/pages/share/[database]/layout"
 import SharePage from "@/apps/web-app/pages/share/page"
 
 import { NotFound } from "./404"
-import { AppPage } from "./[database]/apps/page"
 import { BlocksPage } from "./[database]/blocks/page"
 import { ExtensionDetailPage } from "./[database]/extensions/detail"
 import { ExtensionsEmptyState } from "./[database]/extensions/empty-state"
@@ -150,7 +149,7 @@ const router = createBrowserRouter([
             ],
           },
           {
-            path: "everyday",
+            path: "journals",
             children: [
               {
                 index: true,

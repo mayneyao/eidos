@@ -41,7 +41,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
 
   const handleInternalLinkClick = (id: string) => {
     if (isDayPageId(id)) {
-      navigate(`/everyday/${id}`)
+      navigate(`/journals/${id}`)
     } else {
       navigate(`/${id}`)
     }

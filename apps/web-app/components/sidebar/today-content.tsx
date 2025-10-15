@@ -22,7 +22,7 @@ export const TodayContent = () => {
 
   const handleDateSelect = (date: Date) => {
     const dateString = date.toLocaleDateString("en-CA").split("T")[0]
-    router(`/everyday/${dateString}`)
+    router(`/journals/${dateString}`)
   }
 
   return (

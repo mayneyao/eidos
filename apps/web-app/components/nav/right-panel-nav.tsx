@@ -209,7 +209,7 @@ export const RightPanelNav = () => {
     if (!tempPanelNode) return
 
     if (isDayPageId(tempPanelNode.id)) {
-      navigate(`/everyday/${tempPanelNode.id}`)
+      navigate(`/journals/${tempPanelNode.id}`)
     } else {
       navigate(`/${tempPanelNode.id}`)
     }

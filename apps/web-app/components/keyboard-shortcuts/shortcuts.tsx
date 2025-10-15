@@ -31,7 +31,7 @@ export function ShortCuts() {
   // navigate to today
   useKeyPress(["ctrl.t", "meta.t"], () => {
     const date = getToday()
-    navigate(`/everyday/${date}`)
+    navigate(`/journals/${date}`)
   })
 
   // create new doc
@@ -59,7 +59,7 @@ export function ShortCuts() {
     } else if (isDayPageId(day)) {
       // day
       const newDay = getDate(-1, day)
-      navigate(`/everyday/${newDay}`)
+      navigate(`/journals/${newDay}`)
     }
   })
 
@@ -69,7 +69,7 @@ export function ShortCuts() {
     } else if (isDayPageId(day)) {
       // day
       const newDay = getDate(1, day)
-      navigate(`/everyday/${newDay}`)
+      navigate(`/journals/${newDay}`)
     }
   })
 

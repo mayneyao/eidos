@@ -32,7 +32,7 @@ export const TAB_CONFIG: Record<string, Omit<SidebarTab, 'id'>> = {
     label: "每日",
     icon: () => null,
     isNavigation: true,
-    href: "/everyday",
+    href: "/journals",
   },
 }
 

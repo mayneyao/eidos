@@ -27,7 +27,7 @@ export const WeekPage = () => {
           >
             <Link
               className="text-2xl opacity-70 hover:opacity-90"
-              to={`/everyday/${day.id}`}
+              to={`/journals/${day.id}`}
             >
               {getDisplayTitle(day.id)}
             </Link>

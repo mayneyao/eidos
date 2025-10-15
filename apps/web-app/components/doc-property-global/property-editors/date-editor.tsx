@@ -143,7 +143,7 @@ export const DateEditor: React.FC<PropertyEditorProps> = ({
         if (!isNaN(date.getTime())) {
           // Format date as YYYY-MM-DD for the URL
           const dateString = date.toISOString().split("T")[0]
-          navigate(`/everyday/${dateString}`)
+          navigate(`/journals/${dateString}`)
         }
       } catch (error) {
         console.error("Invalid date value for navigation:", error)

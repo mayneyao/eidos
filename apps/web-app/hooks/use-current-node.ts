@@ -76,7 +76,7 @@ export const useCurrentNodePath = ({
           id: nodeId,
           name: nodeId,
           type: "day",
-          path: `everyday/${nodeId}`,
+          path: `journals/${nodeId}`,
         }
       }
       return node
@@ -108,14 +108,14 @@ export const useCurrentNodePath = ({
       {
         id: year,
         name: `Year ${year}`,
-        path: `everyday?year=${year}`,
+        path: `journals?year=${year}`,
         type: null,
       },
       {
         id: week.toString(),
         name: `Week ${week}`,
         type: null,
-        path: `everyday/${year}-w${formattedWeek}`,
+        path: `journals/${year}-w${formattedWeek}`,
       },
     ]
   }
@@ -128,20 +128,20 @@ export const useCurrentNodePath = ({
       {
         id: year,
         name: `Year ${year}`,
-        path: `everyday?year=${year}`,
+        path: `journals?year=${year}`,
         type: null,
       },
       {
         id: week.toString(),
         name: `Week ${week}`,
         type: null,
-        path: `everyday/${year}-w${formattedWeek}`,
+        path: `journals/${year}-w${formattedWeek}`,
       },
       {
         id: nodeId,
         name: nodeId,
         type: "day",
-        path: `everyday/${nodeId}`,
+        path: `journals/${nodeId}`,
       },
     ]
   }

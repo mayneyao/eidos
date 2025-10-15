@@ -58,7 +58,7 @@ export default function EverydayPage() {
                 className="border-b border-slate-300"
                 onClick={() => handleClick(day.id)}
               >
-                <Link className="text-2xl" to={`/everyday/${day.id}`}>
+                <Link className="text-2xl" to={`/journals/${day.id}`}>
                   {getDisplayTitle(day.id)}
                 </Link>
                 <Editor
