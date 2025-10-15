@@ -27,7 +27,7 @@ function extractSpaceIdFromHostname(hostname: string): string | null {
 function isValidEidosOrigin(origin: string): boolean {
     try {
         const url = new URL(origin);
-        
+
         // Check if the hostname ends with .eidos.localhost
         // This ensures we only allow legitimate eidos subdomains
         return url.hostname.endsWith('.eidos.localhost') || url.hostname === 'eidos.localhost';
@@ -37,25 +37,51 @@ function isValidEidosOrigin(origin: string): boolean {
     }
 }
 
-// CORS middleware - must be first
 app.use('*', async (c, next) => {
-    const origin = c.req.header('Origin');
+    const url = new URL(c.req.url);
+    const hostname = url.hostname;
 
-    // Set CORS headers for all requests from eidos.localhost domains
-    if (origin && isValidEidosOrigin(origin)) {
-        c.header('Access-Control-Allow-Origin', origin);
-        c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-        c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-        c.header('Access-Control-Allow-Credentials', 'true');
-        c.header('Vary', 'Origin');
+    // Skip CORS handling for proxy requests - they handle their own CORS
+    if (hostname === 'proxy.eidos.localhost') {
+        await next();
+        return;
     }
 
-    // Handle OPTIONS requests immediately
-    if (c.req.method === 'OPTIONS') {
+    const requestOrigin = c.req.header('Origin');
+    let isAllowedOrigin = false;
+
+    if (requestOrigin) {
+        try {
+            const originUrl = new URL(requestOrigin);
+            // Allow requests from *.eidos.localhost
+            // e.g. http://3ujmmomr.block.25-w19.eidos.localhost:13127
+            if (originUrl.hostname.endsWith('.eidos.localhost')) {
+                isAllowedOrigin = true;
+                c.header('Access-Control-Allow-Origin', requestOrigin);
+                c.header('Vary', 'Origin');
+                c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+                c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+                c.header('Access-Control-Allow-Credentials', 'true');
+            }
+        } catch (e) {
+            // Use the existing log from 'electron-log' if available in this scope,
+            // or consider adding error logging if needed.
+            log('Invalid Origin header:', requestOrigin, e);
+        }
+    }
+
+    // Handle preflight (OPTIONS) requests for allowed origins
+    if (c.req.method === 'OPTIONS' && isAllowedOrigin) {
+        // Respond to preflight requests with 204 No Content.
+        // CORS headers are already set if isAllowedOrigin is true.
         return c.body(null, 204);
     }
 
-    await next();
+    // These COOP/COEP headers were in the original middleware.
+    c.header("Cross-Origin-Opener-Policy", "same-origin");
+    c.header("Cross-Origin-Embedder-Policy", "require-corp");
+
+    await next(); // Continue to the next middleware or route handler
 });
 
 
