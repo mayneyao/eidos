@@ -52,7 +52,7 @@ function CustomBlockPlaceholderComponent(props: { nodeKey: string }) {
           <p className="p-2 text-sm text-gray-500">
             There are no blocks in this space. Try to{" "}
             <Link
-              to={`/${space}/extensions`}
+              to={`/extensions`}
               className="flex items-center gap-2 text-blue-500"
             >
               <span>create block</span>

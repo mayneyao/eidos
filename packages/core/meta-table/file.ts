@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   /**
    * save file to efs
    * @param url a url of file
-   * @param subDir sub directory of file, default is [], which means save file to spaces/\<space\>/files/, if subDir is ["a","b"], then save file to spaces/\<space\>/files/a/b/
+   * @param subDir sub directory of file, default is [], which means save file to files/, if subDir is ["a","b"], then save file to files/a/b/
    * @param _name file name, default is null, which means use the file name in url
    * @returns
    */
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       const name = _name || url.split("/").pop()!
       const file = new File([blob], name, { type: blob.type })
       const space = this.dataSpace.dbName
-      const dirs = ["spaces", space, "files", ...subDir]
+      const dirs = ["files", ...subDir]
       const paths = await this.dataSpace.efsManager?.addFile(dirs, file, _name ? _name : fileId)
       if (!paths) {
         throw new Error("add file failed")
@@ -250,7 +250,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     _parentPath?: string[]
   ) {
     const space = this.dataSpace.dbName
-    let parentPath = _parentPath || ["spaces", space, "files"]
+    let parentPath = _parentPath || ["files"]
     // walk dirHandle upload to /extensions/<name>/
     if (!this.dataSpace.efsManager) {
       throw new Error("file manager not found")
@@ -301,7 +301,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
    * @param fileData File data as ArrayBuffer or base64 string
    * @param fileName Original file name
    * @param mimeType File mime type
-   * @param parentPath Parent path array, defaults to ["spaces", <space>, "files"]
+   * @param parentPath Parent path array, defaults to ["files"]
    * @returns Uploaded file info
    */
   public async upload(
@@ -311,7 +311,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     parentPath?: string[]
   ): Promise<IFile & { publicUrl: string }> {
     const space = this.dataSpace.dbName
-    const rootPath = ["spaces", space, "files"]
+    const rootPath = ["files"]
     const basePath = [...rootPath, ...(parentPath || [])]
 
     if (!this.dataSpace.efsManager) {

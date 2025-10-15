@@ -121,7 +121,7 @@ export function CommandDialogDemo() {
 
   const createNewDoc = async () => {
     const docId = await createDoc("")
-    goto(`/${lastOpenedDatabase}/${docId}`)()
+    goto(`/${docId}`)()
   }
 
   const { t } = useTranslation()

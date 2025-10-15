@@ -60,11 +60,15 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [spaceNameFromFile, setSpaceNameFromFile] = React.useState("")
   const [enableSync, setEnableSync] = React.useState(false)
   const [volumeId, setVolumeId] = React.useState("")
+  const [selectedFolder, setSelectedFolder] = React.useState<string>("")
+  const [isSelectingFolder, setIsSelectingFolder] = React.useState(false)
 
   const reset = () => {
     setDatabaseName("")
     setFile(null)
     setSpaceNameFromFile("")
+    setSelectedFolder("")
+    setIsSelectingFolder(false)
   }
   const slugifyDatabaseName = React.useMemo(() => {
     if (/^[a-zA-Z0-9-]+$/.test(databaseName)) {
@@ -124,22 +128,59 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
     }
   }
 
+  const handleSelectFolder = async () => {
+    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+      setIsSelectingFolder(true)
+      try {
+        const folderPath = await window.eidos.selectFolder()
+        if (folderPath) {
+          setSelectedFolder(folderPath)
+          // Auto-generate space name from folder name
+          const folderName = folderPath.split('/').pop() || folderPath.split('\\').pop() || 'New Space'
+          setDatabaseName(folderName)
+        }
+      } catch (error) {
+        console.error('Error selecting folder:', error)
+      } finally {
+        setIsSelectingFolder(false)
+      }
+    }
+  }
+
   const handleCreateDatabase = async () => {
     const databaseName = slugifyDatabaseName
     if (databaseName) {
       setLoading(true)
-      if (file && spaceFileSystem) {
-        await spaceFileSystem.import(databaseName, file)
-      } else {
-        await createSpace(databaseName, enableSync)
+      try {
+        if (file && spaceFileSystem) {
+          // Import from file
+          await spaceFileSystem.import(databaseName, file)
+        } else if (isDesktopMode && selectedFolder) {
+          // Desktop mode: create space with selected folder
+          const result = await window.eidos.invoke('register-space', selectedFolder, databaseName)
+          if (result.success) {
+            await updateSpaceList()
+            await handleSelect(databaseName)
+          } else {
+            throw new Error(result.error || 'Failed to create space')
+          }
+        } else {
+          // Web mode: use existing method
+          await createSpace(databaseName, enableSync)
+          setLastOpenedDatabase(databaseName)
+          goto(databaseName)
+          updateSpaceList()
+        }
+      } catch (error) {
+        console.error('Error creating space:', error)
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        alert(`Failed to create space: ${errorMessage}`)
+      } finally {
+        setLoading(false)
+        setShowNewTeamDialog(false)
+        reset()
       }
-      setLoading(false)
-      setShowNewTeamDialog(false)
-      setLastOpenedDatabase(databaseName)
-      goto(databaseName)
-      updateSpaceList()
     }
-    reset()
   }
   return (
     <Dialog open={showNewTeamDialog} onOpenChange={setShowNewTeamDialog}>
@@ -223,6 +264,34 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
         </DialogHeader>
         <div>
           <div className="space-y-4 py-2 pb-4">
+            {isDesktopMode && (
+              <div className="space-y-2">
+                <Label htmlFor="folder-selection">
+                  {t("space.select.selectFolder")}
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="folder-selection"
+                    placeholder={t("space.select.folderPlaceholder")}
+                    value={selectedFolder}
+                    readOnly
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSelectFolder}
+                    disabled={isSelectingFolder}
+                  >
+                    {isSelectingFolder ? t("space.select.selecting") : t("space.select.browse")}
+                  </Button>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t("space.select.folderDescription")}
+                </div>
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="database-name">
                 {t("space.select.spaceName")}
@@ -311,7 +380,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
           <Button
             type="submit"
             onClick={handleCreateDatabase}
-            disabled={loading}
+            disabled={loading || (isDesktopMode && !selectedFolder && !file) || !databaseName.trim()}
           >
             {loading ? t("space.select.creating") : t("common.continue")}
           </Button>

@@ -14,5 +14,5 @@ service worker like a Web server in browser. it can handle request and response.
 
 - cache static files
 - handle request from client, proxy files from OPFS.
-  - `http://eidos.space/myspace/files/abc.jpg` => /spaces/myspace/files/abc.jpg
+  - `http://myspace.eidos.localhost/files/abc.jpg` => /files/abc.jpg
 -

@@ -34,7 +34,7 @@ export function EverydayPageContent({
   const handleDayClick = (date: Date, closePopover = false) => {
     const day = getLocalDate(date)
     setMonth(date)
-    router(`/${database}/everyday/${day}`)
+    router(`/everyday/${day}`)
     closePopover && setOpen(false)
   }
   if (isWeekPage) {

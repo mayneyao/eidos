@@ -9,7 +9,7 @@ export const useSpaceDir = () => {
   const { efsManager } = useEidosFileSystemManager()
 
   useEffect(() => {
-    efsManager.getDirHandle(["spaces", space, "files"]).then((dir) => {
+    efsManager.getDirHandle(["files"]).then((dir) => {
       console.log('dir', dir)
       setDir(dir)
     })

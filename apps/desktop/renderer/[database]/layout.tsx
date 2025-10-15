@@ -117,7 +117,7 @@ export function DesktopSpaceLayout() {
 
   return (
     <>
-      <DocExtBlockLoader />
+      {/* <DocExtBlockLoader /> */}
       <KeyboardShortCuts />
       <div className={cn("relative flex w-full overflow-hidden")}>
         {currentPreviewFile && (

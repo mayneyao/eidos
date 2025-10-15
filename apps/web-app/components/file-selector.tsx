@@ -44,6 +44,8 @@ export function FileSelector(props: {
     return files.filter((file) => file.mime.startsWith("image/"))
   }, [files])
 
+  console.log("files", files)
+
   const dropRef = useRef(null)
   const [isHovering, setIsHovering] = useState(false)
   const { addFiles } = useFileSystem()
@@ -158,7 +160,7 @@ export function FileSelector(props: {
               <h3 className="mb-2 text-sm font-medium text-muted-foreground">Images</h3>
               <div className="grid grid-cols-5 gap-2">
                 {images.map((image) => {
-                  const url = efsManager.getFileUrlByPath(image.path, database)
+                  const url = efsManager.getFileUrlByPath(image.path)
                   const _url = getFilePreviewImage(url)
                   return (
                     <img

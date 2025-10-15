@@ -99,7 +99,7 @@ interface IFile {
  * @param fileData File data as ArrayBuffer or base64 string
  * @param fileName Original file name
  * @param mimeType File mime type
- * @param parentPath Parent path array, defaults to ["spaces", <space>, "files"]
+ * @param parentPath Parent path array, defaults to ["files"]
  * @returns Uploaded file info
  */
 public async upload(

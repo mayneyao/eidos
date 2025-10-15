@@ -65,7 +65,8 @@ export const useFileSystem = (rootDir?: FileSystemDirectoryHandle) => {
     if (rootDir) {
       return []
     }
-    return ["spaces", space, "files"]
+    // EFS root is now {userDir}/.eidos/, so files should go in files/ subdirectory
+    return ['files']
   }, [rootDir, space])
 
   const { sqlite } = useSqlite()

@@ -144,7 +144,7 @@ export const useAIFunctions = () => {
         const { markdown, title } = parameters
         const docId = getUuid()
         const doc = await sqlite?.createOrUpdateDocWithMarkdown(docId, markdown, undefined, title)
-        const url = `/${database}/${docId}`
+        const url = `/${docId}`
         console.log(doc, url)
         return url
       case "createTable":

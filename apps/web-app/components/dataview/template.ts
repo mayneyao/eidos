@@ -57,7 +57,7 @@ SELECT
     json_extract(j.value, '$.title') as title,
     json_extract(j.value, '$.description') as description,
     json_extract(j.value, '$.fetched') as fetched,
-    '/${space}/' || d.id AS pathname,
+    '/' || d.id AS pathname,
     d.created_at as created_at,
     json_extract(j.value, '$.url') as url,
     json_extract(j.value, '$.image') as image,
@@ -92,7 +92,7 @@ WITH
 SELECT
   json_extract(j.value, '$.children[0].text') as text,
   json_extract(j.value, '$.checked') as checked,
-  '/${space}/' || d.id AS pathname,
+  '/' || d.id AS pathname,
   d.created_at as created_at,
   d.id as doc_id
 FROM
@@ -135,7 +135,7 @@ WITH
 SELECT
   json_extract(j.value, '$.children[0].text') as text,
   json_extract(j.value, '$.checked') as checked,
-  '/${space}/' || d.id AS pathname,
+  '/' || d.id AS pathname,
   d.created_at as created_at,
   d.updated_at as updated_at,
   d.id as doc_id
@@ -176,7 +176,7 @@ WITH
   )
 SELECT
   json_extract(j.value, '$.text') as text,
-  '/${space}/' || d.id AS pathname,
+  '/' || d.id AS pathname,
   d.id as doc_id
 FROM
   valid_docs d,
@@ -241,7 +241,7 @@ SELECT
   text,
   url,
   type,
-  '/${space}/' || doc_id AS pathname,
+  '/' || doc_id AS pathname,
   created_at,
   doc_id
 FROM (
@@ -388,7 +388,7 @@ ORDER BY
     sql: `
 SELECT
   t.name as title,
-  '/${space}/' || t.id AS pathname, -- [pathname:url]
+  '/' || t.id AS pathname, -- [pathname:url]
   d.*
 FROM
   eidos__tree t
@@ -408,7 +408,7 @@ ORDER BY
 -- [pathname:url]
 SELECT
   t.name as title,
-  '/${space}/' || t.id AS pathname
+  '/' || t.id AS pathname
 FROM
   eidos__tree t
   JOIN sqlite_master sm ON sm.name = 'tb_' || t.id

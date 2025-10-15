@@ -32,7 +32,7 @@ export const useExtensionInstaller = () => {
                 if (existingScript) {
                     console.log(`Extension ${extensionIdFromApi} already installed. Navigating...`);
                     if (lastOpenedDatabase) {
-                        navigate(`/${lastOpenedDatabase}/extensions/${existingScript.id}`);
+                        navigate(`/extensions/${existingScript.id}`);
                     }
                     return;
                 }
@@ -55,7 +55,7 @@ export const useExtensionInstaller = () => {
             await addExtension(script);
             console.log(`Successfully installed extension: ${extensionId}`);
             if (lastOpenedDatabase) {
-                navigate(`/${lastOpenedDatabase}/extensions/${script.id}`);
+                navigate(`/extensions/${script.id}`);
             }
 
 

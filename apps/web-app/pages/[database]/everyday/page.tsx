@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react"
 import useInfiniteScroll from "react-infinite-scroll-hook"
-import { Link, useParams, useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { useAllDays, useDays } from "./hooks"
 import { getDisplayTitle } from "./utils"
@@ -58,10 +58,7 @@ export default function EverydayPage() {
                 className="border-b border-slate-300"
                 onClick={() => handleClick(day.id)}
               >
-                <Link
-                  className="text-2xl"
-                  to={`/${params.database}/everyday/${day.id}`}
-                >
+                <Link className="text-2xl" to={`/everyday/${day.id}`}>
                   {getDisplayTitle(day.id)}
                 </Link>
                 <Editor

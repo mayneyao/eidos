@@ -13,11 +13,15 @@ export type IBindings = Record<string, IBinding>
 export const makeSdkInjectScript = ({
     bindings,
     space,
+    port = '13127'
 }: {
     bindings?: IBindings
     space: string
+    port?: string
 }) => {
-    let res = sdkInjectScript.replace("${{currentSpace}}", space)
+    // replace all ${{currentSpace}} to space
+    let res = sdkInjectScript.replace(/\${{currentSpace}}/g, space)
+
     if (bindings) {
         res = `<script>window.__EIDOS_BINDINGS__ = ${JSON.stringify(bindings)}</script>` + res
     }

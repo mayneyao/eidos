@@ -71,23 +71,25 @@ export const getDirHandle = async (
 }
 
 /**
- * eidos fs structure:
- * - spaces
- *  - space1
- *    - db.sqlite3
- *    - files
- *      - 1234567890.png
- *      - 0987654321.png
- *  - space2
- *    - db.sqlite3
+ * eidos fs structure (per workspace):
+ * - user-selected-directory/
+ *   - .eidos/                     ← EFS root directory
+ *     - db.sqlite3
+ *     - files/                    ← User uploaded files
+ *       - 1234567890.png
+ *       - 0987654321.png
+ *     - other-eidos-data/         ← Other Eidos data
+ *   - other-user-files...
  *
- * spaces
- * - what is a space? a space is a folder that contains a sqlite3 database, default name is db.sqlite3.
- * - one space is one database.
+ * workspace
+ * - what is a workspace? a workspace is a user-selected directory that contains a .eidos folder with a sqlite3 database.
+ * - each workspace is completely isolated with its own .eidos directory.
+ * - the .eidos directory is hidden and contains all Eidos-specific data.
  *
  * files
- * - files is a folder that contains all static files, such as images, videos, etc.
+ * - files is a folder inside .eidos that contains all static files, such as images, videos, etc.
  * - when user upload a file, it will be saved in this folder. hash will be used as file name. e.g. 1234567890.png
+ * - the EFS rootDirHandle points to the .eidos/ directory (not .eidos/files/)
  */
 
 export class EidosFileSystemManager {
@@ -196,18 +198,20 @@ export class EidosFileSystemManager {
   }
 
   getFileUrlByPath = (path: string, replaceSpace?: string) => {
-    const paths = path.split("/").slice(1)
-    if (replaceSpace) {
-      paths[0] = replaceSpace
-    }
-    return "/" + paths.join("/")
+    // const paths = path.split("/").slice(1)
+    // if (replaceSpace) {
+    //   paths[0] = replaceSpace
+    // }
+    // return "/" + paths.join("/")
+    return "/" + path
   }
 
   getFileByURL = async (url: string) => {
     const path = new URL(url).pathname
     const parentPaths = path.split("/").slice(0, -1).filter(Boolean)
+    // EFS root is now .eidos/, so files are in files/ subdirectory
     const parentDirHandle = await getDirHandle(
-      ["spaces", ...parentPaths],
+      ["files", ...parentPaths],
       this.rootDirHandle
     )
     const filename = path.split("/").pop()
@@ -286,9 +290,7 @@ export class EidosFileSystemManager {
 
   addDir = async (_paths: string[], dirName: string) => {
     const paths = [..._paths]
-    if (paths.length === 0) {
-      throw new Error("paths can't be empty")
-    }
+    // Allow empty paths array to represent root directory
     const dirHandle = await getDirHandle(paths, this.rootDirHandle)
     const r = await dirHandle.getDirectoryHandle(dirName, { create: true })
 
@@ -297,9 +299,7 @@ export class EidosFileSystemManager {
 
   addFile = async (_paths: string[], file: File, fileId?: string) => {
     const paths = [..._paths]
-    if (paths.length === 0) {
-      throw new Error("paths can't be empty")
-    }
+    // Allow empty paths array to represent root directory
     const dirHandle = await getDirHandle(paths, this.rootDirHandle)
     console.log("dirHandle", dirHandle)
     // if fileId is provided, use it as file name
@@ -320,16 +320,18 @@ export class EidosFileSystemManager {
 
   deleteEntry = async (_paths: string[], isDir = false) => {
     const paths = [..._paths]
-    if (paths.length === 0) {
-      throw new Error("paths can't be empty")
-    }
     if (isDir) {
+      // For directories, allow empty paths array to represent root directory
       const dirHandle = await getDirHandle(paths, this.rootDirHandle)
       // The remove() method is currently only implemented in Chrome. You can feature-detect support via 'remove' in FileSystemFileHandle.prototype.
       await (dirHandle as any).remove({
         recursive: true,
       })
     } else {
+      // For files, we need at least one path segment for the filename
+      if (paths.length === 0) {
+        throw new Error("paths can't be empty")
+      }
       const filename = paths.pop()
       const dirHandle = await getDirHandle(paths, this.rootDirHandle)
       await dirHandle.removeEntry(filename!)
@@ -338,6 +340,7 @@ export class EidosFileSystemManager {
 
   renameFile = async (_paths: string[], newName: string) => {
     const paths = [..._paths]
+    // For files, we need at least one path segment for the filename
     if (paths.length === 0) {
       throw new Error("paths can't be empty")
     }

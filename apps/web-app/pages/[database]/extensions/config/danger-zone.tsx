@@ -39,7 +39,7 @@ export const DangerZone = () => {
     try {
       await deleteExtension(script.id)
       setShowDeleteDialog(false)
-      router(`/${space}/extensions`)
+      router(`/extensions`)
     } catch (error) {
       toast({
         title: "Failed to delete script",

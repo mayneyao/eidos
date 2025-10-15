@@ -13,7 +13,6 @@ import { FileManager } from "@/apps/web-app/pages/[database]/files/page"
 
 import "@/locales/i18n"
 import { NotFound } from "@/apps/web-app/pages/404"
-import { AppPage } from "@/apps/web-app/pages/[database]/apps/page"
 import { BlocksPage } from "@/apps/web-app/pages/[database]/blocks/page"
 import { ExtensionDetailPage } from "@/apps/web-app/pages/[database]/extensions/detail"
 import { ExtensionsEmptyState } from "@/apps/web-app/pages/[database]/extensions/empty-state"
@@ -153,15 +152,6 @@ const router = createBrowserRouter([
           {
             path: "opfs",
             element: <FileManager />,
-          },
-          {
-            path: "apps",
-            children: [
-              {
-                path: ":id",
-                element: <AppPage />,
-              },
-            ],
           },
           {
             path: "extensions",

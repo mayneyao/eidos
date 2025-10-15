@@ -1,6 +1,6 @@
 <script type="module">
   const EIDOS_CONFIG = {
-    httpEndpoint: "http://localhost:13127/rpc", // Replace with your HTTP endpoint
+    httpEndpoint: "http://${{currentSpace}}.eidos.localhost:13127/rpc", // Replace with your HTTP endpoint
     timeout: 30000, // HTTP request timeout in milliseconds
   }
 
@@ -20,7 +20,8 @@
       if (
         requestOrigin === currentOrigin ||
         requestUrl.hostname === "proxy.eidos.localhost" ||
-        requestUrl.hostname === "localhost"
+        requestUrl.hostname === "localhost" ||
+        requestUrl.hostname.endsWith(".eidos.localhost")
       ) {
         return originalFetch(input, init)
       }

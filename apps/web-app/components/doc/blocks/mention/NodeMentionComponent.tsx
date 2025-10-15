@@ -56,9 +56,9 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
     }
 
     if (isDayPageId(id)) {
-      return router(`/${space}/everyday/${id}`)
+      return router(`/everyday/${id}`)
     }
-    router(`/${space}/${id}`)
+    router(`/${id}`)
   }
 
   useEffect(() => {

@@ -142,7 +142,7 @@ export function NavDropdownMenu() {
   const deleteCurrentNode = () => {
     if (node) {
       deleteNode(node)
-      router(`/${space}`)
+      router(`/`)
     }
   }
 

@@ -1,15 +1,13 @@
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
-import { getDaysByYearWeek } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Editor } from "@/components/doc/editor"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { Editor } from "@/components/doc/editor"
+import { getDaysByYearWeek } from "@/lib/utils"
+
 import { getDisplayTitle } from "../utils"
 
 export const WeekPage = () => {
-  const params = useCurrentPathInfo()
   const { day } = useParams()
   const [currentDay, setCurrentDay] = useState<string>("")
   const { isCmdkOpen } = useAppRuntimeStore()
@@ -29,7 +27,7 @@ export const WeekPage = () => {
           >
             <Link
               className="text-2xl opacity-70 hover:opacity-90"
-              to={`/${params.database}/everyday/${day.id}`}
+              to={`/everyday/${day.id}`}
             >
               {getDisplayTitle(day.id)}
             </Link>

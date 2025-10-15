@@ -72,7 +72,7 @@ export const useWorker = () => {
           const currentUrl = window.location.pathname
           const urlParts = currentUrl.split('/').filter(Boolean)
           const currentSpace = urlParts[0]
-          const path = `/${currentSpace}${data}`
+          const path = `/${data}`
           console.warn("navigate", path, "currentSpace:", currentSpace)
           navigate(path)
           break

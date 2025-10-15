@@ -33,9 +33,9 @@ export const NodeContextMenu = ({ url }: { url: string }) => {
 
     // Open the node in a new window
     if (isDayPageId(nodeId)) {
-      window.open(`/${nodeSpace}/everyday/${nodeId}`)
+      window.open(`/everyday/${nodeId}`)
     } else {
-      window.open(`/${nodeSpace}/${nodeId}`)
+      window.open(`/${nodeId}`)
     }
   }
 

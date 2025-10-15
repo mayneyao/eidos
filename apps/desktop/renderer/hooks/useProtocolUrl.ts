@@ -69,7 +69,7 @@ export const useProtocolUrl = () => {
                     console.log({ spaceId, content, title });
                     const docId = uuidv7().replace(/-/g, '');
                     await createDocWithMarkdown({ spaceId, docId, markdown: content, title, mode: "replace" });
-                    navigate(`/${spaceId}/${docId}`);
+                    navigate(`/${docId}`);
                 }
                 break;
 
@@ -83,7 +83,7 @@ export const useProtocolUrl = () => {
                 } else if ('prepend' in searchParams) {
                     await createDocWithMarkdown({ spaceId, docId, markdown: content, title: undefined, mode: "prepend" });
                 } else {
-                    navigate(`/${spaceId}/everyday/${date}`);
+                    navigate(`/everyday/${date}`);
                 }
                 break;
 
