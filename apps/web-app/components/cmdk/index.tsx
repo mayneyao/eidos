@@ -137,14 +137,15 @@ export function CommandDialogDemo() {
           toast({
             title: t("cmdk.migrateFilePaths.migrationCompletedWithErrors", "Migration Completed with Errors"),
             description: t("cmdk.migrateFilePaths.migrationCompletedWithErrorsDesc", 
-              `Successfully migrated ${result.migrated} files, but ${result.errors} files had errors. Check the console for details.`),
+              `Successfully migrated ${result.migrated} files, but ${result.errors} files had errors. Check the console for details.`, 
+              { migrated: result.migrated, errors: result.errors }),
             variant: "destructive",
           })
         } else {
           toast({
             title: t("cmdk.migrateFilePaths.migrationCompleted", "Migration Completed"),
             description: t("cmdk.migrateFilePaths.migrationCompletedDesc", 
-              `Successfully migrated ${result.migrated} file paths.`),
+              `Successfully migrated ${result.migrated} file paths.`, { count: result.migrated }),
           })
         }
       }
@@ -154,7 +155,8 @@ export function CommandDialogDemo() {
       toast({
         title: t("cmdk.migrateFilePaths.migrationFailed", "Migration Failed"),
         description: t("cmdk.migrateFilePaths.migrationFailedDesc", 
-          error instanceof Error ? error.message : "An unknown error occurred during migration."),
+          error instanceof Error ? error.message : "An unknown error occurred during migration.", 
+          { error: error instanceof Error ? error.message : "An unknown error occurred during migration." }),
         variant: "destructive",
       })
     } finally {
