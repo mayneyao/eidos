@@ -4,7 +4,7 @@ import { generateMergeTableWithNewColumnsSql } from "../sqlite/sql-merge-table-w
 import type { IView } from "../types/IView"
 
 import { isDesktopMode } from "@/lib/env"
-import type { DataSpace, EidosDatabase } from "../DataSpace"
+import type { DataSpace, EidosDatabase } from "../data-space"
 import { allFieldTypesMap } from "../fields"
 import type { FieldType } from "../fields/const"
 import { ColumnTable } from "../meta-table/column"

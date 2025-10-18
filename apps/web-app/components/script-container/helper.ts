@@ -1,5 +1,5 @@
 import { getPythonWorker } from "@/lib/python/worker";
-import type { DataSpace } from "@/packages/core/DataSpace";
+import type { DataSpace } from "@eidos.space/core/data-space";
 import type { ITableActionContext } from "@/packages/core/types/IExtension";
 
 

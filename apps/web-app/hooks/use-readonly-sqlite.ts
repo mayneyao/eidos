@@ -1,6 +1,6 @@
 
 import { isInkServiceMode } from '@/lib/env';
-import type { DataSpace } from '@/packages/core/DataSpace';
+import type { DataSpace } from '@eidos.space/core/data-space';
 import { create } from 'zustand';
 import { useSqlite } from './use-sqlite';
 

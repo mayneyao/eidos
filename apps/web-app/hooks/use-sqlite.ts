@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
-import type { DataSpace } from "@/packages/core/DataSpace"
+import type { DataSpace } from "@eidos.space/core/data-space"
 
 import { TreeTableName } from "@/packages/core/sqlite/const"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode";

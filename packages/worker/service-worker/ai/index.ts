@@ -1,5 +1,5 @@
 // import { handleGoogleAI } from "./google"
-import type { DataSpace } from "@/packages/core/DataSpace"
+import type { DataSpace } from "@/packages/core/data-space"
 import type { IData } from "./interface"
 import { handleChatApi } from "./chat-api"
 

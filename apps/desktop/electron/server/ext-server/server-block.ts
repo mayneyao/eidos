@@ -1,4 +1,4 @@
-import type { DataSpace } from '@/packages/core/DataSpace';
+import type { DataSpace } from '@/packages/core/data-space';
 import type { IExtension } from "@/packages/core/meta-table/extension";
 import { extractFunction, generateImportMap, getAllLibs } from "@eidos.space/v3";
 import vm from 'vm';

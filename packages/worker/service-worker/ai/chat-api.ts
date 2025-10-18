@@ -5,7 +5,7 @@ import { appendClientMessage, appendResponseMessages, createDataStreamResponse, 
 
 // import { queryEmbedding } from "../routes/lib"
 import { uuidv7 } from "@/lib/utils";
-import type { DataSpace } from "@/packages/core/DataSpace";
+import type { DataSpace } from "@/packages/core/data-space";
 import type { ChatMessage } from "@/packages/core/meta-table/message";
 import { combineAssistantMessage, deleteMessages, generateTitleFromUserMessage, getChatById, getMessagesByChatId, getTrailingMessageId, saveChat, saveMessages, updateChatTitle } from "./helper";
 import type { IData } from "./interface";

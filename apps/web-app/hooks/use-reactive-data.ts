@@ -5,7 +5,7 @@ import {
     EidosDataEventChannelMsgType,
     EidosDataEventChannelName,
 } from "@/lib/const"
-import type { DataSpace } from '@/packages/core/DataSpace'
+import type { DataSpace } from '@eidos.space/core/data-space'
 import type { BaseTableImpl } from '@/packages/core/meta-table/base'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { z } from 'zod'

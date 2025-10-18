@@ -7,7 +7,7 @@ import {
   WORKER_MESSAGE_TYPES
 } from "@/lib/const"
 
-import type { DataSpace } from "../../core/DataSpace"
+import type { DataSpace } from "../../core/data-space"
 import { initWs } from "./api-agent/ws"
 import { SqliteServer } from "./sqlite-wasm-server"
 import { workerStore } from "./store"

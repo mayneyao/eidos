@@ -1,4 +1,4 @@
-import { DataSpace } from '@eidos.space/core/DataSpace';
+import { DataSpace } from '@eidos.space/core/data-space';
 import type { SpaceInitOptions } from '@eidos.space/space-manager';
 import { EventEmitter } from 'events';
 import './sqlite-setup';  // Ensure SQLite is set up

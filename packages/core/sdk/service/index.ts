@@ -1,4 +1,4 @@
-import type { DataSpace } from "../../DataSpace"
+import type { DataSpace } from "../../data-space"
 import type { TableManager } from "../table"
 import { LinkFieldService } from "./link"
 import { LookupFieldService } from "./lookup"

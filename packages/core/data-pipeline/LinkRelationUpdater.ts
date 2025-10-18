@@ -1,6 +1,6 @@
 import { getTableIdByRawTableName } from "@/lib/utils"
 
-import type { DataSpace } from "../DataSpace"
+import type { DataSpace } from "../data-space"
 import { TableManager } from "../sdk/table"
 
 export class LinkRelationUpdater {

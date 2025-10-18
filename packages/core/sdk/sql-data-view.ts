@@ -1,5 +1,5 @@
 import { ViewTypeEnum } from "../types/IView"
-import type { DataSpace } from "../DataSpace"
+import type { DataSpace } from "../data-space"
 import { shortenId, uuidv7 } from "@/lib/utils"
 import type { IField } from "../types/IField"
 import { FieldType } from "../fields/const"

@@ -1,4 +1,4 @@
-import type { DataSpace } from "../../DataSpace"
+import type { DataSpace } from "../../data-space"
 import type { TableManager } from "../table"
 import type { IField } from "../../types/IField"
 import type { TextProperty } from "../../fields/text"

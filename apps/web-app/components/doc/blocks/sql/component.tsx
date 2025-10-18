@@ -1,5 +1,5 @@
 import * as React from "react"
-import type { DataSpace } from "@/packages/core/DataSpace"
+import type { DataSpace } from "@eidos.space/core/data-space"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getNodeByKey } from "lexical"
 

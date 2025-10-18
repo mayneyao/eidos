@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { SqlDataView } from './sql-data-view'
-import type { DataSpace } from '../DataSpace'
+import type { DataSpace } from '../data-space'
 import { FieldType } from '../fields/const'
 
 // Mock DataSpace

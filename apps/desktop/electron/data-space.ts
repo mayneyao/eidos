@@ -1,6 +1,6 @@
 import { EidosDataEventChannelName, EidosMessageChannelName } from "@/lib/const";
-import type { EidosDatabase } from "@/packages/core/DataSpace";
-import { DataSpace } from "@/packages/core/DataSpace";
+import type { EidosDatabase } from "@/packages/core/data-space";
+import { DataSpace } from "@/packages/core/data-space";
 import { ExtensionTableName } from "@/packages/core/sqlite/const";
 import { extractUDF, validateUDFCode } from "@eidos.space/v3";
 import type { WebContents } from "electron";

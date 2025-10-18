@@ -5,7 +5,7 @@ import { getRawTableNameById } from "@/lib/utils"
 import codePatching from "@/packages/ai/prompts/common/code-patching.md?raw"
 import uiGuide from "@/packages/ai/prompts/common/ui-guide.md?raw"
 import sdk from "@/packages/ai/prompts/common/sdk.md?raw"
-import type { DataSpace } from "@/packages/core/DataSpace"
+import type { DataSpace } from "@eidos.space/core/data-space"
 import type { IBindings } from "@/packages/core/types/IExtension"
 
 

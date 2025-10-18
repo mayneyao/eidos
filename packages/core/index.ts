@@ -1,4 +1,4 @@
-import { DataSpace } from "./DataSpace"
+import { DataSpace } from "./data-space"
 
 export { DataSpace }
 

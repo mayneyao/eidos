@@ -3,7 +3,7 @@
 import { create } from "zustand"
 
 import type { IDataStore } from "@/apps/web-app/store/interface"
-import type { DataSpace } from "@/packages/core/DataSpace"
+import type { DataSpace } from "@eidos.space/core/data-space"
 import type { IField } from "@/packages/core/types/IField"
 import type { IView } from "@/packages/core/types/IView"
 

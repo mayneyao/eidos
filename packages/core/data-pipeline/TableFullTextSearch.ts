@@ -1,4 +1,4 @@
-import type { DataSpace } from "../DataSpace";
+import type { DataSpace } from "../data-space";
 import { rewriteQueryWithRowId } from "../sqlite/sql-view-query";
 
 

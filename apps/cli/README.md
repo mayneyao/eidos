@@ -318,7 +318,7 @@ apps/cli/
 The CLI uses `BunServerDatabase` to integrate with `@eidos.space/core`:
 
 ```typescript
-import { DataSpace } from "@eidos.space/core/DataSpace"
+import { DataSpace } from "@eidos.space/core/data-space"
 
 import { BunServerDatabase } from "./db/bun-server-database"
 

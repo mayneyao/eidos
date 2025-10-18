@@ -3,7 +3,7 @@ import { generateText } from '@/packages/ai/index';
 
 
 // import { queryEmbedding } from "../routes/lib"
-import type { DataSpace } from "@/packages/core/DataSpace";
+import type { DataSpace } from "@/packages/core/data-space";
 import type { ChatMessage } from '@/packages/core/meta-table/message';
 
 

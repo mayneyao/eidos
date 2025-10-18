@@ -1,5 +1,5 @@
 import { handleFunctionCall } from '@/packages/core/rpc';
-import { DataSpace } from "@/packages/core/DataSpace";
+import { DataSpace } from "@/packages/core/data-space";
 import { parentPort, workerData } from 'worker_threads';
 import { NodeServerDatabase } from "./sqlite-server";
 

@@ -1,7 +1,7 @@
-import oxc from 'oxc-parser';
+import { parseSync } from 'oxc-parser';
 
 
 export const getExports = (code: string) => {
-    const ast = oxc.parseSync('index.ts', code)
-    console.log(ast.module.staticExports)
+    const ast = parseSync('index.ts', code)
+    console.log(ast.program.body)
 }

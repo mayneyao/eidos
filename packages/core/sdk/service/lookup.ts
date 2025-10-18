@@ -9,7 +9,7 @@ import type {
 import type { IField } from "../../types/IField"
 import { getTableIdByRawTableName } from "@/lib/utils"
 
-import type { DataSpace } from "../../DataSpace"
+import type { DataSpace } from "../../data-space"
 import type { TableManager } from "../table"
 import type { BaseServerDatabase } from "../../sqlite/interface"
 

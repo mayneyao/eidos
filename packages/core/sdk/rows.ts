@@ -6,7 +6,7 @@ import type { IView } from "../types/IView"
 import type { IField } from "../types/IField"
 
 import { rewriteQueryWithOffsetAndLimit } from "../sqlite/sql-view-query"
-import type { DataSpace } from "../DataSpace"
+import type { DataSpace } from "../data-space"
 import type { TableManager } from "./table"
 import { getFieldInstance } from "../fields"
 import { workerStore } from "../rpc"
