@@ -20,6 +20,7 @@
   "author": "",
   "dependencies": {
     "@eidos.space/better-sqlite3": "^11.9.3",
+    "@eidos.space/space-manager": "workspace:*",
     "@hono/node-server": "^1.12.2",
     "@libsql/client": "^0.8.1",
     "@types/wicg-file-system-access": "^2023.10.5",

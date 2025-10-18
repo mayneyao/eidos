@@ -41,6 +41,14 @@ export class ProtocolHandler {
                 this.handleExtensionAction(urlObj, url, searchParams);
                 return;
             }
+
+            // Handle open-space action (from CLI: eidos open)
+            // Format: eidos://open-space?space=spaceId&path=/path/to/space
+            if (action === 'open-space') {
+                this.handleOpenSpaceAction(searchParams);
+                return;
+            }
+
             // Handle regular eidos protocol actions
             // convert vault to space
             if (searchParams.vault) {
@@ -89,6 +97,39 @@ export class ProtocolHandler {
         return; // Exit after handling extension
     }
 
+    private handleOpenSpaceAction(searchParams: Record<string, string>) {
+        try {
+            const spaceId = searchParams.space;
+            const spacePath = searchParams.path;
+
+            if (!spaceId) {
+                throw new Error('Missing space ID in open-space URL');
+            }
+
+            console.log(`Opening space: ${spaceId} (${spacePath || 'path not provided'})`);
+
+            // Send to renderer to navigate to the space
+            const payload: ProtocolUrlPayload = {
+                url: `eidos://open-space?space=${spaceId}`,
+                action: 'open-space',
+                searchParams,
+            };
+
+            this.mainWindow.webContents.send(EidosProtocolUrlChannelName, payload);
+
+            // Focus the window
+            if (this.mainWindow.isMinimized()) {
+                this.mainWindow.restore();
+            }
+            this.mainWindow.focus();
+
+            console.log('Space open request sent to renderer');
+        } catch (error) {
+            log('Error handling open-space action:', error);
+            throw error;
+        }
+    }
+
     private handleBlockAction(urlObj: URL, originalUrl: string) {
         try {
             // Format: eidos://block/blockid@databaseName?params
@@ -125,7 +166,7 @@ export class ProtocolHandler {
             // Open the URL in a new window using shell.openExternal
             console.log('Opening standalone block URL in default browser:', standaloneBlockUrl.toString());
             shell.openExternal(standaloneBlockUrl.toString());
-            
+
             // Focus the main window
             if (this.mainWindow.isMinimized()) {
                 this.mainWindow.restore();

@@ -1,48 +1,31 @@
 import { app } from 'electron';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
+import { 
+    SpaceRegistry as BaseSpaceRegistry,
+    getSpaceRegistry as getBaseSpaceRegistry,
+    type SpaceInfo,
+    type SpacesConfig,
+    type GlobalConfig
+} from '@eidos.space/space-manager';
 
-export interface SpaceInfo {
-    id: string;
-    name: string;
-    path: string;
-}
+export type { SpaceInfo, SpacesConfig, GlobalConfig };
 
-export interface SpacesConfig {
-    spaces: SpaceInfo[];
-}
-
-export interface GlobalConfig {
-    lastOpenedSpace?: string;
-}
-
-export class SpaceRegistry {
-    private static instance: SpaceRegistry;
-    private eidosDir: string;
-    private spacesConfigPath: string;
-    private globalConfigPath: string;
+/**
+ * Extended SpaceRegistry with Electron-specific migration logic
+ */
+export class SpaceRegistry extends BaseSpaceRegistry {
+    private static electronInstance: SpaceRegistry;
 
     private constructor() {
-        this.eidosDir = path.join(os.homedir(), '.eidos');
-        this.spacesConfigPath = path.join(this.eidosDir, 'spaces.json');
-        this.globalConfigPath = path.join(this.eidosDir, 'config.json');
+        super();
     }
 
     public static getInstance(): SpaceRegistry {
-        if (!SpaceRegistry.instance) {
-            SpaceRegistry.instance = new SpaceRegistry();
+        if (!SpaceRegistry.electronInstance) {
+            SpaceRegistry.electronInstance = new SpaceRegistry();
         }
-        return SpaceRegistry.instance;
-    }
-
-    /**
-     * Ensure .eidos directory exists
-     */
-    private ensureEidosDir(): void {
-        if (!fs.existsSync(this.eidosDir)) {
-            fs.mkdirSync(this.eidosDir, { recursive: true });
-        }
+        return SpaceRegistry.electronInstance;
     }
 
     /**
@@ -68,13 +51,16 @@ export class SpaceRegistry {
     }
 
 
+    /**
+     * Migrate from legacy Electron config to new space-manager structure
+     * This is Electron-specific and not in the base SpaceRegistry
+     */
     public async migrateFromLegacyConfig(): Promise<void> {
-        // if new config exists, skip migration
-        if (fs.existsSync(this.spacesConfigPath)) {
+        // Check if new config already exists using base class method
+        const existingSpaces = this.getAllSpaces();
+        if (existingSpaces.length > 0) {
             return;
         }
-
-        this.ensureEidosDir();
 
         // Read legacy config
         const legacyConfigPath = path.join(app.getPath('userData'), 'config.json');
@@ -100,7 +86,7 @@ export class SpaceRegistry {
                 return;
             }
 
-            const spaces: SpaceInfo[] = [];
+            const migratedSpaces: SpaceInfo[] = [];
             const folders = fs.readdirSync(spacesDir);
 
             for (const folder of folders) {
@@ -132,24 +118,24 @@ export class SpaceRegistry {
                         console.log(`Migrated files: ${oldFilesPath} -> ${newFilesPath}`);
                     }
 
-                    spaces.push({
-                        id: folder,
-                        name: folder.charAt(0).toUpperCase() + folder.slice(1), // Capitalize first letter
-                        path: spacePath
-                    });
+                    // Register the migrated space using base class method
+                    const space = this.registerSpace(
+                        spacePath,
+                        folder.charAt(0).toUpperCase() + folder.slice(1)
+                    );
+                    migratedSpaces.push(space);
                 }
             }
 
-            if (spaces.length === 0) {
+            if (migratedSpaces.length === 0) {
                 await this.createDefaultSpace();
                 return;
             }
 
-            // Create new config
-            this.saveSpacesConfig({ spaces });
-            this.saveGlobalConfig({ lastOpenedSpace: spaces[0].id });
+            // Set the first migrated space as the last opened
+            this.setLastOpenedSpace(migratedSpaces[0].id);
 
-            console.log(`Migrated ${spaces.length} spaces from legacy config`);
+            console.log(`Migrated ${migratedSpaces.length} spaces from legacy config`);
         } catch (error) {
             console.error('Error migrating from legacy config:', error);
             await this.createDefaultSpace();
@@ -157,195 +143,21 @@ export class SpaceRegistry {
     }
 
 
+    /**
+     * Create a default space for fresh installations
+     * This is Electron-specific
+     */
     private async createDefaultSpace(): Promise<void> {
         const defaultSpacePath = path.join(app.getPath('userData'), 'eidos-data', 'spaces', 'default');
-        const defaultSpace: SpaceInfo = {
-            id: 'default',
-            name: 'Default',
-            path: defaultSpacePath
-        };
-
-        // 确保目录存在
+        
+        // Ensure directory exists
         fs.mkdirSync(defaultSpacePath, { recursive: true });
-
-        this.saveSpacesConfig({ spaces: [defaultSpace] });
-        this.saveGlobalConfig({ lastOpenedSpace: 'default' });
+        
+        // Register the default space using base class method
+        const space = this.registerSpace(defaultSpacePath, 'Default');
+        this.setLastOpenedSpace(space.id);
 
         console.log('Created default space');
-    }
-
-
-    private saveSpacesConfig(config: SpacesConfig): void {
-        fs.writeFileSync(this.spacesConfigPath, JSON.stringify(config, null, 2));
-    }
-
-    /**
-     * Save global configuration
-     */
-    private saveGlobalConfig(config: GlobalConfig): void {
-        fs.writeFileSync(this.globalConfigPath, JSON.stringify(config, null, 2));
-    }
-
-
-    private loadSpacesConfig(): SpacesConfig {
-        if (!fs.existsSync(this.spacesConfigPath)) {
-            return { spaces: [] };
-        }
-
-        try {
-            const data = fs.readFileSync(this.spacesConfigPath, 'utf-8');
-            return JSON.parse(data);
-        } catch (error) {
-            console.error('Error loading spaces config:', error);
-            return { spaces: [] };
-        }
-    }
-
-
-    private loadGlobalConfig(): GlobalConfig {
-        if (!fs.existsSync(this.globalConfigPath)) {
-            return {};
-        }
-
-        try {
-            const data = fs.readFileSync(this.globalConfigPath, 'utf-8');
-            return JSON.parse(data);
-        } catch (error) {
-            console.error('Error loading global config:', error);
-            return {};
-        }
-    }
-
-
-    public getAllSpaces(): SpaceInfo[] {
-        const config = this.loadSpacesConfig();
-        return config.spaces;
-    }
-
-
-    public getSpace(id: string): SpaceInfo | null {
-        const spaces = this.getAllSpaces();
-        return spaces.find(space => space.id === id) || null;
-    }
-
-
-    public getFirstSpace(): SpaceInfo | null {
-        const spaces = this.getAllSpaces();
-        return spaces.length > 0 ? spaces[0] : null;
-    }
-
-    /**
-     * Get the last opened workspace
-     */
-    public getLastOpenedSpace(): SpaceInfo | null {
-        const globalConfig = this.loadGlobalConfig();
-        if (!globalConfig.lastOpenedSpace) {
-            return this.getFirstSpace();
-        }
-        return this.getSpace(globalConfig.lastOpenedSpace);
-    }
-
-
-    public setLastOpenedSpace(spaceId: string): void {
-        const space = this.getSpace(spaceId);
-        if (!space) {
-            throw new Error(`Space not found: ${spaceId}`);
-        }
-
-        const globalConfig = this.loadGlobalConfig();
-        globalConfig.lastOpenedSpace = spaceId;
-        this.saveGlobalConfig(globalConfig);
-    }
-
-
-    public registerSpace(spacePath: string, customName?: string): SpaceInfo {
-        if (!fs.existsSync(spacePath)) {
-            throw new Error(`Path does not exist: ${spacePath}`);
-        }
-
-        // generate space id based on folder name
-        const folderName = path.basename(spacePath);
-        let spaceId = this.sanitizeId(folderName);
-
-        // handle id conflict
-        let counter = 1;
-        const originalId = spaceId;
-        while (this.getSpace(spaceId)) {
-            spaceId = `${originalId}-${counter}`;
-            counter++;
-        }
-
-        const space: SpaceInfo = {
-            id: spaceId,
-            name: customName || folderName.charAt(0).toUpperCase() + folderName.slice(1),
-            path: spacePath
-        };
-
-        const config = this.loadSpacesConfig();
-        config.spaces.push(space);
-        this.saveSpacesConfig(config);
-
-        return space;
-    }
-
-
-    public removeSpace(spaceId: string): boolean {
-        const config = this.loadSpacesConfig();
-        const index = config.spaces.findIndex(space => space.id === spaceId);
-
-        if (index === -1) {
-            return false;
-        }
-
-        config.spaces.splice(index, 1);
-        this.saveSpacesConfig(config);
-
-        const globalConfig = this.loadGlobalConfig();
-        if (globalConfig.lastOpenedSpace === spaceId) {
-            globalConfig.lastOpenedSpace = config.spaces.length > 0 ? config.spaces[0].id : undefined;
-            this.saveGlobalConfig(globalConfig);
-        }
-
-        return true;
-    }
-
-
-    public updateSpace(spaceId: string, updates: Partial<Omit<SpaceInfo, 'id'>>): boolean {
-        const config = this.loadSpacesConfig();
-        const space = config.spaces.find(s => s.id === spaceId);
-
-        if (!space) {
-            return false;
-        }
-
-        Object.assign(space, updates);
-        this.saveSpacesConfig(config);
-        return true;
-    }
-
-
-    private sanitizeId(id: string): string {
-        return id
-            .toLowerCase()
-            .replace(/[^a-z0-9-]/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '');
-    }
-
-
-    public validateSpace(spaceId: string): boolean {
-        const space = this.getSpace(spaceId);
-        if (!space) {
-            return false;
-        }
-
-        if (!fs.existsSync(space.path)) {
-            return false;
-        }
-
-        // Check for database in the new .eidos subdirectory structure
-        const dbPath = path.join(space.path, '.eidos', 'db.sqlite3');
-        return fs.existsSync(dbPath);
     }
 }
 

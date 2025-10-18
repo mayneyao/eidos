@@ -325,10 +325,20 @@ if (process.defaultApp) {
     app.setAsDefaultProtocolClient('eidos')
 }
 
+// Queue for protocol URLs received before app is ready
+let pendingProtocolUrl: string | null = null;
+
 app.on('open-url', (event, url) => {
     event.preventDefault();
-    if (protocolHandler) {
+    console.log('Received protocol URL:', url);
+
+    if (protocolHandler && win) {
+        // App is ready, handle immediately
         protocolHandler.handleUrl(url);
+    } else {
+        // App not ready yet, queue the URL
+        console.log('App not ready, queuing protocol URL');
+        pendingProtocolUrl = url;
     }
 });
 
@@ -344,16 +354,71 @@ app.on('second-instance', (event, commandLine) => {
     }
 });
 
+/**
+ * Extract spaceId from protocol URL if it's an open-space action
+ */
+function extractSpaceIdFromProtocolUrl(url: string): string | null {
+    try {
+        const urlObj = new URL(url);
+        if (urlObj.hostname === 'open-space' && urlObj.searchParams.has('space')) {
+            return urlObj.searchParams.get('space');
+        }
+    } catch (error) {
+        console.error('Failed to parse protocol URL:', error);
+    }
+    return null;
+}
+
 app.whenReady().then(async () => {
     corsManager.initialize();
 
     await migrateFromLegacyConfig();
 
     const registry = getSpaceRegistry();
-
     const configManager = getConfigManager();
-    let spaceId = configManager.getLastOpenedSpace();
 
+    // Check if app was launched with a protocol URL
+    let launchProtocolUrl: string | null = null;
+    let spaceIdFromProtocol: string | null = null;
+
+    // Check for pending URL from macOS 'open-url' event
+    if (pendingProtocolUrl) {
+        launchProtocolUrl = pendingProtocolUrl;
+        spaceIdFromProtocol = extractSpaceIdFromProtocolUrl(pendingProtocolUrl);
+        console.log('Found pending protocol URL:', pendingProtocolUrl, '-> spaceId:', spaceIdFromProtocol);
+    }
+
+    // Check for protocol URL in command line args (Windows/Linux)
+    if (!launchProtocolUrl && process.platform !== 'darwin') {
+        const protocolUrl = process.argv.find(arg => arg.startsWith('eidos://'));
+        if (protocolUrl) {
+            launchProtocolUrl = protocolUrl;
+            spaceIdFromProtocol = extractSpaceIdFromProtocolUrl(protocolUrl);
+            console.log('Found protocol URL in argv:', protocolUrl, '-> spaceId:', spaceIdFromProtocol);
+        }
+    }
+
+    // Determine which space to open
+    let spaceId: string | undefined;
+
+    if (spaceIdFromProtocol) {
+        // Protocol URL takes precedence - validate it exists
+        if (registry.validateSpace(spaceIdFromProtocol)) {
+            spaceId = spaceIdFromProtocol;
+            console.log('Opening space from protocol URL:', spaceId);
+            // Update last opened space
+            configManager.setLastOpenedSpace(spaceId);
+        } else {
+            console.warn(`Space from protocol URL not found: ${spaceIdFromProtocol}`);
+            // Fall back to last opened or first space
+            spaceId = configManager.getLastOpenedSpace();
+        }
+    } else {
+        // Normal startup - use last opened space
+        spaceId = configManager.getLastOpenedSpace();
+    }
+
+    // Fallback to first available space if needed
     if (!spaceId) {
         const firstSpace = registry.getFirstSpace();
         spaceId = firstSpace?.id;
@@ -363,6 +428,7 @@ app.whenReady().then(async () => {
         }
     }
 
+    // Validate the final space selection
     if (spaceId && !registry.validateSpace(spaceId)) {
         console.warn(`Space ${spaceId} is invalid, falling back to first available space`);
         const firstSpace = registry.getFirstSpace();
@@ -372,6 +438,7 @@ app.whenReady().then(async () => {
         }
     }
 
+    // Create window with the determined spaceId
     win = createWindow(spaceId);
     configManager.on('configChanged', ({ key, newValue }: { key: string, newValue: unknown }) => {
         if (key === 'security') {
@@ -381,6 +448,20 @@ app.whenReady().then(async () => {
     createTray();
 
     protocolHandler = new ProtocolHandler(win);
+
+    // If there was a launch protocol URL that wasn't just open-space,
+    // handle it after window loads (for other protocol actions like extension install)
+    if (launchProtocolUrl && !spaceIdFromProtocol) {
+        console.log('Processing non-open-space protocol URL:', launchProtocolUrl);
+        pendingProtocolUrl = null;
+
+        win.webContents.once('did-finish-load', () => {
+            protocolHandler?.handleUrl(launchProtocolUrl);
+        });
+    } else {
+        // Clear the pending URL since we've already handled it by opening the right space
+        pendingProtocolUrl = null;
+    }
 
     win.on('close', (event) => {
         if (!forceQuit) {
