@@ -9,7 +9,7 @@ import type { IExtension } from "@/packages/core/meta-table/extension"
 import {
   resolveLocalFileDependencies,
   type ResolvedFile,
-} from "@/packages/v3/code-tools/get-deps-file"
+} from "@eidos.space/v3"
 import { useNavigate } from "react-router-dom"
 import ts from "typescript/lib/typescript"
 

@@ -15,8 +15,7 @@ import toolTemplate from "./templates/script/tool.ts?raw"
 import udfTemplate from "./templates/script/udf.ts?raw"
 
 // Block templates
-import { extractConstant } from "@/packages/v3/code-tools/code-extractor"
-import { blockCodeCompile, scriptCodeCompile } from "@/packages/v3/script-compiler"
+import { extractConstant, blockCodeCompile, scriptCodeCompile } from "@eidos.space/v3"
 import emptyBlockTemplate from "./templates/block/empty.tsx?raw"
 import extNodeTemplate from "./templates/block/ext-node.tsx?raw"
 import tableViewTemplate from "./templates/block/table-view.tsx?raw"

@@ -1,15 +1,34 @@
 {
-  "name": "v3",
+  "name": "@eidos.space/v3",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Code compilation and analysis tools for Eidos",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": "./dist/index.js",
+      "./*": "./dist/*.js"
+    }
+  },
+  "keywords": [
+    "eidos.space",
+    "compiler",
+    "code-tools"
+  ],
+  "author": "mayneyao",
   "license": "ISC",
   "packageManager": "pnpm@10.12.4",
   "devDependencies": {

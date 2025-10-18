@@ -10,8 +10,8 @@ import { makeSdkInjectScript } from "@eidos.space/sandbox"
 import {
   generateImportMap,
   getAllLibs,
-} from "@/packages/v3/code-tools/get-deps"
-import { uiComponentsDependencies } from "@/packages/v3/ui-deps"
+  uiComponentsDependencies,
+} from "@eidos.space/v3"
 import { useTheme } from "next-themes"
 
 import { isDesktopMode } from "@/lib/env"

@@ -3,7 +3,7 @@ import { log } from 'electron-log';
 import type { Context } from 'hono';
 import type { BlankEnv } from 'hono/types';
 import { makeSdkInjectScript } from './helper';
-import { getExtLibs } from "@/packages/v3/code-tools/get-deps";
+import { getExtLibs } from "@eidos.space/v3";
 
 // Function type for getting script code - this will be injected by the caller
 type GetScriptCodeFunction = (spaceId: string, scriptId: string) => Promise<string | null>;

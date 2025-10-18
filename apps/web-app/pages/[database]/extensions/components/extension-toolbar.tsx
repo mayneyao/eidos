@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
-import { compileCode } from "@/packages/v3/compiler"
-import { getCompileMethod } from "@/packages/v3/script-compiler"
+import { compileCode, getCompileMethod } from "@eidos.space/v3"
 import { useMount } from "ahooks"
 import { Copy, ExternalLink, Play } from "lucide-react"
 import { useTranslation } from "react-i18next"

@@ -1,7 +1,6 @@
 import type { DataSpace } from '@/packages/core/DataSpace';
 import type { IExtension } from "@/packages/core/meta-table/extension";
-import { extractFunction } from "@/packages/v3/code-tools/code-extractor";
-import { generateImportMap, getAllLibs } from "@/packages/v3/code-tools/get-deps";
+import { extractFunction, generateImportMap, getAllLibs } from "@eidos.space/v3";
 import vm from 'vm';
 import { getOrSetDataSpace } from "../../data-space";
 import { getIndexHtml } from "./ext-html";
