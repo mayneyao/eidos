@@ -5,7 +5,7 @@ import appWrapperRaw from './js/app-wrapper.js?raw';
 import sw from './js/sw.js?raw';
 import tailwindRaw from './js/tailwind-raw.js?raw';
 
-import { ScriptSandboxHandler } from '@/packages/sandbox/script-sandbox';
+import { ScriptSandboxHandler } from '@eidos.space/sandbox';
 import fs from 'fs';
 import type { Context } from 'hono';
 import type { BlankEnv } from 'hono/types';

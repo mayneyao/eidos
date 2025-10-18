@@ -11,7 +11,7 @@ import { presetThemes, twConfig } from "./helper";
 import type { ConfigManager } from "@/apps/desktop/electron/config";
 import { getConfigManager } from "@/apps/desktop/electron/config";
 import type { IBindings } from "@/packages/core/types/IExtension";
-import { makeSdkInjectScript } from "@/packages/sandbox/helper";
+import { makeSdkInjectScript } from "@eidos.space/sandbox";
 import { uiComponentsDependencies } from "./ui-deps";
 
 

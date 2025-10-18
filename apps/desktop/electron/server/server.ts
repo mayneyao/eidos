@@ -7,7 +7,7 @@ import { getOrSetDataSpace } from '../data-space';
 import { getFileFromPath, getSpaceFileFromPath } from '../file-system/space';
 import { serveStatic } from './server-static';
 import { interceptExtensionRequest } from './ext-server';
-import { ProxyHandler } from '@/packages/sandbox/proxy-handler';
+import { ProxyHandler } from '@eidos.space/sandbox';
 import { getSpaceRegistry } from '../space-registry';
 
 const app = new Hono();
