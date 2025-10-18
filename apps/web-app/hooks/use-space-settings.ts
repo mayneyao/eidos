@@ -6,6 +6,7 @@ import { useCallback } from "react"
 export interface SpaceDocSettings {
     markerProperty: string
     showReferenceNodeIcon: boolean
+    imageAlign: 'left' | 'center' | 'right'
 }
 
 export interface SpaceSettings {

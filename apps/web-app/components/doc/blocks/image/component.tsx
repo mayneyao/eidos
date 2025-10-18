@@ -11,6 +11,7 @@ import { useCollaborationContext } from "@lexical/react/LexicalCollaborationCont
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection"
 import { mergeRegister } from "@lexical/utils"
+import { useEditorInstance } from "../../hooks/editor-instance-context"
 import {
   $getNodeByKey,
   $getSelection,
@@ -113,6 +114,7 @@ export default function ImageComponent({
   const [editor] = useLexicalComposerContext()
   const [selection, setSelection] = useState<BaseSelection | null>(null)
   const activeEditorRef = useRef<LexicalEditor | null>(null)
+  const { imageAlign } = useEditorInstance()
 
   const onDelete = useCallback(
     (payload: KeyboardEvent) => {
@@ -268,7 +270,11 @@ export default function ImageComponent({
           {src.length == 0 ? (
             <ImagePlaceholder nodeKey={nodeKey} />
           ) : (
-            <div className={cn("flex items-center justify-center")}>
+            <div className={cn("flex items-center", {
+              "justify-start": imageAlign === 'left',
+              "justify-center": imageAlign === 'center',
+              "justify-end": imageAlign === 'right',
+            })}>
               <LazyImage
                 className={""}
                 src={src}
