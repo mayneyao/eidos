@@ -7,9 +7,6 @@ import {
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import { $insertNodeToNearestRoot, mergeRegister } from "@lexical/utils"
-import type {
-  LexicalCommand,
-  TextNode} from "lexical";
 import {
   $getSelection,
   $isRangeSelection,
@@ -18,6 +15,8 @@ import {
   COMMAND_PRIORITY_NORMAL,
   PASTE_COMMAND,
   createCommand,
+  type LexicalCommand,
+  type TextNode,
 } from "lexical"
 import ReactDOM from "react-dom"
 
@@ -25,13 +24,12 @@ import { getSelectedNode } from "../../utils/getSelectedNode"
 import { validateUrl } from "../../utils/url"
 import { $insertDecoratorBlockNode } from "../helper"
 import { INSERT_YOUTUBE_COMMAND } from "../youtube/plugin"
-import type {
-  BookmarkPayload} from "./node";
 import {
   $createBookmarkNode,
   $getUrlMetaData,
   $isBookmarkNode,
-  BookmarkNode
+  BookmarkNode,
+  type BookmarkPayload,
 } from "./node"
 
 export type InsertBookmarkPayload = Readonly<BookmarkPayload>
@@ -161,7 +159,7 @@ export function BookmarkPlugin({
         PASTE_COMMAND,
         (event) => {
           const clipboardEvent = event as ClipboardEvent
-          if (clipboardEvent.clipboardData === null) {
+          if (clipboardEvent.clipboardData == null) {
             return false
           }
           const clipboardText = clipboardEvent.clipboardData.getData("text")

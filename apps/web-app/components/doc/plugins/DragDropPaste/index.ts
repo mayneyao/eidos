@@ -50,9 +50,7 @@ export default function DragDropPaste(): null {
               const _files = await addFiles(files)
               const fileZip = zip(_files, files)
               for (const [meta, file] of fileZip) {
-                const paths = meta!.path.split("/")
-                // skip spaces
-                const path = "/" + paths.slice(1).join("/")
+                const path = "/" + meta?.path
                 if (isMimeType(file!, ACCEPTABLE_IMAGE_TYPES)) {
                   editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
                     altText: file!.name,
