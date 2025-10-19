@@ -1,5 +1,4 @@
 import { EidosFileSystemManager } from '@/lib/storage/eidos-file-system';
-import { SpaceFileSystem } from '@/lib/storage/space';
 import { contextBridge, ipcRenderer } from 'electron';
 import { getOriginPrivateDirectory } from 'native-file-system-adapter';
 
@@ -17,11 +16,6 @@ type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void;
 
 
 
-async function getSpaceFileSystem() {
-  const userDataPath = (await ipcRenderer.invoke('get-app-data-folder'));
-  const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath)
-  return new SpaceFileSystem(dirHandle as any)
-}
 
 async function getEfsManager() {
   // Extract space ID from subdomain
@@ -52,12 +46,6 @@ async function getEfsManager() {
 }
 
 
-const isSpaceExist = async (space: string) => {
-  const userDataPath = (await ipcRenderer.invoke('get-app-data-folder'));
-  const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath)
-  const spaceFileSystem = new SpaceFileSystem(dirHandle as any)
-  return spaceFileSystem.list().then(spaces => spaces.includes(space))
-}
 
 const checkIsDataFolderSet = async () => {
   const dataFolder = await ipcRenderer.invoke('get-config', 'dataFolder')
@@ -194,12 +182,10 @@ function main() {
     chrome: process.versions.chrome,
     node: process.versions.node,
     getEfsManager: getEfsManager,
-    getSpaceFileSystem: getSpaceFileSystem,
     config: {
       get: (key: keyof AppConfig) => ipcRenderer.invoke('get-config', key),
       set: (key: keyof AppConfig, value: any) => ipcRenderer.invoke('set-config', key, value),
     },
-    isSpaceExist: isSpaceExist,
     checkIsDataFolderSet: checkIsDataFolderSet,
     selectFolder: () => ipcRenderer.invoke('select-folder'),
     openFolder: (folder: string) => ipcRenderer.invoke('open-folder', folder),

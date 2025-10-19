@@ -33,11 +33,9 @@ interface Window {
         on: (channel: string, listener: IpcListener) => string | undefined
         off: (channel: string, listenerId: string) => void
         getEfsManager: () => Promise<import('@/lib/storage/eidos-file-system').EidosFileSystemManager>
-        getSpaceFileSystem: () => Promise<import('@/lib/storage/space').SpaceFileSystem>
         config: import('./config/index').ConfigManager
         selectFolder: () => Promise<string | undefined>
         openFolder: (folder: string) => Promise<void>
-        isSpaceExist: (space: string) => Promise<boolean>
         checkIsDataFolderSet: () => Promise<boolean>
         reloadApp: () => Promise<void>
         minimizeWindow: () => void

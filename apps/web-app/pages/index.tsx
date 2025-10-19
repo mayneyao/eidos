@@ -4,7 +4,6 @@ import { RouterProvider, createBrowserRouter, redirect } from "react-router-dom"
 import { QueryParamProvider } from "use-query-params"
 import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6"
 
-import { SpaceFileSystem } from "@/lib/storage/space"
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
 import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
 import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
@@ -76,17 +75,12 @@ const router = createBrowserRouter([
                 const spaces = await window.eidos.invoke('list-spaces')
                 spaceNames = spaces.map((space: any) => space.id)
               } catch (error) {
-                console.warn('Failed to get spaces from Electron, falling back to SpaceFileSystem:', error)
-                const spaceFileSystem = new SpaceFileSystem()
-                spaceNames = await spaceFileSystem.list()
+                console.error('Failed to get spaces from Electron:', error)
               }
-            } else {
-              // In web mode, use existing method
-              const spaceFileSystem = new SpaceFileSystem()
-              spaceNames = await spaceFileSystem.list()
             }
+            // Web mode will only support single space, no validation needed
             
-            if (params.database && !spaceNames.includes(params.database)) {
+            if (params.database && spaceNames.length > 0 && !spaceNames.includes(params.database)) {
               return redirect("/404")
             }
             return null

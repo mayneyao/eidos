@@ -5,6 +5,7 @@ import kebabCase from "lodash/kebabCase"
 import { Check, ChevronsUpDown, HomeIcon, PlusCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -33,9 +34,8 @@ import {
 } from "@/components/ui/popover"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
-import { useSpace, useSpaceFileSystem } from "@/apps/web-app/hooks/use-space"
+import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
-import { isDesktopMode } from "@/lib/env"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -47,9 +47,7 @@ interface IDatabaseSelectorProps {
 export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
-  const [file, setFile] = React.useState<File | null>(null)
   const { spaceList } = useSpace()
-  const { spaceFileSystem } = useSpaceFileSystem()
 
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
   const { space } = useCurrentPathInfo()
@@ -57,7 +55,6 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [databaseName, setDatabaseName] = React.useState("")
-  const [spaceNameFromFile, setSpaceNameFromFile] = React.useState("")
   const [enableSync, setEnableSync] = React.useState(false)
   const [volumeId, setVolumeId] = React.useState("")
   const [selectedFolder, setSelectedFolder] = React.useState<string>("")
@@ -65,8 +62,6 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
 
   const reset = () => {
     setDatabaseName("")
-    setFile(null)
-    setSpaceNameFromFile("")
     setSelectedFolder("")
     setIsSelectingFolder(false)
   }
@@ -79,28 +74,6 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
 
   const isExistingSpace = spaceList.includes(databaseName.trim())
 
-  const handleFileChange = (e: any) => {
-    const importFile = e.target.files[0]
-    importFile && setFile(importFile)
-    if (importFile.name.startsWith("eidos-export-")) {
-      // eidos-export-<space-name>.zip -> <space-name>
-      // eidos-export-<space-name> (1).zip -> <space-name>
-      const spaceName = importFile.name
-        .replace("eidos-export-", "")
-        .replace(".zip", "")
-        .replace(/\(\d+\)/, "")
-        .trim()
-      setSpaceNameFromFile(spaceName)
-      setDatabaseName(spaceName)
-    }
-  }
-
-  const regex = new RegExp(
-    `^eidos-export-${databaseName}(\\s*\\(\\d+\\))?\\.zip$`
-  )
-  const isOverwrite =
-    spaceList.includes(databaseName) && file && regex.test(file.name)
-
   const goto = useGoto()
   const { createSpace } = useSpace()
   const [loading, setLoading] = React.useState(false)
@@ -109,18 +82,18 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   const handleSelect = async (currentValue: string) => {
     setLastOpenedDatabase(currentValue)
     setOpen(false)
-    
-    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+
+    if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       // Desktop mode: use Electron IPC to switch workspace
       try {
-        const result = await window.eidos.invoke('switch-space', currentValue);
+        const result = await window.eidos.invoke("switch-space", currentValue)
         if (result.success) {
           // Workspace switched successfully, Electron will automatically reload to new subdomain
         } else {
-          console.error('Failed to switch space:', result.error);
+          console.error("Failed to switch space:", result.error)
         }
       } catch (error) {
-        console.error('Error switching space:', error);
+        console.error("Error switching space:", error)
       }
     } else {
       // Web mode: use route navigation
@@ -129,18 +102,21 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
   }
 
   const handleSelectFolder = async () => {
-    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+    if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       setIsSelectingFolder(true)
       try {
         const folderPath = await window.eidos.selectFolder()
         if (folderPath) {
           setSelectedFolder(folderPath)
           // Auto-generate space name from folder name
-          const folderName = folderPath.split('/').pop() || folderPath.split('\\').pop() || 'New Space'
+          const folderName =
+            folderPath.split("/").pop() ||
+            folderPath.split("\\").pop() ||
+            "New Space"
           setDatabaseName(folderName)
         }
       } catch (error) {
-        console.error('Error selecting folder:', error)
+        console.error("Error selecting folder:", error)
       } finally {
         setIsSelectingFolder(false)
       }
@@ -152,17 +128,18 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
     if (databaseName) {
       setLoading(true)
       try {
-        if (file && spaceFileSystem) {
-          // Import from file
-          await spaceFileSystem.import(databaseName, file)
-        } else if (isDesktopMode && selectedFolder) {
+        if (isDesktopMode && selectedFolder) {
           // Desktop mode: create space with selected folder
-          const result = await window.eidos.invoke('register-space', selectedFolder, databaseName)
+          const result = await window.eidos.invoke(
+            "register-space",
+            selectedFolder,
+            databaseName
+          )
           if (result.success) {
             await updateSpaceList()
             await handleSelect(databaseName)
           } else {
-            throw new Error(result.error || 'Failed to create space')
+            throw new Error(result.error || "Failed to create space")
           }
         } else {
           // Web mode: use existing method
@@ -172,8 +149,9 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
           updateSpaceList()
         }
       } catch (error) {
-        console.error('Error creating space:', error)
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        console.error("Error creating space:", error)
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error"
         alert(`Failed to create space: ${errorMessage}`)
       } finally {
         setLoading(false)
@@ -283,7 +261,9 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
                     onClick={handleSelectFolder}
                     disabled={isSelectingFolder}
                   >
-                    {isSelectingFolder ? t("space.select.selecting") : t("space.select.browse")}
+                    {isSelectingFolder
+                      ? t("space.select.selecting")
+                      : t("space.select.browse")}
                   </Button>
                 </div>
                 <div className="text-sm text-muted-foreground">
@@ -291,7 +271,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
                 </div>
               </div>
             )}
-            
+
             <div className="space-y-2">
               <Label htmlFor="database-name">
                 {t("space.select.spaceName")}
@@ -314,34 +294,12 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
               />
               <span className="px-3 text-sm">{slugifyDatabaseName}</span>
               <span>
-                {isExistingSpace && !isOverwrite && (
+                {isExistingSpace && (
                   <span className="text-sm text-red-500">
                     {t("space.select.spaceAlreadyExists")}
                   </span>
                 )}
               </span>
-            </div>
-          </div>
-          <div className="space-y-4 py-2 pb-4">
-            <div className="space-y-2">
-              <Label htmlFor="importFromFile">
-                {t("space.select.importFromFile")}
-              </Label>
-              <div className="text-sm text-muted-foreground">
-                {t("space.select.importFromFileDescription")}
-              </div>
-              <Input
-                type="file"
-                id="importFromFile"
-                onChange={handleFileChange}
-                className="max-w-max"
-                accept=".zip"
-              />
-              {isOverwrite && (
-                <span className="text-sm text-red-500">
-                  {t("space.select.overwriteWarning")}
-                </span>
-              )}
             </div>
           </div>
           {/* <div className="space-y-4 py-2 pb-4">
@@ -380,7 +338,11 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
           <Button
             type="submit"
             onClick={handleCreateDatabase}
-            disabled={loading || (isDesktopMode && !selectedFolder && !file) || !databaseName.trim()}
+            disabled={
+              loading ||
+              (isDesktopMode && !selectedFolder) ||
+              !databaseName.trim()
+            }
           >
             {loading ? t("space.select.creating") : t("common.continue")}
           </Button>
