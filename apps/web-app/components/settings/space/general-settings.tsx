@@ -1,11 +1,9 @@
-import { AlertTriangle, FolderOpen, Save, Search } from "lucide-react"
 import { useEffect, useState } from "react"
+import { AlertTriangle, FolderOpen, Save, Search } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useEngine } from "@/apps/web-app/hooks/use-engine"
-import { useSpace } from "@/apps/web-app/hooks/use-space"
+import { isDesktopMode } from "@/lib/env"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,12 +18,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { isDesktopMode } from "@/lib/env"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useEngine } from "@/apps/web-app/hooks/use-engine"
+import { useSpace } from "@/apps/web-app/hooks/use-space"
 
 export function GeneralSettings() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
-  const { exportSpace, deleteSpace, rebuildIndex } = useSpace()
+  const { deleteSpace, rebuildIndex } = useSpace()
   const navigate = useNavigate()
   const { close } = useEngine()
 
@@ -42,10 +42,6 @@ export function GeneralSettings() {
     }
     loadDataFolder()
   }, [])
-
-  const handleExport = () => {
-    exportSpace(space)
-  }
 
   const handleDelete = async () => {
     if (confirmName === space) {
@@ -71,17 +67,17 @@ export function GeneralSettings() {
   }
 
   const handleOpenFolder = async () => {
-    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+    if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       try {
         // Get current workspace info via IPC
-        const spaceInfo = await window.eidos.invoke('get-current-space');
+        const spaceInfo = await window.eidos.invoke("get-current-space")
         if (spaceInfo && spaceInfo.path) {
-          window.eidos.openFolder(spaceInfo.path);
+          window.eidos.openFolder(spaceInfo.path)
         } else {
-          console.error('No space path found');
+          console.error("No space path found")
         }
       } catch (error) {
-        console.error('Error getting space info:', error);
+        console.error("Error getting space info:", error)
       }
     }
   }
@@ -89,9 +85,7 @@ export function GeneralSettings() {
   return (
     <div className="space-y-0">
       <div className="py-4">
-        <h3 className="text-lg font-medium">
-          {t("space.settings.spaceInfo")}
-        </h3>
+        <h3 className="text-lg font-medium">{t("space.settings.spaceInfo")}</h3>
       </div>
 
       <hr className="border-border" />
@@ -134,25 +128,6 @@ export function GeneralSettings() {
               {t("space.settings.dataDescription")}
             </p>
             <div className="space-y-6">
-              {!isDesktopMode && (
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>{t("space.settings.exportData")}</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {t("space.settings.exportDataDescription")}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={handleExport}
-                    className="w-fit"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {t("space.settings.exportData")}
-                  </Button>
-                </div>
-              )}
-
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>{t("space.settings.rebuildSearchIndex")}</Label>

@@ -15,7 +15,7 @@ export async function installCommand() {
     const binPath = '/usr/local/bin/eidos';
     
     // Find the CLI executable
-    let cliPath: string;
+    let cliPath: string | undefined;
     
     // Detect if running from built executable or dev
     // When built, process.execPath points to the executable
@@ -59,6 +59,11 @@ bun run src/index.ts "$@"
         logger.error('Failed to create development wrapper');
         throw error;
       }
+    }
+    
+    // Ensure cliPath is defined before using it
+    if (!cliPath) {
+      throw new Error('Failed to determine CLI path');
     }
 
     // Check if symlink already exists

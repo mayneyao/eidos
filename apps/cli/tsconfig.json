@@ -1,5 +1,4 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
@@ -9,9 +8,21 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "types": ["bun-types"],
-    "lib": ["ESNext"],
-    "skipLibCheck": true
+    "types": ["bun-types", "node", "@types/wicg-file-system-access"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
+    "skipLibCheck": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/locales/*": ["../../packages/locales/*"],
+      "@/worker/*": ["../../packages/worker/*"],
+      "@/lib/*": ["../../packages/lib/*"],
+      "@/*": ["../../*"]
+    }
   },
   "include": ["src/**/*", "src/types/**/*"],
   "exclude": ["node_modules", "dist"]
