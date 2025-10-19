@@ -40,11 +40,11 @@ import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 
-interface IDatabaseSelectorProps {
-  databases: string[]
+interface ISpaceSelectProps {
+  spaces: string[]
 }
 
-export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
+export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
   const { spaceList } = useSpace()
@@ -193,23 +193,24 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
                 <div>{t("common.noResultsFound")}</div>
               </CommandEmpty>
               <CommandGroup>
-                {databases.map((database) => (
+                {spaces.map((space) => (
                   <CommandItem
-                    key={database}
-                    onSelect={() => {
-                      handleSelect(database)
+                    key={space}
+                    value={space}
+                    onSelect={(currentValue) => {
+                      handleSelect(currentValue)
                       setOpen(false)
                     }}
                   >
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        lastOpenedDatabase === database
+                        lastOpenedDatabase === space
                           ? "opacity-100"
                           : "opacity-0"
                       )}
                     />
-                    {database}
+                    {space}
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -219,6 +220,7 @@ export function DatabaseSelect({ databases }: IDatabaseSelectorProps) {
               <CommandGroup>
                 <DialogTrigger asChild>
                   <CommandItem
+                    value="create-new"
                     onSelect={() => {
                       setOpen(false)
                       setShowNewTeamDialog(true)

@@ -26,7 +26,6 @@ import { usePeer } from "@/apps/web-app/hooks/use-peer"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
-// import { SyncStatusIndicator } from "../sync-status-indicator"
 
 export const NavStatus = () => {
   const { t } = useTranslation()
@@ -74,7 +73,6 @@ export const NavStatus = () => {
           </Tooltip>
         </TooltipProvider>
       )}
-      {/* <SyncStatusIndicator /> */}
       <AvatarList nameList={nameList} />
       {Boolean(currentNode?.is_locked) && (
         <Button
