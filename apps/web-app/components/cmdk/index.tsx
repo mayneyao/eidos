@@ -89,10 +89,11 @@ export function CommandDialogDemo() {
     useSpaceAppStore()
   const { lastOpenedDatabase } = useLastOpened()
 
-  const { createDoc, rebuildFTS, migrateFilePaths, needsPathMigration, migrateDocFilePaths, migrateAllDocFilePaths, needsDocPathMigration } = useSqlite()
+  const { createDoc, rebuildFTS, migrateFilePaths, needsPathMigration, migrateDocFilePaths, migrateAllDocFilePaths, needsDocPathMigration, migrateTableFilePaths, needsTableFilePathMigration } = useSqlite()
   const goto = useCMDKGoto()
   const [isMigrating, setIsMigrating] = useState(false)
   const [isMigratingDoc, setIsMigratingDoc] = useState(false)
+  const [isMigratingTable, setIsMigratingTable] = useState(false)
   const { toast } = useToast()
   
   // Use current workspace in desktop mode, otherwise use lastOpenedDatabase
@@ -116,6 +117,49 @@ export function CommandDialogDemo() {
     if (currentNode?.type === "table") {
       await rebuildFTS(id)
       setCmdkOpen(false)
+    }
+  }
+
+  const handleMigrateTableFilePaths = async () => {
+    if (!currentNode || currentNode.type !== "table") return
+    
+    setIsMigratingTable(true)
+    try {
+      const needsMigration = await needsTableFilePathMigration(currentNode.id)
+      if (!needsMigration) {
+        toast({
+          title: t("cmdk.migrateTableFilePaths.noMigrationNeeded", "No Migration Needed"),
+          description: t("cmdk.migrateTableFilePaths.noMigrationNeededDesc", "This table's file paths are already in the correct format."),
+        })
+        setCmdkOpen(false)
+        return
+      }
+      
+      const result = await migrateTableFilePaths(currentNode.id)
+      if (result && result.migrated > 0) {
+        toast({
+          title: t("cmdk.migrateTableFilePaths.migrationCompleted", "Table Paths Migrated"),
+          description: t("cmdk.migrateTableFilePaths.migrationCompletedDesc", 
+            `Successfully migrated ${result.migrated} file paths in this table.`, { count: result.migrated }),
+        })
+      } else if (result && result.errors > 0) {
+        toast({
+          title: t("cmdk.migrateTableFilePaths.migrationFailed", "Migration Failed"),
+          description: t("cmdk.migrateTableFilePaths.migrationFailedDesc", "An error occurred during migration."),
+          variant: "destructive",
+        })
+      }
+      setCmdkOpen(false)
+    } catch (error) {
+      console.error("Table file path migration failed:", error)
+      toast({
+        title: t("cmdk.migrateTableFilePaths.migrationFailed", "Migration Failed"),
+        description: t("cmdk.migrateTableFilePaths.migrationFailedDesc", 
+          error instanceof Error ? error.message : "An unknown error occurred during migration."),
+        variant: "destructive",
+      })
+    } finally {
+      setIsMigratingTable(false)
     }
   }
 
@@ -290,6 +334,18 @@ export function CommandDialogDemo() {
                     >
                       <RefreshCcwIcon className="mr-2 h-4 w-4" />
                       <span>{t("cmdk.rebuildFTS")}</span>
+                    </CommandItem>
+                    <CommandItem
+                      onSelect={handleMigrateTableFilePaths}
+                      disabled={isMigratingTable}
+                      value="migrate table file paths"
+                    >
+                      {isMigratingTable ? (
+                        <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Wrench className="mr-2 h-4 w-4" />
+                      )}
+                      <span>{t("cmdk.migrateTableFilePaths", "Fix File Paths (Current Table)")}</span>
                     </CommandItem>
                   </CommandGroup>
                 )}

@@ -408,7 +408,7 @@ export const useSqlite = (dbName?: string) => {
 
   const migrateDocFilePaths = async (docId: string) => {
     if (!sqlWorker) return { migrated: 0, errors: 0 }
-    
+
     try {
       const doc = await sqlWorker.doc.get(docId)
       if (!doc || !doc.content) {
@@ -417,7 +417,7 @@ export const useSqlite = (dbName?: string) => {
 
       const { migrateDocumentFilePaths } = await import('./use-doc-migration')
       const { content: newContent, migrated } = await migrateDocumentFilePaths(doc.content)
-      
+
       if (migrated > 0) {
         // Update the document with the migrated content
         await sqlWorker.doc.set(docId, {
@@ -426,7 +426,7 @@ export const useSqlite = (dbName?: string) => {
         })
         console.log(`Migrated ${migrated} file paths in document ${docId}`)
       }
-      
+
       return { migrated, errors: 0 }
     } catch (error) {
       console.error(`Error migrating document ${docId}:`, error)
@@ -436,21 +436,21 @@ export const useSqlite = (dbName?: string) => {
 
   const migrateAllDocFilePaths = async () => {
     if (!sqlWorker) return { migrated: 0, errors: 0 }
-    
+
     let totalMigrated = 0
     let totalErrors = 0
-    
+
     try {
       // Get all document IDs
       const docs = await sqlWorker.doc.list({}, { fields: ['id'] })
       console.log(`Starting migration for ${docs.length} documents`)
-      
+
       for (const doc of docs) {
         const result = await migrateDocFilePaths(doc.id)
         totalMigrated += result.migrated
         totalErrors += result.errors
       }
-      
+
       console.log(`Migration completed: ${totalMigrated} paths migrated, ${totalErrors} errors`)
       return { migrated: totalMigrated, errors: totalErrors }
     } catch (error) {
@@ -461,13 +461,13 @@ export const useSqlite = (dbName?: string) => {
 
   const needsDocPathMigration = async (docId?: string) => {
     if (!sqlWorker) return false
-    
+
     try {
       if (docId) {
         // Check single document
         const doc = await sqlWorker.doc.get(docId)
         if (!doc || !doc.content) return false
-        
+
         const { needsDocumentPathMigration } = await import('./use-doc-migration')
         return needsDocumentPathMigration(doc.content)
       } else {
@@ -480,6 +480,29 @@ export const useSqlite = (dbName?: string) => {
       }
     } catch (error) {
       console.error('Error checking document migration need:', error)
+      return false
+    }
+  }
+
+  const migrateTableFilePaths = async (tableId: string) => {
+    if (!sqlWorker) return { migrated: 0, errors: 0 }
+
+    try {
+      const result = await sqlWorker.migrateTableFilePaths(tableId)
+      return result
+    } catch (error) {
+      console.error(`Error migrating table ${tableId}:`, error)
+      return { migrated: 0, errors: 1 }
+    }
+  }
+
+  const needsTableFilePathMigration = async (tableId: string) => {
+    if (!sqlWorker) return false
+
+    try {
+      return await sqlWorker.needsTableFilePathMigration(tableId)
+    } catch (error) {
+      console.error('Error checking table migration need:', error)
       return false
     }
   }
@@ -518,6 +541,8 @@ export const useSqlite = (dbName?: string) => {
     migrateDocFilePaths,
     migrateAllDocFilePaths,
     needsDocPathMigration,
+    migrateTableFilePaths,
+    needsTableFilePathMigration,
     resetTableData
   }
 }

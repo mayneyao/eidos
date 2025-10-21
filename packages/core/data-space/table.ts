@@ -303,4 +303,22 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
         const res = await this.exec2(_sql)
         return RowsManager.getReadableRows(res, fields)
     }
+
+    /**
+     * Migrate file paths in file fields from old format (/{spaceName}/files/) to new format (/files/)
+     * @param tableId The table ID to migrate
+     * @returns Migration statistics
+     */
+    public async migrateTableFilePaths(tableId: string): Promise<{ migrated: number; errors: number }> {
+        return await this.table(tableId).migrateFilePaths()
+    }
+
+    /**
+     * Check if a table needs file path migration
+     * @param tableId The table ID to check
+     * @returns True if migration is needed
+     */
+    public async needsTableFilePathMigration(tableId: string): Promise<boolean> {
+        return await this.table(tableId).needsFilePathMigration()
+    }
 }
