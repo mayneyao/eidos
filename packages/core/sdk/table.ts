@@ -7,6 +7,7 @@ import { isDesktopMode } from "@/lib/env"
 import type { DataSpace, EidosDatabase } from "../data-space"
 import { allFieldTypesMap } from "../fields"
 import type { FieldType } from "../fields/const"
+import { smartSplitFilePaths } from "../fields/helper"
 import { ColumnTable } from "../meta-table/column"
 import { ColumnTableName } from "../sqlite/const"
 import { IndexManager } from "./index-manager"
@@ -156,10 +157,8 @@ export class TableManager {
             continue
           }
 
-          // Parse comma-separated file paths (handle data URIs and encoded commas)
-          const paths = fieldValue.match(/(?:data:[^,]+,[^,]+(?:,(?=[^,]*:))?|[^,]+)/g)
-            ?.filter(Boolean)
-            .map(item => item.trim()) ?? []
+          // Parse comma-separated file paths using smart split
+          const paths = smartSplitFilePaths(fieldValue)
 
           let pathsChanged = false
           const migratedPaths = paths.map(path => {
@@ -183,12 +182,7 @@ export class TableManager {
           })
 
           if (pathsChanged) {
-            // Encode commas in paths (except in data URIs)
-            const encodedPaths = migratedPaths.map(path => {
-              if (path.startsWith('data:')) return path
-              return path.replace(/,/g, '%2C')
-            })
-            updates[column.table_column_name] = encodedPaths.join(',')
+            updates[column.table_column_name] = migratedPaths.join(',')
             rowChanged = true
           }
         }

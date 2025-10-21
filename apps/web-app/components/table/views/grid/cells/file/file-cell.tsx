@@ -12,6 +12,7 @@ import { HTML5Backend } from "react-dnd-html5-backend"
 
 import { getFileType } from "@/lib/mime/mime"
 import { cn } from "@/lib/utils"
+import { smartSplitFilePaths } from "@/packages/core/fields/helper"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -262,7 +263,8 @@ export const FileCellRenderer: CustomRenderer<FileCell> = {
     if (toPaste.endsWith('"') || toPaste.endsWith("'")) {
       toPaste = toPaste.slice(0, -1)
     }
-    const fragments = toPaste.split(",")
+    
+    const fragments = smartSplitFilePaths(toPaste)
     const uris = fragments
       .map((f) => {
         try {
