@@ -17,7 +17,6 @@ import { useTheme } from "next-themes"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
-import { useToast } from "@/components/ui/use-toast"
 import { getToday } from "@/lib/utils"
 import {
   CommandDialog,
@@ -29,6 +28,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
+import { useToast } from "@/components/ui/use-toast"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
@@ -89,13 +89,23 @@ export function CommandDialogDemo() {
     useSpaceAppStore()
   const { lastOpenedDatabase } = useLastOpened()
 
-  const { createDoc, rebuildFTS, migrateFilePaths, needsPathMigration, migrateDocFilePaths, migrateAllDocFilePaths, needsDocPathMigration, migrateTableFilePaths, needsTableFilePathMigration } = useSqlite()
+  const {
+    createDoc,
+    rebuildFTS,
+    migrateFilePaths,
+    needsPathMigration,
+    migrateDocFilePaths,
+    migrateAllDocFilePaths,
+    needsDocPathMigration,
+    migrateTableFilePaths,
+    needsTableFilePathMigration,
+  } = useSqlite()
   const goto = useCMDKGoto()
   const [isMigrating, setIsMigrating] = useState(false)
   const [isMigratingDoc, setIsMigratingDoc] = useState(false)
   const [isMigratingTable, setIsMigratingTable] = useState(false)
   const { toast } = useToast()
-  
+
   // Use current workspace in desktop mode, otherwise use lastOpenedDatabase
   const goEveryday = goto(`/journals`)
 
@@ -120,32 +130,57 @@ export function CommandDialogDemo() {
     }
   }
 
+  /**
+   * Migrate file paths in table file fields
+   * 修复表格中的 file 字段的路径格式
+   * 
+   * This function fixes file field paths in the current table by converting old path formats
+   * to the new standardized format. It checks if migration is needed before proceeding.
+   */
   const handleMigrateTableFilePaths = async () => {
     if (!currentNode || currentNode.type !== "table") return
-    
+
     setIsMigratingTable(true)
     try {
       const needsMigration = await needsTableFilePathMigration(currentNode.id)
       if (!needsMigration) {
         toast({
-          title: t("cmdk.migrateTableFilePaths.noMigrationNeeded", "No Migration Needed"),
-          description: t("cmdk.migrateTableFilePaths.noMigrationNeededDesc", "This table's file paths are already in the correct format."),
+          title: t(
+            "cmdk.migrateTableFilePaths.noMigrationNeeded",
+            "No Migration Needed"
+          ),
+          description: t(
+            "cmdk.migrateTableFilePaths.noMigrationNeededDesc",
+            "This table's file paths are already in the correct format."
+          ),
         })
         setCmdkOpen(false)
         return
       }
-      
+
       const result = await migrateTableFilePaths(currentNode.id)
       if (result && result.migrated > 0) {
         toast({
-          title: t("cmdk.migrateTableFilePaths.migrationCompleted", "Table Paths Migrated"),
-          description: t("cmdk.migrateTableFilePaths.migrationCompletedDesc", 
-            `Successfully migrated ${result.migrated} file paths in this table.`, { count: result.migrated }),
+          title: t(
+            "cmdk.migrateTableFilePaths.migrationCompleted",
+            "Table Paths Migrated"
+          ),
+          description: t(
+            "cmdk.migrateTableFilePaths.migrationCompletedDesc",
+            `Successfully migrated ${result.migrated} file paths in this table.`,
+            { count: result.migrated }
+          ),
         })
       } else if (result && result.errors > 0) {
         toast({
-          title: t("cmdk.migrateTableFilePaths.migrationFailed", "Migration Failed"),
-          description: t("cmdk.migrateTableFilePaths.migrationFailedDesc", "An error occurred during migration."),
+          title: t(
+            "cmdk.migrateTableFilePaths.migrationFailed",
+            "Migration Failed"
+          ),
+          description: t(
+            "cmdk.migrateTableFilePaths.migrationFailedDesc",
+            "An error occurred during migration."
+          ),
           variant: "destructive",
         })
       }
@@ -153,9 +188,16 @@ export function CommandDialogDemo() {
     } catch (error) {
       console.error("Table file path migration failed:", error)
       toast({
-        title: t("cmdk.migrateTableFilePaths.migrationFailed", "Migration Failed"),
-        description: t("cmdk.migrateTableFilePaths.migrationFailedDesc", 
-          error instanceof Error ? error.message : "An unknown error occurred during migration."),
+        title: t(
+          "cmdk.migrateTableFilePaths.migrationFailed",
+          "Migration Failed"
+        ),
+        description: t(
+          "cmdk.migrateTableFilePaths.migrationFailedDesc",
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred during migration."
+        ),
         variant: "destructive",
       })
     } finally {
@@ -163,32 +205,55 @@ export function CommandDialogDemo() {
     }
   }
 
+  /**
+   * Migrate image and file paths in the current document
+   * 修复当前文档中的 image 和 file 路径格式
+   * 
+   * This function fixes embedded image and file references within the current document
+   * by converting old path formats to the new standardized format. It only processes
+   * the currently opened document.
+   */
   const handleMigrateCurrentDocPaths = async () => {
     if (!currentNode || currentNode.type !== "doc") return
-    
+
     setIsMigratingDoc(true)
     try {
       const needsMigration = await needsDocPathMigration(currentNode.id)
       if (!needsMigration) {
         toast({
-          title: t("cmdk.migrateDocPaths.noMigrationNeeded", "No Migration Needed"),
-          description: t("cmdk.migrateDocPaths.noMigrationNeededDesc", "This document's file paths are already in the correct format."),
+          title: t(
+            "cmdk.migrateDocPaths.noMigrationNeeded",
+            "No Migration Needed"
+          ),
+          description: t(
+            "cmdk.migrateDocPaths.noMigrationNeededDesc",
+            "This document's file paths are already in the correct format."
+          ),
         })
         setCmdkOpen(false)
         return
       }
-      
+
       const result = await migrateDocFilePaths(currentNode.id)
       if (result && result.migrated > 0) {
         toast({
-          title: t("cmdk.migrateDocPaths.migrationCompleted", "Document Paths Migrated"),
-          description: t("cmdk.migrateDocPaths.migrationCompletedDesc", 
-            `Successfully migrated ${result.migrated} file paths in this document.`, { count: result.migrated }),
+          title: t(
+            "cmdk.migrateDocPaths.migrationCompleted",
+            "Document Paths Migrated"
+          ),
+          description: t(
+            "cmdk.migrateDocPaths.migrationCompletedDesc",
+            `Successfully migrated ${result.migrated} file paths in this document.`,
+            { count: result.migrated }
+          ),
         })
       } else if (result && result.errors > 0) {
         toast({
           title: t("cmdk.migrateDocPaths.migrationFailed", "Migration Failed"),
-          description: t("cmdk.migrateDocPaths.migrationFailedDesc", "An error occurred during migration."),
+          description: t(
+            "cmdk.migrateDocPaths.migrationFailedDesc",
+            "An error occurred during migration."
+          ),
           variant: "destructive",
         })
       }
@@ -197,8 +262,12 @@ export function CommandDialogDemo() {
       console.error("Document path migration failed:", error)
       toast({
         title: t("cmdk.migrateDocPaths.migrationFailed", "Migration Failed"),
-        description: t("cmdk.migrateDocPaths.migrationFailedDesc", 
-          error instanceof Error ? error.message : "An unknown error occurred during migration."),
+        description: t(
+          "cmdk.migrateDocPaths.migrationFailedDesc",
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred during migration."
+        ),
         variant: "destructive",
       })
     } finally {
@@ -206,24 +275,37 @@ export function CommandDialogDemo() {
     }
   }
 
+  /**
+   * Migrate file paths in the eidos__files table
+   * 修复 eidos__files 表中的路径格式
+   * 
+   * This function fixes file path records in the system files table (eidos__files).
+   * These paths are used by the image picker and file picker components throughout
+   * the application. Migrating these paths ensures all file references work correctly.
+   */
   const handleMigrateFilePaths = async () => {
     setIsMigrating(true)
     try {
       const needsFileMigration = await needsPathMigration()
-      const needsDocMigration = await needsDocPathMigration()
-      
-      if (!needsFileMigration && !needsDocMigration) {
+
+      if (!needsFileMigration) {
         toast({
-          title: t("cmdk.migrateFilePaths.noMigrationNeeded", "No Migration Needed"),
-          description: t("cmdk.migrateFilePaths.noMigrationNeededDesc", "All file paths are already in the correct format."),
+          title: t(
+            "cmdk.migrateFilePaths.noMigrationNeeded",
+            "No Migration Needed"
+          ),
+          description: t(
+            "cmdk.migrateFilePaths.noMigrationNeededDesc",
+            "All file paths are already in the correct format."
+          ),
         })
         setCmdkOpen(false)
         return
       }
-      
+
       let totalMigrated = 0
       let totalErrors = 0
-      
+
       // Migrate file table records
       if (needsFileMigration) {
         const fileResult = await migrateFilePaths()
@@ -232,29 +314,31 @@ export function CommandDialogDemo() {
           totalErrors += fileResult.errors
         }
       }
-      
-      // Migrate document content
-      if (needsDocMigration) {
-        const docResult = await migrateAllDocFilePaths()
-        if (docResult) {
-          totalMigrated += docResult.migrated
-          totalErrors += docResult.errors
-        }
-      }
-      
+
       if (totalErrors > 0) {
         toast({
-          title: t("cmdk.migrateFilePaths.migrationCompletedWithErrors", "Migration Completed with Errors"),
-          description: t("cmdk.migrateFilePaths.migrationCompletedWithErrorsDesc", 
-            `Successfully migrated ${totalMigrated} file paths, but ${totalErrors} items had errors. Check the console for details.`, 
-            { migrated: totalMigrated, errors: totalErrors }),
+          title: t(
+            "cmdk.migrateFilePaths.migrationCompletedWithErrors",
+            "Migration Completed with Errors"
+          ),
+          description: t(
+            "cmdk.migrateFilePaths.migrationCompletedWithErrorsDesc",
+            `Successfully migrated ${totalMigrated} file paths, but ${totalErrors} items had errors. Check the console for details.`,
+            { migrated: totalMigrated, errors: totalErrors }
+          ),
           variant: "destructive",
         })
       } else {
         toast({
-          title: t("cmdk.migrateFilePaths.migrationCompleted", "Migration Completed"),
-          description: t("cmdk.migrateFilePaths.migrationCompletedDesc", 
-            `Successfully migrated ${totalMigrated} file paths.`, { count: totalMigrated }),
+          title: t(
+            "cmdk.migrateFilePaths.migrationCompleted",
+            "Migration Completed"
+          ),
+          description: t(
+            "cmdk.migrateFilePaths.migrationCompletedDesc",
+            `Successfully migrated ${totalMigrated} file paths.`,
+            { count: totalMigrated }
+          ),
         })
       }
       setCmdkOpen(false)
@@ -262,9 +346,18 @@ export function CommandDialogDemo() {
       console.error("File path migration failed:", error)
       toast({
         title: t("cmdk.migrateFilePaths.migrationFailed", "Migration Failed"),
-        description: t("cmdk.migrateFilePaths.migrationFailedDesc", 
-          error instanceof Error ? error.message : "An unknown error occurred during migration.", 
-          { error: error instanceof Error ? error.message : "An unknown error occurred during migration." }),
+        description: t(
+          "cmdk.migrateFilePaths.migrationFailedDesc",
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred during migration.",
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "An unknown error occurred during migration.",
+          }
+        ),
         variant: "destructive",
       })
     } finally {
@@ -333,7 +426,12 @@ export function CommandDialogDemo() {
                       value="rebuild fts"
                     >
                       <RefreshCcwIcon className="mr-2 h-4 w-4" />
-                      <span>{t("cmdk.rebuildFTS")}</span>
+                      <div className="flex flex-col">
+                        <span>{t("cmdk.rebuildFTS")}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {t("cmdk.rebuildFTS.desc")}
+                        </span>
+                      </div>
                     </CommandItem>
                     <CommandItem
                       onSelect={handleMigrateTableFilePaths}
@@ -345,14 +443,21 @@ export function CommandDialogDemo() {
                       ) : (
                         <Wrench className="mr-2 h-4 w-4" />
                       )}
-                      <span>{t("cmdk.migrateTableFilePaths", "Fix File Paths (Current Table)")}</span>
+                      <div className="flex flex-col">
+                        <span>
+                          {t("cmdk.migrateTableFilePaths")}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {t("cmdk.migrateTableFilePaths.desc")}
+                        </span>
+                      </div>
                     </CommandItem>
                   </CommandGroup>
                 )}
 
                 {currentNode?.type === "doc" && (
                   <>
-                    <CommandGroup heading={t("cmdk.document", "Document")}>
+                    <CommandGroup heading={t("cmdk.document")}>
                       <CommandItem
                         onSelect={handleMigrateCurrentDocPaths}
                         disabled={isMigratingDoc}
@@ -363,7 +468,14 @@ export function CommandDialogDemo() {
                         ) : (
                           <Wrench className="mr-2 h-4 w-4" />
                         )}
-                        <span>{t("cmdk.migrateDocPaths", "Fix File Paths (Current Doc)")}</span>
+                        <div className="flex flex-col">
+                          <span>
+                            {t("cmdk.migrateDocPaths")}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {t("cmdk.migrateDocPaths.desc")}
+                          </span>
+                        </div>
                       </CommandItem>
                     </CommandGroup>
                     <DocActionCommandItems />
@@ -389,22 +501,22 @@ export function CommandDialogDemo() {
                 <Wand2 className="mr-2 h-4 w-4" />
                 <span>
                   {isGodMode
-                    ? t("cmdk.disableGodMode", "Disable Creator Mode")
-                    : t("cmdk.enableGodMode", "Enable Creator Mode")}
+                    ? t("cmdk.disableGodMode")
+                    : t("cmdk.enableGodMode")}
                 </span>
               </CommandItem>
               <CommandItem
                 onSelect={() => {
                   setSecondaryView({
                     component: <ThemeStudio />,
-                    title: t("cmdk.themeStudio", "Theme Studio"),
+                    title: t("cmdk.themeStudio"),
                   })
                 }}
               >
                 <PaintBucket className="mr-2 h-4 w-4" />
-                <span>{t("cmdk.themeStudio", "Theme Studio")}</span>
+                <span>{t("cmdk.themeStudio")}</span>
               </CommandItem>
-              <CommandItem 
+              <CommandItem
                 onSelect={handleMigrateFilePaths}
                 disabled={isMigrating}
                 value="migrate file paths"
@@ -414,7 +526,12 @@ export function CommandDialogDemo() {
                 ) : (
                   <Wrench className="mr-2 h-4 w-4" />
                 )}
-                <span>{t("cmdk.migrateFilePaths", "Fix File Paths")}</span>
+                <div className="flex flex-col">
+                  <span>{t("cmdk.migrateFilePaths")}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("cmdk.migrateFilePaths.desc")}
+                  </span>
+                </div>
               </CommandItem>
               {!isInkServiceMode && (
                 <CommandItem onSelect={() => openSettingsModal("general")}>
