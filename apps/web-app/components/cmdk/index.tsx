@@ -89,9 +89,10 @@ export function CommandDialogDemo() {
     useSpaceAppStore()
   const { lastOpenedDatabase } = useLastOpened()
 
-  const { createDoc, rebuildFTS, migrateFilePaths, needsPathMigration } = useSqlite()
+  const { createDoc, rebuildFTS, migrateFilePaths, needsPathMigration, migrateDocFilePaths, migrateAllDocFilePaths, needsDocPathMigration } = useSqlite()
   const goto = useCMDKGoto()
   const [isMigrating, setIsMigrating] = useState(false)
+  const [isMigratingDoc, setIsMigratingDoc] = useState(false)
   const { toast } = useToast()
   
   // Use current workspace in desktop mode, otherwise use lastOpenedDatabase
@@ -118,11 +119,56 @@ export function CommandDialogDemo() {
     }
   }
 
+  const handleMigrateCurrentDocPaths = async () => {
+    if (!currentNode || currentNode.type !== "doc") return
+    
+    setIsMigratingDoc(true)
+    try {
+      const needsMigration = await needsDocPathMigration(currentNode.id)
+      if (!needsMigration) {
+        toast({
+          title: t("cmdk.migrateDocPaths.noMigrationNeeded", "No Migration Needed"),
+          description: t("cmdk.migrateDocPaths.noMigrationNeededDesc", "This document's file paths are already in the correct format."),
+        })
+        setCmdkOpen(false)
+        return
+      }
+      
+      const result = await migrateDocFilePaths(currentNode.id)
+      if (result && result.migrated > 0) {
+        toast({
+          title: t("cmdk.migrateDocPaths.migrationCompleted", "Document Paths Migrated"),
+          description: t("cmdk.migrateDocPaths.migrationCompletedDesc", 
+            `Successfully migrated ${result.migrated} file paths in this document.`, { count: result.migrated }),
+        })
+      } else if (result && result.errors > 0) {
+        toast({
+          title: t("cmdk.migrateDocPaths.migrationFailed", "Migration Failed"),
+          description: t("cmdk.migrateDocPaths.migrationFailedDesc", "An error occurred during migration."),
+          variant: "destructive",
+        })
+      }
+      setCmdkOpen(false)
+    } catch (error) {
+      console.error("Document path migration failed:", error)
+      toast({
+        title: t("cmdk.migrateDocPaths.migrationFailed", "Migration Failed"),
+        description: t("cmdk.migrateDocPaths.migrationFailedDesc", 
+          error instanceof Error ? error.message : "An unknown error occurred during migration."),
+        variant: "destructive",
+      })
+    } finally {
+      setIsMigratingDoc(false)
+    }
+  }
+
   const handleMigrateFilePaths = async () => {
     setIsMigrating(true)
     try {
-      const needsMigration = await needsPathMigration()
-      if (!needsMigration) {
+      const needsFileMigration = await needsPathMigration()
+      const needsDocMigration = await needsDocPathMigration()
+      
+      if (!needsFileMigration && !needsDocMigration) {
         toast({
           title: t("cmdk.migrateFilePaths.noMigrationNeeded", "No Migration Needed"),
           description: t("cmdk.migrateFilePaths.noMigrationNeededDesc", "All file paths are already in the correct format."),
@@ -131,23 +177,41 @@ export function CommandDialogDemo() {
         return
       }
       
-      const result = await migrateFilePaths()
-      if (result) {
-        if (result.errors > 0) {
-          toast({
-            title: t("cmdk.migrateFilePaths.migrationCompletedWithErrors", "Migration Completed with Errors"),
-            description: t("cmdk.migrateFilePaths.migrationCompletedWithErrorsDesc", 
-              `Successfully migrated ${result.migrated} files, but ${result.errors} files had errors. Check the console for details.`, 
-              { migrated: result.migrated, errors: result.errors }),
-            variant: "destructive",
-          })
-        } else {
-          toast({
-            title: t("cmdk.migrateFilePaths.migrationCompleted", "Migration Completed"),
-            description: t("cmdk.migrateFilePaths.migrationCompletedDesc", 
-              `Successfully migrated ${result.migrated} file paths.`, { count: result.migrated }),
-          })
+      let totalMigrated = 0
+      let totalErrors = 0
+      
+      // Migrate file table records
+      if (needsFileMigration) {
+        const fileResult = await migrateFilePaths()
+        if (fileResult) {
+          totalMigrated += fileResult.migrated
+          totalErrors += fileResult.errors
         }
+      }
+      
+      // Migrate document content
+      if (needsDocMigration) {
+        const docResult = await migrateAllDocFilePaths()
+        if (docResult) {
+          totalMigrated += docResult.migrated
+          totalErrors += docResult.errors
+        }
+      }
+      
+      if (totalErrors > 0) {
+        toast({
+          title: t("cmdk.migrateFilePaths.migrationCompletedWithErrors", "Migration Completed with Errors"),
+          description: t("cmdk.migrateFilePaths.migrationCompletedWithErrorsDesc", 
+            `Successfully migrated ${totalMigrated} file paths, but ${totalErrors} items had errors. Check the console for details.`, 
+            { migrated: totalMigrated, errors: totalErrors }),
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: t("cmdk.migrateFilePaths.migrationCompleted", "Migration Completed"),
+          description: t("cmdk.migrateFilePaths.migrationCompletedDesc", 
+            `Successfully migrated ${totalMigrated} file paths.`, { count: totalMigrated }),
+        })
       }
       setCmdkOpen(false)
     } catch (error) {
@@ -230,7 +294,25 @@ export function CommandDialogDemo() {
                   </CommandGroup>
                 )}
 
-                {currentNode?.type === "doc" && <DocActionCommandItems />}
+                {currentNode?.type === "doc" && (
+                  <>
+                    <CommandGroup heading={t("cmdk.document", "Document")}>
+                      <CommandItem
+                        onSelect={handleMigrateCurrentDocPaths}
+                        disabled={isMigratingDoc}
+                        value="migrate current doc file paths"
+                      >
+                        {isMigratingDoc ? (
+                          <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wrench className="mr-2 h-4 w-4" />
+                        )}
+                        <span>{t("cmdk.migrateDocPaths", "Fix File Paths (Current Doc)")}</span>
+                      </CommandItem>
+                    </CommandGroup>
+                    <DocActionCommandItems />
+                  </>
+                )}
                 {!isInkServiceMode && (
                   <>
                     <NodeCommandItems />

@@ -406,6 +406,84 @@ export const useSqlite = (dbName?: string) => {
     return await sqlWorker.file.needsPathMigration()
   }
 
+  const migrateDocFilePaths = async (docId: string) => {
+    if (!sqlWorker) return { migrated: 0, errors: 0 }
+    
+    try {
+      const doc = await sqlWorker.doc.get(docId)
+      if (!doc || !doc.content) {
+        return { migrated: 0, errors: 0 }
+      }
+
+      const { migrateDocumentFilePaths } = await import('./use-doc-migration')
+      const { content: newContent, migrated } = await migrateDocumentFilePaths(doc.content)
+      
+      if (migrated > 0) {
+        // Update the document with the migrated content
+        await sqlWorker.doc.set(docId, {
+          ...doc,
+          content: newContent,
+        })
+        console.log(`Migrated ${migrated} file paths in document ${docId}`)
+      }
+      
+      return { migrated, errors: 0 }
+    } catch (error) {
+      console.error(`Error migrating document ${docId}:`, error)
+      return { migrated: 0, errors: 1 }
+    }
+  }
+
+  const migrateAllDocFilePaths = async () => {
+    if (!sqlWorker) return { migrated: 0, errors: 0 }
+    
+    let totalMigrated = 0
+    let totalErrors = 0
+    
+    try {
+      // Get all document IDs
+      const docs = await sqlWorker.doc.list({}, { fields: ['id'] })
+      console.log(`Starting migration for ${docs.length} documents`)
+      
+      for (const doc of docs) {
+        const result = await migrateDocFilePaths(doc.id)
+        totalMigrated += result.migrated
+        totalErrors += result.errors
+      }
+      
+      console.log(`Migration completed: ${totalMigrated} paths migrated, ${totalErrors} errors`)
+      return { migrated: totalMigrated, errors: totalErrors }
+    } catch (error) {
+      console.error('Error during bulk document migration:', error)
+      return { migrated: totalMigrated, errors: totalErrors + 1 }
+    }
+  }
+
+  const needsDocPathMigration = async (docId?: string) => {
+    if (!sqlWorker) return false
+    
+    try {
+      if (docId) {
+        // Check single document
+        const doc = await sqlWorker.doc.get(docId)
+        if (!doc || !doc.content) return false
+        
+        const { needsDocumentPathMigration } = await import('./use-doc-migration')
+        return needsDocumentPathMigration(doc.content)
+      } else {
+        // Check if any document needs migration
+        // Simple SQL check for old path pattern
+        const result = await sqlWorker.exec2(
+          `SELECT COUNT(*) as count FROM eidos__docs WHERE content LIKE '%/files/%' AND content LIKE '%"src"%' LIMIT 1`
+        )
+        return result && result[0]?.count > 0
+      }
+    } catch (error) {
+      console.error('Error checking document migration need:', error)
+      return false
+    }
+  }
+
   return {
     sqlite: isShareMode ? sqlWorker : isInitialized ? sqlWorker : null,
     createTable,
@@ -437,6 +515,9 @@ export const useSqlite = (dbName?: string) => {
     rebuildFTS,
     migrateFilePaths,
     needsPathMigration,
+    migrateDocFilePaths,
+    migrateAllDocFilePaths,
+    needsDocPathMigration,
     resetTableData
   }
 }
