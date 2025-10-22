@@ -168,6 +168,8 @@
     "dataview.template.queryEidosTables.description": "从 sqlite_master 检索所有 Eidos 相关表及其元数据和 SQL 定义。",
     "dataview.template.queryTableSchema": "查询表结构",
     "dataview.template.queryTableSchema.description": "从 sqlite_master 检索所有用户定义表的结构及其名称和 CREATE TABLE 语句。",
+    "dataview.template.queryDocNodeReferences": "查询文档节点引用关系",
+    "dataview.template.queryDocNodeReferences.description": "检索文档中的所有节点引用关系，显示哪些文档引用了其他文档。",
     "doc.actions": "动作",
     "doc.actions.createNew": "新建动作",
     "doc.addCover": "添加封面",

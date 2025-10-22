@@ -1,4 +1,4 @@
-export const getTemplates = (space: string) => [
+export const getTemplates = () => [
   {
     name: "queryAllFiles",
     i18nKey: "dataview.template.queryAllFiles",
@@ -10,10 +10,7 @@ export const getTemplates = (space: string) => [
 -- [path_display:file]
 SELECT
     *,
-    CASE
-        WHEN path LIKE 'spaces/%' THEN substr(path, 7)
-        ELSE path
-    END AS path_display
+    '/' || path AS path_display
 FROM eidos__files
     `
   },
@@ -27,12 +24,8 @@ FROM eidos__files
     sql: `
 -- [path_display:file]
 SELECT 
-    id,
-    CASE
-        WHEN path LIKE 'spaces/%' THEN substr(path, 7)
-        ELSE path
-    END AS path_display,
-    *
+    *,
+    '/' || path AS path_display
 FROM eidos__files WHERE mime LIKE 'image/%'
     `
   },
@@ -417,6 +410,43 @@ WHERE
   AND sm.type = 'table' AND t.is_deleted = 0
 ORDER BY
   t.created_at DESC
+    `
+  },
+  {
+    name: "queryDocNodeReferences",
+    i18nKey: "dataview.template.queryDocNodeReferences",
+    descriptionKey: "dataview.template.queryDocNodeReferences.description",
+    tags: ["doc", "reference", "mention", "link"],
+    category: "doc",
+    difficulty: "intermediate",
+    sql: `
+-- [self:url]
+-- [reference:url]
+WITH
+  valid_docs AS (
+    SELECT
+      d.id,
+      d.content,
+      t.name AS self_name
+    FROM
+      eidos__docs d
+      JOIN eidos__tree t ON d.id = t.id
+    WHERE
+      json_valid(d.content) = 1
+  )
+SELECT
+  '/' || d.id AS self,
+  d.self_name,
+  '/' || json_extract(j.value, '$.id') AS reference,
+  t2.name AS reference_name
+FROM
+  valid_docs d,
+  json_tree(d.content, '$.root.children') AS j
+  LEFT JOIN eidos__tree t2 ON json_extract(j.value, '$.id') = t2.id
+WHERE
+  j.type = 'object'
+  AND json_extract(j.value, '$.type') = 'mention'
+  AND json_extract(j.value, '$.id') IS NOT NULL
     `
   }
 ]

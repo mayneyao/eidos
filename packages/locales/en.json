@@ -168,6 +168,8 @@
     "dataview.template.queryEidosTables.description": "Retrieve all Eidos-related tables from sqlite_master with their metadata and SQL definitions.",
     "dataview.template.queryTableSchema": "Query table schemas",
     "dataview.template.queryTableSchema.description": "Retrieve all user-defined table schemas from sqlite_master with their names and CREATE TABLE statements.",
+    "dataview.template.queryDocNodeReferences": "Query document node references",
+    "dataview.template.queryDocNodeReferences.description": "Retrieve all node reference relationships in documents, showing which documents mention other documents.",
     "doc.actions": "Actions",
     "doc.actions.createNew": "New Action",
     "doc.addCover": "Add Cover",
