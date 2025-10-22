@@ -223,3 +223,198 @@ async setBlob(id: string, blob: Buffer): Promise<boolean>
 const buffer = Buffer.from("some binary data")
 await eidos.currentSpace.extNode.setBlob("node_123", buffer)
 ```
+
+---
+
+## 文件 API
+
+`eidos.currentSpace.file` 对象提供文件上传和管理功能。
+
+### `upload(source, options?)`
+
+通用文件上传方法，支持多种输入类型：URL、base64 字符串、ArrayBuffer、Blob 或 File 对象。
+
+```typescript
+async upload(
+  source: string | ArrayBuffer | Blob | File,
+  options?: UploadOptions
+): Promise<IFile & { publicUrl: string }>
+
+interface UploadOptions {
+  fileName?: string        // 对于 URL/File 可选，对于其他类型必需
+  mimeType?: string        // 对于 URL/File/Blob 可选，对于 ArrayBuffer/base64 必需
+  parentPath?: string[]    // 父目录路径，例如 ["images", "avatars"]
+  checkDuplicate?: boolean // 检查文件是否存在，如存在则返回已有文件
+}
+```
+
+**参数:**
+
+- `source` (string | ArrayBuffer | Blob | File): 文件源
+  - **URL 字符串** (http/https): 自动获取并上传
+  - **Base64 字符串**: 解码并上传（需要 `fileName` 和 `mimeType`）
+  - **ArrayBuffer**: 原始二进制数据（需要 `fileName` 和 `mimeType`）
+  - **Blob**: 二进制大对象（需要 `fileName`）
+  - **File**: 来自文件输入或拖放的文件对象
+- `options` (UploadOptions, 可选): 上传配置
+
+**返回值:**
+
+```typescript
+{
+  id: string           // 唯一文件 ID
+  name: string         // 文件名
+  path: string         // 完整文件路径
+  size: number         // 文件大小（字节）
+  mime: string         // MIME 类型
+  created_at?: string  // 创建时间戳
+  publicUrl: string    // 可直接访问文件的 URL
+}
+```
+
+**示例:**
+
+```typescript
+// 1. 从 URL 上传
+const file = await eidos.currentSpace.file.upload(
+  "https://example.com/image.jpg",
+  { parentPath: ["images"] }
+)
+console.log("文件已上传:", file.publicUrl)
+
+// 2. 自定义文件名上传
+const file = await eidos.currentSpace.file.upload(
+  "https://example.com/photo.jpg",
+  { 
+    fileName: "头像.jpg",
+    parentPath: ["avatars"],
+    checkDuplicate: true  // 如已存在则不重复上传
+  }
+)
+
+// 3. 从 base64 字符串上传
+const base64Data = "iVBORw0KGgoAAAANSUhEUgAA..." // base64 图片数据
+const file = await eidos.currentSpace.file.upload(base64Data, {
+  fileName: "截图.png",
+  mimeType: "image/png",
+  parentPath: ["screenshots"]
+})
+
+// 4. 从 File 对象上传（例如文件输入）
+const fileInput = document.querySelector('input[type="file"]')
+const selectedFile = fileInput.files[0]
+const file = await eidos.currentSpace.file.upload(selectedFile, {
+  parentPath: ["documents"]
+})
+
+// 5. 从 ArrayBuffer 上传
+const arrayBuffer = await fetch("https://example.com/doc.pdf")
+  .then(res => res.arrayBuffer())
+const file = await eidos.currentSpace.file.upload(arrayBuffer, {
+  fileName: "文档.pdf",
+  mimeType: "application/pdf",
+  parentPath: ["pdfs"]
+})
+
+// 6. 从 Blob 上传
+const blob = new Blob(["你好，世界！"], { type: "text/plain" })
+const file = await eidos.currentSpace.file.upload(blob, {
+  fileName: "问候.txt",
+  parentPath: ["texts"]
+})
+```
+
+**常见用例:**
+
+```typescript
+// 从外部 API 保存下载的图片
+async function saveImageFromAPI(imageUrl: string, category: string) {
+  const file = await eidos.currentSpace.file.upload(imageUrl, {
+    parentPath: ["api-images", category],
+    checkDuplicate: true
+  })
+  return file.publicUrl
+}
+
+// 处理并上传 Canvas 截图
+async function uploadCanvasScreenshot(canvas: HTMLCanvasElement) {
+  const blob = await new Promise(resolve => 
+    canvas.toBlob(resolve, "image/png")
+  )
+  const file = await eidos.currentSpace.file.upload(blob, {
+    fileName: `截图-${Date.now()}.png`,
+    parentPath: ["screenshots"]
+  })
+  return file
+}
+
+// 从文件输入上传多个文件
+async function uploadUserFiles(files: FileList) {
+  const results = []
+  for (const file of Array.from(files)) {
+    const uploaded = await eidos.currentSpace.file.upload(file, {
+      parentPath: ["user-uploads", new Date().toISOString().split('T')[0]]
+    })
+    results.push(uploaded)
+  }
+  return results
+}
+```
+
+### `get(id: string)`
+
+通过 ID 获取文件元数据。
+
+```typescript
+async get(id: string): Promise<IFile | null>
+```
+
+**示例:**
+
+```typescript
+const fileInfo = await eidos.currentSpace.file.get("file_123")
+if (fileInfo) {
+  console.log("文件名:", fileInfo.name)
+  console.log("文件大小:", fileInfo.size)
+  console.log("MIME 类型:", fileInfo.mime)
+}
+```
+
+### `getByPath(path: string)`
+
+通过文件路径获取文件元数据。
+
+```typescript
+async getByPath(path: string): Promise<IFile | null>
+```
+
+**参数:**
+
+- `path` (string): 文件路径，例如 `"files/images/photo.jpg"`
+
+**示例:**
+
+```typescript
+const fileInfo = await eidos.currentSpace.file.getByPath("files/images/photo.jpg")
+if (fileInfo) {
+  console.log("文件 ID:", fileInfo.id)
+  console.log("文件名:", fileInfo.name)
+  console.log("文件大小:", fileInfo.size)
+  console.log("MIME 类型:", fileInfo.mime)
+}
+```
+
+**错误处理:**
+
+```typescript
+try {
+  const file = await eidos.currentSpace.file.upload(source, options)
+  eidos.currentSpace.notify("成功", `文件已上传: ${file.name}`)
+} catch (error) {
+  if (error.name === "FileUploadError") {
+    eidos.currentSpace.notify("上传失败", error.message)
+  } else if (error.name === "FileSystemError") {
+    eidos.currentSpace.notify("错误", "文件系统不可用")
+  }
+}
+```

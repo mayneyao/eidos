@@ -225,3 +225,198 @@ async setBlob(id: string, blob: Buffer): Promise<boolean>
 const buffer = Buffer.from("some binary data")
 await eidos.currentSpace.extNode.setBlob("node_123", buffer)
 ```
+
+---
+
+## File API
+
+The `eidos.currentSpace.file` object provides file upload and management functionality.
+
+### `upload(source, options?)`
+
+Universal file upload method supporting multiple input types: URLs, base64 strings, ArrayBuffer, Blob, or File objects.
+
+```typescript
+async upload(
+  source: string | ArrayBuffer | Blob | File,
+  options?: UploadOptions
+): Promise<IFile & { publicUrl: string }>
+
+interface UploadOptions {
+  fileName?: string        // Optional for URL/File, required for others
+  mimeType?: string        // Optional for URL/File/Blob, required for ArrayBuffer/base64
+  parentPath?: string[]    // Parent directory path, e.g., ["images", "avatars"]
+  checkDuplicate?: boolean // Check if file exists and return existing file
+}
+```
+
+**Parameters:**
+
+- `source` (string | ArrayBuffer | Blob | File): The file source
+  - **URL string** (http/https): Automatically fetched and uploaded
+  - **Base64 string**: Decoded and uploaded (requires `fileName` and `mimeType`)
+  - **ArrayBuffer**: Raw binary data (requires `fileName` and `mimeType`)
+  - **Blob**: Binary large object (requires `fileName`)
+  - **File**: File object from input or drag-drop
+- `options` (UploadOptions, optional): Upload configuration
+
+**Returns:**
+
+```typescript
+{
+  id: string           // Unique file ID
+  name: string         // File name
+  path: string         // Full file path
+  size: number         // File size in bytes
+  mime: string         // MIME type
+  created_at?: string  // Creation timestamp
+  publicUrl: string    // Ready-to-use URL for accessing the file
+}
+```
+
+**Examples:**
+
+```typescript
+// 1. Upload from URL
+const file = await eidos.currentSpace.file.upload(
+  "https://example.com/image.jpg",
+  { parentPath: ["images"] }
+)
+console.log("File uploaded:", file.publicUrl)
+
+// 2. Upload with custom name
+const file = await eidos.currentSpace.file.upload(
+  "https://example.com/photo.jpg",
+  {
+    fileName: "profile-picture.jpg",
+    parentPath: ["avatars"],
+    checkDuplicate: true  // Don't upload if already exists
+  }
+)
+
+// 3. Upload from base64 string
+const base64Data = "iVBORw0KGgoAAAANSUhEUgAA..." // base64 image data
+const file = await eidos.currentSpace.file.upload(base64Data, {
+  fileName: "screenshot.png",
+  mimeType: "image/png",
+  parentPath: ["screenshots"]
+})
+
+// 4. Upload from File object (e.g., from file input)
+const fileInput = document.querySelector('input[type="file"]')
+const selectedFile = fileInput.files[0]
+const file = await eidos.currentSpace.file.upload(selectedFile, {
+  parentPath: ["documents"]
+})
+
+// 5. Upload from ArrayBuffer
+const arrayBuffer = await fetch("https://example.com/doc.pdf")
+  .then(res => res.arrayBuffer())
+const file = await eidos.currentSpace.file.upload(arrayBuffer, {
+  fileName: "document.pdf",
+  mimeType: "application/pdf",
+  parentPath: ["pdfs"]
+})
+
+// 6. Upload from Blob
+const blob = new Blob(["Hello, world!"], { type: "text/plain" })
+const file = await eidos.currentSpace.file.upload(blob, {
+  fileName: "greeting.txt",
+  parentPath: ["texts"]
+})
+```
+
+**Common Use Cases:**
+
+```typescript
+// Save downloaded image from external API
+async function saveImageFromAPI(imageUrl: string, category: string) {
+  const file = await eidos.currentSpace.file.upload(imageUrl, {
+    parentPath: ["api-images", category],
+    checkDuplicate: true,
+  })
+  return file.publicUrl
+}
+
+// Process and upload canvas screenshot
+async function uploadCanvasScreenshot(canvas: HTMLCanvasElement) {
+  const blob = await new Promise((resolve) =>
+    canvas.toBlob(resolve, "image/png")
+  )
+  const file = await eidos.currentSpace.file.upload(blob, {
+    fileName: `screenshot-${Date.now()}.png`,
+    parentPath: ["screenshots"],
+  })
+  return file
+}
+
+// Upload files from file input with progress
+async function uploadUserFiles(files: FileList) {
+  const results = []
+  for (const file of Array.from(files)) {
+    const uploaded = await eidos.currentSpace.file.upload(file, {
+      parentPath: ["user-uploads", new Date().toISOString().split("T")[0]],
+    })
+    results.push(uploaded)
+  }
+  return results
+}
+```
+
+### `get(id: string)`
+
+Get file metadata by ID.
+
+```typescript
+async get(id: string): Promise<IFile | null>
+```
+
+**Example:**
+
+```typescript
+const fileInfo = await eidos.currentSpace.file.get("file_123")
+if (fileInfo) {
+  console.log("File name:", fileInfo.name)
+  console.log("File size:", fileInfo.size)
+  console.log("MIME type:", fileInfo.mime)
+}
+```
+
+### `getByPath(path: string)`
+
+Get file metadata by file path.
+
+```typescript
+async getByPath(path: string): Promise<IFile | null>
+```
+
+**Parameters:**
+
+- `path` (string): The file path, e.g., `"files/images/photo.jpg"`
+
+**Example:**
+
+```typescript
+const fileInfo = await eidos.currentSpace.file.getByPath("files/images/photo.jpg")
+if (fileInfo) {
+  console.log("File ID:", fileInfo.id)
+  console.log("File name:", fileInfo.name)
+  console.log("File size:", fileInfo.size)
+  console.log("MIME type:", fileInfo.mime)
+}
+```
+
+**Error Handling:**
+
+```typescript
+try {
+  const file = await eidos.currentSpace.file.upload(source, options)
+  eidos.currentSpace.notify("Success", `File uploaded: ${file.name}`)
+} catch (error) {
+  if (error.name === "FileUploadError") {
+    eidos.currentSpace.notify("Upload Failed", error.message)
+  } else if (error.name === "FileSystemError") {
+    eidos.currentSpace.notify("Error", "File system not available")
+  }
+}
+```
