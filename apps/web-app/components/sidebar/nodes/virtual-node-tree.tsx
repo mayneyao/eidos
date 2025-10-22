@@ -130,13 +130,26 @@ export const VirtualNodeTreeContainer = ({
           return (
             <div
               key={node.id}
-              className="flex items-center"
+              className="flex items-center relative"
               style={{
                 height: 32,
                 marginBottom: 2,
                 paddingLeft: 8 + nodeDepth * 12,
               }}
             >
+              {/* Render vertical hierarchy lines for nested nodes */}
+              {nodeDepth > 0 && Array.from({ length: nodeDepth }).map((_, i) => (
+                <div
+                  key={`line-${i}`}
+                  className="absolute border-l border-muted-foreground/50"
+                  style={{
+                    left: 8 + i * 12 + 6,
+                    height: 'calc(100% + 2px)',
+                    top: 0,
+                  }}
+                />
+              ))}
+              
               <Card
                 className={cn({
                   "rounded-sm ring-2": showBorder,
