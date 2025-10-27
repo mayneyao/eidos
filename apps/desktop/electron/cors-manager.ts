@@ -41,7 +41,8 @@ export class CorsManager {
 
         session.defaultSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
             const url = new URL(details.url);
-            if (allDomains.some(domain => url.hostname.endsWith(domain.replace('*.', '')))) {
+            // Skip RPC requests to allow proper CORS handling
+            if (allDomains.some(domain => url.hostname.endsWith(domain.replace('*.', ''))) && !details.url.includes('/rpc')) {
                 details.requestHeaders['Origin'] = '';
             }
             callback({ requestHeaders: details.requestHeaders });
@@ -55,7 +56,8 @@ export class CorsManager {
                 return;
             }
 
-            if (allDomains.some(domain => url.hostname.endsWith(domain.replace('*.', '')))) {
+            // Skip RPC requests to allow server-side CORS handling
+            if (allDomains.some(domain => url.hostname.endsWith(domain.replace('*.', ''))) && !url.pathname.includes('/rpc')) {
                 callback({
                     responseHeaders: {
                         ...details.responseHeaders,
