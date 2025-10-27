@@ -47,6 +47,42 @@ describe("smartSplitFilePaths", () => {
     expect(result).toEqual(["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA"])
   })
 
+  test("data URI with commas in base64 data", () => {
+    // Base64 data can contain commas that should not split the URI
+    const input = "data:image/jpg;base64,/9j/4AAQSkZJRgABAgAAAQ,ABAAD/2wBDAA"
+    const result = smartSplitFilePaths(input)
+    expect(result).toEqual(["data:image/jpg;base64,/9j/4AAQSkZJRgABAgAAAQ,ABAAD/2wBDAA"])
+  })
+
+  test("multiple data URIs separated by commas", () => {
+    const input =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUh, data:image/jpg;base64,/9j/4AAQSkZJRgABAg"
+    const result = smartSplitFilePaths(input)
+    expect(result).toEqual([
+      "data:image/png;base64,iVBORw0KGgoAAAANSUh",
+      "data:image/jpg;base64,/9j/4AAQSkZJRgABAg",
+    ])
+  })
+
+  test("data URI with commas followed by file path", () => {
+    const input = "data:image/png;base64,iVBORw0KGgo, /files/image.jpg"
+    const result = smartSplitFilePaths(input)
+    expect(result).toEqual([
+      "data:image/png;base64,iVBORw0KGgo",
+      "/files/image.jpg",
+    ])
+  })
+
+  test("data URI with commas and trailing new file", () => {
+    const input =
+      "data:image/jpg;base64,/9j/4AAQSkZJRgABAgAAAQ,ABAAD, /files/test.jpg"
+    const result = smartSplitFilePaths(input)
+    expect(result).toEqual([
+      "data:image/jpg;base64,/9j/4AAQSkZJRgABAgAAAQ,ABAAD",
+      "/files/test.jpg",
+    ])
+  })
+
   test("mixed file paths and URLs", () => {
     const input =
       "/files/Song,Artist.mp3, https://example.com/image,file.jpg, data:image/png;base64,iVBORw"
