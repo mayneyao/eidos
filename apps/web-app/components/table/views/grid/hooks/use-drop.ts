@@ -2,7 +2,8 @@ import React from "react"
 import type {
   DataEditorProps,
   GridCell,
-  Item} from "@glideapps/glide-data-grid";
+  Item
+} from "@glideapps/glide-data-grid";
 import {
   GridCellKind
 } from "@glideapps/glide-data-grid"
@@ -62,7 +63,7 @@ export const useDrop = (props: IProps) => {
 
         addFiles(Array.from(files)).then((fileInfos) => {
           const newFileUrls = fileInfos.map(
-            (fileInfo) => "/" + fileInfo.path.split("/").slice(1).join("/")
+            (fileInfo) => "/" + fileInfo.path
           )
           const oldCell = getCellContent(cell) as FileCell
           const newValues = [
