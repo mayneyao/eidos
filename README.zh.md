@@ -63,11 +63,11 @@
 
 1. 克隆仓库 `git clone https://github.com/mayneyao/eidos.git`
 2. 运行 `pnpm install` 安装依赖
-3. 桌面端开发：
-   - 运行 `cd apps/desktop && node scripts/download-libsimple.cjs` 下载 libsimple（仅首次需要）
-   - 运行 `pnpm dev:desktop` 启动桌面应用
-4. Web 端开发：
-   - 运行 `pnpm dev` 启动 Web 应用（PWA）
+3. 安装 SQLite 扩展：
+   - 运行 `pnpm install:sqlite-ext` 安装所需的 SQLite 扩展（仅首次需要）
+4. 开始开发：
+   - 桌面端开发：运行 `pnpm dev:desktop` 启动桌面应用
+   - Web 端开发：运行 `pnpm dev` 启动 Web 应用（PWA）
 
 ## Eidos 工作原理
 
