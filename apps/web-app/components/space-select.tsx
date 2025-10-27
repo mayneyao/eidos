@@ -1,13 +1,11 @@
 "use client"
 
 import * as React from "react"
-import kebabCase from "lodash/kebabCase"
-import { Check, ChevronsUpDown, HomeIcon, PlusCircle } from "lucide-react"
+import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -47,37 +45,22 @@ interface ISpaceSelectProps {
 export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
-  const { spaceList } = useSpace()
+  const { spaceList, updateSpaceList } = useSpace()
 
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
   const { space } = useCurrentPathInfo()
 
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
-  const [databaseName, setDatabaseName] = React.useState("")
-  const [enableSync, setEnableSync] = React.useState(false)
-  const [volumeId, setVolumeId] = React.useState("")
   const [selectedFolder, setSelectedFolder] = React.useState<string>("")
   const [isSelectingFolder, setIsSelectingFolder] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
 
   const reset = () => {
-    setDatabaseName("")
     setSelectedFolder("")
-    setIsSelectingFolder(false)
   }
-  const slugifyDatabaseName = React.useMemo(() => {
-    if (/^[a-zA-Z0-9-]+$/.test(databaseName)) {
-      return databaseName
-    }
-    return kebabCase(databaseName)
-  }, [databaseName])
-
-  const isExistingSpace = spaceList.includes(databaseName.trim())
 
   const goto = useGoto()
-  const { createSpace } = useSpace()
-  const [loading, setLoading] = React.useState(false)
-  const { updateSpaceList } = useSpace()
 
   const handleSelect = async (currentValue: string) => {
     setLastOpenedDatabase(currentValue)
@@ -108,12 +91,6 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         const folderPath = await window.eidos.selectFolder()
         if (folderPath) {
           setSelectedFolder(folderPath)
-          // Auto-generate space name from folder name
-          const folderName =
-            folderPath.split("/").pop() ||
-            folderPath.split("\\").pop() ||
-            "New Space"
-          setDatabaseName(folderName)
         }
       } catch (error) {
         console.error("Error selecting folder:", error)
@@ -124,42 +101,38 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   }
 
   const handleCreateDatabase = async () => {
-    const databaseName = slugifyDatabaseName
-    if (databaseName) {
-      setLoading(true)
-      try {
-        if (isDesktopMode && selectedFolder) {
-          // Desktop mode: create space with selected folder
-          const result = await window.eidos.invoke(
-            "register-space",
-            selectedFolder,
-            databaseName
-          )
-          if (result.success) {
-            await updateSpaceList()
-            await handleSelect(databaseName)
-          } else {
-            throw new Error(result.error || "Failed to create space")
-          }
+    if (!selectedFolder) return
+
+    setLoading(true)
+    try {
+      if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+        // Desktop mode: create space with selected folder
+        const result = await window.eidos.invoke(
+          "register-space",
+          selectedFolder
+        )
+        
+        if (result.success && result.space) {
+          await updateSpaceList()
+          await handleSelect(result.space.id)
         } else {
-          // Web mode: use existing method
-          await createSpace(databaseName, enableSync)
-          setLastOpenedDatabase(databaseName)
-          goto(databaseName)
-          updateSpaceList()
+          throw new Error(result.error || "Failed to create space")
         }
-      } catch (error) {
-        console.error("Error creating space:", error)
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error"
-        alert(`Failed to create space: ${errorMessage}`)
-      } finally {
-        setLoading(false)
-        setShowNewTeamDialog(false)
-        reset()
+      } else {
+        throw new Error("Space creation is only supported in desktop mode")
       }
+    } catch (error) {
+      console.error("Error creating space:", error)
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error"
+      alert(`Failed to create space: ${errorMessage}`)
+    } finally {
+      setLoading(false)
+      setShowNewTeamDialog(false)
+      reset()
     }
   }
+
   return (
     <Dialog open={showNewTeamDialog} onOpenChange={setShowNewTeamDialog}>
       <Popover open={open} onOpenChange={setOpen}>
@@ -235,16 +208,20 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           </Command>
         </PopoverContent>
       </Popover>
+
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("space.select.createSpace")}</DialogTitle>
           <DialogDescription>
-            {t("space.select.createSpaceDescription")}
+            {isDesktopMode
+              ? t("space.select.createSpaceDescription")
+              : t("space.select.selectFolder")}
           </DialogDescription>
         </DialogHeader>
-        <div>
-          <div className="space-y-4 py-2 pb-4">
-            {isDesktopMode && (
+
+        <div className="py-4">
+          {isDesktopMode ? (
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="folder-selection">
                   {t("space.select.selectFolder")}
@@ -268,83 +245,32 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                       : t("space.select.browse")}
                   </Button>
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {t("space.select.folderDescription")}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="database-name">
-                {t("space.select.spaceName")}
-              </Label>
-              <Input
-                id="database-name"
-                placeholder={t("space.select.spaceNamePlaceholder")}
-                value={databaseName}
-                autoComplete="off"
-                type="text"
-                pattern="[\x00-\x7F]+"
-                required
-                onChange={(e) => {
-                  if (e.target.value) {
-                    e.target.validity.valid && setDatabaseName(e.target.value)
-                  } else {
-                    setDatabaseName(e.target.value)
-                  }
-                }}
-              />
-              <span className="px-3 text-sm">{slugifyDatabaseName}</span>
-              <span>
-                {isExistingSpace && (
-                  <span className="text-sm text-red-500">
-                    {t("space.select.spaceAlreadyExists")}
-                  </span>
-                )}
-              </span>
-            </div>
-          </div>
-          {/* <div className="space-y-4 py-2 pb-4">
-            <div className="flex items-center justify-between space-x-2">
-              <Label htmlFor="enable-sync">{t('space.select.enableSync')}</Label>
-              <Switch
-                id="enable-sync"
-                checked={enableSync}
-                onCheckedChange={setEnableSync}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {t('space.select.enableSyncDescription')}
-            </p>
-            {enableSync && (
-              <div className="mt-2">
-                <Label htmlFor="volume-id">{t('space.select.volumeId')}</Label>
-                <Input
-                  id="volume-id"
-                  value={volumeId}
-                  onChange={(e) => setVolumeId(e.target.value)}
-                  placeholder={t('space.select.volumeIdPlaceholder')}
-                  className="mt-1"
-                />
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {t('space.select.volumeIdDescription')}
                 </p>
               </div>
-            )}
-          </div> */}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>{t("space.select.webModeNote")}</p>
+            </div>
+          )}
         </div>
+
         <DialogFooter>
-          <Button variant="outline" onClick={() => setShowNewTeamDialog(false)}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowNewTeamDialog(false)
+              reset()
+            }}
+            disabled={loading}
+          >
             {t("common.cancel")}
           </Button>
           <Button
-            type="submit"
             onClick={handleCreateDatabase}
-            disabled={
-              loading ||
-              (isDesktopMode && !selectedFolder) ||
-              !databaseName.trim()
-            }
+            disabled={loading || !selectedFolder}
           >
             {loading ? t("space.select.creating") : t("common.continue")}
           </Button>
