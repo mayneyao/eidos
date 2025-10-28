@@ -15,6 +15,7 @@ import { startServer } from './server/server';
 import { AppUpdater } from './updater';
 import { createWindow } from './window-manager/createWindow';
 import { WorkerManager } from './worker-manager';
+import { GlobalShortcutManager } from './services/global-shortcut-manager';
 import console from 'electron-log';
 import { fetchAvailableModels } from '@/packages/ai/helper';
 import { migrateFromLegacyConfig, getSpaceRegistry } from './space-registry';
@@ -40,6 +41,7 @@ export let win: BrowserWindow | null
 let appUpdater: AppUpdater;
 let tray: Tray | null
 let protocolHandler: ProtocolHandler;
+let globalShortcutManager: GlobalShortcutManager | null = null;
 let forceQuit = false;
 
 export const PORT = 13127;
@@ -252,6 +254,11 @@ ipcMain.handle('open-url', async (event, url) => {
 });
 
 ipcMain.handle('reload-app', () => {
+    // Reinitialize global shortcuts after reload
+    if (win && globalShortcutManager) {
+        globalShortcutManager.setMainWindow(win);
+        // GlobalShortcutManager will handle registration based on focus state
+    }
     app.relaunch();
     win?.reload()
 });
@@ -259,8 +266,10 @@ ipcMain.handle('reload-app', () => {
 app.on('window-all-closed', () => {
     cleanupPlaygroundWatchers();
     WorkerManager.getInstance().shutdown();
-    getDataSpace()?.close()
-    win = null
+    getDataSpace()?.close();
+    globalShortcutManager?.destroy();
+    globalShortcutManager = null;
+    win = null;
 })
 
 
@@ -440,6 +449,10 @@ app.whenReady().then(async () => {
 
     // Create window with the determined spaceId
     win = createWindow(spaceId);
+
+    // Initialize global shortcut manager (will register shortcuts when window gains focus)
+    globalShortcutManager = new GlobalShortcutManager(win);
+
     configManager.on('configChanged', ({ key, newValue }: { key: string, newValue: unknown }) => {
         if (key === 'security') {
             console.log('security changed', newValue)
