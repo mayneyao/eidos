@@ -68,13 +68,8 @@ export const useWorker = () => {
           })
           break
         case MsgType.Navigate:
-          // Get current space from URL params at navigation time
-          const currentUrl = window.location.pathname
-          const urlParts = currentUrl.split('/').filter(Boolean)
-          const currentSpace = urlParts[0]
-          const path = `/${data}`
-          console.warn("navigate", path, "currentSpace:", currentSpace)
-          navigate(path)
+          // data is the path, such as "/<nodeId>"
+          navigate(data)
           break
         case MsgType.BlockUIMsg:
           setBlockUIMsg(data.msg)
