@@ -1,7 +1,6 @@
 "use client"
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { detectDirective } from "@eidos.space/v3"
 import {
   BlocksIcon,
   CalendarDays,
@@ -21,6 +20,7 @@ import { isMacDesktop } from "@/lib/web/helper"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
+import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
 import {
   TAB_CONFIG,
@@ -79,6 +79,7 @@ const BlockTab = memo(
     setCurrentApp,
     navigate,
     space,
+    onBlockTabClick,
   }: {
     tabId: string
     index: number
@@ -88,6 +89,7 @@ const BlockTab = memo(
     setCurrentApp: (app: string) => void
     navigate: (path: string) => void
     space: string
+    onBlockTabClick: (tabId: string) => void
   }) => {
     const block = blocks[tabId]
     const shortcutNum = index + 1
@@ -96,18 +98,8 @@ const BlockTab = memo(
     const label = block?.name || tabId
 
     const handleClick = useCallback(() => {
-      // Get the block data to check for 'use sidebar' directive
-      const block = blocks[tabId]
-      const hasUseSidebar = block && block.code && detectDirective(block.code, "use sidebar")
-
-      if (hasUseSidebar) {
-        // If block contains 'use sidebar' directive, render in sidebar
-        setCurrentApp(tabId)
-      } else {
-        // Otherwise, navigate to block page normally (don't change currentApp)
-        navigate(`/blocks/${tabId}`)
-      }
-    }, [setCurrentApp, navigate, tabId, blocks])
+      onBlockTabClick(tabId)
+    }, [onBlockTabClick, tabId])
 
     return (
       <div key={tabId}>
@@ -145,6 +137,9 @@ export const SidebarTabs = () => {
   // Batch fetch block information
   const { blocks } = useMblocksBatch(blockIds)
 
+  // Unified block tab click handler
+  const handleBlockTabClick = useBlockTabClick(blocks)
+
   const [visibleTabsCount, setVisibleTabsCount] = useState(tabIds.length)
   const [showDropdown, setShowDropdown] = useState(true) // Always show dropdown
   const [sortedTabs, setSortedTabs] = useState(tabIds)
@@ -166,16 +161,8 @@ export const SidebarTabs = () => {
       if (tabId === "nodes" || tabId === "extensions") {
         setCurrentApp(tabId as SidebarApp)
       } else {
-        // Block tab - check for 'use sidebar' directive
-        const block = blocks[tabId]
-        const hasUseSidebar = block && block.code && detectDirective(block.code, "use sidebar")
-        if (hasUseSidebar) {
-          // If block contains 'use sidebar' directive, render in sidebar
-          setCurrentApp(tabId)
-        } else {
-          // Otherwise, navigate to block page normally (don't change currentApp)
-          navigate(`/blocks/${tabId}`)
-        }
+        // Block tab - use unified handling logic
+        handleBlockTabClick(tabId)
       }
     }
   }
@@ -351,6 +338,7 @@ export const SidebarTabs = () => {
                 setCurrentApp={setCurrentApp}
                 navigate={navigate}
                 space={space}
+                onBlockTabClick={handleBlockTabClick}
               />
             )
           }
@@ -413,16 +401,8 @@ export const SidebarTabs = () => {
                         if (isFixedTab) {
                           setCurrentApp(tabId as SidebarApp)
                         } else {
-                          // Block tab - check for 'use sidebar' directive
-                          const block = blocks[tabId]
-                          const hasUseSidebar = block && block.code && detectDirective(block.code, "use sidebar")
-                          if (hasUseSidebar) {
-                            // If block contains 'use sidebar' directive, render in sidebar
-                            setCurrentApp(tabId)
-                          } else {
-                            // Otherwise, navigate to block page normally (don't change currentApp)
-                            navigate(`/blocks/${tabId}`)
-                          }
+                          // Block tab - use unified handling logic
+                          handleBlockTabClick(tabId)
                         }
                       }
                     }

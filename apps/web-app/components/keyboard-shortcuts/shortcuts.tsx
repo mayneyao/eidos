@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useKeyPress } from "ahooks"
 import { useTheme } from "next-themes"
 import { useTranslation } from "react-i18next"
@@ -9,6 +9,8 @@ import { useNavigate, useParams } from "react-router-dom"
 import { getDate, getToday, isDayPageId } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
+import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
@@ -26,6 +28,7 @@ interface ShortcutAction {
  * global shortcuts, register here
  * @returns
  */
+
 export function ShortCuts() {
   const { t } = useTranslation()
   const { setTheme, theme } = useTheme()
@@ -40,6 +43,14 @@ export function ShortCuts() {
   const { createDoc } = useSqlite()
   const { day } = useParams()
   const { space } = useCurrentPathInfo()
+
+  // Get block data for directive checking
+  const blockIds = useMemo(
+    () => sortedTabs.filter((id) => !["nodes", "extensions", "today"].includes(id)),
+    [sortedTabs]
+  )
+  const { blocks } = useMblocksBatch(blockIds)
+  const handleBlockTabClick = useBlockTabClick(blocks)
 
   // Listen for global shortcut events from main process
   useEffect(() => {
@@ -149,9 +160,8 @@ export function ShortCuts() {
                   // Regular tab
                   setCurrentApp(targetTabId)
                 } else {
-                  // Block tab - navigate to block page
-                  setCurrentApp(targetTabId)
-                  navigate(`/blocks/${targetTabId}`)
+                  // Block tab - use unified handling logic
+                  handleBlockTabClick(targetTabId)
                 }
 
                 // Ensure sidebar is open when switching tabs
