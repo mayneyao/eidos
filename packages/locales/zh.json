@@ -86,6 +86,8 @@
     "common.fetch": "获取",
     "common.files": "文件",
     "common.filter": "过滤...",
+    "common.home": "首页",
+    "common.reset": "重置",
     "common.icon": "图标",
     "common.import": "导入",
     "common.importFileDescription": "选择要导入到工作区的文件。",

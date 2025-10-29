@@ -86,6 +86,8 @@
     "common.fetch": "Fetch",
     "common.files": "Files",
     "common.filter": "Filter...",
+    "common.home": "Home",
+    "common.reset": "Reset",
     "common.icon": "Icon",
     "common.import": "Import",
     "common.importFileDescription": "Choose a file to import into your workspace.",
