@@ -7,9 +7,9 @@ import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6"
 import CreateSpacePage from "@/apps/desktop/renderer/initial-setup/create-space"
 import InitialSetupPage from "@/apps/desktop/renderer/initial-setup/storage-setup"
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
+import { FileManager } from "@/apps/web-app/pages/[database]/files/page"
 import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
 import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
-import { FileManager } from "@/apps/web-app/pages/[database]/files/page"
 
 import "@/locales/i18n"
 import { NotFound } from "@/apps/web-app/pages/404"
@@ -20,7 +20,6 @@ import { ExtensionsLayout } from "@/apps/web-app/pages/[database]/extensions/lay
 // space
 import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
 import { SpaceSetting } from "@/apps/web-app/pages/[database]/settings/page"
-import { DocEditor } from "@/apps/web-app/pages/eidtor/doc"
 import { ErrorBoundary } from "@/apps/web-app/pages/error"
 import { LabPage } from "@/apps/web-app/pages/lab"
 import { LicenseManagePage } from "@/apps/web-app/pages/license-manage/page"
@@ -102,20 +101,6 @@ const router = createBrowserRouter([
             if (!isDataFolderSet) {
               console.log("Data folder not set, redirecting to initial-setup")
               return redirect("/initial-setup")
-            }
-
-            if (spaceId) {
-              const spaceExists = await window.eidos.isSpaceExist(spaceId)
-              console.log(
-                `Legacy check: space '${spaceId}' exists:`,
-                spaceExists
-              )
-              if (!spaceExists) {
-                console.log(
-                  `Legacy check: space '${spaceId}' not found, redirecting to 404`
-                )
-                return redirect("/404")
-              }
             }
 
             console.log("Legacy checks passed, proceeding normally")
@@ -230,15 +215,6 @@ const router = createBrowserRouter([
                 element: <ShareNodePage />,
               },
             ],
-          },
-        ],
-      },
-      {
-        path: "editor",
-        children: [
-          {
-            path: "doc",
-            element: <DocEditor />,
           },
         ],
       },
