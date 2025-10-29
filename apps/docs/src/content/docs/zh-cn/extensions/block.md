@@ -194,31 +194,103 @@ export function MyExtNode({ text }: { text: string }) {
 }
 ```
 
-### 4.3 默认组件覆盖
+## 5. 指令系统
 
-支持覆盖默认组件，例如用替代实现替换默认的基于 Lexical 的文档编辑器：
+Block 支持特殊的指令来控制组件的行为和渲染方式。这些指令通过字符串字面量在代码顶部声明。
+
+### 5.1 use sidebar 指令
+
+`use sidebar` 指令用于指示 Block 组件应该在左侧边栏中渲染，而不是在主区域打开。
+
+#### 默认行为
+
+当 Block 被添加到左侧边栏标签页时，**默认行为**是点击后在主区域打开独立的 Block 页面：
 
 ```tsx
-import Editor from "@monaco-editor/react"
-
-export const meta = {
-  type: "document",
-  componentName: "MyDocument",
-}
-
-export function MyDocument() {
-  if (ctx.type !== "document") {
-    return <div>不是文档</div>
-  }
-  return <Editor />
+// 默认行为 - 在主区域打开
+export function MyDashboard() {
+  return (
+    <div>
+      <h1>仪表盘</h1>
+      <p>这个组件会在主区域的独立页面中显示</p>
+    </div>
+  )
 }
 ```
 
-## 5. 安全注意事项
+这种默认行为适用于：
+
+- 仪表盘组件
+- 数据可视化
+- 详细内容页面
+- 需要较大显示区域的功能
+
+#### 使用指令改变行为
+
+如果希望 Block 在侧边栏中直接展示（如导航栏、工具栏等），需要添加 `use sidebar` 指令：
+
+```tsx
+"use sidebar"
+
+// 在侧边栏中渲染
+export function MyNavigation() {
+  const navigateToTable = () => {
+    eidos.currentSpace.navigate("/table_123")
+  }
+
+  const navigateToToday = () => {
+    const today = new Date().toISOString().split("T")[0]
+    eidos.currentSpace.navigate(`/${today}`)
+  }
+
+  return (
+    <div className="space-y-2">
+      <h3 className="font-medium">快速导航</h3>
+
+      <button
+        onClick={navigateToTable}
+        className="w-full text-left px-3 py-2 rounded hover:bg-gray-100"
+      >
+        📊 我的表格
+      </button>
+
+      <button
+        onClick={navigateToToday}
+        className="w-full text-left px-3 py-2 rounded hover:bg-gray-100"
+      >
+        📅 今日页面
+      </button>
+
+      <button
+        onClick={() => eidos.currentSpace.navigate("/extensions")}
+        className="w-full text-left px-3 py-2 rounded hover:bg-gray-100"
+      >
+        🔧 扩展管理
+      </button>
+    </div>
+  )
+}
+```
+
+**指令行为说明：**
+
+- 包含 `use sidebar` 指令的 Block 点击后会在侧边栏中直接渲染组件内容
+- 不包含此指令的 Block 点击后导航到主区域的独立 Block 页面
+- 指令必须作为字符串字面量出现在文件顶部
+
+**适用场景：**
+
+- 导航栏组件
+- 工具栏组件
+- 快速操作面板
+- 状态显示组件
+- 侧边栏工具
+
+## 6. 安全注意事项
 
 扩展执行应该被适当沙箱化，防止未经授权的系统访问。实现必须验证组件属性，并在扩展和主机应用程序之间强制执行适当的隔离。
 
-## 6. 实现要求
+## 7. 实现要求
 
 - 需要特定扩展功能时，应导出符合指定接口的 `meta` 对象
 - 不导出 `meta` 对象时，组件作为普通 React 组件运行
@@ -226,6 +298,6 @@ export function MyDocument() {
 - 应实现适当的错误边界和加载状态
 - 与应用程序数据交互时，必须通过 Eidos SDK 执行
 
-## 7. 未来扩展
+## 8. 未来扩展
 
 本规范可能会扩展以支持其他扩展类型，如自定义字段渲染器等。

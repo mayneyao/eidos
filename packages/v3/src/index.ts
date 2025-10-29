@@ -14,6 +14,7 @@ export {
 export {
   extractFunction,
   extractConstant,
+  detectDirective,
 } from "./code-tools/code-extractor";
 
 export {

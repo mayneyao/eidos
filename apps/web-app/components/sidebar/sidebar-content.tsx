@@ -1,12 +1,16 @@
 "use client"
 
 import { useMemo } from "react"
+import { detectDirective } from "@eidos.space/v3"
 import { ListTreeIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useMblock } from "@/apps/web-app/hooks/use-mblock"
 import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
+import { BlockApp } from "../block-renderer/block-app"
 import { ExtensionSidebar } from "./extensions"
 import { CurrentItemTree } from "./nodes"
 
@@ -47,13 +51,35 @@ const ExtensionsContent = () => {
   )
 }
 
+const BlockContent = ({ block }: { block: any }) => {
+  const { space } = useCurrentPathInfo()
+  if (!block.id) {
+    return <div>Block not found</div>
+  }
+  return <BlockApp url={`block://${block.id}@${space}`} height={"100%"} />
+}
+
 export const SidebarContent = () => {
   const { currentApp } = useSidebarStore()
+  const block = useMblock(currentApp || "")
+
   const renderContent = () => {
     switch (currentApp) {
       case "extensions":
         return <ExtensionsContent />
+      case "nodes":
+        return <NodesContent />
       default:
+        // Check if currentApp is a block ID with 'use sidebar' directive
+        if (
+          currentApp &&
+          !["extensions", "nodes", "today"].includes(currentApp) &&
+          block &&
+          block.code &&
+          detectDirective(block.code, "use sidebar")
+        ) {
+          return <BlockContent block={block} />
+        }
         return <NodesContent />
     }
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractFunction, extractConstant } from './code-extractor';
+import { extractFunction, extractConstant, detectDirective } from './code-extractor';
 
 describe('extractFunction', () => {
     it('should extract a named function', () => {
@@ -227,5 +227,69 @@ export const asExtNodeHandler =     {
         const code = `export const NULL_VALUE = null;`;
         const result = extractConstant(code, 'NULL_VALUE');
         expect(result).toBeNull();
+    });
+});
+
+describe('detectDirective', () => {
+    it('should detect "use client" directive', () => {
+        const code = `"use client"`;
+        const result = detectDirective(code, 'use client');
+        expect(result).toBe(true);
+    });
+
+    it('should detect "use sidebar" directive', () => {
+        const code = `"use sidebar"`;
+        const result = detectDirective(code, 'use sidebar');
+        expect(result).toBe(true);
+    });
+
+    it('should detect directive in complex code', () => {
+        const code = `
+"use client"
+
+import React from 'react';
+
+function MyComponent() {
+    return <div>Hello</div>;
+}
+`;
+        const result = detectDirective(code, 'use client');
+        expect(result).toBe(true);
+    });
+
+
+    it('should return false when directive is not found', () => {
+        const code = `
+import React from 'react';
+
+function MyComponent() {
+    return <div>Hello</div>;
+}
+`;
+        const result = detectDirective(code, 'use sidebar');
+        expect(result).toBe(false);
+    });
+
+    it('should ignore directives in comments', () => {
+        const code = `
+// use sidebar
+function MyComponent() {
+    return <div>Hello</div>;
+}
+`;
+        const result = detectDirective(code, 'use sidebar');
+        expect(result).toBe(false);
+    });
+
+    it('should handle empty code', () => {
+        const code = '';
+        const result = detectDirective(code, 'use sidebar');
+        expect(result).toBe(false);
+    });
+
+    it('should be case sensitive', () => {
+        const code = `"use Sidebar"`;
+        const result = detectDirective(code, 'use sidebar');
+        expect(result).toBe(false);
     });
 }); 

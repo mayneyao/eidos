@@ -99,4 +99,48 @@ function extractConstant(code: string, constantName: string): any {
     return null;
 }
 
-export { extractFunction, extractConstant };
+
+function detectDirective(code: string, directive: string): boolean {
+    // Quick check: if directive doesn't exist in code, return false immediately
+    if (!code.includes(directive)) {
+        return false;
+    }
+
+    const ast = parseSync("file.tsx", code).program;
+
+    // Helper function to traverse AST and find directive
+    function findDirectiveInNode(node: any): boolean {
+        if (!node) return false;
+
+        // Check for string literals in expression statements (like "use client")
+        if (node.type === 'ExpressionStatement' &&
+            node.expression?.type === 'Literal' &&
+            node.expression.value === directive) {
+            return true;
+        }
+
+        // Check for string literals in other contexts
+        if (node.type === 'Literal' && node.value === directive) {
+            return true;
+        }
+
+        // Recursively check child nodes
+        if (Array.isArray(node)) {
+            return node.some(findDirectiveInNode);
+        }
+
+        if (typeof node === 'object') {
+            for (const key in node) {
+                if (key !== 'span' && findDirectiveInNode(node[key])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    return findDirectiveInNode(ast);
+}
+
+export { extractFunction, extractConstant, detectDirective };

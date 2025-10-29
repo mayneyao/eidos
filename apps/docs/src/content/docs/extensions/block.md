@@ -194,31 +194,100 @@ export function MyExtNode({ text }: { text: string }) {
 }
 ```
 
-### 4.3 Default Component Override
+## 5. Directive System
 
-Supports overriding default components, such as replacing the default Lexical-based document editor with alternative implementations:
+Block supports special directives to control component behavior and rendering methods. These directives are declared at the top of the code as string literals.
+
+### 5.1 use sidebar Directive
+
+The `use sidebar` directive instructs the Block component to render in the left sidebar instead of opening in the main area.
+
+#### Default Behavior
+
+When a Block is added to the left sidebar tabs, the **default behavior** is to click and open an independent Block page in the main area:
 
 ```tsx
-import Editor from "@monaco-editor/react"
-
-export const meta = {
-  type: "document",
-  componentName: "MyDocument",
-}
-
-export function MyDocument() {
-  if (ctx.type !== "document") {
-    return <div>Not a document</div>
-  }
-  return <Editor />
+// Default behavior - opens in main area
+export function MyDashboard() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <p>This component displays in the main area on an independent page</p>
+    </div>
+  )
 }
 ```
 
-## 5. Security Considerations
+This default behavior applies to:
+- Dashboard components
+- Data visualization
+- Detailed content pages
+- Features requiring larger display areas
+
+#### Using Directive to Change Behavior
+
+If you want the Block to display directly in the sidebar (such as navigation bars, toolbars, etc.), you need to add the `use sidebar` directive:
+
+```tsx
+"use sidebar"
+
+// Renders in sidebar
+export function MyNavigation() {
+  const navigateToTable = () => {
+    eidos.currentSpace.navigate("/table_123")
+  }
+
+  const navigateToToday = () => {
+    const today = new Date().toISOString().split("T")[0]
+    eidos.currentSpace.navigate(`/${today}`)
+  }
+
+  return (
+    <div className="space-y-2">
+      <h3 className="font-medium">Quick Navigation</h3>
+
+      <button
+        onClick={navigateToTable}
+        className="w-full text-left px-3 py-2 rounded hover:bg-gray-100"
+      >
+        📊 My Table
+      </button>
+
+      <button
+        onClick={navigateToToday}
+        className="w-full text-left px-3 py-2 rounded hover:bg-gray-100"
+      >
+        📅 Today Page
+      </button>
+
+      <button
+        onClick={() => eidos.currentSpace.navigate("/extensions")}
+        className="w-full text-left px-3 py-2 rounded hover:bg-gray-100"
+      >
+        🔧 Extension Management
+      </button>
+    </div>
+  )
+}
+```
+
+**Directive Behavior Explanation:**
+- Blocks containing the `use sidebar` directive will render component content directly in the sidebar when clicked
+- Blocks without this directive will navigate to the main area's independent Block page when clicked
+- The directive must appear as a string literal at the top of the file
+
+**Applicable Scenarios:**
+- Navigation bar components
+- Toolbar components
+- Quick action panels
+- Status display components
+- Sidebar tools
+
+## 7. Security Considerations
 
 Extension execution should be properly sandboxed to prevent unauthorized system access. Implementations must validate component props and enforce appropriate isolation between extensions and the host application.
 
-## 6. Implementation Requirements
+## 8. Implementation Requirements
 
 - When specific extension functionality is required, a `meta` object conforming to the specified interface should be exported
 - When no `meta` object is exported, the component runs as a regular React component
