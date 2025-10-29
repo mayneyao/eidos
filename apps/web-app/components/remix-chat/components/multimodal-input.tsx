@@ -173,9 +173,11 @@ export function MultimodalInput({
       }
       const response = await sqlite?.file.upload(
         await file.arrayBuffer(),
-        file.name,
-        file.type,
-        ["_chat"]
+        {
+          fileName: file.name,
+          mimeType: file.type,
+          parentPath: ["_chat"]
+        }
       )
       const { mime, name, publicUrl } = response
       return {
