@@ -18,6 +18,7 @@
     "node_modules",
     "dist",
     "public/compiled-ui",
+    "pages/[database]/extensions/hooks/templates",
     "components/sidebar/extensions/hooks/templates"
   ]
 }

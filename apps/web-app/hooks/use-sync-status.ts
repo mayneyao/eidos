@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { useCurrentPathInfo } from './use-current-pathinfo';
 import type { GraftStatus } from '@/packages/sync/graft/helpers';
-import { useSpaceInfo } from './use-space';
 
 const POLLING_INTERVAL = 10000; // Poll every 10 seconds
 
@@ -26,9 +25,8 @@ export function useSpaceSyncStatus() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
 
-    const { spaceInfo } = useSpaceInfo(space)
     useEffect(() => {
-        if (!space || !spaceInfo?.isSyncEnabled) {
+        if (!space) {
             return
         }
         let intervalId: NodeJS.Timeout | null = null;
@@ -60,7 +58,7 @@ export function useSpaceSyncStatus() {
                 clearInterval(intervalId);
             }
         };
-    }, [space, spaceInfo, setStatus]); // Rerun effect if space changes
+    }, [space, setStatus]); // Rerun effect if space changes
 
-    return { status, isLoading, error, spaceInfo };
+    return { status, isLoading, error };
 }

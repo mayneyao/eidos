@@ -5,9 +5,9 @@ import { QueryParamProvider } from "use-query-params"
 import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6"
 
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
+import { FileManager } from "@/apps/web-app/pages/[database]/files/page"
 import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
 import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
-import { FileManager } from "@/apps/web-app/pages/[database]/files/page"
 
 import "@/locales/i18n"
 // space
@@ -27,7 +27,6 @@ import { ExtensionDetailPage } from "./[database]/extensions/detail"
 import { ExtensionsEmptyState } from "./[database]/extensions/empty-state"
 import { ExtensionsLayout } from "./[database]/extensions/layout"
 import { SpaceSetting } from "./[database]/settings/page"
-import { DocEditor } from "./eidtor/doc"
 import { ErrorBoundary } from "./error"
 import { LabPage } from "./lab"
 import { LicenseManagePage } from "./license-manage/page"
@@ -68,24 +67,28 @@ const router = createBrowserRouter([
           // check the space is exist
           try {
             let spaceNames: string[] = []
-            
+
             // In desktop mode, use IPC to get workspace list
-            if (typeof window !== 'undefined' && window.eidos) {
+            if (typeof window !== "undefined" && window.eidos) {
               try {
-                const spaces = await window.eidos.invoke('list-spaces')
+                const spaces = await window.eidos.invoke("list-spaces")
                 spaceNames = spaces.map((space: any) => space.id)
               } catch (error) {
-                console.error('Failed to get spaces from Electron:', error)
+                console.error("Failed to get spaces from Electron:", error)
               }
             }
             // Web mode will only support single space, no validation needed
-            
-            if (params.database && spaceNames.length > 0 && !spaceNames.includes(params.database)) {
+
+            if (
+              params.database &&
+              spaceNames.length > 0 &&
+              !spaceNames.includes(params.database)
+            ) {
               return redirect("/404")
             }
             return null
           } catch (error) {
-            console.error('Error checking space existence:', error)
+            console.error("Error checking space existence:", error)
             return null
           }
         },
@@ -101,15 +104,6 @@ const router = createBrowserRouter([
           {
             path: "opfs",
             element: <FileManager />,
-          },
-          {
-            path: "apps",
-            children: [
-              {
-                path: ":id",
-                element: <AppPage />,
-              },
-            ],
           },
           {
             path: "blocks",
@@ -177,15 +171,6 @@ const router = createBrowserRouter([
                 element: <ShareNodePage />,
               },
             ],
-          },
-        ],
-      },
-      {
-        path: "editor",
-        children: [
-          {
-            path: "doc",
-            element: <DocEditor />,
           },
         ],
       },

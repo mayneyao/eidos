@@ -40,7 +40,6 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { ThemeStudio } from "../theme-studio"
 import { DocActionCommandItems } from "./doc-actions"
-// import { ExtensionCommandItems } from "./extension"
 import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
 import { NodeCommandItems } from "./nodes"
 import { SecondaryView } from "./secondary-view"
