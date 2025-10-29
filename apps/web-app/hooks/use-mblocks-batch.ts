@@ -37,8 +37,8 @@ export const useMblocksBatch = (ids: string[]) => {
 
         setBlocks(prev => {
           const newBlocks = { ...prev }
-          Object.entries(batchResults).forEach(([id, block]) => {
-            newBlocks[id] = block
+          batchResults.forEach((block) => {
+            newBlocks[block.id] = block as unknown as IExtension
           })
           return newBlocks
         })
