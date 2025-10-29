@@ -2,6 +2,9 @@ import { useEffect, useState } from "react"
 
 import { useSqlite } from "./use-sqlite"
 import type { IExtension } from "@/packages/core/meta-table/extension"
+import type { EidosDataEventChannelMsg } from "@/lib/const";
+import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const"
+import { ExtensionTableName } from "@/packages/core/sqlite/const"
 
 export const useMblocksBatch = (ids: string[]) => {
   const [blocks, setBlocks] = useState<Record<string, IExtension | null>>({})
@@ -17,18 +20,21 @@ export const useMblocksBatch = (ids: string[]) => {
     const fetchBlocks = async () => {
       setLoading(true)
       try {
-        // 过滤掉已经获取过的 block
         const newIds = ids.filter(id => !(id in blocks))
-        
+
         if (newIds.length === 0) {
           setLoading(false)
           return
         }
 
-        // 使用批量获取方法
-        const batchResults = await sqlite.script.getBatch(newIds)
-        
-        // 更新状态
+        const batchResults = await sqlite.extension.findMany({
+          where: {
+            id: {
+              in: newIds
+            }
+          }
+        })
+
         setBlocks(prev => {
           const newBlocks = { ...prev }
           Object.entries(batchResults).forEach(([id, block]) => {
@@ -44,9 +50,45 @@ export const useMblocksBatch = (ids: string[]) => {
     }
 
     fetchBlocks()
-  }, [sqlite, ids.join(',')]) // 使用 join 来避免数组引用变化
 
-  // 清理不再需要的 blocks
+
+  }, [sqlite, ids.join(',')])
+
+
+  useEffect(() => {
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
+
+    const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
+      const { type, payload } = ev.data
+      if (type === EidosDataEventChannelMsgType.MetaTableUpdateSignalType) {
+        const { table, _new, _old, type: updateType } = payload
+        if (table !== ExtensionTableName) return
+        if (_new?.type !== "block") return
+        try {
+          switch (updateType) {
+            case DataUpdateSignalType.Update:
+              setBlocks(prev => {
+                const newBlocks = { ...prev }
+                newBlocks[_new.id] = _new as unknown as IExtension
+                return newBlocks
+              })
+              break
+          }
+        } catch (error) {
+          console.error('Failed to update blocks:', error)
+        } finally {
+          setLoading(false)
+        }
+      }
+    }
+
+    bc.addEventListener("message", handler)
+    return () => {
+      bc.removeEventListener("message", handler)
+      bc.close()
+    }
+  }, [])
+
   useEffect(() => {
     setBlocks(prev => {
       const newBlocks: Record<string, IExtension | null> = {}
