@@ -109,7 +109,7 @@ export class KVTable extends BaseTableImpl<KV> implements BaseTable<KV> {
 
     /**
      * Delete a value from the KV store
-     * @param key 
+     * @param key
      * @returns A Promise that resolves if the delete is successful.
      */
     async delete(key: string) {

@@ -8,6 +8,7 @@ import defaultTheme from "@/styles/themes/default.css?raw"
 import { useTheme } from "next-themes"
 import { useCallback, useEffect } from "react"
 import { useAllThemes } from "./use-all-themes"
+import { useSqliteKV } from "./use-sqlite-kv"
 
 export const presetThemes = [
     {
@@ -49,11 +50,11 @@ export const useApplyThemeByName = () => {
     const { currentThemeName } = useThemeStore()
     const { theme = "light" } = useTheme()
     const allThemes = useAllThemes()
-
-    const applyTheme = useCallback((theme: string, themeName: string) => {
+    const [themeMode, setThemeMode] = useSqliteKV<string>('eidos:space:settings:theme:mode', 'light')
+    const applyTheme = useCallback((mode: string, themeName: string) => {
         const currentThemeName = allThemes.find(t => t.name === themeName)
         if (currentThemeName) {
-            handleApplyTheme(currentThemeName.css, theme === "dark")
+            handleApplyTheme(currentThemeName.css, mode === "dark")
         }
     }, [allThemes])
 
@@ -63,6 +64,7 @@ export const useApplyThemeByName = () => {
 
     useEffect(() => {
         applyTheme(theme, currentThemeName)
+        setThemeMode(theme)
     }, [currentThemeName, theme])
 
     return {

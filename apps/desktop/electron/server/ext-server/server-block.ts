@@ -87,6 +87,14 @@ export class ServerBlock {
         })
         return envMap
     }
+
+    async getThemeMode() {
+        const themeMode = await this.dataSpace.kv.get('eidos:space:settings:theme:mode')
+        if (themeMode) {
+            return themeMode
+        }
+        return 'light'
+    }
     async run(spaceId: string, extension: IExtension | null, url: string) {
         const dataSpace = await getOrSetDataSpace(spaceId);
         const start = performance.now()
@@ -120,8 +128,10 @@ export class ServerBlock {
         const { importMapScript, cssLoaderScript } = await generateImportMap({ thirdPartyLibs, uiLibs, cssLibs, localLibs }, spaceId)
         // // Placeholder for BlockRenderer server-side logic
         const themeRawCode = this.getThemeRawCss()
+
+        const themeMode = await this.getThemeMode()
         const html = getIndexHtml({
-            theme: 'light',
+            theme: themeMode,
             importMap: importMapScript,
             cssLoaderScript,
             sdkInjectScriptContent,
