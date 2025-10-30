@@ -108,6 +108,34 @@ export class KVTable extends BaseTableImpl<KV> implements BaseTable<KV> {
     }
 
     /**
+     * List values from the KV store with optional prefix filter
+     * @param options Options for listing
+     * @returns Promise resolving to array of KV records
+     */
+    async listWithPrefix(options?: {
+        prefix?: string
+    }): Promise<KV[]> {
+        let sql = `SELECT * FROM ${KVTableName}`
+        let params: any[] = []
+
+        if (options?.prefix) {
+            sql += ` WHERE key LIKE ?`
+            params.push(`${options.prefix}%`)
+        }
+
+        sql += ` ORDER BY key`
+
+        const result = await this.dataSpace.exec2(sql, params)
+        return result.map((row: any) => ({
+            key: row.key,
+            value: row.value,
+            meta: row.meta ? JSON.parse(row.meta) : {},
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }))
+    }
+
+    /**
      * Delete a value from the KV store
      * @param key
      * @returns A Promise that resolves if the delete is successful.
