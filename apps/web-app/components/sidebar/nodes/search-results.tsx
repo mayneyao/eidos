@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { ChevronDown, ChevronRight } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 
-import { useTreeSidebarStore } from "./tree-sidebar-store"
 import { ExtNodeBadge } from "../../ext-node-badge"
 import { ItemIcon } from "./index"
+import { useTreeSidebarStore } from "./tree-sidebar-store"
 
 export const SearchResults = () => {
-  const { 
-    searchResults, 
-    searchTerm, 
+  const {
+    searchResults,
+    searchTerm,
     selectedIndex,
     setSelectedIndex,
     isNodesExpanded,
@@ -44,11 +44,11 @@ export const SearchResults = () => {
   // Filter and separate node matches and FTS results
   const nodeMatches = searchResults.filter((node) => node.mode === "node")
   const ftsResults = searchResults.filter((node) => node.mode === "fts")
-  
+
   // Calculate visible nodes for keyboard navigation
   const visibleNodes = [
     ...(isNodesExpanded ? nodeMatches : []),
-    ...(isContentExpanded ? ftsResults : [])
+    ...(isContentExpanded ? ftsResults : []),
   ]
 
   if (searchResults.length === 0) {
@@ -63,11 +63,11 @@ export const SearchResults = () => {
 
   return (
     <div className="h-full w-full overflow-x-hidden overflow-y-auto">
-      <div className="space-y-4 pb-4">
+      <div className="space-y-2 pb-4">
         {/* Node name matches */}
         {nodeMatches.length > 0 && (
           <div className="space-y-1">
-            <div 
+            <div
               className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5 flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
               onClick={() => setIsNodesExpanded(!isNodesExpanded)}
             >
@@ -76,41 +76,46 @@ export const SearchResults = () => {
               ) : (
                 <ChevronRight className="h-3 w-3" />
               )}
-              <span>Nodes ({nodeMatches.length})</span>
+              <span className="select-none">Nodes ({nodeMatches.length})</span>
             </div>
             {isNodesExpanded && (
               <div className="space-y-0.5 px-2">
-              {nodeMatches.map((node, idx) => {
-                // Nodes are always at the beginning of visible list when expanded
-                const currentIndex = idx
-                const isSelected = selectedIndex === currentIndex
-                return (
-                  <div
-                    key={node.id}
-                    ref={isSelected ? selectedRef : null}
-                    tabIndex={0}
-                    onClick={() => handleNavigate(node.id)}
-                    onFocus={() => setSelectedIndex(currentIndex)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault()
-                        handleNavigate(node.id)
-                      }
-                    }}
-                    className={cn(
-                      "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer min-w-0",
-                      "hover:bg-accent/50 active:bg-accent",
-                      "transition-all duration-150",
-                      "focus:outline-none",
-                      isSelected && "bg-accent ring-2 ring-primary/20"
-                    )}
-                  >
-                    <ItemIcon type={node.type} className="h-4 w-4 flex-shrink-0 opacity-70" />
-                    <span className="flex-1 truncate text-sm min-w-0">{node.name}</span>
-                    <ExtNodeBadge type={node.type} />
-                  </div>
-                )
-              })}
+                {nodeMatches.map((node, idx) => {
+                  // Nodes are always at the beginning of visible list when expanded
+                  const currentIndex = idx
+                  const isSelected = selectedIndex === currentIndex
+                  return (
+                    <div
+                      key={node.id}
+                      ref={isSelected ? selectedRef : null}
+                      tabIndex={0}
+                      onClick={() => handleNavigate(node.id)}
+                      onFocus={() => setSelectedIndex(currentIndex)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          handleNavigate(node.id)
+                        }
+                      }}
+                      className={cn(
+                        "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer min-w-0",
+                        "hover:bg-accent/50 active:bg-accent",
+                        "transition-all duration-150",
+                        "focus:outline-none",
+                        isSelected && "bg-accent ring-2 ring-primary/20"
+                      )}
+                    >
+                      <ItemIcon
+                        type={node.type}
+                        className="h-4 w-4 flex-shrink-0 opacity-70"
+                      />
+                      <span className="flex-1 truncate text-sm min-w-0">
+                        {node.name}
+                      </span>
+                      <ExtNodeBadge type={node.type} />
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -124,7 +129,7 @@ export const SearchResults = () => {
         {/* Full-text search results */}
         {ftsResults.length > 0 && (
           <div className="space-y-1">
-            <div 
+            <div
               className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5 flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
               onClick={() => setIsContentExpanded(!isContentExpanded)}
             >
@@ -133,57 +138,61 @@ export const SearchResults = () => {
               ) : (
                 <ChevronRight className="h-3 w-3" />
               )}
-              <span>Content Matches ({ftsResults.length})</span>
+              <span className="select-none">
+                Content Matches ({ftsResults.length})
+              </span>
             </div>
             {isContentExpanded && (
               <div className="space-y-2 px-2">
-              {ftsResults.map((node, idx) => {
-                // Content matches start after nodes (if nodes are expanded)
-                const currentIndex = (isNodesExpanded ? nodeMatches.length : 0) + idx
-                const isSelected = selectedIndex === currentIndex
-                return (
-                  <div
-                    key={node.id}
-                    ref={isSelected ? selectedRef : null}
-                    tabIndex={0}
-                    onClick={() => handleNavigate(node.id)}
-                    onFocus={() => setSelectedIndex(currentIndex)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault()
-                        handleNavigate(node.id)
-                      }
-                    }}
-                    className={cn(
-                      "flex flex-col gap-1.5 px-3 py-2 rounded-md cursor-pointer min-w-0",
-                      "hover:bg-accent/50 active:bg-accent",
-                      "transition-all duration-150",
-                      "border border-transparent hover:border-border/50",
-                      "focus:outline-none",
-                      isSelected && "bg-accent ring-2 ring-primary/20 border-primary/30"
-                    )}
-                  >
-                    <div className="text-sm font-medium truncate min-w-0">
-                      {node.name}
+                {ftsResults.map((node, idx) => {
+                  // Content matches start after nodes (if nodes are expanded)
+                  const currentIndex =
+                    (isNodesExpanded ? nodeMatches.length : 0) + idx
+                  const isSelected = selectedIndex === currentIndex
+                  return (
+                    <div
+                      key={node.id}
+                      ref={isSelected ? selectedRef : null}
+                      tabIndex={0}
+                      onClick={() => handleNavigate(node.id)}
+                      onFocus={() => setSelectedIndex(currentIndex)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          handleNavigate(node.id)
+                        }
+                      }}
+                      className={cn(
+                        "flex flex-col gap-1.5 px-3 py-2 rounded-md cursor-pointer min-w-0",
+                        "hover:bg-accent/50 active:bg-accent",
+                        "transition-all duration-150",
+                        "border border-transparent hover:border-border/50",
+                        "focus:outline-none",
+                        isSelected &&
+                          "bg-accent ring-2 ring-primary/20 border-primary/30"
+                      )}
+                    >
+                      <div className="text-sm font-medium truncate min-w-0">
+                        {node.name}
+                      </div>
+                      {node.result && (
+                        <div
+                          className={cn(
+                            "fts-result text-[11px] leading-relaxed text-muted-foreground/90",
+                            "overflow-hidden break-words line-clamp-4"
+                          )}
+                          style={{
+                            wordBreak: "break-word",
+                            overflowWrap: "anywhere",
+                          }}
+                          dangerouslySetInnerHTML={{
+                            __html: node.result,
+                          }}
+                        />
+                      )}
                     </div>
-                    {node.result && (
-                      <div
-                        className={cn(
-                          "fts-result text-[11px] leading-relaxed text-muted-foreground/90",
-                          "overflow-hidden break-words line-clamp-4"
-                        )}
-                        style={{ 
-                          wordBreak: "break-word", 
-                          overflowWrap: "anywhere"
-                        }}
-                        dangerouslySetInnerHTML={{
-                          __html: node.result,
-                        }}
-                      />
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                })}
               </div>
             )}
           </div>
