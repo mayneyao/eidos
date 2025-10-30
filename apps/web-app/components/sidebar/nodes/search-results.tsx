@@ -113,8 +113,7 @@ export const SearchResults = () => {
                       <div
                         className={cn(
                           "fts-result text-[11px] leading-relaxed text-muted-foreground/90",
-                          "overflow-hidden break-words",
-                          "max-h-32 overflow-y-auto min-w-0"
+                          "overflow-hidden break-words line-clamp-4"
                         )}
                         style={{ 
                           wordBreak: "break-word", 
