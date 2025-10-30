@@ -1,7 +1,8 @@
 // Settings modal event system
-export type SettingsSection = 
+export type SettingsSection =
   | "space-general"
-  | "space-document" 
+  | "space-document"
+  | "space-mounts"
   | "general"
   | "ai"
   | "api"

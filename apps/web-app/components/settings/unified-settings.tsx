@@ -4,16 +4,7 @@ import { useTranslation } from "react-i18next"
 import { SettingsContent } from "./settings-content"
 import { SettingsSidebar } from "./settings-sidebar"
 
-type SettingsSection =
-  | "space-general"
-  | "space-document"
-  | "general"
-  | "ai"
-  | "api"
-  | "key-store"
-  | "storage"
-  | "sync"
-  | "security"
+import { type SettingsSection } from "./settings-events"
 
 interface UnifiedSettingsProps {
   initialSection?: SettingsSection

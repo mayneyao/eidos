@@ -5,6 +5,7 @@ import {
   Cloud,
   Database,
   FileText,
+  Folder,
   Info,
   KeyRound,
   Palette,
@@ -18,6 +19,7 @@ import { isDesktopMode } from "@/lib/env"
 type SettingsSection =
   | "space-general"
   | "space-document"
+  | "space-mounts"
   | "general"
   | "ai"
   | "api"
@@ -63,6 +65,13 @@ export function SettingsSidebar({
       title: t("space.settings.document"),
       description: t("space.settings.documentDescription"),
       icon: <FileText className="h-5 w-5" />,
+      category: "space",
+    },
+    {
+      id: "space-mounts",
+      title: t("space.settings.mounts"),
+      description: t("space.settings.mountsDescription"),
+      icon: <Folder className="h-5 w-5" />,
       category: "space",
     },
     // Global Settings
