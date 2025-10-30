@@ -401,7 +401,7 @@ export function CommandDialogDemo() {
                       onSelect={() => {
                         rebuildTableFTS(currentNode.id)
                       }}
-                      value="rebuild fts"
+                      value={`${t("cmdk.rebuildFTS")} ${t("cmdk.rebuildFTS.desc")}`}
                     >
                       <RefreshCcwIcon className="mr-2 h-4 w-4" />
                       <div className="flex flex-col">
@@ -414,7 +414,7 @@ export function CommandDialogDemo() {
                     <CommandItem
                       onSelect={handleMigrateTableFilePaths}
                       disabled={isMigratingTable}
-                      value="migrate table file paths"
+                      value={`${t("cmdk.migrateTableFilePaths")} ${t("cmdk.migrateTableFilePaths.desc")}`}
                     >
                       {isMigratingTable ? (
                         <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
@@ -439,7 +439,7 @@ export function CommandDialogDemo() {
                       <CommandItem
                         onSelect={handleMigrateCurrentDocPaths}
                         disabled={isMigratingDoc}
-                        value="migrate current doc file paths"
+                        value={`${t("cmdk.migrateDocPaths")} ${t("cmdk.migrateDocPaths.desc")}`}
                       >
                         {isMigratingDoc ? (
                           <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
