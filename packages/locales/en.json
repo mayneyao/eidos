@@ -345,6 +345,7 @@
     "kbd.shortcuts.common.switchToExtensionsDescription": "Switch to Extensions tab",
     "kbd.shortcuts.common.switchToTodayDescription": "Switch to Today tab",
     "kbd.shortcuts.common.switchToBlockDescription": "Switch to favorite block {{index}}",
+    "kbd.shortcuts.common.switchToSidebarTabDescription": "Switch to sidebar tab {{tab}}",
     "kbd.shortcuts.common.description": "Description",
     "kbd.shortcuts.common.navigateToNextDayDescription": "Navigate to next day",
     "kbd.shortcuts.common.navigateToPreviousDayDescription": "Navigate to previous day",

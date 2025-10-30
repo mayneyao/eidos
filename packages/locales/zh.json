@@ -345,6 +345,7 @@
     "kbd.shortcuts.common.switchToExtensionsDescription": "切换到扩展标签页",
     "kbd.shortcuts.common.switchToTodayDescription": "切换到今日标签页",
     "kbd.shortcuts.common.switchToBlockDescription": "切换到收藏块 {{index}}",
+    "kbd.shortcuts.common.switchToSidebarTabDescription": "切换到侧边栏标签页 {{tab}}",
     "kbd.shortcuts.common.description": "描述",
     "kbd.shortcuts.common.navigateToNextDayDescription": "导航到后一天",
     "kbd.shortcuts.common.navigateToPreviousDayDescription": "导航到前一天",
