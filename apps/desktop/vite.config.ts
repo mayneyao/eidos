@@ -143,6 +143,16 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         changeOrigin: false,
         rewrite: (path: string) => path,
       },
+      '/@/': {
+        target: 'http://localhost:13127',
+        changeOrigin: false,
+        rewrite: (path: string) => path,
+      },
+      '/~/': {
+        target: 'http://localhost:13127',
+        changeOrigin: false,
+        rewrite: (path: string) => path,
+      },
       '/static/': {
         target: 'http://localhost:13127',
         changeOrigin: true,

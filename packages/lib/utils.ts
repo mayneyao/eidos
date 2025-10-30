@@ -511,8 +511,10 @@ export const getExtensionUrl = (id: string, space: string, searchParams?: Record
   return newUrl
 }
 export const isFilesPath = (pathname: string) => {
-  // /files/* - now supports file names with special characters and subdirectories
-  return /^\/files\/.*$/.test(pathname)
+  // /files/* - default files path
+  // /@/* - mount files path
+  // /~/* - project files path
+  return /^\/files\/.*$/.test(pathname) || /^\/@\/.*$/.test(pathname) || /^\/~\/.*$/.test(pathname)
 }
 
 

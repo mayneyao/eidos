@@ -9,8 +9,11 @@ import { serveStatic } from './server-static';
 import { interceptExtensionRequest } from './ext-server';
 import { ProxyHandler } from '@eidos.space/sandbox';
 import { getSpaceRegistry } from '../space-registry';
+import path from 'path';
+import { serveFile } from './serve-file';
 
 const app = new Hono();
+
 
 
 function extractSpaceIdFromHostname(hostname: string): string | null {
@@ -226,6 +229,64 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
         }
     })
 
+    app.get('/~/*', async (c) => {
+        try {
+            const url = new URL(c.req.url);
+            const spaceId = extractSpaceIdFromHostname(url.hostname);
+
+            if (!spaceId) {
+                return c.text('Space ID not found in hostname', 400);
+            }
+
+            const registry = getSpaceRegistry();
+            const space = registry.getSpace(spaceId);
+            if (!space) {
+                return c.text(`Space not found: ${spaceId}`, 404);
+            }
+
+            const requestPath = c.req.path.replace('/~/', '');
+            const fullPath = path.join(space.path, requestPath);
+
+            return serveFile(fullPath, c);
+        } catch (error: any) {
+            return c.text(`Error serving project file: ${error.message}`, 500);
+        }
+    });
+
+    app.get('/@/*', async (c) => {
+        try {
+            const url = new URL(c.req.url);
+            const spaceId = extractSpaceIdFromHostname(url.hostname);
+
+            if (!spaceId) {
+                return c.text('Space ID not found in hostname', 400);
+            }
+
+            const dataSpace = await getOrSetDataSpace(spaceId);
+            const requestPath = c.req.path.replace('/@/', '');
+            const parts = requestPath.split('/');
+            const mountName = parts[0];
+            const relativePath = parts.slice(1).join('/');
+
+            const mountPath = await dataSpace.kv.get(`eidos:space:files:mount:${mountName}`, 'text');
+
+            if (!mountPath) {
+                return c.text(`Mount not found: ${mountName}`, 404);
+            }
+
+            const fullPath = path.join(mountPath, relativePath);
+
+            // Security check - ensure path is within mount directory
+            if (!fullPath.startsWith(mountPath + path.sep) && fullPath !== mountPath) {
+                return c.text('Access denied', 403);
+            }
+
+            return serveFile(fullPath, c);
+        } catch (error: any) {
+            return c.text(`Error serving mounted file: ${error.message}`, 500);
+        }
+    });
+
     // app.get('/static/*', async (c) => handleStaticFile(c))
 
     // app.get('/extensions/*', async (c) => handleStaticFile(c))
@@ -240,3 +301,5 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
         log(`Server is running on ${info.address}:${info.port}`)
     })
 }
+
+
