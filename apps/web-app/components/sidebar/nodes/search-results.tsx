@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 
 import { useTreeSidebarStore } from "./tree-sidebar-store"
@@ -46,12 +45,11 @@ export const SearchResults = () => {
   }
 
   return (
-    <div className="h-full w-full max-w-full overflow-hidden">
-      <ScrollArea className="h-full w-full">
-        <div className="space-y-4 pb-4 max-w-full">
-          {/* Node name matches */}
+    <div className="h-full w-full overflow-x-hidden overflow-y-auto">
+      <div className="space-y-4 pb-4">
+        {/* Node name matches */}
         {nodeMatches.length > 0 && (
-          <div className="space-y-1 max-w-full">
+          <div className="space-y-1">
             <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5">
               Nodes ({nodeMatches.length})
             </div>
@@ -65,13 +63,13 @@ export const SearchResults = () => {
                     ref={isSelected ? selectedRef : null}
                     onClick={() => handleNavigate(node.id)}
                     className={cn(
-                      "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer min-w-0 max-w-full",
+                      "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer min-w-0",
                       "hover:bg-accent/50 active:bg-accent",
                       "transition-all duration-150",
                       isSelected && "bg-accent ring-2 ring-primary/20"
                     )}
                   >
-                    <span className="flex-1 truncate text-sm min-w-0 max-w-full">{node.name}</span>
+                    <span className="flex-1 truncate text-sm min-w-0">{node.name}</span>
                     <ExtNodeBadge type={node.type} />
                   </div>
                 )
@@ -87,7 +85,7 @@ export const SearchResults = () => {
 
         {/* Full-text search results */}
         {ftsResults.length > 0 && (
-          <div className="space-y-1 max-w-full">
+          <div className="space-y-1">
             <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5">
               Content Matches ({ftsResults.length})
             </div>
@@ -101,28 +99,26 @@ export const SearchResults = () => {
                     ref={isSelected ? selectedRef : null}
                     onClick={() => handleNavigate(node.id)}
                     className={cn(
-                      "flex flex-col gap-1.5 px-3 py-2 rounded-md cursor-pointer min-w-0 max-w-full",
+                      "flex flex-col gap-1.5 px-3 py-2 rounded-md cursor-pointer min-w-0",
                       "hover:bg-accent/50 active:bg-accent",
                       "transition-all duration-150",
                       "border border-transparent hover:border-border/50",
                       isSelected && "bg-accent ring-2 ring-primary/20 border-primary/30"
                     )}
                   >
-                    <div className="text-sm font-medium truncate min-w-0 max-w-full">
+                    <div className="text-sm font-medium truncate min-w-0">
                       {node.name}
                     </div>
                     {node.result && (
                       <div
                         className={cn(
                           "fts-result text-[11px] leading-relaxed text-muted-foreground/90",
-                          "overflow-hidden overflow-x-hidden break-words",
-                          "max-h-32 overflow-y-auto min-w-0 max-w-full"
+                          "overflow-hidden break-words",
+                          "max-h-32 overflow-y-auto min-w-0"
                         )}
                         style={{ 
                           wordBreak: "break-word", 
-                          overflowWrap: "anywhere",
-                          width: "100%",
-                          maxWidth: "100%"
+                          overflowWrap: "anywhere"
                         }}
                         dangerouslySetInnerHTML={{
                           __html: node.result,
@@ -135,8 +131,7 @@ export const SearchResults = () => {
             </div>
           </div>
         )}
-        </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }
