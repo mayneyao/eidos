@@ -1,0 +1,105 @@
+---
+title: Files
+description: File management in Eidos
+sidebar:
+  order: 4
+---
+
+import { FileTree } from "@astrojs/starlight/components"
+
+In Eidos, dynamic data (such as tables and documents) is stored in a SQLite database, while static assets (such as images, audio, videos, etc.) are handled via three different mechanisms. This article explains these three file management approaches.
+
+## Default handling
+
+<FileTree>
+
+- my-project/
+  - .eidos/
+    - db.sqlite3 ← dynamic data storage
+    - files/ ← internal files accessible at the /files/ path
+      - screenshot.png
+      - document.pdf
+  - readme.md ← project file accessible at /~/readme.md
+
+</FileTree>
+
+By default, when you load local files into Eidos or paste screenshots, Eidos copies those static assets from the clipboard or original disk location into the `.eidos/files/` directory. These files are then managed centrally by Eidos.
+
+You can access these files through the image/file picker components. Eidos already supports basic file storage and management, and future versions will add enhancements such as OCR text extraction and semantic search. All files are stored under `.eidos/files/` for easier management and synchronization.
+
+## Mounted folders
+
+<FileTree>
+
+- /Users/eidos/Music/ ← mounted as /@/audio/
+  - song.mp3
+- /Users/eidos/Documents/Books/ ← mounted as /@/books/
+  - programming-guide.pdf
+  - design-principles.pdf
+  - api-reference.pdf
+
+</FileTree>
+
+Data inside the `.eidos` directory is typically synchronized. Large files may not be suitable to place there, yet you may still want to reference them in Eidos. In such cases, use mounted folders.
+
+Mount a directory with the following command:
+
+```bash
+eidos mount <mount-name> <actual-directory-path>
+```
+
+After mounting, you can reference files from that external directory in Eidos. The file picker will show mounted folders so you can select files to reference. You can also construct paths directly to display them as a `file` field in tables:
+
+```
+/@/<mount-name>/filename
+```
+
+For example, to mount a local music folder:
+
+```bash
+eidos mount audio /Users/eidos/Music
+# Then access /Users/eidos/Music/song.mp3 via /@/audio/song.mp3
+```
+
+Or to mount a books folder:
+
+```bash
+eidos mount books /Users/eidos/Documents/Books
+# Then access book files via /@/books/programming-guide.pdf
+```
+
+Besides the command line, you can add mounted folders directly in Space settings: in the "Mounts" tab, click "Add Mount", choose a local directory, provide a name, and save. This lets you complete the mount via the UI without using commands.
+
+## Project folder
+
+<FileTree>
+
+- my-code-project/
+  - .eidos/
+    - db.sqlite3
+    - files/
+  - src/
+    - main.js ← /~/src/main.js
+    - utils.js
+  - .gitignore ← /~/.gitignore
+  - docs/
+    - api.md ← /~/docs/api.md
+    - readme.md ← /~/readme.md
+
+</FileTree>
+
+The project folder is a special concept. Each space creates a `.eidos` directory within a specific location; the folder containing that directory is called the project folder. This could be a code project, a design project, or any other working directory.
+
+You do not need a mount to access the project folder. Eidos provides a simplified path syntax:
+
+`/~/readme.md` points to the `readme.md` file under the project folder.
+
+For example, in a code project you can reference project files like this:
+
+```
+/~/src/main.js
+/~/.gitignore
+/~/docs/api.md
+```
+
+This syntax makes it very convenient to reference project files in your notes.
