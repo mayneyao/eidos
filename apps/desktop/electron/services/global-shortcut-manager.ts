@@ -164,7 +164,7 @@ export class GlobalShortcutManager {
         if (!success) {
           console.error(`Failed to register global shortcut: ${accelerator}`);
         } else {
-          console.log(`Successfully registered global shortcut: ${accelerator} -> ${action.id}`);
+          // console.log(`Successfully registered global shortcut: ${accelerator} -> ${action.id}`);
         }
       }
 
