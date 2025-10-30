@@ -10,11 +10,17 @@ import { ExtNodeBadge } from "../../ext-node-badge"
 import { ItemIcon } from "./index"
 
 export const SearchResults = () => {
-  const { searchResults, searchTerm, selectedIndex } = useTreeSidebarStore()
+  const { 
+    searchResults, 
+    searchTerm, 
+    selectedIndex,
+    isNodesExpanded,
+    setIsNodesExpanded,
+    isContentExpanded,
+    setIsContentExpanded,
+  } = useTreeSidebarStore()
   const navigate = useNavigate()
   const selectedRef = useRef<HTMLDivElement>(null)
-  const [isNodesExpanded, setIsNodesExpanded] = useState(true)
-  const [isContentExpanded, setIsContentExpanded] = useState(true)
 
   const handleNavigate = (id: string) => {
     if (id.length === 10) {
@@ -37,6 +43,12 @@ export const SearchResults = () => {
   // Filter and separate node matches and FTS results
   const nodeMatches = searchResults.filter((node) => node.mode === "node")
   const ftsResults = searchResults.filter((node) => node.mode === "fts")
+  
+  // Calculate visible nodes for keyboard navigation
+  const visibleNodes = [
+    ...(isNodesExpanded ? nodeMatches : []),
+    ...(isContentExpanded ? ftsResults : [])
+  ]
 
   if (searchResults.length === 0) {
     return (
@@ -68,8 +80,8 @@ export const SearchResults = () => {
             {isNodesExpanded && (
               <div className="space-y-0.5 px-2">
               {nodeMatches.map((node, idx) => {
-                const globalIndex = idx
-                const isSelected = selectedIndex === globalIndex
+                const visibleIndex = visibleNodes.findIndex(n => n.id === node.id)
+                const isSelected = selectedIndex === visibleIndex
                 return (
                   <div
                     key={node.id}
@@ -115,8 +127,8 @@ export const SearchResults = () => {
             {isContentExpanded && (
               <div className="space-y-2 px-2">
               {ftsResults.map((node, idx) => {
-                const globalIndex = nodeMatches.length + idx
-                const isSelected = selectedIndex === globalIndex
+                const visibleIndex = visibleNodes.findIndex(n => n.id === node.id)
+                const isSelected = selectedIndex === visibleIndex
                 return (
                   <div
                     key={node.id}

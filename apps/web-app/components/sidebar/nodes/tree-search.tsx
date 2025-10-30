@@ -17,12 +17,29 @@ export const TreeSearch = () => {
     searchResults,
     selectedIndex,
     setSelectedIndex,
+    isNodesExpanded,
+    isContentExpanded,
   } = useTreeSidebarStore()
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   const inputRef = useRef<HTMLInputElement>(null)
   const { queryNodes, fullTextSearch } = useQueryNode()
   const { space } = useCurrentPathInfo()
   const navigate = useNavigate()
+  
+  // Calculate visible nodes for keyboard navigation
+  const nodeMatches = searchResults.filter((node) => node.mode === "node")
+  const ftsResults = searchResults.filter((node) => node.mode === "fts")
+  const visibleNodes = [
+    ...(isNodesExpanded ? nodeMatches : []),
+    ...(isContentExpanded ? ftsResults : [])
+  ]
+
+  // Reset selectedIndex if it's out of bounds when visibility changes
+  useEffect(() => {
+    if (selectedIndex >= visibleNodes.length && visibleNodes.length > 0) {
+      setSelectedIndex(visibleNodes.length - 1)
+    }
+  }, [visibleNodes.length, selectedIndex, setSelectedIndex])
 
   const performSearch = async (term: string) => {
     if (!space) return
@@ -74,18 +91,18 @@ export const TreeSearch = () => {
       return
     }
 
-    // Handle navigation keys only when there are search results
-    if (searchResults.length === 0) return
+    // Handle navigation keys only when there are visible nodes
+    if (visibleNodes.length === 0) return
 
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      setSelectedIndex(Math.min(selectedIndex + 1, searchResults.length - 1))
+      setSelectedIndex(Math.min(selectedIndex + 1, visibleNodes.length - 1))
     } else if (e.key === "ArrowUp") {
       e.preventDefault()
       setSelectedIndex(Math.max(selectedIndex - 1, 0))
     } else if (e.key === "Enter") {
       e.preventDefault()
-      const selectedNode = searchResults[selectedIndex]
+      const selectedNode = visibleNodes[selectedIndex]
       if (selectedNode) {
         const id = selectedNode.id
         if (id.length === 10) {

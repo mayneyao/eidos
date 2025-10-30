@@ -24,6 +24,10 @@ interface TreeSidebarState {
   setIsSearchMode: (isSearchMode: boolean) => void
   selectedIndex: number
   setSelectedIndex: (index: number) => void
+  isNodesExpanded: boolean
+  setIsNodesExpanded: (expanded: boolean) => void
+  isContentExpanded: boolean
+  setIsContentExpanded: (expanded: boolean) => void
 }
 
 export const useTreeSidebarStore = create<TreeSidebarState>()(
@@ -43,6 +47,10 @@ export const useTreeSidebarStore = create<TreeSidebarState>()(
       setIsSearchMode: (isSearchMode: boolean) => set({ isSearchMode }),
       selectedIndex: 0,
       setSelectedIndex: (index: number) => set({ selectedIndex: index }),
+      isNodesExpanded: true,
+      setIsNodesExpanded: (expanded: boolean) => set({ isNodesExpanded: expanded }),
+      isContentExpanded: true,
+      setIsContentExpanded: (expanded: boolean) => set({ isContentExpanded: expanded }),
     }),
     {
       name: "tree-sidebar-state",
