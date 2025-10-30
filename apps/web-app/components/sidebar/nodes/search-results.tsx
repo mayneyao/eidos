@@ -35,7 +35,7 @@ export const SearchResults = () => {
     if (selectedRef.current) {
       selectedRef.current.scrollIntoView({
         block: "nearest",
-        behavior: "smooth",
+        behavior: "auto",
       })
     }
   }, [selectedIndex])
