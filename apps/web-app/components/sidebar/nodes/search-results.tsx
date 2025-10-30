@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator"
 
 import { useTreeSidebarStore } from "./tree-sidebar-store"
 import { ExtNodeBadge } from "../../ext-node-badge"
+import { ItemIcon } from "./index"
 
 export const SearchResults = () => {
   const { searchResults, searchTerm, selectedIndex } = useTreeSidebarStore()
@@ -81,6 +82,7 @@ export const SearchResults = () => {
                       isSelected && "bg-accent ring-2 ring-primary/20"
                     )}
                   >
+                    <ItemIcon type={node.type} className="h-4 w-4 flex-shrink-0 opacity-70" />
                     <span className="flex-1 truncate text-sm min-w-0">{node.name}</span>
                     <ExtNodeBadge type={node.type} />
                   </div>
