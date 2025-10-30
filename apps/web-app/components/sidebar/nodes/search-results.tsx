@@ -14,6 +14,7 @@ export const SearchResults = () => {
     searchResults, 
     searchTerm, 
     selectedIndex,
+    setSelectedIndex,
     isNodesExpanded,
     setIsNodesExpanded,
     isContentExpanded,
@@ -87,11 +88,20 @@ export const SearchResults = () => {
                   <div
                     key={node.id}
                     ref={isSelected ? selectedRef : null}
+                    tabIndex={0}
                     onClick={() => handleNavigate(node.id)}
+                    onFocus={() => setSelectedIndex(currentIndex)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        handleNavigate(node.id)
+                      }
+                    }}
                     className={cn(
                       "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer min-w-0",
                       "hover:bg-accent/50 active:bg-accent",
                       "transition-all duration-150",
+                      "focus:outline-none",
                       isSelected && "bg-accent ring-2 ring-primary/20"
                     )}
                   >
@@ -135,12 +145,21 @@ export const SearchResults = () => {
                   <div
                     key={node.id}
                     ref={isSelected ? selectedRef : null}
+                    tabIndex={0}
                     onClick={() => handleNavigate(node.id)}
+                    onFocus={() => setSelectedIndex(currentIndex)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        handleNavigate(node.id)
+                      }
+                    }}
                     className={cn(
                       "flex flex-col gap-1.5 px-3 py-2 rounded-md cursor-pointer min-w-0",
                       "hover:bg-accent/50 active:bg-accent",
                       "transition-all duration-150",
                       "border border-transparent hover:border-border/50",
+                      "focus:outline-none",
                       isSelected && "bg-accent ring-2 ring-primary/20 border-primary/30"
                     )}
                   >
