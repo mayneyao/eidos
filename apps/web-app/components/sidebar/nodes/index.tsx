@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils"
 import type { IHoverTarget } from "./store"
 import { TreeSidebarHeader } from "./tree-sidebar-header"
 import { VirtualNodeTreeContainer } from "./virtual-node-tree"
+import { SearchResults } from "./search-results"
+import { useTreeSidebarStore } from "./tree-sidebar-store"
 
 export const CurrentItemTree = ({
   allNodes,
@@ -41,6 +43,7 @@ export const CurrentItemTree = ({
   const [targetFolderId, setTargetFolderId] = useState<string | null>(null)
   const [target, setTarget] = useState<IHoverTarget | null>(null)
 
+  const { isSearchMode } = useTreeSidebarStore()
 
   const handleSetTarget = useCallback((newTarget: IHoverTarget | null) => {
     setTarget(newTarget)
@@ -57,17 +60,21 @@ export const CurrentItemTree = ({
     <div className="flex h-full flex-col">
       <TreeSidebarHeader disableAdd={disableAdd} />
       <div className="flex-1 min-h-0 p-1 w-full">
-        <DndProvider backend={HTML5Backend} context={window}>
-          <VirtualNodeTreeContainer
-            nodes={allNodes}
-            allNodes={allNodesForVirtual || allNodes}
-            containerId={containerId}
-            target={target}
-            targetFolderId={targetFolderId}
-            setTarget={handleSetTarget}
-            setTargetFolderId={handleSetTargetFolderId}
-          />
-        </DndProvider>
+        {isSearchMode ? (
+          <SearchResults />
+        ) : (
+          <DndProvider backend={HTML5Backend} context={window}>
+            <VirtualNodeTreeContainer
+              nodes={allNodes}
+              allNodes={allNodesForVirtual || allNodes}
+              containerId={containerId}
+              target={target}
+              targetFolderId={targetFolderId}
+              setTarget={handleSetTarget}
+              setTargetFolderId={handleSetTargetFolderId}
+            />
+          </DndProvider>
+        )}
       </div>
     </div>
   )

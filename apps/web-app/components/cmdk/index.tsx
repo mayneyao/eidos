@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useDebounceFn, useKeyPress } from "ahooks"
+import { useState } from "react"
+import { useKeyPress } from "ahooks"
 import {
   Bot,
   Clock3Icon,
@@ -31,7 +31,6 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
 import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
@@ -40,8 +39,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { ThemeStudio } from "../theme-studio"
 import { DocActionCommandItems } from "./doc-actions"
-import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
-import { NodeCommandItems } from "./nodes"
+import { useCMDKGoto, useInput } from "./hooks"
 import { SecondaryView } from "./secondary-view"
 import { SpaceCommandItems } from "./spaces"
 
@@ -55,10 +53,8 @@ export function CommandDialogDemo() {
     useAppRuntimeStore()
   const { openSettingsModal } = useSettings()
   const { input, setInput, mode } = useInput()
-  const { queryNodes, fullTextSearch } = useQueryNode()
   const { theme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
-  const { setSearchNodes } = useCMDKStore()
   const [secondaryView, setSecondaryView] = useState<SecondaryView>(null)
 
   const currentNode = useCurrentNode()
@@ -67,22 +63,6 @@ export function CommandDialogDemo() {
     e.preventDefault()
     setCmdkOpen(!isCmdkOpen)
   })
-
-  const updateSearchNodes = async (qs: string) => {
-    if (mode !== "search") {
-      return
-    }
-    if (qs.length > 0) {
-      const nodes = await queryNodes(qs)
-      const ftsNodes = await fullTextSearch(qs)
-      setSearchNodes([...(ftsNodes || []), ...(nodes || [])])
-    }
-  }
-  const { run } = useDebounceFn(updateSearchNodes, { wait: 500 })
-
-  useEffect(() => {
-    space && run(input)
-  }, [input, run, space])
 
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
@@ -482,7 +462,6 @@ export function CommandDialogDemo() {
                 )}
                 {!isInkServiceMode && (
                   <>
-                    <NodeCommandItems />
                     <SpaceCommandItems />
                   </>
                 )}

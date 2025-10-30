@@ -1,32 +1,50 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useKeyPress } from "ahooks"
+import { useDebounceFn, useKeyPress } from "ahooks"
 
 import { Input } from "@/components/ui/input"
+import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 import { useTreeSidebarStore } from "./tree-sidebar-store"
 
 export const TreeSearch = () => {
-  const { searchTerm, setSearchTerm } = useTreeSidebarStore()
+  const { 
+    searchTerm, 
+    setSearchTerm, 
+    setSearchResults, 
+    setIsSearchMode 
+  } = useTreeSidebarStore()
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { queryNodes, fullTextSearch } = useQueryNode()
+  const { space } = useCurrentPathInfo()
 
-  const DEBOUNCE_DELAY = 200
+  const performSearch = async (term: string) => {
+    if (!space) return
+    
+    if (term.length === 0) {
+      setSearchResults([])
+      setIsSearchMode(false)
+      return
+    }
 
-  const debouncedSearch = useCallback(
-    (() => {
-      let timeoutId: NodeJS.Timeout
-      return (term: string) => {
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          setSearchTerm(term)
-        }, DEBOUNCE_DELAY)
-      }
-    })(),
-    [setSearchTerm]
-  )
+    // Enable search mode when there's a search term
+    setIsSearchMode(true)
+
+    // Perform both node name search and full-text search
+    const nodes = await queryNodes(term)
+    const ftsNodes = await fullTextSearch(term)
+    
+    // Combine results, FTS results first, then node name matches
+    const combinedResults = [...(ftsNodes || []), ...(nodes || [])]
+    setSearchResults(combinedResults)
+  }
+
+  const { run: debouncedSearch } = useDebounceFn(performSearch, { wait: 300 })
 
   const handleSearchChange = (term: string) => {
     setLocalSearchTerm(term)
+    setSearchTerm(term)
     debouncedSearch(term)
   }
 
@@ -46,6 +64,8 @@ export const TreeSearch = () => {
       e.preventDefault()
       setLocalSearchTerm("")
       setSearchTerm("")
+      setSearchResults([])
+      setIsSearchMode(false)
     }
   }
 
