@@ -118,8 +118,10 @@ export const SearchResults = () => {
                     {node.result && (
                       <div
                         className={cn(
-                          "fts-result ml-6 text-[11px] leading-relaxed text-muted-foreground/80",
-                          "line-clamp-3 overflow-hidden"
+                          "fts-result text-[11px] leading-relaxed text-muted-foreground/90",
+                          "overflow-hidden break-words",
+                          "max-h-32 overflow-y-auto",
+                          "px-2 py-1 ml-4 rounded bg-muted/30"
                         )}
                         dangerouslySetInnerHTML={{
                           __html: node.result,
