@@ -107,11 +107,6 @@ export const ViewSearch = (props: { view: IView }) => {
     }
   })
 
-  useKeyPress(["ctrl.f", "meta.f"], (event) => {
-    event.preventDefault()
-    setShowSearch(true)
-  })
-
   const navigateSearch = useCallback(
     (direction: "next" | "prev") => {
       if (searchResults?.length) {

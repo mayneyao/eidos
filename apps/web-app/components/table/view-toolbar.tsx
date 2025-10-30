@@ -397,6 +397,9 @@ export const ViewToolbar = (props: {
 
   useKeyPress(["ctrl.f", "meta.f"], (event) => {
     event.preventDefault()
+    if (event.shiftKey) {
+      return
+    }
     setShowSearch(true)
   })
 
