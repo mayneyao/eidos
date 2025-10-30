@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { ChevronDown, ChevronRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
@@ -11,6 +12,8 @@ export const SearchResults = () => {
   const { searchResults, searchTerm, selectedIndex } = useTreeSidebarStore()
   const navigate = useNavigate()
   const selectedRef = useRef<HTMLDivElement>(null)
+  const [isNodesExpanded, setIsNodesExpanded] = useState(true)
+  const [isContentExpanded, setIsContentExpanded] = useState(true)
 
   const handleNavigate = (id: string) => {
     if (id.length === 10) {
@@ -50,10 +53,19 @@ export const SearchResults = () => {
         {/* Node name matches */}
         {nodeMatches.length > 0 && (
           <div className="space-y-1">
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5">
-              Nodes ({nodeMatches.length})
+            <div 
+              className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5 flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => setIsNodesExpanded(!isNodesExpanded)}
+            >
+              {isNodesExpanded ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              <span>Nodes ({nodeMatches.length})</span>
             </div>
-            <div className="space-y-0.5 px-2">
+            {isNodesExpanded && (
+              <div className="space-y-0.5 px-2">
               {nodeMatches.map((node, idx) => {
                 const globalIndex = idx
                 const isSelected = selectedIndex === globalIndex
@@ -74,7 +86,8 @@ export const SearchResults = () => {
                   </div>
                 )
               })}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -86,10 +99,19 @@ export const SearchResults = () => {
         {/* Full-text search results */}
         {ftsResults.length > 0 && (
           <div className="space-y-1">
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5">
-              Content Matches ({ftsResults.length})
+            <div 
+              className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5 flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => setIsContentExpanded(!isContentExpanded)}
+            >
+              {isContentExpanded ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              <span>Content Matches ({ftsResults.length})</span>
             </div>
-            <div className="space-y-2 px-2">
+            {isContentExpanded && (
+              <div className="space-y-2 px-2">
               {ftsResults.map((node, idx) => {
                 const globalIndex = nodeMatches.length + idx
                 const isSelected = selectedIndex === globalIndex
@@ -127,7 +149,8 @@ export const SearchResults = () => {
                   </div>
                 )
               })}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </div>
