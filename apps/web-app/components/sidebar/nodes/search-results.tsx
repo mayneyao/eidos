@@ -80,8 +80,9 @@ export const SearchResults = () => {
             {isNodesExpanded && (
               <div className="space-y-0.5 px-2">
               {nodeMatches.map((node, idx) => {
-                const visibleIndex = visibleNodes.findIndex(n => n.id === node.id)
-                const isSelected = selectedIndex === visibleIndex
+                // Nodes are always at the beginning of visible list when expanded
+                const currentIndex = idx
+                const isSelected = selectedIndex === currentIndex
                 return (
                   <div
                     key={node.id}
@@ -127,8 +128,9 @@ export const SearchResults = () => {
             {isContentExpanded && (
               <div className="space-y-2 px-2">
               {ftsResults.map((node, idx) => {
-                const visibleIndex = visibleNodes.findIndex(n => n.id === node.id)
-                const isSelected = selectedIndex === visibleIndex
+                // Content matches start after nodes (if nodes are expanded)
+                const currentIndex = (isNodesExpanded ? nodeMatches.length : 0) + idx
+                const isSelected = selectedIndex === currentIndex
                 return (
                   <div
                     key={node.id}
