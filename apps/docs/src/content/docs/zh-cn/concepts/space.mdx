@@ -1,41 +1,39 @@
 ---
 title: 空间
-description: 为什么您可能只需要一个，但可能想要更多
+description: Eidos 中的数据隔离机制
 sidebar:
   order: 2
 ---
 
 import { FileTree } from "@astrojs/starlight/components"
 
-大多数人过度思考组织。他们创建复杂的文件夹层次结构和复杂的标签系统，然后花在组织上的时间比实际使用的时间还多。
+空间是 Eidos 中的数据隔离单元。每个空间都是完全独立的数据环境，包含自己的数据库和文件存储。
 
-Eidos 中的空间工作方式不同。把空间想象成为您的数据拥有一个完全独立的宇宙。大多数时候，您希望所有东西都在一个宇宙中——您的笔记、您的项目、您的随机想法都相互连接并可以一起搜索。
+就像 Git 仓库一样，你可以在任意目录初始化一个 Eidos 空间。不同的是，Eidos 为你的任意类型数据提供了容器和 UI——不仅仅是代码，还包括文档、表格、图片等各种内容。
 
-但有时分离是有意义的。也许您想要将工作和个人事务完全分开。或者您正在处理一个包含敏感数据的项目，不应该与其他所有内容混合。这时您就创建多个空间。
+## 存储结构
 
-关键洞察是：每个空间都有自己的数据库。不仅仅是自己的文件夹，而是自己完全隔离的数据存储。这就像拥有独立的计算机，只是它们恰好在同一台机器上运行。
-
-## 在磁盘上的样子
+每个空间在磁盘上作为独立的 `.eidos` 目录存在：
 
 <FileTree>
 
-- my-eidos-data
-  - spaces
-    - work
-      - db.sqlite3 ← 这里存放所有工作数据
-      - files
-        - some-presentation.pdf
-        - meeting-notes-attachment.png
-    - personal
-      - db.sqlite3 ← 完全独立的数据库
-      - files
-        - vacation-photos.jpg
-        - recipe-ingredients.pdf
-    - secret-project
-      - db.sqlite3 ← 再次，完全隔离
-      - files
-        - prototype-designs.sketch
+- my-project/
+  - .eidos/
+    - db.sqlite3
+    - files/
+      - document.pdf
+      - image.png
+- work-project/
+  - .eidos/
+    - db.sqlite3
+    - files/
+      - report.xlsx
+- personal-notes/
+  - .eidos/
+    - db.sqlite3
+    - files/
+      - photo.jpg
 
 </FileTree>
 
-优雅之处在于简单性。没有复杂的权限，没有带有复杂访问控制的共享数据库。当您需要时干净地分离，当您不需要时将所有内容放在一起。
+关键在于简洁性：每个空间都有自己的数据库，没有复杂的权限或共享机制。需要时干净分离，不需要时所有内容保持在一起。
