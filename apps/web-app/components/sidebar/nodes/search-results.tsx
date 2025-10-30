@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
@@ -9,8 +10,9 @@ import { useTreeSidebarStore } from "./tree-sidebar-store"
 import { ExtNodeBadge } from "../../ext-node-badge"
 
 export const SearchResults = () => {
-  const { searchResults, searchTerm } = useTreeSidebarStore()
+  const { searchResults, searchTerm, selectedIndex } = useTreeSidebarStore()
   const navigate = useNavigate()
+  const selectedRef = useRef<HTMLDivElement>(null)
 
   const handleNavigate = (id: string) => {
     if (id.length === 10) {
@@ -19,6 +21,16 @@ export const SearchResults = () => {
       navigate(`/${id}`)
     }
   }
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedRef.current) {
+      selectedRef.current.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      })
+    }
+  }, [selectedIndex])
 
   // Filter and separate node matches and FTS results
   const nodeMatches = searchResults.filter((node) => node.mode === "node")
@@ -44,21 +56,27 @@ export const SearchResults = () => {
               Nodes ({nodeMatches.length})
             </div>
             <div className="space-y-0.5">
-              {nodeMatches.map((node) => (
-                <div
-                  key={node.id}
-                  onClick={() => handleNavigate(node.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer",
-                    "hover:bg-accent/50 active:bg-accent",
-                    "transition-all duration-150"
-                  )}
-                >
-                  <ItemIcon type={node.type} className="h-4 w-4 flex-shrink-0 opacity-70" />
-                  <span className="flex-1 truncate text-sm">{node.name}</span>
-                  <ExtNodeBadge type={node.type} />
-                </div>
-              ))}
+              {nodeMatches.map((node, idx) => {
+                const globalIndex = idx
+                const isSelected = selectedIndex === globalIndex
+                return (
+                  <div
+                    key={node.id}
+                    ref={isSelected ? selectedRef : null}
+                    onClick={() => handleNavigate(node.id)}
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer",
+                      "hover:bg-accent/50 active:bg-accent",
+                      "transition-all duration-150",
+                      isSelected && "bg-accent ring-2 ring-primary/20"
+                    )}
+                  >
+                    <ItemIcon type={node.type} className="h-4 w-4 flex-shrink-0 opacity-70" />
+                    <span className="flex-1 truncate text-sm">{node.name}</span>
+                    <ExtNodeBadge type={node.type} />
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -75,36 +93,42 @@ export const SearchResults = () => {
               Content Matches ({ftsResults.length})
             </div>
             <div className="space-y-1">
-              {ftsResults.map((node) => (
-                <div
-                  key={node.id}
-                  onClick={() => handleNavigate(node.id)}
-                  className={cn(
-                    "flex flex-col gap-2 px-2 py-2.5 rounded-md cursor-pointer",
-                    "hover:bg-accent/50 active:bg-accent",
-                    "transition-all duration-150",
-                    "border border-transparent hover:border-border/50"
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <ItemIcon type={node.type} className="h-4 w-4 flex-shrink-0 opacity-70" />
-                    <span className="flex-1 truncate text-sm font-medium">
-                      {node.name}
-                    </span>
+              {ftsResults.map((node, idx) => {
+                const globalIndex = nodeMatches.length + idx
+                const isSelected = selectedIndex === globalIndex
+                return (
+                  <div
+                    key={node.id}
+                    ref={isSelected ? selectedRef : null}
+                    onClick={() => handleNavigate(node.id)}
+                    className={cn(
+                      "flex flex-col gap-2 px-2 py-2.5 rounded-md cursor-pointer",
+                      "hover:bg-accent/50 active:bg-accent",
+                      "transition-all duration-150",
+                      "border border-transparent hover:border-border/50",
+                      isSelected && "bg-accent ring-2 ring-primary/20 border-primary/30"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ItemIcon type={node.type} className="h-4 w-4 flex-shrink-0 opacity-70" />
+                      <span className="flex-1 truncate text-sm font-medium">
+                        {node.name}
+                      </span>
+                    </div>
+                    {node.result && (
+                      <div
+                        className={cn(
+                          "fts-result ml-6 text-[11px] leading-relaxed text-muted-foreground/80",
+                          "line-clamp-3 overflow-hidden"
+                        )}
+                        dangerouslySetInnerHTML={{
+                          __html: node.result,
+                        }}
+                      />
+                    )}
                   </div>
-                  {node.result && (
-                    <div
-                      className={cn(
-                        "fts-result ml-6 text-[11px] leading-relaxed text-muted-foreground/80",
-                        "line-clamp-3 overflow-hidden"
-                      )}
-                      dangerouslySetInnerHTML={{
-                        __html: node.result,
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

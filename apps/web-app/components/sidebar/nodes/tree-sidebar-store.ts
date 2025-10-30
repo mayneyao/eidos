@@ -22,6 +22,8 @@ interface TreeSidebarState {
   setSearchResults: (results: ISearchNodes[]) => void
   isSearchMode: boolean
   setIsSearchMode: (isSearchMode: boolean) => void
+  selectedIndex: number
+  setSelectedIndex: (index: number) => void
 }
 
 export const useTreeSidebarStore = create<TreeSidebarState>()(
@@ -36,9 +38,11 @@ export const useTreeSidebarStore = create<TreeSidebarState>()(
       focusedNodeId: null,
       setFocusedNodeId: (id: string | null) => set({ focusedNodeId: id }),
       searchResults: [],
-      setSearchResults: (results: ISearchNodes[]) => set({ searchResults: results }),
+      setSearchResults: (results: ISearchNodes[]) => set({ searchResults: results, selectedIndex: 0 }),
       isSearchMode: false,
       setIsSearchMode: (isSearchMode: boolean) => set({ isSearchMode }),
+      selectedIndex: 0,
+      setSelectedIndex: (index: number) => set({ selectedIndex: index }),
     }),
     {
       name: "tree-sidebar-state",
