@@ -62,10 +62,10 @@ CREATE TABLE IF NOT EXISTS eidos__tree (
 
 ## 扩展节点
 
-Eidos 支持通过扩展添加新的节点类型。扩展节点数据存储在 `eidos__extnode` 表中：
+Eidos 支持通过扩展添加新的节点类型。扩展节点数据存储在 `eidos__extnodes` 表中：
 
 ```sql
-CREATE TABLE IF NOT EXISTS eidos__extnode (
+CREATE TABLE IF NOT EXISTS eidos__extnodes (
   id TEXT PRIMARY KEY,
   blob BLOB,
   text TEXT,

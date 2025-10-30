@@ -62,10 +62,10 @@ CREATE TABLE IF NOT EXISTS eidos__tree (
 
 ## Extension Nodes
 
-Eidos supports adding new node types through extensions. Extension node data is stored in the `eidos__extnode` table:
+Eidos supports adding new node types through extensions. Extension node data is stored in the `eidos__extnodes` table:
 
 ```sql
-CREATE TABLE IF NOT EXISTS eidos__extnode (
+CREATE TABLE IF NOT EXISTS eidos__extnodes (
   id TEXT PRIMARY KEY,
   blob BLOB,
   text TEXT,
