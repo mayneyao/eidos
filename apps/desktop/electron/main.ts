@@ -92,13 +92,17 @@ if (!app.requestSingleInstanceLock()) {
     process.exit(0)
 }
 
+// Set up window open handler when webview DOM is ready
+// Prevents webview from opening new windows inside the app, redirects external links to system browser
 ipcMain.on('webview-dom-ready', (_, id) => {
     const wc = webContents.fromId(id)
     wc?.setWindowOpenHandler(({ url }) => {
         const protocol = (new URL(url)).protocol
+        // Only allow http and https protocol external links to open in system browser
         if (['https:', 'http:'].includes(protocol)) {
             shell.openExternal(url)
         }
+        // Deny other types of window open requests to maintain app security
         return { action: 'deny' }
     })
 })
