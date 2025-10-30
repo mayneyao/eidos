@@ -23,6 +23,7 @@ Eidos CLI is a **headless version of Eidos** that runs entirely from the command
 - 🌐 **Serve** - Run local API server for any space
 - 💻 **Open** - Open spaces in desktop app (like `code .`)
 - 📦 **Manage** - List and manage all your spaces
+- 🔗 **Mount** - Mount external directories for file access
 
 ## Quick Start
 
@@ -105,7 +106,9 @@ eidos serve --host 0.0.0.0 --port 3000
 **Available endpoints:**
 
 - `POST /rpc` - Execute RPC methods
-- `GET /files/*` - Access space files
+- `GET /files/*` - Access internal space files
+- `GET /~/*` - Access project folder files
+- `GET /@/*` - Access mounted directory files
 - `GET /health` - Health check
 
 **Example RPC call:**
@@ -141,6 +144,43 @@ eidos open /path/to/space
 - Space must be initialized (contains `.eidos/` directory)
 - Space must be registered in global config
 - Eidos desktop app must be installed
+
+### 🔗 Mount External Directories
+
+Mount external directories to access files via the API server:
+
+```bash
+# Mount a directory
+eidos mount audio /Users/username/Music
+
+# Mount another directory
+eidos mount books /Users/username/Documents/Books
+
+# Remove a mount
+eidos unmount audio
+```
+
+**How it works:**
+
+- Mount configurations are stored in the space's database (KV table)
+- Mounted directories are accessible via `/@/<mount-name>/<file-path>`
+- Mount names must be alphanumeric (with underscores/hyphens allowed)
+- Paths are resolved to absolute paths for portability
+
+**Accessing mounted files:**
+
+```bash
+# Via HTTP API
+curl http://localhost:13128/@/audio/song.mp3
+
+# Via project folder (files in space root)
+curl http://localhost:13128/~/readme.md
+```
+
+**Mount paths:**
+- `/files/*` - Internal files stored in `.eidos/files/`
+- `/~/` - Project folder (files in space root directory)
+- `/@/<name>/` - Mounted external directories
 
 ### 🔧 Manage Installation
 
@@ -255,6 +295,29 @@ jobs:
         run: npm test
 ```
 
+### Example 6: Mount External Directories
+
+Access files from external directories without copying them into the space:
+
+```bash
+# Navigate to your Eidos space
+cd ~/my-project
+
+# Mount external directories
+eidos mount music /Users/username/Music
+eidos mount videos /Users/username/Videos
+
+# Start server
+eidos serve
+
+# Access mounted files via HTTP
+curl http://localhost:13128/@/music/song.mp3
+curl http://localhost:13128/@/videos/documentary.mp4
+
+# Access project files
+curl http://localhost:13128/~/readme.md
+```
+
 ## Development
 
 ### Setup
@@ -276,6 +339,8 @@ bun run setup
 bun run dev init
 bun run dev serve
 bun run dev open
+bun run dev mount audio /path/to/music
+bun run dev unmount audio
 
 # Build executable
 bun run build
@@ -296,6 +361,8 @@ apps/cli/
 │   │   ├── init.ts       # Space initialization
 │   │   ├── serve.ts      # API server
 │   │   ├── open.ts       # Open in desktop app
+│   │   ├── mount.ts      # Mount external directories
+│   │   ├── unmount.ts    # Remove mounts
 │   │   └── install.ts    # Installation management
 │   ├── db/               # Database adapters
 │   │   ├── bun-server-database.ts  # Bun SQLite adapter

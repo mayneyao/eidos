@@ -70,7 +70,9 @@ export async function serveCommand(options: ServeOptions = {}) {
     logger.log('');
     logger.log('Available endpoints:');
     logger.log(`  POST http://${host}:${port}/rpc          - RPC API`);
-    logger.log(`  GET  http://${host}:${port}/files/*      - File access`);
+    logger.log(`  GET  http://${host}:${port}/files/*      - Internal file access`);
+    logger.log(`  GET  http://${host}:${port}/~/*          - Project folder access`);
+    logger.log(`  GET  http://${host}:${port}/@/*          - Mounted folder access`);
     logger.log(`  GET  http://${host}:${port}/health       - Health check`);
     logger.log('');
     logger.log('Press Ctrl+C to stop the server');

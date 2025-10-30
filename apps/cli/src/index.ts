@@ -5,6 +5,8 @@ import { initCommand } from './commands/init';
 import { serveCommand } from './commands/serve';
 import { openCommand } from './commands/open';
 import { installCommand, uninstallCommand, statusCommand } from './commands/install';
+import { mountCommand } from './commands/mount';
+import { unmountCommand } from './commands/unmount';
 
 const program = new Command();
 
@@ -68,6 +70,23 @@ program
   .description('Show installation status')
   .action(() => {
     statusCommand();
+  });
+
+program
+  .command('mount')
+  .description('Mount an external directory')
+  .argument('<name>', 'mount name')
+  .argument('<path>', 'directory path to mount')
+  .action(async (name: string, dirPath: string) => {
+    await mountCommand(name, dirPath);
+  });
+
+program
+  .command('unmount')
+  .description('Remove a mounted directory')
+  .argument('<name>', 'mount name to remove')
+  .action(async (name: string) => {
+    await unmountCommand(name);
   });
 
 // Default action: if a single argument is provided without a command, treat it as 'open'
