@@ -41,7 +41,6 @@ import { ThemeStudio } from "../theme-studio"
 import { DocActionCommandItems } from "./doc-actions"
 import { useCMDKGoto, useInput } from "./hooks"
 import { SecondaryView } from "./secondary-view"
-import { SpaceCommandItems } from "./spaces"
 
 type SecondaryView = {
   component: React.ReactNode
@@ -460,11 +459,6 @@ export function CommandDialogDemo() {
                     <DocActionCommandItems />
                   </>
                 )}
-                {!isInkServiceMode && (
-                  <>
-                    <SpaceCommandItems />
-                  </>
-                )}
               </>
             )}
 
@@ -474,14 +468,6 @@ export function CommandDialogDemo() {
                 <Palette className="mr-2 h-4 w-4" />
                 <span>{t("cmdk.switchTheme")}</span>
                 <CommandShortcut>⌘+Shift+L</CommandShortcut>
-              </CommandItem>
-              <CommandItem onSelect={toggleGodMode}>
-                <Wand2 className="mr-2 h-4 w-4" />
-                <span>
-                  {isGodMode
-                    ? t("cmdk.disableGodMode")
-                    : t("cmdk.enableGodMode")}
-                </span>
               </CommandItem>
               <CommandItem
                 onSelect={() => {
