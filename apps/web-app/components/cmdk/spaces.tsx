@@ -15,11 +15,11 @@ export const SpaceCommandItems = () => {
   const { spaceList } = useSpace()
   const goto = useCMDKGoto()
 
-  const handleSpaceSelect = async (space: string) => {
+  const handleSpaceSelect = async (spaceId: string) => {
     if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       // Desktop mode: use Electron IPC to switch workspace
       try {
-         const result = await window.eidos.invoke("switch-space", space)
+         const result = await window.eidos.invoke("switch-space", spaceId)
          if (result.success) {
            // Workspace switched successfully, Electron will automatically reload to new subdomain
          } else {
@@ -41,12 +41,12 @@ export const SpaceCommandItems = () => {
           <CommandGroup heading="Spaces">
             {spaceList.map((space) => (
               <CommandItem
-                key={space}
-                onSelect={() => handleSpaceSelect(space)}
-                value={space}
+                key={space.id}
+                onSelect={() => handleSpaceSelect(space.id)}
+                value={space.id}
               >
                 <Database className="mr-2 h-4 w-4" />
-                <span>{space}</span>
+                <span>{space.name}</span>
                 <CommandShortcut>Jump to</CommandShortcut>
               </CommandItem>
             ))}

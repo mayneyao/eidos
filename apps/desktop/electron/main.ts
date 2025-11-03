@@ -559,6 +559,20 @@ app.whenReady().then(async () => {
         const registry = getSpaceRegistry();
         return registry.getSpace(spaceId);
     });
+
+    ipcMain.handle('update-space', async (_, spaceId: string, updates: { name?: string }) => {
+        const registry = getSpaceRegistry();
+        try {
+            const success = registry.updateSpace(spaceId, updates);
+            if (success) {
+                return { success: true };
+            } else {
+                return { success: false, error: 'Space not found' };
+            }
+        } catch (error: any) {
+            return { success: false, error: error.message };
+        }
+    });
 });
 
 app.on('activate', () => {

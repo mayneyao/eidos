@@ -34,12 +34,13 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
+import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 
 interface ISpaceSelectProps {
-  spaces: string[]
+  spaces: SpaceInfo[]
 }
 
 export function SpaceSelect({ spaces }: ISpaceSelectProps) {
@@ -114,7 +115,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         
         if (result.success && result.space) {
           await updateSpaceList()
-          await handleSelect(result.space.id)
+          await handleSelect(result.space.id as string)
         } else {
           throw new Error(result.error || "Failed to create space")
         }
@@ -147,7 +148,9 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
             {space ? (
               <div className="flex items-center gap-3">
                 <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-80" />
-                <span>{space}</span>
+                <span>
+                  {spaces.find((s) => s.id === space)?.name || space}
+                </span>
               </div>
             ) : (
               t("space.select.selectDatabase")
@@ -168,8 +171,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
               <CommandGroup>
                 {spaces.map((space) => (
                   <CommandItem
-                    key={space}
-                    value={space}
+                    key={space.id}
+                    value={space.id}
                     onSelect={(currentValue) => {
                       handleSelect(currentValue)
                       setOpen(false)
@@ -178,12 +181,12 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        lastOpenedDatabase === space
+                        lastOpenedDatabase === space.id
                           ? "opacity-100"
                           : "opacity-0"
                       )}
                     />
-                    {space}
+                    {space.name}
                   </CommandItem>
                 ))}
               </CommandGroup>

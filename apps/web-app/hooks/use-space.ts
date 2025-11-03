@@ -8,6 +8,7 @@ import { uuidv7 } from "@/lib/utils"
 import { isDesktopMode } from "@/lib/env"
 import { useSqlite } from "./use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
+import type { SpaceInfo } from "./use-current-space"
 
 
 export const useSpace = () => {
@@ -19,9 +20,8 @@ export const useSpace = () => {
     if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
       // In desktop mode, use IPC to get workspace list
       try {
-        const spaces = await window.eidos.invoke('list-spaces')
-        const spaceNames = spaces.map((space: any) => space.id)
-        setSpaceList(spaceNames)
+        const spaces: SpaceInfo[] = await window.eidos.invoke('list-spaces')
+        setSpaceList(spaces)
       } catch (error) {
         console.error('Failed to get spaces from Electron:', error)
       }
@@ -34,11 +34,11 @@ export const useSpace = () => {
   }, [updateSpaceList])
 
   const deleteSpace = useCallback(
-    async (spaceName: string) => {
+    async (spaceId: string) => {
       if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
         // In desktop mode, use IPC to delete workspace
         try {
-          const result = await window.eidos.invoke('remove-space', spaceName)
+          const result = await window.eidos.invoke('remove-space', spaceId)
           if (result.success) {
             setLastOpenedDatabase("")
             await updateSpaceList()
@@ -53,6 +53,26 @@ export const useSpace = () => {
       // Web mode doesn't support space deletion
     },
     [setLastOpenedDatabase, updateSpaceList]
+  )
+
+  const renameSpace = useCallback(
+    async (spaceId: string, newName: string) => {
+      if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+        try {
+          const result = await window.eidos.invoke('update-space', spaceId, { name: newName })
+          if (result.success) {
+            await updateSpaceList()
+          } else {
+            throw new Error(result.error || 'Failed to rename space')
+          }
+        } catch (error) {
+          console.error("Error renaming space:", error)
+          throw error
+        }
+      }
+      // Web mode doesn't support space renaming
+    },
+    [updateSpaceList]
   )
 
   const rebuildIndex = useCallback(async () => {
@@ -110,5 +130,6 @@ export const useSpace = () => {
     createSpace,
     deleteSpace,
     rebuildIndex,
+    renameSpace,
   }
 }
