@@ -3,7 +3,6 @@ import {
   Cable,
   ChevronRight,
   Cloud,
-  Database,
   FileText,
   Folder,
   Info,
@@ -24,7 +23,6 @@ type SettingsSection =
   | "ai"
   | "api"
   | "key-store"
-  | "storage"
   | "sync"
   | "security"
 
@@ -103,14 +101,6 @@ export function SettingsSidebar({
       title: t("settings.keyStore"),
       description: t("settings.keyStoreDescription"),
       icon: <KeyRound className="h-5 w-5" />,
-      category: "global",
-    },
-    {
-      id: "storage",
-      title: t("settings.storage"),
-      description: t("settings.storageDescription"),
-      icon: <Database className="h-5 w-5" />,
-      disabled: !isDesktopMode,
       category: "global",
     },
     // {
