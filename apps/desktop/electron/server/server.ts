@@ -16,14 +16,25 @@ const app = new Hono();
 
 
 
+/**
+ * myspace.eidos.localhost -> myspace
+ * myext.block.myspace.eidos.localhost -> myspace
+ * @param hostname like <spaceId>.eidos.localhost or <extensionId>.block.<spaceId>.eidos.localhost
+ * @returns spaceId
+ */
 function extractSpaceIdFromHostname(hostname: string): string | null {
-    if (hostname.endsWith('.eidos.localhost')) {
-        const parts = hostname.split('.');
+    const parts = hostname.split('.');
 
-        if (parts.length >= 2) {
-            return parts[0];
-        }
+    // Check for extension pattern: <extensionId>.block.<spaceId>.eidos.localhost
+    if (parts.length >= 4 && parts[1] === 'block') {
+        return parts[2]; // spaceId is at index 2
     }
+
+    // Standard pattern: <spaceId>.eidos.localhost
+    if (parts.length >= 2) {
+        return parts[0]; // spaceId is at index 0
+    }
+
     return null;
 }
 
