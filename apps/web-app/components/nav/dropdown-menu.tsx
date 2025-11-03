@@ -277,10 +277,10 @@ export function NavDropdownMenu() {
                 )}
                 <DropdownMenuSeparator />
                 <NodeExport node={node} />
-                <NodeOpenInCursor
+                {/* <NodeOpenInCursor
                   node={node}
                   openInPlayground={openInPlayground}
-                />
+                /> */}
                 {node.type === "dataview" && (
                   <DropdownMenuItem onClick={handleAddToPanel}>
                     <PanelRightIcon className="mr-2 h-4 w-4" />
@@ -309,7 +309,7 @@ export function NavDropdownMenu() {
                 <NodeUpdateTime />
               </>
             )}
-            <DropdownMenuSeparator />
+            {/* <DropdownMenuSeparator />
             <Link to={URLS.DOWNLOAD} target="_blank">
               <DropdownMenuItem>
                 <Download className="mr-2 h-4 w-4" />
@@ -324,7 +324,7 @@ export function NavDropdownMenu() {
                   ? t("nav.dropdown.menu.desktop")
                   : t("nav.dropdown.menu.web"),
               })}
-            </span>
+            </span> */}
           </DropdownMenuContent>
         </DropdownMenu>
       </Dialog>
