@@ -148,7 +148,7 @@ export class SpaceRegistry extends BaseSpaceRegistry {
      * This is Electron-specific
      */
     private async createDefaultSpace(): Promise<void> {
-        const defaultSpacePath = path.join(app.getPath('userData'), 'eidos-data', 'spaces', 'default');
+        const defaultSpacePath = path.join(app.getPath('userData'), 'spaces', 'default');
         
         // Ensure directory exists
         fs.mkdirSync(defaultSpacePath, { recursive: true });
