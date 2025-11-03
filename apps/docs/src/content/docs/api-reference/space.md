@@ -448,23 +448,23 @@ List directory contents (like Node.js `fs.readdir`).
 
 ```typescript
 readdir(path: string): Promise<string[]>
-readdir(path: string, options: { withFileTypes: true }): Promise<Dirent[]>
+readdir(path: string, options: { withFileTypes: true }): Promise<IDirectoryEntry[]>
 readdir(path: string, options?: {
   withFileTypes?: boolean
   recursive?: boolean
-}): Promise<string[] | Dirent[]>
+}): Promise<string[] | IDirectoryEntry[]>
 ```
 
 **Parameters:**
 
 - `path` (string): Directory path, supports `~/` or `@/` prefix
-- `options.withFileTypes` (boolean): Optional, returns `Dirent` objects with type information
+- `options.withFileTypes` (boolean): Optional, returns `IDirectoryEntry` objects with type information
 - `options.recursive` (boolean): Optional, recursively list all subdirectories
 
 **Returns:**
 
 - By default, returns an array of file names
-- With `withFileTypes: true`, returns an array of `Dirent` objects
+- With `withFileTypes: true`, returns an array of `IDirectoryEntry` objects with `name`, `path`, `parentPath`, and `kind` properties
 - With `recursive: true`, recursively lists all subdirectories
 
 **Examples:**
@@ -483,7 +483,7 @@ const entries = await eidos.currentSpace.fs.readdir("~/", {
   withFileTypes: true,
 })
 entries.forEach((entry) => {
-  console.log(`${entry.name}: ${entry.isDirectory() ? "directory" : "file"}`)
+  console.log(`${entry.name}: ${entry.kind === 'directory' ? "directory" : "file"}`)
 })
 // package.json: file
 // src: directory

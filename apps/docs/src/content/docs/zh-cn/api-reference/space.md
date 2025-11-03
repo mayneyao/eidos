@@ -446,23 +446,23 @@ Eidos 提供了受限的外部文件 API，使你可以访问原生文件系统�
 
 ```typescript
 readdir(path: string): Promise<string[]>
-readdir(path: string, options: { withFileTypes: true }): Promise<Dirent[]>
+readdir(path: string, options: { withFileTypes: true }): Promise<IDirectoryEntry[]>
 readdir(path: string, options?: {
   withFileTypes?: boolean
   recursive?: boolean
-}): Promise<string[] | Dirent[]>
+}): Promise<string[] | IDirectoryEntry[]>
 ```
 
 **参数:**
 
 - `path` (string): 目录路径，支持 `~/` 或 `@/` 前缀
-- `options.withFileTypes` (boolean): 可选，返回带类型信息的 `Dirent` 对象
+- `options.withFileTypes` (boolean): 可选，返回带类型信息的 `IDirectoryEntry` 对象
 - `options.recursive` (boolean): 可选，递归列出所有子目录内容
 
 **返回值:**
 
 - 默认返回文件名数组
-- 使用 `withFileTypes: true` 时返回 `Dirent` 对象数组
+- 使用 `withFileTypes: true` 时返回 `IDirectoryEntry` 对象数组，包含 `name`、`path`、`parentPath` 和 `kind` 属性
 - 使用 `recursive: true` 时递归列出所有子目录
 
 **示例:**
@@ -481,7 +481,7 @@ const entries = await eidos.currentSpace.fs.readdir("~/", {
   withFileTypes: true,
 })
 entries.forEach((entry) => {
-  console.log(`${entry.name}: ${entry.isDirectory() ? "目录" : "文件"}`)
+  console.log(`${entry.name}: ${entry.kind === 'directory' ? "目录" : "文件"}`)
 })
 // package.json: 文件
 // src: 目录

@@ -1,6 +1,5 @@
 import type { BaseDataSpace } from "../data-space/base"
-import type { Dirent } from 'node:fs'
-import type { IReaddirOptions, IMkdirOptions } from "../types/IExternalFileSystem"
+import type { IReaddirOptions, IMkdirOptions, IDirectoryEntry } from "../types/IExternalFileSystem"
 
 /**
  * File system SDK for external files
@@ -27,9 +26,9 @@ export class FSManager {
    * console.log(files) // ["package.json", "src", "README.md"]
    * 
    * @example
-   * // Get Dirent objects
+   * // Get directory entries with type information
    * const entries = await eidos.currentSpace.fs.readdir("~/", { withFileTypes: true })
-   * entries.forEach(e => console.log(e.name, e.isDirectory()))
+   * entries.forEach(e => console.log(e.name, e.kind === 'directory'))
    * 
    * @example
    * // Recursively list all files
@@ -41,8 +40,8 @@ export class FSManager {
    * const music = await eidos.currentSpace.fs.readdir("@/music")
    */
   async readdir(path: string): Promise<string[]>
-  async readdir(path: string, options: { withFileTypes: true }): Promise<Dirent[]>
-  async readdir(path: string, options?: IReaddirOptions): Promise<string[] | Dirent[]> {
+  async readdir(path: string, options: { withFileTypes: true }): Promise<IDirectoryEntry[]>
+  async readdir(path: string, options?: IReaddirOptions): Promise<string[] | IDirectoryEntry[]> {
     return await this.externalFS.readdir(path, options)
   }
 

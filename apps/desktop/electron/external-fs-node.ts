@@ -1,10 +1,11 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import type { Dirent } from 'node:fs'
-import type { 
-  IExternalFileSystem, 
-  IReaddirOptions, 
-  IMkdirOptions 
+import type {
+  IExternalFileSystem,
+  IReaddirOptions,
+  IMkdirOptions,
+  IDirectoryEntry
 } from '@eidos.space/core/types/IExternalFileSystem'
 
 /**
@@ -35,7 +36,7 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
    */
   constructor(
     private resolvePath: (path: string) => Promise<string | null>
-  ) {}
+  ) { }
 
   /**
    * Convert ~/ or @/ path to absolute file system path
@@ -49,20 +50,61 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   }
 
   /**
+   * Convert Dirent to IDirectoryEntry
+   * Reuses Node.js Dirent properties (name, path, parentPath), only converts kind
+   */
+  private direntToEntry(dirent: Dirent): IDirectoryEntry {
+    // Reuse Node.js Dirent properties directly (available in Node.js 20.1.0+)
+    const name = dirent.name
+    const path = dirent.path
+    const parentPath = dirent.parentPath
+
+    // Only convert kind from Dirent methods to serializable string
+    // Optimize: check most common types first
+    let kind: IDirectoryEntry['kind']
+    if (dirent.isFile()) {
+      kind = 'file'
+    } else if (dirent.isDirectory()) {
+      kind = 'directory'
+    } else if (dirent.isSymbolicLink()) {
+      kind = 'symbolicLink'
+    } else if (dirent.isBlockDevice()) {
+      kind = 'blockDevice'
+    } else if (dirent.isCharacterDevice()) {
+      kind = 'characterDevice'
+    } else if (dirent.isFIFO()) {
+      kind = 'fifo'
+    } else if (dirent.isSocket()) {
+      kind = 'socket'
+    } else {
+      kind = 'file' // Fallback
+    }
+
+    return {
+      name,
+      path,
+      parentPath,
+      kind
+    }
+  }
+
+  /**
    * Read directory contents
    */
   async readdir(fsPath: string): Promise<string[]>
-  async readdir(fsPath: string, options: { withFileTypes: true }): Promise<Dirent[]>
-  async readdir(fsPath: string, options?: IReaddirOptions): Promise<string[] | Dirent[]> {
+  async readdir(fsPath: string, options: { withFileTypes: true }): Promise<IDirectoryEntry[]>
+  async readdir(fsPath: string, options?: IReaddirOptions): Promise<string[] | IDirectoryEntry[]> {
     const absolutePath = await this.getAbsolutePath(fsPath)
-    
+
     if (options?.withFileTypes) {
-      return await fs.readdir(absolutePath, { 
+      const dirents = await fs.readdir(absolutePath, {
         withFileTypes: true,
-        recursive: options.recursive 
-      })
+        recursive: options.recursive
+      }) as Dirent[]
+
+      return dirents.map(dirent => this.direntToEntry(dirent))
     }
-    
+
     return await fs.readdir(absolutePath, { recursive: options?.recursive })
   }
 

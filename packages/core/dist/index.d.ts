@@ -1,6 +1,5 @@
-import { Dirent } from "node:fs";
 import { Message } from "ai";
-import * as postal_mime6 from "postal-mime";
+import * as postal_mime9 from "postal-mime";
 import { JsonSchema7ObjectType } from "zod-to-json-schema";
 
 //#region fields/const.d.ts
@@ -939,6 +938,20 @@ declare class FileTable extends ComposedFileTable {}
 //#endregion
 //#region types/IExternalFileSystem.d.ts
 /**
+ * Serializable directory entry that can be passed through message communication
+ * Replaces Node.js Dirent for IPC compatibility
+ */
+interface IDirectoryEntry {
+  /** Entry name (matches Dirent.name behavior: filename in non-recursive, relative path in recursive) */
+  name: string;
+  /** Relative path from queried directory (matches Node.js readdir recursive behavior) */
+  path: string;
+  /** Parent directory path relative to queried directory */
+  parentPath: string;
+  /** Entry type */
+  kind: 'file' | 'directory' | 'blockDevice' | 'characterDevice' | 'symbolicLink' | 'fifo' | 'socket';
+}
+/**
  * Options for readdir
  */
 interface IReaddirOptions {
@@ -964,13 +977,13 @@ interface IExternalFileSystem {
    * List directory contents (like fs.readdir)
    * @param path Directory path (~/ or @/)
    * @param options Read options
-   * @returns Array of file names or Dirent objects
+   * @returns Array of file names or IDirectoryEntry objects
    */
   readdir(path: string): Promise<string[]>;
   readdir(path: string, options: {
     withFileTypes: true;
-  }): Promise<Dirent[]>;
-  readdir(path: string, options?: IReaddirOptions): Promise<string[] | Dirent[]>;
+  }): Promise<IDirectoryEntry[]>;
+  readdir(path: string, options?: IReaddirOptions): Promise<string[] | IDirectoryEntry[]>;
   /**
    * Create directory (like fs.mkdir)
    * @param path Directory path to create
@@ -1264,7 +1277,7 @@ declare const ComposedDocTable: {
     }>;
     createOrUpdate(data: {
       id: string;
-      text: string | postal_mime6.Email;
+      text: string | postal_mime9.Email;
       type: "html" | "markdown" | "email";
       mode?: "replace" | "append" | "prepend";
     }): Promise<{
@@ -2235,9 +2248,9 @@ declare class FSManager {
    * console.log(files) // ["package.json", "src", "README.md"]
    *
    * @example
-   * // Get Dirent objects
+   * // Get directory entries with type information
    * const entries = await eidos.currentSpace.fs.readdir("~/", { withFileTypes: true })
-   * entries.forEach(e => console.log(e.name, e.isDirectory()))
+   * entries.forEach(e => console.log(e.name, e.kind === 'directory'))
    *
    * @example
    * // Recursively list all files
@@ -2251,7 +2264,7 @@ declare class FSManager {
   readdir(path: string): Promise<string[]>;
   readdir(path: string, options: {
     withFileTypes: true;
-  }): Promise<Dirent[]>;
+  }): Promise<IDirectoryEntry[]>;
   /**
    * Create directory
    *
