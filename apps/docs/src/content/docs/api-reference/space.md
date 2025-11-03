@@ -397,7 +397,9 @@ async getByPath(path: string): Promise<IFile | null>
 **Example:**
 
 ```typescript
-const fileInfo = await eidos.currentSpace.file.getByPath("files/images/photo.jpg")
+const fileInfo = await eidos.currentSpace.file.getByPath(
+  "files/images/photo.jpg"
+)
 if (fileInfo) {
   console.log("File ID:", fileInfo.id)
   console.log("File name:", fileInfo.name)
@@ -418,5 +420,154 @@ try {
   } else if (error.name === "FileSystemError") {
     eidos.currentSpace.notify("Error", "File system not available")
   }
+}
+```
+
+---
+
+## File System API
+
+Eidos provides a restricted external file API that enables access to the native file system. This is a restricted mechanism that provides secure file system access capabilities.
+
+**Supported paths:**
+
+- **Project folder** (`~/`) - The project directory where `.eidos` is located
+- **Mounted folders** (`@/`) - Externally mounted directories
+
+### Path Format
+
+| Path Format        | Description                              |
+| ------------------ | ---------------------------------------- |
+| `~/src/main.js`    | Project folder (where .eidos is located) |
+| `@/music/song.mp3` | Mounted folder                           |
+
+### `readdir(path, options?)`
+
+List directory contents (like Node.js `fs.readdir`).
+
+```typescript
+readdir(path: string): Promise<string[]>
+readdir(path: string, options: { withFileTypes: true }): Promise<Dirent[]>
+readdir(path: string, options?: {
+  withFileTypes?: boolean
+  recursive?: boolean
+}): Promise<string[] | Dirent[]>
+```
+
+**Parameters:**
+
+- `path` (string): Directory path, supports `~/` or `@/` prefix
+- `options.withFileTypes` (boolean): Optional, returns `Dirent` objects with type information
+- `options.recursive` (boolean): Optional, recursively list all subdirectories
+
+**Returns:**
+
+- By default, returns an array of file names
+- With `withFileTypes: true`, returns an array of `Dirent` objects
+- With `recursive: true`, recursively lists all subdirectories
+
+**Examples:**
+
+```typescript
+// List project root directory
+const files = await eidos.currentSpace.fs.readdir("~/")
+console.log(files)
+// ["package.json", "src", "README.md"]
+
+// List project subdirectory
+const srcFiles = await eidos.currentSpace.fs.readdir("~/src")
+
+// Get entries with type information
+const entries = await eidos.currentSpace.fs.readdir("~/", {
+  withFileTypes: true,
+})
+entries.forEach((entry) => {
+  console.log(`${entry.name}: ${entry.isDirectory() ? "directory" : "file"}`)
+})
+// package.json: file
+// src: directory
+// README.md: file
+
+// Recursively list all files (including subdirectories)
+const allFiles = await eidos.currentSpace.fs.readdir("~/", { recursive: true })
+console.log(allFiles)
+// ["package.json", "src", "src/index.js", "src/utils.js", "README.md"]
+
+// Recursively list with type information
+const allEntries = await eidos.currentSpace.fs.readdir("~/", {
+  withFileTypes: true,
+  recursive: true,
+})
+
+// List mounted folder
+const musicFiles = await eidos.currentSpace.fs.readdir("@/music")
+
+// Recursively list all files in mounted folder
+const allMusicFiles = await eidos.currentSpace.fs.readdir("@/music", {
+  recursive: true,
+})
+
+// Access .eidos/files directory (naturally available through ~/ access)
+const eidosFiles = await eidos.currentSpace.fs.readdir("~/.eidos/files")
+console.log(eidosFiles)
+// ["photo.jpg", "document.pdf", "data.json"]
+
+// Recursively list all files in .eidos/files
+const allEidosFiles = await eidos.currentSpace.fs.readdir("~/.eidos/files", {
+  recursive: true,
+})
+```
+
+**Supported paths:**
+
+- `~/` - Project root
+- `~/src` - Project subdirectory
+- `~/.eidos/files/` - .eidos subdirectory within project folder
+- `@/music` - Mounted folder root
+- `@/music/albums` - Mounted folder subdirectory
+
+### `mkdir(path, options?)`
+
+Create directory (like Node.js `fs.mkdir`).
+
+```typescript
+mkdir(path: string, options?: { recursive?: boolean }): Promise<string | undefined>
+```
+
+**Parameters:**
+
+- `path` (string): Directory path to create
+- `options.recursive` (boolean): Optional, whether to create parent directories
+
+**Returns:**
+
+- Returns the created directory path, or `undefined` if directory already exists
+
+**Examples:**
+
+```typescript
+// Create directory in mounted folder
+await eidos.currentSpace.fs.mkdir("@/work/projects")
+
+// Recursively create nested directories
+await eidos.currentSpace.fs.mkdir("@/work/2024/Q1", { recursive: true })
+```
+
+**Common use cases:**
+
+```typescript
+// Organize files by year and month
+const today = new Date()
+const year = today.getFullYear()
+const month = String(today.getMonth() + 1).padStart(2, "0")
+await eidos.currentSpace.fs.mkdir(`@/archive/${year}/${month}`, {
+  recursive: true,
+})
+
+// Check if directory exists, create if not
+try {
+  await eidos.currentSpace.fs.readdir("@/work/temp")
+} catch {
+  await eidos.currentSpace.fs.mkdir("@/work/temp")
 }
 ```

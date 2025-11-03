@@ -285,7 +285,7 @@ console.log("文件已上传:", file.publicUrl)
 // 2. 自定义文件名上传
 const file = await eidos.currentSpace.file.upload(
   "https://example.com/photo.jpg",
-  { 
+  {
     fileName: "头像.jpg",
     parentPath: ["avatars"],
     checkDuplicate: true  // 如已存在则不重复上传
@@ -331,19 +331,19 @@ const file = await eidos.currentSpace.file.upload(blob, {
 async function saveImageFromAPI(imageUrl: string, category: string) {
   const file = await eidos.currentSpace.file.upload(imageUrl, {
     parentPath: ["api-images", category],
-    checkDuplicate: true
+    checkDuplicate: true,
   })
   return file.publicUrl
 }
 
 // 处理并上传 Canvas 截图
 async function uploadCanvasScreenshot(canvas: HTMLCanvasElement) {
-  const blob = await new Promise(resolve => 
+  const blob = await new Promise((resolve) =>
     canvas.toBlob(resolve, "image/png")
   )
   const file = await eidos.currentSpace.file.upload(blob, {
     fileName: `截图-${Date.now()}.png`,
-    parentPath: ["screenshots"]
+    parentPath: ["screenshots"],
   })
   return file
 }
@@ -353,7 +353,7 @@ async function uploadUserFiles(files: FileList) {
   const results = []
   for (const file of Array.from(files)) {
     const uploaded = await eidos.currentSpace.file.upload(file, {
-      parentPath: ["user-uploads", new Date().toISOString().split('T')[0]]
+      parentPath: ["user-uploads", new Date().toISOString().split("T")[0]],
     })
     results.push(uploaded)
   }
@@ -395,7 +395,9 @@ async getByPath(path: string): Promise<IFile | null>
 **示例:**
 
 ```typescript
-const fileInfo = await eidos.currentSpace.file.getByPath("files/images/photo.jpg")
+const fileInfo = await eidos.currentSpace.file.getByPath(
+  "files/images/photo.jpg"
+)
 if (fileInfo) {
   console.log("文件 ID:", fileInfo.id)
   console.log("文件名:", fileInfo.name)
@@ -416,5 +418,143 @@ try {
   } else if (error.name === "FileSystemError") {
     eidos.currentSpace.notify("错误", "文件系统不可用")
   }
+}
+```
+
+---
+
+## 文件系统 API
+
+Eidos 提供了受限的外部文件 API，使你可以访问原生文件系统。这是一种受限的机制，提供了安全的文件系统访问能力。
+
+**权限机制：**
+
+- **项目文件夹** (`~/`) - `.eidos` 所在的项目目录。默认具备读写权限，无需额外授权。
+- **挂载文件夹** (`@/`) - 外部挂载的目录。需要用户手动进行 mount 授权操作，只有在授权后才能访问。
+
+### 路径格式
+
+| 路径格式           | 说明                          |
+| ------------------ | ----------------------------- |
+| `~/src/main.js`    | 项目文件夹（.eidos 所在目录） |
+| `@/music/song.mp3` | 挂载文件夹（需手动授权）      |
+
+### `readdir(path, options?)`
+
+列出目录内容（类似 Node.js `fs.readdir`）。
+
+```typescript
+readdir(path: string): Promise<string[]>
+readdir(path: string, options: { withFileTypes: true }): Promise<Dirent[]>
+readdir(path: string, options?: {
+  withFileTypes?: boolean
+  recursive?: boolean
+}): Promise<string[] | Dirent[]>
+```
+
+**参数:**
+
+- `path` (string): 目录路径，支持 `~/` 或 `@/` 前缀
+- `options.withFileTypes` (boolean): 可选，返回带类型信息的 `Dirent` 对象
+- `options.recursive` (boolean): 可选，递归列出所有子目录内容
+
+**返回值:**
+
+- 默认返回文件名数组
+- 使用 `withFileTypes: true` 时返回 `Dirent` 对象数组
+- 使用 `recursive: true` 时递归列出所有子目录
+
+**示例:**
+
+```typescript
+// 列出项目根目录
+const files = await eidos.currentSpace.fs.readdir("~/")
+console.log(files)
+// ["package.json", "src", "README.md"]
+
+// 列出项目子目录
+const srcFiles = await eidos.currentSpace.fs.readdir("~/src")
+
+// 获取带类型信息的条目
+const entries = await eidos.currentSpace.fs.readdir("~/", {
+  withFileTypes: true,
+})
+entries.forEach((entry) => {
+  console.log(`${entry.name}: ${entry.isDirectory() ? "目录" : "文件"}`)
+})
+// package.json: 文件
+// src: 目录
+// README.md: 文件
+
+// 递归列出所有文件（包括子目录）
+const allFiles = await eidos.currentSpace.fs.readdir("~/", { recursive: true })
+console.log(allFiles)
+// ["package.json", "src", "src/index.js", "src/utils.js", "README.md"]
+
+// 递归列出并获取类型信息
+const allEntries = await eidos.currentSpace.fs.readdir("~/", {
+  withFileTypes: true,
+  recursive: true,
+})
+
+// 列出挂载的文件夹
+const musicFiles = await eidos.currentSpace.fs.readdir("@/music")
+
+// 递归列出挂载文件夹的所有文件
+const allMusicFiles = await eidos.currentSpace.fs.readdir("@/music", {
+  recursive: true,
+})
+```
+
+**支持的路径:**
+
+- `~/` - 项目根目录
+- `~/src` - 项目子目录
+- `@/music` - 挂载文件夹根目录
+- `@/music/albums` - 挂载文件夹子目录
+
+### `mkdir(path, options?)`
+
+创建目录（类似 Node.js `fs.mkdir`）。
+
+```typescript
+mkdir(path: string, options?: { recursive?: boolean }): Promise<string | undefined>
+```
+
+**参数:**
+
+- `path` (string): 要创建的目录路径
+- `options.recursive` (boolean): 可选，是否递归创建父目录
+
+**返回值:**
+
+- 返回创建的目录路径，如果目录已存在则返回 `undefined`
+
+**示例:**
+
+```typescript
+// 在挂载文件夹中创建目录
+await eidos.currentSpace.fs.mkdir("@/work/projects")
+
+// 递归创建嵌套目录
+await eidos.currentSpace.fs.mkdir("@/work/2024/Q1", { recursive: true })
+```
+
+**常见用例:**
+
+```typescript
+// 按年月组织文件
+const today = new Date()
+const year = today.getFullYear()
+const month = String(today.getMonth() + 1).padStart(2, "0")
+await eidos.currentSpace.fs.mkdir(`@/archive/${year}/${month}`, {
+  recursive: true,
+})
+
+// 检查目录是否存在，不存在则创建
+try {
+  await eidos.currentSpace.fs.readdir("@/work/temp")
+} catch {
+  await eidos.currentSpace.fs.mkdir("@/work/temp")
 }
 ```
