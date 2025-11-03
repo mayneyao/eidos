@@ -43,7 +43,7 @@ export function GeneralSettings() {
     loadDataFolder()
   }, [])
 
-  const handleDelete = async () => {
+  const handleUnregister = async () => {
     if (confirmName === space) {
       await deleteSpace(space)
       close()
@@ -189,17 +189,17 @@ export function GeneralSettings() {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-destructive">
-                    {t("space.settings.deleteSpace")}
+                    {t("space.settings.unregisterSpace")}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    {t("space.settings.deleteSpaceDescription")}
+                    {t("space.settings.unregisterSpaceDescription")}
                   </p>
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" className="w-fit">
                       <AlertTriangle className="h-4 w-4 mr-2" />
-                      {t("space.settings.deleteSpace")}
+                      {t("space.settings.unregisterSpace")}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -208,7 +208,7 @@ export function GeneralSettings() {
                         {t("common.areYouAbsolutelySure")}
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        {t("space.settings.deleteSpaceWarning", {
+                        {t("space.settings.unregisterSpaceWarning", {
                           spaceName: space,
                         })}
                       </AlertDialogDescription>
@@ -225,7 +225,7 @@ export function GeneralSettings() {
                         {t("common.cancel")}
                       </AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={handleDelete}
+                        onClick={handleUnregister}
                         disabled={confirmName !== space}
                       >
                         {t("common.continue")}
