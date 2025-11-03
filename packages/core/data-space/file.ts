@@ -1,6 +1,7 @@
 import type { FileSystemType } from "@/lib/storage/eidos-file-system"
 import { EidosFileSystemManager } from "@/lib/storage/eidos-file-system"
 import type { IFile } from "../meta-table/file"
+import { FSManager } from "../sdk/fs"
 import { DataSpaceWithDatabase } from "./db"
 
 // Extension class to add file-related methods
@@ -70,5 +71,13 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
     targetFs: FileSystemType
   ) {
     return await this.file.transformFileSystem(sourceFs, targetFs)
+  }
+
+  /**
+   * External file system operations (~/ and @/)
+   * API follows Node.js fs/promises
+   */
+  get fs() {
+    return new FSManager(this)
   }
 }

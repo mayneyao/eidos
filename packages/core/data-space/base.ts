@@ -5,6 +5,7 @@ import {
 } from "@/lib/utils";
 import { ColumnTableName } from "../sqlite/const";
 import type { IField } from "../types/IField";
+import type { IExternalFileSystem } from "../types/IExternalFileSystem";
 
 import { DataChangeEventHandler } from "../data-pipeline/DataChangeEventHandler";
 import { DataChangeTrigger } from "../data-pipeline/DataChangeTrigger";
@@ -84,6 +85,7 @@ export abstract class BaseDataSpace {
   // for trigger
   eventHandler: DataChangeEventHandler
   efsManager?: EidosFileSystemManager
+  externalFS?: IExternalFileSystem
 
   // for auto migration
   hasMigrated = false
@@ -108,13 +110,14 @@ export abstract class BaseDataSpace {
     postMessage?: (data: any, transfer?: any[]) => void
     callRenderer?: (type: any, data: any) => Promise<any>
     efsManager?: EidosFileSystemManager
+    externalFS?: IExternalFileSystem
     dataEventChannel: BroadcastChannel,
     cacheSize?: number
     isUDFWithCtx?: boolean
     enableFTS?: boolean
   }) {
     const { db, activeUndoManager, dbName, draftDb,
-      context, createUDF, postMessage, efsManager,
+      context, createUDF, postMessage, efsManager, externalFS,
       dataEventChannel, hasLoadExtension, callRenderer,
       cacheSize, isUDFWithCtx, enableFTS = false } = config
     this.db = db
@@ -144,6 +147,7 @@ export abstract class BaseDataSpace {
     this.dbName = dbName
     this.postMessage = postMessage
     this.efsManager = efsManager
+    this.externalFS = externalFS
 
     this.initUDF()
     this.eventHandler = new DataChangeEventHandler(this as any)

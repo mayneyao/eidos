@@ -7,10 +7,13 @@ import type { WebContents } from "electron";
 import { ipcMain } from "electron";
 import console from 'electron-log';
 import { EventEmitter } from 'events';
+import * as path from 'node:path';
 import { getConfigManager } from "./config";
 import { embedding } from "./data-space-context";
+import { NodeExternalFileSystem } from './external-fs-node';
 import { getEidosFileSystemManager } from './file-system/getEidosFileSystemManager';
 import { getSpaceDbPath } from "./file-system/space";
+import { getSpaceRegistry } from "./space-registry";
 import { getResourcePath } from "./helper";
 import { win } from "./main";
 import { NodeServerDatabase } from "./sqlite-server";
@@ -142,6 +145,73 @@ async function initUDF(db: EidosDatabase) {
     }
 }
 
+/**
+ * Create external file system for ~/ and @/ paths
+ */
+async function createExternalFileSystem(spaceId: string, db: EidosDatabase): Promise<NodeExternalFileSystem> {
+    // Get project root directory from space registry
+    const registry = getSpaceRegistry();
+    const space = registry.getSpace(spaceId);
+    
+    if (!space) {
+        throw new Error(`Space not found: ${spaceId}`);
+    }
+    
+    const projectRoot = space.path; // This is the project root directory containing .eidos
+
+    console.log(`Initializing external file system for space: ${spaceId}`);
+    console.log(`Project root: ${projectRoot}`);
+
+    return new NodeExternalFileSystem(async (fsPath: string) => {
+        try {
+            if (fsPath.startsWith('~/')) {
+                // Project folder: ~/ maps to project root
+                const relativePath = fsPath.substring(2);
+                const absolutePath = path.join(projectRoot, relativePath);
+                console.log(`Resolved ~/ path: ${fsPath} -> ${absolutePath}`);
+                return absolutePath;
+            } 
+            else if (fsPath.startsWith('@/')) {
+                // Mounted folder: @/mountName/... maps to mounted path
+                const parts = fsPath.substring(2).split('/');
+                const mountName = parts[0];
+                
+                if (!mountName) {
+                    console.error('Invalid mounted path: missing mount name');
+                    return null;
+                }
+
+                // Get mount path from database
+                const mountKey = `eidos:space:files:mount:${mountName}`;
+                const mountRecords = await db.selectObjects(
+                    `SELECT value FROM eidos__kv WHERE key = ?`,
+                    [mountKey]
+                );
+
+                if (mountRecords.length === 0) {
+                    console.warn(`Mount not found: ${mountName}`);
+                    return null;
+                }
+
+                const mountPath = mountRecords[0].value as string;
+                const relativePath = parts.slice(1).join('/');
+                const absolutePath = relativePath 
+                    ? path.join(mountPath, relativePath) 
+                    : mountPath;
+                
+                console.log(`Resolved @/ path: ${fsPath} -> ${absolutePath}`);
+                return absolutePath;
+            }
+            
+            console.error(`Invalid path format: ${fsPath}. Must start with ~/ or @/`);
+            return null;
+        } catch (error) {
+            console.error(`Error resolving path ${fsPath}:`, error);
+            return null;
+        }
+    });
+}
+
 
 export class DataSpaceManager {
     private static instance: DataSpaceManager;
@@ -246,6 +316,9 @@ export class DataSpaceManager {
         });
 
         const efsManager = await getEidosFileSystemManager(spaceId);
+        
+        // Create external file system for ~/ and @/ paths
+        const externalFS = await createExternalFileSystem(spaceId, serverDb);
 
         const dataEventEmitter = new EventEmitter();
 
@@ -298,6 +371,7 @@ export class DataSpaceManager {
             },
             dataEventChannel: dataEventChannel,
             efsManager: efsManager,
+            externalFS: externalFS,
             draftDb: draftDataSpace,
             enableFTS: true
         });
