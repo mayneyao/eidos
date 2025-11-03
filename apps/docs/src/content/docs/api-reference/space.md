@@ -240,7 +240,7 @@ Universal file upload method supporting multiple input types: URLs, base64 strin
 async upload(
   source: string | ArrayBuffer | Blob | File,
   options?: UploadOptions
-): Promise<IFile & { publicUrl: string }>
+): Promise<IFile>
 
 interface UploadOptions {
   fileName?: string        // Optional for URL/File, required for others
@@ -266,13 +266,14 @@ interface UploadOptions {
 {
   id: string           // Unique file ID
   name: string         // File name
-  path: string         // Full file path
-  size: number         // File size in bytes
+  path: string         // Full file path (stored as "files/..." in eidos__files table)
+  size: number       // File size in bytes
   mime: string         // MIME type
   created_at?: string  // Creation timestamp
-  publicUrl: string    // Ready-to-use URL for accessing the file
 }
 ```
+
+**Important:** The `path` field stores paths starting with `files/` (e.g., `"files/images/photo.jpg"`). To construct a pathname that can be accessed in references and extensions, prefix it with `/`, i.e., use `"/" + path` (e.g., `"/files/images/photo.jpg"`).
 
 **Examples:**
 
@@ -282,7 +283,7 @@ const file = await eidos.currentSpace.file.upload(
   "https://example.com/image.jpg",
   { parentPath: ["images"] }
 )
-console.log("File uploaded:", file.publicUrl)
+console.log("File uploaded:", "/" + file.path)
 
 // 2. Upload with custom name
 const file = await eidos.currentSpace.file.upload(
@@ -335,7 +336,7 @@ async function saveImageFromAPI(imageUrl: string, category: string) {
     parentPath: ["api-images", category],
     checkDuplicate: true,
   })
-  return file.publicUrl
+  return "/" + file.path
 }
 
 // Process and upload canvas screenshot

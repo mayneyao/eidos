@@ -77,7 +77,7 @@ count(options?: {
 ### File
 
 - for file, you can use `eidos.currentSpace.file.upload` to upload file.
-  the `publicUrl` is the file url in EFS, you can use it to access the file. it can be used in table file field.
+  Note: In the `eidos__files` table, the stored path starts with `files/`. To construct a pathname that can be accessed in references and extensions, prefix it with `/`, i.e., use `"/" + path`. The file path can be used in table file field.
 
 #### API Reference
 
@@ -89,7 +89,6 @@ interface IFile {
   path: string
   size: number
   mime: string
-  publicUrl: string
   created_at?: string
   is_vectorized?: boolean // whether the file is vectorized, when file is vectorized, it will be stored in `eidos__embeddings` table
 }

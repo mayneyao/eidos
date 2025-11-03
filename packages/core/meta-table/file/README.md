@@ -12,7 +12,7 @@ The file upload API has been refactored to provide a unified `upload()` method t
 async upload(
   source: string | ArrayBuffer | Blob | File,
   options?: UploadOptions
-): Promise<IFile & { publicUrl: string }>
+): Promise<IFile>
 ```
 
 ### Options
@@ -104,14 +104,15 @@ All upload methods return the same structure:
 {
   id: string
   name: string
-  path: string
+  path: string        // Path stored as "files/..." in eidos__files table
   size: number
   mime: string
   created_at?: string
   is_vectorized?: boolean
-  publicUrl: string  // Ready-to-use URL for the file
 }
 ```
+
+**Important:** The `path` field stores paths starting with `files/` (e.g., `"files/images/photo.jpg"`). To construct a pathname that can be accessed in references and extensions, prefix it with `/`, i.e., use `"/" + path` (e.g., `"/files/images/photo.jpg"`).
 
 ## Migration from Old API
 

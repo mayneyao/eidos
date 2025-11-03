@@ -23,9 +23,9 @@ export function useAttachments() {
           parentPath: ["_chat"]
         }
       )
-      const { mime, name, publicUrl } = response
+      const { mime, name, path } = response
       return {
-        url: publicUrl,
+        url: "/" + path,
         name: name,
         contentType: mime,
       }

@@ -23,7 +23,7 @@ export function WithUpload<T extends Constructor>(Base: T) {
          * Universal upload method supporting multiple input types
          * @param source - File source: URL (http/https), base64 string, ArrayBuffer, Blob, or File object
          * @param options - Upload options
-         * @returns Uploaded file info with publicUrl
+         * @returns Uploaded file info
          * 
          * @example
          * // Upload from URL
@@ -44,7 +44,7 @@ export function WithUpload<T extends Constructor>(Base: T) {
         public async upload(
             source: string | ArrayBuffer | Blob | File,
             options?: UploadOptions
-        ): Promise<IFile & { publicUrl: string }> {
+        ): Promise<IFile> {
             if (!this.dataSpace.efsManager) {
                 throw new FileSystemError("file manager not found")
             }
@@ -130,10 +130,7 @@ export function WithUpload<T extends Constructor>(Base: T) {
             if (checkDuplicate) {
                 const existingFile = await this.getFileByPath(path)
                 if (existingFile) {
-                    return {
-                        ...existingFile,
-                        publicUrl: this.dataSpace.efsManager.getFileUrlByPath(path),
-                    }
+                    return existingFile
                 }
             }
 
@@ -147,10 +144,7 @@ export function WithUpload<T extends Constructor>(Base: T) {
             }
 
             const fileObj = await this.add(fileInfo)
-            return {
-                ...fileObj,
-                publicUrl: this.dataSpace.efsManager.getFileUrlByPath(path),
-            }
+            return fileObj
         }
 
         /**

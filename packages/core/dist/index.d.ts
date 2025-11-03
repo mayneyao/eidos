@@ -1,6 +1,6 @@
 import { Dirent } from "node:fs";
 import { Message } from "ai";
-import * as postal_mime75 from "postal-mime";
+import * as postal_mime6 from "postal-mime";
 import { JsonSchema7ObjectType } from "zod-to-json-schema";
 
 //#region fields/const.d.ts
@@ -844,9 +844,7 @@ declare const ComposedFileTable: {
   };
 } & {
   new (...args: any[]): {
-    upload(source: string | ArrayBuffer | Blob | File, options?: UploadOptions): Promise<IFile & {
-      publicUrl: string;
-    }>;
+    upload(source: string | ArrayBuffer | Blob | File, options?: UploadOptions): Promise<IFile>;
     saveFile2EFS(url: string, subDir: string[], _name?: string): Promise<IFile | null>;
     uploadDir(dirHandle: FileSystemDirectoryHandle, total: number, current: number, _parentPath?: string[]): Promise<void>;
     name: string;
@@ -945,6 +943,7 @@ declare class FileTable extends ComposedFileTable {}
  */
 interface IReaddirOptions {
   withFileTypes?: boolean;
+  recursive?: boolean;
 }
 /**
  * Options for mkdir
@@ -1265,7 +1264,7 @@ declare const ComposedDocTable: {
     }>;
     createOrUpdate(data: {
       id: string;
-      text: string | postal_mime75.Email;
+      text: string | postal_mime6.Email;
       type: "html" | "markdown" | "email";
       mode?: "replace" | "append" | "prepend";
     }): Promise<{
@@ -2239,6 +2238,11 @@ declare class FSManager {
    * // Get Dirent objects
    * const entries = await eidos.currentSpace.fs.readdir("~/", { withFileTypes: true })
    * entries.forEach(e => console.log(e.name, e.isDirectory()))
+   *
+   * @example
+   * // Recursively list all files
+   * const allFiles = await eidos.currentSpace.fs.readdir("~/", { recursive: true })
+   * console.log(allFiles) // ["package.json", "src/index.ts", "src/utils/helper.ts", ...]
    *
    * @example
    * // List mounted folder

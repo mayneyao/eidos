@@ -238,7 +238,7 @@ await eidos.currentSpace.extNode.setBlob("node_123", buffer)
 async upload(
   source: string | ArrayBuffer | Blob | File,
   options?: UploadOptions
-): Promise<IFile & { publicUrl: string }>
+): Promise<IFile>
 
 interface UploadOptions {
   fileName?: string        // 对于 URL/File 可选，对于其他类型必需
@@ -264,13 +264,14 @@ interface UploadOptions {
 {
   id: string           // 唯一文件 ID
   name: string         // 文件名
-  path: string         // 完整文件路径
+  path: string         // 完整文件路径（在 eidos__files 表中存储为 "files/..." 格式）
   size: number         // 文件大小（字节）
   mime: string         // MIME 类型
   created_at?: string  // 创建时间戳
-  publicUrl: string    // 可直接访问文件的 URL
 }
 ```
+
+**重要提示：** `path` 字段存储的路径以 `files/` 开头（例如 `"files/images/photo.jpg"`）。要构造可以在引用和扩展中访问的 pathname，需要在前面加上 `/`，即使用 `"/" + path`（例如 `"/files/images/photo.jpg"`）。
 
 **示例:**
 
@@ -280,7 +281,7 @@ const file = await eidos.currentSpace.file.upload(
   "https://example.com/image.jpg",
   { parentPath: ["images"] }
 )
-console.log("文件已上传:", file.publicUrl)
+console.log("文件已上传:", "/" + file.path)
 
 // 2. 自定义文件名上传
 const file = await eidos.currentSpace.file.upload(
@@ -333,7 +334,7 @@ async function saveImageFromAPI(imageUrl: string, category: string) {
     parentPath: ["api-images", category],
     checkDuplicate: true,
   })
-  return file.publicUrl
+  return "/" + file.path
 }
 
 // 处理并上传 Canvas 截图
