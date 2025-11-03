@@ -1,5 +1,5 @@
 import { Message } from "ai";
-import * as postal_mime9 from "postal-mime";
+import * as postal_mime6 from "postal-mime";
 import { JsonSchema7ObjectType } from "zod-to-json-schema";
 
 //#region fields/const.d.ts
@@ -954,10 +954,7 @@ interface IDirectoryEntry {
 /**
  * Options for readdir
  */
-interface IReaddirOptions {
-  withFileTypes?: boolean;
-  recursive?: boolean;
-}
+
 /**
  * Options for mkdir
  */
@@ -979,11 +976,14 @@ interface IExternalFileSystem {
    * @param options Read options
    * @returns Array of file names or IDirectoryEntry objects
    */
-  readdir(path: string): Promise<string[]>;
   readdir(path: string, options: {
     withFileTypes: true;
+    recursive?: boolean;
   }): Promise<IDirectoryEntry[]>;
-  readdir(path: string, options?: IReaddirOptions): Promise<string[] | IDirectoryEntry[]>;
+  readdir(path: string, options?: {
+    withFileTypes?: false;
+    recursive?: boolean;
+  }): Promise<string[]>;
   /**
    * Create directory (like fs.mkdir)
    * @param path Directory path to create
@@ -1277,7 +1277,7 @@ declare const ComposedDocTable: {
     }>;
     createOrUpdate(data: {
       id: string;
-      text: string | postal_mime9.Email;
+      text: string | postal_mime6.Email;
       type: "html" | "markdown" | "email";
       mode?: "replace" | "append" | "prepend";
     }): Promise<{
@@ -2261,10 +2261,14 @@ declare class FSManager {
    * // List mounted folder
    * const music = await eidos.currentSpace.fs.readdir("@/music")
    */
-  readdir(path: string): Promise<string[]>;
   readdir(path: string, options: {
     withFileTypes: true;
+    recursive?: boolean;
   }): Promise<IDirectoryEntry[]>;
+  readdir(path: string, options?: {
+    withFileTypes?: false;
+    recursive?: boolean;
+  }): Promise<string[]>;
   /**
    * Create directory
    *

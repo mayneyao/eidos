@@ -43,9 +43,10 @@ export interface IExternalFileSystem {
    * @param options Read options
    * @returns Array of file names or IDirectoryEntry objects
    */
-  readdir(path: string): Promise<string[]>
-  readdir(path: string, options: { withFileTypes: true }): Promise<IDirectoryEntry[]>
-  readdir(path: string, options?: IReaddirOptions): Promise<string[] | IDirectoryEntry[]>
+  // Overload signature: when withFileTypes is true, returns IDirectoryEntry[]
+  readdir(path: string, options: { withFileTypes: true; recursive?: boolean }): Promise<IDirectoryEntry[]>
+  // Overload signature: when withFileTypes is false or undefined, returns string[]
+  readdir(path: string, options?: { withFileTypes?: false; recursive?: boolean }): Promise<string[]>
 
   /**
    * Create directory (like fs.mkdir)

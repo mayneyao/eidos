@@ -91,8 +91,8 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   /**
    * Read directory contents
    */
-  async readdir(fsPath: string): Promise<string[]>
-  async readdir(fsPath: string, options: { withFileTypes: true }): Promise<IDirectoryEntry[]>
+  async readdir(fsPath: string, options: { withFileTypes: true; recursive?: boolean }): Promise<IDirectoryEntry[]>
+  async readdir(fsPath: string, options?: { withFileTypes?: false; recursive?: boolean }): Promise<string[]>
   async readdir(fsPath: string, options?: IReaddirOptions): Promise<string[] | IDirectoryEntry[]> {
     const absolutePath = await this.getAbsolutePath(fsPath)
 

@@ -8,7 +8,7 @@ import type { IReaddirOptions, IMkdirOptions, IDirectoryEntry } from "../types/I
  * API follows Node.js fs/promises for familiarity
  */
 export class FSManager {
-  constructor(public dataSpace: BaseDataSpace) {}
+  constructor(public dataSpace: BaseDataSpace) { }
 
   private get externalFS() {
     if (!this.dataSpace.externalFS) {
@@ -39,10 +39,17 @@ export class FSManager {
    * // List mounted folder
    * const music = await eidos.currentSpace.fs.readdir("@/music")
    */
-  async readdir(path: string): Promise<string[]>
-  async readdir(path: string, options: { withFileTypes: true }): Promise<IDirectoryEntry[]>
+  // Overload signature: when withFileTypes is true, returns IDirectoryEntry[]
+  async readdir(path: string, options: { withFileTypes: true; recursive?: boolean }): Promise<IDirectoryEntry[]>
+  // Overload signature: when withFileTypes is false or undefined, returns string[]
+  async readdir(path: string, options?: { withFileTypes?: false; recursive?: boolean }): Promise<string[]>
+  // Implementation signature: must be compatible with all overload signatures
   async readdir(path: string, options?: IReaddirOptions): Promise<string[] | IDirectoryEntry[]> {
-    return await this.externalFS.readdir(path, options)
+    // TypeScript needs type assertion to match overload signatures
+    if (options?.withFileTypes === true) {
+      return await this.externalFS.readdir(path, options as { withFileTypes: true; recursive?: boolean })
+    }
+    return await this.externalFS.readdir(path, options as { withFileTypes?: false; recursive?: boolean } | undefined)
   }
 
   /**
