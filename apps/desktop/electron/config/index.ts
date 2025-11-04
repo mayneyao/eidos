@@ -65,6 +65,7 @@ const emptyConfig: AppConfig = {
         embeddingModel: '',
         translationModel: '',
         codingModel: '',
+        version: 0,
     },
     security: {
         webSecurity: true,
@@ -102,6 +103,8 @@ export class ConfigManager extends EventEmitter {
         this.config = this.loadConfig();
         // Ensure existing configs have the new sync structure and defaults
         this.ensureDefaultSyncConfig();
+        // Ensure AI config has version field for synchronization
+        this.ensureDefaultAIConfig();
     }
 
     private loadConfig(): AppConfig {
@@ -141,6 +144,27 @@ export class ConfigManager extends EventEmitter {
             }
         }
         return loadedConfig;
+    }
+
+    // Ensure that the loaded AI config has version field for synchronization
+    private ensureDefaultAIConfig(): void {
+        let needsSave = false;
+        // Ensure ai object exists
+        if (typeof this.config.ai !== 'object' || this.config.ai === null) {
+            console.warn("AI config section missing, initializing with defaults.");
+            this.config.ai = JSON.parse(JSON.stringify(emptyConfig.ai)); // Deep clone default AI
+            needsSave = true;
+        } else {
+            // Ensure version field exists
+            if (typeof this.config.ai.version !== 'number') {
+                console.warn("AI config version missing or invalid, applying default.");
+                this.config.ai.version = emptyConfig.ai.version;
+                needsSave = true;
+            }
+        }
+        if (needsSave) {
+            this.saveConfig();
+        }
     }
 
     // Ensure that the loaded config has the sync structure, applying defaults if missing

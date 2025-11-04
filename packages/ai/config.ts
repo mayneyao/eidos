@@ -49,6 +49,8 @@ export const aiFormSchema = z.object({
     translationModel: z.string().optional(),
     codingModel: z.string().optional(),
     applyCodeModel: z.string().optional(),
+    // version
+    version: z.number().default(0),
 })
 
 export type AIFormValues = z.infer<typeof aiFormSchema>
