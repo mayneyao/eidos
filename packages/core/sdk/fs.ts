@@ -1,5 +1,5 @@
 import type { BaseDataSpace } from "../data-space/base"
-import type { IReaddirOptions, IMkdirOptions, IDirectoryEntry } from "../types/IExternalFileSystem"
+import type { IReaddirOptions, IMkdirOptions, IDirectoryEntry, IReadFileOptions, IWriteFileOptions, IStats } from "../types/IExternalFileSystem"
 
 /**
  * File system SDK for external files
@@ -65,6 +65,73 @@ export class FSManager {
    */
   async mkdir(path: string, options?: IMkdirOptions): Promise<string | undefined> {
     return await this.externalFS.mkdir(path, options)
+  }
+
+  /**
+   * Read file contents
+   * 
+   * @example
+   * // Read binary file
+   * const data = await eidos.currentSpace.fs.readFile("~/image.png")
+   * console.log(data) // Uint8Array
+   * 
+   * @example
+   * // Read text file with encoding
+   * const text = await eidos.currentSpace.fs.readFile("~/readme.md", "utf8")
+   * console.log(text) // string
+   * 
+   * @example
+   * // Read with options
+   * const content = await eidos.currentSpace.fs.readFile("~/data.json", { encoding: "utf8" })
+   */
+  // Overload signature: no options returns Uint8Array
+  async readFile(path: string): Promise<Uint8Array>
+  // Overload signature: with encoding returns string
+  async readFile(path: string, options: { encoding: BufferEncoding; flag?: string } | BufferEncoding): Promise<string>
+  // Implementation signature: must be compatible with all overload signatures
+  async readFile(path: string, options?: IReadFileOptions | BufferEncoding): Promise<string | Uint8Array> {
+    if (!options) {
+      return await this.externalFS.readFile(path)
+    }
+    if (typeof options === 'string' || (typeof options === 'object' && options.encoding)) {
+      return await this.externalFS.readFile(path, options as any)
+    }
+    return await this.externalFS.readFile(path, options)
+  }
+
+  /**
+   * Write file contents
+   * 
+   * @example
+   * // Write text file
+   * await eidos.currentSpace.fs.writeFile("~/hello.txt", "Hello, World!")
+   * 
+   * @example
+   * // Write binary file
+   * const data = new Uint8Array([0x89, 0x50, 0x4E, 0x47])
+   * await eidos.currentSpace.fs.writeFile("~/data.bin", data)
+   * 
+   * @example
+   * // Write with encoding
+   * await eidos.currentSpace.fs.writeFile("~/config.json", JSON.stringify(config), "utf8")
+   */
+  async writeFile(path: string, data: string | Uint8Array, options?: IWriteFileOptions | BufferEncoding): Promise<void> {
+    return await this.externalFS.writeFile(path, data, options)
+  }
+
+  /**
+   * Get file statistics
+   * 
+   * @example
+   * // Get file stats
+   * const stats = await eidos.currentSpace.fs.stat("~/readme.md")
+   * console.log(stats.size) // file size in bytes
+   * console.log(stats.isFile) // true
+   * console.log(stats.isDirectory) // false
+   * console.log(new Date(stats.mtimeMs)) // last modified time
+   */
+  async stat(path: string): Promise<IStats> {
+    return await this.externalFS.stat(path)
   }
 }
 

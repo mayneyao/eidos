@@ -305,5 +305,299 @@ describe('NodeExternalFileSystem', () => {
             expect(fileEntry?.parentPath).toBe('~/')
         })
     })
+
+    describe('readFile', () => {
+        it('should read text file with encoding', async () => {
+            const content = 'Hello, World!'
+            await fs.writeFile(path.join(projectRoot, 'hello.txt'), content, 'utf8')
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            const result = await fileSystem.readFile('~/hello.txt', 'utf8')
+            expect(result).toBe(content)
+            expect(typeof result).toBe('string')
+        })
+
+        it('should read text file with encoding options object', async () => {
+            const content = 'Test content'
+            await fs.writeFile(path.join(projectRoot, 'test.txt'), content, 'utf8')
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            const result = await fileSystem.readFile('~/test.txt', { encoding: 'utf8' })
+            expect(result).toBe(content)
+            expect(typeof result).toBe('string')
+        })
+
+        it('should read binary file as Uint8Array', async () => {
+            const binaryData = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+            await fs.writeFile(path.join(projectRoot, 'image.png'), binaryData)
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            const result = await fileSystem.readFile('~/image.png')
+            expect(result).toBeInstanceOf(Uint8Array)
+            expect(Array.from(result)).toEqual([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        })
+
+        it('should read file from mounted folder', async () => {
+            const content = 'Mounted file content'
+            await fs.writeFile(path.join(mountDir, 'data.txt'), content, 'utf8')
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('@/music')) {
+                    const relativePath = fsPath.substring(7)
+                    return relativePath ? path.join(mountDir, relativePath) : mountDir
+                }
+                return null
+            })
+
+            const result = await fileSystem.readFile('@/music/data.txt', 'utf8')
+            expect(result).toBe(content)
+        })
+
+        it('should throw error when file does not exist', async () => {
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            await expect(fileSystem.readFile('~/nonexistent.txt', 'utf8')).rejects.toThrow()
+        })
+
+        it('should throw error when path cannot be resolved', async () => {
+            const fileSystem = new NodeExternalFileSystem(async () => null)
+
+            await expect(fileSystem.readFile('~/test.txt', 'utf8')).rejects.toThrow('Cannot resolve path: ~/test.txt')
+        })
+    })
+
+    describe('writeFile', () => {
+        it('should write text file with string data', async () => {
+            const content = 'Hello, World!'
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            await fileSystem.writeFile('~/hello.txt', content)
+
+            const readContent = await fs.readFile(path.join(projectRoot, 'hello.txt'), 'utf8')
+            expect(readContent).toBe(content)
+        })
+
+        it('should write text file with encoding', async () => {
+            const content = 'Test content with encoding'
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            await fileSystem.writeFile('~/test.txt', content, 'utf8')
+
+            const readContent = await fs.readFile(path.join(projectRoot, 'test.txt'), 'utf8')
+            expect(readContent).toBe(content)
+        })
+
+        it('should write binary file with Uint8Array', async () => {
+            const binaryData = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            await fileSystem.writeFile('~/image.png', binaryData)
+
+            const readData = await fs.readFile(path.join(projectRoot, 'image.png'))
+            expect(Array.from(readData)).toEqual([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        })
+
+        it('should write file with options', async () => {
+            const content = 'Content with options'
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            await fileSystem.writeFile('~/options.txt', content, { encoding: 'utf8', mode: 0o644 })
+
+            const readContent = await fs.readFile(path.join(projectRoot, 'options.txt'), 'utf8')
+            expect(readContent).toBe(content)
+        })
+
+        it('should write file to mounted folder', async () => {
+            const content = 'Mounted file content'
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('@/music')) {
+                    const relativePath = fsPath.substring(7)
+                    return relativePath ? path.join(mountDir, relativePath) : mountDir
+                }
+                return null
+            })
+
+            await fileSystem.writeFile('@/music/song.txt', content)
+
+            const readContent = await fs.readFile(path.join(mountDir, 'song.txt'), 'utf8')
+            expect(readContent).toBe(content)
+        })
+
+        it('should throw error when path cannot be resolved', async () => {
+            const fileSystem = new NodeExternalFileSystem(async () => null)
+
+            await expect(fileSystem.writeFile('~/test.txt', 'content')).rejects.toThrow('Cannot resolve path: ~/test.txt')
+        })
+
+        it('should overwrite existing file', async () => {
+            const initialContent = 'Initial content'
+            const newContent = 'New content'
+            await fs.writeFile(path.join(projectRoot, 'overwrite.txt'), initialContent)
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            await fileSystem.writeFile('~/overwrite.txt', newContent)
+
+            const readContent = await fs.readFile(path.join(projectRoot, 'overwrite.txt'), 'utf8')
+            expect(readContent).toBe(newContent)
+        })
+    })
+
+    describe('stat', () => {
+        it('should return file stats for a file', async () => {
+            const content = 'Test file content'
+            await fs.writeFile(path.join(projectRoot, 'testfile.txt'), content)
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            const stats = await fileSystem.stat('~/testfile.txt')
+
+            expect(stats.size).toBe(content.length)
+            expect(stats.isFile).toBe(true)
+            expect(stats.isDirectory).toBe(false)
+            expect(stats.isSymbolicLink).toBe(false)
+            expect(typeof stats.mtimeMs).toBe('number')
+            expect(typeof stats.atimeMs).toBe('number')
+            expect(typeof stats.ctimeMs).toBe('number')
+            expect(typeof stats.birthtimeMs).toBe('number')
+            expect(typeof stats.mode).toBe('number')
+            expect(typeof stats.uid).toBe('number')
+            expect(typeof stats.gid).toBe('number')
+        })
+
+        it('should return directory stats for a directory', async () => {
+            await fs.mkdir(path.join(projectRoot, 'testdir'), { recursive: true })
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            const stats = await fileSystem.stat('~/testdir')
+
+            expect(stats.isFile).toBe(false)
+            expect(stats.isDirectory).toBe(true)
+            expect(stats.isSymbolicLink).toBe(false)
+            expect(typeof stats.mtimeMs).toBe('number')
+        })
+
+        it('should return stats for mounted folder file', async () => {
+            const content = 'Mounted file'
+            await fs.writeFile(path.join(mountDir, 'mounted.txt'), content)
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('@/music')) {
+                    const relativePath = fsPath.substring(7)
+                    return relativePath ? path.join(mountDir, relativePath) : mountDir
+                }
+                return null
+            })
+
+            const stats = await fileSystem.stat('@/music/mounted.txt')
+
+            expect(stats.size).toBe(content.length)
+            expect(stats.isFile).toBe(true)
+            expect(stats.isDirectory).toBe(false)
+        })
+
+        it('should throw error when file does not exist', async () => {
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            await expect(fileSystem.stat('~/nonexistent.txt')).rejects.toThrow()
+        })
+
+        it('should throw error when path cannot be resolved', async () => {
+            const fileSystem = new NodeExternalFileSystem(async () => null)
+
+            await expect(fileSystem.stat('~/test.txt')).rejects.toThrow('Cannot resolve path: ~/test.txt')
+        })
+
+        it('should return stats with all required boolean properties', async () => {
+            await fs.writeFile(path.join(projectRoot, 'checkprops.txt'), 'content')
+
+            const fileSystem = new NodeExternalFileSystem(async (fsPath: string) => {
+                if (fsPath.startsWith('~/')) {
+                    return path.join(projectRoot, fsPath.substring(2))
+                }
+                return null
+            })
+
+            const stats = await fileSystem.stat('~/checkprops.txt')
+
+            // Verify all boolean properties exist
+            expect(typeof stats.isFile).toBe('boolean')
+            expect(typeof stats.isDirectory).toBe('boolean')
+            expect(typeof stats.isSymbolicLink).toBe('boolean')
+            expect(typeof stats.isBlockDevice).toBe('boolean')
+            expect(typeof stats.isCharacterDevice).toBe('boolean')
+            expect(typeof stats.isFIFO).toBe('boolean')
+            expect(typeof stats.isSocket).toBe('boolean')
+        })
+    })
 })
 

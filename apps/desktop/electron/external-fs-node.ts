@@ -5,7 +5,10 @@ import type {
   IExternalFileSystem,
   IReaddirOptions,
   IMkdirOptions,
-  IDirectoryEntry
+  IDirectoryEntry,
+  IReadFileOptions,
+  IWriteFileOptions,
+  IStats
 } from '@eidos.space/core/types/IExternalFileSystem'
 
 /**
@@ -185,6 +188,80 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   async mkdir(fsPath: string, options?: IMkdirOptions): Promise<string | undefined> {
     const absolutePath = await this.getAbsolutePath(fsPath)
     return await fs.mkdir(absolutePath, { recursive: options?.recursive })
+  }
+
+  /**
+   * Read file contents
+   */
+  async readFile(fsPath: string): Promise<Uint8Array>
+  async readFile(fsPath: string, options: { encoding: BufferEncoding; flag?: string } | BufferEncoding): Promise<string>
+  async readFile(fsPath: string, options?: IReadFileOptions | BufferEncoding): Promise<string | Uint8Array> {
+    const absolutePath = await this.getAbsolutePath(fsPath)
+
+    if (!options) {
+      // Return Buffer as Uint8Array
+      const buffer = await fs.readFile(absolutePath)
+      return new Uint8Array(buffer)
+    }
+
+    // Handle string encoding or options object
+    const encoding = typeof options === 'string' ? options : options.encoding
+    if (encoding) {
+      const flag = typeof options === 'object' ? options.flag : undefined
+      return await fs.readFile(absolutePath, { encoding, flag })
+    }
+
+    // No encoding but has options (e.g., just flag)
+    const buffer = await fs.readFile(absolutePath, typeof options === 'object' ? { flag: options.flag } : undefined)
+    return new Uint8Array(buffer)
+  }
+
+  /**
+   * Write file contents
+   */
+  async writeFile(fsPath: string, data: string | Uint8Array, options?: IWriteFileOptions | BufferEncoding): Promise<void> {
+    const absolutePath = await this.getAbsolutePath(fsPath)
+
+    // Convert Uint8Array to Buffer for Node.js
+    const nodeData = data instanceof Uint8Array ? Buffer.from(data) : data
+
+    if (!options) {
+      await fs.writeFile(absolutePath, nodeData)
+      return
+    }
+
+    if (typeof options === 'string') {
+      await fs.writeFile(absolutePath, nodeData, { encoding: options })
+    } else {
+      await fs.writeFile(absolutePath, nodeData, options)
+    }
+  }
+
+  /**
+   * Get file stats
+   */
+  async stat(fsPath: string): Promise<IStats> {
+    const absolutePath = await this.getAbsolutePath(fsPath)
+    const stats = await fs.stat(absolutePath)
+
+    // Convert Stats object to serializable plain object
+    return {
+      size: stats.size,
+      mtimeMs: stats.mtimeMs,
+      atimeMs: stats.atimeMs,
+      ctimeMs: stats.ctimeMs,
+      birthtimeMs: stats.birthtimeMs,
+      isFile: stats.isFile(),
+      isDirectory: stats.isDirectory(),
+      isSymbolicLink: stats.isSymbolicLink(),
+      isBlockDevice: stats.isBlockDevice(),
+      isCharacterDevice: stats.isCharacterDevice(),
+      isFIFO: stats.isFIFO(),
+      isSocket: stats.isSocket(),
+      mode: stats.mode,
+      uid: stats.uid,
+      gid: stats.gid
+    }
   }
 }
 

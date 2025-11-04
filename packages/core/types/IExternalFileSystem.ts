@@ -29,6 +29,45 @@ export interface IMkdirOptions {
 }
 
 /**
+ * Options for readFile
+ */
+export interface IReadFileOptions {
+  encoding?: BufferEncoding | null
+  flag?: string
+}
+
+/**
+ * Options for writeFile
+ */
+export interface IWriteFileOptions {
+  encoding?: BufferEncoding | null
+  mode?: number
+  flag?: string
+}
+
+/**
+ * Serializable file stats object (no methods, only properties)
+ * Compatible with Node.js fs.Stats but serializable for IPC
+ */
+export interface IStats {
+  size: number
+  mtimeMs: number
+  atimeMs: number
+  ctimeMs: number
+  birthtimeMs: number
+  isFile: boolean
+  isDirectory: boolean
+  isSymbolicLink: boolean
+  isBlockDevice: boolean
+  isCharacterDevice: boolean
+  isFIFO: boolean
+  isSocket: boolean
+  mode: number
+  uid: number
+  gid: number
+}
+
+/**
  * External file system interface
  * API follows Node.js fs/promises
  * 
@@ -55,5 +94,33 @@ export interface IExternalFileSystem {
    * @returns Created directory path or undefined
    */
   mkdir(path: string, options?: IMkdirOptions): Promise<string | undefined>
+
+  /**
+   * Read file contents (like fs.readFile)
+   * @param path File path (~/ or @/)
+   * @param options Encoding or read options
+   * @returns File contents as Uint8Array (binary) or string (with encoding)
+   */
+  // Overload signature: no options returns Uint8Array
+  readFile(path: string): Promise<Uint8Array>
+  // Overload signature: with encoding returns string
+  readFile(path: string, options: { encoding: BufferEncoding; flag?: string } | BufferEncoding): Promise<string>
+  // Implementation signature: must be compatible with all overload signatures
+  readFile(path: string, options?: IReadFileOptions | BufferEncoding): Promise<string | Uint8Array>
+
+  /**
+   * Write file contents (like fs.writeFile)
+   * @param path File path (~/ or @/)
+   * @param data File contents as string or Uint8Array
+   * @param options Encoding or write options
+   */
+  writeFile(path: string, data: string | Uint8Array, options?: IWriteFileOptions | BufferEncoding): Promise<void>
+
+  /**
+   * Get file stats (like fs.stat)
+   * @param path File path (~/ or @/)
+   * @returns Serializable file stats object
+   */
+  stat(path: string): Promise<IStats>
 }
 

@@ -572,3 +572,301 @@ try {
   await eidos.currentSpace.fs.mkdir("@/work/temp")
 }
 ```
+
+### `readFile(path, options?)`
+
+Read file contents (like Node.js `fs.readFile`).
+
+```typescript
+readFile(path: string): Promise<Uint8Array>
+readFile(path: string, options: { encoding: BufferEncoding; flag?: string } | BufferEncoding): Promise<string>
+readFile(path: string, options?: {
+  encoding?: BufferEncoding | null
+  flag?: string
+}): Promise<string | Uint8Array>
+```
+
+**Parameters:**
+
+- `path` (string): File path, supports `~/` or `@/` prefix
+- `options` (optional): Read options
+  - `encoding` (BufferEncoding | null): File encoding, e.g., `'utf8'`, `'utf-8'`, `'base64'`, etc.
+  - `flag` (string): File system flag, e.g., `'r'` (default)
+
+**Returns:**
+
+- Returns `Uint8Array` (binary data) when no `encoding` is specified
+- Returns `string` (text content) when `encoding` is specified
+
+**Examples:**
+
+```typescript
+// Read text file
+const text = await eidos.currentSpace.fs.readFile("~/readme.md", "utf8")
+console.log(text) // "# My Project\nThis is a sample project..."
+
+// Read JSON file
+const configText = await eidos.currentSpace.fs.readFile("~/config.json", "utf8")
+const config = JSON.parse(configText)
+
+// Read using options object
+const content = await eidos.currentSpace.fs.readFile("~/data.txt", {
+  encoding: "utf8"
+})
+
+// Read binary file (images, videos, etc.)
+const imageData = await eidos.currentSpace.fs.readFile("~/image.png")
+console.log(imageData) // Uint8Array(1234) [137, 80, 78, 71, ...]
+
+// Read file from mounted folder
+const musicData = await eidos.currentSpace.fs.readFile("@/music/song.mp3")
+```
+
+**Common use cases:**
+
+```typescript
+// Read and parse JSON config file
+async function loadConfig(path: string) {
+  const content = await eidos.currentSpace.fs.readFile(path, "utf8")
+  return JSON.parse(content)
+}
+
+// Read image and convert to base64
+async function imageToBase64(path: string) {
+  const data = await eidos.currentSpace.fs.readFile(path)
+  const base64 = btoa(String.fromCharCode(...data))
+  return `data:image/png;base64,${base64}`
+}
+
+// Read text file and process line by line
+async function processTextFile(path: string) {
+  const content = await eidos.currentSpace.fs.readFile(path, "utf8")
+  const lines = content.split("\n")
+  return lines.filter(line => line.trim().length > 0)
+}
+```
+
+### `writeFile(path, data, options?)`
+
+Write file contents (like Node.js `fs.writeFile`).
+
+```typescript
+writeFile(
+  path: string,
+  data: string | Uint8Array,
+  options?: {
+    encoding?: BufferEncoding | null
+    mode?: number
+    flag?: string
+  } | BufferEncoding
+): Promise<void>
+```
+
+**Parameters:**
+
+- `path` (string): File path, supports `~/` or `@/` prefix
+- `data` (string | Uint8Array): Content to write
+  - `string`: Text content
+  - `Uint8Array`: Binary data
+- `options` (optional): Write options
+  - `encoding` (BufferEncoding | null): File encoding, default `'utf8'`
+  - `mode` (number): File permission mode, default `0o666`
+  - `flag` (string): File system flag, default `'w'` (overwrite)
+
+**Examples:**
+
+```typescript
+// Write text file
+await eidos.currentSpace.fs.writeFile("~/hello.txt", "Hello, World!")
+
+// Write JSON data
+const config = { theme: "dark", language: "en-US" }
+await eidos.currentSpace.fs.writeFile(
+  "~/config.json",
+  JSON.stringify(config, null, 2),
+  "utf8"
+)
+
+// Write binary data
+const imageData = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
+await eidos.currentSpace.fs.writeFile("~/image.png", imageData)
+
+// Write with options object
+await eidos.currentSpace.fs.writeFile("~/data.txt", "content", {
+  encoding: "utf8",
+  mode: 0o644
+})
+
+// Write to mounted folder
+await eidos.currentSpace.fs.writeFile("@/backup/data.json", JSON.stringify(data))
+```
+
+**Common use cases:**
+
+```typescript
+// Save user configuration
+async function saveConfig(config: object) {
+  const content = JSON.stringify(config, null, 2)
+  await eidos.currentSpace.fs.writeFile("~/config.json", content, "utf8")
+  eidos.currentSpace.notify("Success", "Configuration saved")
+}
+
+// Export data to file
+async function exportData(data: any[], filename: string) {
+  const csv = data.map(row => Object.values(row).join(",")).join("\n")
+  await eidos.currentSpace.fs.writeFile(`@/exports/${filename}`, csv, "utf8")
+}
+
+// Save Canvas screenshot
+async function saveCanvasToFile(canvas: HTMLCanvasElement, path: string) {
+  const blob = await new Promise<Blob>((resolve) =>
+    canvas.toBlob(resolve as any, "image/png")
+  )
+  const arrayBuffer = await blob!.arrayBuffer()
+  const data = new Uint8Array(arrayBuffer)
+  await eidos.currentSpace.fs.writeFile(path, data)
+}
+
+// Create log file (append mode)
+async function appendLog(message: string) {
+  const timestamp = new Date().toISOString()
+  const logEntry = `[${timestamp}] ${message}\n`
+  try {
+    const existing = await eidos.currentSpace.fs.readFile("~/app.log", "utf8")
+    await eidos.currentSpace.fs.writeFile("~/app.log", existing + logEntry)
+  } catch {
+    await eidos.currentSpace.fs.writeFile("~/app.log", logEntry)
+  }
+}
+```
+
+### `stat(path)`
+
+Get file or directory statistics (like Node.js `fs.stat`).
+
+```typescript
+stat(path: string): Promise<IStats>
+
+interface IStats {
+  size: number              // File size in bytes
+  mtimeMs: number          // Last modified time (milliseconds timestamp)
+  atimeMs: number          // Last accessed time (milliseconds timestamp)
+  ctimeMs: number          // Status change time (milliseconds timestamp)
+  birthtimeMs: number      // Creation time (milliseconds timestamp)
+  isFile: boolean          // Whether it's a file
+  isDirectory: boolean     // Whether it's a directory
+  isSymbolicLink: boolean  // Whether it's a symbolic link
+  isBlockDevice: boolean   // Whether it's a block device
+  isCharacterDevice: boolean // Whether it's a character device
+  isFIFO: boolean          // Whether it's a FIFO pipe
+  isSocket: boolean        // Whether it's a socket
+  mode: number             // File permission mode
+  uid: number              // User ID
+  gid: number              // Group ID
+}
+```
+
+**Parameters:**
+
+- `path` (string): File or directory path, supports `~/` or `@/` prefix
+
+**Returns:**
+
+- `IStats` object containing detailed file or directory information
+
+**Examples:**
+
+```typescript
+// Get file information
+const stats = await eidos.currentSpace.fs.stat("~/readme.md")
+console.log(`File size: ${stats.size} bytes`)
+console.log(`Is file: ${stats.isFile}`)
+console.log(`Last modified: ${new Date(stats.mtimeMs)}`)
+
+// Check if it's a file or directory
+const stats = await eidos.currentSpace.fs.stat("~/src")
+if (stats.isDirectory) {
+  console.log("This is a directory")
+} else if (stats.isFile) {
+  console.log("This is a file")
+}
+
+// Get file info from mounted folder
+const musicStats = await eidos.currentSpace.fs.stat("@/music/song.mp3")
+console.log(`Song size: ${(musicStats.size / 1024 / 1024).toFixed(2)} MB`)
+```
+
+**Common use cases:**
+
+```typescript
+// Check if file exists
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await eidos.currentSpace.fs.stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Get human-readable file size
+async function getFileSize(path: string): Promise<string> {
+  const stats = await eidos.currentSpace.fs.stat(path)
+  const bytes = stats.size
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
+// List files in directory with their sizes
+async function listFilesWithSize(dirPath: string) {
+  const files = await eidos.currentSpace.fs.readdir(dirPath)
+  const filesWithSize = await Promise.all(
+    files.map(async (file) => {
+      const filePath = `${dirPath}/${file}`
+      const stats = await eidos.currentSpace.fs.stat(filePath)
+      return {
+        name: file,
+        size: stats.size,
+        isDirectory: stats.isDirectory,
+        modified: new Date(stats.mtimeMs)
+      }
+    })
+  )
+  return filesWithSize
+}
+
+// Find recently modified files
+async function findRecentlyModified(dirPath: string, days: number = 7) {
+  const files = await eidos.currentSpace.fs.readdir(dirPath)
+  const now = Date.now()
+  const cutoff = now - days * 24 * 60 * 60 * 1000
+  
+  const recentFiles = []
+  for (const file of files) {
+    const stats = await eidos.currentSpace.fs.stat(`${dirPath}/${file}`)
+    if (stats.isFile && stats.mtimeMs > cutoff) {
+      recentFiles.push({
+        name: file,
+        modified: new Date(stats.mtimeMs)
+      })
+    }
+  }
+  return recentFiles.sort((a, b) => b.modified.getTime() - a.modified.getTime())
+}
+
+// Compare modification times of two files
+async function isNewer(file1: string, file2: string): Promise<boolean> {
+  const stats1 = await eidos.currentSpace.fs.stat(file1)
+  const stats2 = await eidos.currentSpace.fs.stat(file2)
+  return stats1.mtimeMs > stats2.mtimeMs
+}
+```
+
+**Supported paths:**
+
+- `~/` - Project root
+- `~/src/index.js` - Project file
+- `@/music` - Mounted folder root
+- `@/music/albums/song.mp3` - File in mounted folder

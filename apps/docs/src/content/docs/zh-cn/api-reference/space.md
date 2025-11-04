@@ -559,3 +559,301 @@ try {
   await eidos.currentSpace.fs.mkdir("@/work/temp")
 }
 ```
+
+### `readFile(path, options?)`
+
+读取文件内容（类似 Node.js `fs.readFile`）。
+
+```typescript
+readFile(path: string): Promise<Uint8Array>
+readFile(path: string, options: { encoding: BufferEncoding; flag?: string } | BufferEncoding): Promise<string>
+readFile(path: string, options?: {
+  encoding?: BufferEncoding | null
+  flag?: string
+}): Promise<string | Uint8Array>
+```
+
+**参数:**
+
+- `path` (string): 文件路径，支持 `~/` 或 `@/` 前缀
+- `options` (可选): 读取选项
+  - `encoding` (BufferEncoding | null): 文件编码，如 `'utf8'`、`'utf-8'`、`'base64'` 等
+  - `flag` (string): 文件系统标志，如 `'r'`（默认）
+
+**返回值:**
+
+- 不传 `encoding` 时返回 `Uint8Array`（二进制数据）
+- 传入 `encoding` 时返回 `string`（文本内容）
+
+**示例:**
+
+```typescript
+// 读取文本文件
+const text = await eidos.currentSpace.fs.readFile("~/readme.md", "utf8")
+console.log(text) // "# 我的项目\n这是一个示例项目..."
+
+// 读取 JSON 文件
+const configText = await eidos.currentSpace.fs.readFile("~/config.json", "utf8")
+const config = JSON.parse(configText)
+
+// 使用选项对象读取
+const content = await eidos.currentSpace.fs.readFile("~/data.txt", {
+  encoding: "utf8"
+})
+
+// 读取二进制文件（图片、视频等）
+const imageData = await eidos.currentSpace.fs.readFile("~/image.png")
+console.log(imageData) // Uint8Array(1234) [137, 80, 78, 71, ...]
+
+// 读取挂载文件夹中的文件
+const musicData = await eidos.currentSpace.fs.readFile("@/music/song.mp3")
+```
+
+**常见用例:**
+
+```typescript
+// 读取并解析 JSON 配置文件
+async function loadConfig(path: string) {
+  const content = await eidos.currentSpace.fs.readFile(path, "utf8")
+  return JSON.parse(content)
+}
+
+// 读取图片并转换为 base64
+async function imageToBase64(path: string) {
+  const data = await eidos.currentSpace.fs.readFile(path)
+  const base64 = btoa(String.fromCharCode(...data))
+  return `data:image/png;base64,${base64}`
+}
+
+// 读取文本文件并按行处理
+async function processTextFile(path: string) {
+  const content = await eidos.currentSpace.fs.readFile(path, "utf8")
+  const lines = content.split("\n")
+  return lines.filter(line => line.trim().length > 0)
+}
+```
+
+### `writeFile(path, data, options?)`
+
+写入文件内容（类似 Node.js `fs.writeFile`）。
+
+```typescript
+writeFile(
+  path: string,
+  data: string | Uint8Array,
+  options?: {
+    encoding?: BufferEncoding | null
+    mode?: number
+    flag?: string
+  } | BufferEncoding
+): Promise<void>
+```
+
+**参数:**
+
+- `path` (string): 文件路径，支持 `~/` 或 `@/` 前缀
+- `data` (string | Uint8Array): 要写入的内容
+  - `string`: 文本内容
+  - `Uint8Array`: 二进制数据
+- `options` (可选): 写入选项
+  - `encoding` (BufferEncoding | null): 文件编码，默认 `'utf8'`
+  - `mode` (number): 文件权限模式，默认 `0o666`
+  - `flag` (string): 文件系统标志，默认 `'w'`（覆盖写入）
+
+**示例:**
+
+```typescript
+// 写入文本文件
+await eidos.currentSpace.fs.writeFile("~/hello.txt", "Hello, World!")
+
+// 写入 JSON 数据
+const config = { theme: "dark", language: "zh-CN" }
+await eidos.currentSpace.fs.writeFile(
+  "~/config.json",
+  JSON.stringify(config, null, 2),
+  "utf8"
+)
+
+// 写入二进制数据
+const imageData = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
+await eidos.currentSpace.fs.writeFile("~/image.png", imageData)
+
+// 使用选项对象写入
+await eidos.currentSpace.fs.writeFile("~/data.txt", "内容", {
+  encoding: "utf8",
+  mode: 0o644
+})
+
+// 写入到挂载文件夹
+await eidos.currentSpace.fs.writeFile("@/backup/data.json", JSON.stringify(data))
+```
+
+**常见用例:**
+
+```typescript
+// 保存用户配置
+async function saveConfig(config: object) {
+  const content = JSON.stringify(config, null, 2)
+  await eidos.currentSpace.fs.writeFile("~/config.json", content, "utf8")
+  eidos.currentSpace.notify("成功", "配置已保存")
+}
+
+// 导出数据到文件
+async function exportData(data: any[], filename: string) {
+  const csv = data.map(row => Object.values(row).join(",")).join("\n")
+  await eidos.currentSpace.fs.writeFile(`@/exports/${filename}`, csv, "utf8")
+}
+
+// 保存 Canvas 截图
+async function saveCanvasToFile(canvas: HTMLCanvasElement, path: string) {
+  const blob = await new Promise<Blob>((resolve) =>
+    canvas.toBlob(resolve as any, "image/png")
+  )
+  const arrayBuffer = await blob!.arrayBuffer()
+  const data = new Uint8Array(arrayBuffer)
+  await eidos.currentSpace.fs.writeFile(path, data)
+}
+
+// 创建日志文件（追加模式）
+async function appendLog(message: string) {
+  const timestamp = new Date().toISOString()
+  const logEntry = `[${timestamp}] ${message}\n`
+  try {
+    const existing = await eidos.currentSpace.fs.readFile("~/app.log", "utf8")
+    await eidos.currentSpace.fs.writeFile("~/app.log", existing + logEntry)
+  } catch {
+    await eidos.currentSpace.fs.writeFile("~/app.log", logEntry)
+  }
+}
+```
+
+### `stat(path)`
+
+获取文件或目录的统计信息（类似 Node.js `fs.stat`）。
+
+```typescript
+stat(path: string): Promise<IStats>
+
+interface IStats {
+  size: number              // 文件大小（字节）
+  mtimeMs: number          // 最后修改时间（毫秒时间戳）
+  atimeMs: number          // 最后访问时间（毫秒时间戳）
+  ctimeMs: number          // 状态更改时间（毫秒时间戳）
+  birthtimeMs: number      // 创建时间（毫秒时间戳）
+  isFile: boolean          // 是否为文件
+  isDirectory: boolean     // 是否为目录
+  isSymbolicLink: boolean  // 是否为符号链接
+  isBlockDevice: boolean   // 是否为块设备
+  isCharacterDevice: boolean // 是否为字符设备
+  isFIFO: boolean          // 是否为 FIFO 管道
+  isSocket: boolean        // 是否为套接字
+  mode: number             // 文件权限模式
+  uid: number              // 用户 ID
+  gid: number              // 组 ID
+}
+```
+
+**参数:**
+
+- `path` (string): 文件或目录路径，支持 `~/` 或 `@/` 前缀
+
+**返回值:**
+
+- `IStats` 对象，包含文件或目录的详细信息
+
+**示例:**
+
+```typescript
+// 获取文件信息
+const stats = await eidos.currentSpace.fs.stat("~/readme.md")
+console.log(`文件大小: ${stats.size} 字节`)
+console.log(`是否为文件: ${stats.isFile}`)
+console.log(`最后修改时间: ${new Date(stats.mtimeMs)}`)
+
+// 检查是文件还是目录
+const stats = await eidos.currentSpace.fs.stat("~/src")
+if (stats.isDirectory) {
+  console.log("这是一个目录")
+} else if (stats.isFile) {
+  console.log("这是一个文件")
+}
+
+// 获取挂载文件夹中的文件信息
+const musicStats = await eidos.currentSpace.fs.stat("@/music/song.mp3")
+console.log(`歌曲大小: ${(musicStats.size / 1024 / 1024).toFixed(2)} MB`)
+```
+
+**常见用例:**
+
+```typescript
+// 检查文件是否存在
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await eidos.currentSpace.fs.stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// 获取文件大小（人类可读格式）
+async function getFileSize(path: string): Promise<string> {
+  const stats = await eidos.currentSpace.fs.stat(path)
+  const bytes = stats.size
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
+// 列出目录中的文件及其大小
+async function listFilesWithSize(dirPath: string) {
+  const files = await eidos.currentSpace.fs.readdir(dirPath)
+  const filesWithSize = await Promise.all(
+    files.map(async (file) => {
+      const filePath = `${dirPath}/${file}`
+      const stats = await eidos.currentSpace.fs.stat(filePath)
+      return {
+        name: file,
+        size: stats.size,
+        isDirectory: stats.isDirectory,
+        modified: new Date(stats.mtimeMs)
+      }
+    })
+  )
+  return filesWithSize
+}
+
+// 查找最近修改的文件
+async function findRecentlyModified(dirPath: string, days: number = 7) {
+  const files = await eidos.currentSpace.fs.readdir(dirPath)
+  const now = Date.now()
+  const cutoff = now - days * 24 * 60 * 60 * 1000
+  
+  const recentFiles = []
+  for (const file of files) {
+    const stats = await eidos.currentSpace.fs.stat(`${dirPath}/${file}`)
+    if (stats.isFile && stats.mtimeMs > cutoff) {
+      recentFiles.push({
+        name: file,
+        modified: new Date(stats.mtimeMs)
+      })
+    }
+  }
+  return recentFiles.sort((a, b) => b.modified.getTime() - a.modified.getTime())
+}
+
+// 比较两个文件的修改时间
+async function isNewer(file1: string, file2: string): Promise<boolean> {
+  const stats1 = await eidos.currentSpace.fs.stat(file1)
+  const stats2 = await eidos.currentSpace.fs.stat(file2)
+  return stats1.mtimeMs > stats2.mtimeMs
+}
+```
+
+**支持的路径:**
+
+- `~/` - 项目根目录
+- `~/src/index.js` - 项目文件
+- `@/music` - 挂载文件夹根目录
+- `@/music/albums/song.mp3` - 挂载文件夹中的文件
