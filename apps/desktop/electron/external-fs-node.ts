@@ -11,22 +11,23 @@ import type {
 /**
  * Node.js implementation for desktop environment
  * Uses node:fs/promises
- * 
+ *
  * Supports:
- * - ~/ (project folder) - read-only
- * - @/ (mounted folders) - read/write based on permissions
+ * - ~ or ~/ (project folder) - ~ is normalized to ~/
+ * - @/mountName (mounted folders)
+ *   Note: @/ must be followed by a mount name, cannot be used alone
  */
 export class NodeExternalFileSystem implements IExternalFileSystem {
   /**
-   * @param resolvePath Function to resolve ~/ and @/ paths to absolute file system paths
+   * @param resolvePath Function to resolve ~/ and @/mountName paths to absolute file system paths
    * 
    * @example
    * new NodeExternalFileSystem(async (fsPath) => {
    *   if (fsPath.startsWith('~/')) {
-   *     // Project folder: ~/ -> project root
+   *     // Project folder: ~/ -> project root (or ~ normalized to ~/)
    *     return path.join(projectRoot, fsPath.substring(2))
    *   } else if (fsPath.startsWith('@/')) {
-   *     // Mounted folder: @/music/song.mp3
+   *     // Mounted folder: @/music/song.mp3 (must have mount name after @/)
    *     const [, mountName, ...rest] = fsPath.split('/')
    *     const mountPath = await getMountPath(mountName)
    *     return path.join(mountPath, ...rest)
@@ -39,10 +40,35 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   ) { }
 
   /**
+   * Normalize virtual path to ensure consistent format
+   * - '~' is normalized to '~/' (project folder, can be used alone)
+   * - '@/mountName' is kept as-is (mounted folders, @/ must be followed by mount name)
+   * - '@/' alone is invalid and will be rejected by resolvePath
+   */
+  private normalizeVirtualPath(fsPath: string): string {
+    // Handle ~ path: '~' can be used alone and is normalized to '~/'
+    if (fsPath === '~' || fsPath.startsWith('~/')) {
+      return fsPath === '~' ? '~/' : fsPath
+    }
+    // Handle @ path: '@/mountName/...' format
+    // Note: '@/' alone is invalid and will be rejected by resolvePath
+    if (fsPath.startsWith('@/')) {
+      return fsPath
+    }
+    // If it starts with ~ but not ~/, normalize it (e.g., '~file' -> '~/file')
+    if (fsPath.startsWith('~') && fsPath.length > 1 && fsPath[1] !== '/') {
+      return '~/' + fsPath.substring(1)
+    }
+    return fsPath
+  }
+
+  /**
    * Convert ~/ or @/ path to absolute file system path
    */
   private async getAbsolutePath(fsPath: string): Promise<string> {
-    const resolved = await this.resolvePath(fsPath)
+    // Normalize the path first to ensure consistent handling
+    const normalizedPath = this.normalizeVirtualPath(fsPath)
+    const resolved = await this.resolvePath(normalizedPath)
     if (!resolved) {
       throw new Error(`Cannot resolve path: ${fsPath}`)
     }
@@ -51,16 +77,58 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
 
   /**
    * Convert Dirent to IDirectoryEntry
-   * Reuses Node.js Dirent properties (name, path, parentPath), only converts kind
+   * Converts absolute paths from Dirent to virtual paths (~/ or @/)
    */
-  private direntToEntry(dirent: Dirent): IDirectoryEntry {
-    // Reuse Node.js Dirent properties directly (available in Node.js 20.1.0+)
-    const name = dirent.name
-    const path = dirent.path
-    const parentPath = dirent.parentPath
+  private direntToEntry(dirent: Dirent, fsPath: string, queryAbsolutePath: string, isRecursive: boolean = false): IDirectoryEntry {
+    let entryName: string
+    let relativePath: string
+    let relativeParentPath: string
+
+    if (isRecursive) {
+      // In recursive mode, dirent.name is already the relative path (e.g., "subdir/file.txt")
+      // This is the full relative path from the queried directory
+      entryName = dirent.name.replace(/\\/g, '/')
+      relativePath = entryName
+
+      // For parent path, get the directory part
+      const lastSlashIndex = entryName.lastIndexOf('/')
+      if (lastSlashIndex > 0) {
+        relativeParentPath = entryName.substring(0, lastSlashIndex)
+      } else {
+        relativeParentPath = ''
+      }
+    } else {
+      // Non-recursive mode: dirent.name is just the filename/directory name
+      entryName = dirent.name
+
+      // Calculate relative path from query directory to this entry
+      const entryAbsolutePath = path.join(dirent.path, dirent.name)
+      relativePath = path.relative(queryAbsolutePath, entryAbsolutePath)
+
+      // Calculate relative parent path
+      relativeParentPath = path.relative(queryAbsolutePath, dirent.parentPath)
+    }
+
+    // Normalize to forward slashes for virtual paths
+    relativePath = relativePath.replace(/\\/g, '/')
+    relativeParentPath = relativeParentPath.replace(/\\/g, '/')
+
+    // Convert relative paths back to virtual paths (~/ or @/)
+    const normalizeVirtualPath = (relPath: string): string => {
+      if (!relPath || relPath === '.') {
+        // Root level entries should have the query path as their parent
+        // Ensure it ends with / for consistency
+        return fsPath.endsWith('/') ? fsPath : fsPath + '/'
+      }
+      // Ensure fsPath ends with / for proper path joining
+      const virtualPathBase = fsPath.endsWith('/') ? fsPath : fsPath + '/'
+      return virtualPathBase + relPath
+    }
+
+    const virtualPath = normalizeVirtualPath(relativePath)
+    const virtualParentPath = normalizeVirtualPath(relativeParentPath)
 
     // Only convert kind from Dirent methods to serializable string
-    // Optimize: check most common types first
     let kind: IDirectoryEntry['kind']
     if (dirent.isFile()) {
       kind = 'file'
@@ -81,9 +149,9 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
     }
 
     return {
-      name,
-      path,
-      parentPath,
+      name: entryName,
+      path: virtualPath,
+      parentPath: virtualParentPath,
       kind
     }
   }
@@ -94,6 +162,8 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   async readdir(fsPath: string, options: { withFileTypes: true; recursive?: boolean }): Promise<IDirectoryEntry[]>
   async readdir(fsPath: string, options?: { withFileTypes?: false; recursive?: boolean }): Promise<string[]>
   async readdir(fsPath: string, options?: IReaddirOptions): Promise<string[] | IDirectoryEntry[]> {
+    // Normalize the path to ensure consistent format (e.g., '~' -> '~/')
+    const normalizedFsPath = this.normalizeVirtualPath(fsPath)
     const absolutePath = await this.getAbsolutePath(fsPath)
 
     if (options?.withFileTypes) {
@@ -102,7 +172,8 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
         recursive: options.recursive
       }) as Dirent[]
 
-      return dirents.map(dirent => this.direntToEntry(dirent))
+      // Use normalized path for consistent virtual path generation
+      return dirents.map(dirent => this.direntToEntry(dirent, normalizedFsPath, absolutePath, !!options.recursive))
     }
 
     return await fs.readdir(absolutePath, { recursive: options?.recursive })
@@ -110,15 +181,8 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
 
   /**
    * Create directory
-   * 
-   * Note: Project folder (~/) is read-only
    */
   async mkdir(fsPath: string, options?: IMkdirOptions): Promise<string | undefined> {
-    // Project folder is read-only
-    if (fsPath.startsWith('~/')) {
-      throw new Error('Cannot create directories in project folder (~/). Project folder is read-only.')
-    }
-
     const absolutePath = await this.getAbsolutePath(fsPath)
     return await fs.mkdir(absolutePath, { recursive: options?.recursive })
   }
