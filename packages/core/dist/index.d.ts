@@ -962,6 +962,42 @@ interface IMkdirOptions {
   recursive?: boolean;
 }
 /**
+ * Options for readFile
+ */
+interface IReadFileOptions {
+  encoding?: BufferEncoding | null;
+  flag?: string;
+}
+/**
+ * Options for writeFile
+ */
+interface IWriteFileOptions {
+  encoding?: BufferEncoding | null;
+  mode?: number;
+  flag?: string;
+}
+/**
+ * Serializable file stats object (no methods, only properties)
+ * Compatible with Node.js fs.Stats but serializable for IPC
+ */
+interface IStats {
+  size: number;
+  mtimeMs: number;
+  atimeMs: number;
+  ctimeMs: number;
+  birthtimeMs: number;
+  isFile: boolean;
+  isDirectory: boolean;
+  isSymbolicLink: boolean;
+  isBlockDevice: boolean;
+  isCharacterDevice: boolean;
+  isFIFO: boolean;
+  isSocket: boolean;
+  mode: number;
+  uid: number;
+  gid: number;
+}
+/**
  * External file system interface
  * API follows Node.js fs/promises
  *
@@ -991,6 +1027,31 @@ interface IExternalFileSystem {
    * @returns Created directory path or undefined
    */
   mkdir(path: string, options?: IMkdirOptions): Promise<string | undefined>;
+  /**
+   * Read file contents (like fs.readFile)
+   * @param path File path (~/ or @/)
+   * @param options Encoding or read options
+   * @returns File contents as Uint8Array (binary) or string (with encoding)
+   */
+  readFile(path: string): Promise<Uint8Array>;
+  readFile(path: string, options: {
+    encoding: BufferEncoding;
+    flag?: string;
+  } | BufferEncoding): Promise<string>;
+  readFile(path: string, options?: IReadFileOptions | BufferEncoding): Promise<string | Uint8Array>;
+  /**
+   * Write file contents (like fs.writeFile)
+   * @param path File path (~/ or @/)
+   * @param data File contents as string or Uint8Array
+   * @param options Encoding or write options
+   */
+  writeFile(path: string, data: string | Uint8Array, options?: IWriteFileOptions | BufferEncoding): Promise<void>;
+  /**
+   * Get file stats (like fs.stat)
+   * @param path File path (~/ or @/)
+   * @returns Serializable file stats object
+   */
+  stat(path: string): Promise<IStats>;
 }
 //# sourceMappingURL=IExternalFileSystem.d.ts.map
 //#endregion
@@ -2281,6 +2342,57 @@ declare class FSManager {
    * await eidos.currentSpace.fs.mkdir("@/work/2024/Q1", { recursive: true })
    */
   mkdir(path: string, options?: IMkdirOptions): Promise<string | undefined>;
+  /**
+   * Read file contents
+   *
+   * @example
+   * // Read binary file
+   * const data = await eidos.currentSpace.fs.readFile("~/image.png")
+   * console.log(data) // Uint8Array
+   *
+   * @example
+   * // Read text file with encoding
+   * const text = await eidos.currentSpace.fs.readFile("~/readme.md", "utf8")
+   * console.log(text) // string
+   *
+   * @example
+   * // Read with options
+   * const content = await eidos.currentSpace.fs.readFile("~/data.json", { encoding: "utf8" })
+   */
+  readFile(path: string): Promise<Uint8Array>;
+  readFile(path: string, options: {
+    encoding: BufferEncoding;
+    flag?: string;
+  } | BufferEncoding): Promise<string>;
+  /**
+   * Write file contents
+   *
+   * @example
+   * // Write text file
+   * await eidos.currentSpace.fs.writeFile("~/hello.txt", "Hello, World!")
+   *
+   * @example
+   * // Write binary file
+   * const data = new Uint8Array([0x89, 0x50, 0x4E, 0x47])
+   * await eidos.currentSpace.fs.writeFile("~/data.bin", data)
+   *
+   * @example
+   * // Write with encoding
+   * await eidos.currentSpace.fs.writeFile("~/config.json", JSON.stringify(config), "utf8")
+   */
+  writeFile(path: string, data: string | Uint8Array, options?: IWriteFileOptions | BufferEncoding): Promise<void>;
+  /**
+   * Get file statistics
+   *
+   * @example
+   * // Get file stats
+   * const stats = await eidos.currentSpace.fs.stat("~/readme.md")
+   * console.log(stats.size) // file size in bytes
+   * console.log(stats.isFile) // true
+   * console.log(stats.isDirectory) // false
+   * console.log(new Date(stats.mtimeMs)) // last modified time
+   */
+  stat(path: string): Promise<IStats>;
 }
 //# sourceMappingURL=fs.d.ts.map
 //#endregion
