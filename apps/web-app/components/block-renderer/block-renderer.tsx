@@ -40,6 +40,7 @@ interface BlockRendererProps {
   height?: string | number
   defaultProps?: Record<string, any>
   rerenderOnDefaultPropsChange?: boolean
+  hash?: string
 }
 
 export const BlockRenderer = React.forwardRef<
@@ -57,6 +58,7 @@ export const BlockRenderer = React.forwardRef<
       defaultProps = {},
       bindings = {},
       rerenderOnDefaultPropsChange,
+      hash,
     },
     ref
   ) => {
@@ -365,6 +367,7 @@ export const BlockRenderer = React.forwardRef<
           width={width}
           height={height}
           rerenderOnDefaultPropsChange={rerenderOnDefaultPropsChange}
+          hash={hash}
         />
       )
     }
