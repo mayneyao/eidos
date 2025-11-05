@@ -28,11 +28,11 @@ navigate(path: string): void
 **支持的路径格式:**
 
 - `"/<nodeId>"` - 通过 ID 导航到特定节点
-- `"/<tableId>"` - 导航到表格视图
 - `"/<docId>#<hash>" - 导航到文档（支持 hash 锚点，如 `#标题`）
 - `"/2025-09-30"` - 导航到基于日期的节点
 - `"/extensions/<extensionId>"` - 导航到扩展
 - `"/blocks/<blockId>"` - 导航到块
+- `"/file-handler/#<filePath>"` - 导航到文件处理器
 
 **示例:**
 
@@ -55,6 +55,12 @@ eidos.currentSpace.navigate("/extensions/my-extension")
 
 // 导航到块
 eidos.currentSpace.navigate("/blocks/block_789")
+
+// 导航到文件处理器（打开项目文件夹中的文件）
+eidos.currentSpace.navigate("/file-handler/#~/readme.md")
+
+// 导航到文件处理器（打开挂载文件夹中的文件）
+eidos.currentSpace.navigate("/file-handler/#@/music/song.mp3")
 ```
 
 ### `notify(title: string, description: string)`
@@ -481,7 +487,7 @@ const entries = await eidos.currentSpace.fs.readdir("~/", {
   withFileTypes: true,
 })
 entries.forEach((entry) => {
-  console.log(`${entry.name}: ${entry.kind === 'directory' ? "目录" : "文件"}`)
+  console.log(`${entry.name}: ${entry.kind === "directory" ? "目录" : "文件"}`)
 })
 // package.json: 文件
 // src: 目录
@@ -598,7 +604,7 @@ const config = JSON.parse(configText)
 
 // 使用选项对象读取
 const content = await eidos.currentSpace.fs.readFile("~/data.txt", {
-  encoding: "utf8"
+  encoding: "utf8",
 })
 
 // 读取二进制文件（图片、视频等）
@@ -629,7 +635,7 @@ async function imageToBase64(path: string) {
 async function processTextFile(path: string) {
   const content = await eidos.currentSpace.fs.readFile(path, "utf8")
   const lines = content.split("\n")
-  return lines.filter(line => line.trim().length > 0)
+  return lines.filter((line) => line.trim().length > 0)
 }
 ```
 
@@ -681,11 +687,14 @@ await eidos.currentSpace.fs.writeFile("~/image.png", imageData)
 // 使用选项对象写入
 await eidos.currentSpace.fs.writeFile("~/data.txt", "内容", {
   encoding: "utf8",
-  mode: 0o644
+  mode: 0o644,
 })
 
 // 写入到挂载文件夹
-await eidos.currentSpace.fs.writeFile("@/backup/data.json", JSON.stringify(data))
+await eidos.currentSpace.fs.writeFile(
+  "@/backup/data.json",
+  JSON.stringify(data)
+)
 ```
 
 **常见用例:**
@@ -700,7 +709,7 @@ async function saveConfig(config: object) {
 
 // 导出数据到文件
 async function exportData(data: any[], filename: string) {
-  const csv = data.map(row => Object.values(row).join(",")).join("\n")
+  const csv = data.map((row) => Object.values(row).join(",")).join("\n")
   await eidos.currentSpace.fs.writeFile(`@/exports/${filename}`, csv, "utf8")
 }
 
@@ -802,7 +811,8 @@ async function getFileSize(path: string): Promise<string> {
   const bytes = stats.size
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
@@ -817,7 +827,7 @@ async function listFilesWithSize(dirPath: string) {
         name: file,
         size: stats.size,
         isDirectory: stats.isDirectory,
-        modified: new Date(stats.mtimeMs)
+        modified: new Date(stats.mtimeMs),
       }
     })
   )
@@ -829,14 +839,14 @@ async function findRecentlyModified(dirPath: string, days: number = 7) {
   const files = await eidos.currentSpace.fs.readdir(dirPath)
   const now = Date.now()
   const cutoff = now - days * 24 * 60 * 60 * 1000
-  
+
   const recentFiles = []
   for (const file of files) {
     const stats = await eidos.currentSpace.fs.stat(`${dirPath}/${file}`)
     if (stats.isFile && stats.mtimeMs > cutoff) {
       recentFiles.push({
         name: file,
-        modified: new Date(stats.mtimeMs)
+        modified: new Date(stats.mtimeMs),
       })
     }
   }

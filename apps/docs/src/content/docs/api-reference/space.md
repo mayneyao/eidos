@@ -35,6 +35,7 @@ navigate(path: string): void
 - `"/2025-09-30"` - Navigate to a date-based node
 - `"/extensions/<extensionId>"` - Navigate to an extension
 - `"/blocks/<blockId>"` - Navigate to a block
+- `"/file-handler/#<filePath>"` - Navigate to a file handler
 
 **Example:**
 
@@ -57,6 +58,12 @@ eidos.currentSpace.navigate("/extensions/my-extension")
 
 // Navigate to a block
 eidos.currentSpace.navigate("/blocks/block_789")
+
+// Navigate to a file handler (open a file in the project folder)
+eidos.currentSpace.navigate("/file-handler/#~/readme.md")
+
+// Navigate to a file handler (open a file in a mounted folder)
+eidos.currentSpace.navigate("/file-handler/#@/music/song.mp3")
 ```
 
 ### `notify(title: string, description: string)`
