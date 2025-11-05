@@ -1,20 +1,22 @@
 import { useTranslation } from "react-i18next"
 
-import { DocumentSettings } from "./space/document-settings"
-import { GeneralSettings } from "./space/general-settings"
-import { MountSettings } from "./space/mount-settings"
-import { GlobalGeneralSettings } from "./global/global-general-settings"
 import { GlobalAISettings } from "./global/global-ai-settings"
 import { GlobalAPISettings } from "./global/global-api-settings"
+import { GlobalGeneralSettings } from "./global/global-general-settings"
 import { GlobalKeyStoreSettings } from "./global/global-key-store-settings"
 import { GlobalSecuritySettings } from "./global/global-security-settings"
 import { GlobalStorageSettings } from "./global/global-storage-settings"
 import { GlobalSyncSettings } from "./global/global-sync-settings"
+import { DocumentSettings } from "./space/document-settings"
+import { FileHandlersSettings } from "./space/file-handlers-settings"
+import { GeneralSettings } from "./space/general-settings"
+import { MountSettings } from "./space/mount-settings"
 
 type SettingsSection =
   | "space-general"
   | "space-document"
   | "space-mounts"
+  | "space-file-handlers"
   | "general"
   | "ai"
   | "api"
@@ -38,6 +40,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return t("space.settings.document")
       case "space-mounts":
         return t("space.settings.mounts")
+      case "space-file-handlers":
+        return "File Handlers"
       case "general":
         return t("settings.general")
       case "ai":
@@ -65,6 +69,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <DocumentSettings />
       case "space-mounts":
         return <MountSettings />
+      case "space-file-handlers":
+        return <FileHandlersSettings />
       case "general":
         return <GlobalGeneralSettings />
       case "ai":

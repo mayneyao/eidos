@@ -3,6 +3,7 @@ export type SettingsSection =
   | "space-general"
   | "space-document"
   | "space-mounts"
+  | "space-file-handlers"
   | "general"
   | "ai"
   | "api"

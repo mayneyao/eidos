@@ -8,6 +8,7 @@ export type BindingType = "table" | "secret" | "text"
 export type ExtensionMeta =
     | TableViewMeta
     | ExtNodeMeta
+    | FileHandlerMeta
     | ToolMeta
     | TableActionMeta
     | DocActionMeta
@@ -53,6 +54,7 @@ export enum ScriptExtensionType {
 export enum BlockExtensionType {
     TableView = "tableView",
     ExtNode = "extNode",
+    FileHandler = "fileHandler",
 }
 
 
@@ -76,6 +78,17 @@ export interface ExtNodeMeta {
         description: string
         // extended type of the node
         type: string
+    }
+}
+
+export interface FileHandlerMeta {
+    type: BlockExtensionType.FileHandler
+    componentName: string
+    fileHandler: {
+        title: string
+        description: string
+        extensions: string[]
+        icon?: string
     }
 }
 
@@ -142,7 +155,7 @@ export interface IDocActionContext {
 // Block Extension interfaces
 export interface IBlockExtension extends Omit<IExtension, 'type' | 'meta'> {
     type: "block"
-    meta: TableViewMeta | ExtNodeMeta
+    meta: TableViewMeta | ExtNodeMeta | FileHandlerMeta
 }
 
 // Script Extension interfaces

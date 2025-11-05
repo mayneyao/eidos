@@ -19,7 +19,7 @@ import { extractConstant, blockCodeCompile, scriptCodeCompile } from "@eidos.spa
 import emptyBlockTemplate from "./templates/block/empty.tsx?raw"
 import extNodeTemplate from "./templates/block/ext-node.tsx?raw"
 import tableViewTemplate from "./templates/block/table-view.tsx?raw"
-
+import fileHandlerTemplate from "./templates/block/file-handler.tsx?raw"
 
 
 export const useNewExtension = () => {
@@ -29,8 +29,8 @@ export const useNewExtension = () => {
   const { setFocusedExtensionId } = useExtensionSidebarStore()
 
   const handleCreateNewExtension = async (
-    template: "tool" | "udf" | "tableAction" | "docAction" | "tableView" | "extNode" | "emptyScript" | "emptyBlock" = "tool",
-    type: "script" | "block" = template === "tableView" || template === "extNode" || template === "emptyBlock" ? "block" : "script"
+    template: "fileHandler" | "tool" | "udf" | "tableAction" | "docAction" | "tableView" | "extNode" | "emptyScript" | "emptyBlock" = "tool",
+    type: "script" | "block" = template === "tableView" || template === "extNode" || template === "emptyBlock" || template === "fileHandler" ? "block" : "script"
   ) => {
     const newScriptId = generateIdV7()
     const shortSlug = newScriptId.slice(-8)
@@ -149,6 +149,26 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: extNodeTemplate,
+            meta,
+            enabled: true
+          }
+        }
+
+
+        case "fileHandler": {
+          const [code, meta] = await Promise.all([
+            blockCodeCompile(fileHandlerTemplate),
+            extractConstant(fileHandlerTemplate, "meta")
+          ])
+          return {
+            id: newScriptId,
+            slug: `file-handler-${shortSlug}`,
+            name: meta?.fileHandler?.title || `New File Handler - ${shortSlug}`,
+            type: "block",
+            description: meta?.fileHandler?.description || "Custom file handler",
+            version: "0.0.1",
+            code,
+            ts_code: fileHandlerTemplate,
             meta,
             enabled: true
           }

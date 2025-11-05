@@ -37,7 +37,9 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
   const urlWithHash = hash ? `${fullUrl}${hash}` : fullUrl
 
   const [extUrl, setExtUrl] = useState<string>(
-    extraPath ? urlWithHash : `${serializePropsToUrl(defaultProps, baseUrl)}${hash || ''}`
+    extraPath
+      ? urlWithHash
+      : `${serializePropsToUrl(defaultProps, baseUrl)}${hash || ""}`
   )
 
   const themeVariables = React.useMemo(() => {
@@ -90,7 +92,7 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
     const newUrlWithHash = hash ? `${newFullUrl}${hash}` : newFullUrl
     const url = extraPath
       ? newUrlWithHash
-      : `${serializePropsToUrl(defaultProps, newBaseUrl)}${hash || ''}`
+      : `${serializePropsToUrl(defaultProps, newBaseUrl)}${hash || ""}`
     if (url !== extUrl) {
       setExtUrl(url)
     }
@@ -100,7 +102,7 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
   useEffect(() => {
     if (rerenderOnDefaultPropsChange && !extraPath) {
       const newBaseUrl = `http://${blockId}.block.${space}.eidos.localhost:13127/`
-      const url = `${serializePropsToUrl(defaultProps, newBaseUrl)}${hash || ''}`
+      const url = `${serializePropsToUrl(defaultProps, newBaseUrl)}${hash || ""}`
       if (url !== extUrl) {
         setExtUrl(url)
       }
@@ -115,6 +117,7 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
     hash,
   ])
 
+  console.log("extUrl", extUrl)
   return (
     <webview
       ref={webviewRef}

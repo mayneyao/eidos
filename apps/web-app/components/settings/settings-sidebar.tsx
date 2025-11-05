@@ -10,6 +10,7 @@ import {
   Palette,
   Settings as SettingsIcon,
   Shield,
+  FileType,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -19,6 +20,7 @@ type SettingsSection =
   | "space-general"
   | "space-document"
   | "space-mounts"
+  | "space-file-handlers"
   | "general"
   | "ai"
   | "api"
@@ -70,6 +72,13 @@ export function SettingsSidebar({
       title: t("space.settings.mounts"),
       description: t("space.settings.mountsDescription"),
       icon: <Folder className="h-5 w-5" />,
+      category: "space",
+    },
+    {
+      id: "space-file-handlers",
+      title: "File Handlers",
+      description: "Manage default applications for file types",
+      icon: <FileType className="h-5 w-5" />,
       category: "space",
     },
     // Global Settings

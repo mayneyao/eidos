@@ -3,6 +3,7 @@ import {
   CodeIcon,
   DatabaseIcon,
   ExternalLinkIcon,
+  FileTypeIcon,
   GridIcon,
   PuzzleIcon,
   ToyBrickIcon,
@@ -142,6 +143,19 @@ export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
           </Badge>
           <ExtensionTooltip>
             {t("extension.extNodeDescription")}
+          </ExtensionTooltip>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="group relative"
+          onClick={() => handleCreateNewExtension("fileHandler")}
+        >
+          <FileTypeIcon className="mr-2 h-4 w-4" />
+          File Handler
+          <Badge variant="default" className="bg-primary">
+            {t("common.badge.new")}
+          </Badge>
+          <ExtensionTooltip>
+            Handle specific file types with custom editors
           </ExtensionTooltip>
         </DropdownMenuItem>
         <DropdownMenuItem
