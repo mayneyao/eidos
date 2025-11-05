@@ -194,6 +194,192 @@ export function MyExtNode({ text }: { text: string }) {
 }
 ```
 
+### 4.3 文件处理器扩展
+
+提供自定义文件类型处理器，类似操作系统的"打开方式"功能，让 Block 扩展可以注册为特定文件类型的处理器。
+
+:::tip[File Handler vs ExtNode]
+**内外之分**：
+
+- **File Handler（文件处理器）**: 处理**外部文件**，即本地文件系统中的文件（项目文件 `~/`、挂载文件 `@/`、内部文件 `/files/`）。这些文件独立于 Eidos 数据库存在。
+
+- **ExtNode（扩展节点）**: 处理**内部数据**，即存储在 Eidos SQLite 数据库中的结构化数据。ExtNode 的数据通过 `eidos.currentSpace.extNode.getText()`/`setText()` 等方法访问，完全由 Eidos 管理。
+
+简单来说：File Handler 打开文件系统中的文件，ExtNode 管理数据库中的数据。
+:::
+
+#### URL 访问模式
+
+文件路径通过 hash 传递：
+
+```
+<extid>.block.<spaceId>.eidos.localhost:13127#<filePath>
+```
+
+**支持的文件路径格式：**
+
+| 路径格式            | 说明                           | 示例                    |
+| ------------------- | ------------------------------ | ----------------------- |
+| `~/path/to/file`    | 项目文件夹（.eidos 所在目录）  | `~/readme.md`           |
+| `@/mount/path/file` | 挂载文件夹（需授权）           | `@/music/song.mp3`      |
+| `/files/path/file`  | 内部文件（.eidos/files/ 目录） | `/files/screenshot.png` |
+
+**URL 示例：**
+
+```
+# 打开项目中的 README 文件
+markdown-editor.block.my-space.eidos.localhost:13127#~/readme.md
+
+# 播放挂载的音乐文件
+audio-player.block.my-space.eidos.localhost:13127#@/music/song.mp3
+```
+
+#### 元配置
+
+```typescript
+interface FileHandlerMeta {
+  type: "fileHandler"
+  componentName: string
+  fileHandler: {
+    title: string // 处理器名称
+    description: string // 描述
+    extensions: string[] // 支持的扩展名，如 [".md", ".markdown"]
+    icon?: string // 可选图标
+  }
+}
+```
+
+#### 处理器选择逻辑
+
+系统会自动查询 `eidos__extensions` 表找出所有支持该文件扩展名的处理器：
+
+1. 如果只有一个处理器，直接使用
+2. 如果有多个处理器，查询用户设置的默认处理器（存储在 KV 表中）
+3. 如果没有设置默认，提示用户选择
+
+**默认处理器存储：**
+
+```typescript
+// 仅在存在多个处理器时才需要在 KV 表中存储用户偏好
+// 键格式: eidos:space:file:handler:default:<扩展名>
+// 值: 处理器扩展 ID
+
+await eidos.currentSpace.kv.put(
+  `eidos:space:file:handler:default:.md`,
+  "markdown-editor-ext-id"
+)
+```
+
+#### 实现示例
+
+**Markdown 编辑器：**
+
+```tsx
+export const meta = {
+  type: "fileHandler",
+  componentName: "MarkdownEditor",
+  fileHandler: {
+    title: "Markdown 编辑器",
+    description: "支持实时预览的 Markdown 编辑器",
+    extensions: [".md", ".markdown"],
+    icon: "📝",
+  },
+}
+
+export function MarkdownEditor() {
+  const [content, setContent] = useState("")
+  const filePath = window.location.hash.slice(1) // 移除开头的 #
+
+  useEffect(() => {
+    // 读取文件内容
+    eidos.currentSpace.fs
+      .readFile(filePath, "utf8")
+      .then(setContent)
+      .catch((err) => {
+        eidos.currentSpace.notify("错误", `无法读取文件: ${err.message}`)
+      })
+  }, [filePath])
+
+  const handleSave = async () => {
+    try {
+      await eidos.currentSpace.fs.writeFile(filePath, content, "utf8")
+      eidos.currentSpace.notify("成功", "文件已保存")
+    } catch (err) {
+      eidos.currentSpace.notify("错误", `保存失败: ${err.message}`)
+    }
+  }
+
+  return (
+    <div className="flex h-screen">
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        className="w-1/2 p-4"
+      />
+      <div className="w-1/2 p-4 markdown-preview">
+        <ReactMarkdown>{content}</ReactMarkdown>
+      </div>
+      <button onClick={handleSave}>保存</button>
+    </div>
+  )
+}
+```
+
+**音频播放器：**
+
+```tsx
+export const meta = {
+  type: "fileHandler",
+  componentName: "AudioPlayer",
+  fileHandler: {
+    title: "音频播放器",
+    description: "支持多种音频格式的播放器",
+    extensions: [".mp3", ".flac", ".wav", ".ogg", ".m4a"],
+    icon: "🎵",
+  },
+}
+
+export function AudioPlayer() {
+  const [audioUrl, setAudioUrl] = useState("")
+  const filePath = window.location.hash.slice(1)
+
+  useEffect(() => {
+    // 构造音频 URL（通过 Eidos 的文件服务）
+    const url = `http://${window.location.host}${filePath}`
+    setAudioUrl(url)
+  }, [filePath])
+
+  return (
+    <div className="flex flex-col items-center justify-center h-screen">
+      <h2 className="text-2xl font-bold mb-4">{filePath.split("/").pop()}</h2>
+      <audio controls src={audioUrl} className="w-full max-w-md">
+        您的浏览器不支持音频播放
+      </audio>
+    </div>
+  )
+}
+```
+
+#### 文件访问 API
+
+使用 `eidos.currentSpace.fs` API 访问文件：
+
+```typescript
+// 读取文本文件
+const text = await eidos.currentSpace.fs.readFile(filePath, "utf8")
+
+// 读取二进制文件
+const data = await eidos.currentSpace.fs.readFile(filePath)
+
+// 写入文件
+await eidos.currentSpace.fs.writeFile(filePath, content, "utf8")
+
+// 获取文件信息
+const stats = await eidos.currentSpace.fs.stat(filePath)
+```
+
+更多文件系统 API 详情，请参阅 [Space API 参考 - 文件系统 API](/zh-cn/api-reference/space/#文件系统-api)。
+
 ## 5. 指令系统
 
 Block 支持特殊的指令来控制组件的行为和渲染方式。这些指令通过字符串字面量在代码顶部声明。
@@ -300,4 +486,10 @@ export function MyNavigation() {
 
 ## 8. 未来扩展
 
-本规范可能会扩展以支持其他扩展类型，如自定义字段渲染器等。
+本规范可能会扩展以支持其他扩展类型，包括但不限于：
+
+- **自定义字段渲染器**: 为表格字段提供自定义渲染和编辑组件
+- **MIME 类型支持**: 文件处理器支持基于 MIME 类型的匹配
+- **协议处理器**: 支持自定义 URL 协议（如 `eidos://`, `notion://`）
+- **上下文菜单扩展**: 为文件和节点提供自定义右键菜单项
+- **命令面板扩展**: 注册自定义命令到全局命令面板
