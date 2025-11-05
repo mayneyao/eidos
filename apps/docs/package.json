@@ -8,6 +8,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "deploy": "wrangler deploy",
+    "deploy:preview": "wrangler deploy --env preview",
     "astro": "astro"
   },
   "dependencies": {
