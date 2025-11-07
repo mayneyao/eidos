@@ -201,7 +201,7 @@ Provide custom file type handlers, similar to the operating system's "Open With"
 :::tip[File Handler vs ExtNode]
 **External vs Internal**:
 
-- **File Handler**: Handles **external files**, i.e., files in the local file system (project files `~/`, mounted files `@/`, internal files `/files/`). These files exist independently of the Eidos database.
+- **File Handler**: Handles **external files**, i.e., files in the local file system (project files `~/`, mounted files `@/`). These files exist independently of the Eidos database.
 
 - **ExtNode**: Handles **internal data**, i.e., structured data stored in the Eidos SQLite database. ExtNode data is accessed through methods like `eidos.currentSpace.extNode.getText()`/`setText()`, and is fully managed by Eidos.
 
@@ -222,7 +222,6 @@ File paths are passed through hash:
 | ---------------------- | ------------------------------------- | -------------------------- |
 | `~/path/to/file`       | Project folder (.eidos directory)     | `~/readme.md`              |
 | `@/mount/path/file`    | Mounted folder (requires authorization) | `@/music/song.mp3`         |
-| `/files/path/file`     | Internal files (.eidos/files/ directory) | `/files/screenshot.png` |
 
 **URL Examples:**
 

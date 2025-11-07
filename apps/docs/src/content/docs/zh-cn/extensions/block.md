@@ -201,7 +201,7 @@ export function MyExtNode({ text }: { text: string }) {
 :::tip[File Handler vs ExtNode]
 **内外之分**：
 
-- **File Handler（文件处理器）**: 处理**外部文件**，即本地文件系统中的文件（项目文件 `~/`、挂载文件 `@/`、内部文件 `/files/`）。这些文件独立于 Eidos 数据库存在。
+- **File Handler（文件处理器）**: 处理**外部文件**，即本地文件系统中的文件（项目文件 `~/`、挂载文件 `@/`）。这些文件独立于 Eidos 数据库存在。
 
 - **ExtNode（扩展节点）**: 处理**内部数据**，即存储在 Eidos SQLite 数据库中的结构化数据。ExtNode 的数据通过 `eidos.currentSpace.extNode.getText()`/`setText()` 等方法访问，完全由 Eidos 管理。
 
@@ -222,7 +222,6 @@ export function MyExtNode({ text }: { text: string }) {
 | ------------------- | ------------------------------ | ----------------------- |
 | `~/path/to/file`    | 项目文件夹（.eidos 所在目录）  | `~/readme.md`           |
 | `@/mount/path/file` | 挂载文件夹（需授权）           | `@/music/song.mp3`      |
-| `/files/path/file`  | 内部文件（.eidos/files/ 目录） | `/files/screenshot.png` |
 
 **URL 示例：**
 
