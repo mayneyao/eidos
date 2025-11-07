@@ -263,5 +263,14 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       gid: stats.gid
     }
   }
+
+  /**
+   * Rename file or directory
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    const oldAbsolutePath = await this.getAbsolutePath(oldPath)
+    const newAbsolutePath = await this.getAbsolutePath(newPath)
+    await fs.rename(oldAbsolutePath, newAbsolutePath)
+  }
 }
 

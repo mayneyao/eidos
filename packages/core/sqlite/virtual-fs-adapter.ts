@@ -217,4 +217,86 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     }
     return this.underlyingFS.stat(path)
   }
+
+  /**
+   * Rename a file or directory
+   * For virtual paths, this updates the database
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    const oldParsed = this.parseVirtualPath(oldPath)
+    const newParsed = this.parseVirtualPath(newPath)
+
+    // Both paths must be virtual or both must be real
+    if ((oldParsed === null) !== (newParsed === null)) {
+      throw new Error("Cannot rename between virtual and real paths")
+    }
+
+    // Handle virtual path rename
+    if (oldParsed && newParsed) {
+      // Both must be the same type
+      if (oldParsed.type !== newParsed.type) {
+        throw new Error("Cannot rename between different virtual path types")
+      }
+
+      switch (oldParsed.type) {
+        case "nodes":
+          return this.renameNode(oldPath, newPath)
+        case "extensions":
+          return this.renameExtension(oldPath, newPath)
+        default:
+          throw new Error(`Rename not supported for virtual path type: ${oldParsed.type}`)
+      }
+    }
+
+    // Delegate to underlying filesystem
+    return this.underlyingFS.rename(oldPath, newPath)
+  }
+
+  /**
+   * Rename a node in the eidos__tree table
+   */
+  private async renameNode(oldPath: string, newPath: string): Promise<void> {
+    // Extract node ID from old path
+    const nodeId = this.getNodeIdFromPath(oldPath.replace("~/.eidos/__NODES__", ""))
+    if (!nodeId) {
+      throw new Error("Cannot rename root nodes directory")
+    }
+
+    // Extract new name from new path
+    // newPath format: ~/.eidos/__NODES__/parent-id/new-name or ~/.eidos/__NODES__/new-name
+    const pathParts = newPath.replace("~/.eidos/__NODES__/", "").split("/").filter(Boolean)
+    const newName = pathParts[pathParts.length - 1]
+
+    if (!newName) {
+      throw new Error("Invalid new path: name cannot be empty")
+    }
+
+    // Update the node name in database
+    const query = `UPDATE eidos__tree SET name = ? WHERE id = ?`
+    await this.db.exec({ sql: query, bind: [newName, nodeId] })
+  }
+
+  /**
+   * Rename an extension in the eidos__extensions table
+   */
+  private async renameExtension(oldPath: string, newPath: string): Promise<void> {
+    // Extract extension ID from old path
+    const extensionId = this.getNodeIdFromPath(oldPath.replace("~/.eidos/__EXTENSIONS__", ""))
+    if (!extensionId) {
+      throw new Error("Invalid extension path")
+    }
+
+    // Extract new slug from new path
+    // newPath format: ~/.eidos/__EXTENSIONS__/new-slug.ts or new-slug.tsx
+    const fileName = newPath.replace("~/.eidos/__EXTENSIONS__/", "")
+    const newSlug = fileName.replace(/\.(ts|tsx)$/, "")
+
+    if (!newSlug) {
+      throw new Error("Invalid new path: slug cannot be empty")
+    }
+
+    // Update the extension slug in database
+    const query = `UPDATE eidos__extensions SET slug = ? WHERE id = ?`
+    await this.db.exec({ sql: query, bind: [newSlug, extensionId] })
+  }
 }

@@ -129,5 +129,12 @@ export interface IExternalFileSystem {
    * @returns Serializable file stats object
    */
   stat(path: string): Promise<IStats>
+
+  /**
+   * Rename file or directory (like fs.rename)
+   * @param oldPath Current path
+   * @param newPath New path
+   */
+  rename(oldPath: string, newPath: string): Promise<void>
 }
 

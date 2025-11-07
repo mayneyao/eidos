@@ -17,6 +17,7 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { IconRenderer } from "@/components/ui/icon-picker"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { InlineEdit } from "./inline-edit"
 
 interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
@@ -35,6 +36,8 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
   const [treeData, setTreeData] = useState<FileTreeNode[]>([])
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set())
+  const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [renamingNode, setRenamingNode] = useState<string | null>(null)
 
   const loadRootDirectory = async () => {
     if (!sqlite || !rootDir) return
@@ -118,6 +121,9 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
   }
 
   const handleFileClick = (node: FileTreeNode) => {
+    // Set selected node
+    setSelectedNode(node.path)
+
     if (!space) {
       console.error("Space not available for navigation")
       return
@@ -135,6 +141,63 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
       navigate(`/file-handler#${node.path}`)
     }
   }
+
+  const startRename = (nodePath: string) => {
+    setRenamingNode(nodePath)
+  }
+
+  const cancelRename = () => {
+    setRenamingNode(null)
+  }
+
+  const handleRenameConfirm = async (node: FileTreeNode, newName: string) => {
+    if (!sqlite || !newName.trim()) {
+      cancelRename()
+      return
+    }
+
+    if (newName === node.name) {
+      cancelRename()
+      return
+    }
+
+    try {
+      // Construct new path
+      // For virtual paths, we just need to change the last segment (the name)
+      const pathParts = node.path.split("/")
+      pathParts[pathParts.length - 1] = newName
+      const newPath = pathParts.join("/")
+
+      // Call rename API
+      await sqlite.fs.rename(node.path, newPath)
+
+      // Reload tree data to reflect changes
+      await loadRootDirectory()
+
+      cancelRename()
+    } catch (error) {
+      console.error("Failed to rename:", error)
+      // Keep the rename input open so user can try again or cancel
+    }
+  }
+
+  // Handle keyboard events for rename
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if we're already renaming
+      if (renamingNode) return
+
+      // Enter key to start rename
+      if (e.key === "Enter" && selectedNode) {
+        e.preventDefault()
+        e.stopPropagation()
+        startRename(selectedNode)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true })
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true })
+  }, [selectedNode, renamingNode])
 
   const getNodeIcon = (node: FileTreeNode) => {
     // Use custom icon from metadata if available
@@ -168,11 +231,15 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
     const isLoading = loadingNodes.has(node.path)
     const hasChildren = node.kind === "directory"
     const isPinned = node.metadata?.isPinned
+    const isSelected = selectedNode === node.path
+    const isRenaming = renamingNode === node.path
 
     return (
       <div key={node.path} className="min-w-0">
         <div
-          className="flex items-center hover:bg-accent rounded transition-colors cursor-pointer select-none"
+          className={`flex items-center rounded transition-colors cursor-pointer select-none ${
+            isSelected ? "bg-accent" : "hover:bg-accent"
+          }`}
           onClick={() => {
             if (hasChildren) {
               toggleNode(node)
@@ -205,8 +272,14 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
             )}
           </div>
           <div className="flex items-center gap-1 px-2 py-1 min-w-0 flex-1">
-            <span className="truncate text-foreground">{node.name}</span>
-            {isPinned && (
+            <InlineEdit
+              value={node.name}
+              isEditing={isRenaming}
+              nodeType={node.metadata?.nodeType}
+              onConfirm={(newName) => handleRenameConfirm(node, newName)}
+              onCancel={cancelRename}
+            />
+            {!isRenaming && isPinned && (
               <Pin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
             )}
           </div>

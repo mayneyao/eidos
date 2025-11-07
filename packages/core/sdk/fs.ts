@@ -146,5 +146,30 @@ export class FSManager {
   async stat(path: string): Promise<IStats> {
     return await this.externalFS.stat(path)
   }
+
+  /**
+   * Rename file or directory
+   * 
+   * @example
+   * // Rename a file
+   * await eidos.currentSpace.fs.rename("~/old-name.md", "~/new-name.md")
+   * 
+   * @example
+   * // Rename a node
+   * await eidos.currentSpace.fs.rename(
+   *   "~/.eidos/__NODES__/node-id",
+   *   "~/.eidos/__NODES__/New Name"
+   * )
+   * 
+   * @example
+   * // Rename an extension
+   * await eidos.currentSpace.fs.rename(
+   *   "~/.eidos/__EXTENSIONS__/ext-id",
+   *   "~/.eidos/__EXTENSIONS__/new-slug.ts"
+   * )
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    return await this.externalFS.rename(oldPath, newPath)
+  }
 }
 
