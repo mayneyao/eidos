@@ -1,0 +1,40 @@
+---
+alwaysApply: false
+---
+
+# Block to Project Code Conversion
+
+## Overview
+
+When converting block code to project code, replace `eidos.currentSpace` with `sqlite` obtained from the `useSqlite()` hook.
+
+## Conversion Rules
+
+1. Replace all `eidos.currentSpace` with `sqlite`
+2. Import and use `useSqlite()` hook: `import { useSqlite } from "@/hooks/use-sqlite"`
+3. Call `useSqlite()` hook to get the `sqlite` object: `const { sqlite } = useSqlite()`
+
+## Mapping
+
+- `eidos.currentSpace` → `sqlite` (via `useSqlite()` hook)
+
+## Example
+
+**Block code:**
+
+```tsx
+const entries = await eidos.currentSpace.fs.readdir(ROOT_DIR, {
+  withFileTypes: true,
+})
+```
+
+**Project code:**
+
+```tsx
+import { useSqlite } from "@/hooks/use-sqlite"
+
+const { sqlite } = useSqlite()
+const entries = await sqlite.fs.readdir(ROOT_DIR, {
+  withFileTypes: true,
+})
+```
