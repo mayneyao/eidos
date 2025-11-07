@@ -2,11 +2,20 @@
 
 import React, { useEffect, useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
-import { ChevronDown, ChevronRight, File } from "lucide-react"
+import {
+  BlocksIcon,
+  ChevronDown,
+  ChevronRight,
+  File,
+  FileSpreadsheet,
+  Folder,
+  Pin,
+} from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { IconRenderer } from "@/components/ui/icon-picker"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface FileTreeNode extends IDirectoryEntry {
@@ -108,18 +117,57 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
     setExpandedNodes(newExpanded)
   }
 
-  const handleFileClick = (path: string) => {
+  const handleFileClick = (node: FileTreeNode) => {
     if (!space) {
       console.error("Space not available for navigation")
       return
     }
-    navigate(`/file-handler#${path}`)
+
+    // Route based on metadata type
+    if (node.metadata?.nodeType && node.metadata?.nodeType !== "extension") {
+      // Navigate to node (table, doc, folder, dataview)
+      navigate(`/${node.metadata.nodeId}`)
+    } else if (node.metadata?.nodeType === "extension") {
+      // Navigate to extension
+      navigate(`/extensions/${node.metadata.nodeId}`)
+    } else {
+      // Regular file - use file handler
+      navigate(`/file-handler#${node.path}`)
+    }
+  }
+
+  const getNodeIcon = (node: FileTreeNode) => {
+    // Use custom icon from metadata if available
+    if (node.metadata?.icon) {
+      return (
+        <IconRenderer name={node.metadata.icon as any} className="w-4 h-4" />
+      )
+    }
+
+    // Use default icons based on node type
+    if (node.kind === "directory") {
+      return <Folder className="w-4 h-4 text-muted-foreground" />
+    }
+
+    switch (node.metadata?.nodeType) {
+      case "table":
+        return <FileSpreadsheet className="w-4 h-4 text-muted-foreground" />
+      case "doc":
+        return <File className="w-4 h-4 text-muted-foreground" />
+      case "extension":
+        return <BlocksIcon className="w-4 h-4 text-muted-foreground" />
+      case "folder":
+        return <Folder className="w-4 h-4 text-muted-foreground" />
+      default:
+        return <File className="w-4 h-4 text-muted-foreground" />
+    }
   }
 
   const renderTreeNode = (node: FileTreeNode, level = 0) => {
     const isExpanded = expandedNodes.has(node.path)
     const isLoading = loadingNodes.has(node.path)
     const hasChildren = node.kind === "directory"
+    const isPinned = node.metadata?.isPinned
 
     return (
       <div key={node.path} className="min-w-0">
@@ -129,7 +177,7 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
             if (hasChildren) {
               toggleNode(node)
             } else {
-              handleFileClick(node.path)
+              handleFileClick(node)
             }
           }}
         >
@@ -153,11 +201,14 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
                 )}
               </button>
             ) : (
-              <File className="w-4 h-4 text-muted-foreground" />
+              getNodeIcon(node)
             )}
           </div>
-          <div className="flex items-center gap-1 px-2 py-1 min-w-0">
+          <div className="flex items-center gap-1 px-2 py-1 min-w-0 flex-1">
             <span className="truncate text-foreground">{node.name}</span>
+            {isPinned && (
+              <Pin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+            )}
           </div>
         </div>
         {hasChildren && isExpanded && node.children && (

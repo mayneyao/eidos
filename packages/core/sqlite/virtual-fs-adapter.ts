@@ -1,0 +1,220 @@
+import type { IDirectoryEntry, IExternalFileSystem } from "../types/IExternalFileSystem"
+import type { ITreeNode } from "../types/ITreeNode"
+import type { IExtension } from "../types/IExtension"
+import type { BaseServerDatabase } from "./interface"
+
+/**
+ * Virtual File System Adapter
+ * Wraps an IExternalFileSystem to add support for virtual paths that map to database tables
+ * 
+ * Virtual paths:
+ * - ~/.eidos/__NODES__/ → eidos__tree table
+ * - ~/.eidos/__EXTENSIONS__/ → eidos__extensions table
+ */
+export class VirtualFsAdapter implements IExternalFileSystem {
+  constructor(
+    private underlyingFS: IExternalFileSystem,
+    private db: BaseServerDatabase
+  ) {}
+
+  /**
+   * Check if a path is a virtual path
+   */
+  isVirtualPath(path: string): boolean {
+    return path.startsWith("~/.eidos/__NODES__") || path.startsWith("~/.eidos/__EXTENSIONS__")
+  }
+
+  /**
+   * Parse a virtual path to extract the type and subpath
+   * Returns null if not a virtual path
+   */
+  parseVirtualPath(path: string): { type: "nodes" | "extensions"; subPath: string } | null {
+    const nodesMatch = path.match(/^~\/\.eidos\/__NODES__(\/.*)?$/)
+    if (nodesMatch) {
+      return {
+        type: "nodes",
+        subPath: nodesMatch[1] || "/",
+      }
+    }
+
+    const extensionsMatch = path.match(/^~\/\.eidos\/__EXTENSIONS__(\/.*)?$/)
+    if (extensionsMatch) {
+      return {
+        type: "extensions",
+        subPath: extensionsMatch[1] || "/",
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Extract node ID from a subpath
+   * E.g., "/abc-123" -> "abc-123"
+   */
+  private getNodeIdFromPath(subPath: string): string | null {
+    if (subPath === "/" || !subPath) return null
+    const parts = subPath.split("/").filter(Boolean)
+    return parts[parts.length - 1] || null
+  }
+
+  /**
+   * Read a virtual directory based on the virtual path
+   */
+  async readVirtualDir(path: string): Promise<IDirectoryEntry[]> {
+    const parsed = this.parseVirtualPath(path)
+    if (!parsed) return []
+
+    switch (parsed.type) {
+      case "nodes":
+        return this.readNodesDir(parsed.subPath)
+      case "extensions":
+        return this.readExtensionsDir(parsed.subPath)
+      default:
+        return []
+    }
+  }
+
+  /**
+   * Read nodes from eidos__tree table
+   */
+  private async readNodesDir(subPath: string): Promise<IDirectoryEntry[]> {
+    const parentId = this.getNodeIdFromPath(subPath)
+
+    // Query the tree table
+    let query: string
+    let bind: any[] = []
+    
+    if (parentId) {
+      query = `
+        SELECT * FROM eidos__tree 
+        WHERE parent_id = ?
+          AND is_deleted = 0
+        ORDER BY 
+          CASE WHEN is_pinned = 1 THEN 0 ELSE 1 END,
+          name ASC
+      `
+      bind = [parentId]
+    } else {
+      query = `
+        SELECT * FROM eidos__tree 
+        WHERE parent_id IS NULL
+          AND is_deleted = 0
+        ORDER BY 
+          CASE WHEN is_pinned = 1 THEN 0 ELSE 1 END,
+          name ASC
+      `
+    }
+
+    const nodes = await this.db.selectObjects(query, bind) as ITreeNode[]
+
+    // Transform to IDirectoryEntry
+    return nodes.map((node) => this.nodeToEntry(node))
+  }
+
+  /**
+   * Read extensions from eidos__extensions table
+   */
+  private async readExtensionsDir(subPath: string): Promise<IDirectoryEntry[]> {
+    // Extensions are flat, only root path is supported
+    if (subPath !== "/") {
+      return []
+    }
+
+    const query = `SELECT * FROM eidos__extensions ORDER BY slug ASC`
+    const extensions = await this.db.selectObjects(query) as IExtension[]
+
+    // Transform to IDirectoryEntry
+    return extensions.map((ext) => this.extensionToEntry(ext))
+  }
+
+  /**
+   * Convert ITreeNode to IDirectoryEntry
+   */
+  private nodeToEntry(node: ITreeNode): IDirectoryEntry {
+    return {
+      name: node.name,
+      path: `~/.eidos/__NODES__/${node.id}`,
+      parentPath: node.parent_id ? `~/.eidos/__NODES__/${node.parent_id}` : "~/.eidos/__NODES__",
+      kind: node.type === "folder" ? "directory" : "file",
+      metadata: {
+        nodeType: node.type as any,
+        nodeId: node.id,
+        isPinned: node.is_pinned || false,
+        icon: node.icon,
+      },
+    }
+  }
+
+  /**
+   * Convert IExtension to IDirectoryEntry
+   */
+  private extensionToEntry(ext: IExtension): IDirectoryEntry {
+    return {
+      name: `${ext.slug}.${ext.type === "script" ? "ts" : "tsx"}`,
+      path: `~/.eidos/__EXTENSIONS__/${ext.id}`,
+      parentPath: "~/.eidos/__EXTENSIONS__",
+      kind: "file",
+      metadata: {
+        nodeType: "extension",
+        nodeId: ext.id,
+        isPinned: false,
+        icon: ext.icon,
+      },
+    }
+  }
+
+  // Implement IExternalFileSystem interface - delegate to underlying FS or handle virtual paths
+
+  async readdir(path: string, options: { withFileTypes: true; recursive?: boolean }): Promise<IDirectoryEntry[]>
+  async readdir(path: string, options?: { withFileTypes?: false; recursive?: boolean }): Promise<string[]>
+  async readdir(path: string, options?: any): Promise<string[] | IDirectoryEntry[]> {
+    // Handle virtual paths
+    if (this.isVirtualPath(path)) {
+      const entries = await this.readVirtualDir(path)
+      
+      if (options?.withFileTypes) {
+        return entries
+      } else {
+        return entries.map((entry) => entry.name)
+      }
+    }
+
+    // Delegate to underlying filesystem
+    return this.underlyingFS.readdir(path, options)
+  }
+
+  async mkdir(path: string, options?: any): Promise<string | undefined> {
+    // Virtual paths don't support mkdir
+    if (this.isVirtualPath(path)) {
+      throw new Error("mkdir not supported for virtual paths")
+    }
+    return this.underlyingFS.mkdir(path, options)
+  }
+
+  async readFile(path: string): Promise<Uint8Array>
+  async readFile(path: string, options: { encoding: BufferEncoding; flag?: string } | BufferEncoding): Promise<string>
+  async readFile(path: string, options?: any): Promise<string | Uint8Array> {
+    // Virtual paths don't support readFile
+    if (this.isVirtualPath(path)) {
+      throw new Error("readFile not supported for virtual paths")
+    }
+    return this.underlyingFS.readFile(path, options)
+  }
+
+  async writeFile(path: string, data: string | Uint8Array, options?: any): Promise<void> {
+    // Virtual paths don't support writeFile
+    if (this.isVirtualPath(path)) {
+      throw new Error("writeFile not supported for virtual paths")
+    }
+    return this.underlyingFS.writeFile(path, data, options)
+  }
+
+  async stat(path: string): Promise<any> {
+    // Virtual paths don't support stat
+    if (this.isVirtualPath(path)) {
+      throw new Error("stat not supported for virtual paths")
+    }
+    return this.underlyingFS.stat(path)
+  }
+}

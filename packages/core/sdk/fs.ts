@@ -1,5 +1,7 @@
 import type { BaseDataSpace } from "../data-space/base"
 import type { IReaddirOptions, IMkdirOptions, IDirectoryEntry, IReadFileOptions, IWriteFileOptions, IStats } from "../types/IExternalFileSystem"
+import { VirtualFsAdapter } from "../sqlite/virtual-fs-adapter"
+import type { IExternalFileSystem } from "../types/IExternalFileSystem"
 
 /**
  * File system SDK for external files
@@ -8,13 +10,24 @@ import type { IReaddirOptions, IMkdirOptions, IDirectoryEntry, IReadFileOptions,
  * API follows Node.js fs/promises for familiarity
  */
 export class FSManager {
+  private _virtualAdapter?: IExternalFileSystem
+
   constructor(public dataSpace: BaseDataSpace) { }
 
   private get externalFS() {
     if (!this.dataSpace.externalFS) {
       throw new Error('External file system not configured')
     }
-    return this.dataSpace.externalFS
+    
+    // Lazily create virtual adapter that wraps the external FS
+    if (!this._virtualAdapter) {
+      this._virtualAdapter = new VirtualFsAdapter(
+        this.dataSpace.externalFS,
+        this.dataSpace.db
+      )
+    }
+    
+    return this._virtualAdapter
   }
 
   /**

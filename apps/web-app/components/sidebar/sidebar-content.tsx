@@ -1,45 +1,24 @@
 "use client"
 
-import { useMemo } from "react"
 import { detectDirective } from "@eidos.space/v3"
-import { ListTreeIcon } from "lucide-react"
-import { useTranslation } from "react-i18next"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useMblock } from "@/apps/web-app/hooks/use-mblock"
-import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
 import { BlockApp } from "../block-renderer/block-app"
-import { ExtensionSidebar } from "./extensions"
-import { CurrentItemTree } from "./nodes"
+import { TreeSidebarHeader } from "./nodes/tree-sidebar-header"
+import { ExtensionSidebarHeader } from "./extensions/extension-sidebar-header"
 import { FilesSidebar } from "./files"
+import FileTree from "../file-tree"
 
 const NodesContent = () => {
-  const { t } = useTranslation()
-  const allNodes = useAllNodes()
-
-  const combinedNodes = useMemo(() => {
-    const pinnedNodes = allNodes.filter((node) => node.is_pinned)
-    const regularNodes = allNodes.filter(
-      (node) => !node.parent_id && !node.is_deleted && !node.is_pinned
-    )
-    return [...pinnedNodes, ...regularNodes]
-  }, [allNodes])
-
-  // For virtual scrolling, we need all nodes (including children)
-  const allNodesForVirtual = useMemo(() => {
-    return allNodes.filter((node) => !node.is_deleted)
-  }, [allNodes])
-
   return (
     <div className="flex h-full w-full flex-col">
-      <CurrentItemTree
-        title={t("common.nodes")}
-        allNodes={combinedNodes}
-        allNodesForVirtual={allNodesForVirtual}
-        Icon={<ListTreeIcon className="pr-1" />}
-      />
+      <TreeSidebarHeader disableAdd={false} />
+      <div className="flex-1 min-h-0">
+        <FileTree rootDir="~/.eidos/__NODES__/" />
+      </div>
     </div>
   )
 }
@@ -47,7 +26,10 @@ const NodesContent = () => {
 const ExtensionsContent = () => {
   return (
     <div className="flex h-full w-full flex-col">
-      <ExtensionSidebar />
+      <ExtensionSidebarHeader />
+      <div className="flex-1 min-h-0">
+        <FileTree rootDir="~/.eidos/__EXTENSIONS__/" />
+      </div>
     </div>
   )
 }
