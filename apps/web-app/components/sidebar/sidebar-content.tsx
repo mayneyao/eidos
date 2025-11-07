@@ -13,6 +13,7 @@ import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { BlockApp } from "../block-renderer/block-app"
 import { ExtensionSidebar } from "./extensions"
 import { CurrentItemTree } from "./nodes"
+import { FilesSidebar } from "./files"
 
 const NodesContent = () => {
   const { t } = useTranslation()
@@ -51,6 +52,14 @@ const ExtensionsContent = () => {
   )
 }
 
+const FilesContent = () => {
+  return (
+    <div className="flex h-full w-full flex-col">
+      <FilesSidebar />
+    </div>
+  )
+}
+
 const BlockContent = ({ block }: { block: any }) => {
   const { space } = useCurrentPathInfo()
   if (!block.id) {
@@ -69,11 +78,13 @@ export const SidebarContent = () => {
         return <ExtensionsContent />
       case "nodes":
         return <NodesContent />
+      case "files":
+        return <FilesContent />
       default:
         // Check if currentApp is a block ID with 'use sidebar' directive
         if (
           currentApp &&
-          !["extensions", "nodes", "today"].includes(currentApp) &&
+          !["extensions", "nodes", "today", "files"].includes(currentApp) &&
           block &&
           block.code &&
           detectDirective(block.code, "use sidebar")

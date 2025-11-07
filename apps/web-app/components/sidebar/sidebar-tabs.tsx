@@ -5,7 +5,7 @@ import {
   BlocksIcon,
   CalendarDays,
   ChevronDownIcon,
-  FileBoxIcon,
+  FolderOpen,
   GripVertical,
   ListTreeIcon,
   SettingsIcon,
@@ -14,19 +14,17 @@ import {
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
-import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { isMacDesktop } from "@/lib/web/helper"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
-import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
+import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
 import {
   TAB_CONFIG,
   useSidebarStore,
   type SidebarApp,
-  type TabId,
 } from "@/apps/web-app/store/sidebar-store"
 
 import { SortableContainer, SortableItem } from "../table/sortable"
@@ -41,7 +39,7 @@ import { IconRenderer } from "../ui/icon-picker"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   nodes: ListTreeIcon,
-  files: FileBoxIcon,
+  files: FolderOpen,
   extensions: BlocksIcon,
   settings: SettingsIcon,
   today: CalendarDays,
@@ -130,7 +128,10 @@ export const SidebarTabs = () => {
 
   // Get block IDs (non-fixed tabs)
   const blockIds = useMemo(
-    () => tabIds.filter((id) => !["nodes", "extensions", "today"].includes(id)),
+    () =>
+      tabIds.filter(
+        (id) => !["nodes", "extensions", "today", "files"].includes(id)
+      ),
     [tabIds]
   )
 
@@ -158,7 +159,7 @@ export const SidebarTabs = () => {
       navigate(href)
     } else {
       // Regular tab or block tab
-      if (tabId === "nodes" || tabId === "extensions") {
+      if (tabId === "nodes" || tabId === "extensions" || tabId === "files") {
         setCurrentApp(tabId as SidebarApp)
       } else {
         // Block tab - use unified handling logic
@@ -285,10 +286,12 @@ export const SidebarTabs = () => {
         {visibleItems.map((tab, index) => {
           const tabId = tab.id
           const tabConfig = TAB_CONFIG[tabId]
-          const isFixedTab = ["nodes", "extensions", "today"].includes(tabId)
+          const isFixedTab = ["nodes", "extensions", "today", "files"].includes(
+            tabId
+          )
 
           if (isFixedTab) {
-            // Fixed tabs (nodes, extensions, today)
+            // Fixed tabs (nodes, extensions, today, files)
             const shortcutNum = index + 1
             const Icon = getIconForTab(tabId)
             const isActive = currentApp === tabId
@@ -383,6 +386,7 @@ export const SidebarTabs = () => {
                       "nodes",
                       "extensions",
                       "today",
+                      "files",
                     ].includes(tabId)
                     const tabConfig = TAB_CONFIG[tabId]
                     const label = isFixedTab ? tabConfig?.label || tabId : null
