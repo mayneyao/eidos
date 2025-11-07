@@ -38,6 +38,8 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set())
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [renamingNode, setRenamingNode] = useState<string | null>(null)
+  const [dragOverNode, setDragOverNode] = useState<string | null>(null)
+  const [draggingNode, setDraggingNode] = useState<string | null>(null)
 
   const loadRootDirectory = async () => {
     if (!sqlite || !rootDir) return
@@ -181,6 +183,110 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
     }
   }
 
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, node: FileTreeNode) => {
+    e.stopPropagation()
+    setDraggingNode(node.path)
+    
+    // Set drag data for cross-window drag support
+    const dragData = {
+      path: node.path,
+      name: node.name,
+      kind: node.kind,
+      metadata: node.metadata,
+    }
+    
+    e.dataTransfer.effectAllowed = "move"
+    e.dataTransfer.setData("application/eidos-node", JSON.stringify(dragData))
+    e.dataTransfer.setData("text/plain", node.name) // Fallback for external apps
+  }
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    e.stopPropagation()
+    setDraggingNode(null)
+    setDragOverNode(null)
+  }
+
+  const handleDragOver = (e: React.DragEvent, node: FileTreeNode) => {
+    // Only allow drop on folders
+    if (node.kind !== "directory") return
+    
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = "move"
+    
+    if (dragOverNode !== node.path) {
+      setDragOverNode(node.path)
+    }
+  }
+
+  const handleDragEnter = (e: React.DragEvent, node: FileTreeNode) => {
+    // Only allow drop on folders
+    if (node.kind !== "directory") return
+    
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverNode(node.path)
+  }
+
+  const handleDragLeave = (e: React.DragEvent, node: FileTreeNode) => {
+    e.stopPropagation()
+    // Only clear if we're actually leaving this node (not entering a child)
+    if (e.currentTarget === e.target) {
+      setDragOverNode(null)
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetFolder: FileTreeNode) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverNode(null)
+
+    // Only allow drop on folders
+    if (targetFolder.kind !== "directory") return
+
+    if (!sqlite) return
+
+    try {
+      // Get drag data
+      const dragDataStr = e.dataTransfer.getData("application/eidos-node")
+      if (!dragDataStr) return
+
+      const dragData = JSON.parse(dragDataStr) as FileTreeNode
+      
+      // Prevent dropping onto itself
+      if (dragData.path === targetFolder.path) {
+        return
+      }
+
+      // Prevent dropping a folder into its own descendant
+      if (targetFolder.path.startsWith(dragData.path + "/")) {
+        console.warn("Cannot move a folder into its own descendant")
+        return
+      }
+
+      // Construct new path: targetFolder/draggedNode
+      const draggedNodeId = dragData.path.split("/").filter(Boolean).pop()
+      const newPath = `${targetFolder.path}/${draggedNodeId}`
+
+      // Call rename API to move the node
+      await sqlite.fs.rename(dragData.path, newPath)
+
+      // Reload tree data to reflect changes
+      await loadRootDirectory()
+      
+      // Optionally expand the target folder to show the moved item
+      if (!expandedNodes.has(targetFolder.path)) {
+        setExpandedNodes(prev => new Set(prev).add(targetFolder.path))
+        await loadSubDirectory(targetFolder.path)
+      }
+    } catch (error) {
+      console.error("Failed to move node:", error)
+    } finally {
+      setDraggingNode(null)
+    }
+  }
+
   // Handle keyboard events for rename
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -233,13 +339,25 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
     const isPinned = node.metadata?.isPinned
     const isSelected = selectedNode === node.path
     const isRenaming = renamingNode === node.path
+    const isDragging = draggingNode === node.path
+    const isDragOver = dragOverNode === node.path
+    const canDrop = hasChildren && !isDragging
 
     return (
       <div key={node.path} className="min-w-0">
         <div
           className={`flex items-center rounded transition-colors cursor-pointer select-none ${
             isSelected ? "bg-accent" : "hover:bg-accent"
+          } ${isDragging ? "opacity-50" : ""} ${
+            isDragOver && canDrop ? "ring-2 ring-primary bg-accent" : ""
           }`}
+          draggable={!isRenaming}
+          onDragStart={(e) => handleDragStart(e, node)}
+          onDragEnd={handleDragEnd}
+          onDragOver={canDrop ? (e) => handleDragOver(e, node) : undefined}
+          onDragEnter={canDrop ? (e) => handleDragEnter(e, node) : undefined}
+          onDragLeave={canDrop ? (e) => handleDragLeave(e, node) : undefined}
+          onDrop={canDrop ? (e) => handleDrop(e, node) : undefined}
           onClick={() => {
             if (hasChildren) {
               toggleNode(node)

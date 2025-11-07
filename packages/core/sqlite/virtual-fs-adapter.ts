@@ -254,6 +254,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
   /**
    * Rename a node in the eidos__tree table
+   * Also supports moving a node to a different parent folder
    */
   private async renameNode(oldPath: string, newPath: string): Promise<void> {
     // Extract node ID from old path
@@ -262,18 +263,78 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       throw new Error("Cannot rename root nodes directory")
     }
 
-    // Extract new name from new path
-    // newPath format: ~/.eidos/__NODES__/parent-id/new-name or ~/.eidos/__NODES__/new-name
-    const pathParts = newPath.replace("~/.eidos/__NODES__/", "").split("/").filter(Boolean)
-    const newName = pathParts[pathParts.length - 1]
-
-    if (!newName) {
-      throw new Error("Invalid new path: name cannot be empty")
+    // Get current node data to compare
+    const currentNode = await this.db.selectObjects(
+      "SELECT * FROM eidos__tree WHERE id = ?",
+      [nodeId]
+    ) as ITreeNode[]
+    
+    if (currentNode.length === 0) {
+      throw new Error(`Node not found: ${nodeId}`)
     }
 
-    // Update the node name in database
-    const query = `UPDATE eidos__tree SET name = ? WHERE id = ?`
-    await this.db.exec({ sql: query, bind: [newName, nodeId] })
+    const node = currentNode[0]
+
+    // Parse new path to extract parent ID and name
+    // newPath formats:
+    // - ~/.eidos/__NODES__/new-name (rename at root level)
+    // - ~/.eidos/__NODES__/parent-id/node-id (move to folder, keep name/ID)
+    // - ~/.eidos/__NODES__/parent-id/new-name (move and rename)
+    const pathParts = newPath.replace("~/.eidos/__NODES__/", "").split("/").filter(Boolean)
+    
+    if (pathParts.length === 0) {
+      throw new Error("Invalid new path: path cannot be empty")
+    }
+
+    let newParentId: string | undefined = undefined
+    let newName: string | undefined = undefined
+
+    if (pathParts.length === 1) {
+      // Single part: could be new name at same level, or node ID (no change)
+      const lastPart = pathParts[0]
+      if (lastPart !== nodeId) {
+        // It's a new name
+        newName = lastPart
+      }
+      // Parent stays the same (implicitly)
+    } else {
+      // Multiple parts: parent-id/.../node-id-or-name
+      const lastPart = pathParts[pathParts.length - 1]
+      const parentPart = pathParts[pathParts.length - 2]
+      
+      // Check if parent changed
+      if (parentPart !== node.parent_id) {
+        newParentId = parentPart
+      }
+      
+      // Check if name changed (lastPart is not the node ID)
+      if (lastPart !== nodeId && lastPart !== node.name) {
+        newName = lastPart
+      }
+    }
+
+    // Build update query dynamically based on what changed
+    const updates: string[] = []
+    const binds: any[] = []
+
+    if (newName !== undefined) {
+      updates.push("name = ?")
+      binds.push(newName)
+    }
+
+    if (newParentId !== undefined) {
+      updates.push("parent_id = ?")
+      binds.push(newParentId)
+    }
+
+    if (updates.length === 0) {
+      // Nothing to update
+      return
+    }
+
+    binds.push(nodeId)
+    const query = `UPDATE eidos__tree SET ${updates.join(", ")} WHERE id = ?`
+    await this.db.exec({ sql: query, bind: binds })
   }
 
   /**
