@@ -18,6 +18,9 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { IconRenderer } from "@/components/ui/icon-picker"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { InlineEdit } from "./inline-edit"
+import { FileTreeContextMenu } from "./file-tree-context-menu"
+import { useFileTreeOperations } from "./use-file-tree-operations"
+import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 
 interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
@@ -32,6 +35,7 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
   const { sqlite } = useSqlite()
   const navigate = useNavigate()
   const { space } = useCurrentPathInfo()
+  const { isFavorite } = useFavBlocks()
 
   const [treeData, setTreeData] = useState<FileTreeNode[]>([])
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
@@ -40,6 +44,18 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
   const [renamingNode, setRenamingNode] = useState<string | null>(null)
   const [dragOverNode, setDragOverNode] = useState<string | null>(null)
   const [draggingNode, setDraggingNode] = useState<string | null>(null)
+
+  // Context menu operations
+  const {
+    handleDelete,
+    handlePin,
+    handleUnpin,
+    handleAddToChat,
+    handleCreateDoc,
+    handleCreateTable,
+    handleCreateFolder,
+    handleCopySlug,
+  } = useFileTreeOperations(rootDir)
 
   const loadRootDirectory = async () => {
     if (!sqlite || !rootDir) return
@@ -342,66 +358,87 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
     const isDragging = draggingNode === node.path
     const isDragOver = dragOverNode === node.path
     const canDrop = hasChildren && !isDragging
+    const isVirtualNode = node.metadata?.nodeType !== undefined
+    
+    // Check if extension is pinned (for extensions)
+    const isExtension = node.metadata?.nodeType === "extension"
+    const isExtensionPinned = isExtension && node.metadata?.nodeId && isFavorite(node.metadata.nodeId)
+    
+    // Show pin icon if either node is pinned or extension is favorited
+    const showPinIcon = isPinned || isExtensionPinned
 
     return (
       <div key={node.path} className="min-w-0">
-        <div
-          className={`flex items-center rounded transition-colors cursor-pointer select-none ${
-            isSelected ? "bg-accent" : "hover:bg-accent"
-          } ${isDragging ? "opacity-50" : ""} ${
-            isDragOver && canDrop ? "ring-2 ring-primary bg-accent" : ""
-          }`}
-          draggable={!isRenaming}
-          onDragStart={(e) => handleDragStart(e, node)}
-          onDragEnd={handleDragEnd}
-          onDragOver={canDrop ? (e) => handleDragOver(e, node) : undefined}
-          onDragEnter={canDrop ? (e) => handleDragEnter(e, node) : undefined}
-          onDragLeave={canDrop ? (e) => handleDragLeave(e, node) : undefined}
-          onDrop={canDrop ? (e) => handleDrop(e, node) : undefined}
-          onClick={() => {
-            if (hasChildren) {
-              toggleNode(node)
-            } else {
-              handleFileClick(node)
-            }
-          }}
+        <FileTreeContextMenu
+          node={node}
+          onRename={isVirtualNode ? startRename.bind(null, node.path) : undefined}
+          onDelete={isVirtualNode ? handleDelete : undefined}
+          onPin={isVirtualNode && !isPinned ? handlePin : undefined}
+          onUnpin={isVirtualNode && isPinned ? handleUnpin : undefined}
+          onAddToChat={isVirtualNode && node.metadata?.nodeType !== "extension" ? handleAddToChat : undefined}
+          onCreateDoc={hasChildren && node.metadata?.nodeType === "folder" ? handleCreateDoc : undefined}
+          onCreateTable={hasChildren && node.metadata?.nodeType === "folder" ? handleCreateTable : undefined}
+          onCreateFolder={hasChildren && node.metadata?.nodeType === "folder" ? handleCreateFolder : undefined}
+          onCopySlug={node.metadata?.nodeType === "extension" ? handleCopySlug : undefined}
         >
-          <div style={{ width: level * 18 }} className="flex-shrink-0" />
-          <div className="w-4 flex-shrink-0 flex items-center justify-center">
-            {hasChildren ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  toggleNode(node)
-                }}
-                className="p-0 hover:bg-accent rounded transition-colors"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-border border-t-primary" />
-                ) : isExpanded ? (
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                )}
-              </button>
-            ) : (
-              getNodeIcon(node)
-            )}
+          <div
+            className={`flex items-center rounded transition-colors cursor-pointer select-none ${
+              isSelected ? "bg-accent" : "hover:bg-accent"
+            } ${isDragging ? "opacity-50" : ""} ${
+              isDragOver && canDrop ? "ring-2 ring-primary bg-accent" : ""
+            }`}
+            draggable={!isRenaming}
+            onDragStart={(e) => handleDragStart(e, node)}
+            onDragEnd={handleDragEnd}
+            onDragOver={canDrop ? (e) => handleDragOver(e, node) : undefined}
+            onDragEnter={canDrop ? (e) => handleDragEnter(e, node) : undefined}
+            onDragLeave={canDrop ? (e) => handleDragLeave(e, node) : undefined}
+            onDrop={canDrop ? (e) => handleDrop(e, node) : undefined}
+            onClick={() => {
+              if (hasChildren) {
+                toggleNode(node)
+              } else {
+                handleFileClick(node)
+              }
+            }}
+          >
+            <div style={{ width: level * 18 }} className="flex-shrink-0" />
+            <div className="w-4 flex-shrink-0 flex items-center justify-center">
+              {hasChildren ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleNode(node)
+                  }}
+                  className="p-0 hover:bg-accent rounded transition-colors"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <div className="w-4 h-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+                  ) : isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </button>
+              ) : (
+                getNodeIcon(node)
+              )}
+            </div>
+            <div className="flex items-center gap-1 px-2 py-1 min-w-0 flex-1">
+              <InlineEdit
+                value={node.name}
+                isEditing={isRenaming}
+                nodeType={node.metadata?.nodeType}
+                onConfirm={(newName) => handleRenameConfirm(node, newName)}
+                onCancel={cancelRename}
+              />
+              {!isRenaming && showPinIcon && (
+                <Pin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-1 px-2 py-1 min-w-0 flex-1">
-            <InlineEdit
-              value={node.name}
-              isEditing={isRenaming}
-              nodeType={node.metadata?.nodeType}
-              onConfirm={(newName) => handleRenameConfirm(node, newName)}
-              onCancel={cancelRename}
-            />
-            {!isRenaming && isPinned && (
-              <Pin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-            )}
-          </div>
-        </div>
+        </FileTreeContextMenu>
         {hasChildren && isExpanded && node.children && (
           <div className="ml-0">
             {node.children.map((child) => renderTreeNode(child, level + 1))}

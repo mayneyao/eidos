@@ -17,6 +17,8 @@ export interface IDirectoryEntry {
     nodeId?: string
     isPinned?: boolean
     icon?: string
+    /** Extension type (only for nodeType === "extension") */
+    extensionType?: "script" | "block"
   }
 }
 

@@ -160,6 +160,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
         nodeId: ext.id,
         isPinned: false,
         icon: ext.icon,
+        extensionType: ext.type,
       },
     }
   }
