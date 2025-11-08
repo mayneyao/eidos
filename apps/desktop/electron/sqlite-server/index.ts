@@ -425,7 +425,15 @@ export class NodeServerDatabase extends BaseServerDatabase {
                 }
                 return item;
             })
-            const stmt = this.db.prepare(sql);
+            let stmt
+            try {
+                stmt = this.db.prepare(sql);
+            } catch (error) {
+                this.logger.error("Error preparing statement:", error);
+                this.logger.error("SQL:", sql);
+                this.logger.error("Bind:", _bind);
+                throw error
+            }
             let res = null
             if (stmt.readonly) {
                 res = stmt.all(_bind);

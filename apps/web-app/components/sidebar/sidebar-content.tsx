@@ -11,24 +11,79 @@ import { TreeSidebarHeader } from "./nodes/tree-sidebar-header"
 import { ExtensionSidebarHeader } from "./extensions/extension-sidebar-header"
 import { FilesSidebar } from "./files"
 import FileTree from "../file-tree"
+import { SearchResults } from "./nodes/search-results"
+import { useTreeSidebarStore } from "./nodes/tree-sidebar-store"
+import { useExtensionStore } from "@/apps/web-app/store/extension-store"
 
 const NodesContent = () => {
+  const {
+    isSearchMode,
+    searchResults,
+    searchTerm,
+    selectedIndex,
+    setSelectedIndex,
+    isNodesExpanded,
+    setIsNodesExpanded,
+    isContentExpanded,
+    setIsContentExpanded,
+  } = useTreeSidebarStore()
+
   return (
     <div className="flex h-full w-full flex-col">
       <TreeSidebarHeader disableAdd={false} />
       <div className="flex-1 min-h-0">
+        {isSearchMode ? (
+          <SearchResults
+            type="nodes"
+            searchResults={searchResults}
+            searchTerm={searchTerm}
+            selectedIndex={selectedIndex}
+            setSelectedIndex={setSelectedIndex}
+            isItemsExpanded={isNodesExpanded}
+            setIsItemsExpanded={setIsNodesExpanded}
+            isContentExpanded={isContentExpanded}
+            setIsContentExpanded={setIsContentExpanded}
+          />
+        ) : (
         <FileTree rootDir="~/.eidos/__NODES__/" />
+        )}
       </div>
     </div>
   )
 }
 
 const ExtensionsContent = () => {
+  const {
+    isSearchMode,
+    searchResults,
+    searchTerm,
+    selectedIndex,
+    setSelectedIndex,
+    isExtensionsExpanded,
+    setIsExtensionsExpanded,
+    isContentExpanded,
+    setIsContentExpanded,
+  } = useExtensionStore()
+
   return (
     <div className="flex h-full w-full flex-col">
       <ExtensionSidebarHeader />
       <div className="flex-1 min-h-0">
-        <FileTree rootDir="~/.eidos/__EXTENSIONS__/" />
+        {isSearchMode ? (
+          <SearchResults
+            type="extensions"
+            searchResults={searchResults}
+            searchTerm={searchTerm}
+            selectedIndex={selectedIndex}
+            setSelectedIndex={setSelectedIndex}
+            isItemsExpanded={isExtensionsExpanded}
+            setIsItemsExpanded={setIsExtensionsExpanded}
+            isContentExpanded={isContentExpanded}
+            setIsContentExpanded={setIsContentExpanded}
+          />
+        ) : (
+          <FileTree rootDir="~/.eidos/__EXTENSIONS__/" />
+        )}
       </div>
     </div>
   )

@@ -1,31 +1,67 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useKeyPress } from "ahooks"
+import { useDebounceFn, useKeyPress } from "ahooks"
+import { useNavigate } from "react-router-dom"
 
 import { Input } from "@/components/ui/input"
-import { useAllExtensions } from "@/apps/web-app/hooks/use-all-extensions"
+import { useQueryExtension } from "@/apps/web-app/hooks/use-query-extension"
+import { useExtensionStore } from "@/apps/web-app/store/extension-store"
 
 export const ExtensionSearch = () => {
-  const { searchTerm, updateSearch } = useAllExtensions()
+  const {
+    searchTerm,
+    setSearchTerm,
+    setSearchResults,
+    setIsSearchMode,
+    searchResults,
+    selectedIndex,
+    setSelectedIndex,
+    isExtensionsExpanded,
+    isContentExpanded,
+  } = useExtensionStore()
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { queryExtensions, fullTextSearchExtensions } = useQueryExtension()
+  const navigate = useNavigate()
 
-  const DEBOUNCE_DELAY = 200
+  // Calculate visible items for keyboard navigation
+  const extensionMatches = searchResults.filter((ext) => ext.mode === "extension")
+  const ftsResults = searchResults.filter((ext) => ext.mode === "fts")
+  const visibleItems = [
+    ...(isExtensionsExpanded ? extensionMatches : []),
+    ...(isContentExpanded ? ftsResults : [])
+  ]
 
-  const debouncedSearch = useCallback(
-    (() => {
-      let timeoutId: NodeJS.Timeout
-      return (term: string) => {
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          updateSearch(term)
-        }, DEBOUNCE_DELAY)
-      }
-    })(),
-    [updateSearch]
-  )
+  // Reset selectedIndex if it's out of bounds when visibility changes
+  useEffect(() => {
+    if (selectedIndex >= visibleItems.length && visibleItems.length > 0) {
+      setSelectedIndex(visibleItems.length - 1)
+    }
+  }, [visibleItems.length, selectedIndex, setSelectedIndex])
+
+  const performSearch = async (term: string) => {
+    if (term.length === 0) {
+      setSearchResults([])
+      setIsSearchMode(false)
+      return
+    }
+
+    // Enable search mode when there's a search term
+    setIsSearchMode(true)
+
+    // Perform both extension name/slug search and full-text search
+    const extensions = await queryExtensions(term)
+    const ftsExtensions = await fullTextSearchExtensions(term)
+
+    // Combine results, FTS results first, then name matches
+    const combinedResults = [...(ftsExtensions || []), ...(extensions || [])]
+    setSearchResults(combinedResults)
+  }
+
+  const { run: debouncedSearch } = useDebounceFn(performSearch, { wait: 300 })
 
   const handleSearchChange = (term: string) => {
     setLocalSearchTerm(term)
+    setSearchTerm(term)
     debouncedSearch(term)
   }
 
@@ -44,7 +80,27 @@ export const ExtensionSearch = () => {
     if (e.key === "Escape") {
       e.preventDefault()
       setLocalSearchTerm("")
-      updateSearch("")
+      setSearchTerm("")
+      setSearchResults([])
+      setIsSearchMode(false)
+      return
+    }
+
+    // Handle navigation keys only when there are visible items
+    if (visibleItems.length === 0) return
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setSelectedIndex(Math.min(selectedIndex + 1, visibleItems.length - 1))
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setSelectedIndex(Math.max(selectedIndex - 1, 0))
+    } else if (e.key === "Enter") {
+      e.preventDefault()
+      const selectedItem = visibleItems[selectedIndex]
+      if (selectedItem) {
+        navigate(`/extensions/${selectedItem.id}`)
+      }
     }
   }
 
