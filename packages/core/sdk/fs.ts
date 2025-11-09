@@ -1,5 +1,5 @@
 import type { BaseDataSpace } from "../data-space/base"
-import type { IReaddirOptions, IMkdirOptions, IDirectoryEntry, IReadFileOptions, IWriteFileOptions, IStats } from "../types/IExternalFileSystem"
+import type { IReaddirOptions, IMkdirOptions, IDirectoryEntry, IReadFileOptions, IWriteFileOptions, IStats, IWatchEvent, IWatchOptions } from "../types/IExternalFileSystem"
 import { VirtualFsAdapter } from "../sqlite/virtual-fs-adapter"
 import type { IExternalFileSystem } from "../types/IExternalFileSystem"
 
@@ -170,6 +170,42 @@ export class FSManager {
    */
   async rename(oldPath: string, newPath: string): Promise<void> {
     return await this.externalFS.rename(oldPath, newPath)
+  }
+
+  /**
+   * Watch for changes on a file or directory
+   * 
+   * @example
+   * // Watch nodes for changes
+   * for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__NODES__/")) {
+   *   console.log(`Node ${event.filename} ${event.eventType}`)
+   * }
+   * 
+   * @example
+   * // Watch specific folder with recursive option
+   * for await (const event of eidos.currentSpace.fs.watch(
+   *   "~/.eidos/__NODES__/folder-id/", 
+   *   { recursive: true }
+   * )) {
+   *   console.log(`File ${event.filename} ${event.eventType}`)
+   * }
+   * 
+   * @example
+   * // Watch with AbortSignal
+   * const controller = new AbortController()
+   * const { signal } = controller
+   * 
+   * setTimeout(() => controller.abort(), 5000)
+   * 
+   * for await (const event of eidos.currentSpace.fs.watch(
+   *   "~/.eidos/__EXTENSIONS__/", 
+   *   { signal }
+   * )) {
+   *   console.log(`Extension ${event.filename} ${event.eventType}`)
+   * }
+   */
+  async *watch(path: string, options?: IWatchOptions): AsyncIterable<IWatchEvent> {
+    yield* this.externalFS.watch(path, options)
   }
 }
 

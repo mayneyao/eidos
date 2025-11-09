@@ -1,7 +1,38 @@
-import type { IDirectoryEntry, IExternalFileSystem } from "../types/IExternalFileSystem"
+import type { IDirectoryEntry, IExternalFileSystem, IWatchEvent, IWatchOptions } from "../types/IExternalFileSystem"
 import type { ITreeNode } from "../types/ITreeNode"
 import type { IExtension } from "../types/IExtension"
 import type { BaseServerDatabase } from "./interface"
+
+/**
+ * Global event queue for virtual file system watch events
+ * Key: watched path (e.g., "~/.eidos/__NODES__/")
+ * Value: array of event queues for different watchers
+ */
+const watchEventQueues = new Map<string, Array<{
+  queue: IWatchEvent[]
+  resolve: ((event: IWatchEvent) => void) | null
+  reject: ((error: Error) => void) | null
+  signal?: AbortSignal
+}>>()
+
+/**
+ * Push a watch event to all watchers for a given path
+ */
+function pushWatchEvent(path: string, event: IWatchEvent) {
+  const watchers = watchEventQueues.get(path)
+  if (!watchers || watchers.length === 0) return
+
+  // Push event to all watchers
+  watchers.forEach(watcher => {
+    if (watcher.resolve) {
+      watcher.resolve(event)
+      watcher.resolve = null
+      watcher.reject = null
+    } else {
+      watcher.queue.push(event)
+    }
+  })
+}
 
 /**
  * Virtual File System Adapter
@@ -12,10 +43,140 @@ import type { BaseServerDatabase } from "./interface"
  * - ~/.eidos/__EXTENSIONS__/ → eidos__extensions table
  */
 export class VirtualFsAdapter implements IExternalFileSystem {
+  private triggersInitialized = false
+
   constructor(
     private underlyingFS: IExternalFileSystem,
     private db: BaseServerDatabase
-  ) {}
+  ) {
+    this.initializeWatchTriggers()
+  }
+
+  /**
+   * Initialize watch triggers and UDF for virtual file system
+   */
+  private initializeWatchTriggers() {
+    if (this.triggersInitialized) return
+
+    try {
+      // Register UDF function for watch events
+      this.db.createFunction({
+        name: "eidos_virtual_fs_watch_event",
+        xFunc: (path: string, eventType: string, filename: string) => {
+          const event: IWatchEvent = {
+            eventType: eventType as 'rename' | 'change',
+            filename: filename || ''
+          }
+          pushWatchEvent(path, event)
+          return null
+        }
+      })
+
+      // Create triggers for eidos__tree table
+      const treeInsertTrigger = `
+        CREATE TEMP TRIGGER IF NOT EXISTS virtual_fs_tree_insert_trigger
+        AFTER INSERT ON eidos__tree
+        FOR EACH ROW
+        WHEN NEW.is_deleted = 0
+        BEGIN
+          SELECT eidos_virtual_fs_watch_event(
+            '~/.eidos/__NODES__/',
+            'rename',
+            NEW.id
+          );
+        END;
+      `
+
+      const treeUpdateTrigger = `
+        CREATE TEMP TRIGGER IF NOT EXISTS virtual_fs_tree_update_trigger
+        AFTER UPDATE ON eidos__tree
+        FOR EACH ROW
+        WHEN NEW.is_deleted = 0
+        BEGIN
+          -- If name or parent_id changed, emit rename event, otherwise emit change event
+          SELECT eidos_virtual_fs_watch_event(
+            '~/.eidos/__NODES__/',
+            CASE 
+              WHEN OLD.name != NEW.name OR OLD.parent_id != NEW.parent_id THEN 'rename'
+              ELSE 'change'
+            END,
+            NEW.id
+          );
+        END;
+      `
+
+      const treeDeleteTrigger = `
+        CREATE TEMP TRIGGER IF NOT EXISTS virtual_fs_tree_delete_trigger
+        AFTER UPDATE ON eidos__tree
+        FOR EACH ROW
+        WHEN NEW.is_deleted = 1 AND OLD.is_deleted = 0
+        BEGIN
+          SELECT eidos_virtual_fs_watch_event(
+            '~/.eidos/__NODES__/',
+            'rename',
+            NEW.id
+          );
+        END;
+      `
+
+      // Create triggers for eidos__extensions table
+      const extensionInsertTrigger = `
+        CREATE TEMP TRIGGER IF NOT EXISTS virtual_fs_extension_insert_trigger
+        AFTER INSERT ON eidos__extensions
+        FOR EACH ROW
+        BEGIN
+          SELECT eidos_virtual_fs_watch_event(
+            '~/.eidos/__EXTENSIONS__/',
+            'rename',
+            NEW.id
+          );
+        END;
+      `
+
+      const extensionUpdateTrigger = `
+        CREATE TEMP TRIGGER IF NOT EXISTS virtual_fs_extension_update_trigger
+        AFTER UPDATE ON eidos__extensions
+        FOR EACH ROW
+        BEGIN
+          -- If slug changed, emit rename event, otherwise emit change event
+          SELECT eidos_virtual_fs_watch_event(
+            '~/.eidos/__EXTENSIONS__/',
+            CASE 
+              WHEN OLD.slug != NEW.slug THEN 'rename'
+              ELSE 'change'
+            END,
+            NEW.id
+          );
+        END;
+      `
+
+      const extensionDeleteTrigger = `
+        CREATE TEMP TRIGGER IF NOT EXISTS virtual_fs_extension_delete_trigger
+        AFTER DELETE ON eidos__extensions
+        FOR EACH ROW
+        BEGIN
+          SELECT eidos_virtual_fs_watch_event(
+            '~/.eidos/__EXTENSIONS__/',
+            'rename',
+            OLD.id
+          );
+        END;
+      `
+
+      // Execute all trigger creation statements
+      this.db.exec(treeInsertTrigger)
+      this.db.exec(treeUpdateTrigger)
+      this.db.exec(treeDeleteTrigger)
+      this.db.exec(extensionInsertTrigger)
+      this.db.exec(extensionUpdateTrigger)
+      this.db.exec(extensionDeleteTrigger)
+
+      this.triggersInitialized = true
+    } catch (error) {
+      console.error('Failed to initialize watch triggers:', error)
+      // Don't throw, just log - watch will still work for non-virtual paths
+    }
+  }
 
   /**
    * Check if a path is a virtual path
@@ -61,15 +222,15 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   /**
    * Read a virtual directory based on the virtual path
    */
-  async readVirtualDir(path: string): Promise<IDirectoryEntry[]> {
+  async readVirtualDir(path: string, recursive = false): Promise<IDirectoryEntry[]> {
     const parsed = this.parseVirtualPath(path)
     if (!parsed) return []
 
     switch (parsed.type) {
       case "nodes":
-        return this.readNodesDir(parsed.subPath)
+        return this.readNodesDir(parsed.subPath, recursive)
       case "extensions":
-        return this.readExtensionsDir(parsed.subPath)
+        return this.readExtensionsDir(parsed.subPath, recursive)
       default:
         return []
     }
@@ -78,9 +239,22 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   /**
    * Read nodes from eidos__tree table
    */
-  private async readNodesDir(subPath: string): Promise<IDirectoryEntry[]> {
+  private async readNodesDir(subPath: string, recursive = false): Promise<IDirectoryEntry[]> {
     const parentId = this.getNodeIdFromPath(subPath)
 
+    if (recursive) {
+      // Recursive mode: get all descendants
+      return this.readNodesRecursive(parentId)
+    } else {
+      // Non-recursive: get direct children only
+      return this.readNodesDirect(parentId)
+    }
+  }
+
+  /**
+   * Read direct children (non-recursive)
+   */
+  private async readNodesDirect(parentId: string | null): Promise<IDirectoryEntry[]> {
     // Query the tree table
     let query: string
     let bind: any[] = []
@@ -113,9 +287,53 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   }
 
   /**
+   * Read all descendants recursively
+   */
+  private async readNodesRecursive(parentId: string | null): Promise<IDirectoryEntry[]> {
+    let query: string
+    let bind: any[] = []
+    
+    if (parentId) {
+      // Get the node and all its descendants using a recursive CTE
+      query = `
+        WITH RECURSIVE node_tree AS (
+          -- Base case: start with the parent node
+          SELECT * FROM eidos__tree WHERE id = ? AND is_deleted = 0
+          UNION ALL
+          -- Recursive case: get all children
+          SELECT t.* FROM eidos__tree t
+          INNER JOIN node_tree nt ON t.parent_id = nt.id
+          WHERE t.is_deleted = 0
+        )
+        SELECT * FROM node_tree
+        WHERE id != ? -- Exclude the parent node itself, we only want descendants
+        ORDER BY 
+          CASE WHEN is_pinned = 1 THEN 0 ELSE 1 END,
+          name ASC
+      `
+      bind = [parentId, parentId]
+    } else {
+      // Get all nodes (root level and all descendants)
+      query = `
+        SELECT * FROM eidos__tree 
+        WHERE is_deleted = 0
+        ORDER BY 
+          CASE WHEN is_pinned = 1 THEN 0 ELSE 1 END,
+          name ASC
+      `
+    }
+
+    const nodes = await this.db.selectObjects(query, bind) as ITreeNode[]
+
+    // Transform to IDirectoryEntry with proper paths for recursive mode
+    const entries = await Promise.all(nodes.map((node) => this.nodeToEntryRecursive(node)))
+    return entries
+  }
+
+  /**
    * Read extensions from eidos__extensions table
    */
-  private async readExtensionsDir(subPath: string): Promise<IDirectoryEntry[]> {
+  private async readExtensionsDir(subPath: string, recursive = false): Promise<IDirectoryEntry[]> {
     // Extensions are flat, only root path is supported
     if (subPath !== "/") {
       return []
@@ -129,13 +347,64 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   }
 
   /**
-   * Convert ITreeNode to IDirectoryEntry
+   * Convert ITreeNode to IDirectoryEntry (non-recursive mode)
    */
   private nodeToEntry(node: ITreeNode): IDirectoryEntry {
+    if (!node.id) {
+      throw new Error(`Node has no ID`)
+    }
+    
     return {
       name: node.name,
       path: `~/.eidos/__NODES__/${node.id}`,
       parentPath: node.parent_id ? `~/.eidos/__NODES__/${node.parent_id}` : "~/.eidos/__NODES__",
+      kind: node.type === "folder" ? "directory" : "file",
+      metadata: {
+        nodeType: node.type as any,
+        nodeId: node.id,
+        isPinned: node.is_pinned || false,
+        icon: node.icon,
+      },
+    }
+  }
+
+  /**
+   * Convert ITreeNode to IDirectoryEntry for recursive mode
+   * In recursive mode, we need to build the full path from root to this node
+   */
+  private async nodeToEntryRecursive(node: ITreeNode): Promise<IDirectoryEntry> {
+
+    if (!node.id) {
+      throw new Error(`Node has no ID`)
+    }
+    
+    // Build the full path by traversing up the tree
+    const pathParts: string[] = [node.id]
+    let currentParentId: string | null = node.parent_id || null
+    
+    while (currentParentId) {
+      pathParts.unshift(currentParentId)
+      const parentNode = await this.db.selectObjects(
+        "SELECT parent_id FROM eidos__tree WHERE id = ? AND is_deleted = 0",
+        [currentParentId]
+      ) as Array<{ parent_id: string | null }>
+      
+      if (parentNode.length > 0 && parentNode[0].parent_id) {
+        currentParentId = parentNode[0].parent_id
+      } else {
+        break
+      }
+    }
+    
+    const fullPath = `~/.eidos/__NODES__/${pathParts.join("/")}`
+    const parentPath = pathParts.length > 1 
+      ? `~/.eidos/__NODES__/${pathParts.slice(0, -1).join("/")}`
+      : "~/.eidos/__NODES__"
+    
+    return {
+      name: node.name,  // ✅ 这是真实的节点名称，不是 ID
+      path: fullPath,
+      parentPath: parentPath,
       kind: node.type === "folder" ? "directory" : "file",
       metadata: {
         nodeType: node.type as any,
@@ -172,7 +441,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   async readdir(path: string, options?: any): Promise<string[] | IDirectoryEntry[]> {
     // Handle virtual paths
     if (this.isVirtualPath(path)) {
-      const entries = await this.readVirtualDir(path)
+      const entries = await this.readVirtualDir(path, options?.recursive)
       
       if (options?.withFileTypes) {
         return entries
@@ -360,5 +629,126 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     // Update the extension slug in database
     const query = `UPDATE eidos__extensions SET slug = ? WHERE id = ?`
     await this.db.exec({ sql: query, bind: [newSlug, extensionId] })
+  }
+
+  /**
+   * Watch for changes on a file or directory
+   * For virtual paths, uses database triggers and UDF
+   * For real paths, delegates to underlying filesystem
+   */
+  async *watch(path: string, options?: IWatchOptions): AsyncIterable<IWatchEvent> {
+    // Normalize path to ensure consistent format
+    const normalizedPath = path.endsWith('/') ? path : path + '/'
+    
+    console.log('watch', normalizedPath)
+    // Handle virtual paths
+    if (this.isVirtualPath(normalizedPath)) {
+      // Only watch root virtual directories
+      const basePath = normalizedPath.startsWith("~/.eidos/__NODES__")
+        ? "~/.eidos/__NODES__/"
+        : normalizedPath.startsWith("~/.eidos/__EXTENSIONS__")
+        ? "~/.eidos/__EXTENSIONS__/"
+        : null
+
+      if (!basePath) {
+        throw new Error(`Cannot watch non-root virtual path: ${normalizedPath}`)
+      }
+
+      // Create watcher entry
+      const watcher = {
+        queue: [] as IWatchEvent[],
+        resolve: null as ((event: IWatchEvent) => void) | null,
+        reject: null as ((error: Error) => void) | null,
+        signal: options?.signal
+      }
+
+      // Add to watchers map
+      if (!watchEventQueues.has(basePath)) {
+        watchEventQueues.set(basePath, [])
+      }
+      watchEventQueues.get(basePath)!.push(watcher)
+
+      try {
+        // Handle abort signal
+        let abortListener: (() => void) | undefined
+        if (options?.signal) {
+          abortListener = () => {
+            // Remove watcher from queue
+            const watchers = watchEventQueues.get(basePath)
+            if (watchers) {
+              const index = watchers.indexOf(watcher)
+              if (index > -1) {
+                watchers.splice(index, 1)
+              }
+              if (watchers.length === 0) {
+                watchEventQueues.delete(basePath)
+              }
+            }
+          }
+          options.signal.addEventListener('abort', abortListener)
+        }
+
+        try {
+          while (true) {
+            // Check if aborted
+            if (options?.signal?.aborted) {
+              break
+            }
+
+            // If we have queued events, yield them
+            if (watcher.queue.length > 0) {
+              yield watcher.queue.shift()!
+              continue
+            }
+
+            // Otherwise, wait for next event
+            const event = await new Promise<IWatchEvent>((resolve, reject) => {
+              watcher.resolve = resolve
+              watcher.reject = reject
+            })
+
+            // Check if aborted after waiting
+            if (options?.signal?.aborted) {
+              break
+            }
+
+            yield event
+          }
+        } finally {
+          // Clean up
+          if (abortListener && options?.signal) {
+            options.signal.removeEventListener('abort', abortListener)
+          }
+          
+          // Remove watcher from queue
+          const watchers = watchEventQueues.get(basePath)
+          if (watchers) {
+            const index = watchers.indexOf(watcher)
+            if (index > -1) {
+              watchers.splice(index, 1)
+            }
+            if (watchers.length === 0) {
+              watchEventQueues.delete(basePath)
+            }
+          }
+        }
+      } catch (error) {
+        // Remove watcher on error
+        const watchers = watchEventQueues.get(basePath)
+        if (watchers) {
+          const index = watchers.indexOf(watcher)
+          if (index > -1) {
+            watchers.splice(index, 1)
+          }
+          if (watchers.length === 0) {
+            watchEventQueues.delete(basePath)
+          }
+        }
+        throw error
+      }
+    } else {
+      // Delegate to underlying filesystem for non-virtual paths
+      yield* this.underlyingFS.watch(path, options)
+    }
   }
 }

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import type { Dirent } from 'node:fs'
+import type { Dirent, FSWatcher } from 'node:fs'
+import { watch as fsWatch } from 'node:fs'
 import type {
   IExternalFileSystem,
   IReaddirOptions,
@@ -8,7 +9,9 @@ import type {
   IDirectoryEntry,
   IReadFileOptions,
   IWriteFileOptions,
-  IStats
+  IStats,
+  IWatchEvent,
+  IWatchOptions
 } from '@eidos.space/core/types/IExternalFileSystem'
 
 /**
@@ -272,5 +275,133 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
     const newAbsolutePath = await this.getAbsolutePath(newPath)
     await fs.rename(oldAbsolutePath, newAbsolutePath)
   }
-}
 
+  /**
+   * Watch for changes on a file or directory
+   * Returns an AsyncIterable that yields watch events
+   */
+  async *watch(fsPath: string, options?: IWatchOptions): AsyncIterable<IWatchEvent> {
+    const absolutePath = await this.getAbsolutePath(fsPath)
+    
+    // Create a watcher using Node.js fs.watch
+    const watcher = fsWatch(absolutePath, {
+      encoding: options?.encoding || 'utf8',
+      persistent: options?.persistent !== false, // default true
+      recursive: options?.recursive || false
+    })
+
+    // Handle abort signal
+    let abortListener: (() => void) | undefined
+    if (options?.signal) {
+      abortListener = () => {
+        watcher.close()
+      }
+      options.signal.addEventListener('abort', abortListener)
+    }
+
+    try {
+      // Convert Node.js watcher events to our AsyncIterable format
+      for await (const event of this.createWatchAsyncIterator(watcher, fsPath)) {
+        if (options?.signal?.aborted) {
+          break
+        }
+        yield event
+      }
+    } finally {
+      // Clean up
+      if (abortListener && options?.signal) {
+        options.signal.removeEventListener('abort', abortListener)
+      }
+      watcher.close()
+    }
+  }
+
+  /**
+   * Create an AsyncIterator from Node.js fs.FSWatcher
+   */
+  private async *createWatchAsyncIterator(watcher: FSWatcher, watchedPath: string): AsyncIterable<IWatchEvent> {
+    const eventQueue: IWatchEvent[] = []
+    let resolveNext: ((value: IWatchEvent) => void) | undefined
+    let rejectNext: ((error: Error) => void) | undefined
+    let isDone = false
+
+    // Set up event handlers
+    const onChange = (eventType: 'rename' | 'change', filename: string | null) => {
+      // Convert filename to relative path based on watched path
+      let relativeFilename = filename
+      if (filename) {
+        // Convert absolute path back to virtual path
+        const watchedVirtualPath = this.normalizeVirtualPath(watchedPath)
+        if (watchedVirtualPath.startsWith('~/') || watchedVirtualPath.startsWith('@/')) {
+          // For virtual paths, we need to maintain the relative structure
+          // Just use the filename as-is since it should already be relative
+          relativeFilename = filename
+        }
+      }
+
+      const event: IWatchEvent = {
+        eventType,
+        filename: relativeFilename || ''
+      }
+
+      if (resolveNext) {
+        resolveNext(event)
+        resolveNext = undefined
+      } else {
+        eventQueue.push(event)
+      }
+    }
+
+    const onError = (error: Error) => {
+      if (rejectNext) {
+        rejectNext(error)
+        rejectNext = undefined
+      } else {
+        // If no one is waiting, just log the error for now
+        console.error('Watch error:', error)
+      }
+    }
+
+    const onClose = () => {
+      isDone = true
+      if (rejectNext) {
+        // Don't reject on close, just resolve with a signal to stop iteration
+        resolveNext?.({ eventType: 'change', filename: '' } as IWatchEvent)
+        rejectNext = undefined
+        resolveNext = undefined
+      }
+    }
+
+    // Attach event listeners
+    watcher.on('change', onChange)
+    watcher.on('error', onError)
+    watcher.on('close', onClose)
+
+    try {
+      while (!isDone) {
+        // If we have queued events, yield them
+        if (eventQueue.length > 0) {
+          yield eventQueue.shift()!
+        } else {
+          // Otherwise, wait for the next event
+          const event = await new Promise<IWatchEvent>((resolve, reject) => {
+            resolveNext = resolve
+            rejectNext = reject
+          })
+          
+          // Check if this was a close signal (empty event)
+          if (event.filename === '' && isDone) {
+            break
+          }
+          
+          yield event
+        }
+      }
+    } finally {
+      // Clean up event listeners
+      watcher.off('change', onChange)
+      watcher.off('error', onError)
+      watcher.off('close', onClose)
+    }
+  }
+}

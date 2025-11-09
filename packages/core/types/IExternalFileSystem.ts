@@ -77,6 +77,26 @@ export interface IStats {
 }
 
 /**
+ * Watch event interface
+ * Compatible with Node.js fs watch event
+ */
+export interface IWatchEvent {
+  eventType: 'rename' | 'change'
+  filename: string
+}
+
+/**
+ * Watch options interface
+ * Compatible with Node.js fs watch options
+ */
+export interface IWatchOptions {
+  encoding?: BufferEncoding
+  persistent?: boolean
+  recursive?: boolean
+  signal?: AbortSignal
+}
+
+/**
  * External file system interface
  * API follows Node.js fs/promises
  * 
@@ -138,5 +158,13 @@ export interface IExternalFileSystem {
    * @param newPath New path
    */
   rename(oldPath: string, newPath: string): Promise<void>
+
+  /**
+   * Watch for changes on a file or directory (like fs.watch)
+   * @param path File or directory path to watch
+   * @param options Watch options
+   * @returns AsyncIterable of watch events
+   */
+  watch(path: string, options?: IWatchOptions): AsyncIterable<IWatchEvent>
 }
 
