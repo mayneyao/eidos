@@ -24,6 +24,12 @@ export enum MsgType {
   WebSocketConnected = "WebSocketConnected",
   WebSocketDisconnected = "WebSocketDisconnected",
 
+  // Iterator-related messages for streaming/iterable functions
+  IteratorValue = "IteratorValue",
+  IteratorDone = "IteratorDone",
+  IteratorError = "IteratorError",
+  IteratorCancel = "IteratorCancel",
+
   ConvertMarkdown2State = "ConvertMarkdown2State",
   ConvertHtml2State = "ConvertHtml2State",
   ConvertEmail2State = "ConvertEmail2State",

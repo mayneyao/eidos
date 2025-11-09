@@ -19,6 +19,7 @@ import { GlobalShortcutManager } from './services/global-shortcut-manager';
 import console from 'electron-log';
 import { fetchAvailableModels } from '@/packages/ai/helper';
 import { migrateFromLegacyConfig, getSpaceRegistry } from './space-registry';
+import { isIteratorFunction } from '@/packages/core/sqlite/channel/iterator-utils';
 
 
 process.on('uncaughtException', (error) => {
@@ -150,7 +151,102 @@ ipcMain.handle('sqlite-msg', async (event, payload) => {
             throw new Error('Failed to initialize data space');
         }
 
-        const res = await handleFunctionCall(payload.data, dataSpace)
+        // Check if this is an iterator function using the registry
+        const isIterFunc = isIteratorFunction(payload.data.method)
+        
+        // For iterator functions, create an AbortController to handle cancellation
+        let abortController: AbortController | undefined
+        
+        // Prepare params - for iterator functions, we'll add AbortSignal
+        let finalParams = [...(payload.data.params || [])]
+        
+        // Check if this is an iterator function and create AbortController
+        if (isIterFunc) {
+            abortController = new AbortController()
+            
+            // Listen for cancel messages via IPC
+            const cancelHandler = (_event: Electron.IpcMainEvent, cancelPayload: any) => {
+                if (cancelPayload?.type === MsgType.IteratorCancel && cancelPayload?.id === payload.id) {
+                    abortController?.abort()
+                }
+            }
+            ipcMain.on(`sqlite-iterator-cancel-${payload.id}`, cancelHandler)
+            
+            // Add signal to params if options object exists
+            // Note: params come serialized (AbortSignal was removed), so we add our new signal
+            if (finalParams.length > 0 && typeof finalParams[finalParams.length - 1] === 'object' && finalParams[finalParams.length - 1] !== null) {
+                const lastParam = finalParams[finalParams.length - 1]
+                // Replace or add signal with our controller's signal
+                finalParams[finalParams.length - 1] = { ...lastParam, signal: abortController.signal }
+            } else {
+                // Add options with signal
+                finalParams.push({ signal: abortController.signal })
+            }
+        }
+        
+        // Create modified payload with final params
+        const modifiedPayload = {
+            ...payload.data,
+            params: finalParams,
+        }
+        
+        const res = await handleFunctionCall(modifiedPayload, dataSpace)
+
+        // Check if the result is an AsyncIterable (for iterator functions like watch)
+        // Only treat as iterator if it's explicitly an iterator function (fs.watch)
+        // and the result is actually an AsyncIterable
+        if (abortController && res && typeof res === 'object' && Symbol.asyncIterator in res) {
+            // Handle async iterator: yield values as they come
+            // Use a separate IPC channel to send iterator messages
+            const iteratorChannel = `sqlite-iterator-${payload.id}`
+            try {
+                for await (const value of res as AsyncIterable<any>) {
+                    // Check if cancelled
+                    if (abortController?.signal.aborted) {
+                        break
+                    }
+                    event.sender.send(iteratorChannel, {
+                        id: payload.id,
+                        data: {
+                            value,
+                        },
+                        type: MsgType.IteratorValue,
+                    })
+                }
+                // Signal that iterator is done
+                event.sender.send(iteratorChannel, {
+                    id: payload.id,
+                    data: {},
+                    type: MsgType.IteratorDone,
+                })
+            } catch (error) {
+                // Check if it's an abort error
+                if (error instanceof Error && error.name === 'AbortError') {
+                    event.sender.send(iteratorChannel, {
+                        id: payload.id,
+                        data: {},
+                        type: MsgType.IteratorDone,
+                    })
+                } else {
+                    // Signal iterator error
+                    event.sender.send(iteratorChannel, {
+                        id: payload.id,
+                        data: {
+                            message: error instanceof Error ? error.message : String(error),
+                        },
+                        type: MsgType.IteratorError,
+                    })
+                }
+            } finally {
+                // Clean up cancel listener
+                if (abortController) {
+                    ipcMain.removeAllListeners(`sqlite-iterator-cancel-${payload.id}`)
+                }
+            }
+            // Return a special marker to indicate iterator mode
+            return { __isIterator: true, channel: iteratorChannel }
+        }
+
         return res
     } catch (error) {
         console.error('sqlite-msg error:', error);
@@ -628,3 +724,4 @@ ipcMain.handle('fetch-available-models', async (event, apiKey: string, providerT
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
 });
+
