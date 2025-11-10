@@ -34,7 +34,7 @@ export function ShortCuts() {
   const { setTheme, theme } = useTheme()
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
-  const { setSpaceSettingsOpen, setCmdkOpen } = useAppRuntimeStore()
+  const { setSpaceSettingsOpen, setCmdkOpen, isGlobalSearchOpen, setGlobalSearchOpen } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { setCurrentApp } = useSidebarStore()
   const { tabs: sortedTabs } = useTabsKV()
@@ -115,6 +115,10 @@ export function ShortCuts() {
 
         case "toggle-command-palette":
           setCmdkOpen(true)
+          break
+
+        case "toggle-global-search":
+          setGlobalSearchOpen(!isGlobalSearchOpen)
           break
 
         case "open-space-settings":
@@ -222,6 +226,8 @@ export function ShortCuts() {
     setSidebarOpen,
     setCurrentApp,
     sortedTabs,
+    isGlobalSearchOpen,
+    setGlobalSearchOpen,
   ])
 
   // navigate to today

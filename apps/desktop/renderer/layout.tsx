@@ -6,6 +6,7 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { DevTools } from "@/components/dev-tools"
+import { GlobalSearch } from "@/components/global-search"
 import { GodModeTooltip } from "@/components/god-mode-tooltip"
 import { ShortCuts } from "@/components/keyboard-shortcuts/shortcuts"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -42,6 +43,7 @@ export default function RootLayout() {
         <WindowControls />
         <CommandDialogDemo />
         <ShortCuts />
+        <GlobalSearch />
       </SidebarProvider>
       <DevTools />
 

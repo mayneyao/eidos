@@ -10,6 +10,7 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/toaster"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
 import { CommandDialogDemo } from "@/components/cmdk"
+import { GlobalSearch } from "@/components/global-search"
 import { ReloadPrompt } from "@/components/reload-prompt"
 import { ShortCuts } from "@/components/keyboard-shortcuts/shortcuts"
 import { DevTools } from "@/components/dev-tools"
@@ -42,6 +43,7 @@ export default function RootLayout() {
           </div>
         </div>
         <CommandDialogDemo />
+        <GlobalSearch />
         <ShortCuts />
       </SidebarProvider>
       <DevTools />

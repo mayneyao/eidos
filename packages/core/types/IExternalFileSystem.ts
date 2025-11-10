@@ -19,6 +19,8 @@ export interface IDirectoryEntry {
     icon?: string
     /** Extension type (only for nodeType === "extension") */
     extensionType?: "script" | "block"
+    /** Path based on node names (instead of IDs) */
+    namePath?: string
   }
 }
 

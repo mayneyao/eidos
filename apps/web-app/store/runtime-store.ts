@@ -48,6 +48,10 @@ interface AppRuntimeState {
   // space settings dialog
   isSpaceSettingsOpen: boolean
   setSpaceSettingsOpen: (isSpaceSettingsOpen: boolean) => void
+
+  // global search dialog
+  isGlobalSearchOpen: boolean
+  setGlobalSearchOpen: (isGlobalSearchOpen: boolean) => void
 }
 
 export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
@@ -99,4 +103,8 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
   isSpaceSettingsOpen: false,
   setSpaceSettingsOpen: (isSpaceSettingsOpen) =>
     set({ isSpaceSettingsOpen }),
+
+  isGlobalSearchOpen: false,
+  setGlobalSearchOpen: (isGlobalSearchOpen) =>
+    set({ isGlobalSearchOpen }),
 }))

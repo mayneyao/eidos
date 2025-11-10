@@ -85,6 +85,11 @@ export class GlobalShortcutManager {
         description: 'Toggle command palette'
       },
       {
+        id: 'toggle-global-search',
+        accelerator: 'CommandOrControl+P',
+        description: 'Toggle global search'
+      },
+      {
         id: 'open-space-settings',
         accelerator: 'CommandOrControl+,',
         description: 'Open space settings'
