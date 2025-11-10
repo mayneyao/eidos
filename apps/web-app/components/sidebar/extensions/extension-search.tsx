@@ -15,21 +15,14 @@ export const ExtensionSearch = () => {
     searchResults,
     selectedIndex,
     setSelectedIndex,
-    isExtensionsExpanded,
-    isContentExpanded,
   } = useExtensionStore()
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { queryExtensions, fullTextSearchExtensions } = useQueryExtension()
+  const { fullTextSearchExtensions } = useQueryExtension()
   const navigate = useNavigate()
 
-  // Calculate visible items for keyboard navigation
-  const extensionMatches = searchResults.filter((ext) => ext.mode === "extension")
-  const ftsResults = searchResults.filter((ext) => ext.mode === "fts")
-  const visibleItems = [
-    ...(isExtensionsExpanded ? extensionMatches : []),
-    ...(isContentExpanded ? ftsResults : [])
-  ]
+  // Calculate visible items for keyboard navigation (FTS results only)
+  const visibleItems = searchResults
 
   // Reset selectedIndex if it's out of bounds when visibility changes
   useEffect(() => {
@@ -48,13 +41,10 @@ export const ExtensionSearch = () => {
     // Enable search mode when there's a search term
     setIsSearchMode(true)
 
-    // Perform both extension name/slug search and full-text search
-    const extensions = await queryExtensions(term)
+    // Perform only full-text search (content search)
     const ftsExtensions = await fullTextSearchExtensions(term)
 
-    // Combine results, FTS results first, then name matches
-    const combinedResults = [...(ftsExtensions || []), ...(extensions || [])]
-    setSearchResults(combinedResults)
+    setSearchResults(ftsExtensions || [])
   }
 
   const { run: debouncedSearch } = useDebounceFn(performSearch, { wait: 300 })
@@ -116,7 +106,7 @@ export const ExtensionSearch = () => {
     <div className="flex items-center w-full">
       <Input
         ref={inputRef}
-        placeholder="Search extensions..."
+        placeholder="Search content... (⌘P for names)"
         value={localSearchTerm}
         onChange={(e) => handleSearchChange(e.target.value)}
         onKeyDown={handleKeyDown}

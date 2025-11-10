@@ -17,22 +17,15 @@ export const TreeSearch = () => {
     searchResults,
     selectedIndex,
     setSelectedIndex,
-    isNodesExpanded,
-    isContentExpanded,
   } = useTreeSidebarStore()
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { queryNodes, fullTextSearch } = useQueryNode()
+  const { fullTextSearch } = useQueryNode()
   const { space } = useCurrentPathInfo()
   const navigate = useNavigate()
   
-  // Calculate visible nodes for keyboard navigation
-  const nodeMatches = searchResults.filter((node) => node.mode === "node")
-  const ftsResults = searchResults.filter((node) => node.mode === "fts")
-  const visibleNodes = [
-    ...(isNodesExpanded ? nodeMatches : []),
-    ...(isContentExpanded ? ftsResults : [])
-  ]
+  // Calculate visible nodes for keyboard navigation (FTS results only)
+  const visibleNodes = searchResults
 
   // Reset selectedIndex if it's out of bounds when visibility changes
   useEffect(() => {
@@ -53,13 +46,10 @@ export const TreeSearch = () => {
     // Enable search mode when there's a search term
     setIsSearchMode(true)
 
-    // Perform both node name search and full-text search
-    const nodes = await queryNodes(term)
+    // Perform only full-text search (content search)
     const ftsNodes = await fullTextSearch(term)
     
-    // Combine results, FTS results first, then node name matches
-    const combinedResults = [...(ftsNodes || []), ...(nodes || [])]
-    setSearchResults(combinedResults)
+    setSearchResults(ftsNodes || [])
   }
 
   const { run: debouncedSearch } = useDebounceFn(performSearch, { wait: 300 })
@@ -126,7 +116,7 @@ export const TreeSearch = () => {
     <div className="flex items-center w-full">
       <Input
         ref={inputRef}
-        placeholder="Search nodes..."
+        placeholder="Search content... (⌘P for names)"
         value={localSearchTerm}
         onChange={(e) => handleSearchChange(e.target.value)}
         onKeyDown={handleKeyDown}

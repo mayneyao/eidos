@@ -123,10 +123,16 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
           selection?.addRange(range)
         }
       }, 0)
+
     }
   }, [isEditing]) // Only run when entering edit mode
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
+    // Only handle keyboard events if this element is focused
+    if (document.activeElement !== e.currentTarget) {
+      return
+    }
+
     if (e.key === "Enter") {
       e.preventDefault()
       e.stopPropagation()
@@ -142,7 +148,9 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
   const handleBlur = (e: React.FocusEvent<HTMLSpanElement>) => {
     // Delay to allow Enter key to be processed first
     setTimeout(() => {
-      if (isEditing) {
+      // Only confirm if we're still in editing mode and the element is not focused
+      // This prevents triggering when user clicks elsewhere or presses Enter in another element
+      if (isEditing && document.activeElement !== e.currentTarget) {
         const newValue = e.currentTarget.textContent || ""
         onConfirm(newValue)
       }
@@ -167,4 +175,5 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
 
   return <span className={className}>{value}</span>
 }
+
 

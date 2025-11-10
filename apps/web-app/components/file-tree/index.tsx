@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import {
   BlocksIcon,
@@ -14,38 +14,49 @@ import {
 import { useNavigate } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useEvent } from "@/hooks/use-event"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { IconRenderer } from "@/components/ui/icon-picker"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { InlineEdit } from "./inline-edit"
-import { FileTreeContextMenu } from "./file-tree-context-menu"
-import { useFileTreeOperations } from "./use-file-tree-operations"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 
-interface FileTreeNode extends IDirectoryEntry {
+import { FileTreeContextMenu } from "./file-tree-context-menu"
+import { InlineEdit } from "./inline-edit"
+import { useFileTreeOperations } from "./use-file-tree-operations"
+
+export interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
 }
 
 interface FileTreeProps {
-  /** Root directory path, defaults to "~/" */
+  /** Root directory path - used when loading from file system */
   rootDir?: string
+  /** Initial nodes - used when providing pre-existing nodes */
+  nodes?: FileTreeNode[]
+  /** Base directory path for operations when using nodes mode */
+  baseDir?: string
 }
 
-const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
+const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const { sqlite } = useSqlite()
   const navigate = useNavigate()
   const { space } = useCurrentPathInfo()
   const { isFavorite } = useFavBlocks()
 
-  const [treeData, setTreeData] = useState<FileTreeNode[]>([])
+  // Determine which mode we're in
+  const isNodesMode = nodes !== undefined
+  const effectiveRootDir = rootDir || baseDir || "~/"
+
+  const [treeData, setTreeData] = useState<FileTreeNode[]>(nodes || [])
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set())
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [renamingNode, setRenamingNode] = useState<string | null>(null)
   const [dragOverNode, setDragOverNode] = useState<string | null>(null)
   const [draggingNode, setDraggingNode] = useState<string | null>(null)
+  const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
-  // Context menu operations
+  // Context menu operations - use baseDir or rootDir for path detection
   const {
     handleDelete,
     handlePin,
@@ -55,7 +66,7 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
     handleCreateTable,
     handleCreateFolder,
     handleCopySlug,
-  } = useFileTreeOperations(rootDir)
+  } = useFileTreeOperations(effectiveRootDir)
 
   const loadRootDirectory = async () => {
     if (!sqlite || !rootDir) return
@@ -158,6 +169,37 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
       // Regular file - use file handler
       navigate(`/file-handler#${node.path}`)
     }
+
+    // Scroll to the selected node
+    scrollToNode(node.path)
+  }
+
+  const scrollToNode = (nodePath: string) => {
+    const nodeElement = nodeRefs.current.get(nodePath)
+    if (nodeElement) {
+      nodeElement.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+    }
+  }
+
+  const findNodeByPath = (
+    nodes: FileTreeNode[],
+    targetPath: string
+  ): FileTreeNode | null => {
+    // Direct path matching - both use ID-based paths now
+    for (const node of nodes) {
+      if (node.path === targetPath) {
+        return node
+      }
+
+      if (node.children) {
+        const found = findNodeByPath(node.children, targetPath)
+        if (found) return found
+      }
+    }
+    return null
   }
 
   const startRename = (nodePath: string) => {
@@ -190,7 +232,23 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
       await sqlite.fs.rename(node.path, newPath)
 
       // Reload tree data to reflect changes
-      await loadRootDirectory()
+      if (isNodesMode) {
+        // In nodes mode, reload the parent directory
+        const parentPath =
+          node.parentPath ||
+          node.path.split("/").slice(0, -1).join("/") ||
+          node.path
+        if (parentPath) {
+          await loadSubDirectory(parentPath)
+        } else {
+          // If no parent, reload all root nodes by re-initializing
+          if (nodes) {
+            setTreeData([...nodes])
+          }
+        }
+      } else {
+        await loadRootDirectory()
+      }
 
       cancelRename()
     } catch (error) {
@@ -203,7 +261,7 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
   const handleDragStart = (e: React.DragEvent, node: FileTreeNode) => {
     e.stopPropagation()
     setDraggingNode(node.path)
-    
+
     // Set drag data for cross-window drag support
     const dragData = {
       path: node.path,
@@ -211,7 +269,7 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
       kind: node.kind,
       metadata: node.metadata,
     }
-    
+
     e.dataTransfer.effectAllowed = "move"
     e.dataTransfer.setData("application/eidos-node", JSON.stringify(dragData))
     e.dataTransfer.setData("text/plain", node.name) // Fallback for external apps
@@ -226,11 +284,11 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
   const handleDragOver = (e: React.DragEvent, node: FileTreeNode) => {
     // Only allow drop on folders
     if (node.kind !== "directory") return
-    
+
     e.preventDefault()
     e.stopPropagation()
     e.dataTransfer.dropEffect = "move"
-    
+
     if (dragOverNode !== node.path) {
       setDragOverNode(node.path)
     }
@@ -239,7 +297,7 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
   const handleDragEnter = (e: React.DragEvent, node: FileTreeNode) => {
     // Only allow drop on folders
     if (node.kind !== "directory") return
-    
+
     e.preventDefault()
     e.stopPropagation()
     setDragOverNode(node.path)
@@ -269,7 +327,7 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
       if (!dragDataStr) return
 
       const dragData = JSON.parse(dragDataStr) as FileTreeNode
-      
+
       // Prevent dropping onto itself
       if (dragData.path === targetFolder.path) {
         return
@@ -289,11 +347,21 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
       await sqlite.fs.rename(dragData.path, newPath)
 
       // Reload tree data to reflect changes
-      await loadRootDirectory()
-      
+      if (isNodesMode) {
+        // In nodes mode, reload both source and target directories
+        const sourceParentPath =
+          dragData.path.split("/").slice(0, -1).join("/") || dragData.path
+        if (sourceParentPath) {
+          await loadSubDirectory(sourceParentPath)
+        }
+        await loadSubDirectory(targetFolder.path)
+      } else {
+        await loadRootDirectory()
+      }
+
       // Optionally expand the target folder to show the moved item
       if (!expandedNodes.has(targetFolder.path)) {
-        setExpandedNodes(prev => new Set(prev).add(targetFolder.path))
+        setExpandedNodes((prev) => new Set(prev).add(targetFolder.path))
         await loadSubDirectory(targetFolder.path)
       }
     } catch (error) {
@@ -317,8 +385,8 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown, { capture: true })
-    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true })
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
   }, [selectedNode, renamingNode])
 
   const getNodeIcon = (node: FileTreeNode) => {
@@ -359,11 +427,12 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
     const isDragOver = dragOverNode === node.path
     const canDrop = hasChildren && !isDragging
     const isVirtualNode = node.metadata?.nodeType !== undefined
-    
+
     // Check if extension is pinned (for extensions)
     const isExtension = node.metadata?.nodeType === "extension"
-    const isExtensionPinned = isExtension && node.metadata?.nodeId && isFavorite(node.metadata.nodeId)
-    
+    const isExtensionPinned =
+      isExtension && node.metadata?.nodeId && isFavorite(node.metadata.nodeId)
+
     // Show pin icon if either node is pinned or extension is favorited
     const showPinIcon = isPinned || isExtensionPinned
 
@@ -371,15 +440,35 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
       <div key={node.path} className="min-w-0">
         <FileTreeContextMenu
           node={node}
-          onRename={isVirtualNode ? startRename.bind(null, node.path) : undefined}
+          onRename={
+            isVirtualNode ? startRename.bind(null, node.path) : undefined
+          }
           onDelete={isVirtualNode ? handleDelete : undefined}
           onPin={isVirtualNode && !isPinned ? handlePin : undefined}
           onUnpin={isVirtualNode && isPinned ? handleUnpin : undefined}
-          onAddToChat={isVirtualNode && node.metadata?.nodeType !== "extension" ? handleAddToChat : undefined}
-          onCreateDoc={hasChildren && node.metadata?.nodeType === "folder" ? handleCreateDoc : undefined}
-          onCreateTable={hasChildren && node.metadata?.nodeType === "folder" ? handleCreateTable : undefined}
-          onCreateFolder={hasChildren && node.metadata?.nodeType === "folder" ? handleCreateFolder : undefined}
-          onCopySlug={node.metadata?.nodeType === "extension" ? handleCopySlug : undefined}
+          onAddToChat={
+            isVirtualNode && node.metadata?.nodeType !== "extension"
+              ? handleAddToChat
+              : undefined
+          }
+          onCreateDoc={
+            hasChildren && node.metadata?.nodeType === "folder"
+              ? handleCreateDoc
+              : undefined
+          }
+          onCreateTable={
+            hasChildren && node.metadata?.nodeType === "folder"
+              ? handleCreateTable
+              : undefined
+          }
+          onCreateFolder={
+            hasChildren && node.metadata?.nodeType === "folder"
+              ? handleCreateFolder
+              : undefined
+          }
+          onCopySlug={
+            node.metadata?.nodeType === "extension" ? handleCopySlug : undefined
+          }
         >
           <div
             className={`flex items-center rounded transition-colors cursor-pointer select-none ${
@@ -448,19 +537,73 @@ const FileTree = ({ rootDir = "~/" }: FileTreeProps) => {
     )
   }
 
+  // Load root directory only in rootDir mode
   useEffect(() => {
-    if (sqlite && rootDir) {
+    if (!isNodesMode && sqlite && rootDir) {
       loadRootDirectory()
     }
-  }, [sqlite, rootDir])
+  }, [sqlite, rootDir, isNodesMode])
 
-  return (
-    <ScrollArea className="h-full">
-      <div className="space-y-1 px-4 bg-sidebar">
-        {treeData.map((node) => renderTreeNode(node, 0))}
-      </div>
-    </ScrollArea>
+  // Initialize with nodes if provided
+  useEffect(() => {
+    if (isNodesMode && nodes) {
+      setTreeData(nodes)
+    }
+  }, [isNodesMode, nodes])
+
+  // Watch for file system changes (only in rootDir mode)
+  useEffect(() => {
+    if (isNodesMode || !sqlite || !rootDir) return
+
+    const abortController = new AbortController()
+    const { signal } = abortController
+
+    // Start watching the root directory
+    const watchDirectory = async () => {
+      try {
+        for await (const event of sqlite.fs.watch(rootDir, {
+          recursive: true,
+          signal,
+        })) {
+          // Print watch events for debugging
+          console.log("[FileTree Watch]", {
+            path: rootDir,
+            eventType: event.eventType,
+            filename: event.filename,
+            timestamp: new Date().toISOString(),
+          })
+
+          // Reload the directory when changes occur
+          await loadRootDirectory()
+        }
+      } catch (error) {
+        // Ignore abort errors (expected when component unmounts)
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("FileTree watch error:", error)
+        }
+      }
+    }
+
+    watchDirectory()
+
+    // Cleanup: abort watch when component unmounts or dependencies change
+    return () => {
+      abortController.abort()
+    }
+  }, [sqlite, rootDir, isNodesMode])
+
+  // Don't render ScrollArea wrapper in nodes mode (parent should handle scrolling)
+  const content = (
+    <div className="space-y-1 px-4 bg-sidebar">
+      {treeData.map((node) => renderTreeNode(node, 0))}
+    </div>
   )
+
+  if (isNodesMode) {
+    return content
+  }
+
+  return <ScrollArea className="h-full">{content}</ScrollArea>
 }
 
 export default FileTree
