@@ -4,16 +4,16 @@ import { detectDirective } from "@eidos.space/v3"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useMblock } from "@/apps/web-app/hooks/use-mblock"
+import { useExtensionStore } from "@/apps/web-app/store/extension-store"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
 import { BlockApp } from "../block-renderer/block-app"
-import { TreeSidebarHeader } from "./nodes/tree-sidebar-header"
+import FileTree from "../file-tree"
 import { ExtensionSidebarHeader } from "./extensions/extension-sidebar-header"
 import { FilesSidebar } from "./files"
-import FileTree from "../file-tree"
 import { SearchResults } from "./nodes/search-results"
+import { TreeSidebarHeader } from "./nodes/tree-sidebar-header"
 import { useTreeSidebarStore } from "./nodes/tree-sidebar-store"
-import { useExtensionStore } from "@/apps/web-app/store/extension-store"
 
 const NodesContent = () => {
   const {
@@ -31,7 +31,7 @@ const NodesContent = () => {
   return (
     <div className="flex h-full w-full flex-col">
       <TreeSidebarHeader disableAdd={false} />
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 pr-2">
         {isSearchMode ? (
           <SearchResults
             type="nodes"
@@ -45,7 +45,7 @@ const NodesContent = () => {
             setIsContentExpanded={setIsContentExpanded}
           />
         ) : (
-        <FileTree rootDir="~/.eidos/__NODES__/" />
+          <FileTree rootDir="~/.eidos/__NODES__/" />
         )}
       </div>
     </div>
@@ -68,7 +68,7 @@ const ExtensionsContent = () => {
   return (
     <div className="flex h-full w-full flex-col">
       <ExtensionSidebarHeader />
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 pr-2">
         {isSearchMode ? (
           <SearchResults
             type="extensions"
@@ -91,7 +91,7 @@ const ExtensionsContent = () => {
 
 const FilesContent = () => {
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="flex h-full w-full flex-col pr-2">
       <FilesSidebar />
     </div>
   )
