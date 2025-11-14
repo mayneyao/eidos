@@ -232,204 +232,6 @@ await eidos.currentSpace.extNode.setBlob("node_123", buffer)
 
 ---
 
-## 文件 API
-
-`eidos.currentSpace.file` 对象提供文件上传和管理功能。
-
-### `upload(source, options?)`
-
-通用文件上传方法，支持多种输入类型：URL、base64 字符串、ArrayBuffer、Blob 或 File 对象。
-
-```typescript
-async upload(
-  source: string | ArrayBuffer | Blob | File,
-  options?: UploadOptions
-): Promise<IFile>
-
-interface UploadOptions {
-  fileName?: string        // 对于 URL/File 可选，对于其他类型必需
-  mimeType?: string        // 对于 URL/File/Blob 可选，对于 ArrayBuffer/base64 必需
-  parentPath?: string[]    // 父目录路径，例如 ["images", "avatars"]
-  checkDuplicate?: boolean // 检查文件是否存在，如存在则返回已有文件
-}
-```
-
-**参数:**
-
-- `source` (string | ArrayBuffer | Blob | File): 文件源
-  - **URL 字符串** (http/https): 自动获取并上传
-  - **Base64 字符串**: 解码并上传（需要 `fileName` 和 `mimeType`）
-  - **ArrayBuffer**: 原始二进制数据（需要 `fileName` 和 `mimeType`）
-  - **Blob**: 二进制大对象（需要 `fileName`）
-  - **File**: 来自文件输入或拖放的文件对象
-- `options` (UploadOptions, 可选): 上传配置
-
-**返回值:**
-
-```typescript
-{
-  id: string           // 唯一文件 ID
-  name: string         // 文件名
-  path: string         // 完整文件路径（在 eidos__files 表中存储为 "files/..." 格式）
-  size: number         // 文件大小（字节）
-  mime: string         // MIME 类型
-  created_at?: string  // 创建时间戳
-}
-```
-
-**重要提示：** `path` 字段存储的路径以 `files/` 开头（例如 `"files/images/photo.jpg"`）。要构造可以在引用和扩展中访问的 pathname，需要在前面加上 `/`，即使用 `"/" + path`（例如 `"/files/images/photo.jpg"`）。
-
-**示例:**
-
-```typescript
-// 1. 从 URL 上传
-const file = await eidos.currentSpace.file.upload(
-  "https://example.com/image.jpg",
-  { parentPath: ["images"] }
-)
-console.log("文件已上传:", "/" + file.path)
-
-// 2. 自定义文件名上传
-const file = await eidos.currentSpace.file.upload(
-  "https://example.com/photo.jpg",
-  {
-    fileName: "头像.jpg",
-    parentPath: ["avatars"],
-    checkDuplicate: true  // 如已存在则不重复上传
-  }
-)
-
-// 3. 从 base64 字符串上传
-const base64Data = "iVBORw0KGgoAAAANSUhEUgAA..." // base64 图片数据
-const file = await eidos.currentSpace.file.upload(base64Data, {
-  fileName: "截图.png",
-  mimeType: "image/png",
-  parentPath: ["screenshots"]
-})
-
-// 4. 从 File 对象上传（例如文件输入）
-const fileInput = document.querySelector('input[type="file"]')
-const selectedFile = fileInput.files[0]
-const file = await eidos.currentSpace.file.upload(selectedFile, {
-  parentPath: ["documents"]
-})
-
-// 5. 从 ArrayBuffer 上传
-const arrayBuffer = await fetch("https://example.com/doc.pdf")
-  .then(res => res.arrayBuffer())
-const file = await eidos.currentSpace.file.upload(arrayBuffer, {
-  fileName: "文档.pdf",
-  mimeType: "application/pdf",
-  parentPath: ["pdfs"]
-})
-
-// 6. 从 Blob 上传
-const blob = new Blob(["你好，世界！"], { type: "text/plain" })
-const file = await eidos.currentSpace.file.upload(blob, {
-  fileName: "问候.txt",
-  parentPath: ["texts"]
-})
-```
-
-**常见用例:**
-
-```typescript
-// 从外部 API 保存下载的图片
-async function saveImageFromAPI(imageUrl: string, category: string) {
-  const file = await eidos.currentSpace.file.upload(imageUrl, {
-    parentPath: ["api-images", category],
-    checkDuplicate: true,
-  })
-  return "/" + file.path
-}
-
-// 处理并上传 Canvas 截图
-async function uploadCanvasScreenshot(canvas: HTMLCanvasElement) {
-  const blob = await new Promise((resolve) =>
-    canvas.toBlob(resolve, "image/png")
-  )
-  const file = await eidos.currentSpace.file.upload(blob, {
-    fileName: `截图-${Date.now()}.png`,
-    parentPath: ["screenshots"],
-  })
-  return file
-}
-
-// 从文件输入上传多个文件
-async function uploadUserFiles(files: FileList) {
-  const results = []
-  for (const file of Array.from(files)) {
-    const uploaded = await eidos.currentSpace.file.upload(file, {
-      parentPath: ["user-uploads", new Date().toISOString().split("T")[0]],
-    })
-    results.push(uploaded)
-  }
-  return results
-}
-```
-
-### `get(id: string)`
-
-通过 ID 获取文件元数据。
-
-```typescript
-async get(id: string): Promise<IFile | null>
-```
-
-**示例:**
-
-```typescript
-const fileInfo = await eidos.currentSpace.file.get("file_123")
-if (fileInfo) {
-  console.log("文件名:", fileInfo.name)
-  console.log("文件大小:", fileInfo.size)
-  console.log("MIME 类型:", fileInfo.mime)
-}
-```
-
-### `getByPath(path: string)`
-
-通过文件路径获取文件元数据。
-
-```typescript
-async getByPath(path: string): Promise<IFile | null>
-```
-
-**参数:**
-
-- `path` (string): 文件路径，例如 `"files/images/photo.jpg"`
-
-**示例:**
-
-```typescript
-const fileInfo = await eidos.currentSpace.file.getByPath(
-  "files/images/photo.jpg"
-)
-if (fileInfo) {
-  console.log("文件 ID:", fileInfo.id)
-  console.log("文件名:", fileInfo.name)
-  console.log("文件大小:", fileInfo.size)
-  console.log("MIME 类型:", fileInfo.mime)
-}
-```
-
-**错误处理:**
-
-```typescript
-try {
-  const file = await eidos.currentSpace.file.upload(source, options)
-  eidos.currentSpace.notify("成功", `文件已上传: ${file.name}`)
-} catch (error) {
-  if (error.name === "FileUploadError") {
-    eidos.currentSpace.notify("上传失败", error.message)
-  } else if (error.name === "FileSystemError") {
-    eidos.currentSpace.notify("错误", "文件系统不可用")
-  }
-}
-```
-
----
-
 ## 文件系统 API
 
 Eidos 提供了受限的外部文件 API，使你可以访问原生文件系统。这是一种受限的机制，提供了安全的文件系统访问能力。
@@ -867,3 +669,283 @@ async function isNewer(file1: string, file2: string): Promise<boolean> {
 - `~/src/index.js` - 项目文件
 - `@/music` - 挂载文件夹根目录
 - `@/music/albums/song.mp3` - 挂载文件夹中的文件
+
+### `rename(oldPath, newPath)`
+
+重命名文件或目录（类似 Node.js `fs.rename`）。
+
+```typescript
+rename(oldPath: string, newPath: string): Promise<void>
+```
+
+**参数:**
+
+- `oldPath` (string): 当前文件或目录路径，支持 `~/` 或 `@/` 前缀
+- `newPath` (string): 新的文件或目录路径，支持 `~/` 或 `@/` 前缀
+
+**重要提示：**
+
+- 两个路径必须都是虚拟路径或都是真实路径，不能混合使用
+- 对于虚拟路径（如 `~/.eidos/__NODES__/` 下的节点），重命名会更新数据库中的记录
+- 对于真实路径，重命名会修改文件系统中的文件或目录
+- 重命名也可以用于移动文件或目录到不同的位置
+
+**示例:**
+
+```typescript
+// 重命名文件
+await eidos.currentSpace.fs.rename("~/old-name.md", "~/new-name.md")
+
+// 重命名目录
+await eidos.currentSpace.fs.rename("~/old-folder", "~/new-folder")
+
+// 移动文件到不同目录
+await eidos.currentSpace.fs.rename("~/src/old.js", "~/lib/new.js")
+
+// 重命名挂载文件夹中的文件
+await eidos.currentSpace.fs.rename("@/music/old-song.mp3", "@/music/new-song.mp3")
+
+// 重命名节点（虚拟路径）
+await eidos.currentSpace.fs.rename(
+  "~/.eidos/__NODES__/node-id",
+  "~/.eidos/__NODES__/New Name"
+)
+
+// 重命名扩展（虚拟路径）
+await eidos.currentSpace.fs.rename(
+  "~/.eidos/__EXTENSIONS__/ext-id",
+  "~/.eidos/__EXTENSIONS__/new-slug.ts"
+)
+```
+
+**常见用例:**
+
+```typescript
+// 批量重命名文件
+async function renameFiles(files: string[], prefix: string) {
+  for (const file of files) {
+    const dir = file.substring(0, file.lastIndexOf("/"))
+    const name = file.substring(file.lastIndexOf("/") + 1)
+    const newName = `${prefix}-${name}`
+    await eidos.currentSpace.fs.rename(file, `${dir}/${newName}`)
+  }
+}
+
+// 整理文件到按日期组织的目录
+async function organizeByDate(filePath: string) {
+  const stats = await eidos.currentSpace.fs.stat(filePath)
+  const date = new Date(stats.mtimeMs)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const dir = `@/archive/${year}/${month}`
+  
+  // 确保目录存在
+  await eidos.currentSpace.fs.mkdir(dir, { recursive: true })
+  
+  // 移动文件
+  const fileName = filePath.substring(filePath.lastIndexOf("/") + 1)
+  await eidos.currentSpace.fs.rename(filePath, `${dir}/${fileName}`)
+}
+
+// 重命名并备份原文件
+async function renameWithBackup(oldPath: string, newPath: string) {
+  const backupPath = `${oldPath}.backup`
+  // 先复制文件（通过读取和写入）
+  const content = await eidos.currentSpace.fs.readFile(oldPath)
+  await eidos.currentSpace.fs.writeFile(backupPath, content)
+  // 然后重命名原文件
+  await eidos.currentSpace.fs.rename(oldPath, newPath)
+}
+```
+
+### `watch(path, options?)`
+
+监听文件或目录的变化（类似 Node.js `fs.watch`）。
+
+```typescript
+watch(path: string, options?: IWatchOptions): AsyncIterable<IWatchEvent>
+
+interface IWatchOptions {
+  encoding?: BufferEncoding    // 编码格式，默认 'utf8'
+  persistent?: boolean          // 是否持续监听，默认 true
+  recursive?: boolean           // 是否递归监听子目录，默认 false
+  signal?: AbortSignal          // 用于取消监听的信号
+}
+
+interface IWatchEvent {
+  eventType: 'rename' | 'change'  // 事件类型：'rename' 表示文件/目录创建或删除，'change' 表示文件内容变化
+  filename: string                 // 发生变化的文件名或路径
+}
+```
+
+**参数:**
+
+- `path` (string): 要监听的文件或目录路径，支持 `~/` 或 `@/` 前缀
+- `options` (IWatchOptions, 可选): 监听选项
+
+**返回值:**
+
+- 返回一个 `AsyncIterable<IWatchEvent>`，可以使用 `for await...of` 循环监听变化
+
+**重要提示：**
+
+- 对于虚拟路径（如 `~/.eidos/__NODES__/`），只能监听根虚拟目录
+- 使用 `AbortSignal` 可以优雅地停止监听
+- `eventType` 为 `'rename'` 时表示文件/目录的创建或删除
+- `eventType` 为 `'change'` 时表示文件内容的变化
+
+**示例:**
+
+```typescript
+// 监听节点目录的变化
+for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__NODES__/")) {
+  console.log(`节点 ${event.filename} ${event.eventType === 'rename' ? '创建/删除' : '内容变化'}`)
+}
+
+// 监听扩展目录的变化
+for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__EXTENSIONS__/")) {
+  if (event.eventType === 'rename') {
+    console.log(`扩展 ${event.filename} 已创建或删除`)
+  } else {
+    console.log(`扩展 ${event.filename} 内容已更新`)
+  }
+}
+
+// 递归监听目录及其子目录
+for await (const event of eidos.currentSpace.fs.watch("~/src", {
+  recursive: true
+})) {
+  console.log(`文件 ${event.filename} 发生变化`)
+}
+
+// 使用 AbortSignal 控制监听时长
+const controller = new AbortController()
+const { signal } = controller
+
+// 5 秒后自动停止监听
+setTimeout(() => controller.abort(), 5000)
+
+for await (const event of eidos.currentSpace.fs.watch("~/", {
+  recursive: true,
+  signal
+})) {
+  console.log(`变化: ${event.filename}`)
+}
+
+// 监听挂载文件夹
+for await (const event of eidos.currentSpace.fs.watch("@/music", {
+  recursive: true
+})) {
+  console.log(`音乐文件 ${event.filename} 发生变化`)
+}
+```
+
+**常见用例:**
+
+```typescript
+// 监听文件变化并自动重新加载
+async function watchAndReload(filePath: string, callback: () => void) {
+  for await (const event of eidos.currentSpace.fs.watch(filePath)) {
+    if (event.eventType === 'change') {
+      console.log(`文件 ${filePath} 已更新，重新加载...`)
+      callback()
+    }
+  }
+}
+
+// 监听目录变化并同步到数据库
+async function syncDirectoryChanges(dirPath: string) {
+  for await (const event of eidos.currentSpace.fs.watch(dirPath, {
+    recursive: true
+  })) {
+    if (event.eventType === 'rename') {
+      // 文件创建或删除
+      const fullPath = `${dirPath}/${event.filename}`
+      try {
+        await eidos.currentSpace.fs.stat(fullPath)
+        // 文件存在，说明是创建
+        console.log(`新文件: ${fullPath}`)
+        // 同步到数据库...
+      } catch {
+        // 文件不存在，说明是删除
+        console.log(`文件已删除: ${fullPath}`)
+        // 从数据库删除...
+      }
+    } else {
+      // 文件内容变化
+      console.log(`文件已更新: ${event.filename}`)
+      // 更新数据库...
+    }
+  }
+}
+
+// 带超时的监听
+async function watchWithTimeout(path: string, timeoutMs: number) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  
+  try {
+    for await (const event of eidos.currentSpace.fs.watch(path, {
+      signal: controller.signal
+    })) {
+      console.log(`变化: ${event.filename}`)
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log('监听已超时')
+    } else {
+      throw error
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+// 监听多个目录
+async function watchMultipleDirs(paths: string[]) {
+  const watchers = paths.map(path => 
+    eidos.currentSpace.fs.watch(path, { recursive: true })
+  )
+  
+  // 使用 Promise.race 监听所有目录
+  const events = watchers.map(async function* (watcher) {
+    for await (const event of watcher) {
+      yield event
+    }
+  })
+  
+  // 合并所有事件流
+  for await (const event of mergeAsyncIterables(...events)) {
+    console.log(`变化: ${event.filename}`)
+  }
+}
+
+// 辅助函数：合并多个 AsyncIterable
+async function* mergeAsyncIterables<T>(...iterables: AsyncIterable<T>[]): AsyncIterable<T> {
+  const iterators = iterables.map(it => it[Symbol.asyncIterator]())
+  const nextPromises = iterators.map(it => it.next())
+  
+  while (nextPromises.length > 0) {
+    const { value, done } = await Promise.race(
+      nextPromises.map((p, i) => p.then(result => ({ ...result, index: i })))
+    )
+    
+    if (done) {
+      nextPromises.splice(value.index, 1)
+      iterators.splice(value.index, 1)
+    } else {
+      yield value.value
+      nextPromises[value.index] = iterators[value.index].next()
+    }
+  }
+}
+```
+
+**支持的路径:**
+
+- `~/` - 项目根目录
+- `~/src` - 项目子目录
+- `~/.eidos/__NODES__/` - 节点目录（虚拟路径，仅支持根目录）
+- `~/.eidos/__EXTENSIONS__/` - 扩展目录（虚拟路径，仅支持根目录）
+- `@/music` - 挂载文件夹根目录
+- `@/music/albums` - 挂载文件夹子目录

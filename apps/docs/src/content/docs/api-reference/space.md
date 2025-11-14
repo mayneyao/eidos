@@ -235,204 +235,6 @@ await eidos.currentSpace.extNode.setBlob("node_123", buffer)
 
 ---
 
-## File API
-
-The `eidos.currentSpace.file` object provides file upload and management functionality.
-
-### `upload(source, options?)`
-
-Universal file upload method supporting multiple input types: URLs, base64 strings, ArrayBuffer, Blob, or File objects.
-
-```typescript
-async upload(
-  source: string | ArrayBuffer | Blob | File,
-  options?: UploadOptions
-): Promise<IFile>
-
-interface UploadOptions {
-  fileName?: string        // Optional for URL/File, required for others
-  mimeType?: string        // Optional for URL/File/Blob, required for ArrayBuffer/base64
-  parentPath?: string[]    // Parent directory path, e.g., ["images", "avatars"]
-  checkDuplicate?: boolean // Check if file exists and return existing file
-}
-```
-
-**Parameters:**
-
-- `source` (string | ArrayBuffer | Blob | File): The file source
-  - **URL string** (http/https): Automatically fetched and uploaded
-  - **Base64 string**: Decoded and uploaded (requires `fileName` and `mimeType`)
-  - **ArrayBuffer**: Raw binary data (requires `fileName` and `mimeType`)
-  - **Blob**: Binary large object (requires `fileName`)
-  - **File**: File object from input or drag-drop
-- `options` (UploadOptions, optional): Upload configuration
-
-**Returns:**
-
-```typescript
-{
-  id: string           // Unique file ID
-  name: string         // File name
-  path: string         // Full file path (stored as "files/..." in eidos__files table)
-  size: number       // File size in bytes
-  mime: string         // MIME type
-  created_at?: string  // Creation timestamp
-}
-```
-
-**Important:** The `path` field stores paths starting with `files/` (e.g., `"files/images/photo.jpg"`). To construct a pathname that can be accessed in references and extensions, prefix it with `/`, i.e., use `"/" + path` (e.g., `"/files/images/photo.jpg"`).
-
-**Examples:**
-
-```typescript
-// 1. Upload from URL
-const file = await eidos.currentSpace.file.upload(
-  "https://example.com/image.jpg",
-  { parentPath: ["images"] }
-)
-console.log("File uploaded:", "/" + file.path)
-
-// 2. Upload with custom name
-const file = await eidos.currentSpace.file.upload(
-  "https://example.com/photo.jpg",
-  {
-    fileName: "profile-picture.jpg",
-    parentPath: ["avatars"],
-    checkDuplicate: true  // Don't upload if already exists
-  }
-)
-
-// 3. Upload from base64 string
-const base64Data = "iVBORw0KGgoAAAANSUhEUgAA..." // base64 image data
-const file = await eidos.currentSpace.file.upload(base64Data, {
-  fileName: "screenshot.png",
-  mimeType: "image/png",
-  parentPath: ["screenshots"]
-})
-
-// 4. Upload from File object (e.g., from file input)
-const fileInput = document.querySelector('input[type="file"]')
-const selectedFile = fileInput.files[0]
-const file = await eidos.currentSpace.file.upload(selectedFile, {
-  parentPath: ["documents"]
-})
-
-// 5. Upload from ArrayBuffer
-const arrayBuffer = await fetch("https://example.com/doc.pdf")
-  .then(res => res.arrayBuffer())
-const file = await eidos.currentSpace.file.upload(arrayBuffer, {
-  fileName: "document.pdf",
-  mimeType: "application/pdf",
-  parentPath: ["pdfs"]
-})
-
-// 6. Upload from Blob
-const blob = new Blob(["Hello, world!"], { type: "text/plain" })
-const file = await eidos.currentSpace.file.upload(blob, {
-  fileName: "greeting.txt",
-  parentPath: ["texts"]
-})
-```
-
-**Common Use Cases:**
-
-```typescript
-// Save downloaded image from external API
-async function saveImageFromAPI(imageUrl: string, category: string) {
-  const file = await eidos.currentSpace.file.upload(imageUrl, {
-    parentPath: ["api-images", category],
-    checkDuplicate: true,
-  })
-  return "/" + file.path
-}
-
-// Process and upload canvas screenshot
-async function uploadCanvasScreenshot(canvas: HTMLCanvasElement) {
-  const blob = await new Promise((resolve) =>
-    canvas.toBlob(resolve, "image/png")
-  )
-  const file = await eidos.currentSpace.file.upload(blob, {
-    fileName: `screenshot-${Date.now()}.png`,
-    parentPath: ["screenshots"],
-  })
-  return file
-}
-
-// Upload files from file input with progress
-async function uploadUserFiles(files: FileList) {
-  const results = []
-  for (const file of Array.from(files)) {
-    const uploaded = await eidos.currentSpace.file.upload(file, {
-      parentPath: ["user-uploads", new Date().toISOString().split("T")[0]],
-    })
-    results.push(uploaded)
-  }
-  return results
-}
-```
-
-### `get(id: string)`
-
-Get file metadata by ID.
-
-```typescript
-async get(id: string): Promise<IFile | null>
-```
-
-**Example:**
-
-```typescript
-const fileInfo = await eidos.currentSpace.file.get("file_123")
-if (fileInfo) {
-  console.log("File name:", fileInfo.name)
-  console.log("File size:", fileInfo.size)
-  console.log("MIME type:", fileInfo.mime)
-}
-```
-
-### `getByPath(path: string)`
-
-Get file metadata by file path.
-
-```typescript
-async getByPath(path: string): Promise<IFile | null>
-```
-
-**Parameters:**
-
-- `path` (string): The file path, e.g., `"files/images/photo.jpg"`
-
-**Example:**
-
-```typescript
-const fileInfo = await eidos.currentSpace.file.getByPath(
-  "files/images/photo.jpg"
-)
-if (fileInfo) {
-  console.log("File ID:", fileInfo.id)
-  console.log("File name:", fileInfo.name)
-  console.log("File size:", fileInfo.size)
-  console.log("MIME type:", fileInfo.mime)
-}
-```
-
-**Error Handling:**
-
-```typescript
-try {
-  const file = await eidos.currentSpace.file.upload(source, options)
-  eidos.currentSpace.notify("Success", `File uploaded: ${file.name}`)
-} catch (error) {
-  if (error.name === "FileUploadError") {
-    eidos.currentSpace.notify("Upload Failed", error.message)
-  } else if (error.name === "FileSystemError") {
-    eidos.currentSpace.notify("Error", "File system not available")
-  }
-}
-```
-
----
-
 ## File System API
 
 Eidos provides a restricted external file API that enables access to the native file system. This is a restricted mechanism that provides secure file system access capabilities.
@@ -877,3 +679,283 @@ async function isNewer(file1: string, file2: string): Promise<boolean> {
 - `~/src/index.js` - Project file
 - `@/music` - Mounted folder root
 - `@/music/albums/song.mp3` - File in mounted folder
+
+### `rename(oldPath, newPath)`
+
+Rename a file or directory (like Node.js `fs.rename`).
+
+```typescript
+rename(oldPath: string, newPath: string): Promise<void>
+```
+
+**Parameters:**
+
+- `oldPath` (string): Current file or directory path, supports `~/` or `@/` prefix
+- `newPath` (string): New file or directory path, supports `~/` or `@/` prefix
+
+**Important Notes:**
+
+- Both paths must be either virtual paths or real paths, cannot mix them
+- For virtual paths (e.g., nodes under `~/.eidos/__NODES__/`), renaming updates the database records
+- For real paths, renaming modifies files or directories in the file system
+- Renaming can also be used to move files or directories to different locations
+
+**Examples:**
+
+```typescript
+// Rename a file
+await eidos.currentSpace.fs.rename("~/old-name.md", "~/new-name.md")
+
+// Rename a directory
+await eidos.currentSpace.fs.rename("~/old-folder", "~/new-folder")
+
+// Move file to different directory
+await eidos.currentSpace.fs.rename("~/src/old.js", "~/lib/new.js")
+
+// Rename file in mounted folder
+await eidos.currentSpace.fs.rename("@/music/old-song.mp3", "@/music/new-song.mp3")
+
+// Rename a node (virtual path)
+await eidos.currentSpace.fs.rename(
+  "~/.eidos/__NODES__/node-id",
+  "~/.eidos/__NODES__/New Name"
+)
+
+// Rename an extension (virtual path)
+await eidos.currentSpace.fs.rename(
+  "~/.eidos/__EXTENSIONS__/ext-id",
+  "~/.eidos/__EXTENSIONS__/new-slug.ts"
+)
+```
+
+**Common use cases:**
+
+```typescript
+// Batch rename files
+async function renameFiles(files: string[], prefix: string) {
+  for (const file of files) {
+    const dir = file.substring(0, file.lastIndexOf("/"))
+    const name = file.substring(file.lastIndexOf("/") + 1)
+    const newName = `${prefix}-${name}`
+    await eidos.currentSpace.fs.rename(file, `${dir}/${newName}`)
+  }
+}
+
+// Organize files by date
+async function organizeByDate(filePath: string) {
+  const stats = await eidos.currentSpace.fs.stat(filePath)
+  const date = new Date(stats.mtimeMs)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const dir = `@/archive/${year}/${month}`
+  
+  // Ensure directory exists
+  await eidos.currentSpace.fs.mkdir(dir, { recursive: true })
+  
+  // Move file
+  const fileName = filePath.substring(filePath.lastIndexOf("/") + 1)
+  await eidos.currentSpace.fs.rename(filePath, `${dir}/${fileName}`)
+}
+
+// Rename with backup
+async function renameWithBackup(oldPath: string, newPath: string) {
+  const backupPath = `${oldPath}.backup`
+  // First copy the file (by reading and writing)
+  const content = await eidos.currentSpace.fs.readFile(oldPath)
+  await eidos.currentSpace.fs.writeFile(backupPath, content)
+  // Then rename the original file
+  await eidos.currentSpace.fs.rename(oldPath, newPath)
+}
+```
+
+### `watch(path, options?)`
+
+Watch for changes on a file or directory (like Node.js `fs.watch`).
+
+```typescript
+watch(path: string, options?: IWatchOptions): AsyncIterable<IWatchEvent>
+
+interface IWatchOptions {
+  encoding?: BufferEncoding    // Encoding format, default 'utf8'
+  persistent?: boolean          // Whether to persist watching, default true
+  recursive?: boolean           // Whether to recursively watch subdirectories, default false
+  signal?: AbortSignal          // Signal to cancel watching
+}
+
+interface IWatchEvent {
+  eventType: 'rename' | 'change'  // Event type: 'rename' means file/directory created or deleted, 'change' means file content changed
+  filename: string                 // Name or path of the changed file
+}
+```
+
+**Parameters:**
+
+- `path` (string): File or directory path to watch, supports `~/` or `@/` prefix
+- `options` (IWatchOptions, optional): Watch options
+
+**Returns:**
+
+- Returns an `AsyncIterable<IWatchEvent>` that can be used with `for await...of` loop to watch for changes
+
+**Important Notes:**
+
+- For virtual paths (e.g., `~/.eidos/__NODES__/`), only root virtual directories can be watched
+- Use `AbortSignal` to gracefully stop watching
+- `eventType` of `'rename'` indicates file/directory creation or deletion
+- `eventType` of `'change'` indicates file content changes
+
+**Examples:**
+
+```typescript
+// Watch for changes in nodes directory
+for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__NODES__/")) {
+  console.log(`Node ${event.filename} ${event.eventType === 'rename' ? 'created/deleted' : 'content changed'}`)
+}
+
+// Watch for changes in extensions directory
+for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__EXTENSIONS__/")) {
+  if (event.eventType === 'rename') {
+    console.log(`Extension ${event.filename} created or deleted`)
+  } else {
+    console.log(`Extension ${event.filename} content updated`)
+  }
+}
+
+// Recursively watch directory and subdirectories
+for await (const event of eidos.currentSpace.fs.watch("~/src", {
+  recursive: true
+})) {
+  console.log(`File ${event.filename} changed`)
+}
+
+// Use AbortSignal to control watch duration
+const controller = new AbortController()
+const { signal } = controller
+
+// Automatically stop watching after 5 seconds
+setTimeout(() => controller.abort(), 5000)
+
+for await (const event of eidos.currentSpace.fs.watch("~/", {
+  recursive: true,
+  signal
+})) {
+  console.log(`Change: ${event.filename}`)
+}
+
+// Watch mounted folder
+for await (const event of eidos.currentSpace.fs.watch("@/music", {
+  recursive: true
+})) {
+  console.log(`Music file ${event.filename} changed`)
+}
+```
+
+**Common use cases:**
+
+```typescript
+// Watch file changes and auto-reload
+async function watchAndReload(filePath: string, callback: () => void) {
+  for await (const event of eidos.currentSpace.fs.watch(filePath)) {
+    if (event.eventType === 'change') {
+      console.log(`File ${filePath} updated, reloading...`)
+      callback()
+    }
+  }
+}
+
+// Watch directory changes and sync to database
+async function syncDirectoryChanges(dirPath: string) {
+  for await (const event of eidos.currentSpace.fs.watch(dirPath, {
+    recursive: true
+  })) {
+    if (event.eventType === 'rename') {
+      // File created or deleted
+      const fullPath = `${dirPath}/${event.filename}`
+      try {
+        await eidos.currentSpace.fs.stat(fullPath)
+        // File exists, it's a creation
+        console.log(`New file: ${fullPath}`)
+        // Sync to database...
+      } catch {
+        // File doesn't exist, it's a deletion
+        console.log(`File deleted: ${fullPath}`)
+        // Delete from database...
+      }
+    } else {
+      // File content changed
+      console.log(`File updated: ${event.filename}`)
+      // Update database...
+    }
+  }
+}
+
+// Watch with timeout
+async function watchWithTimeout(path: string, timeoutMs: number) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  
+  try {
+    for await (const event of eidos.currentSpace.fs.watch(path, {
+      signal: controller.signal
+    })) {
+      console.log(`Change: ${event.filename}`)
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log('Watch timed out')
+    } else {
+      throw error
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+// Watch multiple directories
+async function watchMultipleDirs(paths: string[]) {
+  const watchers = paths.map(path => 
+    eidos.currentSpace.fs.watch(path, { recursive: true })
+  )
+  
+  // Use Promise.race to watch all directories
+  const events = watchers.map(async function* (watcher) {
+    for await (const event of watcher) {
+      yield event
+    }
+  })
+  
+  // Merge all event streams
+  for await (const event of mergeAsyncIterables(...events)) {
+    console.log(`Change: ${event.filename}`)
+  }
+}
+
+// Helper function: merge multiple AsyncIterables
+async function* mergeAsyncIterables<T>(...iterables: AsyncIterable<T>[]): AsyncIterable<T> {
+  const iterators = iterables.map(it => it[Symbol.asyncIterator]())
+  const nextPromises = iterators.map(it => it.next())
+  
+  while (nextPromises.length > 0) {
+    const { value, done } = await Promise.race(
+      nextPromises.map((p, i) => p.then(result => ({ ...result, index: i })))
+    )
+    
+    if (done) {
+      nextPromises.splice(value.index, 1)
+      iterators.splice(value.index, 1)
+    } else {
+      yield value.value
+      nextPromises[value.index] = iterators[value.index].next()
+    }
+  }
+}
+```
+
+**Supported paths:**
+
+- `~/` - Project root
+- `~/src` - Project subdirectory
+- `~/.eidos/__NODES__/` - Nodes directory (virtual path, root only)
+- `~/.eidos/__EXTENSIONS__/` - Extensions directory (virtual path, root only)
+- `@/music` - Mounted folder root
+- `@/music/albums` - Mounted folder subdirectory
