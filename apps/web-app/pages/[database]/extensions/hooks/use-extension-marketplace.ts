@@ -87,7 +87,7 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
                 version: "0.0.1", // Consider making this dynamic
                 code: codeToSubmit,
                 description: script.description || "",
-                type: script.type,
+                type: script.meta?.type ? `${script.type}/${script.meta.type}` : script.type,
                 language: scriptLanguage,
                 icon_url: script.icon,
                 changelog: "Initial submission", // Consider making this dynamic
