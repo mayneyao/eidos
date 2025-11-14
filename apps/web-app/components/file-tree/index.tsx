@@ -102,7 +102,31 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
         return a.name.localeCompare(b.name)
       })
 
-      setTreeData(sortedEntries)
+      // Preserve existing children for directories that are still present
+      setTreeData((prevTreeData) => {
+        const existingNodesMap = new Map(prevTreeData.map(node => [node.name, node]))
+        
+        return sortedEntries.map(newNode => {
+          const existingNode = existingNodesMap.get(newNode.name)
+          // If node existed before and was a directory with children, preserve them
+          if (existingNode && existingNode.kind === "directory" && existingNode.children) {
+            return {
+              ...newNode,
+              children: existingNode.children
+            }
+          }
+          return newNode
+        })
+      })
+
+      // Reload children for all expanded directories to keep them in sync
+      const reloadPromises = Array.from(expandedNodes).map(async (path) => {
+        if (path !== rootDir) {
+          await loadSubDirectory(path)
+        }
+      })
+      
+      await Promise.all(reloadPromises)
     } catch (error) {
       console.error("Failed to load root directory:", error)
     }
@@ -130,9 +154,30 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
         targetPath: string,
         newChildren: FileTreeNode[]
       ): FileTreeNode[] => {
+        // Create a map of existing children for quick lookup
+        const existingChildrenMap = new Map()
+        const existingNode = nodes.find(n => n.path === targetPath)
+        if (existingNode?.children) {
+          existingNode.children.forEach(child => {
+            existingChildrenMap.set(child.name, child)
+          })
+        }
+
         return nodes.map((node) => {
           if (node.path === targetPath) {
-            return { ...node, children: newChildren }
+            // Merge new children with existing ones to preserve grandchildren
+            const mergedChildren = newChildren.map(newChild => {
+              const existingChild = existingChildrenMap.get(newChild.name)
+              // If child existed before and was a directory with children, preserve them
+              if (existingChild && existingChild.kind === "directory" && existingChild.children) {
+                return {
+                  ...newChild,
+                  children: existingChild.children
+                }
+              }
+              return newChild
+            })
+            return { ...node, children: mergedChildren }
           }
           if (node.children) {
             return {
@@ -231,12 +276,21 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   }
 
   const handleRenameConfirm = async (node: FileTreeNode, newName: string) => {
-    if (!sqlite || !newName.trim()) {
+    if (!sqlite) {
       cancelRename()
       return
     }
 
+    // If newName is same as current name, cancel
     if (newName === node.name) {
+      cancelRename()
+      return
+    }
+
+    // If newName is empty, allow it (will show placeholder)
+    // If newName matches placeholder and current name is not empty, cancel (user likely didn't mean to set to placeholder)
+    const placeholderText = getPlaceholderText(node)
+    if (newName === placeholderText && node.name && node.name.trim().length > 0) {
       cancelRename()
       return
     }
@@ -282,17 +336,22 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     e.stopPropagation()
     setDraggingNode(node.path)
 
+    // Get display name for drag operations (handles empty names)
+    const displayName = node.name && node.name.trim().length > 0
+      ? node.name
+      : getPlaceholderText(node)
+
     // Set drag data for cross-window drag support
     const dragData = {
       path: node.path,
-      name: node.name,
+      name: displayName,
       kind: node.kind,
       metadata: node.metadata,
     }
 
     e.dataTransfer.effectAllowed = "move"
     e.dataTransfer.setData("application/eidos-node", JSON.stringify(dragData))
-    e.dataTransfer.setData("text/plain", node.name) // Fallback for external apps
+    e.dataTransfer.setData("text/plain", displayName) // Fallback for external apps
   }
 
   const handleDragEnd = (e: React.DragEvent) => {
@@ -424,9 +483,31 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [selectedNode, renamingNode])
 
+  // Check if a string is an emoji character
+  const isEmoji = (str: string): boolean => {
+    // Emoji regex pattern - matches most emoji characters including:
+    // - Basic emoji (😀, 🎉, etc.)
+    // - Emoji with modifiers (👨‍👩‍👧, etc.)
+    // - Flag emojis
+    // - Keycap sequences
+    const emojiRegex =
+      /^(?:[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{200D}]|[\u{20D0}-\u{20FF}]|[\u{FE00}-\u{FE0F}]|[\u{FE20}-\u{FE2F}])+$/u
+    return emojiRegex.test(str.trim())
+  }
+
   const getNodeIcon = (node: FileTreeNode) => {
     // Use custom icon from metadata if available
     if (node.metadata?.icon) {
+      const iconValue = String(node.metadata.icon)
+      // If icon is an emoji, display it directly
+      if (isEmoji(iconValue)) {
+        return (
+          <span className="w-4 h-4 flex items-center justify-center text-base leading-none">
+            {iconValue}
+          </span>
+        )
+      }
+      // Otherwise use IconRenderer
       return (
         <IconRenderer name={node.metadata.icon as any} className="w-4 h-4" />
       )
@@ -451,6 +532,11 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     }
   }
 
+  // Get placeholder text based on node type
+  const getPlaceholderText = (node: FileTreeNode): string => {
+    return "Untitled"
+  }
+
   const renderTreeNode = (node: FileTreeNode, level = 0) => {
     const isExpanded = expandedNodes.has(node.path)
     const isLoading = loadingNodes.has(node.path)
@@ -470,6 +556,18 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
     // Show pin icon if either node is pinned or extension is favorited
     const showPinIcon = isPinned || isExtensionPinned
+
+    // Check if name is empty and prepare display value and style
+    const hasName = node.name && node.name.trim().length > 0
+    // In edit mode, use actual name (even if empty); otherwise use placeholder if empty
+    const displayName = isRenaming
+      ? node.name || ""
+      : hasName
+        ? node.name
+        : getPlaceholderText(node)
+    const nameClassName = hasName
+      ? "truncate text-foreground"
+      : "truncate text-muted-foreground italic"
 
     return (
       <div key={node.path} className="min-w-0">
@@ -551,11 +649,12 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
             </div>
             <div className="flex items-center gap-1 px-2 py-1 min-w-0 flex-1">
               <InlineEdit
-                value={node.name}
+                value={displayName}
                 isEditing={isRenaming}
                 nodeType={node.metadata?.nodeType}
                 onConfirm={(newName) => handleRenameConfirm(node, newName)}
                 onCancel={cancelRename}
+                className={nameClassName}
               />
               {!isRenaming && showPinIcon && (
                 <Pin className="w-3 h-3 text-muted-foreground flex-shrink-0" />

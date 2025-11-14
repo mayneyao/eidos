@@ -37,12 +37,15 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
 }) => {
   const editRef = useRef<HTMLInputElement>(null)
   const [editValue, setEditValue] = useState(value)
+  const prevEditingRef = useRef(isEditing)
 
-  // Sync editValue with value prop when entering edit mode
+  // Sync editValue with value prop only when entering edit mode (not when value changes during editing)
   useEffect(() => {
-    if (isEditing) {
+    // Only sync when transitioning from non-editing to editing mode
+    if (isEditing && !prevEditingRef.current) {
       setEditValue(value)
     }
+    prevEditingRef.current = isEditing
   }, [isEditing, value])
 
   /**
@@ -120,7 +123,9 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
         element.setSelectionRange(0, endPosition)
       }, 0)
     }
-  }, [isEditing, editValue, nodeType]) // Include dependencies for proper updates
+    // Only run when entering edit mode or nodeType changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, nodeType])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Only handle keyboard events if this input is actually focused
