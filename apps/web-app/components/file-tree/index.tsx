@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react"
-import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
+import type { IDirectoryEntry, IWatchEvent } from "@eidos.space/core/types/IExternalFileSystem"
 import {
   BlocksIcon,
   ChevronDown,
@@ -75,6 +75,10 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const [dragOverNode, setDragOverNode] = useState<string | null>(null)
   const [draggingNode, setDraggingNode] = useState<string | null>(null)
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  
+  // Add a ref to track pending reloads to avoid duplicates
+  const pendingReloadsRef = useRef<Set<string>>(new Set())
+  const reloadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Context menu operations - use baseDir or rootDir for path detection
   const {
@@ -483,6 +487,15 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [selectedNode, renamingNode])
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (reloadTimeoutRef.current) {
+        clearTimeout(reloadTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Check if a string is an emoji character
   const isEmoji = (str: string): boolean => {
     // Emoji regex pattern - matches most emoji characters including:
@@ -707,8 +720,8 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
             timestamp: new Date().toISOString(),
           })
 
-          // Reload the directory when changes occur
-          await loadRootDirectory()
+          // Smart reload: determine which directory needs to be reloaded
+          await handleWatchEvent(event)
         }
       } catch (error) {
         // Ignore abort errors (expected when component unmounts)
@@ -718,13 +731,91 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       }
     }
 
+    // Handle watch events intelligently with debouncing
+    const handleWatchEvent = (event: IWatchEvent) => {
+      console.log(`[FileTree Watch] Received event:`, event)
+      
+      // Clear any existing timeout
+      if (reloadTimeoutRef.current) {
+        clearTimeout(reloadTimeoutRef.current)
+      }
+      
+      // Set a new timeout to debounce reloads
+      reloadTimeoutRef.current = setTimeout(async () => {
+        await processWatchEvent(event)
+      }, 100) // 100ms debounce
+    }
+
+    // Process the actual watch event
+    const processWatchEvent = async (event: IWatchEvent) => {
+      try {
+        console.log(`[FileTree Watch] Processing event:`, event)
+        console.log(`[FileTree Watch] Current expanded nodes:`, Array.from(expandedNodes))
+        console.log(`[FileTree Watch] Root directory:`, rootDir)
+
+        // For virtual file system, event.filename contains ID path like "id1/id2/id3"
+        const pathParts = event.filename.split('/').filter(Boolean)
+        console.log(`[FileTree Watch] Path parts:`, pathParts)
+        
+        if (pathParts.length === 0) {
+          // Root level change, reload everything
+          console.log(`[FileTree Watch] Root level change, reloading root directory`)
+          await loadRootDirectory()
+          return
+        }
+
+        if (pathParts.length === 1) {
+          // Direct child of root, reload root directory
+          console.log(`[FileTree Watch] Direct child change, reloading root directory`)
+          await loadRootDirectory()
+          return
+        }
+
+        // Nested change: find the parent directory and reload it
+        // For path "parent1/child1/grandchild1", we want to reload "parent1" (the first part)
+        // which represents the top-level directory under root
+        const topLevelId = pathParts[0] // First part is the top-level directory
+        const topLevelPath = `${rootDir}/${topLevelId}`
+        console.log(`[FileTree Watch] Top-level ID: ${topLevelId}, Top-level path: ${topLevelPath}`)
+        
+        // Check if this reload is already pending
+        if (pendingReloadsRef.current.has(topLevelPath)) {
+          console.log(`[FileTree Watch] Reload already pending for: ${topLevelPath}`)
+          return
+        }
+        
+        // Mark this reload as pending
+        pendingReloadsRef.current.add(topLevelPath)
+        
+        try {
+          // Check if the top-level directory is currently expanded
+          if (expandedNodes.has(topLevelPath)) {
+            console.log(`[FileTree Watch] Top-level directory is expanded, reloading: ${topLevelPath}`)
+            await loadSubDirectory(topLevelPath)
+          } else {
+            // Top-level directory is not expanded, just reload root to update counts/visibility
+            console.log(`[FileTree Watch] Top-level directory not expanded, reloading root: ${rootDir}`)
+            await loadRootDirectory()
+          }
+        } finally {
+          // Remove from pending reloads
+          pendingReloadsRef.current.delete(topLevelPath)
+        }
+
+      } catch (error) {
+        console.error("[FileTree Watch] Error handling watch event:", error)
+        // Fallback to full reload on error
+        await loadRootDirectory()
+      }
+    }
+
     watchDirectory()
 
     // Cleanup: abort watch when component unmounts or dependencies change
     return () => {
       abortController.abort()
     }
-  }, [sqlite, rootDir, isNodesMode])
+  }, [sqlite, rootDir, isNodesMode, expandedNodes])
 
   // Don't render ScrollArea wrapper in nodes mode (parent should handle scrolling)
   const content = (

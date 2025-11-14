@@ -59,15 +59,27 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     if (this.triggersInitialized) return
 
     try {
-      // Register UDF function for watch events
+      // Register UDF function for watch events - UDFs must be synchronous
       this.db.createFunction({
         name: "eidos_virtual_fs_watch_event",
-        xFunc: (path: string, eventType: string, filename: string) => {
-          const event: IWatchEvent = {
-            eventType: eventType as 'rename' | 'change',
-            filename: filename || ''
+        xFunc: (path: string, eventType: string, nodeId: string) => {
+          try {
+            // For UDFs, we cannot use async operations, so we'll use the nodeId directly
+            // The full path building will be handled by the watch consumer if needed
+            const event: IWatchEvent = {
+              eventType: eventType as 'rename' | 'change',
+              filename: nodeId || ''
+            }
+            pushWatchEvent(path, event)
+          } catch (error) {
+            console.error('Error in virtual fs watch event UDF:', error)
+            // Fallback to just the node ID
+            const event: IWatchEvent = {
+              eventType: eventType as 'rename' | 'change',
+              filename: nodeId || ''
+            }
+            pushWatchEvent(path, event)
           }
-          pushWatchEvent(path, event)
           return null
         }
       })
@@ -507,6 +519,45 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   }
 
   /**
+   * Build ID-based path for watch events
+   * Returns the full path like "id1/id2/id3" based on parent-child relationships
+   */
+  private async buildIdPathForWatch(nodeId: string): Promise<string> {
+    if (!nodeId) return ''
+    
+    // Get all ancestors of the node (including the node itself) using recursive CTE
+    // This walks up the tree from the node to the root
+    const ancestorsQuery = `
+      WITH RECURSIVE ancestor_path AS (
+        -- Start with the current node
+        SELECT id, parent_id, 1 as level
+        FROM eidos__tree 
+        WHERE id = ? AND is_deleted = 0
+        
+        UNION ALL
+        
+        -- Recursively get ancestors (walk up the tree)
+        SELECT t.id, t.parent_id, ap.level + 1
+        FROM eidos__tree t
+        INNER JOIN ancestor_path ap ON t.id = ap.parent_id
+        WHERE t.is_deleted = 0
+      )
+      SELECT id FROM ancestor_path ORDER BY level DESC
+    `
+    
+    const ancestors = await this.db.selectObjects(ancestorsQuery, [nodeId]) as Array<{ id: string }>
+    
+    if (ancestors.length === 0) {
+      return nodeId
+    }
+    
+    // Build the ID path from root to current node (ancestors are ordered from root to leaf)
+    const pathParts = ancestors.map(ancestor => ancestor.id)
+    
+    return pathParts.join('/')
+  }
+
+  /**
    * Batch build name paths for multiple nodes efficiently
    * This is much more efficient than building each path individually
    */
@@ -881,12 +932,18 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
             // If we have queued events, yield them
             if (watcher.queue.length > 0) {
-              yield watcher.queue.shift()!
+              const event = watcher.queue.shift()!
+              // Build the full ID path for the event
+              const fullIdPath = await this.buildIdPathForWatch(event.filename)
+              yield {
+                ...event,
+                filename: fullIdPath || event.filename
+              }
               continue
             }
 
             // Otherwise, wait for next event
-            const event = await new Promise<IWatchEvent>((resolve, reject) => {
+            const rawEvent = await new Promise<IWatchEvent>((resolve, reject) => {
               watcher.resolve = resolve
               watcher.reject = reject
             })
@@ -896,7 +953,12 @@ export class VirtualFsAdapter implements IExternalFileSystem {
               break
             }
 
-            yield event
+            // Build the full ID path for the event
+            const fullIdPath = await this.buildIdPathForWatch(rawEvent.filename)
+            yield {
+              ...rawEvent,
+              filename: fullIdPath || rawEvent.filename
+            }
           }
         } finally {
           // Clean up
