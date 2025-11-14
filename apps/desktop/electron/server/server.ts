@@ -1,16 +1,19 @@
 import { handleFunctionCall } from '@/packages/core/rpc';
 import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
+import { containsBinaryData, parseMultipartFormData, processBinaryDataForResponse, ProxyHandler, restoreBinaryData } from '@eidos.space/sandbox';
 import { serve } from '@hono/node-server';
 import { log } from 'electron-log';
 import { Hono } from 'hono';
+import path from 'path';
 import { getOrSetDataSpace } from '../data-space';
 import { getFileFromPath, getSpaceFileFromPath } from '../file-system/space';
-import { serveStatic } from './server-static';
-import { interceptExtensionRequest } from './ext-server';
-import { ProxyHandler } from '@eidos.space/sandbox';
 import { getSpaceRegistry } from '../space-registry';
-import path from 'path';
+import { interceptExtensionRequest } from './ext-server';
 import { serveFile } from './serve-file';
+import { serveStatic } from './server-static';
+
+
+
 
 const app = new Hono();
 
@@ -161,12 +164,66 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
                 throw new Error(`Space not found: ${spaceId}`);
             }
 
-            const { method, params, scope } = await c.req.json();
+            let method, params, scope
+            const contentType = c.req.header('content-type') || ''
+
+            if (contentType.includes('multipart/form-data')) {
+                // Handle form-data request with binary data
+                const formData = await parseMultipartFormData(c.req.raw)
+                const jsonData = JSON.parse(formData.json || '{}')
+
+                // Restore binary data from form fields
+                const binaryDataMap: Record<string, any> = {}
+                for (const [key, value] of Object.entries(formData)) {
+                    if (key.startsWith('binary_')) {
+                        binaryDataMap[key] = value
+                    }
+                }
+
+                // Replace binary references with actual data
+                method = jsonData.method
+                params = restoreBinaryData(jsonData.params, binaryDataMap)
+                scope = jsonData.scope
+            } else {
+                // Handle regular JSON request
+                const jsonData = await c.req.json()
+                method = jsonData.method
+                params = jsonData.params
+                scope = jsonData.scope
+            }
+
             const dataSpace = await getOrSetDataSpace(spaceId);
             log('rpc', method, params, spaceId, dataSpace.dbName)
             const result = await handleFunctionCall({ method, params, space: spaceId, dbName: spaceId, userId: 'unknown' }, dataSpace);
 
-            return c.json({ success: true, data: result });
+            // Check if result contains binary data and handle accordingly
+            if (containsBinaryData(result)) {
+                // Use multipart form data for binary responses
+                const formData = new FormData();
+                formData.append('json', JSON.stringify({ success: true }));
+
+                // Extract binary data and add as separate fields
+                let binaryIndex = 0;
+                const processedResult = processBinaryDataForResponse(result, (binaryData) => {
+                    const fieldName = `binary_${binaryIndex++}`;
+                    formData.append(fieldName, binaryData);
+                    return fieldName;
+                });
+
+                // Update the JSON data to include the processed result
+                formData.set('json', JSON.stringify({ success: true, data: processedResult }));
+
+                return new Response(formData, {
+                    headers: {
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
+                        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                    }
+                });
+            } else {
+                // Regular JSON response
+                return c.json({ success: true, data: result });
+            }
         } catch (error: any) {
             return c.json({ success: false, error: error.message }, 400);
         }
