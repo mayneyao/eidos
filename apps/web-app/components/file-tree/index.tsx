@@ -37,6 +37,26 @@ interface FileTreeProps {
   baseDir?: string
 }
 
+/**
+ * Check if there's any modal/dialog open or if focus is inside a dialog
+ * This is a generic check that works for all dialog implementations (Radix UI, etc.)
+ */
+const isDialogOpen = (): boolean => {
+  const activeElement = document.activeElement
+
+  // Check if focus is inside a dialog (Radix UI uses [role="dialog"])
+  if (activeElement?.closest('[role="dialog"]')) {
+    return true
+  }
+
+  // Check if there's any open dialog in the DOM
+  // Radix UI sets data-state="open" on open dialogs
+  const openDialogs = document.querySelectorAll(
+    '[role="dialog"][data-state="open"]'
+  )
+  return openDialogs.length > 0
+}
+
 const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const { sqlite } = useSqlite()
   const navigate = useNavigate()
@@ -376,6 +396,21 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger if we're already renaming
       if (renamingNode) return
+
+      // Don't trigger if any dialog/modal is open
+      if (isDialogOpen()) return
+
+      // Don't trigger if focus is on a form input element (outside of dialogs)
+      // Note: We don't block contenteditable elements (like document editors)
+      // because users may want to rename nodes while editing documents
+      const activeElement = document.activeElement
+      if (
+        activeElement &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA")
+      ) {
+        return
+      }
 
       // Enter key to start rename
       if (e.key === "Enter" && selectedNode) {

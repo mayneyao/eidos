@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react"
+import React, { useEffect, useRef, useState } from "react"
 
 interface InlineEditProps {
   /** The current value to display/edit */
@@ -19,7 +19,7 @@ interface InlineEditProps {
  * InlineEdit - A reusable component for inline text editing with smart extension handling
  * 
  * Features:
- * - VSCode-like inline editing with contenteditable
+ * - VSCode-like inline editing with input element
  * - Smart text selection based on node type
  * - For extensions: selects full name (including .ts/.tsx)
  * - For docs/tables: selects only filename (excluding common extensions)
@@ -35,7 +35,15 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
   onCancel,
   className = "truncate text-foreground",
 }) => {
-  const editRef = useRef<HTMLSpanElement>(null)
+  const editRef = useRef<HTMLInputElement>(null)
+  const [editValue, setEditValue] = useState(value)
+
+  // Sync editValue with value prop when entering edit mode
+  useEffect(() => {
+    if (isEditing) {
+      setEditValue(value)
+    }
+  }, [isEditing, value])
 
   /**
    * Calculate the selection end position based on node type and filename
@@ -99,36 +107,24 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
 
   // Handle text selection when entering edit mode
   useEffect(() => {
-    if (isEditing && editRef.current && value) {
+    if (isEditing && editRef.current && editValue) {
       const element = editRef.current
-      const selectionEnd = getSelectionEndPosition(value, nodeType)
+      const selectionEnd = getSelectionEndPosition(editValue, nodeType)
 
       // Use setTimeout to ensure the element is fully focused
       setTimeout(() => {
         element.focus()
 
-        // Use Selection API for contenteditable
-        const range = document.createRange()
-        const selection = window.getSelection()
-
-        if (element.firstChild) {
-          // Select from start to calculated end position
-          range.setStart(element.firstChild, 0)
-          range.setEnd(
-            element.firstChild,
-            Math.min(selectionEnd, element.textContent?.length || 0)
-          )
-
-          selection?.removeAllRanges()
-          selection?.addRange(range)
-        }
+        // Use setSelectionRange for input element
+        const endPosition = Math.min(selectionEnd, editValue.length)
+        element.setSelectionRange(0, endPosition)
       }, 0)
-
     }
-  }, [isEditing]) // Only run when entering edit mode
+  }, [isEditing, editValue, nodeType]) // Include dependencies for proper updates
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
-    // Only handle keyboard events if this element is focused
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Only handle keyboard events if this input is actually focused
+    // This prevents accidental triggers when other elements handle Enter
     if (document.activeElement !== e.currentTarget) {
       return
     }
@@ -136,22 +132,23 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
     if (e.key === "Enter") {
       e.preventDefault()
       e.stopPropagation()
-      const newValue = e.currentTarget.textContent || ""
+      const newValue = e.currentTarget.value || ""
       onConfirm(newValue)
     } else if (e.key === "Escape") {
       e.preventDefault()
       e.stopPropagation()
+      setEditValue(value) // Reset to original value
       onCancel()
     }
   }
 
-  const handleBlur = (e: React.FocusEvent<HTMLSpanElement>) => {
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     // Delay to allow Enter key to be processed first
     setTimeout(() => {
       // Only confirm if we're still in editing mode and the element is not focused
       // This prevents triggering when user clicks elsewhere or presses Enter in another element
       if (isEditing && document.activeElement !== e.currentTarget) {
-        const newValue = e.currentTarget.textContent || ""
+        const newValue = e.currentTarget.value || ""
         onConfirm(newValue)
       }
     }, 100)
@@ -159,17 +156,25 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
 
   if (isEditing) {
     return (
-      <span
+      <input
         ref={editRef}
-        contentEditable
-        suppressContentEditableWarning
-        className={`${className} outline-none`}
+        type="text"
+        value={editValue}
+        onChange={(e) => {
+          setEditValue(e.target.value)
+        }}
+        className={`${className} outline-none bg-transparent border-none p-0 m-0`}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         onClick={(e) => e.stopPropagation()}
-      >
-        {value}
-      </span>
+        style={{
+          // Remove default input styling to make it look like plain text
+          boxShadow: "none",
+          appearance: "none",
+          WebkitAppearance: "none",
+          MozAppearance: "textfield",
+        }}
+      />
     )
   }
 
