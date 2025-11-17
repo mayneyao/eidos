@@ -173,7 +173,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
         onChange={(e) => {
           setEditValue(e.target.value)
         }}
-        className={`${className} outline-none bg-transparent border-none p-0 m-0 w-full`}
+        className={`${className} outline-none bg-transparent border-none p-0 m-0`}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         onClick={(e) => e.stopPropagation()}
@@ -183,9 +183,6 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
           appearance: "none",
           WebkitAppearance: "none",
           MozAppearance: "textfield",
-          // Ensure full width and inherit parent styling
-          width: "100%",
-          minWidth: "0",
         }}
       />
     )
