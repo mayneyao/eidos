@@ -42,7 +42,7 @@ export const useExtensionInstaller = () => {
                 id: extensionIdFromApi,
                 slug: `${extensionData.extension.type}-${extensionIdFromApi.slice(0, 8)}`,
                 name: extensionData.extension.name,
-                type: extensionData.extension.type,
+                type: extensionData.extension.type.split('/')[0],
                 description: extensionData.extension.description,
                 icon: extensionData.extension.icon_url,
                 version: extensionData.latestVersion.version,
