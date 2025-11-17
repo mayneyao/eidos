@@ -3,6 +3,7 @@ import {
   CogIcon,
   CommandIcon,
   Download,
+  FileCodeIcon,
   Github,
   HomeIcon,
   Keyboard,
@@ -17,7 +18,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 
 import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
@@ -60,6 +61,8 @@ import {
   useSpaceAppStore,
 } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useHandlerSelection } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-handler-selection"
+import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"
@@ -73,7 +76,24 @@ import { UpdateStatusComponent } from "./update-status"
 export function NavDropdownMenu() {
   const { t } = useTranslation()
   const router = useNavigate()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
+
+  // Check if we're on file-handler page and get current handler
+  const isFileHandlerPage = location.pathname.includes("/file-handler")
+  const { fileExtension } = useFilePathFromHash()
+  const { selectedHandler, isLoadingHandlers, isLoadingDefault } = useHandlerSelection(
+    isFileHandlerPage ? fileExtension : ""
+  )
+
+  const handleViewHandler = () => {
+    if (selectedHandler) {
+      router(`/extensions/${selectedHandler.id}`)
+    }
+  }
+
+  // Show menu item if we're on file-handler page and have a handler (loading or loaded)
+  const showViewHandler = isFileHandlerPage && selectedHandler && !isLoadingHandlers && !isLoadingDefault
 
   const { deleteNode, toggleNodeFullWidth, toggleNodeLock } = useSqlite()
   const { isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
@@ -226,6 +246,17 @@ export function NavDropdownMenu() {
                 <span>{t("nav.dropdown.menu.website")}</span>
               </DropdownMenuItem>
             </Link>
+
+            {/* View current handler (only on file-handler page) */}
+            {showViewHandler && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleViewHandler}>
+                  <FileCodeIcon className="mr-2 h-4 w-4" />
+                  <span>{t("nav.dropdown.menu.viewHandler", "View Handler")}</span>
+                </DropdownMenuItem>
+              </>
+            )}
 
             {node && (
               <>
