@@ -49,6 +49,9 @@ export const FileContextMenu = ({
   const { handlers, isLoading: isLoadingHandlers } = useFileHandlers(fileExtension)
 
   const hasMultipleHandlers = handlers.length > 1
+  const showOpenWith = !isLoadingHandlers && hasMultipleHandlers
+  const hasRenameOrDelete = !!(onRename || onDelete)
+  const hasAnyMenuItems = showOpenWith || hasRenameOrDelete
 
   const handleOpenWith = (handler: IExtension<FileHandlerMeta>) => {
     // Navigate to file handler page with handler ID in query parameter
@@ -56,12 +59,17 @@ export const FileContextMenu = ({
     navigate(`/file-handler?handler=${handler.id}#${node.path}`)
   }
 
+  // Don't render context menu if there are no items to show
+  if (!hasAnyMenuItems) {
+    return <>{children}</>
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
         {/* Open with submenu (only show if multiple handlers available) */}
-        {!isLoadingHandlers && hasMultipleHandlers && (
+        {showOpenWith && (
           <>
             <ContextMenuSub>
               <ContextMenuSubTrigger>
@@ -85,7 +93,8 @@ export const FileContextMenu = ({
                 })}
               </ContextMenuSubContent>
             </ContextMenuSub>
-            <ContextMenuSeparator />
+            {/* Only show separator if there are items below */}
+            {hasRenameOrDelete && <ContextMenuSeparator />}
           </>
         )}
 

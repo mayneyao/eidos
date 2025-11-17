@@ -62,45 +62,50 @@ export const NodeContextMenu = ({
   const isPinned = node.metadata?.isPinned
   const isFolder = node.kind === "directory" || node.metadata?.nodeType === "folder"
 
+  // Calculate which menu items to show
+  const hasRename = !!onRename
+  const hasPin = isPinned ? !!onUnpin : !!onPin
+  const hasAddToChat = !!onAddToChat
+  const hasCreate = isFolder && !!(onCreateDoc || onCreateTable || onCreateFolder)
+  const hasDelete = !!onDelete
+
+  // Calculate sections
+  const hasTopSection = hasRename || hasPin || hasAddToChat
+  const hasBottomSection = hasDelete
+
+  // Don't render context menu if there are no items to show
+  if (!hasTopSection && !hasCreate && !hasBottomSection) {
+    return <>{children}</>
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-56">
-        {/* Basic operations */}
-        {onDelete && (
-          <ContextMenuItem
-            onClick={() => onDelete(node)}
-            className="text-destructive focus:text-destructive"
-          >
-            <Trash2Icon className="mr-2 h-4 w-4" />
-            {t("common.delete", "Delete")}
-          </ContextMenuItem>
-        )}
-
-        {onRename && (
+        {/* Basic operations: Rename, Pin/Unpin, Add to Chat */}
+        {hasRename && (
           <ContextMenuItem onClick={() => onRename(node)}>
             <PencilLineIcon className="mr-2 h-4 w-4" />
             {t("node.menu.rename", "Rename")}
           </ContextMenuItem>
         )}
 
-        {/* Pin/Unpin */}
-        {isPinned
-          ? onUnpin && (
-              <ContextMenuItem onClick={() => onUnpin(node)}>
-                <PinOffIcon className="mr-2 h-4 w-4" />
-                {t("node.menu.unpin", "Unpin")}
-              </ContextMenuItem>
-            )
-          : onPin && (
-              <ContextMenuItem onClick={() => onPin(node)}>
-                <PinIcon className="mr-2 h-4 w-4" />
-                {t("node.menu.pin", "Pin")}
-              </ContextMenuItem>
-            )}
+        {hasPin &&
+          (isPinned
+            ? onUnpin && (
+                <ContextMenuItem onClick={() => onUnpin(node)}>
+                  <PinOffIcon className="mr-2 h-4 w-4" />
+                  {t("node.menu.unpin", "Unpin")}
+                </ContextMenuItem>
+              )
+            : onPin && (
+                <ContextMenuItem onClick={() => onPin(node)}>
+                  <PinIcon className="mr-2 h-4 w-4" />
+                  {t("node.menu.pin", "Pin")}
+                </ContextMenuItem>
+              ))}
 
-        {/* Add to Chat */}
-        {onAddToChat && (
+        {hasAddToChat && (
           <ContextMenuItem onClick={() => onAddToChat(node)}>
             <MessageSquareIcon className="mr-2 h-4 w-4" />
             {t("node.menu.addToChat", "Add to Chat")}
@@ -108,9 +113,10 @@ export const NodeContextMenu = ({
         )}
 
         {/* Create sub-items (only for folders) */}
-        {isFolder && (onCreateDoc || onCreateTable || onCreateFolder) && (
+        {hasCreate && (
           <>
-            <ContextMenuSeparator />
+            {/* Only show separator if there are items above */}
+            {hasTopSection && <ContextMenuSeparator />}
             <ContextMenuSub>
               <ContextMenuSubTrigger>
                 <FolderPlusIcon className="mr-2 h-4 w-4" />
@@ -137,6 +143,21 @@ export const NodeContextMenu = ({
                 )}
               </ContextMenuSubContent>
             </ContextMenuSub>
+          </>
+        )}
+
+        {/* Delete (dangerous action, always at the bottom) */}
+        {hasDelete && (
+          <>
+            {/* Only show separator if there are items above */}
+            {(hasTopSection || hasCreate) && <ContextMenuSeparator />}
+            <ContextMenuItem
+              onClick={() => onDelete(node)}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2Icon className="mr-2 h-4 w-4" />
+              {t("common.delete", "Delete")}
+            </ContextMenuItem>
           </>
         )}
       </ContextMenuContent>
