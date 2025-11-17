@@ -1,67 +1,27 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSqlite } from "./use-sqlite"
-import type { IExtension, FileHandlerMeta} from "@/packages/core/types/IExtension";
-import { BlockExtensionType } from "@/packages/core/types/IExtension"
+import type { IExtension, FileHandlerMeta } from "@/packages/core/types/IExtension"
 import { useFileHandlerStore } from "@/apps/web-app/store/file-handler-store"
+import { useAllFileHandlers } from "./use-all-file-handlers"
 
 /**
  * Hook to query file handlers that support a specific file extension
- * Uses cache to avoid redundant requests when switching between file types
+ * Based on the responsive useAllFileHandlers hook
  */
 export const useFileHandlers = (fileExtension: string) => {
-  const { sqlite } = useSqlite()
-  const getHandlers = useFileHandlerStore((state) => state.getHandlers)
-  const setHandlers = useFileHandlerStore((state) => state.setHandlers)
-  const [handlers, setLocalHandlers] = useState<IExtension<FileHandlerMeta>[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { fileHandlers, loading } = useAllFileHandlers()
 
-  useEffect(() => {
-    if (!sqlite || !fileExtension) {
-      setLocalHandlers([])
-      setIsLoading(false)
-      return
-    }
+  // Filter handlers that support this file extension
+  const handlers = useMemo(() => {
+    if (!fileExtension) return []
+    
+    return fileHandlers.filter((handler) => {
+      const meta = handler.meta as FileHandlerMeta
+      return meta.fileHandler?.extensions?.includes(fileExtension) ?? false
+    })
+  }, [fileHandlers, fileExtension])
 
-    // Check cache first
-    const cachedHandlers = getHandlers(fileExtension)
-    if (cachedHandlers !== undefined) {
-      setLocalHandlers(cachedHandlers)
-      setIsLoading(false)
-      return
-    }
-
-    const loadHandlers = async () => {
-      try {
-        setIsLoading(true)
-        // Get all extensions
-        const allExtensions = await sqlite.extension.list()
-
-        // Filter for file handler extensions that support this file extension
-        const fileHandlers = allExtensions.filter((ext): ext is IExtension<FileHandlerMeta> => {
-          if (ext.meta?.type !== BlockExtensionType.FileHandler) {
-            return false
-          }
-          const meta = ext.meta as FileHandlerMeta
-          return meta.fileHandler?.extensions?.includes(fileExtension) ?? false
-        })
-
-        // Update cache
-        setHandlers(fileExtension, fileHandlers)
-        setLocalHandlers(fileHandlers)
-      } catch (error) {
-        console.error("Error loading file handlers:", error)
-        setLocalHandlers([])
-        // Cache empty result to avoid repeated failed requests
-        setHandlers(fileExtension, [])
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    loadHandlers()
-  }, [sqlite, fileExtension, getHandlers, setHandlers])
-
-  return { handlers, isLoading }
+  return { handlers, isLoading: loading }
 }
 
 /**

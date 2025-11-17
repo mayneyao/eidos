@@ -8,7 +8,9 @@ import type {
   TableActionMeta,
   TableViewMeta,
   UDFMeta,
+  FileHandlerMeta,
 } from "../types/IExtension";
+import { BlockExtensionType } from "../types/IExtension";
 
 import type { BaseTable } from "./base";
 import { BaseTableImpl } from "./base";
@@ -146,6 +148,26 @@ export class ExtensionTable
 
   async del(id: string): Promise<boolean> {
     await this.dataSpace.db.transaction(async () => {
+      // Get extension info before deletion to check if it's a file handler
+      const extension = await this.get(id)
+      
+      // If it's a file handler, clean up default handler KV entries
+      if (extension && extension.meta?.type === BlockExtensionType.FileHandler) {
+        const meta = extension.meta as FileHandlerMeta
+        const fileExtensions = meta.fileHandler?.extensions || []
+        
+        // For each file extension this handler supports, check if it's the default handler
+        for (const fileExtension of fileExtensions) {
+          const key = `eidos:space:file:handler:default:${fileExtension}`
+          const defaultHandlerId = await this.dataSpace.kv.get(key, 'text')
+          
+          // If this extension is the default handler for this file extension, remove it
+          if (defaultHandlerId === id) {
+            await this.dataSpace.kv.delete(key)
+          }
+        }
+      }
+      
       await this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])
       const chatIds = await this.dataSpace.chat.getChatIdsByProjectId(id)
       await Promise.all(chatIds.map(chatId => this.dataSpace.chat.del(chatId)))

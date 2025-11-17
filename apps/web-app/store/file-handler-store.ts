@@ -13,6 +13,7 @@ interface FileHandlerState {
   // Actions
   getHandlers: (fileExtension: string) => IExtension<FileHandlerMeta>[] | undefined
   setHandlers: (fileExtension: string, handlers: IExtension<FileHandlerMeta>[]) => void
+  clearHandlersCache: (fileExtension: string) => void
   
   getDefaultHandler: (fileExtension: string) => string | null | undefined
   setDefaultHandler: (fileExtension: string, handlerId: string | null) => void
@@ -34,6 +35,13 @@ export const useFileHandlerStore = create<FileHandlerState>((set, get) => ({
         [fileExtension]: handlers,
       },
     }))
+  },
+  
+  clearHandlersCache: (fileExtension: string) => {
+    set((state) => {
+      const { [fileExtension]: _, ...rest } = state.handlersCache
+      return { handlersCache: rest }
+    })
   },
   
   getDefaultHandler: (fileExtension: string) => {
