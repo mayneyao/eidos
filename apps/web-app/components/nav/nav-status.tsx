@@ -7,6 +7,8 @@ import {
   Unplug,
   Wand2,
 } from "lucide-react"
+import { useState } from "react"
+import { useLocation, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
@@ -25,10 +27,18 @@ import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { usePeer } from "@/apps/web-app/hooks/use-peer"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import {
+  getFileExtension,
+  useDefaultHandler,
+  useFileHandlers,
+} from "@/hooks/use-file-handlers"
+import { SetDefaultHandlerDialog } from "./set-default-handler-dialog"
 
 
 export const NavStatus = () => {
   const { t } = useTranslation()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
 
   const { isGodMode, setGodMode } = useAppRuntimeStore()
 
@@ -42,6 +52,55 @@ export const NavStatus = () => {
 
   const toggleGodMode = () => {
     setGodMode(!isGodMode)
+  }
+
+  // Check if we're on file-handler page
+  const isFileHandlerPage = location.pathname.includes("/file-handler")
+  const handlerIdFromQuery = isFileHandlerPage ? searchParams.get("handler") : null
+  const filePath = isFileHandlerPage && location.hash.startsWith("#") 
+    ? location.hash.substring(1) 
+    : isFileHandlerPage 
+      ? location.hash 
+      : ""
+  const fileExtension = filePath ? getFileExtension(filePath) : ""
+  
+  // Only call hooks when on file-handler page to avoid unnecessary requests
+  const { handlers } = useFileHandlers(isFileHandlerPage ? fileExtension : "")
+  const { defaultHandlerId, setDefaultHandler, isLoading: isLoadingDefault } = useDefaultHandler(
+    isFileHandlerPage ? fileExtension : ""
+  )
+
+  // Find current handler (from query param or default)
+  const currentHandlerId = handlerIdFromQuery || defaultHandlerId
+  const currentHandler = handlers.find((h) => h.id === currentHandlerId)
+  const defaultHandler = handlers.find((h) => h.id === defaultHandlerId)
+  
+  // Check if current handler differs from default handler
+  const shouldShowSetDefaultButton = 
+    isFileHandlerPage &&
+    fileExtension &&
+    handlerIdFromQuery &&
+    defaultHandlerId &&
+    handlerIdFromQuery !== defaultHandlerId &&
+    !isLoadingDefault &&
+    currentHandler
+
+  const [showSetDefaultDialog, setShowSetDefaultDialog] = useState(false)
+
+  const handleSetAsDefault = async () => {
+    if (currentHandlerId && setDefaultHandler) {
+      await setDefaultHandler(currentHandlerId)
+      // Remove handler query param to use the new default
+      const newSearchParams = new URLSearchParams(searchParams)
+      newSearchParams.delete("handler")
+      const newSearch = newSearchParams.toString()
+      window.history.replaceState(
+        {},
+        "",
+        `${location.pathname}${newSearch ? `?${newSearch}` : ""}${location.hash}`
+      )
+      setShowSetDefaultDialog(false)
+    }
   }
 
   return (
@@ -138,6 +197,25 @@ export const NavStatus = () => {
             </TooltipProvider>
           </>
         )}
+      {shouldShowSetDefaultButton && (
+        <>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => setShowSetDefaultDialog(true)}
+          >
+            {t("file.handler.setAsDefault", "Set as default")}
+          </Button>
+          <SetDefaultHandlerDialog
+            open={showSetDefaultDialog}
+            onOpenChange={setShowSetDefaultDialog}
+            currentHandler={currentHandler || null}
+            defaultHandler={defaultHandler || null}
+            fileExtension={fileExtension}
+            onConfirm={handleSetAsDefault}
+          />
+        </>
+      )}
     </>
   )
 }

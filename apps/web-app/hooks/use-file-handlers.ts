@@ -2,12 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useSqlite } from "./use-sqlite"
 import type { IExtension, FileHandlerMeta} from "@/packages/core/types/IExtension";
 import { BlockExtensionType } from "@/packages/core/types/IExtension"
-
-// Cache for file handlers by extension
-const handlersCache = new Map<string, IExtension<FileHandlerMeta>[]>()
-
-// Cache for default handler IDs by extension
-const defaultHandlerCache = new Map<string, string | null>()
+import { useFileHandlerStore } from "@/apps/web-app/store/file-handler-store"
 
 /**
  * Hook to query file handlers that support a specific file extension
@@ -15,20 +10,22 @@ const defaultHandlerCache = new Map<string, string | null>()
  */
 export const useFileHandlers = (fileExtension: string) => {
   const { sqlite } = useSqlite()
-  const [handlers, setHandlers] = useState<IExtension<FileHandlerMeta>[]>([])
+  const getHandlers = useFileHandlerStore((state) => state.getHandlers)
+  const setHandlers = useFileHandlerStore((state) => state.setHandlers)
+  const [handlers, setLocalHandlers] = useState<IExtension<FileHandlerMeta>[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (!sqlite || !fileExtension) {
-      setHandlers([])
+      setLocalHandlers([])
       setIsLoading(false)
       return
     }
 
     // Check cache first
-    const cachedHandlers = handlersCache.get(fileExtension)
+    const cachedHandlers = getHandlers(fileExtension)
     if (cachedHandlers !== undefined) {
-      setHandlers(cachedHandlers)
+      setLocalHandlers(cachedHandlers)
       setIsLoading(false)
       return
     }
@@ -49,20 +46,20 @@ export const useFileHandlers = (fileExtension: string) => {
         })
 
         // Update cache
-        handlersCache.set(fileExtension, fileHandlers)
-        setHandlers(fileHandlers)
+        setHandlers(fileExtension, fileHandlers)
+        setLocalHandlers(fileHandlers)
       } catch (error) {
         console.error("Error loading file handlers:", error)
-        setHandlers([])
+        setLocalHandlers([])
         // Cache empty result to avoid repeated failed requests
-        handlersCache.set(fileExtension, [])
+        setHandlers(fileExtension, [])
       } finally {
         setIsLoading(false)
       }
     }
 
     loadHandlers()
-  }, [sqlite, fileExtension])
+  }, [sqlite, fileExtension, getHandlers, setHandlers])
 
   return { handlers, isLoading }
 }
@@ -73,8 +70,25 @@ export const useFileHandlers = (fileExtension: string) => {
  */
 export const useDefaultHandler = (fileExtension: string) => {
   const { sqlite } = useSqlite()
+  const getDefaultHandler = useFileHandlerStore((state) => state.getDefaultHandler)
+  const setDefaultHandlerCache = useFileHandlerStore((state) => state.setDefaultHandler)
+  const clearDefaultHandlerCache = useFileHandlerStore((state) => state.clearDefaultHandlerCache)
+  
+  // Subscribe to cache changes for this file extension
+  const cachedDefaultHandlerId = useFileHandlerStore((state) => {
+    return state.defaultHandlerCache[fileExtension]
+  })
+  
   const [defaultHandlerId, setDefaultHandlerId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  // Sync local state with store cache when it changes
+  useEffect(() => {
+    if (cachedDefaultHandlerId !== undefined) {
+      setDefaultHandlerId(cachedDefaultHandlerId)
+      setIsLoading(false)
+    }
+  }, [cachedDefaultHandlerId])
 
   useEffect(() => {
     if (!sqlite || !fileExtension) {
@@ -84,9 +98,9 @@ export const useDefaultHandler = (fileExtension: string) => {
     }
 
     // Check cache first
-    const cachedDefaultHandlerId = defaultHandlerCache.get(fileExtension)
-    if (cachedDefaultHandlerId !== undefined) {
-      setDefaultHandlerId(cachedDefaultHandlerId)
+    const cached = getDefaultHandler(fileExtension)
+    if (cached !== undefined) {
+      setDefaultHandlerId(cached)
       setIsLoading(false)
       return
     }
@@ -97,20 +111,20 @@ export const useDefaultHandler = (fileExtension: string) => {
         const key = `eidos:space:file:handler:default:${fileExtension}`
         const handlerId = await sqlite.kv.get(key, 'text')
         // Update cache
-        defaultHandlerCache.set(fileExtension, handlerId)
+        setDefaultHandlerCache(fileExtension, handlerId)
         setDefaultHandlerId(handlerId)
       } catch (error) {
         console.error("Error loading default handler:", error)
         setDefaultHandlerId(null)
         // Cache null result to avoid repeated failed requests
-        defaultHandlerCache.set(fileExtension, null)
+        setDefaultHandlerCache(fileExtension, null)
       } finally {
         setIsLoading(false)
       }
     }
 
     loadDefaultHandler()
-  }, [sqlite, fileExtension])
+  }, [sqlite, fileExtension, getDefaultHandler, setDefaultHandlerCache])
 
   const setDefaultHandler = useCallback(async (handlerId: string) => {
     if (!sqlite || !fileExtension) return
@@ -118,13 +132,13 @@ export const useDefaultHandler = (fileExtension: string) => {
     try {
       const key = `eidos:space:file:handler:default:${fileExtension}`
       await sqlite.kv.put(key, handlerId)
-      // Update cache
-      defaultHandlerCache.set(fileExtension, handlerId)
+      // Update cache in store - this will automatically notify all subscribers
+      setDefaultHandlerCache(fileExtension, handlerId)
       setDefaultHandlerId(handlerId)
     } catch (error) {
       console.error("Error setting default handler:", error)
     }
-  }, [sqlite, fileExtension])
+  }, [sqlite, fileExtension, setDefaultHandlerCache])
 
   const clearDefaultHandler = useCallback(async () => {
     if (!sqlite || !fileExtension) return
@@ -132,13 +146,13 @@ export const useDefaultHandler = (fileExtension: string) => {
     try {
       const key = `eidos:space:file:handler:default:${fileExtension}`
       await sqlite.kv.delete(key)
-      // Update cache
-      defaultHandlerCache.set(fileExtension, null)
+      // Clear cache in store
+      clearDefaultHandlerCache(fileExtension)
       setDefaultHandlerId(null)
     } catch (error) {
       console.error("Error clearing default handler:", error)
     }
-  }, [sqlite, fileExtension])
+  }, [sqlite, fileExtension, clearDefaultHandlerCache])
 
   return {
     defaultHandlerId,
