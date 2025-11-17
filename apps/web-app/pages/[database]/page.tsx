@@ -1,19 +1,13 @@
 import { useCallback } from "react"
+import { Command, FileText, PanelLeft, Search, Settings } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import {
-  FileText,
-  Command,
-  Settings,
-  Search,
-  PanelLeft,
-} from "lucide-react"
 
-import { EidosIcon } from "@/components/icons/eidos"
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
+import { EidosIcon } from "@/components/icons/eidos"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 // Helper function to render keyboard shortcut
@@ -128,7 +122,7 @@ export default function DatabaseHome() {
                 <div className="flex items-center gap-2">
                   <Search className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">
-                    {t("welcome.nodesSearch", "Nodes Search")}
+                    {t("welcome.searchNodes", "Search Nodes")}
                   </span>
                 </div>
                 {renderShortcut("Ctrl/Cmd + P")}

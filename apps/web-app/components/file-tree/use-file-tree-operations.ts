@@ -54,6 +54,7 @@ export const useFileTreeOperations = (rootDir?: string) => {
         } else if (isVirtualNodesPath) {
           // Delete node (soft delete)
           await deleteNode({ id: nodeId } as any)
+          navigate("/")
         } else {
           // Delete real file - not supported yet
           console.warn("Delete operation for real files is not supported yet")

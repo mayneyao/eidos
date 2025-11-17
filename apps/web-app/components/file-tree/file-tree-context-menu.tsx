@@ -1,23 +1,22 @@
 "use client"
 
-import React, { useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import {
-  ClipboardPasteIcon,
   CopyIcon,
   FileIcon,
+  FileSpreadsheetIcon,
+  FolderPlusIcon,
   MessageSquareIcon,
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
-  Trash2Icon,
-  FolderPlusIcon,
-  FilePlus2Icon,
-  FileSpreadsheetIcon,
+  Trash2Icon
 } from "lucide-react"
+import React, { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 
+import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
+import { Button } from "@/components/ui/button"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -36,7 +35,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 
 interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
@@ -82,9 +80,10 @@ export const FileTreeContextMenu = ({
   const isFolder = node.kind === "directory" || nodeType === "folder"
   const isExtension = nodeType === "extension"
   const isNode = nodeType && nodeType !== "extension"
-  
+
   // Check if extension is pinned (only for block type extensions)
-  const isExtensionPinned = isExtension && node.metadata?.nodeId && isFavorite(node.metadata.nodeId)
+  const isExtensionPinned =
+    isExtension && node.metadata?.nodeId && isFavorite(node.metadata.nodeId)
 
   const handleDelete = () => {
     if (isExtension) {
@@ -109,7 +108,7 @@ export const FileTreeContextMenu = ({
         <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-48">
           {onRename && (
-            <ContextMenuItem onClick={(e) => onRename(node, e)}>
+            <ContextMenuItem onClick={(e) => onRename(node)}>
               <PencilLineIcon className="mr-2 h-4 w-4" />
               {t("node.menu.rename", "Rename")}
             </ContextMenuItem>
@@ -133,7 +132,7 @@ export const FileTreeContextMenu = ({
     // Get extension type from metadata (stored in the virtual path)
     const extensionType = node.metadata?.extensionType || "script"
     const extensionIcon = node.metadata?.icon
-    
+
     return (
       <>
         <ContextMenu>
@@ -164,7 +163,7 @@ export const FileTreeContextMenu = ({
               </ContextMenuItem>
             )}
             {onRename && (
-              <ContextMenuItem onClick={(e) => onRename(node, e)}>
+              <ContextMenuItem onClick={(e) => onRename(node)}>
                 <PencilLineIcon className="mr-2 h-4 w-4" />
                 {t("node.menu.rename", "Rename")}
               </ContextMenuItem>
@@ -191,7 +190,9 @@ export const FileTreeContextMenu = ({
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t("common.confirmDelete", "Confirm Delete")}</DialogTitle>
+              <DialogTitle>
+                {t("common.confirmDelete", "Confirm Delete")}
+              </DialogTitle>
               <DialogDescription>
                 {t(
                   "extension.deleteWarning",
@@ -233,28 +234,26 @@ export const FileTreeContextMenu = ({
         )}
 
         {onRename && (
-          <ContextMenuItem onClick={(e) => onRename(node, e)}>
+          <ContextMenuItem onClick={(e) => onRename(node)}>
             <PencilLineIcon className="mr-2 h-4 w-4" />
             {t("node.menu.rename", "Rename")}
           </ContextMenuItem>
         )}
 
         {/* Pin/Unpin */}
-        {isPinned ? (
-          onUnpin && (
-            <ContextMenuItem onClick={() => onUnpin(node)}>
-              <PinOffIcon className="mr-2 h-4 w-4" />
-              {t("node.menu.unpin", "Unpin")}
-            </ContextMenuItem>
-          )
-        ) : (
-          onPin && (
-            <ContextMenuItem onClick={() => onPin(node)}>
-              <PinIcon className="mr-2 h-4 w-4" />
-              {t("node.menu.pin", "Pin")}
-            </ContextMenuItem>
-          )
-        )}
+        {isPinned
+          ? onUnpin && (
+              <ContextMenuItem onClick={() => onUnpin(node)}>
+                <PinOffIcon className="mr-2 h-4 w-4" />
+                {t("node.menu.unpin", "Unpin")}
+              </ContextMenuItem>
+            )
+          : onPin && (
+              <ContextMenuItem onClick={() => onPin(node)}>
+                <PinIcon className="mr-2 h-4 w-4" />
+                {t("node.menu.pin", "Pin")}
+              </ContextMenuItem>
+            )}
 
         {/* Add to Chat */}
         {onAddToChat && (
@@ -300,4 +299,3 @@ export const FileTreeContextMenu = ({
     </ContextMenu>
   )
 }
-
