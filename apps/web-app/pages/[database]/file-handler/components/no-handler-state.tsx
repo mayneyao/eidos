@@ -1,4 +1,7 @@
-import { AlertCircleIcon } from "lucide-react"
+import { AlertCircleIcon, ExternalLinkIcon } from "lucide-react"
+
+import { EIDOS_SPACE_BASE_URL } from "@/lib/const"
+import { Button } from "@/components/ui/button"
 
 interface NoHandlerStateProps {
   fileExtension: string
@@ -19,6 +22,20 @@ export function NoHandlerState({
           <span className="font-mono">{fileExtension}</span> files.
         </p>
         <p className="text-sm text-muted-foreground mb-4">File: {fileName}</p>
+        <p className="text-sm text-muted-foreground mb-4">
+          You can install or create a file handler extension to handle this file
+          type.
+        </p>
+        <Button asChild variant="default" className="mt-2">
+          <a
+            href={`${EIDOS_SPACE_BASE_URL}/extensions?type=block%2FfileHandler`}
+            target="_blank"
+            className="inline-flex items-center gap-2"
+          >
+            Browse Extensions
+            <ExternalLinkIcon className="h-4 w-4" />
+          </a>
+        </Button>
       </div>
     </div>
   )
