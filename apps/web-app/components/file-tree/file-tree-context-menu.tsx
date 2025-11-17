@@ -109,7 +109,7 @@ export const FileTreeContextMenu = ({
         <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-48">
           {onRename && (
-            <ContextMenuItem onClick={() => onRename(node)}>
+            <ContextMenuItem onClick={(e) => onRename(node, e)}>
               <PencilLineIcon className="mr-2 h-4 w-4" />
               {t("node.menu.rename", "Rename")}
             </ContextMenuItem>
@@ -164,7 +164,7 @@ export const FileTreeContextMenu = ({
               </ContextMenuItem>
             )}
             {onRename && (
-              <ContextMenuItem onClick={() => onRename(node)}>
+              <ContextMenuItem onClick={(e) => onRename(node, e)}>
                 <PencilLineIcon className="mr-2 h-4 w-4" />
                 {t("node.menu.rename", "Rename")}
               </ContextMenuItem>
@@ -233,7 +233,7 @@ export const FileTreeContextMenu = ({
         )}
 
         {onRename && (
-          <ContextMenuItem onClick={() => onRename(node)}>
+          <ContextMenuItem onClick={(e) => onRename(node, e)}>
             <PencilLineIcon className="mr-2 h-4 w-4" />
             {t("node.menu.rename", "Rename")}
           </ContextMenuItem>

@@ -17,7 +17,7 @@ interface InlineEditProps {
 
 /**
  * InlineEdit - A reusable component for inline text editing with smart extension handling
- * 
+ *
  * Features:
  * - VSCode-like inline editing with input element
  * - Smart text selection based on node type
@@ -50,7 +50,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
 
   /**
    * Calculate the selection end position based on node type and filename
-   * 
+   *
    * Rules:
    * 1. Extensions: Select entire name (user should not modify .ts/.tsx suffix)
    * 2. Common file extensions: Exclude from selection (e.g., "file.md" -> "file")
@@ -148,15 +148,20 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
   }
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    // Delay to allow Enter key to be processed first
-    setTimeout(() => {
-      // Only confirm if we're still in editing mode and the element is not focused
-      // This prevents triggering when user clicks elsewhere or presses Enter in another element
-      if (isEditing && document.activeElement !== e.currentTarget) {
-        const newValue = e.currentTarget.value || ""
-        onConfirm(newValue)
-      }
-    }, 100)
+    // Only confirm if we're still in editing mode and the element is not focused
+    // This prevents triggering when user clicks elsewhere or presses Enter in another element
+    // Also add a small delay to prevent context menu close events from triggering blur
+    if (isEditing && document.activeElement !== e.currentTarget) {
+      // Use setTimeout to ensure this is a real blur event, not from context menu closing
+      setTimeout(() => {
+        // Double-check that we're still in editing mode and element is not focused
+        // This prevents race conditions with context menu close events
+        if (isEditing && document.activeElement !== e.currentTarget) {
+          const newValue = e.currentTarget.value || ""
+          onConfirm(newValue)
+        }
+      }, 100)
+    }
   }
 
   if (isEditing) {
@@ -188,5 +193,3 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
 
   return <span className={className}>{value}</span>
 }
-
-
