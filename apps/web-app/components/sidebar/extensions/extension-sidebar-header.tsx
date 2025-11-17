@@ -3,7 +3,7 @@ import { PlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 import { ExtensionSearch } from "./extension-search"
-import { ExtensionSortDropdown } from "./extension-sort-dropdown"
+// import { ExtensionSortDropdown } from "./extension-sort-dropdown"
 import { NewExtensionButton } from "./new-extension-button"
 
 export const ExtensionSidebarHeader = () => {
@@ -19,7 +19,7 @@ export const ExtensionSidebarHeader = () => {
         {/* Action Buttons */}
         <div className="flex items-center gap-1">
           {/* Sort Dropdown */}
-          <ExtensionSortDropdown />
+          {/* <ExtensionSortDropdown /> */}
 
           {/* Create Extension Button */}
           <NewExtensionButton

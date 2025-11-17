@@ -1,6 +1,7 @@
 import { CreateNodeTrigger } from "./create-node-trigger"
 import { TreeSearch } from "./tree-search"
-import { TreeSortDropdown } from "./tree-sort-dropdown"
+
+// import { TreeSortDropdown } from "./tree-sort-dropdown"
 
 interface TreeSidebarHeaderProps {
   disableAdd?: boolean
@@ -21,7 +22,7 @@ export const TreeSidebarHeader = ({
         {/* Action Buttons */}
         <div className="flex items-center gap-1">
           {/* Sort Dropdown */}
-          <TreeSortDropdown />
+          {/* <TreeSortDropdown /> */}
 
           {/* Create Node Button */}
           {!disableAdd && <CreateNodeTrigger />}
