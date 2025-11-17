@@ -400,6 +400,13 @@ const SidebarRail = React.forwardRef<
       setIsResizing(false)
       document.body.style.cursor = ""
       document.body.style.userSelect = ""
+      
+      // Restore pointer events for iframes and webviews
+      const iframes = document.querySelectorAll("iframe, webview")
+      iframes.forEach((el) => {
+        ;(el as HTMLElement).style.pointerEvents = ""
+      })
+      
       document.removeEventListener("mousemove", handleMouseMove)
       document.removeEventListener("mouseup", handleMouseUp)
     },
@@ -425,6 +432,12 @@ const SidebarRail = React.forwardRef<
       document.body.style.cursor = "ew-resize"
       document.body.style.userSelect = "none"
 
+      // Disable pointer events for iframes and webviews to prevent them from capturing mouse events
+      const iframes = document.querySelectorAll("iframe, webview")
+      iframes.forEach((el) => {
+        ;(el as HTMLElement).style.pointerEvents = "none"
+      })
+
       document.addEventListener("mousemove", handleMouseMove)
       document.addEventListener("mouseup", handleMouseUp)
     },
@@ -446,6 +459,12 @@ const SidebarRail = React.forwardRef<
         document.removeEventListener("mouseup", handleMouseUp)
         document.body.style.cursor = ""
         document.body.style.userSelect = ""
+        
+        // Restore pointer events for iframes and webviews
+        const iframes = document.querySelectorAll("iframe, webview")
+        iframes.forEach((el) => {
+          ;(el as HTMLElement).style.pointerEvents = ""
+        })
       }
     }
   }, [handleMouseMove, handleMouseUp])
