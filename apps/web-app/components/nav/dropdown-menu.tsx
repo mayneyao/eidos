@@ -18,7 +18,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
@@ -77,6 +77,7 @@ export function NavDropdownMenu() {
   const { t } = useTranslation()
   const router = useNavigate()
   const location = useLocation()
+  const params = useParams()
   const [open, setOpen] = useState(false)
 
   // Check if we're on file-handler page and get current handler
@@ -86,14 +87,27 @@ export function NavDropdownMenu() {
     isFileHandlerPage ? fileExtension : ""
   )
 
-  const handleViewHandler = () => {
-    if (selectedHandler) {
+  // Check if we're on blocks page and get current block ID
+  const isBlocksPage = location.pathname.includes("/blocks")
+  const blockId = isBlocksPage ? params.blockId : null
+
+  const handleViewExtension = () => {
+    if (isFileHandlerPage && selectedHandler) {
       router(`/extensions/${selectedHandler.id}`)
+    } else if (isBlocksPage && blockId) {
+      router(`/extensions/${blockId}`)
     }
   }
 
-  // Show menu item if we're on file-handler page and have a handler (loading or loaded)
-  const showViewHandler = isFileHandlerPage && selectedHandler && !isLoadingHandlers && !isLoadingDefault
+  // Show menu item if we're on file-handler page and have a handler, or on blocks page with block ID
+  const showViewExtension =
+    (isFileHandlerPage && selectedHandler && !isLoadingHandlers && !isLoadingDefault) ||
+    (isBlocksPage && blockId)
+
+  // Get menu item text based on page type
+  const viewExtensionText = isFileHandlerPage
+    ? t("nav.dropdown.menu.viewHandler", "View Handler")
+    : t("nav.dropdown.menu.viewBlock", "View Block Extension")
 
   const { deleteNode, toggleNodeFullWidth, toggleNodeLock } = useSqlite()
   const { isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
@@ -247,13 +261,13 @@ export function NavDropdownMenu() {
               </DropdownMenuItem>
             </Link>
 
-            {/* View current handler (only on file-handler page) */}
-            {showViewHandler && (
+            {/* View current extension (file-handler or blocks page) */}
+            {showViewExtension && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleViewHandler}>
+                <DropdownMenuItem onClick={handleViewExtension}>
                   <FileCodeIcon className="mr-2 h-4 w-4" />
-                  <span>{t("nav.dropdown.menu.viewHandler", "View Handler")}</span>
+                  <span>{viewExtensionText}</span>
                 </DropdownMenuItem>
               </>
             )}
