@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import type { FileHandlerMeta, IExtension } from "@/packages/core/types/IExtension"
 import {
   useDefaultHandler,
@@ -8,8 +9,12 @@ import {
 /**
  * Hook to manage file handler selection logic
  * Automatically selects default handler if available, otherwise uses the first handler
+ * Also supports handler ID from URL query parameter for immediate selection
  */
 export function useHandlerSelection(fileExtension: string) {
+  const [searchParams] = useSearchParams()
+  const handlerIdFromQuery = searchParams.get("handler")
+  
   const { handlers, isLoading: isLoadingHandlers } =
     useFileHandlers(fileExtension)
   const {
@@ -31,7 +36,16 @@ export function useHandlerSelection(fileExtension: string) {
       return
     }
 
-    // If we have a default handler, use it
+    // Priority 1: Use handler from URL query parameter if specified
+    if (handlerIdFromQuery) {
+      const queryHandler = handlers.find((h) => h.id === handlerIdFromQuery)
+      if (queryHandler) {
+        setSelectedHandler(queryHandler)
+        return
+      }
+    }
+
+    // Priority 2: Use default handler if available
     if (defaultHandlerId) {
       const defaultHandler = handlers.find((h) => h.id === defaultHandlerId)
       if (defaultHandler) {
@@ -40,11 +54,12 @@ export function useHandlerSelection(fileExtension: string) {
       }
     }
 
-    // Otherwise, use the first handler
+    // Priority 3: Use the first handler
     setSelectedHandler(handlers[0])
   }, [
     handlers,
     defaultHandlerId,
+    handlerIdFromQuery,
     isLoadingHandlers,
     isLoadingDefault,
     fileExtension,

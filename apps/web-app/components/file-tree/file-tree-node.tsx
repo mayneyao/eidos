@@ -1,10 +1,10 @@
 import React from "react"
 import { ChevronDown, ChevronRight, Pin } from "lucide-react"
 
-import { FileTreeContextMenu } from "./file-tree-context-menu"
+import { FileTreeContextMenu } from "./context-menu"
 import { FileTreeIcon } from "./file-tree-icon"
-import { InlineEdit } from "./inline-edit"
 import type { FileTreeNode as FileTreeNodeType } from "./index"
+import { InlineEdit } from "./inline-edit"
 
 interface FileTreeNodeProps {
   node: FileTreeNodeType
@@ -180,4 +180,3 @@ export const FileTreeNode = ({
     </div>
   )
 }
-
