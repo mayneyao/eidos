@@ -74,13 +74,13 @@ export function SettingsSidebar({
       icon: <Folder className="h-5 w-5" />,
       category: "space",
     },
-    {
-      id: "space-file-handlers",
-      title: "File Handlers",
-      description: "Manage default applications for file types",
-      icon: <FileType className="h-5 w-5" />,
-      category: "space",
-    },
+    // {
+    //   id: "space-file-handlers",
+    //   title: "File Handlers",
+    //   description: "Manage default applications for file types",
+    //   icon: <FileType className="h-5 w-5" />,
+    //   category: "space",
+    // },
     // Global Settings
     {
       id: "general",
