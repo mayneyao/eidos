@@ -924,6 +924,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
         }
 
         try {
+          // Determine if we're watching nodes or extensions
+          const isNodesPath = basePath === "~/.eidos/__NODES__/"
+          
           while (true) {
             // Check if aborted
             if (options?.signal?.aborted) {
@@ -933,8 +936,10 @@ export class VirtualFsAdapter implements IExternalFileSystem {
             // If we have queued events, yield them
             if (watcher.queue.length > 0) {
               const event = watcher.queue.shift()!
-              // Build the full ID path for the event
-              const fullIdPath = await this.buildIdPathForWatch(event.filename)
+              // For nodes, build the full ID path; for extensions, use the ID directly
+              const fullIdPath = isNodesPath 
+                ? await this.buildIdPathForWatch(event.filename)
+                : event.filename
               yield {
                 ...event,
                 filename: fullIdPath || event.filename
@@ -953,8 +958,10 @@ export class VirtualFsAdapter implements IExternalFileSystem {
               break
             }
 
-            // Build the full ID path for the event
-            const fullIdPath = await this.buildIdPathForWatch(rawEvent.filename)
+            // For nodes, build the full ID path; for extensions, use the ID directly
+            const fullIdPath = isNodesPath
+              ? await this.buildIdPathForWatch(rawEvent.filename)
+              : rawEvent.filename
             yield {
               ...rawEvent,
               filename: fullIdPath || rawEvent.filename
