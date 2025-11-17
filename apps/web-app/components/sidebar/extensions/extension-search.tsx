@@ -106,7 +106,7 @@ export const ExtensionSearch = () => {
     <div className="flex items-center w-full">
       <Input
         ref={inputRef}
-        placeholder="Search content... (⌘P for names)"
+        placeholder="Search content..."
         value={localSearchTerm}
         onChange={(e) => handleSearchChange(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -115,4 +115,3 @@ export const ExtensionSearch = () => {
     </div>
   )
 }
-

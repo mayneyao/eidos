@@ -3,16 +3,16 @@ import { useDebounceFn, useKeyPress } from "ahooks"
 import { useNavigate } from "react-router-dom"
 
 import { Input } from "@/components/ui/input"
-import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
 
 import { useTreeSidebarStore } from "./tree-sidebar-store"
 
 export const TreeSearch = () => {
-  const { 
-    searchTerm, 
-    setSearchTerm, 
-    setSearchResults, 
+  const {
+    searchTerm,
+    setSearchTerm,
+    setSearchResults,
     setIsSearchMode,
     searchResults,
     selectedIndex,
@@ -23,7 +23,7 @@ export const TreeSearch = () => {
   const { fullTextSearch } = useQueryNode()
   const { space } = useCurrentPathInfo()
   const navigate = useNavigate()
-  
+
   // Calculate visible nodes for keyboard navigation (FTS results only)
   const visibleNodes = searchResults
 
@@ -36,7 +36,7 @@ export const TreeSearch = () => {
 
   const performSearch = async (term: string) => {
     if (!space) return
-    
+
     if (term.length === 0) {
       setSearchResults([])
       setIsSearchMode(false)
@@ -48,7 +48,7 @@ export const TreeSearch = () => {
 
     // Perform only full-text search (content search)
     const ftsNodes = await fullTextSearch(term)
-    
+
     setSearchResults(ftsNodes || [])
   }
 
@@ -116,7 +116,7 @@ export const TreeSearch = () => {
     <div className="flex items-center w-full">
       <Input
         ref={inputRef}
-        placeholder="Search content... (⌘P for names)"
+        placeholder="Search content..."
         value={localSearchTerm}
         onChange={(e) => handleSearchChange(e.target.value)}
         onKeyDown={handleKeyDown}
