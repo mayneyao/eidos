@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { useExtension } from "../../../web-app/hooks/use-extension";
 import { EIDOS_SPACE_BASE_URL } from "@/lib/const";
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite";
+import { getCompileMethod, scriptCodeCompile } from "@/packages/v3/src/script-compiler";
+import { extractConstant } from "@/packages/v3/src/code-tools/code-extractor";
 
 
 export const useExtensionInstaller = () => {
@@ -38,17 +40,27 @@ export const useExtensionInstaller = () => {
                 }
             }
 
+            const type = extensionData.extension.type.split('/')[0];
+            const compileMethod = getCompileMethod({ type: type });
+            if (!compileMethod) {
+                throw new Error(`Unsupported extension type: ${type}`);
+            }
+            const ts_code = extensionData.latestVersion.code;
+            const [code, meta] = await Promise.all([
+                compileMethod(ts_code),
+                extractConstant(ts_code, "meta")
+            ])
             const script: IExtension = {
                 id: extensionIdFromApi,
                 slug: `${extensionData.extension.type}-${extensionIdFromApi.slice(0, 8)}`,
                 name: extensionData.extension.name,
-                type: extensionData.extension.type.split('/')[0],
+                type: type,
                 description: extensionData.extension.description,
                 icon: extensionData.extension.icon_url,
                 version: extensionData.latestVersion.version,
-                ...(extensionData.extension.type === 'block' || extensionData.extension.type === 'script'
-                    ? { ts_code: extensionData.latestVersion.code, code: '' }
-                    : { code: extensionData.latestVersion.code }),
+                ts_code: ts_code,
+                code: code,
+                meta: meta,
                 enabled: true,
             };
 
