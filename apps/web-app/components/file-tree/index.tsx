@@ -1,7 +1,10 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react"
-import type { IDirectoryEntry, IWatchEvent } from "@eidos.space/core/types/IExternalFileSystem"
+import type {
+  IDirectoryEntry,
+  IWatchEvent,
+} from "@eidos.space/core/types/IExternalFileSystem"
 import {
   BlocksIcon,
   ChevronDown,
@@ -14,7 +17,6 @@ import {
 import { useNavigate } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useEvent } from "@/hooks/use-event"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { IconRenderer } from "@/components/ui/icon-picker"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -37,26 +39,6 @@ interface FileTreeProps {
   baseDir?: string
 }
 
-/**
- * Check if there's any modal/dialog open or if focus is inside a dialog
- * This is a generic check that works for all dialog implementations (Radix UI, etc.)
- */
-const isDialogOpen = (): boolean => {
-  const activeElement = document.activeElement
-
-  // Check if focus is inside a dialog (Radix UI uses [role="dialog"])
-  if (activeElement?.closest('[role="dialog"]')) {
-    return true
-  }
-
-  // Check if there's any open dialog in the DOM
-  // Radix UI sets data-state="open" on open dialogs
-  const openDialogs = document.querySelectorAll(
-    '[role="dialog"][data-state="open"]'
-  )
-  return openDialogs.length > 0
-}
-
 const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const { sqlite } = useSqlite()
   const navigate = useNavigate()
@@ -75,10 +57,11 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const [dragOverNode, setDragOverNode] = useState<string | null>(null)
   const [draggingNode, setDraggingNode] = useState<string | null>(null)
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  
+
   // Add a ref to track pending reloads to avoid duplicates
   const pendingReloadsRef = useRef<Set<string>>(new Set())
   const reloadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const treeContainerRef = useRef<HTMLDivElement>(null)
 
   // Context menu operations - use baseDir or rootDir for path detection
   const {
@@ -108,15 +91,21 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
       // Preserve existing children for directories that are still present
       setTreeData((prevTreeData) => {
-        const existingNodesMap = new Map(prevTreeData.map(node => [node.name, node]))
-        
-        return sortedEntries.map(newNode => {
+        const existingNodesMap = new Map(
+          prevTreeData.map((node) => [node.name, node])
+        )
+
+        return sortedEntries.map((newNode) => {
           const existingNode = existingNodesMap.get(newNode.name)
           // If node existed before and was a directory with children, preserve them
-          if (existingNode && existingNode.kind === "directory" && existingNode.children) {
+          if (
+            existingNode &&
+            existingNode.kind === "directory" &&
+            existingNode.children
+          ) {
             return {
               ...newNode,
-              children: existingNode.children
+              children: existingNode.children,
             }
           }
           return newNode
@@ -129,7 +118,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           await loadSubDirectory(path)
         }
       })
-      
+
       await Promise.all(reloadPromises)
     } catch (error) {
       console.error("Failed to load root directory:", error)
@@ -160,9 +149,9 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       ): FileTreeNode[] => {
         // Create a map of existing children for quick lookup
         const existingChildrenMap = new Map()
-        const existingNode = nodes.find(n => n.path === targetPath)
+        const existingNode = nodes.find((n) => n.path === targetPath)
         if (existingNode?.children) {
-          existingNode.children.forEach(child => {
+          existingNode.children.forEach((child) => {
             existingChildrenMap.set(child.name, child)
           })
         }
@@ -170,13 +159,17 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
         return nodes.map((node) => {
           if (node.path === targetPath) {
             // Merge new children with existing ones to preserve grandchildren
-            const mergedChildren = newChildren.map(newChild => {
+            const mergedChildren = newChildren.map((newChild) => {
               const existingChild = existingChildrenMap.get(newChild.name)
               // If child existed before and was a directory with children, preserve them
-              if (existingChild && existingChild.kind === "directory" && existingChild.children) {
+              if (
+                existingChild &&
+                existingChild.kind === "directory" &&
+                existingChild.children
+              ) {
                 return {
                   ...newChild,
-                  children: existingChild.children
+                  children: existingChild.children,
                 }
               }
               return newChild
@@ -294,7 +287,11 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     // If newName is empty, allow it (will show placeholder)
     // If newName matches placeholder and current name is not empty, cancel (user likely didn't mean to set to placeholder)
     const placeholderText = getPlaceholderText(node)
-    if (newName === placeholderText && node.name && node.name.trim().length > 0) {
+    if (
+      newName === placeholderText &&
+      node.name &&
+      node.name.trim().length > 0
+    ) {
       cancelRename()
       return
     }
@@ -341,9 +338,10 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     setDraggingNode(node.path)
 
     // Get display name for drag operations (handles empty names)
-    const displayName = node.name && node.name.trim().length > 0
-      ? node.name
-      : getPlaceholderText(node)
+    const displayName =
+      node.name && node.name.trim().length > 0
+        ? node.name
+        : getPlaceholderText(node)
 
     // Set drag data for cross-window drag support
     const dragData = {
@@ -460,9 +458,6 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       // Don't trigger if we're already renaming
       if (renamingNode) return
 
-      // Don't trigger if any dialog/modal is open
-      if (isDialogOpen()) return
-
       // Don't trigger if focus is on a form input element (outside of dialogs)
       // Note: We don't block contenteditable elements (like document editors)
       // because users may want to rename nodes while editing documents
@@ -483,8 +478,33 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       }
     }
 
+    // Handle click outside to clear selection
+    const handleClickOutside = (e: MouseEvent) => {
+      const treeContainer = treeContainerRef.current
+      if (treeContainer && !treeContainer.contains(e.target as Node)) {
+        setSelectedNode(null)
+      }
+    }
+
+    // Handle blur to clear selection when focus moves outside
+    const handleBlur = (e: FocusEvent) => {
+      // Check if the focus is moving outside of the tree container
+      const treeContainer = treeContainerRef.current
+      if (treeContainer && !treeContainer.contains(e.relatedTarget as Node)) {
+        setSelectedNode(null)
+      }
+    }
+
     window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    document.addEventListener("mousedown", handleClickOutside)
+    // Use capture phase to catch blur events before they bubble
+    window.addEventListener("blur", handleBlur, true)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      document.removeEventListener("mousedown", handleClickOutside)
+      window.removeEventListener("blur", handleBlur, true)
+    }
   }, [selectedNode, renamingNode])
 
   // Cleanup timeout on unmount
@@ -712,14 +732,6 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           recursive: true,
           signal,
         })) {
-          // Print watch events for debugging
-          console.log("[FileTree Watch]", {
-            path: rootDir,
-            eventType: event.eventType,
-            filename: event.filename,
-            timestamp: new Date().toISOString(),
-          })
-
           // Smart reload: determine which directory needs to be reloaded
           await handleWatchEvent(event)
         }
@@ -733,13 +745,11 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
     // Handle watch events intelligently with debouncing
     const handleWatchEvent = (event: IWatchEvent) => {
-      console.log(`[FileTree Watch] Received event:`, event)
-      
       // Clear any existing timeout
       if (reloadTimeoutRef.current) {
         clearTimeout(reloadTimeoutRef.current)
       }
-      
+
       // Set a new timeout to debounce reloads
       reloadTimeoutRef.current = setTimeout(async () => {
         await processWatchEvent(event)
@@ -749,24 +759,15 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     // Process the actual watch event
     const processWatchEvent = async (event: IWatchEvent) => {
       try {
-        console.log(`[FileTree Watch] Processing event:`, event)
-        console.log(`[FileTree Watch] Current expanded nodes:`, Array.from(expandedNodes))
-        console.log(`[FileTree Watch] Root directory:`, rootDir)
-
         // For virtual file system, event.filename contains ID path like "id1/id2/id3"
-        const pathParts = event.filename.split('/').filter(Boolean)
-        console.log(`[FileTree Watch] Path parts:`, pathParts)
-        
+        const pathParts = event.filename.split("/").filter(Boolean)
+
         if (pathParts.length === 0) {
-          // Root level change, reload everything
-          console.log(`[FileTree Watch] Root level change, reloading root directory`)
           await loadRootDirectory()
           return
         }
 
         if (pathParts.length === 1) {
-          // Direct child of root, reload root directory
-          console.log(`[FileTree Watch] Direct child change, reloading root directory`)
           await loadRootDirectory()
           return
         }
@@ -776,32 +777,27 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
         // which represents the top-level directory under root
         const topLevelId = pathParts[0] // First part is the top-level directory
         const topLevelPath = `${rootDir}/${topLevelId}`
-        console.log(`[FileTree Watch] Top-level ID: ${topLevelId}, Top-level path: ${topLevelPath}`)
-        
+
         // Check if this reload is already pending
         if (pendingReloadsRef.current.has(topLevelPath)) {
-          console.log(`[FileTree Watch] Reload already pending for: ${topLevelPath}`)
           return
         }
-        
+
         // Mark this reload as pending
         pendingReloadsRef.current.add(topLevelPath)
-        
+
         try {
           // Check if the top-level directory is currently expanded
           if (expandedNodes.has(topLevelPath)) {
-            console.log(`[FileTree Watch] Top-level directory is expanded, reloading: ${topLevelPath}`)
             await loadSubDirectory(topLevelPath)
           } else {
             // Top-level directory is not expanded, just reload root to update counts/visibility
-            console.log(`[FileTree Watch] Top-level directory not expanded, reloading root: ${rootDir}`)
             await loadRootDirectory()
           }
         } finally {
           // Remove from pending reloads
           pendingReloadsRef.current.delete(topLevelPath)
         }
-
       } catch (error) {
         console.error("[FileTree Watch] Error handling watch event:", error)
         // Fallback to full reload on error
@@ -819,7 +815,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
   // Don't render ScrollArea wrapper in nodes mode (parent should handle scrolling)
   const content = (
-    <div className="space-y-1 px-4 bg-sidebar">
+    <div ref={treeContainerRef} className="space-y-1 px-4 bg-sidebar">
       {treeData.map((node) => renderTreeNode(node, 0))}
     </div>
   )
