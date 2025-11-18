@@ -2,6 +2,7 @@ import "@/styles/globals.css"
 import { useEffect } from "react"
 import { Outlet } from "react-router-dom"
 
+import { useSyncFileHandlers } from "@/hooks/use-all-file-handlers"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
 import { CommandDialogDemo } from "@/components/cmdk"
@@ -22,6 +23,7 @@ export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
   const { isSidebarOpen } = useAppStoreBase()
   useProtocolUrl()
+  useSyncFileHandlers()
   useEffect(() => {
     if (!isInitialized) {
       initWorker()

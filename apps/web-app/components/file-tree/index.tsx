@@ -212,7 +212,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           }
         }
       } else {
-        await loadRootDirectory(expandedNodes)
+        await loadRootDirectory()
       }
 
       cancelRename()

@@ -176,7 +176,6 @@ export const useSyncFileHandlers = () => {
  * Automatically syncs with database changes
  */
 export const useAllFileHandlers = () => {
-  useSyncFileHandlers()
 
   const fileHandlers = useAllFileHandlersStore((state) => state.fileHandlers)
   const loading = useAllFileHandlersStore((state) => state.loading)
