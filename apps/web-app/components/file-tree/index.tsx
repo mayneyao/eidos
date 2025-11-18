@@ -1,12 +1,12 @@
 "use client"
 
-import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import React, { useRef, useState } from "react"
+import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import { useNavigate } from "react-router-dom"
 
-import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 
 import { FileTreeNode } from "./file-tree-node"
 import { useFileTreeData } from "./use-file-tree-data"
@@ -107,7 +107,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     } else if (node.metadata?.nodeType === "extension") {
       // Navigate to extension
       navigate(`/extensions/${node.metadata.nodeId}`)
-    } else {
+    } else if (node.kind === "file") {
       // Regular file - use file handler
       navigate(`/file-handler#${node.path}`)
     }
@@ -152,7 +152,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     // Use setTimeout to ensure context menu is fully closed before entering rename mode
     // This prevents the context menu close event from interfering with rename state
     setTimeout(() => {
-    setRenamingNode(nodePath)
+      setRenamingNode(nodePath)
     }, 0)
   }
 
@@ -212,7 +212,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           }
         }
       } else {
-        await loadRootDirectory()
+        await loadRootDirectory(expandedNodes)
       }
 
       cancelRename()
@@ -289,7 +289,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     return (
       <FileTreeNode
         key={node.path}
-          node={node}
+        node={node}
         level={level}
         isExpanded={isExpanded}
         isLoading={isLoading}
@@ -305,7 +305,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
         isPinned={isPinned}
         onToggle={() => toggleNode(node)}
         onFileClick={() => handleFileClick(node)}
-          onRename={(node) => startRename(node.path)}
+        onRename={(node) => startRename(node.path)}
         onRenameConfirm={(newName) => handleRenameConfirm(node, newName)}
         onRenameCancel={cancelRename}
         onDelete={handleDelete}
@@ -316,8 +316,8 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
         onCreateTable={handleCreateTable}
         onCreateFolder={handleCreateFolder}
         onCopySlug={handleCopySlug}
-            onDragStart={(e) => handleDragStart(e, node)}
-            onDragEnd={handleDragEnd}
+        onDragStart={(e) => handleDragStart(e, node)}
+        onDragEnd={handleDragEnd}
         onDragOver={hasChildren ? (e) => handleDragOver(e, node) : undefined}
         onDragEnter={hasChildren ? (e) => handleDragEnter(e, node) : undefined}
         onDragLeave={hasChildren ? handleDragLeave : undefined}
@@ -325,7 +325,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
         renderChild={renderTreeNode}
       />
     )
-    }
+  }
 
   // Don't render ScrollArea wrapper in nodes mode (parent should handle scrolling)
   const content = (

@@ -7,15 +7,15 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { SimpleWebViewBlock } from "@/components/block-renderer/simple-webview-block"
 
 interface HandlerRendererProps {
-  handler: IExtension<FileHandlerMeta>
+  handlerId: string
   filePath: string
 }
 
-export function HandlerRenderer({ handler, filePath }: HandlerRendererProps) {
+export function HandlerRenderer({ handlerId, filePath }: HandlerRendererProps) {
   const { space } = useCurrentPathInfo()
   return (
     <SimpleWebViewBlock
-      url={`http://${handler.id}.block.${space}.eidos.localhost:13127/#${filePath}`}
+      url={`http://${handlerId}.block.${space}.eidos.localhost:13127/#${filePath}`}
       height="100%"
     />
   )

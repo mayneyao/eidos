@@ -1,3 +1,4 @@
+
 import { HandlerRenderer } from "./components/handler-renderer"
 import { LoadingState } from "./components/loading-state"
 import { NoFilePathState } from "./components/no-file-path-state"
@@ -7,17 +8,8 @@ import { useHandlerSelection } from "./hooks/use-handler-selection"
 
 export function FileHandlerPage() {
   const { filePath, fileExtension, fileName } = useFilePathFromHash()
-  const {
-    handlers,
-    selectedHandler,
-    isLoadingHandlers,
-    isLoadingDefault,
-  } = useHandlerSelection(fileExtension)
-
-  // Loading state
-  if (isLoadingHandlers || isLoadingDefault) {
-    return <LoadingState />
-  }
+  const { handlers, selectedHandler, isLoadingHandlers, isLoadingDefault } =
+    useHandlerSelection(fileExtension)
 
   // No file path
   if (!filePath) {
@@ -34,7 +26,7 @@ export function FileHandlerPage() {
     return (
       <div className="h-screen flex flex-col">
         <div className="flex-1 overflow-hidden">
-          <HandlerRenderer handler={selectedHandler} filePath={filePath} />
+          <HandlerRenderer handlerId={selectedHandler.id} filePath={filePath} />
         </div>
       </div>
     )
