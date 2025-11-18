@@ -4,7 +4,6 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
 import { useMounts } from "@/apps/web-app/hooks/use-mounts"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
 import FileTree, { type FileTreeNode } from "../../file-tree"
 
@@ -35,11 +34,8 @@ export const FilesSidebar = () => {
   }, [mounts, t])
 
   return (
-    <div className="flex h-full w-full flex-col">
-      <ScrollArea className="flex-1">
-        <FileTree nodes={rootNodes} baseDir="~/" />
-      </ScrollArea>
+    <div className="flex h-full w-full flex-col overflow-y-auto">
+      <FileTree nodes={rootNodes} baseDir="~/" />
     </div>
   )
 }
-

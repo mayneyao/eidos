@@ -5,7 +5,6 @@ import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSyste
 import { useNavigate } from "react-router-dom"
 
 import { useSqlite } from "@/hooks/use-sqlite"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 
 import { FileTreeNode } from "./file-tree-node"
@@ -338,7 +337,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     return content
   }
 
-  return <ScrollArea className="h-full">{content}</ScrollArea>
+  return <div className="h-full overflow-y-auto">{content}</div>
 }
 
 export default FileTree
