@@ -216,6 +216,8 @@ File paths are passed through hash:
 <extid>.block.<spaceId>.eidos.localhost:13127#<filePath>
 ```
 
+**Important:** File paths in URL hash are URL-encoded (e.g., spaces are encoded as `%20`), so when reading them, you need to first remove the leading `#` and then use `decodeURIComponent()` to decode them.
+
 **Supported file path formats:**
 
 | Path Format            | Description                          | Example                    |
@@ -229,8 +231,8 @@ File paths are passed through hash:
 # Open README file in project
 markdown-editor.block.my-space.eidos.localhost:13127#~/readme.md
 
-# Play mounted music file
-audio-player.block.my-space.eidos.localhost:13127#@/music/song.mp3
+# Play mounted music file (filename with spaces will be encoded)
+audio-player.block.my-space.eidos.localhost:13127#@/music/my%20song.mp3
 ```
 
 #### Meta Configuration
@@ -287,7 +289,8 @@ export const meta = {
 
 export function MarkdownEditor() {
   const [content, setContent] = useState("")
-  const filePath = window.location.hash.slice(1) // Remove leading #
+  // Get file path from hash, need to remove # first then decode URL encoding
+  const filePath = decodeURIComponent(window.location.hash.slice(1))
 
   useEffect(() => {
     // Read file content
@@ -340,7 +343,8 @@ export const meta = {
 
 export function AudioPlayer() {
   const [audioUrl, setAudioUrl] = useState("")
-  const filePath = window.location.hash.slice(1)
+  // Get file path from hash, need to remove # first then decode URL encoding
+  const filePath = decodeURIComponent(window.location.hash.slice(1))
 
   useEffect(() => {
     // Construct audio URL (through Eidos file service)

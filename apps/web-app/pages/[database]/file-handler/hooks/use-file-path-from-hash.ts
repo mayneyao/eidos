@@ -10,7 +10,9 @@ export function useFilePathFromHash() {
 
   const filePath = useMemo(() => {
     const hash = location.hash
-    return hash.startsWith("#") ? hash.substring(1) : hash
+    const rawPath = hash.startsWith("#") ? hash.substring(1) : hash
+    // Decode URL-encoded characters (e.g., %20 -> space)
+    return decodeURIComponent(rawPath)
   }, [location.hash])
 
   const fileExtension = useMemo(

@@ -19,7 +19,8 @@ function useFilePathFromHash() {
     const updatePath = () => {
       const hash = window.location.hash
       const path = hash.startsWith("#") ? hash.substring(1) : hash
-      setFilePath(path)
+      // Decode URL-encoded characters (e.g., %20 -> space)
+      setFilePath(decodeURIComponent(path))
     }
 
     updatePath()

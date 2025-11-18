@@ -216,6 +216,8 @@ export function MyExtNode({ text }: { text: string }) {
 <extid>.block.<spaceId>.eidos.localhost:13127#<filePath>
 ```
 
+**重要提示：** 文件路径在 URL hash 中是经过 URL 编码的（例如空格会被编码为 `%20`），因此在读取时需要先移除开头的 `#`，然后使用 `decodeURIComponent()` 进行解码。
+
 **支持的文件路径格式：**
 
 | 路径格式            | 说明                           | 示例                    |
@@ -229,8 +231,8 @@ export function MyExtNode({ text }: { text: string }) {
 # 打开项目中的 README 文件
 markdown-editor.block.my-space.eidos.localhost:13127#~/readme.md
 
-# 播放挂载的音乐文件
-audio-player.block.my-space.eidos.localhost:13127#@/music/song.mp3
+# 播放挂载的音乐文件（包含空格的文件名会被编码）
+audio-player.block.my-space.eidos.localhost:13127#@/music/my%20song.mp3
 ```
 
 #### 元配置
@@ -287,7 +289,8 @@ export const meta = {
 
 export function MarkdownEditor() {
   const [content, setContent] = useState("")
-  const filePath = window.location.hash.slice(1) // 移除开头的 #
+  // 从 hash 中获取文件路径，需要先移除 # 然后解码 URL 编码
+  const filePath = decodeURIComponent(window.location.hash.slice(1))
 
   useEffect(() => {
     // 读取文件内容
@@ -340,7 +343,8 @@ export const meta = {
 
 export function AudioPlayer() {
   const [audioUrl, setAudioUrl] = useState("")
-  const filePath = window.location.hash.slice(1)
+  // 从 hash 中获取文件路径，需要先移除 # 然后解码 URL 编码
+  const filePath = decodeURIComponent(window.location.hash.slice(1))
 
   useEffect(() => {
     // 构造音频 URL（通过 Eidos 的文件服务）
