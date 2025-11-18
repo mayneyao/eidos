@@ -18,6 +18,8 @@ Block extensions are lightweight, single-file UI components. They support three 
 
 **Imports**: Standard Node.js imports auto-resolve to ESM packages (e.g., `import { Excalidraw } from "@excalidraw/excalidraw"`)
 
+**Note**: You don't need to use full ESM.sh URLs like `import my-module from "https://esm.sh/xxx@1.2"`. Simply use `import my-module from 'xxx'` and the system will automatically resolve to the latest version from esm.sh.
+
 **UI Components**: Use Shadcn/ui via `import { Button } from "@/components/ui/button"` for consistent styling
 
 ### 1. Table View Extensions (`type: "tableView"`)
