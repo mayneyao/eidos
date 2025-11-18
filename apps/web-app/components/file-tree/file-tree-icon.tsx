@@ -1,9 +1,4 @@
-import {
-  BlocksIcon,
-  File,
-  FileSpreadsheet,
-  Folder,
-} from "lucide-react"
+import { BlocksIcon, File, FileSpreadsheet, Folder, ViewIcon } from "lucide-react"
 
 import { IconRenderer } from "@/components/ui/icon-picker"
 
@@ -38,9 +33,7 @@ export const FileTreeIcon = ({ node }: FileTreeIconProps) => {
       )
     }
     // Otherwise use IconRenderer
-    return (
-      <IconRenderer name={node.metadata.icon as any} className="w-4 h-4" />
-    )
+    return <IconRenderer name={node.metadata.icon as any} className="w-4 h-4" />
   }
 
   // Use default icons based on node type
@@ -55,10 +48,11 @@ export const FileTreeIcon = ({ node }: FileTreeIconProps) => {
       return <File className="w-4 h-4 text-muted-foreground" />
     case "extension":
       return <BlocksIcon className="w-4 h-4 text-muted-foreground" />
+    case "dataview":
+      return <ViewIcon className="w-4 h-4 text-muted-foreground" />
     case "folder":
       return <Folder className="w-4 h-4 text-muted-foreground" />
     default:
       return <File className="w-4 h-4 text-muted-foreground" />
   }
 }
-
