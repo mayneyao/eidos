@@ -31,6 +31,8 @@ export const useFileTreeData = ({
   // Add a ref to track pending reloads to avoid duplicates
   const pendingReloadsRef = useRef<Set<string>>(new Set())
   const reloadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // Track timeouts per mount directory for nodes mode
+  const mountTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   // Helper function to sort entries (directories first, then by name)
   const sortEntries = (entries: FileTreeNode[]) => {
@@ -271,6 +273,140 @@ export const useFileTreeData = ({
       abortController.abort()
     }
   }, [sqlite, rootDir, isNodesMode, expandedNodes, loadRootDirectory, loadSubDirectory])
+
+  // Watch for file system changes in nodes mode (watch each mount directory)
+  useEffect(() => {
+    if (!isNodesMode || !sqlite || !initialNodes) return
+
+    const abortControllers = new Map<string, AbortController>()
+
+    // Helper function to process watch event for a specific mount directory
+    const processWatchEventForMount = async (
+      mountPath: string,
+      event: IWatchEvent
+    ) => {
+      try {
+        // For virtual file system, event.filename contains ID path like "id1/id2/id3"
+        const pathParts = event.filename.split("/").filter(Boolean)
+
+        if (pathParts.length === 0) {
+          // Root level change - reload the mount directory itself
+          await loadSubDirectory(mountPath)
+          return
+        }
+
+        if (pathParts.length === 1) {
+          // First level change - reload the mount directory itself
+          await loadSubDirectory(mountPath)
+          return
+        }
+
+        // Nested change: find which directory in the mount path needs to be reloaded
+        // For path "child1/grandchild1", we want to reload "mountPath/child1"
+        // Ensure proper path joining (mountPath may or may not end with /)
+        const mountPathNormalized = mountPath.endsWith("/")
+          ? mountPath
+          : `${mountPath}/`
+        const firstLevelPath = `${mountPathNormalized}${pathParts[0]}`
+
+        // Check if this reload is already pending
+        if (pendingReloadsRef.current.has(firstLevelPath)) {
+          return
+        }
+
+        // Mark this reload as pending
+        pendingReloadsRef.current.add(firstLevelPath)
+
+        try {
+          // Check if the directory is currently expanded
+          if (expandedNodes.has(firstLevelPath)) {
+            await loadSubDirectory(firstLevelPath)
+          } else {
+            // Directory is not expanded, reload the mount root to update counts/visibility
+            await loadSubDirectory(mountPath)
+          }
+        } finally {
+          // Remove from pending reloads
+          pendingReloadsRef.current.delete(firstLevelPath)
+        }
+      } catch (error) {
+        console.error(
+          `[FileTree Watch] Error handling watch event for ${mountPath}:`,
+          error
+        )
+        // Fallback to reload mount directory on error
+        await loadSubDirectory(mountPath)
+      }
+    }
+
+    // Handle watch events intelligently with debouncing (per mount)
+    const handleWatchEvent = (mountPath: string, event: IWatchEvent) => {
+      // Clear any existing timeout for this mount
+      const existingTimeout = mountTimeoutsRef.current.get(mountPath)
+      if (existingTimeout) {
+        clearTimeout(existingTimeout)
+      }
+
+      // Set a new timeout to debounce reloads for this mount
+      const timeout = setTimeout(async () => {
+        await processWatchEventForMount(mountPath, event)
+        mountTimeoutsRef.current.delete(mountPath)
+      }, 100) // 100ms debounce
+
+      mountTimeoutsRef.current.set(mountPath, timeout)
+    }
+
+    // Start watching each directory node
+    const watchPromises = initialNodes
+      .filter((node) => node.kind === "directory")
+      .map(async (node) => {
+        const mountPath = node.path
+        const abortController = new AbortController()
+        abortControllers.set(mountPath, abortController)
+        const { signal } = abortController
+
+        try {
+          for await (const event of sqlite.fs.watch(mountPath, {
+            recursive: true,
+            signal,
+          })) {
+            await handleWatchEvent(mountPath, event)
+          }
+        } catch (error) {
+          // Ignore abort errors (expected when component unmounts)
+          if (error instanceof Error && error.name !== "AbortError") {
+            console.error(
+              `FileTree watch error for ${mountPath}:`,
+              error
+            )
+          }
+        }
+      })
+
+    // Start all watch operations
+    Promise.all(watchPromises).catch((error) => {
+      console.error("Error starting file tree watches:", error)
+    })
+
+    // Cleanup: abort all watches when component unmounts or dependencies change
+    return () => {
+      abortControllers.forEach((controller) => {
+        controller.abort()
+      })
+      abortControllers.clear()
+      // Clear all mount timeouts
+      mountTimeoutsRef.current.forEach((timeout) => {
+        clearTimeout(timeout)
+      })
+      mountTimeoutsRef.current.clear()
+    }
+  }, [
+    sqlite,
+    isNodesMode,
+    initialNodes,
+    expandedNodes,
+    loadSubDirectory,
+  ])
 
   // Cleanup timeout on unmount
   useEffect(() => {
