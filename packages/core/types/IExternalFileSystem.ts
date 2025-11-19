@@ -13,7 +13,7 @@ export interface IDirectoryEntry {
   kind: 'file' | 'directory' | 'blockDevice' | 'characterDevice' | 'symbolicLink' | 'fifo' | 'socket'
   /** Optional metadata for virtual file system entries */
   metadata?: {
-    nodeType?: "table" | "doc" | "folder" | "extension" | "dataview"
+    nodeType?: "table" | "doc" | "folder" | "extension" | "dataview" | `ext__${string}`
     nodeId?: string
     isPinned?: boolean
     icon?: string

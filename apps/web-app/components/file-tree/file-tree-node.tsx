@@ -1,6 +1,7 @@
 import React from "react"
 import { ChevronDown, ChevronRight, Pin } from "lucide-react"
 
+import { ExtNodeBadge } from "@/components/ext-node-badge"
 import { FileTreeContextMenu } from "./context-menu"
 import { FileTreeIcon } from "./file-tree-icon"
 import type { FileTreeNode as FileTreeNodeType } from "./index"
@@ -157,18 +158,24 @@ export const FileTreeNode = ({
               <FileTreeIcon node={node} />
             )}
           </div>
-          <div className="flex items-center gap-1 px-2 py-1 min-w-0 flex-1">
-            <InlineEdit
-              value={displayName}
-              isEditing={isRenaming}
-              nodeType={node.metadata?.nodeType}
-              onConfirm={onRenameConfirm}
-              onCancel={onRenameCancel}
-              className={nameClassName}
-            />
-            {!isRenaming && showPinIcon && (
-              <Pin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-            )}
+          <div className="flex items-center justify-between gap-1 px-2 py-1 min-w-0 flex-1">
+            <div className="flex items-center gap-1 min-w-0 flex-1">
+              <InlineEdit
+                value={displayName}
+                isEditing={isRenaming}
+                nodeType={node.metadata?.nodeType}
+                onConfirm={onRenameConfirm}
+                onCancel={onRenameCancel}
+                className={nameClassName}
+              />
+              {!isRenaming && showPinIcon && (
+                <Pin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+              )}
+            </div>
+            {!isRenaming &&
+              node.metadata?.nodeType?.startsWith("ext__") && (
+                <ExtNodeBadge type={node.metadata.nodeType} />
+              )}
           </div>
         </div>
       </FileTreeContextMenu>

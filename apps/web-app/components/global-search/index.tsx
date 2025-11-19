@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom"
 
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { ExtNodeBadge } from "@/components/ext-node-badge"
 import {
   Command,
   CommandEmpty,
@@ -23,6 +24,7 @@ interface SearchResult {
   name: string
   path: string
   isDirectory?: boolean
+  nodeType?: string
 }
 
 export function GlobalSearch() {
@@ -100,6 +102,7 @@ export function GlobalSearch() {
           name: entry.name || "Untitled",
           path: displayPath,
           isDirectory: type === "node" ? entry.kind === "directory" : undefined,
+          nodeType: entry.metadata?.nodeType,
         }
       } catch (error) {
         console.error(`Error processing ${type} entry:`, entry, error)
@@ -239,9 +242,14 @@ export function GlobalSearch() {
                           <span className="truncate">
                             {result.name || "Untitled"}
                           </span>
-                          <span className="text-xs text-muted-foreground truncate shrink-0">
-                            {result.path}
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {result.nodeType?.startsWith("ext__") && (
+                              <ExtNodeBadge type={result.nodeType} />
+                            )}
+                            <span className="text-xs text-muted-foreground truncate">
+                              {result.path}
+                            </span>
+                          </div>
                         </div>
                       </CommandItem>
                     ))}
