@@ -119,6 +119,12 @@ export const useFileTreeData = ({
     [sqlite]
   )
 
+  // Keep a ref to expandedNodes to access it in loadRootDirectory without adding it to dependencies
+  const expandedNodesRef = useRef(expandedNodes)
+  useEffect(() => {
+    expandedNodesRef.current = expandedNodes
+  }, [expandedNodes])
+
   const loadRootDirectory = useCallback(async () => {
     if (!sqlite || !rootDir) return
 
@@ -153,7 +159,7 @@ export const useFileTreeData = ({
       })
 
       // Reload children for all expanded directories to keep them in sync
-      const reloadPromises = Array.from(expandedNodes).map(async (path) => {
+      const reloadPromises = Array.from(expandedNodesRef.current).map(async (path) => {
         if (path !== rootDir) {
           await loadSubDirectory(path)
         }
@@ -163,7 +169,7 @@ export const useFileTreeData = ({
     } catch (error) {
       console.error("Failed to load root directory:", error)
     }
-  }, [sqlite, rootDir, expandedNodes, loadSubDirectory])
+  }, [sqlite, rootDir, loadSubDirectory])
 
   // Load root directory only in rootDir mode
   useEffect(() => {
