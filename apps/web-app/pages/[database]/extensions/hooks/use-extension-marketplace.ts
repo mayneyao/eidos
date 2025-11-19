@@ -16,6 +16,7 @@ interface UseExtensionMarketplaceProps {
 interface PublishNewVersionPayload {
     version?: string;
     code: string;
+    meta?: Record<string, any>;
     changelog?: string;
     language?: string; // Optional, to allow language updates
 }
@@ -93,6 +94,7 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
                 changelog: "Initial submission", // Consider making this dynamic
                 initialStatus: "public",
                 publishFirstVersion: true,
+                meta: script.meta,
             };
 
             const response = await fetch(
@@ -174,6 +176,10 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
                 ...payload,
                 code: editorContent, // Ensure we are using the latest editor content for the code
             };
+
+            if (script.meta) {
+                apiPayload.meta = script.meta;
+            }
 
 
             const response = await fetch(

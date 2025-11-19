@@ -28,7 +28,7 @@ export function NoHandlerState({
         </p>
         <Button asChild variant="default" className="mt-2">
           <a
-            href={`${EIDOS_SPACE_BASE_URL}/extensions?type=block%2FfileHandler`}
+            href={`${EIDOS_SPACE_BASE_URL}/extensions?type=block%&meta.fileHandler.extensions.$include=${fileExtension}`}
             target="_blank"
             className="inline-flex items-center gap-2"
           >
