@@ -120,7 +120,11 @@ export const useSyncFileHandlers = () => {
                     : _new.meta
 
                 if (meta?.type === BlockExtensionType.FileHandler) {
-                  const extension = _new as unknown as IExtension<FileHandlerMeta>
+                  const extension = {
+                    ..._new,
+                    meta,
+                  } as unknown as IExtension<FileHandlerMeta>
+
                   if (updateType === DataUpdateSignalType.Insert) {
                     addFileHandler(extension)
                   } else {
