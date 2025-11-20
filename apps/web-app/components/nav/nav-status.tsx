@@ -76,12 +76,13 @@ export const NavStatus = () => {
   const defaultHandler = handlers.find((h) => h.id === defaultHandlerId)
   
   // Check if current handler differs from default handler
+  const effectiveDefaultHandlerId = defaultHandlerId || handlers[0]?.id
+
   const shouldShowSetDefaultButton = 
     isFileHandlerPage &&
     fileExtension &&
     handlerIdFromQuery &&
-    defaultHandlerId &&
-    handlerIdFromQuery !== defaultHandlerId &&
+    handlerIdFromQuery !== effectiveDefaultHandlerId &&
     !isLoadingDefault &&
     currentHandler
 
