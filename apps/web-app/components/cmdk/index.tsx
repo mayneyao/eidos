@@ -6,6 +6,7 @@ import {
   Bot,
   Clock3Icon,
   FilePlus2Icon,
+  LayoutGrid,
   PaintBucket,
   Palette,
   RefreshCcwIcon,
@@ -31,6 +32,7 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
@@ -55,6 +57,7 @@ export function CommandDialogDemo() {
   const { theme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
   const [secondaryView, setSecondaryView] = useState<SecondaryView>(null)
+  const { resetTabs } = useFavBlocks()
 
   const currentNode = useCurrentNode()
 
@@ -353,6 +356,18 @@ export function CommandDialogDemo() {
     goto(`/${docId}`)()
   }
 
+  const handleResetTabs = () => {
+    resetTabs()
+    toast({
+      title: t("cmdk.resetTabs.success", "Tabs Reset"),
+      description: t(
+        "cmdk.resetTabs.successDesc",
+        "Sidebar tabs have been reset to default."
+      ),
+    })
+    setCmdkOpen(false)
+  }
+
   const { t } = useTranslation()
 
   return (
@@ -494,6 +509,21 @@ export function CommandDialogDemo() {
                   <span>{t("cmdk.migrateFilePaths")}</span>
                   <span className="text-xs text-muted-foreground">
                     {t("cmdk.migrateFilePaths.desc")}
+                  </span>
+                </div>
+              </CommandItem>
+              <CommandItem
+                onSelect={handleResetTabs}
+                value="reset sidebar tabs"
+              >
+                <LayoutGrid className="mr-2 h-4 w-4" />
+                <div className="flex flex-col">
+                  <span>{t("cmdk.resetTabs", "Reset Sidebar Tabs")}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t(
+                      "cmdk.resetTabs.desc",
+                      "Reset sidebar tabs to default"
+                    )}
                   </span>
                 </div>
               </CommandItem>

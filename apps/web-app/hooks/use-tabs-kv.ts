@@ -47,11 +47,16 @@ export const useTabsKV = () => {
         setTabs(newTabs)
     }, [setTabs])
 
+    const resetTabs = useCallback(() => {
+        setTabs(DEFAULT_TABS)
+    }, [setTabs])
+
     return {
         // Tabs
         tabs: tabs || DEFAULT_TABS,
         addTab,
         removeTab,
         reorderTabs,
+        resetTabs,
     }
 }
