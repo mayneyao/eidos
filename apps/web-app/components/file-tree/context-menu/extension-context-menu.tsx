@@ -3,6 +3,7 @@
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import {
   CopyIcon,
+  FilesIcon,
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
@@ -38,6 +39,7 @@ interface ExtensionContextMenuProps {
   onRename?: (node: FileTreeNode) => void
   onDelete?: (node: FileTreeNode) => void
   onCopySlug?: (node: FileTreeNode) => void
+  onCopy?: (node: FileTreeNode) => void
 }
 
 /**
@@ -49,6 +51,7 @@ export const ExtensionContextMenu = ({
   onRename,
   onDelete,
   onCopySlug,
+  onCopy,
 }: ExtensionContextMenuProps) => {
   const { t } = useTranslation()
   const { isFavorite, toggleFavBlock } = useFavBlocks()
@@ -113,6 +116,12 @@ export const ExtensionContextMenu = ({
             <ContextMenuItem onClick={() => onCopySlug(node)}>
               <CopyIcon className="mr-2 h-4 w-4" />
               {t("extension.copySlug", "Copy Slug")}
+            </ContextMenuItem>
+          )}
+          {onCopy && (
+            <ContextMenuItem onClick={() => onCopy(node)}>
+              <FilesIcon className="mr-2 h-4 w-4" />
+              {t("extension.duplicate", "Duplicate")}
             </ContextMenuItem>
           )}
           {onDelete && (

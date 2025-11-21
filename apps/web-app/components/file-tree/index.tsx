@@ -66,6 +66,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     handleCreateTable,
     handleCreateFolder,
     handleCopySlug,
+    handleCopyExtension,
   } = useFileTreeOperations(effectiveRootDir)
 
   const toggleNode = async (node: FileTreeNode) => {
@@ -315,6 +316,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
         onCreateTable={handleCreateTable}
         onCreateFolder={handleCreateFolder}
         onCopySlug={handleCopySlug}
+        onCopyExtension={handleCopyExtension}
         onDragStart={(e) => handleDragStart(e, node)}
         onDragEnd={handleDragEnd}
         onDragOver={hasChildren ? (e) => handleDragOver(e, node) : undefined}

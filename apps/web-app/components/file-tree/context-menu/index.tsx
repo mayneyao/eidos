@@ -23,6 +23,7 @@ interface FileTreeContextMenuProps {
   onCreateTable?: (parentNode: FileTreeNode) => void
   onCreateFolder?: (parentNode: FileTreeNode) => void
   onCopySlug?: (node: FileTreeNode) => void
+  onCopyExtension?: (node: FileTreeNode) => void
 }
 
 /**
@@ -41,6 +42,7 @@ export const FileTreeContextMenu = ({
   onCreateTable,
   onCreateFolder,
   onCopySlug,
+  onCopyExtension,
 }: FileTreeContextMenuProps) => {
   const nodeType = node.metadata?.nodeType
   const isExtension = nodeType === "extension"
@@ -50,8 +52,8 @@ export const FileTreeContextMenu = ({
     return (
       <FileContextMenu
         node={node}
-        // onRename={onRename}
-        // onDelete={onDelete}
+      // onRename={onRename}
+      // onDelete={onDelete}
       >
         {children}
       </FileContextMenu>
@@ -66,6 +68,7 @@ export const FileTreeContextMenu = ({
         onRename={onRename}
         onDelete={onDelete}
         onCopySlug={onCopySlug}
+        onCopy={onCopyExtension}
       >
         {children}
       </ExtensionContextMenu>

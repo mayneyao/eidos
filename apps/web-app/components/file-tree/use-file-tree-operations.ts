@@ -234,6 +234,63 @@ export const useFileTreeOperations = (rootDir?: string) => {
     [toast]
   )
 
+  /**
+   * Copy/duplicate an extension
+   */
+  const handleCopyExtension = useCallback(
+    async (node: FileTreeNode) => {
+      if (!sqlite) return
+
+      const nodeId = node.metadata?.nodeId
+      if (!nodeId) {
+        console.warn("Cannot copy extension without nodeId")
+        return
+      }
+
+      try {
+        // Get the original extension
+        const originalExtension = await sqlite.extension.get(nodeId)
+        if (!originalExtension) {
+          throw new Error("Extension not found")
+        }
+
+        // Generate new ID
+        const { generateIdV7 } = await import("@/lib/utils")
+        const newId = generateIdV7()
+
+        // Create new slug with '-copy' suffix
+        const newSlug = `${originalExtension.slug}-copy`
+
+        // Create new extension with copied data
+        const newExtension = {
+          ...originalExtension,
+          id: newId,
+          slug: newSlug,
+          name: `${originalExtension.name} Copy`,
+        }
+
+        // Add the new extension
+        await sqlite.extension.add(newExtension)
+
+        toast({
+          title: "Extension duplicated",
+          description: `Created duplicate: ${newSlug}`,
+        })
+
+        // Navigate to the new extension
+        navigate(`/extensions/${newId}`)
+      } catch (error) {
+        console.error("Failed to copy extension:", error)
+        toast({
+          title: "Failed to duplicate extension",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        })
+      }
+    },
+    [sqlite, navigate, toast]
+  )
+
   return {
     handleDelete,
     handlePin,
@@ -243,6 +300,7 @@ export const useFileTreeOperations = (rootDir?: string) => {
     handleCreateTable,
     handleCreateFolder,
     handleCopySlug,
+    handleCopyExtension,
   }
 }
 

@@ -35,6 +35,7 @@ interface FileTreeNodeProps {
   onCreateTable?: (node: FileTreeNodeType) => void
   onCreateFolder?: (node: FileTreeNodeType) => void
   onCopySlug?: (node: FileTreeNodeType) => void
+  onCopyExtension?: (node: FileTreeNodeType) => void
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: (e: React.DragEvent) => void
   onDragOver?: (e: React.DragEvent) => void
@@ -72,6 +73,7 @@ export const FileTreeNode = ({
   onCreateTable,
   onCreateFolder,
   onCopySlug,
+  onCopyExtension,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -113,13 +115,14 @@ export const FileTreeNode = ({
         onCopySlug={
           node.metadata?.nodeType === "extension" ? onCopySlug : undefined
         }
+        onCopyExtension={
+          node.metadata?.nodeType === "extension" ? onCopyExtension : undefined
+        }
       >
         <div
-          className={`flex items-center rounded transition-colors cursor-pointer select-none ${
-            isSelected ? "bg-accent" : "hover:bg-accent"
-          } ${isDragging ? "opacity-50" : ""} ${
-            isDragOver && canDrop ? "ring-2 ring-primary bg-accent" : ""
-          }`}
+          className={`flex items-center rounded transition-colors cursor-pointer select-none ${isSelected ? "bg-accent" : "hover:bg-accent"
+            } ${isDragging ? "opacity-50" : ""} ${isDragOver && canDrop ? "ring-2 ring-primary bg-accent" : ""
+            }`}
           draggable={!isRenaming}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
