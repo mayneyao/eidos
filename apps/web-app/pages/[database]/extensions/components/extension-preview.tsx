@@ -1,15 +1,16 @@
-import { forwardRef, useState, useEffect } from "react"
+import { forwardRef, useEffect, useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import { BlockExtensionType } from "@/packages/core/types/IExtension"
 import type { IDirectoryEntry } from "@/packages/core/types/IExternalFileSystem"
 import { ChevronDown, ChevronRight, File, Folder } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BlockRenderer } from "@/components/block-renderer/block-renderer"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { cn } from "@/lib/utils"
+import { FileHandlerPreview } from "./file-handler-preview"
 
 interface ExtensionPreviewProps {
   script: IExtension
@@ -22,7 +23,7 @@ interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
 }
 
-const FileTreeSelector = ({
+export const FileTreeSelector = ({
   rootDir = "~/",
   selectedPath,
   onSelect,
@@ -171,9 +172,8 @@ export const ExtensionPreview = forwardRef<
   HTMLDivElement,
   ExtensionPreviewProps
 >(({ script, currentCompiledDraftCode, height, onCompileAndSubmit }, ref) => {
-  const [selectedFileHash, setSelectedFileHash] = useState<string>("")
-  
-  const isFileHandler = script.type === "block" && 
+  const isFileHandler =
+    script.type === "block" &&
     script.meta?.type === BlockExtensionType.FileHandler
 
   if (!script.code) {
@@ -190,41 +190,36 @@ export const ExtensionPreview = forwardRef<
   }
 
   return (
-    <div className="h-full flex" ref={ref}>
-      {isFileHandler && (
-        <div className="w-80 border-r flex flex-col">
-          <div className="flex-1 overflow-hidden">
-            <FileTreeSelector
-              rootDir="~/"
-              selectedPath={selectedFileHash}
-              onSelect={setSelectedFileHash}
+    <div className="h-full" ref={ref}>
+      {isFileHandler ? (
+        <FileHandlerPreview
+          script={script}
+          currentCompiledDraftCode={currentCompiledDraftCode}
+          height={height}
+        />
+      ) : (
+        <div className="h-full overflow-hidden">
+          {script.type === "block" && (
+            <BlockRenderer
+              blockId={script.id}
+              code={script.ts_code || ""}
+              compiledCode={currentCompiledDraftCode || script.code || ""}
+              env={{}}
+              bindings={{}}
+              height={height}
             />
-          </div>
+          )}
+
+          {script.type === "script" && (
+            <div className="h-full overflow-auto p-2">
+              <div className="text-sm text-muted-foreground">
+                Script extensions run in the background and don't have a visual
+                preview.
+              </div>
+            </div>
+          )}
         </div>
       )}
-
-      <div className="flex-1 overflow-hidden">
-        {script.type === "block" && (
-          <BlockRenderer
-            blockId={script.id}
-            code={script.ts_code || ""}
-            compiledCode={currentCompiledDraftCode || script.code || ""}
-            env={{}}
-            bindings={{}}
-            height={height}
-            hash={isFileHandler ? `#${selectedFileHash}` : undefined}
-          />
-        )}
-
-        {script.type === "script" && (
-          <div className="h-full overflow-auto p-2">
-            <div className="text-sm text-muted-foreground">
-              Script extensions run in the background and don't have a visual
-              preview.
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   )
 })
