@@ -234,36 +234,41 @@ export const useFileTreeData = ({
           return
         }
 
-        if (pathParts.length === 1) {
-          await loadRootDirectory()
-          return
+        // Find the deepest directory in the path that is currently expanded
+        // We start from the parent of the changed file and walk up
+        let targetPathToReload = rootDir
+
+        // Construct full paths for all segments
+        // If path is "a/b/c", we check "root/a/b", then "root/a", then "root"
+        for (let i = pathParts.length - 1; i >= 0; i--) {
+          const subPath = pathParts.slice(0, i + 1).join("/")
+          const fullPath = `${rootDir}/${subPath}`
+
+          // If this directory is expanded, we should reload it
+          // This ensures we reload the closest visible parent to the change
+          if (expandedNodes.has(fullPath)) {
+            targetPathToReload = fullPath
+            break
+          }
         }
 
-        // Nested change: find the parent directory and reload it
-        // For path "parent1/child1/grandchild1", we want to reload "parent1" (the first part)
-        // which represents the top-level directory under root
-        const topLevelId = pathParts[0] // First part is the top-level directory
-        const topLevelPath = `${rootDir}/${topLevelId}`
-
         // Check if this reload is already pending
-        if (pendingReloadsRef.current.has(topLevelPath)) {
+        if (pendingReloadsRef.current.has(targetPathToReload)) {
           return
         }
 
         // Mark this reload as pending
-        pendingReloadsRef.current.add(topLevelPath)
+        pendingReloadsRef.current.add(targetPathToReload)
 
         try {
-          // Check if the top-level directory is currently expanded
-          if (expandedNodes.has(topLevelPath)) {
-            await loadSubDirectory(topLevelPath)
-          } else {
-            // Top-level directory is not expanded, just reload root to update counts/visibility
+          if (targetPathToReload === rootDir) {
             await loadRootDirectory()
+          } else {
+            await loadSubDirectory(targetPathToReload)
           }
         } finally {
           // Remove from pending reloads
-          pendingReloadsRef.current.delete(topLevelPath)
+          pendingReloadsRef.current.delete(targetPathToReload)
         }
       } catch (error) {
         console.error("[FileTree Watch] Error handling watch event:", error)
@@ -301,39 +306,39 @@ export const useFileTreeData = ({
           return
         }
 
-        if (pathParts.length === 1) {
-          // First level change - reload the mount directory itself
-          await loadSubDirectory(mountPath)
-          return
+        // Find the deepest directory in the path that is currently expanded
+        // We start from the parent of the changed file and walk up to the mount path
+        let targetPathToReload = mountPath
+        const mountPathNormalized = mountPath.endsWith("/")
+          ? mountPath.slice(0, -1)
+          : mountPath
+
+        // Construct full paths for all segments relative to mount path
+        // If path is "a/b/c" relative to mount, we check "mount/a/b", then "mount/a", then "mount"
+        for (let i = pathParts.length - 1; i >= 0; i--) {
+          const subPath = pathParts.slice(0, i + 1).join("/")
+          const fullPath = `${mountPathNormalized}/${subPath}`
+
+          // If this directory is expanded, we should reload it
+          if (expandedNodes.has(fullPath)) {
+            targetPathToReload = fullPath
+            break
+          }
         }
 
-        // Nested change: find which directory in the mount path needs to be reloaded
-        // For path "child1/grandchild1", we want to reload "mountPath/child1"
-        // Ensure proper path joining (mountPath may or may not end with /)
-        const mountPathNormalized = mountPath.endsWith("/")
-          ? mountPath
-          : `${mountPath}/`
-        const firstLevelPath = `${mountPathNormalized}${pathParts[0]}`
-
         // Check if this reload is already pending
-        if (pendingReloadsRef.current.has(firstLevelPath)) {
+        if (pendingReloadsRef.current.has(targetPathToReload)) {
           return
         }
 
         // Mark this reload as pending
-        pendingReloadsRef.current.add(firstLevelPath)
+        pendingReloadsRef.current.add(targetPathToReload)
 
         try {
-          // Check if the directory is currently expanded
-          if (expandedNodes.has(firstLevelPath)) {
-            await loadSubDirectory(firstLevelPath)
-          } else {
-            // Directory is not expanded, reload the mount root to update counts/visibility
-            await loadSubDirectory(mountPath)
-          }
+          await loadSubDirectory(targetPathToReload)
         } finally {
           // Remove from pending reloads
-          pendingReloadsRef.current.delete(firstLevelPath)
+          pendingReloadsRef.current.delete(targetPathToReload)
         }
       } catch (error) {
         console.error(
