@@ -150,7 +150,7 @@ export function GeneralSettings() {
         // Get current workspace info via IPC
         const spaceInfo = await window.eidos.invoke("get-current-space")
         if (spaceInfo && spaceInfo.path) {
-          window.eidos.openFolder(spaceInfo.path)
+          window.eidos.showInFileManager(spaceInfo.path)
         } else {
           console.error("No space path found")
         }

@@ -35,7 +35,7 @@ interface Window {
         getEfsManager: () => Promise<import('@/lib/storage/eidos-file-system').EidosFileSystemManager>
         config: import('./config/index').ConfigManager
         selectFolder: () => Promise<string | undefined>
-        openFolder: (folder: string) => Promise<void>
+        showInFileManager: (path: string) => Promise<void>
         checkIsDataFolderSet: () => Promise<boolean>
         reloadApp: () => Promise<void>
         minimizeWindow: () => void

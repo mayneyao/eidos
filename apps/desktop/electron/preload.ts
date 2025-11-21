@@ -188,7 +188,7 @@ function main() {
     },
     checkIsDataFolderSet: checkIsDataFolderSet,
     selectFolder: () => ipcRenderer.invoke('select-folder'),
-    openFolder: (folder: string) => ipcRenderer.invoke('open-folder', folder),
+    showInFileManager: (path: string) => ipcRenderer.invoke('show-in-file-manager', path),
     openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
     reloadApp: () => ipcRenderer.invoke('reload-app'),
     initializePlayground: (space: string, blockId: string, files: PlaygroundFile[]) => ipcRenderer.invoke('initialize-playground', space, blockId, files),

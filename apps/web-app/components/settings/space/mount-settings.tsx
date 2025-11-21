@@ -83,8 +83,8 @@ export function MountSettings() {
 
   const handleOpenFolder = async (mountPath: string) => {
     try {
-      if (typeof window.eidos !== "undefined" && window.eidos.openFolder) {
-        window.eidos.openFolder(mountPath)
+      if (typeof window.eidos !== "undefined" && window.eidos.showInFileManager) {
+        window.eidos.showInFileManager(mountPath)
       }
     } catch (error) {
       console.error('Failed to open folder:', error)

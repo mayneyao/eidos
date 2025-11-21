@@ -4,6 +4,7 @@ import type { BrowserWindow } from 'electron';
 import { Menu, Tray, app, dialog, ipcMain, nativeImage, shell, webContents } from 'electron';
 import electronLog from 'electron-log';
 import path from 'path';
+import fs from 'fs/promises';
 import { getConfigManager } from './config';
 import { corsManager } from './cors-manager';
 import { closeDataSpace, getDataSpace, getOrSetDataSpace, reloadDataSpace } from './data-space';
@@ -153,17 +154,17 @@ ipcMain.handle('sqlite-msg', async (event, payload) => {
 
         // Check if this is an iterator function using the registry
         const isIterFunc = isIteratorFunction(payload.data.method)
-        
+
         // For iterator functions, create an AbortController to handle cancellation
         let abortController: AbortController | undefined
-        
+
         // Prepare params - for iterator functions, we'll add AbortSignal
         let finalParams = [...(payload.data.params || [])]
-        
+
         // Check if this is an iterator function and create AbortController
         if (isIterFunc) {
             abortController = new AbortController()
-            
+
             // Listen for cancel messages via IPC
             const cancelHandler = (_event: Electron.IpcMainEvent, cancelPayload: any) => {
                 if (cancelPayload?.type === MsgType.IteratorCancel && cancelPayload?.id === payload.id) {
@@ -171,7 +172,7 @@ ipcMain.handle('sqlite-msg', async (event, payload) => {
                 }
             }
             ipcMain.on(`sqlite-iterator-cancel-${payload.id}`, cancelHandler)
-            
+
             // Add signal to params if options object exists
             // Note: params come serialized (AbortSignal was removed), so we add our new signal
             if (finalParams.length > 0 && typeof finalParams[finalParams.length - 1] === 'object' && finalParams[finalParams.length - 1] !== null) {
@@ -183,13 +184,13 @@ ipcMain.handle('sqlite-msg', async (event, payload) => {
                 finalParams.push({ signal: abortController.signal })
             }
         }
-        
+
         // Create modified payload with final params
         const modifiedPayload = {
             ...payload.data,
             params: finalParams,
         }
-        
+
         const res = await handleFunctionCall(modifiedPayload, dataSpace)
 
         // Check if the result is an AsyncIterable (for iterator functions like watch)
@@ -319,22 +320,24 @@ ipcMain.handle('select-folder', async () => {
     }
 });
 
-ipcMain.handle('open-folder', (event, folder) => {
-    if (folder) {
-        shell.openPath(folder)
-            .then((result) => {
-                if (result) {
-                    electronLog.error(`Error opening folder: ${result}`);
-                } else {
-                    electronLog.info(`Folder opened successfully: ${folder}`);
-                }
-            })
-            .catch((error) => {
-                electronLog.error(`Error opening folder: ${error}`);
-            });
+ipcMain.handle('show-in-file-manager', async (event, path) => {
+    if (path) {
+        try {
+            const stats = await fs.stat(path);
+            if (stats.isFile()) {
+                shell.showItemInFolder(path);
+            } else {
+                shell.openPath(path);
+            }
+        } catch (error) {
+            electronLog.error('Error accessing path:', error);
+            return { success: false, error: 'Failed to access path' };
+        }
     } else {
-        electronLog.warn('No folder path provided');
+        electronLog.warn('No path provided');
+        return { success: false, error: 'No path provided' };
     }
+    return { success: true };
 });
 
 ipcMain.handle('open-url', async (event, url) => {
