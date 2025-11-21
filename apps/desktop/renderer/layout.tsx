@@ -18,12 +18,14 @@ import { useWorker } from "@/apps/web-app/hooks/use-worker"
 import { useAppStoreBase } from "@/apps/web-app/store/app-store"
 
 import { useProtocolUrl } from "./hooks/useProtocolUrl"
+import { useSyncFileActions } from "@/hooks/use-all-file-actions"
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
   const { isSidebarOpen } = useAppStoreBase()
   useProtocolUrl()
   useSyncFileHandlers()
+  useSyncFileActions()
   useEffect(() => {
     if (!isInitialized) {
       initWorker()
