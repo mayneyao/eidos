@@ -47,14 +47,6 @@ export const Nav = ({
     setSidebarOpen(!isSidebarOpen)
   }
 
-  // Check if we're on file-handler page and get file path
-  const isFileHandlerPage = location.pathname.includes("/file-handler")
-  const filePath = isFileHandlerPage && location.hash.startsWith("#")
-    ? decodeURIComponent(location.hash.substring(1))
-    : isFileHandlerPage
-      ? decodeURIComponent(location.hash)
-      : ""
-
   return (
     <div
       className={cn(
@@ -88,21 +80,10 @@ export const Nav = ({
         </Button>
       )}
 
-      <div className="hidden md:block flex-1 min-w-0 h-full">
-        {isFileHandlerPage && filePath ? (
-          <div className="flex w-full h-full">
-            <div className="flex items-center text-sm text-muted-foreground min-w-0 flex-shrink" title={filePath}>
-              <span className="truncate block">{filePath}</span>
-            </div>
-            <div className="h-full grow" id="drag-region" />
-          </div>
-        ) : (
-          children || <BreadCrumb />
-        )}
-      </div>
-      {!isFileHandlerPage && <div className="h-full grow" id="drag-region" />}
+      <div className="hidden md:block min-w-0 overflow-hidden">{children || <BreadCrumb />}</div>
+      <div className="h-full grow" id="drag-region" />
       <div
-        className={cn("flex items-center justify-between gap-1", {
+        className={cn("flex items-center gap-1 shrink-0 grow-0", {
           "pr-[100px]": isWindowsDesktop && !isRightPanelOpen,
         })}
       >

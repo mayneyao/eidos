@@ -115,6 +115,15 @@ export function DesktopSpaceLayout() {
     )
   }
 
+  // Check if we're on file-handler page and get file path
+  const isFileHandlerPage = location.pathname.includes("/file-handler")
+  const filePath =
+    isFileHandlerPage && location.hash.startsWith("#")
+      ? decodeURIComponent(location.hash.substring(1))
+      : isFileHandlerPage
+        ? decodeURIComponent(location.hash)
+        : ""
+
   return (
     <>
       {/* <DocExtBlockLoader /> */}
@@ -141,6 +150,14 @@ export function DesktopSpaceLayout() {
               <div className="flex flex-col h-full min-w-0">
                 <Nav>
                   {scriptId && <ScriptBreadcrumb scriptIdOrSlug={scriptId} />}
+                  {filePath && (
+                    <div
+                      className="flex items-center text-sm text-muted-foreground pointer-events-none select-none max-w-full overflow-hidden"
+                      title={filePath}
+                    >
+                      <span className="truncate block">{filePath}</span>
+                    </div>
+                  )}
                 </Nav>
                 <div
                   id="main-content"
