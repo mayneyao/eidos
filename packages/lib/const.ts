@@ -137,3 +137,12 @@ export const WORKER_INIT_CONFIG = {
 export const WORKER_MESSAGE_TYPES = {
   IS_WORKER_INITIALIZED: 'isWorkerInitialized'
 } as const
+
+// Allowed file extensions for document processing and context
+export const ALLOWED_DOCUMENT_EXTENSIONS = [
+  '.md', '.markdown', '.txt', '.rtf', '.doc', '.docx', '.pdf',
+  '.json', '.xml', '.html', '.htm', '.css', '.js', '.ts',
+  '.jsx', '.tsx', '.py', '.rs', '.go', '.java', '.cpp', '.c',
+  '.php', '.rb', '.sh', '.yaml', '.yml', '.toml', '.ini',
+  '.cfg', '.conf'
+]

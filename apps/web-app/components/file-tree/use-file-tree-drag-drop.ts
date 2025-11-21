@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
+import { useDragStore } from "@/apps/web-app/store/drag-store"
 
 import type { FileTreeNode } from "./index"
 
@@ -25,6 +26,7 @@ export const useFileTreeDragDrop = ({
   getPlaceholderText,
 }: UseFileTreeDragDropOptions) => {
   const { sqlite } = useSqlite()
+  const { setDragging } = useDragStore()
   const [dragOverNode, setDragOverNode] = useState<string | null>(null)
   const [draggingNode, setDraggingNode] = useState<string | null>(null)
 
@@ -32,6 +34,7 @@ export const useFileTreeDragDrop = ({
     (e: React.DragEvent, node: FileTreeNode) => {
       e.stopPropagation()
       setDraggingNode(node.path)
+      setDragging(true, node)
 
       // Get display name for drag operations (handles empty names)
       const displayName =
@@ -51,26 +54,31 @@ export const useFileTreeDragDrop = ({
       e.dataTransfer.setData("application/eidos-node", JSON.stringify(dragData))
       e.dataTransfer.setData("text/plain", displayName) // Fallback for external apps
     },
-    [getPlaceholderText]
+    [getPlaceholderText, setDragging]
   )
 
   const handleDragEnd = useCallback((e: React.DragEvent) => {
     e.stopPropagation()
     setDraggingNode(null)
     setDragOverNode(null)
-  }, [])
+    setDragging(false)
+  }, [setDragging])
 
   const handleDragOver = useCallback(
     (e: React.DragEvent, node: FileTreeNode) => {
-      // Only allow drop on folders
-      if (node.kind !== "directory") return
-
+      // Allow drag over on all nodes for external drop support (e.g., AI chat)
       e.preventDefault()
       e.stopPropagation()
-      e.dataTransfer.dropEffect = "move"
+      e.dataTransfer.dropEffect = "copy"
 
-      if (dragOverNode !== node.path) {
-        setDragOverNode(node.path)
+      // Only set drag over state for directories (for visual feedback)
+      if (node.kind === "directory") {
+        if (dragOverNode !== node.path) {
+          setDragOverNode(node.path)
+        }
+      } else {
+        // Clear drag over state for files
+        setDragOverNode(null)
       }
     },
     [dragOverNode]
@@ -91,6 +99,13 @@ export const useFileTreeDragDrop = ({
     if (e.currentTarget === e.target) {
       setDragOverNode(null)
     }
+  }, [])
+
+  const handleExternalDragOver = useCallback((e: React.DragEvent) => {
+    // Allow drag over for external drop targets (e.g., AI chat)
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = "copy"
   }, [])
 
   const handleDrop = useCallback(
@@ -172,6 +187,7 @@ export const useFileTreeDragDrop = ({
     handleDragEnter,
     handleDragLeave,
     handleDrop,
+    handleExternalDragOver,
   }
 }
 
