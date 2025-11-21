@@ -1,5 +1,6 @@
 import { Menu, PanelRightIcon } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useLocation, useSearchParams } from "react-router-dom"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
@@ -19,6 +20,8 @@ export const Nav = ({
   showMenu?: boolean
   children?: React.ReactNode
 }) => {
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
   const {
@@ -43,6 +46,14 @@ export const Nav = ({
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen)
   }
+
+  // Check if we're on file-handler page and get file path
+  const isFileHandlerPage = location.pathname.includes("/file-handler")
+  const filePath = isFileHandlerPage && location.hash.startsWith("#")
+    ? decodeURIComponent(location.hash.substring(1))
+    : isFileHandlerPage
+      ? decodeURIComponent(location.hash)
+      : ""
 
   return (
     <div
@@ -77,8 +88,19 @@ export const Nav = ({
         </Button>
       )}
 
-      <div className="hidden md:block">{children || <BreadCrumb />}</div>
-      <div className="h-full grow" id="drag-region" />
+      <div className="hidden md:block flex-1 min-w-0 h-full">
+        {isFileHandlerPage && filePath ? (
+          <div className="flex w-full h-full">
+            <div className="flex items-center text-sm text-muted-foreground min-w-0 flex-shrink" title={filePath}>
+              <span className="truncate block">{filePath}</span>
+            </div>
+            <div className="h-full grow" id="drag-region" />
+          </div>
+        ) : (
+          children || <BreadCrumb />
+        )}
+      </div>
+      {!isFileHandlerPage && <div className="h-full grow" id="drag-region" />}
       <div
         className={cn("flex items-center justify-between gap-1", {
           "pr-[100px]": isWindowsDesktop && !isRightPanelOpen,
