@@ -298,16 +298,16 @@ export function MarkdownEditor() {
       .readFile(filePath, "utf8")
       .then(setContent)
       .catch((err) => {
-        eidos.currentSpace.notify("错误", `无法读取文件: ${err.message}`)
+        eidos.currentSpace.notify({ title: "错误", description: `无法读取文件: ${err.message}` })
       })
   }, [filePath])
 
   const handleSave = async () => {
     try {
       await eidos.currentSpace.fs.writeFile(filePath, content, "utf8")
-      eidos.currentSpace.notify("成功", "文件已保存")
+      eidos.currentSpace.notify("文件已保存")
     } catch (err) {
-      eidos.currentSpace.notify("错误", `保存失败: ${err.message}`)
+      eidos.currentSpace.notify({ title: "错误", description: `保存失败: ${err.message}` })
     }
   }
 

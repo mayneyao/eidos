@@ -1,12 +1,20 @@
 ---
 title: Script
-description: "一个灵活的数据层解决方案，通过三个主要执行上下文实现可扩展功能：LLM 工具、表格操作和用户自定义函数 (UDF)。"
+description: "一个灵活的数据层解决方案，通过多个执行上下文实现可扩展功能：LLM 工具、表格动作、文档动作、文件动作和用户自定义函数 (UDF)。"
 sidebar:
   order: 1
   badge: RFC
 ---
 
-本文档规定了脚本扩展，这是一个灵活的数据层解决方案，通过三个主要执行上下文实现可扩展功能：LLM 工具、表格操作和用户自定义函数 (UDF)。脚本扩展为数据处理工作流程中的自定义逻辑执行提供了统一的接口。
+本文档规定了脚本扩展，这是一个灵活的数据层解决方案，通过多个执行上下文实现可扩展功能。脚本扩展为数据处理工作流程中的自定义逻辑执行提供了统一的接口。
+
+支持的脚本类型包括：
+
+- **LLM 工具**：作为 AI 代理的可调用工具
+- **表格动作**：在表格记录上触发的自定义动作
+- **文档动作**：在文档上触发的智能处理
+- **文件动作**：后台处理文件的一键操作
+- **用户自定义函数 (UDF)**：可在 SQL 查询中调用的数据库函数
 
 ## 1. 介绍
 
@@ -63,11 +71,11 @@ export function hello({ name }: { name: string }) {
 }
 ```
 
-### 2.2 表格操作脚本
+### 2.2 表格动作脚本
 
 #### 2.2.1 概述
 
-当 `type` 属性设置为 `"tableAction"` 时，脚本作为表格级操作，可以在选定记录上触发。这些操作通过上下文菜单访问，使用自定义功能扩展表格界面。
+当 `type` 属性设置为 `"tableAction"` 时，脚本作为表格级动作，可以在选定记录上触发。这些动作通过上下文菜单访问，使用自定义功能扩展表格界面。
 
 #### 2.2.2 元配置
 
@@ -84,7 +92,7 @@ interface TableActionMeta {
 
 #### 2.2.3 执行上下文
 
-表格操作函数接收两个参数：
+表格动作函数接收两个参数：
 
 - `input`: 作为 `Record<string, any>` 的选定记录数据
 - `ctx`: 包含 `tableId`、`viewId` 和 `rowId` 的上下文对象
@@ -123,7 +131,7 @@ export async function toggleChecked(
 
 #### 2.3.1 概述
 
-当 `type` 属性设置为 `"docAction"` 时，脚本作为文档级操作，可以在特定文档上触发。这些操作通过文档动作菜单访问，让您的文档变得更加智能和自动化。
+当 `type` 属性设置为 `"docAction"` 时，脚本作为文档级动作，可以在特定文档上触发。这些动作通过文档动作菜单访问，让您的文档变得更加智能和自动化。
 
 #### 2.3.2 元配置
 
@@ -186,13 +194,130 @@ export async function calculateCompletion(
 }
 ```
 
-### 2.4 用户自定义函数 (UDF) 脚本
+### 2.4 文件动作脚本
 
 #### 2.4.1 概述
 
-当 `type` 属性设置为 `"udf"` 时，脚本创建可以在 SQL 查询中调用的数据库函数，扩展数据库的计算能力。
+当 `type` 属性设置为 `"fileAction"` 时，脚本作为文件级动作，可以在特定文件上触发。这些动作通过文件右键菜单访问，实现后台文件处理功能，无需打开 UI 界面。
+
+:::tip[File Action vs File Handler]
+**有无 UI 之分**：
+
+- **File Handler（文件处理器）**: 需要 **UI 界面**，用于查看、编辑文件内容（如 Markdown 编辑器、音频播放器）。双击文件时打开。
+
+- **File Action（文件动作）**: **无需 UI**，在后台处理文件（如压缩、转换、格式化）。通过右键菜单触发，执行完成后显示通知。
+
+简单来说：File Handler 打开文件查看/编辑，File Action 后台处理文件。
+:::
 
 #### 2.4.2 元配置
+
+```typescript
+interface FileActionMeta {
+  type: "fileAction"
+  funcName: string
+  fileAction: {
+    name: string
+    description: string
+    extensions: string[]  // 支持的文件扩展名，如 [".jpg", ".png"]
+    icon?: string         // 可选图标
+  }
+}
+```
+
+#### 2.4.3 执行上下文
+
+文件动作函数接收两个参数：
+
+- `filePath`: 文件路径字符串（格式同 File Handler，支持 `~/` 和 `@/` 前缀）
+- `ctx`: 上下文对象（当前为空对象，预留用于未来扩展）
+
+#### 2.4.4 实现示例
+
+```ts
+export const meta = {
+  type: "fileAction",
+  funcName: "compressImage",
+  fileAction: {
+    name: "压缩图片",
+    description: "将图片压缩到原大小的 50%",
+    extensions: [".jpg", ".jpeg", ".png"],
+    icon: "🗜️"
+  }
+}
+
+export async function compressImage(
+  filePath: string,
+  ctx: Record<string, any>
+) {
+  try {
+    // 读取原始文件
+    const data = await eidos.currentSpace.fs.readFile(filePath)
+    
+    // 压缩图片（使用第三方库，如 browser-image-compression）
+    const compressed = await compressImageData(data, {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920
+    })
+    
+    // 生成新文件路径
+    const newPath = filePath.replace(/(\.\w+)$/, '_compressed$1')
+    await eidos.currentSpace.fs.writeFile(newPath, compressed)
+    
+    // 显示成功通知
+    eidos.currentSpace.notify({ title: "成功", description: `已压缩并保存到 ${newPath}` })
+    
+    return {
+      success: true,
+      outputPath: newPath,
+      originalSize: data.byteLength,
+      compressedSize: compressed.byteLength
+    }
+  } catch (error) {
+    eidos.currentSpace.notify({ title: "错误", description: `压缩失败: ${error.message}` })
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+}
+```
+
+#### 2.4.5 用户体验流程
+
+1. 用户在文件树中右键点击文件
+2. 看到"文件动作"子菜单，列出所有支持该扩展名的 `fileAction`
+3. 点击某个动作（如"压缩图片"）
+4. 脚本在后台执行
+5. 完成后显示通知，告知结果
+
+#### 2.4.6 文件访问 API
+
+与 File Handler 相同，使用 `eidos.currentSpace.fs` API 访问文件：
+
+```typescript
+// 读取文本文件
+const text = await eidos.currentSpace.fs.readFile(filePath, "utf8")
+
+// 读取二进制文件
+const data = await eidos.currentSpace.fs.readFile(filePath)
+
+// 写入文件
+await eidos.currentSpace.fs.writeFile(filePath, content, "utf8")
+
+// 获取文件信息
+const stats = await eidos.currentSpace.fs.stat(filePath)
+```
+
+更多文件系统 API 详情，请参阅 [Space API 参考 - 文件系统 API](/zh-cn/api-reference/space/#文件系统-api)。
+
+### 2.5 用户自定义函数 (UDF) 脚本
+
+#### 2.5.1 概述
+
+当 `type` 属性设置为 `"udf"` 时，脚本创建可以在 SQL 查询中调用的数据库函数，扩展数据库的计算能力。
+
+#### 2.5.2 元配置
 
 ```typescript
 interface UDFMeta {
@@ -205,9 +330,9 @@ interface UDFMeta {
 }
 ```
 
-#### 2.4.3 UDF 类型
+#### 2.5.3 UDF 类型
 
-##### 2.4.3.1 标量 UDF
+##### 2.5.3.1 标量 UDF
 
 标量 UDF 对单个值进行操作，每次调用返回单个结果。
 
