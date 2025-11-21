@@ -1,8 +1,8 @@
 "use client"
 
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
-import type { FileHandlerMeta, IExtension } from "@/packages/core/types/IExtension"
-import { FileIcon, PencilLineIcon, Trash2Icon } from "lucide-react"
+import type { FileActionMeta, FileHandlerMeta, IExtension } from "@/packages/core/types/IExtension"
+import { FileIcon, PencilLineIcon, Trash2Icon, ZapIcon } from "lucide-react"
 import React from "react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -11,6 +11,9 @@ import {
   getFileExtension,
   useFileHandlers,
 } from "@/hooks/use-file-handlers"
+import { useFileActions } from "@/hooks/use-file-actions"
+import { useScriptFunction } from "@/components/script-container/hook"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -47,11 +50,26 @@ export const FileContextMenu = ({
   const navigate = useNavigate()
   const fileExtension = getFileExtension(node.path)
   const { handlers, isLoading: isLoadingHandlers } = useFileHandlers(fileExtension)
+  const { fileActions, isLoading: isLoadingActions } = useFileActions(fileExtension)
+  const { callFunction } = useScriptFunction()
+  const { space } = useCurrentPathInfo()
 
   const hasMultipleHandlers = handlers.length > 1
   const showOpenWith = !isLoadingHandlers && hasMultipleHandlers
+  const showFileActions = !isLoadingActions && fileActions.length > 0
   const hasRenameOrDelete = !!(onRename || onDelete)
-  const hasAnyMenuItems = showOpenWith || hasRenameOrDelete
+  const hasAnyMenuItems = showOpenWith || showFileActions || hasRenameOrDelete
+
+  const handleFileAction = async (action: IExtension<FileActionMeta>) => {
+    await callFunction({
+      input: { filePath: node.path },
+      command: action.meta!.funcName,
+      context: {},
+      code: action.code,
+      id: action.id,
+      space: space,
+    })
+  }
 
   const handleOpenWith = (handler: IExtension<FileHandlerMeta>) => {
     // Navigate to file handler page with handler ID in query parameter
@@ -93,10 +111,42 @@ export const FileContextMenu = ({
                 })}
               </ContextMenuSubContent>
             </ContextMenuSub>
-            {/* Only show separator if there are items below */}
-            {hasRenameOrDelete && <ContextMenuSeparator />}
           </>
         )}
+
+        {showOpenWith && (showFileActions || hasRenameOrDelete) && (
+          <ContextMenuSeparator />
+        )}
+
+        {/* File Actions submenu */}
+        {showFileActions && (
+          <>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <ZapIcon className="mr-2 h-4 w-4" />
+                {t("file.menu.actions", "File Actions")}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                {fileActions.map((action) => {
+                  const meta = action.meta as FileActionMeta
+                  return (
+                    <ContextMenuItem
+                      key={action.id}
+                      onClick={() => handleFileAction(action)}
+                    >
+                      {meta.fileAction.icon && (
+                        <span className="mr-2">{meta.fileAction.icon}</span>
+                      )}
+                      {meta.fileAction.name || action.name}
+                    </ContextMenuItem>
+                  )
+                })}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </>
+        )}
+
+        {showFileActions && hasRenameOrDelete && <ContextMenuSeparator />}
 
         {onRename && (
           <ContextMenuItem onClick={() => onRename(node)}>

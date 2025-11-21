@@ -28,6 +28,7 @@ import { useReadSqliteStore } from "@/apps/web-app/hooks/use-readonly-sqlite"
 import { useSyncExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useSyncMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
 import { useDocPropertyTypes } from "@/components/doc-property-global/property-type-hook"
+import { useSyncFileActions } from "@/apps/web-app/hooks/use-all-file-actions"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
@@ -85,6 +86,7 @@ export const useLayoutInit = () => {
 
   useSyncExtNodes()
   useSyncMblocks()
+  useSyncFileActions()
   useEffect(() => {
     updateNodeList()
   }, [updateNodeList])
