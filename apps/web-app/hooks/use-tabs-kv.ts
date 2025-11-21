@@ -10,7 +10,7 @@ export interface FavBlock {
     space: string
 }
 
-const DEFAULT_TABS: TabId[] = ["nodes", "extensions", "today", "files"]
+const DEFAULT_TABS: TabId[] = ["nodes", "extensions", "files", "today"]
 
 export const useTabsKV = () => {
     const [tabs, setTabs] = useSqliteKV<TabId[]>("eidos:space:sidebar:tabs", DEFAULT_TABS)

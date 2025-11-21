@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useMounts } from "@/apps/web-app/hooks/use-mounts"
 
 import FileTree, { type FileTreeNode } from "../../file-tree"
@@ -10,11 +11,12 @@ import FileTree, { type FileTreeNode } from "../../file-tree"
 export const FilesSidebar = () => {
   const { t } = useTranslation()
   const { mounts } = useMounts()
+  const { currentSpace } = useCurrentSpace()
 
   const rootNodes = useMemo<FileTreeNode[]>(() => {
     const nodes: FileTreeNode[] = [
       {
-        name: t("sidebar.files.projectRoot", "Project Root"),
+        name: currentSpace?.name || "Space Root",
         path: "~/",
         parentPath: "",
         kind: "directory",
@@ -31,7 +33,7 @@ export const FilesSidebar = () => {
     })
 
     return nodes
-  }, [mounts, t])
+  }, [mounts, t, currentSpace?.name])
 
   return (
     <div className="flex h-full w-full flex-col overflow-y-auto">
