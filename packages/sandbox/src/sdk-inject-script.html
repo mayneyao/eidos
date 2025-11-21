@@ -183,8 +183,8 @@
                     console.log("data", responseData)
                     const simulatedPort = {
                       onmessage: null,
-                      close: () => {},
-                      postMessage: () => {},
+                      close: () => { },
+                      postMessage: () => { },
                     }
                     setTimeout(() => {
                       if (simulatedPort.onmessage) {
@@ -199,7 +199,7 @@
                     throw error
                   }
                 },
-                close: () => {},
+                close: () => { },
               }
             }
           }
@@ -474,8 +474,8 @@
 
               const simulatedPort = {
                 onmessage: null,
-                close: () => {},
-                postMessage: () => {},
+                close: () => { },
+                postMessage: () => { },
               }
               setTimeout(() => {
                 if (simulatedPort.onmessage) {
@@ -490,7 +490,7 @@
               throw error
             }
           },
-          close: () => {},
+          close: () => { },
         }
       }
     }
@@ -575,6 +575,16 @@
       for (const key in bindings) {
         window.__EIDOS_BINDINGS__ = bindings
       }
+
+      const env = Object.entries(bindings || {}).reduce((acc, [key, binding]) => {
+        if (binding.type === "secret" || binding.type === "text") {
+          acc[key] = binding.value
+        }
+        return acc
+      }, {})
+
+      context.env = env
+
       try {
         const module = await await import(`/${id}.js`)
         const res = await module[command](input, context)

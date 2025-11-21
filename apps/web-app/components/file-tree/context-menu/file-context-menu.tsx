@@ -68,6 +68,7 @@ export const FileContextMenu = ({
       code: action.code,
       id: action.id,
       space: space,
+      bindings: action.bindings,
     })
   }
 

@@ -95,7 +95,7 @@ interface TableActionMeta {
 表格动作函数接收两个参数：
 
 - `input`: 作为 `Record<string, any>` 的选定记录数据
-- `ctx`: 包含 `tableId`、`viewId` 和 `rowId` 的上下文对象
+- `ctx`: 包含 `tableId`、`viewId`、`rowId` 和 `env` 的上下文对象
 
 #### 2.2.4 实现示例
 
@@ -117,7 +117,8 @@ export async function toggleChecked(
     rowId: string
   }
 ) {
-  const { tableId, viewId, rowId } = ctx
+  const { tableId, viewId, rowId, env } = ctx
+  console.log(env.MY_SECRET) // 获取环境变量
   await eidos.currentSpace.table(tableId).rows.update(rowId, {
     checked: !input.checked,
   })
@@ -151,7 +152,7 @@ interface DocActionMeta {
 文档动作函数接收两个参数：
 
 - `input`: 作为 `Record<string, any>` 的输入参数
-- `ctx`: 包含 `docId` 的上下文对象
+- `ctx`: 包含 `docId` 和 `env` 的上下文对象
 
 #### 2.3.4 实现示例
 
@@ -171,7 +172,7 @@ export async function calculateCompletion(
     docId: string
   }
 ) {
-  const { docId } = ctx
+  const { docId, env } = ctx
   const doc = await eidos.currentSpace.doc.getMarkdown(docId)
   
   // 从 markdown 中提取 checkbox 的完成占比
@@ -230,7 +231,7 @@ interface FileActionMeta {
 文件动作函数接收两个参数：
 
 - `filePath`: 文件路径字符串（格式同 File Handler，支持 `~/` 和 `@/` 前缀）
-- `ctx`: 上下文对象（当前为空对象，预留用于未来扩展）
+- `ctx`: 上下文对象，包含 `env` 环境变量
 
 #### 2.4.4 实现示例
 
@@ -248,8 +249,11 @@ export const meta = {
 
 export async function compressImage(
   filePath: string,
-  ctx: Record<string, any>
+  ctx: {
+    env: Record<string, string>
+  }
 ) {
+  const { env } = ctx
   try {
     // 读取原始文件
     const data = await eidos.currentSpace.fs.readFile(filePath)
