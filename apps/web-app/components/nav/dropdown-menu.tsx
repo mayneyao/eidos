@@ -1,9 +1,15 @@
 import { useCallback, useState } from "react"
+import type {
+  FileHandlerMeta,
+  IExtension,
+} from "@/packages/core/types/IExtension"
 import {
   CogIcon,
   CommandIcon,
   Download,
   FileCodeIcon,
+  FileIcon,
+  FolderOpen,
   Github,
   HomeIcon,
   Keyboard,
@@ -23,6 +29,9 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { isDayPageId } from "@/lib/utils"
+import { useFileItemActions } from "@/hooks/use-file-item-actions"
+import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -54,22 +63,21 @@ import { useEmbedding } from "@/apps/web-app/hooks/use-embedding"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useOpenInPlayground } from "@/apps/web-app/hooks/use-open-in-playground"
 import { useSettings } from "@/apps/web-app/hooks/use-settings"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
+import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
+import { useHandlerSelection } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-handler-selection"
 import {
   useAppsStore,
   useSpaceAppStore,
 } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { useHandlerSelection } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-handler-selection"
-import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
+import { useToast } from "../ui/use-toast"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"
 import { NodeExport } from "../node-menu/node-export"
 import { NodeOpenInCursor } from "../node-menu/open-in-cursor"
 import { Switch } from "../ui/switch"
-import { useToast } from "../ui/use-toast"
 import { VCardQrCode } from "../vcard-qr-code"
 import { UpdateStatusComponent } from "./update-status"
 
@@ -82,26 +90,23 @@ export function NavDropdownMenu() {
 
   // Check if we're on file-handler page and get current handler
   const isFileHandlerPage = location.pathname.includes("/file-handler")
-  const { fileExtension } = useFilePathFromHash()
-  const { selectedHandler, isLoadingHandlers, isLoadingDefault } = useHandlerSelection(
-    isFileHandlerPage ? fileExtension : ""
-  )
+  const { filePath, fileExtension } = useFilePathFromHash()
+  const { selectedHandler, isLoadingHandlers, isLoadingDefault } =
+    useHandlerSelection(isFileHandlerPage ? fileExtension : "")
+  const { handlers: allHandlers, isLoading: isLoadingAllHandlers } =
+    useFileHandlers(fileExtension)
 
   // Check if we're on blocks page and get current block ID
   const isBlocksPage = location.pathname.includes("/blocks")
   const blockId = isBlocksPage ? params.blockId : null
 
-  const handleViewExtension = () => {
-    if (isFileHandlerPage && selectedHandler) {
-      router(`/extensions/${selectedHandler.id}`)
-    } else if (isBlocksPage && blockId) {
-      router(`/extensions/${blockId}`)
-    }
-  }
 
   // Show menu item if we're on file-handler page and have a handler, or on blocks page with block ID
   const showViewExtension =
-    (isFileHandlerPage && selectedHandler && !isLoadingHandlers && !isLoadingDefault) ||
+    (isFileHandlerPage &&
+      selectedHandler &&
+      !isLoadingHandlers &&
+      !isLoadingDefault) ||
     (isBlocksPage && blockId)
 
   // Get menu item text based on page type
@@ -109,7 +114,11 @@ export function NavDropdownMenu() {
     ? t("nav.dropdown.menu.viewHandler", "View Handler")
     : t("nav.dropdown.menu.viewBlock", "View Block Extension")
 
-  const { deleteNode, toggleNodeFullWidth, toggleNodeLock } = useSqlite()
+  // Show "Open with" submenu if we're on file-handler page and have multiple handlers
+  const showOpenWith = isFileHandlerPage && !isLoadingAllHandlers && allHandlers.length > 1
+
+  const { sqlite, deleteNode, toggleNodeFullWidth, toggleNodeLock } =
+    useSqlite()
   const { isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
     useAppRuntimeStore()
   const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
@@ -124,12 +133,24 @@ export function NavDropdownMenu() {
     useAppRuntimeStore()
   const { getEmail, enabled } = useVCardEmail()
   const node = useCurrentNode()
-  const { toast } = useToast()
 
   const { createEmbedding } = useHnsw()
   const { experiment } = useExperimentConfigStore()
   const { space } = useCurrentPathInfo()
-  const { sqlite } = useSqlite()
+  const { toast } = useToast()
+
+  // File item actions context
+  const fileActionsContext = {
+    filePath: filePath || "",
+    space,
+    navigate: router,
+    selectedHandler,
+    blockId,
+    isFileHandlerPage,
+    isBlocksPage,
+  }
+
+  const { openInFileManager, openWith, viewExtension } = useFileItemActions(fileActionsContext)
 
   const onPlaygroundChange = useCallback(
     async (
@@ -265,9 +286,54 @@ export function NavDropdownMenu() {
             {showViewExtension && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleViewExtension}>
+                <DropdownMenuItem onClick={viewExtension}>
                   <FileCodeIcon className="mr-2 h-4 w-4" />
                   <span>{viewExtensionText}</span>
+                </DropdownMenuItem>
+              </>
+            )}
+
+            {/* Open with submenu (file-handler page with multiple handlers) */}
+            {showOpenWith && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <FileIcon className="mr-2 h-4 w-4" />
+                    <span>{t("file.menu.openWith", "Open with")}</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {allHandlers.map((handler) => {
+                      const meta = handler.meta as FileHandlerMeta
+                      return (
+                        <DropdownMenuItem
+                          key={handler.id}
+                          onClick={() => openWith(handler)}
+                        >
+                          {meta.fileHandler.icon && (
+                            <span className="mr-2">{meta.fileHandler.icon}</span>
+                          )}
+                          {meta.fileHandler.title || handler.name}
+                        </DropdownMenuItem>
+                      )
+                    })}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </>
+            )}
+
+            {/* Open file in file manager (file-handler page only) */}
+            {isFileHandlerPage && filePath && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={openInFileManager}>
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                  <span>
+                    {t(
+                      "nav.dropdown.menu.openInFileManager",
+                      "Open in File Manager"
+                    )}
+                  </span>
                 </DropdownMenuItem>
               </>
             )}

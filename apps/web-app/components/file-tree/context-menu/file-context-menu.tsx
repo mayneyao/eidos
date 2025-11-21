@@ -1,20 +1,25 @@
 "use client"
 
-import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
-import type { FileActionMeta, FileHandlerMeta, IExtension } from "@/packages/core/types/IExtension"
-import { FileIcon, FolderOpen, PencilLineIcon, Trash2Icon, ZapIcon } from "lucide-react"
 import React from "react"
-import { useNavigate } from "react-router-dom"
-import { useTranslation } from "react-i18next"
-
+import type {
+  FileActionMeta,
+  FileHandlerMeta,
+  IExtension,
+} from "@/packages/core/types/IExtension"
+import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import {
-  getFileExtension,
-  useFileHandlers,
-} from "@/hooks/use-file-handlers"
+  FileIcon,
+  FolderOpen,
+  PencilLineIcon,
+  Trash2Icon,
+  ZapIcon,
+} from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { useNavigate } from "react-router-dom"
+
 import { useFileActions } from "@/hooks/use-file-actions"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useScriptFunction } from "@/components/script-container/hook"
+import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
+import { useFileItemActions } from "@/hooks/use-file-item-actions"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -25,6 +30,8 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import { useScriptFunction } from "@/components/script-container/hook"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
@@ -50,104 +57,32 @@ export const FileContextMenu = ({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const fileExtension = getFileExtension(node.path)
-  const { handlers, isLoading: isLoadingHandlers } = useFileHandlers(fileExtension)
-  const { fileActions, isLoading: isLoadingActions } = useFileActions(fileExtension)
-  const { callFunction } = useScriptFunction()
+  const { handlers, isLoading: isLoadingHandlers } =
+    useFileHandlers(fileExtension)
+  const { fileActions, isLoading: isLoadingActions } =
+    useFileActions(fileExtension)
   const { space } = useCurrentPathInfo()
-  const { sqlite } = useSqlite()
+
+  const fileActionsContext = {
+    filePath: node.path,
+    space,
+    navigate,
+  }
+
+  const { openInFileManager, openWith, executeFileAction } = useFileItemActions(fileActionsContext)
 
   const hasMultipleHandlers = handlers.length > 1
   const showOpenWith = !isLoadingHandlers && hasMultipleHandlers
   const showFileActions = !isLoadingActions && fileActions.length > 0
   const hasRenameOrDelete = !!(onRename || onDelete)
   const isFolder = node.kind === "directory"
-  // Only show "Open in Finder/Explorer" if it's a folder and we are in the desktop app (window.eidos exists)
-  const showOpenFolder = isFolder && typeof window !== "undefined" && !!(window as any).eidos
+  // Show "Open in File Manager" for all items (files and folders) in desktop app
+  const showOpenFolder =
+    typeof window !== "undefined" && !!(window as any).eidos
 
-  const hasAnyMenuItems = showOpenWith || showFileActions || hasRenameOrDelete || showOpenFolder
+  const hasAnyMenuItems =
+    showOpenWith || showFileActions || hasRenameOrDelete || showOpenFolder
 
-  const handleFileAction = async (action: IExtension<FileActionMeta>) => {
-    await callFunction({
-      input: { filePath: node.path },
-      command: action.meta!.funcName,
-      context: {},
-      code: action.code,
-      id: action.id,
-      space: space,
-      bindings: action.bindings,
-    })
-  }
-
-  const handleOpenWith = (handler: IExtension<FileHandlerMeta>) => {
-    // Navigate to file handler page with handler ID in query parameter
-    // This is a temporary selection, not saved as default handler
-    navigate(`/file-handler?handler=${handler.id}#${node.path}`)
-  }
-
-  const handleOpenFolder = async () => {
-    try {
-      const eidos = window.eidos
-      if (!eidos) return
-
-      let absolutePath = ""
-      if (node.path.startsWith("~/")) {
-        const spaceInfo = await eidos.invoke("get-current-space")
-        if (spaceInfo && spaceInfo.path) {
-          // Remove ~/ and join with space path
-          // node.path is like "~/docs/folder", we want "docs/folder"
-          const relativePath = node.path.substring(2)
-          // We can't use path.join here because it's browser env, so simple string concatenation
-          // Assuming spaceInfo.path doesn't end with / and relativePath doesn't start with /
-          // But let's be safe
-          const root = spaceInfo.path.endsWith("/") ? spaceInfo.path : `${spaceInfo.path}/`
-          absolutePath = `${root}${relativePath}`
-        }
-      } else if (node.path.startsWith("@/")) {
-        // Mounted folder: @/mountName/... format
-        const parts = node.path.substring(2).split("/")
-        const mountName = parts[0]
-
-        if (!mountName) {
-          console.warn("Invalid mounted path: missing mount name")
-          return
-        }
-
-        // Resolve mount path using sqlite.kv.get
-        if (!sqlite) {
-          console.error("Database not available")
-          return
-        }
-
-        const mountKey = `eidos:space:files:mount:${mountName}`
-        const mountPath = await sqlite.kv.get(mountKey, 'text')
-
-        if (!mountPath) {
-          console.error(`Mount not found: ${mountName}`)
-          return
-        }
-
-        const relativePath = parts.slice(1).join("/")
-
-        // Join mount path with relative path
-        // Use simple string concatenation since we're in browser env
-        if (relativePath) {
-          const root = mountPath.endsWith("/") ? mountPath : `${mountPath}/`
-          absolutePath = `${root}${relativePath}`
-        } else {
-          absolutePath = mountPath
-        }
-      } else {
-        console.warn("Unsupported path format for opening folder:", node.path)
-        return
-      }
-
-      if (absolutePath) {
-        await eidos.openFolder(absolutePath)
-      }
-    } catch (error) {
-      console.error("Failed to open folder:", error)
-    }
-  }
 
   // Don't render context menu if there are no items to show
   if (!hasAnyMenuItems) {
@@ -158,6 +93,12 @@ export const FileContextMenu = ({
     <ContextMenu>
       <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
+        {showOpenFolder && (
+          <ContextMenuItem onClick={openInFileManager}>
+            <FolderOpen className="mr-2 h-4 w-4" />
+            {t("file.menu.openInFileManager", "Open in File Manager")}
+          </ContextMenuItem>
+        )}
         {/* Open with submenu (only show if multiple handlers available) */}
         {showOpenWith && (
           <>
@@ -172,7 +113,7 @@ export const FileContextMenu = ({
                   return (
                     <ContextMenuItem
                       key={handler.id}
-                      onClick={() => handleOpenWith(handler)}
+                      onClick={() => openWith(handler)}
                     >
                       {meta.fileHandler.icon && (
                         <span className="mr-2">{meta.fileHandler.icon}</span>
@@ -186,9 +127,10 @@ export const FileContextMenu = ({
           </>
         )}
 
-        {showOpenWith && (showFileActions || hasRenameOrDelete || showOpenFolder) && (
-          <ContextMenuSeparator />
-        )}
+        {showOpenWith &&
+          (showFileActions || hasRenameOrDelete || showOpenFolder) && (
+            <ContextMenuSeparator />
+          )}
 
         {/* File Actions submenu */}
         {showFileActions && (
@@ -204,7 +146,7 @@ export const FileContextMenu = ({
                   return (
                     <ContextMenuItem
                       key={action.id}
-                      onClick={() => handleFileAction(action)}
+                      onClick={() => executeFileAction(action)}
                     >
                       {meta.fileAction.icon && (
                         <span className="mr-2">{meta.fileAction.icon}</span>
@@ -218,17 +160,7 @@ export const FileContextMenu = ({
           </>
         )}
 
-        {showFileActions && (hasRenameOrDelete || showOpenFolder) && <ContextMenuSeparator />}
-
-        {showOpenFolder && (
-          <ContextMenuItem onClick={handleOpenFolder}>
-            <FolderOpen className="mr-2 h-4 w-4" />
-            {t("file.menu.openInFileManager", "Open in File Manager")}
-          </ContextMenuItem>
-        )}
-
-        {showOpenFolder && hasRenameOrDelete && <ContextMenuSeparator />}
-
+        {showFileActions && hasRenameOrDelete && <ContextMenuSeparator />}
         {onRename && (
           <ContextMenuItem onClick={() => onRename(node)}>
             <PencilLineIcon className="mr-2 h-4 w-4" />
@@ -248,4 +180,3 @@ export const FileContextMenu = ({
     </ContextMenu>
   )
 }
-
