@@ -66,26 +66,43 @@ eidos.currentSpace.navigate("/file-handler/#~/readme.md")
 eidos.currentSpace.navigate("/file-handler/#@/music/song.mp3")
 ```
 
-### `notify(title: string, description: string)`
+### `notify(msg: string | { title: string; description: string })`
 
-Show a notification to the user with markdown support.
+Show a notification to the user with markdown support. Supports two calling modes:
 
 ```typescript
-notify(title: string, description: string): void
+// Simple mode: pass a string as notification content
+notify(msg: string): void
+
+// Full mode: pass an object to customize title and content
+notify(msg: { title: string; description: string }): void
 ```
 
 **Parameters:**
 
-- `title` (string): The notification title
-- `description` (string): The notification description (supports markdown)
+- `msg` (string | object): Notification message
+  - **Simple mode**: Pass a string, which will be displayed as notification content with default title "Notification"
+  - **Full mode**: Pass an object containing:
+    - `title` (string): The notification title
+    - `description` (string): The notification description (supports markdown)
 
-**Example:**
+**Examples:**
 
 ```typescript
-eidos.currentSpace.notify(
-  "Task Completed",
-  "Successfully processed **100 records** and updated the database."
-)
+// Simple mode - quick notification
+eidos.currentSpace.notify("Operation completed")
+
+// Full mode - custom title and content
+eidos.currentSpace.notify({
+  title: "Task Completed",
+  description: "Successfully processed **100 records** and updated the database."
+})
+
+// Supports markdown formatting
+eidos.currentSpace.notify({
+  title: "Export Successful",
+  description: "File saved to `~/exports/data.csv`"
+})
 ```
 
 ---
@@ -517,7 +534,7 @@ await eidos.currentSpace.fs.writeFile("@/backup/data.json", JSON.stringify(data)
 async function saveConfig(config: object) {
   const content = JSON.stringify(config, null, 2)
   await eidos.currentSpace.fs.writeFile("~/config.json", content, "utf8")
-  eidos.currentSpace.notify("Success", "Configuration saved")
+  eidos.currentSpace.notify("Configuration saved")
 }
 
 // Export data to file

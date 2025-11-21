@@ -389,10 +389,13 @@ export abstract class BaseDataSpace {
     console.debug("onUpdate")
   }
 
-  public notify(msg: { title: string; description: string }) {
+  public notify(msg: string | { title: string; description: string }) {
+    const notification = typeof msg === 'string'
+      ? { title: 'Notification', description: msg }
+      : msg
     this.postMessage?.({
       type: MsgType.Notify,
-      data: msg,
+      data: notification,
     })
   }
 

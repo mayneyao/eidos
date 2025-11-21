@@ -63,26 +63,43 @@ eidos.currentSpace.navigate("/file-handler/#~/readme.md")
 eidos.currentSpace.navigate("/file-handler/#@/music/song.mp3")
 ```
 
-### `notify(title: string, description: string)`
+### `notify(msg: string | { title: string; description: string })`
 
-向用户显示支持 markdown 的通知。
+向用户显示支持 markdown 的通知。支持两种调用模式：
 
 ```typescript
-notify(title: string, description: string): void
+// 简单模式：只传字符串，作为通知内容
+notify(msg: string): void
+
+// 完整模式：传对象，自定义标题和内容
+notify(msg: { title: string; description: string }): void
 ```
 
 **参数:**
 
-- `title` (string): 通知标题
-- `description` (string): 通知描述（支持 markdown）
+- `msg` (string | object): 通知消息
+  - **简单模式**: 传入字符串，将作为通知内容显示，标题默认为 "Notification"
+  - **完整模式**: 传入对象，包含：
+    - `title` (string): 通知标题
+    - `description` (string): 通知描述（支持 markdown）
 
 **示例:**
 
 ```typescript
-eidos.currentSpace.notify(
-  "任务完成",
-  "成功处理了 **100 条记录** 并更新了数据库。"
-)
+// 简单模式 - 快速显示通知
+eidos.currentSpace.notify("操作已完成")
+
+// 完整模式 - 自定义标题和内容
+eidos.currentSpace.notify({
+  title: "任务完成",
+  description: "成功处理了 **100 条记录** 并更新了数据库。"
+})
+
+// 支持 markdown 格式
+eidos.currentSpace.notify({
+  title: "导出成功",
+  description: "文件已保存到 `~/exports/data.csv`"
+})
 ```
 
 ---
@@ -506,7 +523,7 @@ await eidos.currentSpace.fs.writeFile(
 async function saveConfig(config: object) {
   const content = JSON.stringify(config, null, 2)
   await eidos.currentSpace.fs.writeFile("~/config.json", content, "utf8")
-  eidos.currentSpace.notify("成功", "配置已保存")
+  eidos.currentSpace.notify("配置已保存")
 }
 
 // 导出数据到文件
