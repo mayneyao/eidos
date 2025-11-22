@@ -153,6 +153,14 @@ const SidebarProvider = React.forwardRef<
       return () => window.removeEventListener("keydown", handleKeyDown)
     }, [toggleSidebar])
 
+    // Sync sidebar state when switching between mobile and desktop
+    React.useEffect(() => {
+      // When switching to mobile mode, close the desktop sidebar to trigger onOpenChange
+      if (isMobile) {
+        setOpen(open)
+      }
+    }, [isMobile, open, setOpen])
+
     // We add a state so that we can do data-state="expanded" or "collapsed".
     // This makes it easier to style the sidebar with Tailwind classes.
     const state = open ? "expanded" : "collapsed"
@@ -400,13 +408,13 @@ const SidebarRail = React.forwardRef<
       setIsResizing(false)
       document.body.style.cursor = ""
       document.body.style.userSelect = ""
-      
+
       // Restore pointer events for iframes and webviews
       const iframes = document.querySelectorAll("iframe, webview")
       iframes.forEach((el) => {
-        ;(el as HTMLElement).style.pointerEvents = ""
+        ; (el as HTMLElement).style.pointerEvents = ""
       })
-      
+
       document.removeEventListener("mousemove", handleMouseMove)
       document.removeEventListener("mouseup", handleMouseUp)
     },
@@ -435,7 +443,7 @@ const SidebarRail = React.forwardRef<
       // Disable pointer events for iframes and webviews to prevent them from capturing mouse events
       const iframes = document.querySelectorAll("iframe, webview")
       iframes.forEach((el) => {
-        ;(el as HTMLElement).style.pointerEvents = "none"
+        ; (el as HTMLElement).style.pointerEvents = "none"
       })
 
       document.addEventListener("mousemove", handleMouseMove)
@@ -459,11 +467,11 @@ const SidebarRail = React.forwardRef<
         document.removeEventListener("mouseup", handleMouseUp)
         document.body.style.cursor = ""
         document.body.style.userSelect = ""
-        
+
         // Restore pointer events for iframes and webviews
         const iframes = document.querySelectorAll("iframe, webview")
         iframes.forEach((el) => {
-          ;(el as HTMLElement).style.pointerEvents = ""
+          ; (el as HTMLElement).style.pointerEvents = ""
         })
       }
     }
@@ -562,7 +570,7 @@ SidebarFooter.displayName = "SidebarFooter"
 
 const SidebarSeparator: React.ForwardRefExoticComponent<
   React.ComponentProps<typeof Separator> &
-    React.RefAttributes<React.ElementRef<typeof Separator>>
+  React.RefAttributes<React.ElementRef<typeof Separator>>
 > = React.forwardRef<
   React.ElementRef<typeof Separator>,
   React.ComponentProps<typeof Separator>
@@ -797,7 +805,7 @@ const SidebarMenuAction = React.forwardRef<
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-          "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
+        "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
         className
       )}
       {...props}
