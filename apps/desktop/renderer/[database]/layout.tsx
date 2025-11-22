@@ -124,6 +124,7 @@ export function DesktopSpaceLayout() {
         ? decodeURIComponent(location.hash)
         : ""
 
+  const showCustomNav = scriptId || filePath
   return (
     <>
       {/* <DocExtBlockLoader /> */}
@@ -149,15 +150,19 @@ export function DesktopSpaceLayout() {
             >
               <div className="flex flex-col h-full min-w-0">
                 <Nav>
-                  {scriptId && <ScriptBreadcrumb scriptIdOrSlug={scriptId} />}
-                  {filePath && (
-                    <div
-                      className="flex items-center text-sm text-muted-foreground pointer-events-none select-none max-w-full overflow-hidden"
-                      title={filePath}
-                    >
-                      <span className="truncate block">{filePath}</span>
-                    </div>
-                  )}
+                  {
+                    showCustomNav && <>
+                      {scriptId && <ScriptBreadcrumb scriptIdOrSlug={scriptId} />}
+                      {filePath && (
+                        <div
+                          className="flex items-center text-sm text-muted-foreground pointer-events-none select-none max-w-full overflow-hidden"
+                          title={filePath}
+                        >
+                          <span className="truncate block">{filePath}</span>
+                        </div>
+                      )}
+                    </>
+                  }
                 </Nav>
                 <div
                   id="main-content"
