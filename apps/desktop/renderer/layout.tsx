@@ -22,7 +22,7 @@ import { useSyncFileActions } from "@/hooks/use-all-file-actions"
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
-  const { isSidebarOpen } = useAppStoreBase()
+  const { isSidebarOpen, setSidebarOpen } = useAppStoreBase()
   useProtocolUrl()
   useSyncFileHandlers()
   useSyncFileActions()
@@ -34,7 +34,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <SidebarProvider defaultOpen={isSidebarOpen}>
+      <SidebarProvider defaultOpen={isSidebarOpen} open={isSidebarOpen} onOpenChange={setSidebarOpen}>
         {/* Transparent titlebar for dragging */}
         <div
           className="h-[8px] w-full bg-transparent absolute top-0 left-0"

@@ -49,15 +49,20 @@ export const useAppStoreBase = create<AppState>()(
 
 export const useAppStore = () => {
   const store = useAppStoreBase()
-  const { open, setOpen } = useSidebar()
+  const { open, setOpen, openMobile, setOpenMobile, isMobile } = useSidebar()
 
 
   return {
     ...store,
-    isSidebarOpen: open,
+    // In mobile mode, use openMobile state; in desktop mode, use open state
+    isSidebarOpen: isMobile ? openMobile : open,
     setSidebarOpen: (isOpen: boolean) => {
       store.setSidebarOpen(isOpen)
-      setOpen(isOpen)
+      if (isMobile) {
+        setOpenMobile(isOpen)
+      } else {
+        setOpen(isOpen)
+      }
     }
   }
 }
