@@ -238,14 +238,15 @@ ipcMain.handle('sqlite-msg', async (event, payload) => {
                         type: MsgType.IteratorError,
                     })
                 }
-            } finally {
-                // Clean up cancel listener
-                if (abortController) {
-                    ipcMain.removeAllListeners(`sqlite-iterator-cancel-${payload.id}`)
-                }
             }
             // Return a special marker to indicate iterator mode
             return { __isIterator: true, channel: iteratorChannel }
+        }
+
+        // Clean up cancel listener if it was registered for an iterator function
+        // but the result wasn't actually an AsyncIterable
+        if (abortController) {
+            ipcMain.removeAllListeners(`sqlite-iterator-cancel-${payload.id}`)
         }
 
         return res
