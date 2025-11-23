@@ -6,6 +6,8 @@ import { lookup as getMimeType } from "@/lib/mime/mime"
 
 // Extension class to add file-related methods
 export class DataSpaceWithFile extends DataSpaceWithDatabase {
+  private fileWatcherController: AbortController | null = null
+
   // File operations
   public async getFileByPath(path: string) {
     return await this.file.getFileByPath(path)
@@ -41,13 +43,31 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
       // Ignore if already exists or other error
     }
 
+    // Cancel existing watcher if any
+    if (this.fileWatcherController) {
+      this.fileWatcherController.abort()
+    }
+
+    // Create new controller for this watcher
+    this.fileWatcherController = new AbortController()
+
     // Watch for changes
-    this.watchLoop(fileDir)
+    this.watchLoop(fileDir, this.fileWatcherController.signal)
   }
 
-  private async watchLoop(fileDir: string) {
+  /**
+   * Stop file watcher to avoid resource consumption
+   */
+  public unwatchFileWatcher() {
+    if (this.fileWatcherController) {
+      this.fileWatcherController.abort()
+      this.fileWatcherController = null
+    }
+  }
+
+  private async watchLoop(fileDir: string, signal?: AbortSignal) {
     try {
-      for await (const event of this.fs.watch(fileDir)) {
+      for await (const event of this.fs.watch(fileDir, { signal })) {
         if (!event.filename) continue
 
         const fullPath = `${fileDir}${event.filename}`
@@ -65,7 +85,11 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
         }
       }
     } catch (error) {
-      console.error("File watcher error:", error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log("File watcher cancelled")
+      } else {
+        console.error("File watcher error:", error)
+      }
     }
   }
 

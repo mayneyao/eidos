@@ -248,6 +248,9 @@ export class DataSpaceManager {
             return false;
         }
 
+        // Stop file watcher before closing dataspace
+        this.dataSpace.unwatchFileWatcher();
+
         // Close current dataspace
         this.dataSpace.close();
         this.dataSpace = null;
