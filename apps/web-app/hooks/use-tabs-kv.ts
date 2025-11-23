@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react"
 import { useSqliteKV } from "./use-sqlite-kv"
 
-export type TabId = "nodes" | "extensions" | "today" | string
+export type TabId = "nodes" | "extensions" | "today" | "files" | string
 
 export interface FavBlock {
     id: string
@@ -10,7 +10,7 @@ export interface FavBlock {
     space: string
 }
 
-const DEFAULT_TABS: TabId[] = ["nodes", "extensions", "today"]
+const DEFAULT_TABS: TabId[] = ["nodes", "extensions", "files", "today"]
 
 export const useTabsKV = () => {
     const [tabs, setTabs] = useSqliteKV<TabId[]>("eidos:space:sidebar:tabs", DEFAULT_TABS)
@@ -47,11 +47,16 @@ export const useTabsKV = () => {
         setTabs(newTabs)
     }, [setTabs])
 
+    const resetTabs = useCallback(() => {
+        setTabs(DEFAULT_TABS)
+    }, [setTabs])
+
     return {
         // Tabs
         tabs: tabs || DEFAULT_TABS,
         addTab,
         removeTab,
         reorderTabs,
+        resetTabs,
     }
 }

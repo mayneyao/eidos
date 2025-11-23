@@ -24,6 +24,12 @@ export enum MsgType {
   WebSocketConnected = "WebSocketConnected",
   WebSocketDisconnected = "WebSocketDisconnected",
 
+  // Iterator-related messages for streaming/iterable functions
+  IteratorValue = "IteratorValue",
+  IteratorDone = "IteratorDone",
+  IteratorError = "IteratorError",
+  IteratorCancel = "IteratorCancel",
+
   ConvertMarkdown2State = "ConvertMarkdown2State",
   ConvertHtml2State = "ConvertHtml2State",
   ConvertEmail2State = "ConvertEmail2State",
@@ -108,6 +114,7 @@ export enum CustomEventType {
   UpdateColumn = "eidos-update-column",
 }
 
+export const EIDOS_PORT = 13127
 export const EIDOS_SPACE_BASE_URL = process.env.NODE_ENV === "production" ? "https://eidos.space" : "http://localhost:4321";
 
 export const EIDOS_CHAT_PROJECT_ID = "EIDOS_CHAT"
@@ -130,3 +137,12 @@ export const WORKER_INIT_CONFIG = {
 export const WORKER_MESSAGE_TYPES = {
   IS_WORKER_INITIALIZED: 'isWorkerInitialized'
 } as const
+
+// Allowed file extensions for document processing and context
+export const ALLOWED_DOCUMENT_EXTENSIONS = [
+  '.md', '.markdown', '.txt', '.rtf', '.doc', '.docx', '.pdf',
+  '.json', '.xml', '.html', '.htm', '.css', '.js', '.ts',
+  '.jsx', '.tsx', '.py', '.rs', '.go', '.java', '.cpp', '.c',
+  '.php', '.rb', '.sh', '.yaml', '.yml', '.toml', '.ini',
+  '.cfg', '.conf'
+]

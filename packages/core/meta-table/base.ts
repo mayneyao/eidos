@@ -1,4 +1,4 @@
-import type { DataSpace } from "../DataSpace"
+import type { DataSpace } from "../data-space"
 import { SqlQueryBuilder, type FindManyOptions } from "../sqlite/sql-query-builder"
 
 export interface MetaTable<T> {

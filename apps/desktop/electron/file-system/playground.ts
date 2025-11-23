@@ -58,6 +58,9 @@ export async function initializePlayground(
     files: PlaygroundFile[]
 ) {
     const userDataPath = getConfigManager().get('dataFolder')
+    if (!userDataPath) {
+        throw new Error('Data folder not set');
+    }
     const playgroundPath = path.join(userDataPath, "playground", `${space}-${blockId}`)
 
     const watcherId = `${space}-${blockId}`;

@@ -71,7 +71,7 @@ export const AIChatPromptSelect = (props: {
                 {" "}
                 No Prompt found.
                 <br />
-                <Link to={`/${space}/extensions`} className="text-blue-500">
+                <Link to={`/extensions`} className="text-blue-500">
                   New Prompt
                 </Link>
               </CommandEmpty>{" "}
@@ -140,7 +140,7 @@ export const AIChatPromptSelect = (props: {
                   <p className="ml-8 text-xs text-gray-500">
                     No custom prompt found.
                     <br />
-                    <Link to={`/${space}/extensions`} className="text-blue-500">
+                    <Link to={`/extensions`} className="text-blue-500">
                       New Prompt
                     </Link>
                   </p>

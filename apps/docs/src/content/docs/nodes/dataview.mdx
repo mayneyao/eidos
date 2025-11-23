@@ -138,7 +138,7 @@ Here's a practical example that creates a document navigation dataview:
 
 SELECT
   t.name as title,
-  '/<space>/' || t.id AS pathname, -- [pathname:url]
+  '/' || t.id AS pathname, -- [pathname:url]
   d.*
 FROM
   eidos__tree t
@@ -147,9 +147,9 @@ FROM
 
 This example demonstrates how to:
 
-- **Create clickable links**: The `pathname` field uses `'/<space>/' || t.id` to generate clickable URLs that navigate to specific documents
+- **Create clickable links**: The `pathname` field uses `'/' || t.id` to generate clickable URLs that navigate to specific documents
 - **Join multiple tables**: Combines the tree structure (`eidos__tree`) with document content (`eidos__docs`)
-- **Use space variables**: Replace `<space>` with your actual workspace name to make the links work correctly
+- **Cleaner paths**: The new architecture provides cleaner paths without workspace names in URLs
 - **Build document navigation**: Perfect for creating a searchable, sortable list of all your documents
 
 The resulting dataview will show document titles in one column and clickable pathname links in another column that take you directly to each document when clicked.

@@ -2,10 +2,12 @@ import "@/styles/globals.css"
 import { useEffect } from "react"
 import { Outlet } from "react-router-dom"
 
+import { useSyncFileHandlers } from "@/hooks/use-all-file-handlers"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { DevTools } from "@/components/dev-tools"
+import { GlobalSearch } from "@/components/global-search"
 import { GodModeTooltip } from "@/components/god-mode-tooltip"
 import { ShortCuts } from "@/components/keyboard-shortcuts/shortcuts"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -16,11 +18,14 @@ import { useWorker } from "@/apps/web-app/hooks/use-worker"
 import { useAppStoreBase } from "@/apps/web-app/store/app-store"
 
 import { useProtocolUrl } from "./hooks/useProtocolUrl"
+import { useSyncFileActions } from "@/hooks/use-all-file-actions"
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
-  const { isSidebarOpen } = useAppStoreBase()
+  const { isSidebarOpen, setSidebarOpen } = useAppStoreBase()
   useProtocolUrl()
+  useSyncFileHandlers()
+  useSyncFileActions()
   useEffect(() => {
     if (!isInitialized) {
       initWorker()
@@ -29,7 +34,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <SidebarProvider defaultOpen={isSidebarOpen}>
+      <SidebarProvider defaultOpen={isSidebarOpen} open={isSidebarOpen} onOpenChange={setSidebarOpen}>
         {/* Transparent titlebar for dragging */}
         <div
           className="h-[8px] w-full bg-transparent absolute top-0 left-0"
@@ -42,6 +47,7 @@ export default function RootLayout() {
         <WindowControls />
         <CommandDialogDemo />
         <ShortCuts />
+        <GlobalSearch />
       </SidebarProvider>
       <DevTools />
 

@@ -1,0 +1,105 @@
+---
+title: 文件
+description: Eidos 中的文件管理
+sidebar:
+  order: 4
+---
+
+import { FileTree } from "@astrojs/starlight/components"
+
+在 Eidos 中，动态数据（如表格、文档）存储在 SQLite 数据库中，而静态资源（如图片、音频等多媒体文件）的处理则有三种不同的机制。本文将详细介绍这三种文件管理方式。
+
+## 默认处理
+
+<FileTree>
+
+- my-project/
+  - .eidos/
+    - db.sqlite3 ← 动态数据存储
+    - files/ ← /files/ 路径访问内部文件
+      - screenshot.png
+      - document.pdf
+  - readme.md ← /~/readme.md 项目文件
+
+</FileTree>
+
+默认情况下，当你在 Eidos 中加载本地文件或粘贴截图时，系统会自动将这些静态资源从剪贴板或磁盘位置复制到 `.eidos/files/` 目录下。这些文件随后由 Eidos 统一管理。
+
+你可以通过图片/文件选择组件访问这些文件。目前 Eidos 已经支持基本的文件存储和管理功能，未来版本将支持更多优化处理，如 OCR 文字识别和语义化搜索功能。所有文件都统一存储在 `.eidos/files/` 目录下，便于管理和同步。
+
+## 挂载文件夹
+
+<FileTree>
+
+- /Users/eidos/Music/ ← 挂载为 /@/audio/
+  - song.mp3
+- /Users/eidos/Documents/Books/ ← 挂载为 /@/books/
+  - programming-guide.pdf
+  - design-principles.pdf
+  - api-reference.pdf
+
+</FileTree>
+
+考虑到 `.eidos` 目录下的数据会进行同步，一些大文件可能不适合放入其中，但你仍需要在 Eidos 中引用它们。这时就可以使用挂载文件夹功能。
+
+使用以下命令挂载一个目录：
+
+```bash
+eidos mount <挂载名> <实际目录路径>
+```
+
+挂载后，你就可以在 Eidos 中引用该外部目录下的文件了。在文件选择器中，你会看到挂载的文件夹，并可以选择引用其中的文件。也可以通过构造路径在表格中展示为 file 字段：
+
+```
+/@/<挂载名>/文件名
+```
+
+例如，如果你要挂载本地的音乐文件夹：
+
+```bash
+eidos mount audio /Users/eidos/Music
+# 然后可以通过 /@/audio/song.mp3 访问 /Users/eidos/Music/song.mp3
+```
+
+或者挂载书籍文件夹：
+
+```bash
+eidos mount books /Users/eidos/Documents/Books
+# 然后可以通过 /@/books/programming-guide.pdf 访问书籍文件
+```
+
+除了使用命令行，你也可以在 Space 设置中直接添加挂载文件夹：在"挂载"选项卡中，点击"添加挂载"，选择要挂载的本地目录，为挂载设置一个名称，然后保存设置。这样就可以通过图形界面完成挂载，无需使用命令行。
+
+## 项目文件夹
+
+<FileTree>
+
+- my-code-project/
+  - .eidos/
+    - db.sqlite3
+    - files/
+  - src/
+    - main.js ← /~/src/main.js
+    - utils.js
+  - .gitignore ← /~/.gitignore
+  - docs/
+    - api.md ← /~/docs/api.md
+  - readme.md ← /~/readme.md
+
+</FileTree>
+
+项目文件夹是一个特殊的文件夹概念。每个 space 会在特定目录下创建一个 `.eidos` 目录，该目录所在的文件夹就被称为项目文件夹。这可以是代码项目、设计项目或其他任何工作目录。
+
+你无需通过挂载即可访问项目文件夹。Eidos 提供了简化的访问语法：
+
+`/~/readme.md` 将指向项目文件夹下的 readme.md 文件。
+
+例如，在一个代码项目中，你可以这样引用项目文件：
+
+```
+/~/src/main.js
+/~/.gitignore
+/~/docs/api.md
+```
+
+这种语法提供了一种便捷的机制，用来在笔记中引用项目文件夹中的外部文件，更多情况是用于引用多媒体资源，如图片、音频、视频等。

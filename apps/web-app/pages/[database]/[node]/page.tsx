@@ -32,7 +32,7 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
-import { EverydayPageContent } from "../everyday/[day]/page"
+import { EverydayPageContent } from "../journals/[day]/page"
 import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
 import { NodeRestore } from "./node-restore"

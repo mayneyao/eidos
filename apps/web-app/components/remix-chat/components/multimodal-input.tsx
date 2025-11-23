@@ -14,13 +14,14 @@ import { sanitizeUIMessages } from "@/packages/ai/utils"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import type { Attachment, ChatRequestOptions, CreateMessage, Message } from "ai"
 import cx from "classnames"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/use-toast"
 import { useLocalStorage, useWindowSize } from "usehooks-ts"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { AIModelSelect } from "@/components/ai-chat/ai-chat-model-select"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useFileUpload } from "@/apps/web-app/hooks/use-file-upload"
 
 import { ArrowUpIcon, PaperclipIcon, StopIcon } from "./icons"
 import { PreviewAttachment } from "./preview-attachment"
@@ -92,9 +93,8 @@ export function MultimodalInput({
   const adjustHeight = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
-      textareaRef.current.style.height = `${
-        textareaRef.current.scrollHeight + 2
-      }px`
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight + 2
+        }px`
     }
   }
 
@@ -164,27 +164,26 @@ export function MultimodalInput({
     width,
     chatId,
   ])
-  const { sqlite } = useSqlite()
+  const { addFiles } = useFileUpload()
 
   const uploadFile = async (file: File) => {
     try {
-      if (!sqlite) {
-        throw new Error("sqlite not found")
-      }
-      const response = await sqlite?.file.upload(
-        await file.arrayBuffer(),
-        file.name,
-        file.type,
-        ["_chat"]
-      )
-      const { mime, name, publicUrl } = response
-      return {
-        url: publicUrl,
-        name: name,
-        contentType: mime,
+      const uploadedFiles = await addFiles([file])
+      if (uploadedFiles.length > 0) {
+        const uploadedFile = uploadedFiles[0]
+        return {
+          url: "/" + uploadedFile.path,
+          name: uploadedFile.name,
+          contentType: uploadedFile.mime,
+        }
       }
     } catch (error) {
-      toast.error("Failed to upload file, please try again!")
+      console.error("Failed to upload file:", error)
+      toast({
+        title: "Failed to upload file",
+        description: "Please try again",
+        variant: "destructive"
+      })
     }
   }
 
@@ -311,7 +310,11 @@ export function MultimodalInput({
             event.preventDefault()
 
             if (isLoading) {
-              toast.error("Please wait for the model to finish its response!")
+              toast({
+                title: "Please wait",
+                description: "Wait for the model to finish its response",
+                variant: "destructive"
+              })
             } else {
               submitForm()
             }
@@ -325,7 +328,7 @@ export function MultimodalInput({
             prompts={prompts || []}
             selectedCustomPromptId={selectedCustomPromptId || null}
             onSelectedCustomPromptIdChange={
-              setSelectedCustomPromptId || (() => {})
+              setSelectedCustomPromptId || (() => { })
             }
           />
           <AIModelSelect

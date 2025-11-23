@@ -1,7 +1,6 @@
-import type { DataSpace } from '@/packages/core/DataSpace';
+import type { DataSpace } from '@/packages/core/data-space';
 import type { IExtension } from "@/packages/core/meta-table/extension";
-import { extractFunction } from "@/packages/v3/code-tools/code-extractor";
-import { generateImportMap, getAllLibs } from "@/packages/v3/code-tools/get-deps";
+import { extractFunction, generateImportMap, getAllLibs } from "@eidos.space/v3";
 import vm from 'vm';
 import { getOrSetDataSpace } from "../../data-space";
 import { getIndexHtml } from "./ext-html";
@@ -11,7 +10,7 @@ import { presetThemes, twConfig } from "./helper";
 import type { ConfigManager } from "@/apps/desktop/electron/config";
 import { getConfigManager } from "@/apps/desktop/electron/config";
 import type { IBindings } from "@/packages/core/types/IExtension";
-import { makeSdkInjectScript } from "@/packages/sandbox/helper";
+import { makeSdkInjectScript } from "@eidos.space/sandbox";
 import { uiComponentsDependencies } from "./ui-deps";
 
 
@@ -88,6 +87,14 @@ export class ServerBlock {
         })
         return envMap
     }
+
+    async getThemeMode() {
+        const themeMode = await this.dataSpace.kv.get('eidos:space:settings:theme:mode')
+        if (themeMode) {
+            return themeMode
+        }
+        return 'light'
+    }
     async run(spaceId: string, extension: IExtension | null, url: string) {
         const dataSpace = await getOrSetDataSpace(spaceId);
         const start = performance.now()
@@ -121,8 +128,10 @@ export class ServerBlock {
         const { importMapScript, cssLoaderScript } = await generateImportMap({ thirdPartyLibs, uiLibs, cssLibs, localLibs }, spaceId)
         // // Placeholder for BlockRenderer server-side logic
         const themeRawCode = this.getThemeRawCss()
+
+        const themeMode = await this.getThemeMode()
         const html = getIndexHtml({
-            theme: 'light',
+            theme: themeMode,
             importMap: importMapScript,
             cssLoaderScript,
             sdkInjectScriptContent,

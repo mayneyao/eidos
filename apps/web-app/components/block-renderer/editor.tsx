@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { compileCode } from "@/packages/v3/compiler"
+import { compileCode } from "@eidos.space/v3"
 
 import { BlockRenderer } from "./block-renderer"
 

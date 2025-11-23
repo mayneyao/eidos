@@ -1,3 +1,4 @@
+import { AlignCenter, AlignLeft, AlignRight } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { useSpaceSettings } from "@/hooks/use-space-settings"
@@ -10,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useDocPropertyTypes } from "@/apps/web-app/components/doc-property-global/property-type-hook"
 
 export function DocumentSettings() {
@@ -20,6 +22,7 @@ export function DocumentSettings() {
   const defaultSettings = {
     markerProperty: "",
     showReferenceNodeIcon: false,
+    imageAlign: "center" as const,
   }
   const settings = useSpaceSettings("doc", defaultSettings)
 
@@ -103,6 +106,51 @@ export function DocumentSettings() {
                       updateSetting("showReferenceNodeIcon", checked)
                     }
                   />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="imageAlign">
+                    {t("space.settings.imageAlign")}
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {t("space.settings.imageAlignDescription")}
+                  </p>
+                </div>
+                <div className="w-64 flex justify-end">
+                  <ToggleGroup
+                    type="single"
+                    value={settings.data.imageAlign || "center"}
+                    onValueChange={(value) => {
+                      if (value) {
+                        updateSetting(
+                          "imageAlign",
+                          value as "left" | "center" | "right"
+                        )
+                      }
+                    }}
+                    className="justify-end  border rounded-sm gap-0"
+                    size="sm"
+                  >
+                    <ToggleGroupItem
+                      value="left"
+                      aria-label={t("space.settings.imageAlignLeft")}
+                    >
+                      <AlignLeft className="h-4 w-4" />
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      value="center"
+                      aria-label={t("space.settings.imageAlignCenter")}
+                    >
+                      <AlignCenter className="h-4 w-4" />
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      value="right"
+                      aria-label={t("space.settings.imageAlignRight")}
+                    >
+                      <AlignRight className="h-4 w-4" />
+                    </ToggleGroupItem>
+                  </ToggleGroup>
                 </div>
               </div>
             </div>

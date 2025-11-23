@@ -4,7 +4,7 @@ import { ColumnTableName } from "../../sqlite/const"
 import type { IField } from "../../types/IField"
 import { getTableIdByRawTableName } from "@/lib/utils"
 
-import type { DataSpace, EidosDatabase } from "../../DataSpace"
+import type { DataSpace, EidosDatabase } from "../../data-space"
 import type { TableManager } from "../table"
 
 interface IRelation {

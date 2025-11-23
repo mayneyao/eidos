@@ -115,5 +115,5 @@ app.post("/api/users", async (req, res) => {
 
 Eidos provides complete API reference documentation with detailed descriptions of all available methods and functionality:
 
-- [Space API Reference](../api-reference/space.md) - Navigation, document management, and extension node operations
-- [AI API Reference](../api-reference/ai.md) - Text generation and structured data processing
+- [Space API Reference](../../api-reference/space) - Navigation, document management, and extension node operations
+- [AI API Reference](../../api-reference/ai) - Text generation and structured data processing

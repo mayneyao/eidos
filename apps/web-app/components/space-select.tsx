@@ -1,0 +1,284 @@
+"use client"
+
+import * as React from "react"
+import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
+import { useTranslation } from "react-i18next"
+
+import { isDesktopMode } from "@/lib/env"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useGoto } from "@/apps/web-app/hooks/use-goto"
+import { useSpace } from "@/apps/web-app/hooks/use-space"
+import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
+import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
+
+import { Input } from "./ui/input"
+import { Label } from "./ui/label"
+
+interface ISpaceSelectProps {
+  spaces: SpaceInfo[]
+}
+
+export function SpaceSelect({ spaces }: ISpaceSelectProps) {
+  const { t } = useTranslation()
+  const [open, setOpen] = React.useState(false)
+  const { spaceList, updateSpaceList } = useSpace()
+
+  const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
+  const { space } = useCurrentPathInfo()
+
+  const [searchValue, setSearchValue] = React.useState("")
+  const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
+  const [selectedFolder, setSelectedFolder] = React.useState<string>("")
+  const [isSelectingFolder, setIsSelectingFolder] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+
+  const reset = () => {
+    setSelectedFolder("")
+  }
+
+  const goto = useGoto()
+
+  const handleSelect = async (currentValue: string) => {
+    setLastOpenedDatabase(currentValue)
+    setOpen(false)
+
+    if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+      // Desktop mode: use Electron IPC to switch workspace
+      try {
+        const result = await window.eidos.invoke("switch-space", currentValue)
+        if (result.success) {
+          // Workspace switched successfully, Electron will automatically reload to new subdomain
+        } else {
+          console.error("Failed to switch space:", result.error)
+        }
+      } catch (error) {
+        console.error("Error switching space:", error)
+      }
+    } else {
+      // Web mode: use route navigation
+      goto(currentValue)
+    }
+  }
+
+  const handleSelectFolder = async () => {
+    if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+      setIsSelectingFolder(true)
+      try {
+        const folderPath = await window.eidos.selectFolder()
+        if (folderPath) {
+          setSelectedFolder(folderPath)
+        }
+      } catch (error) {
+        console.error("Error selecting folder:", error)
+      } finally {
+        setIsSelectingFolder(false)
+      }
+    }
+  }
+
+  const handleCreateDatabase = async () => {
+    if (!selectedFolder) return
+
+    setLoading(true)
+    try {
+      if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+        // Desktop mode: create space with selected folder
+        const result = await window.eidos.invoke(
+          "register-space",
+          selectedFolder
+        )
+        
+        if (result.success && result.space) {
+          await updateSpaceList()
+          await handleSelect(result.space.id as string)
+        } else {
+          throw new Error(result.error || "Failed to create space")
+        }
+      } else {
+        throw new Error("Space creation is only supported in desktop mode")
+      }
+    } catch (error) {
+      console.error("Error creating space:", error)
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error"
+      alert(`Failed to create space: ${errorMessage}`)
+    } finally {
+      setLoading(false)
+      setShowNewTeamDialog(false)
+      reset()
+    }
+  }
+
+  return (
+    <Dialog open={showNewTeamDialog} onOpenChange={setShowNewTeamDialog}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            role="combobox"
+            size="sm"
+            aria-expanded={open}
+            className="w-full min-w-[180px] justify-between"
+          >
+            {space ? (
+              <div className="flex items-center gap-3">
+                <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-80" />
+                <span>
+                  {spaces.find((s) => s.id === space)?.name || space}
+                </span>
+              </div>
+            ) : (
+              t("space.select.selectDatabase")
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-full min-w-[180px] p-0">
+          <Command>
+            <CommandList>
+              <CommandInput
+                placeholder={t("space.select.searchDatabase")}
+                value={searchValue}
+                onValueChange={setSearchValue}
+              />
+              <CommandEmpty>
+                <div>{t("common.noResultsFound")}</div>
+              </CommandEmpty>
+              <CommandGroup>
+                {spaces.map((space) => (
+                  <CommandItem
+                    key={space.id}
+                    value={space.id}
+                    onSelect={(currentValue) => {
+                      handleSelect(currentValue)
+                      setOpen(false)
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        lastOpenedDatabase === space.id
+                          ? "opacity-100"
+                          : "opacity-0"
+                      )}
+                    />
+                    {space.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+            <CommandSeparator />
+            <CommandList>
+              <CommandGroup>
+                <DialogTrigger asChild>
+                  <CommandItem
+                    value="create-new"
+                    onSelect={() => {
+                      setOpen(false)
+                      setShowNewTeamDialog(true)
+                    }}
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    <span>{t("space.select.createNew")}</span>
+                  </CommandItem>
+                </DialogTrigger>
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("space.select.createSpace")}</DialogTitle>
+          <DialogDescription>
+            {isDesktopMode
+              ? t("space.select.createSpaceDescription")
+              : t("space.select.selectFolder")}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="py-4">
+          {isDesktopMode ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="folder-selection">
+                  {t("space.select.selectFolder")}
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="folder-selection"
+                    placeholder={t("space.select.folderPlaceholder")}
+                    value={selectedFolder}
+                    readOnly
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSelectFolder}
+                    disabled={isSelectingFolder}
+                  >
+                    {isSelectingFolder
+                      ? t("space.select.selecting")
+                      : t("space.select.browse")}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {t("space.select.folderDescription")}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>{t("space.select.webModeNote")}</p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowNewTeamDialog(false)
+              reset()
+            }}
+            disabled={loading}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button
+            onClick={handleCreateDatabase}
+            disabled={loading || !selectedFolder}
+          >
+            {loading ? t("space.select.creating") : t("common.continue")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

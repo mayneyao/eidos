@@ -5,7 +5,7 @@ import appWrapperRaw from './js/app-wrapper.js?raw';
 import sw from './js/sw.js?raw';
 import tailwindRaw from './js/tailwind-raw.js?raw';
 
-import { ScriptSandboxHandler } from '@/packages/sandbox/script-sandbox';
+import { ScriptSandboxHandler } from '@eidos.space/sandbox';
 import fs from 'fs';
 import type { Context } from 'hono';
 import type { BlankEnv } from 'hono/types';
@@ -81,19 +81,14 @@ export const interceptExtensionRequest = (dist: string, port: number) => async (
     if (match) {
         const extensionId = match[1];
         const spaceId = match[2];
-        // if pathname is /<spaceId>/files/*
-        if (url.pathname.startsWith('/' + spaceId + '/files/')) {
-            // const file = fs.readFileSync(path.join(dist, url.pathname))
-            // redirect to localhost:13127
-            return c.redirect(`http://localhost:13127${url.pathname}`)
+        // if pathname is /files/* or /~/ or /@/*
+        if (url.pathname.startsWith('/files/') || url.pathname.startsWith('/~/') || url.pathname.startsWith('/@/')) {
+            await next();
         }
-        console.log('interceptExtensionRequest', c.req.url)
-        // log(`Intercepted request for extension: ${extensionId}, space: ${spaceId} on host: ${hostname}`);
         try {
             const dataSpace = await getOrSetDataSpace(spaceId);
             const extension = await dataSpace.script.get(extensionId);
             const compiledCode = extension?.code || ""
-
             if (url.pathname.startsWith('/app.js')) {
                 return c.body(compiledCode, {
                     headers

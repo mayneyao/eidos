@@ -23,7 +23,8 @@ export const useGotoCurrentSpaceHome = () => {
   const router = useNavigate()
   const { space } = useCurrentPathInfo()
   return () => {
-    router(`/${space}`)
+    // Workspace identified by subdomain, path doesn't include space
+    router("/")
   }
 }
 export const useGoto = () => {
@@ -48,7 +49,8 @@ export const useGoto = () => {
 
   const goto = useCallback(
     (space: string, tableName?: string, rowId?: string) => {
-      let path = `/${space}`
+      // Workspace identified by subdomain, path doesn't include space
+      let path = ""
       if (tableName) {
         path += `/${tableName}`
       }

@@ -1,6 +1,6 @@
 import { logger } from "@/lib/env"
 
-import type { DataSpace } from "../DataSpace"
+import type { DataSpace } from "../data-space"
 
 interface StackEntry {
   begin: number

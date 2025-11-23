@@ -1,4 +1,4 @@
-import type { DataSpace } from "@/packages/core/DataSpace"
+import type { DataSpace } from "@/packages/core/data-space"
 import chunk from "lodash/chunk"
 
 import type { BaseLoader } from "./base"

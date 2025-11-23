@@ -1,31 +1,57 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useKeyPress } from "ahooks"
+import { useDebounceFn, useKeyPress } from "ahooks"
+import { useNavigate } from "react-router-dom"
 
 import { Input } from "@/components/ui/input"
-import { useAllExtensions } from "@/apps/web-app/hooks/use-all-extensions"
+import { useQueryExtension } from "@/apps/web-app/hooks/use-query-extension"
+import { useExtensionStore } from "@/apps/web-app/store/extension-store"
 
 export const ExtensionSearch = () => {
-  const { searchTerm, updateSearch } = useAllExtensions()
+  const {
+    searchTerm,
+    setSearchTerm,
+    setSearchResults,
+    setIsSearchMode,
+    searchResults,
+    selectedIndex,
+    setSelectedIndex,
+  } = useExtensionStore()
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { fullTextSearchExtensions } = useQueryExtension()
+  const navigate = useNavigate()
 
-  const DEBOUNCE_DELAY = 200
+  // Calculate visible items for keyboard navigation (FTS results only)
+  const visibleItems = searchResults
 
-  const debouncedSearch = useCallback(
-    (() => {
-      let timeoutId: NodeJS.Timeout
-      return (term: string) => {
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          updateSearch(term)
-        }, DEBOUNCE_DELAY)
-      }
-    })(),
-    [updateSearch]
-  )
+  // Reset selectedIndex if it's out of bounds when visibility changes
+  useEffect(() => {
+    if (selectedIndex >= visibleItems.length && visibleItems.length > 0) {
+      setSelectedIndex(visibleItems.length - 1)
+    }
+  }, [visibleItems.length, selectedIndex, setSelectedIndex])
+
+  const performSearch = async (term: string) => {
+    if (term.length === 0) {
+      setSearchResults([])
+      setIsSearchMode(false)
+      return
+    }
+
+    // Enable search mode when there's a search term
+    setIsSearchMode(true)
+
+    // Perform only full-text search (content search)
+    const ftsExtensions = await fullTextSearchExtensions(term)
+
+    setSearchResults(ftsExtensions || [])
+  }
+
+  const { run: debouncedSearch } = useDebounceFn(performSearch, { wait: 300 })
 
   const handleSearchChange = (term: string) => {
     setLocalSearchTerm(term)
+    setSearchTerm(term)
     debouncedSearch(term)
   }
 
@@ -44,7 +70,27 @@ export const ExtensionSearch = () => {
     if (e.key === "Escape") {
       e.preventDefault()
       setLocalSearchTerm("")
-      updateSearch("")
+      setSearchTerm("")
+      setSearchResults([])
+      setIsSearchMode(false)
+      return
+    }
+
+    // Handle navigation keys only when there are visible items
+    if (visibleItems.length === 0) return
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setSelectedIndex(Math.min(selectedIndex + 1, visibleItems.length - 1))
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setSelectedIndex(Math.max(selectedIndex - 1, 0))
+    } else if (e.key === "Enter") {
+      e.preventDefault()
+      const selectedItem = visibleItems[selectedIndex]
+      if (selectedItem) {
+        navigate(`/extensions/${selectedItem.id}`)
+      }
     }
   }
 
@@ -60,7 +106,7 @@ export const ExtensionSearch = () => {
     <div className="flex items-center w-full">
       <Input
         ref={inputRef}
-        placeholder="Search extensions..."
+        placeholder="Search content..."
         value={localSearchTerm}
         onChange={(e) => handleSearchChange(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -69,4 +115,3 @@ export const ExtensionSearch = () => {
     </div>
   )
 }
-

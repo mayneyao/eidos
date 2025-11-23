@@ -74,7 +74,7 @@ export function CreateSpaceGuide() {
       })
 
       if (res.success) {
-        navigate(`/${spaceName}`)
+        navigate(`/`)
       } else {
         toast({
           title: t("common.error", "Error"),

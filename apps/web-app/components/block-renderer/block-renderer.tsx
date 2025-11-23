@@ -6,12 +6,12 @@ import React, {
   useState,
 } from "react"
 import type { IBindings } from "@/packages/core/types/IExtension"
-import { makeSdkInjectScript } from "@/packages/sandbox/helper"
+import { makeSdkInjectScript } from "@eidos.space/sandbox"
 import {
   generateImportMap,
   getAllLibs,
-} from "@/packages/v3/code-tools/get-deps"
-import { uiComponentsDependencies } from "@/packages/v3/ui-deps"
+  uiComponentsDependencies,
+} from "@eidos.space/v3"
 import { useTheme } from "next-themes"
 
 import { isDesktopMode } from "@/lib/env"
@@ -40,6 +40,7 @@ interface BlockRendererProps {
   height?: string | number
   defaultProps?: Record<string, any>
   rerenderOnDefaultPropsChange?: boolean
+  hash?: string
 }
 
 export const BlockRenderer = React.forwardRef<
@@ -57,6 +58,7 @@ export const BlockRenderer = React.forwardRef<
       defaultProps = {},
       bindings = {},
       rerenderOnDefaultPropsChange,
+      hash,
     },
     ref
   ) => {
@@ -365,6 +367,7 @@ export const BlockRenderer = React.forwardRef<
           width={width}
           height={height}
           rerenderOnDefaultPropsChange={rerenderOnDefaultPropsChange}
+          hash={hash}
         />
       )
     }

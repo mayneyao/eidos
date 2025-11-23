@@ -6,14 +6,12 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
-import { FileManager } from "@/components/file-manager"
 import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { TempPanel } from "@/components/nav/temp-panel"
 import { NodeAppPanel } from "@/components/nav/node-app-panel"
-import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -35,15 +33,8 @@ export function DatabaseLayoutBase({
   const { isRightPanelOpen, isExtAppOpen, currentAppIndex, apps, tempPanelNode } =
     useSpaceAppStore()
   const currentApp = apps[currentAppIndex]
-  const { efsManager, isLoading, error } = useEidosFileSystemManager()
 
-  if (!efsManager || isLoading || error) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <Loading />
-      </div>
-    )
-  }
+
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
@@ -57,7 +48,7 @@ export function DatabaseLayoutBase({
       {currentPreviewFile && (
         <iframe
           className="hidden h-full w-full  md:block"
-          src={efsManager.getFileUrlByPath(currentPreviewFile.path)}
+          src={`/ ${currentPreviewFile.path} `}
         ></iframe>
       )}
       <ScriptContainer />
@@ -97,11 +88,6 @@ export function DatabaseLayoutBase({
                           {currentApp === "chat" && (
                             <Suspense fallback={<Loading />}>
                               <AIChat />
-                            </Suspense>
-                          )}
-                          {currentApp === "file-manager" && (
-                            <Suspense fallback={<Loading />}>
-                              <FileManager />
                             </Suspense>
                           )}
                           {currentApp && currentApp.startsWith("node://") && (

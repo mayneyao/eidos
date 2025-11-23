@@ -372,9 +372,9 @@ export const ViewToolbar = (props: {
 
   const handleMaximize = useCallback(() => {
     if (subPageId) {
-      navigate(`/${space}/${subPageId}`)
+      navigate(`/${subPageId}`)
     }
-  }, [navigate, space, subPageId])
+  }, [navigate, subPageId])
 
   const handleReorderViews = useCallback(
     async (dragId: string, targetId: string, direction: "up" | "down") => {
@@ -397,6 +397,9 @@ export const ViewToolbar = (props: {
 
   useKeyPress(["ctrl.f", "meta.f"], (event) => {
     event.preventDefault()
+    if (event.shiftKey) {
+      return
+    }
     setShowSearch(true)
   })
 

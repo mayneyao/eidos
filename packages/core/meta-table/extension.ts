@@ -8,7 +8,9 @@ import type {
   TableActionMeta,
   TableViewMeta,
   UDFMeta,
+  FileHandlerMeta,
 } from "../types/IExtension";
+import { BlockExtensionType } from "../types/IExtension";
 
 import type { BaseTable } from "./base";
 import { BaseTableImpl } from "./base";
@@ -41,6 +43,11 @@ export class ExtensionTable
   extends BaseTableImpl<IExtension>
   implements BaseTable<IExtension> {
   name = ExtensionTableName
+  
+  createFTSSql = this.dataSpace.hasLoadExtension ? `
+  CREATE VIRTUAL TABLE IF NOT EXISTS fts_extensions USING fts5(id, slug, description, ts_code, content='${this.name}', tokenize='simple');
+  ` : `CREATE VIRTUAL TABLE IF NOT EXISTS fts_extensions USING fts5(id, slug, description, ts_code, content='${this.name}');`
+
   createTableSql = `
     CREATE TABLE IF NOT EXISTS ${this.name} (
         id TEXT PRIMARY KEY,
@@ -65,6 +72,25 @@ export class ExtensionTable
     FOR EACH ROW
     BEGIN
       UPDATE ${this.name} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+    END;
+
+    ${this.createFTSSql}
+
+    CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_ai AFTER INSERT ON ${this.name} BEGIN
+      INSERT INTO fts_extensions(rowid, id, slug, description, ts_code) 
+      VALUES (new.rowid, new.id, new.slug, new.description, new.ts_code);
+    END;
+
+    CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_ad AFTER DELETE ON ${this.name} BEGIN
+      INSERT INTO fts_extensions(fts_extensions, rowid, id, slug, description, ts_code) 
+      VALUES('delete', old.rowid, old.id, old.slug, old.description, old.ts_code);
+    END;
+
+    CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_au AFTER UPDATE ON ${this.name} BEGIN
+      INSERT INTO fts_extensions(fts_extensions, rowid, id, slug, description, ts_code) 
+      VALUES('delete', old.rowid, old.id, old.slug, old.description, old.ts_code);
+      INSERT INTO fts_extensions(rowid, id, slug, description, ts_code) 
+      VALUES (new.rowid, new.id, new.slug, new.description, new.ts_code);
     END;
 
     ${createAllTriggersForFields(this.name, [
@@ -122,6 +148,26 @@ export class ExtensionTable
 
   async del(id: string): Promise<boolean> {
     await this.dataSpace.db.transaction(async () => {
+      // Get extension info before deletion to check if it's a file handler
+      const extension = await this.get(id)
+      
+      // If it's a file handler, clean up default handler KV entries
+      if (extension && extension.meta?.type === BlockExtensionType.FileHandler) {
+        const meta = extension.meta as FileHandlerMeta
+        const fileExtensions = meta.fileHandler?.extensions || []
+        
+        // For each file extension this handler supports, check if it's the default handler
+        for (const fileExtension of fileExtensions) {
+          const key = `eidos:space:file:handler:default:${fileExtension}`
+          const defaultHandlerId = await this.dataSpace.kv.get(key, 'text')
+          
+          // If this extension is the default handler for this file extension, remove it
+          if (defaultHandlerId === id) {
+            await this.dataSpace.kv.delete(key)
+          }
+        }
+      }
+      
       await this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])
       const chatIds = await this.dataSpace.chat.getChatIdsByProjectId(id)
       await Promise.all(chatIds.map(chatId => this.dataSpace.chat.del(chatId)))
@@ -436,6 +482,87 @@ export class ExtensionTable
 
     const res = await this.dataSpace.exec2(sql, params)
     return res.map((item: any) => this.toJson(item))
+  }
+
+  /**
+   * Full-text search extensions by slug, description, and code
+   */
+  async fullTextSearchExtensions(query: string): Promise<Array<IExtension & { result?: string }>> {
+    const sql = `
+      SELECT e.*, snippet(fts_extensions, -1, '<mark>', '</mark>', '...', 64) as result
+      FROM fts_extensions 
+      JOIN ${this.name} e ON fts_extensions.id = e.id
+      WHERE fts_extensions MATCH ?
+      ORDER BY rank
+    `
+    const res = await this.dataSpace.exec2(sql, [query])
+    return res.map((item: any) => {
+      const extension = this.toJson(item)
+      return {
+        ...extension,
+        result: item.result
+      }
+    })
+  }
+
+  /**
+   * Rebuild FTS index for all existing extensions
+   * This should be called once for migration when FTS is first introduced
+   * 
+   * @param opts Options for rebuilding
+   * @param opts.recreateFtsTable If true, drops and recreates the FTS table and triggers
+   */
+  async rebuildFTSIndex(opts?: { recreateFtsTable?: boolean }): Promise<void> {
+    const { recreateFtsTable = false } = opts || {}
+    
+    try {
+      if (recreateFtsTable) {
+        // Drop triggers first
+        await this.dataSpace.db.exec(`
+          DROP TRIGGER IF EXISTS ${this.name}_fts_ai;
+          DROP TRIGGER IF EXISTS ${this.name}_fts_ad;
+          DROP TRIGGER IF EXISTS ${this.name}_fts_au;
+        `)
+        
+        // Then drop the FTS table
+        await this.dataSpace.exec2(`DROP TABLE IF EXISTS fts_extensions;`)
+        
+        // Recreate the FTS table
+        await this.dataSpace.exec2(this.createFTSSql)
+        
+        // Recreate triggers by re-running the create table SQL
+        // The triggers are created as part of createTableSql
+        await this.dataSpace.db.exec(`
+          CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_ai AFTER INSERT ON ${this.name} BEGIN
+            INSERT INTO fts_extensions(rowid, id, slug, description, ts_code) 
+            VALUES (new.rowid, new.id, new.slug, new.description, new.ts_code);
+          END;
+
+          CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_ad AFTER DELETE ON ${this.name} BEGIN
+            INSERT INTO fts_extensions(fts_extensions, rowid, id, slug, description, ts_code) 
+            VALUES('delete', old.rowid, old.id, old.slug, old.description, old.ts_code);
+          END;
+
+          CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_au AFTER UPDATE ON ${this.name} BEGIN
+            INSERT INTO fts_extensions(fts_extensions, rowid, id, slug, description, ts_code) 
+            VALUES('delete', old.rowid, old.id, old.slug, old.description, old.ts_code);
+            INSERT INTO fts_extensions(rowid, id, slug, description, ts_code) 
+            VALUES (new.rowid, new.id, new.slug, new.description, new.ts_code);
+          END;
+        `)
+        
+        console.log(`Recreated fts_extensions table and triggers for ${this.dataSpace.dbName}`)
+      }
+      
+      // Use FTS5 'rebuild' command to rebuild the index
+      // This is the recommended way for content tables
+      await this.dataSpace.exec2(`INSERT INTO fts_extensions(fts_extensions) VALUES('rebuild')`)
+      
+      console.log(`Rebuilt FTS index for extensions in ${this.dataSpace.dbName}`)
+    } catch (error) {
+      console.error('Failed to rebuild FTS index for extensions:', error)
+      throw error
+    }
   }
 
   /**

@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import type { DataSpace } from "@/packages/core/DataSpace"
+import type { DataSpace } from "@eidos.space/core/data-space"
 
 import { TodoTableName } from "@/packages/core/sqlite/const"
 import type { TodoListItem } from "@/components/doc/plugins/TodoPlugin"

@@ -5,7 +5,7 @@ import {
   BlocksIcon,
   CalendarDays,
   ChevronDownIcon,
-  FileBoxIcon,
+  FolderOpen,
   GripVertical,
   ListTreeIcon,
   SettingsIcon,
@@ -18,13 +18,13 @@ import { cn } from "@/lib/utils"
 import { isMacDesktop } from "@/lib/web/helper"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
+import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
 import {
   TAB_CONFIG,
   useSidebarStore,
   type SidebarApp,
-  type TabId,
 } from "@/apps/web-app/store/sidebar-store"
 
 import { SortableContainer, SortableItem } from "../table/sortable"
@@ -39,7 +39,7 @@ import { IconRenderer } from "../ui/icon-picker"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   nodes: ListTreeIcon,
-  files: FileBoxIcon,
+  files: FolderOpen,
   extensions: BlocksIcon,
   settings: SettingsIcon,
   today: CalendarDays,
@@ -77,6 +77,7 @@ const BlockTab = memo(
     setCurrentApp,
     navigate,
     space,
+    onBlockTabClick,
   }: {
     tabId: string
     index: number
@@ -86,6 +87,7 @@ const BlockTab = memo(
     setCurrentApp: (app: string) => void
     navigate: (path: string) => void
     space: string
+    onBlockTabClick: (tabId: string) => void
   }) => {
     const block = blocks[tabId]
     const shortcutNum = index + 1
@@ -94,10 +96,8 @@ const BlockTab = memo(
     const label = block?.name || tabId
 
     const handleClick = useCallback(() => {
-      // Set current app and navigate to block page
-      setCurrentApp(tabId)
-      navigate(`/${space}/blocks/${tabId}`)
-    }, [setCurrentApp, navigate, space, tabId])
+      onBlockTabClick(tabId)
+    }, [onBlockTabClick, tabId])
 
     return (
       <div key={tabId}>
@@ -128,12 +128,18 @@ export const SidebarTabs = () => {
 
   // Get block IDs (non-fixed tabs)
   const blockIds = useMemo(
-    () => tabIds.filter((id) => !["nodes", "extensions", "today"].includes(id)),
+    () =>
+      tabIds.filter(
+        (id) => !["nodes", "extensions", "today", "files"].includes(id)
+      ),
     [tabIds]
   )
 
   // Batch fetch block information
   const { blocks } = useMblocksBatch(blockIds)
+
+  // Unified block tab click handler
+  const handleBlockTabClick = useBlockTabClick(blocks)
 
   const [visibleTabsCount, setVisibleTabsCount] = useState(tabIds.length)
   const [showDropdown, setShowDropdown] = useState(true) // Always show dropdown
@@ -148,17 +154,16 @@ export const SidebarTabs = () => {
       setCurrentApp(tabId as SidebarApp)
       const href =
         tabId === "today"
-          ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
-          : `/${space}${tabConfig.href}`
+          ? `/journals/${new Date().toLocaleDateString("en-CA")}`
+          : tabConfig.href
       navigate(href)
     } else {
       // Regular tab or block tab
-      if (tabId === "nodes" || tabId === "extensions") {
+      if (tabId === "nodes" || tabId === "extensions" || tabId === "files") {
         setCurrentApp(tabId as SidebarApp)
       } else {
-        // Block tab - set current app and navigate to block page
-        setCurrentApp(tabId)
-        navigate(`/${space}/blocks/${tabId}`)
+        // Block tab - use unified handling logic
+        handleBlockTabClick(tabId)
       }
     }
   }
@@ -198,18 +203,18 @@ export const SidebarTabs = () => {
 
   // Calculate how many tabs can fit (with dropdown always visible)
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout
-
     const calculateVisibleTabs = () => {
       if (!containerRef.current) return
 
-      // Fixed sidebar width: 20rem = 320px
-      const sidebarWidth = 320 // 20rem in pixels
+      // Measure sidebar/container width dynamically instead of hardcoding.
+      // Prefer the parent element of the header bar (sidebar container) when available.
+      const sidebarEl = containerRef.current?.parentElement ?? containerRef.current
+      const sidebarWidth = sidebarEl ? Math.floor(sidebarEl.clientWidth) : 320
       const tabWidth = 32 // w-8 = 32px
-      const gap = 2 // gap-0.5 = 2px (reduced for more space)
+      const gap = 2 // gap-0.5 = 2px
       const dropdownWidth = 32 // dropdown button width
-      const padding = isMacDesktop() ? 60 : 0 // Account for Mac padding (reduced for 6 tabs)
-      const sidePadding = 8 // px-1 = 4px on each side
+      const padding = isMacDesktop() ? 60 : 0 // Account for Mac padding
+      const sidePadding = 4 // px-1 = 2px on each side
 
       const totalTabs = tabIds.length
       const availableWidth = sidebarWidth - padding - sidePadding
@@ -218,40 +223,40 @@ export const SidebarTabs = () => {
       const dropdownSpace = dropdownWidth + gap
       const availableWidthForTabs = availableWidth - dropdownSpace
 
-      // More precise calculation for 6 tabs with reduced gap
-      // 6 tabs need: 6 * 32 + 5 * 2 = 192 + 10 = 202px
-      // 7 tabs need: 7 * 32 + 6 * 2 = 224 + 12 = 236px
-      const spaceFor6Tabs = 6 * tabWidth + 5 * gap // 202px
-      const spaceFor7Tabs = 7 * tabWidth + 6 * gap // 236px
-
-      let tabsWithDropdown
-      if (availableWidthForTabs >= spaceFor7Tabs) {
-        tabsWithDropdown = 7
-      } else if (availableWidthForTabs >= spaceFor6Tabs) {
-        tabsWithDropdown = 6
-      } else {
-        tabsWithDropdown = Math.floor(
-          (availableWidthForTabs + gap) / (tabWidth + gap)
-        )
+      // Dynamically calculate how many tabs can fit
+      // Formula: n tabs need n * tabWidth + (n-1) * gap pixels
+      let tabsWithDropdown = 0
+      for (let i = 1; i <= totalTabs; i++) {
+        const spaceNeeded = i * tabWidth + (i - 1) * gap
+        if (spaceNeeded <= availableWidthForTabs) {
+          tabsWithDropdown = i
+        } else {
+          break
+        }
       }
 
       // Show as many tabs as possible, but always keep dropdown
-      const visibleCount = Math.max(0, Math.min(totalTabs, tabsWithDropdown))
+      const visibleCount = Math.max(0, tabsWithDropdown)
 
       setVisibleTabsCount(visibleCount)
       setShowDropdown(true) // Always show dropdown
     }
 
-    const debouncedCalculate = () => {
-      clearTimeout(timeoutId)
-      timeoutId = setTimeout(calculateVisibleTabs, 16) // ~60fps
-    }
-
+    // Initial calculation
     calculateVisibleTabs()
-    window.addEventListener("resize", debouncedCalculate)
+
+    // Use ResizeObserver to monitor container width changes
+    const sidebarEl = containerRef.current?.parentElement ?? containerRef.current
+    if (!sidebarEl) return
+
+    const resizeObserver = new ResizeObserver(() => {
+      calculateVisibleTabs()
+    })
+
+    resizeObserver.observe(sidebarEl)
+
     return () => {
-      window.removeEventListener("resize", debouncedCalculate)
-      clearTimeout(timeoutId)
+      resizeObserver.disconnect()
     }
   }, [tabIds.length])
 
@@ -281,10 +286,12 @@ export const SidebarTabs = () => {
         {visibleItems.map((tab, index) => {
           const tabId = tab.id
           const tabConfig = TAB_CONFIG[tabId]
-          const isFixedTab = ["nodes", "extensions", "today"].includes(tabId)
+          const isFixedTab = ["nodes", "extensions", "today", "files"].includes(
+            tabId
+          )
 
           if (isFixedTab) {
-            // Fixed tabs (nodes, extensions, today)
+            // Fixed tabs (nodes, extensions, today, files)
             const shortcutNum = index + 1
             const Icon = getIconForTab(tabId)
             const isActive = currentApp === tabId
@@ -311,8 +318,8 @@ export const SidebarTabs = () => {
               // en-CA = Canadian English locale, which formats dates as YYYY-MM-DD
               const href =
                 tabId === "today"
-                  ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
-                  : `/${space}${tabConfig.href}`
+                  ? `/journals/${new Date().toLocaleDateString("en-CA")}`
+                  : tabConfig.href
 
               return (
                 <Link key={tabId} to={href}>
@@ -334,6 +341,7 @@ export const SidebarTabs = () => {
                 setCurrentApp={setCurrentApp}
                 navigate={navigate}
                 space={space}
+                onBlockTabClick={handleBlockTabClick}
               />
             )
           }
@@ -378,6 +386,7 @@ export const SidebarTabs = () => {
                       "nodes",
                       "extensions",
                       "today",
+                      "files",
                     ].includes(tabId)
                     const tabConfig = TAB_CONFIG[tabId]
                     const label = isFixedTab ? tabConfig?.label || tabId : null
@@ -388,17 +397,16 @@ export const SidebarTabs = () => {
                         setCurrentApp(tabId as SidebarApp)
                         const href =
                           tabId === "today"
-                            ? `/${space}/everyday/${new Date().toLocaleDateString("en-CA")}`
-                            : `/${space}${tabConfig.href}`
+                            ? `/journals/${new Date().toLocaleDateString("en-CA")}`
+                            : tabConfig.href
                         navigate(href)
                       } else {
                         // Regular tab or block tab
                         if (isFixedTab) {
                           setCurrentApp(tabId as SidebarApp)
                         } else {
-                          // Block tab - set current app and navigate to block page
-                          setCurrentApp(tabId)
-                          navigate(`/${space}/blocks/${tabId}`)
+                          // Block tab - use unified handling logic
+                          handleBlockTabClick(tabId)
                         }
                       }
                     }

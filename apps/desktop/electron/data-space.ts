@@ -1,16 +1,18 @@
 import { EidosDataEventChannelName, EidosMessageChannelName } from "@/lib/const";
-import type { EidosDatabase } from "@/packages/core/DataSpace";
-import { DataSpace } from "@/packages/core/DataSpace";
+import type { EidosDatabase } from "@/packages/core/data-space";
+import { DataSpace } from "@/packages/core/data-space";
 import { ExtensionTableName } from "@/packages/core/sqlite/const";
-import { extractUDF, validateUDFCode } from "@/packages/v3/code-tools/get-udf";
+import { extractUDF, validateUDFCode } from "@eidos.space/v3";
 import type { WebContents } from "electron";
 import { ipcMain } from "electron";
 import console from 'electron-log';
 import { EventEmitter } from 'events';
+import * as path from 'node:path';
 import { getConfigManager } from "./config";
 import { embedding } from "./data-space-context";
-import { getEidosFileSystemManager } from './file-system/getEidosFileSystemManager';
+import { NodeExternalFileSystem } from './external-fs-node';
 import { getSpaceDbPath } from "./file-system/space";
+import { getSpaceRegistry } from "./space-registry";
 import { getResourcePath } from "./helper";
 import { win } from "./main";
 import { NodeServerDatabase } from "./sqlite-server";
@@ -86,12 +88,12 @@ async function initUDF(db: EidosDatabase) {
             `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
             [ExtensionTableName]
         );
-        
+
         if (tableExists.length === 0) {
             console.warn(`Extension table ${ExtensionTableName} does not exist. Skipping UDF initialization.`);
             return;
         }
-        
+
         // Query UDF extensions directly from database using the same SQL as getUDFExtensions
         const sql = `
             SELECT * FROM ${ExtensionTableName}
@@ -142,6 +144,73 @@ async function initUDF(db: EidosDatabase) {
     }
 }
 
+/**
+ * Create external file system for ~/ and @/ paths
+ */
+async function createExternalFileSystem(spaceId: string, db: EidosDatabase): Promise<NodeExternalFileSystem> {
+    // Get project root directory from space registry
+    const registry = getSpaceRegistry();
+    const space = registry.getSpace(spaceId);
+
+    if (!space) {
+        throw new Error(`Space not found: ${spaceId}`);
+    }
+
+    const projectRoot = space.path; // This is the project root directory containing .eidos
+
+    console.log(`Initializing external file system for space: ${spaceId}`);
+    console.log(`Project root: ${projectRoot}`);
+
+    return new NodeExternalFileSystem(async (fsPath: string) => {
+        try {
+            if (fsPath.startsWith('~/')) {
+                // Project folder: ~/ maps to project root
+                const relativePath = fsPath.substring(2);
+                const absolutePath = path.join(projectRoot, relativePath);
+                console.log(`Resolved ~/ path: ${fsPath} -> ${absolutePath}`);
+                return absolutePath;
+            }
+            else if (fsPath.startsWith('@/')) {
+                // Mounted folder: @/mountName/... maps to mounted path
+                const parts = fsPath.substring(2).split('/');
+                const mountName = parts[0];
+
+                if (!mountName) {
+                    console.error('Invalid mounted path: missing mount name');
+                    return null;
+                }
+
+                // Get mount path from database
+                const mountKey = `eidos:space:files:mount:${mountName}`;
+                const mountRecords = await db.selectObjects(
+                    `SELECT value FROM eidos__kv WHERE key = ?`,
+                    [mountKey]
+                );
+
+                if (mountRecords.length === 0) {
+                    console.warn(`Mount not found: ${mountName}`);
+                    return null;
+                }
+
+                const mountPath = mountRecords[0].value as string;
+                const relativePath = parts.slice(1).join('/');
+                const absolutePath = relativePath
+                    ? path.join(mountPath, relativePath)
+                    : mountPath;
+
+                console.log(`Resolved @/ path: ${fsPath} -> ${absolutePath}`);
+                return absolutePath;
+            }
+
+            console.error(`Invalid path format: ${fsPath}. Must start with ~/ or @/`);
+            return null;
+        } catch (error) {
+            console.error(`Error resolving path ${fsPath}:`, error);
+            return null;
+        }
+    });
+}
+
 
 export class DataSpaceManager {
     private static instance: DataSpaceManager;
@@ -179,21 +248,24 @@ export class DataSpaceManager {
             return false;
         }
 
+        // Stop file watcher before closing dataspace
+        this.dataSpace.unwatchFileWatcher();
+
         // Close current dataspace
         this.dataSpace.close();
         this.dataSpace = null;
         return true;
     }
 
-    public async getOrSetDataSpace(spaceName: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
-        if (this.dataSpace && this.dataSpace.dbName !== spaceName) {
+    public async getOrSetDataSpace(spaceId: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
+        if (this.dataSpace && this.dataSpace.dbName !== spaceId) {
             // Close both main and draft databases when switching to a different space
             this.dataSpace.close();
         } else if (this.dataSpace) {
             // If same space, return existing instance
             return this.dataSpace;
         }
-        console.log("init space", spaceName)
+        console.log("init space", spaceId)
         const libPath = getResourcePath(`dist-sqlite-ext/libsimple`);
         const dictPath = getResourcePath('dist-sqlite-ext/dict');
         const graftLibPath = getResourcePath('dist-sqlite-ext/libgraft');
@@ -204,7 +276,7 @@ export class DataSpaceManager {
         // --- END: Set Graft Environment Variables from Config ---
 
         const serverDb = new NodeServerDatabase({
-            path: getSpaceDbPath(spaceName),
+            path: getSpaceDbPath(spaceId),
             options: {
                 timeout: 3000,
             }
@@ -245,7 +317,8 @@ export class DataSpaceManager {
             dataEventChannel: new BroadcastChannel('draft-data-event-channel')
         });
 
-        const efsManager = await getEidosFileSystemManager();
+        // Create external file system for ~/ and @/ paths
+        const externalFS = await createExternalFileSystem(spaceId, serverDb);
 
         const dataEventEmitter = new EventEmitter();
 
@@ -283,7 +356,7 @@ export class DataSpaceManager {
         this.dataSpace = new DataSpace({
             db: serverDb,
             activeUndoManager: false,
-            dbName: spaceName,
+            dbName: spaceId,
             context: {
                 setInterval,
                 embedding
@@ -297,12 +370,11 @@ export class DataSpaceManager {
                 return requestFromRenderer(win!.webContents, { type, data });
             },
             dataEventChannel: dataEventChannel,
-            efsManager: efsManager,
+            externalFS: externalFS,
             draftDb: draftDataSpace,
             enableFTS: true
         });
-
-
+        this.dataSpace.initFileWatcher();
         return this.dataSpace;
     }
 }
@@ -313,8 +385,8 @@ export function getDataSpace(): DataSpace | null {
     return DataSpaceManager.getInstance().getDataSpace();
 }
 
-export function getOrSetDataSpace(spaceName: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
-    return DataSpaceManager.getInstance().getOrSetDataSpace(spaceName, enableSync, volumeId);
+export function getOrSetDataSpace(spaceId: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
+    return DataSpaceManager.getInstance().getOrSetDataSpace(spaceId, enableSync, volumeId);
 }
 
 export function reloadDataSpace(): Promise<{ success: boolean }> {

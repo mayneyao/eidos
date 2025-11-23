@@ -11,10 +11,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { BlockRenderer } from "@/components/block-renderer/block-renderer"
-import { getDragFileInfo } from "@/components/file-manager/helper"
 import { FileSelector } from "@/components/file-selector"
 import { useMblock } from "@/apps/web-app/hooks/use-mblock"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
+import { getDragFileInfo } from "@/lib/file"
+
 
 export const NodeCover = (props: { node: ITreeNode }) => {
   const { node } = props

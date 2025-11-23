@@ -8,9 +8,11 @@ export type BindingType = "table" | "secret" | "text"
 export type ExtensionMeta =
     | TableViewMeta
     | ExtNodeMeta
+    | FileHandlerMeta
     | ToolMeta
     | TableActionMeta
     | DocActionMeta
+    | FileActionMeta
     | UDFMeta
 
 
@@ -46,6 +48,7 @@ export interface IExtension<T extends ExtensionMeta = ExtensionMeta> {
 export enum ScriptExtensionType {
     TableAction = "tableAction",
     DocAction = "docAction",
+    FileAction = "fileAction",
     Tool = "tool",
     UDF = "udf",
 }
@@ -53,6 +56,7 @@ export enum ScriptExtensionType {
 export enum BlockExtensionType {
     TableView = "tableView",
     ExtNode = "extNode",
+    FileHandler = "fileHandler",
 }
 
 
@@ -76,6 +80,17 @@ export interface ExtNodeMeta {
         description: string
         // extended type of the node
         type: string
+    }
+}
+
+export interface FileHandlerMeta {
+    type: BlockExtensionType.FileHandler
+    componentName: string
+    fileHandler: {
+        title: string
+        description: string
+        extensions: string[]
+        icon?: string
     }
 }
 
@@ -111,6 +126,17 @@ export interface DocActionMeta {
     }
 }
 
+export interface FileActionMeta {
+    type: ScriptExtensionType.FileAction
+    funcName: string
+    fileAction: {
+        name: string
+        description: string
+        extensions: string[]
+        icon?: string
+    }
+}
+
 export interface UDFMeta {
     type: ScriptExtensionType.UDF
     funcName: string
@@ -142,12 +168,12 @@ export interface IDocActionContext {
 // Block Extension interfaces
 export interface IBlockExtension extends Omit<IExtension, 'type' | 'meta'> {
     type: "block"
-    meta: TableViewMeta | ExtNodeMeta
+    meta: TableViewMeta | ExtNodeMeta | FileHandlerMeta
 }
 
 // Script Extension interfaces
 export interface IScriptExtension extends Omit<IExtension, 'type' | 'meta'> {
     type: "script"
-    meta: ToolMeta | TableActionMeta | DocActionMeta | UDFMeta
+    meta: ToolMeta | TableActionMeta | DocActionMeta | FileActionMeta | UDFMeta
 }
 

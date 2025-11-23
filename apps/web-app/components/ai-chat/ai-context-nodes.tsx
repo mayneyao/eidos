@@ -1,12 +1,12 @@
+import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { XIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
-import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { isDayPageId } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { NodeName } from "@/components/node-name"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 interface AIContextNodesProps {
   contextNodes: ITreeNode[]
@@ -25,10 +25,18 @@ export const AIContextNodes = ({
   }
 
   const handleNodeClick = (node: ITreeNode) => {
-    if (isDayPageId(node.id)) {
-      navigate(`/${space}/everyday/${node.id}`)
+    // Check if this is a path-based node (starts with ~ or @/)
+    const isPathNode = node.id.startsWith('~') || node.id.startsWith('@/')
+
+    if (isPathNode) {
+      // Navigate to file handler with the path as hash
+      navigate(`/file-handler#${node.id}`)
+    } else if (isDayPageId(node.id)) {
+      navigate(`/journals/${node.id}`)
+    } else if (node.type === "extension") {
+      navigate(`/extensions/${node.id}`)
     } else {
-      navigate(`/${space}/${node.id}`)
+      navigate(`/${node.id}`)
     }
   }
 

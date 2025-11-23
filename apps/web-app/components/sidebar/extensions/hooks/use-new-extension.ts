@@ -1,4 +1,4 @@
-import type { DocActionMeta, IExtension } from "@/packages/core/types/IExtension"
+import type { DocActionMeta, FileActionMeta, IExtension } from "@/packages/core/types/IExtension"
 import { useNavigate } from "react-router-dom"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
@@ -13,14 +13,14 @@ import tableActionTemplate from "./templates/script/table-action.ts?raw"
 import docActionTemplate from "./templates/script/doc-action.ts?raw"
 import toolTemplate from "./templates/script/tool.ts?raw"
 import udfTemplate from "./templates/script/udf.ts?raw"
+import fileActionTemplate from "./templates/script/file-action.ts?raw"
 
 // Block templates
-import { extractConstant } from "@/packages/v3/code-tools/code-extractor"
-import { blockCodeCompile, scriptCodeCompile } from "@/packages/v3/script-compiler"
+import { extractConstant, blockCodeCompile, scriptCodeCompile } from "@eidos.space/v3"
 import emptyBlockTemplate from "./templates/block/empty.tsx?raw"
 import extNodeTemplate from "./templates/block/ext-node.tsx?raw"
 import tableViewTemplate from "./templates/block/table-view.tsx?raw"
-
+import fileHandlerTemplate from "./templates/block/file-handler.tsx?raw"
 
 
 export const useNewExtension = () => {
@@ -30,8 +30,8 @@ export const useNewExtension = () => {
   const { setFocusedExtensionId } = useExtensionSidebarStore()
 
   const handleCreateNewExtension = async (
-    template: "tool" | "udf" | "tableAction" | "docAction" | "tableView" | "extNode" | "emptyScript" | "emptyBlock" = "tool",
-    type: "script" | "block" = template === "tableView" || template === "extNode" || template === "emptyBlock" ? "block" : "script"
+    template: "fileHandler" | "tool" | "udf" | "tableAction" | "docAction" | "fileAction" | "tableView" | "extNode" | "emptyScript" | "emptyBlock" = "tool",
+    type: "script" | "block" = template === "tableView" || template === "extNode" || template === "emptyBlock" || template === "fileHandler" ? "block" : "script"
   ) => {
     const newScriptId = generateIdV7()
     const shortSlug = newScriptId.slice(-8)
@@ -117,6 +117,26 @@ export const useNewExtension = () => {
           }
         }
 
+        case "fileAction": {
+          const [code, meta] = await Promise.all([
+            scriptCodeCompile(fileActionTemplate),
+            extractConstant(fileActionTemplate, "meta")
+          ])
+          const fileActionMeta = meta as FileActionMeta
+          return {
+            id: newScriptId,
+            slug: `file-action-${shortSlug}`,
+            name: fileActionMeta?.fileAction?.name || `New File Action - ${shortSlug}`,
+            type: type,
+            description: fileActionMeta?.fileAction?.description || "File action extension",
+            version: "0.0.1",
+            code,
+            ts_code: fileActionTemplate,
+            meta: fileActionMeta,
+            enabled: true
+          }
+        }
+
         case "tableView": {
           const [code, meta] = await Promise.all([
             blockCodeCompile(tableViewTemplate),
@@ -150,6 +170,26 @@ export const useNewExtension = () => {
             version: "0.0.1",
             code,
             ts_code: extNodeTemplate,
+            meta,
+            enabled: true
+          }
+        }
+
+
+        case "fileHandler": {
+          const [code, meta] = await Promise.all([
+            blockCodeCompile(fileHandlerTemplate),
+            extractConstant(fileHandlerTemplate, "meta")
+          ])
+          return {
+            id: newScriptId,
+            slug: `file-handler-${shortSlug}`,
+            name: meta?.fileHandler?.title || `New File Handler - ${shortSlug}`,
+            type: "block",
+            description: meta?.fileHandler?.description || "Custom file handler",
+            version: "0.0.1",
+            code,
+            ts_code: fileHandlerTemplate,
             meta,
             enabled: true
           }
@@ -198,7 +238,7 @@ export const useNewExtension = () => {
     // Set the focused extension ID to scroll to it in the sidebar
     setFocusedExtensionId(newScriptId)
 
-    router(`/${space}/extensions/${newScriptId}`)
+    router(`/extensions/${newScriptId}`)
   }
 
   return {

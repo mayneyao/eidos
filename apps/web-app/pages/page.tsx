@@ -1,10 +1,10 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 
+import { SpaceSelect } from "@/components/space-select"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
-import { DatabaseSelect } from "@/components/database-select"
 
 import { useLastOpened } from "./[database]/hook"
 
@@ -26,7 +26,7 @@ export const LandingPage = () => {
   return (
     <div className="flex h-screen w-screen items-center justify-center">
       <div className="w-[200px]">
-        <DatabaseSelect databases={spaceList} />
+        <SpaceSelect spaces={spaceList} />
       </div>
     </div>
   )

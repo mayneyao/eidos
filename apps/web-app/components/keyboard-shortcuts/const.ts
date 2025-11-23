@@ -164,6 +164,10 @@ export const useCommonKeyboardShortcuts = () => {
       description: t('kbd.shortcuts.common.toggleSidebarDescription'),
     },
     {
+      key: "Ctrl/Cmd + K",
+      description: t('kbd.shortcuts.common.toggleCommandPaletteDescription'),
+    },
+    {
       key: "Ctrl/Cmd + N",
       description: t('kbd.shortcuts.common.newDocumentDescription'),
     },
@@ -196,20 +200,8 @@ export const useCommonKeyboardShortcuts = () => {
       description: t('kbd.shortcuts.common.copyUrlDescription'),
     },
     {
-      key: "Ctrl/Cmd + 1",
-      description: t('kbd.shortcuts.common.switchToNodesDescription'),
-    },
-    {
-      key: "Ctrl/Cmd + 2",
-      description: t('kbd.shortcuts.common.switchToExtensionsDescription'),
-    },
-    {
-      key: "Ctrl/Cmd + 3",
-      description: t('kbd.shortcuts.common.switchToTodayDescription'),
-    },
-    {
-      key: "Ctrl/Cmd + 4-9",
-      description: t('kbd.shortcuts.common.switchToBlockDescription', { index: "4-9" }),
+      key: "Ctrl/Cmd + 1-9",
+      description: t('kbd.shortcuts.common.switchToSidebarTabDescription', { tab: "1-9" }),
     },
   ];
 };

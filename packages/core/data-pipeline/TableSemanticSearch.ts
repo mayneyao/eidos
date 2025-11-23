@@ -1,5 +1,5 @@
 import { getTableIdByRawTableName } from "@/lib/utils";
-import type { DataSpace } from "../DataSpace";
+import type { DataSpace } from "../data-space";
 import { TableManager } from "../sdk/table";
 import { FieldType } from "../fields/const";
 

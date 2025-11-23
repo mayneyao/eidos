@@ -35,6 +35,11 @@ export interface ISqlite<T, D> {
   connector: T
   send: (data: D) => void | Promise<any>
   onCallBack: (thisCallId: string) => Promise<any>
+  /**
+   * Handle iterator/streaming functions that return AsyncIterable
+   * Returns an AsyncIterable that yields values from the remote iterator
+   */
+  onIterator?: <TValue = any>(thisCallId: string) => AsyncIterable<TValue>
 }
 
 

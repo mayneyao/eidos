@@ -47,7 +47,7 @@ The `id` field is crucial for identifying and managing individual data items.
 
 ### `DataSpace`
 
-The `DataSpace` object (from ` '@/worker/web-worker/DataSpace'`) is a wrapper around the SQLite database running in a web worker. Most hooks require a `DataSpace | null` instance to interact with the database. If `null`, operations that require database access might be disabled or throw errors.
+The `DataSpace` object (from ` '@/worker/web-worker/data-space'`) is a wrapper around the SQLite database running in a web worker. Most hooks require a `DataSpace | null` instance to interact with the database. If `null`, operations that require database access might be disabled or throw errors.
 
 ## Creating a Reactive Store: `createReactiveData<T>(config)`
 
@@ -229,7 +229,7 @@ Let's look at a simplified version inspired by `use-all-mblocks.ts`.
 
 ```typescript
 // Assume this hook provides DataSpace
-import { DataSpace } from "@/worker/web-worker/DataSpace"
+import { DataSpace } from "@/worker/web-worker/data-space"
 import { z } from "zod"
 
 import { useSqlite } from "@/hooks/use-sqlite"

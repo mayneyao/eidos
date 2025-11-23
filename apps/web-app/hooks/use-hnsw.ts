@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import type { DataSpace } from "@/packages/core/DataSpace"
+import type { DataSpace } from "@eidos.space/core/data-space"
 import type { IEmbedding } from "@/packages/core/meta-table/embedding"
 import chunk from "lodash/chunk"
 import zip from "lodash/zip"

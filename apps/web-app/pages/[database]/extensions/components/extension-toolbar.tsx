@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useRef } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
-import { compileCode } from "@/packages/v3/compiler"
-import { getCompileMethod } from "@/packages/v3/script-compiler"
+import { compileCode, getCompileMethod } from "@eidos.space/v3"
 import { useMount } from "ahooks"
-import { Copy, ExternalLink, Play } from "lucide-react"
+import { Copy, ExternalLink, PinIcon, PinOffIcon, Play } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 
@@ -13,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { usePlayground } from "@/apps/desktop/renderer/hooks/usePlayground"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import { useScriptCall } from "@/apps/web-app/hooks/use-script-call"
 
 import { useExtension } from "../../../../hooks/use-extension"
@@ -88,6 +88,7 @@ export const ExtensionToolbar = () => {
   })
 
   const { isRemixMode, setIsRemixMode } = useEditorStore()
+  const { isFavorite, toggleFavBlock } = useFavBlocks()
 
   const handleRunScript = useCallback(async () => {
     if (!script.code) {
@@ -163,6 +164,27 @@ export const ExtensionToolbar = () => {
 
   return (
     <div className="flex items-center gap-2">
+      {script.type === "block" && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            toggleFavBlock({
+              id: script.id,
+              name: script.name,
+              icon: script.icon,
+            })
+          }
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          title={isFavorite(script.id) ? "Unpin" : "Pin"}
+        >
+          {isFavorite(script.id) ? (
+            <PinOffIcon className="h-4 w-4" />
+          ) : (
+            <PinIcon className="h-4 w-4" />
+          )}
+        </Button>
+      )}
       <Button variant="ghost" size="sm" onClick={handleCopyCode}>
         <Copy className="h-4 w-4" />
         {/* {t("extension.toolbar.copy")} */}
@@ -191,6 +213,7 @@ export const ExtensionToolbar = () => {
         script={script}
         onSuccess={() => revalidator.revalidate()}
       />
+
       {isScriptForkFromMarketplace && (
         <CheckForUpdatesButton
           script={script}

@@ -1,0 +1,94 @@
+"use client"
+
+import React from "react"
+import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
+
+import { ExtensionContextMenu } from "./extension-context-menu"
+import { FileContextMenu } from "./file-context-menu"
+import { NodeContextMenu } from "./node-context-menu"
+
+interface FileTreeNode extends IDirectoryEntry {
+  children?: FileTreeNode[]
+}
+
+interface FileTreeContextMenuProps {
+  node: FileTreeNode
+  children: React.ReactNode
+  onRename?: (node: FileTreeNode) => void
+  onDelete?: (node: FileTreeNode) => void
+  onPin?: (node: FileTreeNode) => void
+  onUnpin?: (node: FileTreeNode) => void
+  onAddToChat?: (node: FileTreeNode) => void
+  onCreateDoc?: (parentNode: FileTreeNode) => void
+  onCreateTable?: (parentNode: FileTreeNode) => void
+  onCreateFolder?: (parentNode: FileTreeNode) => void
+  onCopySlug?: (node: FileTreeNode) => void
+  onCopyExtension?: (node: FileTreeNode) => void
+}
+
+/**
+ * Context menu router for FileTree nodes
+ * Routes to appropriate context menu component based on node type
+ */
+export const FileTreeContextMenu = ({
+  node,
+  children,
+  onRename,
+  onDelete,
+  onPin,
+  onUnpin,
+  onAddToChat,
+  onCreateDoc,
+  onCreateTable,
+  onCreateFolder,
+  onCopySlug,
+  onCopyExtension,
+}: FileTreeContextMenuProps) => {
+  const nodeType = node.metadata?.nodeType
+  const isExtension = nodeType === "extension"
+
+  // For regular files (no metadata), show minimal context menu
+  if (!nodeType) {
+    return (
+      <FileContextMenu
+        node={node}
+      // onRename={onRename}
+      // onDelete={onDelete}
+      >
+        {children}
+      </FileContextMenu>
+    )
+  }
+
+  // For extensions, show extension-specific menu
+  if (isExtension) {
+    return (
+      <ExtensionContextMenu
+        node={node}
+        onRename={onRename}
+        onDelete={onDelete}
+        onCopySlug={onCopySlug}
+        onCopy={onCopyExtension}
+      >
+        {children}
+      </ExtensionContextMenu>
+    )
+  }
+
+  // For nodes (table, doc, folder, etc.), show node-specific menu
+  return (
+    <NodeContextMenu
+      node={node}
+      onRename={onRename}
+      onDelete={onDelete}
+      onPin={onPin}
+      onUnpin={onUnpin}
+      onAddToChat={onAddToChat}
+      onCreateDoc={onCreateDoc}
+      onCreateTable={onCreateTable}
+      onCreateFolder={onCreateFolder}
+    >
+      {children}
+    </NodeContextMenu>
+  )
+}

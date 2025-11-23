@@ -107,10 +107,26 @@ export const getDynamicPrompt = (bindings: IExtension["bindings"]) => {
     })
     .join("\n")
 
-  // Add global eidos variable declaration
+  // Add global eidos variable declaration with dynamic env types
+  const envTypes = Object.entries(bindings || {}).reduce((acc, [key, binding]) => {
+    if (binding.type === "secret" || binding.type === "text") {
+      acc[key] = "string";
+    }
+    return acc;
+  }, {} as Record<string, string>);
+
+  const envTypeString = Object.entries(envTypes)
+    .map(([key, type]) => `    ${key}: ${type};`)
+    .join("\n");
+
   const eidosGlobalDeclaration = `
 declare global {
   const eidos: Eidos;
+  const process: {
+    env: {
+${envTypeString}
+    };
+  };
 }
 `
 

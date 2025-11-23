@@ -16,6 +16,7 @@ interface EditorInstanceContextType {
   docProperties: Record<string, any> | null
   markerProperty: string
   showReferenceNodeIcon: boolean
+  imageAlign: 'left' | 'center' | 'right'
 }
 
 const EditorInstanceContext = createContext<EditorInstanceContextType>({
@@ -29,6 +30,7 @@ const EditorInstanceContext = createContext<EditorInstanceContextType>({
   docProperties: null,
   markerProperty: "",
   showReferenceNodeIcon: false,
+  imageAlign: 'center',
 })
 
 export function EditorInstanceProvider({
@@ -47,9 +49,12 @@ export function EditorInstanceProvider({
 
   const { data: spaceDocSettings } = useSpaceSettings("doc", {
     markerProperty: "",
+    showReferenceNodeIcon: false,
+    imageAlign: 'center',
   })
   const markerProperty = spaceDocSettings.markerProperty
   const showReferenceNodeIcon = spaceDocSettings.showReferenceNodeIcon
+  const imageAlign = spaceDocSettings.imageAlign
 
   const value = {
     mblocks,
@@ -62,6 +67,7 @@ export function EditorInstanceProvider({
     docProperties,
     markerProperty,
     showReferenceNodeIcon,
+    imageAlign,
   }
 
   return (

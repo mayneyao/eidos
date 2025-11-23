@@ -1,5 +1,6 @@
 import { Menu, PanelRightIcon } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useLocation, useSearchParams } from "react-router-dom"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
@@ -19,6 +20,8 @@ export const Nav = ({
   showMenu?: boolean
   children?: React.ReactNode
 }) => {
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
   const {
@@ -77,10 +80,10 @@ export const Nav = ({
         </Button>
       )}
 
-      <div className="hidden md:block">{children || <BreadCrumb />}</div>
+      <div className="hidden md:block min-w-0 overflow-hidden">{children || <BreadCrumb />}</div>
       <div className="h-full grow" id="drag-region" />
       <div
-        className={cn("flex items-center justify-between gap-1", {
+        className={cn("flex items-center gap-1 shrink-0 grow-0", {
           "pr-[100px]": isWindowsDesktop && !isRightPanelOpen,
         })}
       >

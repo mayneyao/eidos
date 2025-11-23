@@ -128,7 +128,7 @@ export function InitialStorageSetup() {
   const handleOpenDataFolder = () => {
     if (dataFolder) {
       try {
-        window.eidos.openFolder(dataFolder)
+        window.eidos.showInFileManager(dataFolder)
       } catch (error) {
         console.error("Failed to open data folder:", error)
         toast({

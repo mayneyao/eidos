@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import type { DataSpace } from "@/packages/core/DataSpace"
+import type { DataSpace } from "@eidos.space/core/data-space"
 import { $generateNodesFromDOM } from "@lexical/html"
 import type { Email } from "postal-mime"
 
@@ -15,8 +15,8 @@ import { $getRoot, $insertNodes, $nodesOfType } from "lexical"
 import zip from "lodash/zip"
 
 import { getAllLinks } from "@/lib/markdown"
+import { getUuid } from "@/lib/utils"
 import { getSqliteProxy } from "@/packages/core/sqlite/channel"
-import { efsManager } from "@/lib/storage/eidos-file-system"
 import { $getUrlMetaData } from "@/components/doc/blocks/bookmark/node"
 import {
   allTransformers,
@@ -86,13 +86,23 @@ export const _convertEmail2State = async (
       if (!file) continue
       // file.content is base64 encoded
       const url = `data:${file.mimeType};base64,${file.content}`
-      const savedFile = await sqlite.saveFile2EFS(
-        url,
-        ["images"],
-        file.filename ?? undefined
-      )
-      savedFile?.path &&
-        img.setAttribute("src", efsManager.getFileUrlByPath(savedFile?.path))
+      // Convert base64 to Uint8Array
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const arrayBuffer = await blob.arrayBuffer()
+      const uint8Array = new Uint8Array(arrayBuffer)
+
+      // Generate file path
+      const fileId = getUuid()
+      const fileName = file.filename ?? `attachment-${fileId}`
+      const ext = fileName.includes('.') ? fileName.split('.').pop() : ''
+      const filePath = `~/.eidos/files/${fileId}${ext ? '.' + ext : ''}`
+
+      // Save file using fs
+      await sqlite.fs.writeFile(filePath, uint8Array)
+
+      // Update image src
+      img.setAttribute("src", `/${filePath}`)
     }
   } catch (error) {
     console.warn(error)

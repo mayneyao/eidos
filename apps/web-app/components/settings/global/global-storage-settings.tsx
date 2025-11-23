@@ -62,7 +62,7 @@ export function GlobalStorageSettings() {
 
   const handleOpenDataFolder = () => {
     if (dataFolder) {
-      window.eidos.openFolder(dataFolder)
+      window.eidos.showInFileManager(dataFolder)
     }
   }
 

@@ -1,9 +1,11 @@
 import { app } from 'electron';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { EventEmitter } from 'events';
 import type { AIFormValues } from '@/packages/ai/config';
 import type { CustomTheme } from '@/apps/web-app/store/theme-store';
+import { getSpaceRegistry } from '../space-registry';
 
 export interface GraftConfig {
     // URL for the Graft MetaStore
@@ -19,8 +21,8 @@ export interface GraftConfig {
 }
 
 export interface AppConfig {
-    // the folder where the data is stored
-    dataFolder: string;
+    // the folder where the data is stored (deprecated, use space registry instead)
+    dataFolder?: string;
     // the api agent config
     apiAgentConfig: {
         url: string;
@@ -46,10 +48,12 @@ export interface AppConfig {
         currentThemeName: string;
         customThemes: CustomTheme[];
     };
+    // Last opened workspace ID
+    lastOpenedSpace?: string;
 }
 
 const emptyConfig: AppConfig = {
-    dataFolder: '', // Will likely be set based on userData path or similar
+    dataFolder: undefined, // Deprecated, use space registry instead
     apiAgentConfig: {
         url: '',
         enabled: false,
@@ -61,6 +65,7 @@ const emptyConfig: AppConfig = {
         embeddingModel: '',
         translationModel: '',
         codingModel: '',
+        version: 0,
     },
     security: {
         webSecurity: true,
@@ -83,18 +88,23 @@ const emptyConfig: AppConfig = {
         currentThemeName: 'Default',
         customThemes: [],
     },
+    lastOpenedSpace: undefined,
 };
 
 export class ConfigManager extends EventEmitter {
     private configPath: string;
     private config: AppConfig;
+    private isGlobalConfig: boolean;
 
-    constructor(configPath: string) {
+    constructor(configPath: string, isGlobalConfig: boolean = false) {
         super();
         this.configPath = configPath;
+        this.isGlobalConfig = isGlobalConfig;
         this.config = this.loadConfig();
         // Ensure existing configs have the new sync structure and defaults
         this.ensureDefaultSyncConfig();
+        // Ensure AI config has version field for synchronization
+        this.ensureDefaultAIConfig();
     }
 
     private loadConfig(): AppConfig {
@@ -134,6 +144,27 @@ export class ConfigManager extends EventEmitter {
             }
         }
         return loadedConfig;
+    }
+
+    // Ensure that the loaded AI config has version field for synchronization
+    private ensureDefaultAIConfig(): void {
+        let needsSave = false;
+        // Ensure ai object exists
+        if (typeof this.config.ai !== 'object' || this.config.ai === null) {
+            console.warn("AI config section missing, initializing with defaults.");
+            this.config.ai = JSON.parse(JSON.stringify(emptyConfig.ai)); // Deep clone default AI
+            needsSave = true;
+        } else {
+            // Ensure version field exists
+            if (typeof this.config.ai.version !== 'number') {
+                console.warn("AI config version missing or invalid, applying default.");
+                this.config.ai.version = emptyConfig.ai.version;
+                needsSave = true;
+            }
+        }
+        if (needsSave) {
+            this.saveConfig();
+        }
     }
 
     // Ensure that the loaded config has the sync structure, applying defaults if missing
@@ -275,15 +306,36 @@ export class ConfigManager extends EventEmitter {
             this.emit('configChanged', { key: 'autoUpdate.enabled', oldValue, newValue: enabled });
         }
     }
+
+    // Getter for last opened space
+    public getLastOpenedSpace(): string | undefined {
+        return this.config.lastOpenedSpace;
+    }
+
+    // Setter for last opened space
+    public setLastOpenedSpace(spaceId: string | undefined): void {
+        const oldValue = this.config.lastOpenedSpace;
+        if (oldValue !== spaceId) {
+            this.config.lastOpenedSpace = spaceId;
+            this.saveConfig();
+            console.log('Last opened space changed:', { oldValue, newValue: spaceId });
+            this.emit('configChanged', { key: 'lastOpenedSpace', oldValue, newValue: spaceId });
+        }
+    }
 }
 
 let configManagerInstance: ConfigManager | null = null;
 
 export function getConfigManager(): ConfigManager {
     if (!configManagerInstance) {
-        const userDataPath = app.getPath('userData');
-        const configFilePath = path.join(userDataPath, 'config.json');
-        configManagerInstance = new ConfigManager(configFilePath);
+        const globalConfigPath = path.join(os.homedir(), '.eidos', 'config.json');
+        if (fs.existsSync(globalConfigPath)) {
+            configManagerInstance = new ConfigManager(globalConfigPath, true);
+        } else {
+            const userDataPath = app.getPath('userData');
+            const configFilePath = path.join(userDataPath, 'config.json');
+            configManagerInstance = new ConfigManager(configFilePath, false);
+        }
     }
     return configManagerInstance;
 }

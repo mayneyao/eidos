@@ -4,11 +4,10 @@ import { RouterProvider, createBrowserRouter, redirect } from "react-router-dom"
 import { QueryParamProvider } from "use-query-params"
 import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6"
 
-import { SpaceFileSystem } from "@/lib/storage/space"
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
-import EverydayPage from "@/apps/web-app/pages/[database]/everyday/[day]/page"
-import EverydayHomePage from "@/apps/web-app/pages/[database]/everyday/page"
-import { FileManager } from "@/apps/web-app/pages/[database]/files/page"
+import { FileHandlerPage } from "@/apps/web-app/pages/[database]/file-handler/page"
+import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
+import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
 
 import "@/locales/i18n"
 // space
@@ -23,13 +22,11 @@ import ShareLayout from "@/apps/web-app/pages/share/[database]/layout"
 import SharePage from "@/apps/web-app/pages/share/page"
 
 import { NotFound } from "./404"
-import { AppPage } from "./[database]/apps/page"
 import { BlocksPage } from "./[database]/blocks/page"
 import { ExtensionDetailPage } from "./[database]/extensions/detail"
 import { ExtensionsEmptyState } from "./[database]/extensions/empty-state"
 import { ExtensionsLayout } from "./[database]/extensions/layout"
 import { SpaceSetting } from "./[database]/settings/page"
-import { DocEditor } from "./eidtor/doc"
 import { ErrorBoundary } from "./error"
 import { LabPage } from "./lab"
 import { LicenseManagePage } from "./license-manage/page"
@@ -68,12 +65,32 @@ const router = createBrowserRouter([
         element: <SpaceLayout />,
         loader: async ({ params }) => {
           // check the space is exist
+          try {
+            let spaceNames: string[] = []
 
-          const spaceNames = await new SpaceFileSystem().list()
-          if (params.database && !spaceNames.includes(params.database)) {
-            return redirect("/404")
+            // In desktop mode, use IPC to get workspace list
+            if (typeof window !== "undefined" && window.eidos) {
+              try {
+                const spaces = await window.eidos.invoke("list-spaces")
+                spaceNames = spaces.map((space: any) => space.id)
+              } catch (error) {
+                console.error("Failed to get spaces from Electron:", error)
+              }
+            }
+            // Web mode will only support single space, no validation needed
+
+            if (
+              params.database &&
+              spaceNames.length > 0 &&
+              !spaceNames.includes(params.database)
+            ) {
+              return redirect("/404")
+            }
+            return null
+          } catch (error) {
+            console.error("Error checking space existence:", error)
+            return null
           }
-          return null
         },
         children: [
           {
@@ -85,17 +102,8 @@ const router = createBrowserRouter([
             element: <SpaceSetting />,
           },
           {
-            path: "opfs",
-            element: <FileManager />,
-          },
-          {
-            path: "apps",
-            children: [
-              {
-                path: ":id",
-                element: <AppPage />,
-              },
-            ],
+            path: "file-handler",
+            element: <FileHandlerPage />,
           },
           {
             path: "blocks",
@@ -129,7 +137,7 @@ const router = createBrowserRouter([
             ],
           },
           {
-            path: "everyday",
+            path: "journals",
             children: [
               {
                 index: true,
@@ -163,15 +171,6 @@ const router = createBrowserRouter([
                 element: <ShareNodePage />,
               },
             ],
-          },
-        ],
-      },
-      {
-        path: "editor",
-        children: [
-          {
-            path: "doc",
-            element: <DocEditor />,
           },
         ],
       },

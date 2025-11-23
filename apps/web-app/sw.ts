@@ -1,8 +1,3 @@
-import {
-  backUpPullOnce,
-  backUpPushOnce,
-  backupAllSpaceData
-} from "@/worker/service-worker/backup"
 import { routes } from "@/worker/service-worker/routes"
 import { precacheAndRoute } from "workbox-precaching"
 
@@ -23,29 +18,6 @@ self.addEventListener("activate", (event) => {
   console.log("Service worker activated")
 })
 
-self.addEventListener("periodicsync", (event: any) => {
-  switch (event.tag) {
-    case "backup":
-      event.waitUntil(backUpPushOnce())
-      break
-    case "backup-db":
-      event.waitUntil(backupAllSpaceData())
-      break
-    default:
-      break
-  }
-})
-
-self.addEventListener("sync", (event: any) => {
-  console.log("sync", event)
-  if (event.tag === "backup-push") {
-    event.waitUntil(backUpPushOnce())
-  }
-
-  if (event.tag === "backup-pull") {
-    event.waitUntil(backUpPullOnce())
-  }
-})
 
 self.addEventListener("fetch", async (event) => {
   const url = new URL(event.request.url)

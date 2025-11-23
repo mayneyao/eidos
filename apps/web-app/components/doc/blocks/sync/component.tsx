@@ -17,9 +17,9 @@ export const SyncBlockComponent = (props: { id: string }) => {
 
   const onClick = () => {
     if (isDayPageId(id)) {
-      return router(`/${space}/everyday/${id}`)
+      return router(`/journals/${id}`)
     }
-    router(`/${space}/${id}`)
+    router(`/${id}`)
   }
 
   useEffect(() => {

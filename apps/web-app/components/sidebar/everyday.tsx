@@ -67,7 +67,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
         }
       }
     }
-    navigate(`/${space}/everyday`)
+    navigate(`/journals`)
     setOpen(false)
     setImporting(false)
   }
@@ -83,7 +83,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
             asChild
           >
             <Link
-              to={`/${space}/everyday/${today}`}
+              to={`/journals/${today}`}
               className="[&>svg]:!size-5"
             >
               <CalendarDays className="pr-1" />
@@ -103,10 +103,10 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
       </ContextMenu>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("everyday.import.title")}</DialogTitle>
+          <DialogTitle>{t("journals.import.title")}</DialogTitle>
         </DialogHeader>
         <div className="flex h-20 cursor-pointer items-center justify-center border border-dashed border-slate-500 p-2">
-          <div onClick={getDir}>{t("everyday.import.selectFolder")}</div>
+          <div onClick={getDir}>{t("journals.import.selectFolder")}</div>
         </div>
         <DialogFooter>
           {importing && <Progress value={progress} />}

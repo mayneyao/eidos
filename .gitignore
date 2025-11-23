@@ -10,10 +10,13 @@ dist-sqlite-ext
 temp
 typings
 
+# eidos space
+.eidos/
 
 # Logs
 logs
 *.log
+.devlogs/*
 
 tsconfig.tsbuildinfo
 

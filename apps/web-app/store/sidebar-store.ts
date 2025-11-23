@@ -4,9 +4,10 @@ export type SidebarApp =
   | "nodes"
   | "extensions"
   | "today"
+  | "files"
   | string
 
-export type TabId = "nodes" | "extensions" | "today" | string
+export type TabId = "nodes" | "extensions" | "today" | "files" | string
 
 export type SidebarTab = {
   id: TabId
@@ -19,20 +20,25 @@ export type SidebarTab = {
 // Tab configuration mapping
 export const TAB_CONFIG: Record<string, Omit<SidebarTab, 'id'>> = {
   nodes: {
-    label: "节点",
+    label: "nodes",
     icon: () => null,
     isNavigation: false,
   },
   extensions: {
-    label: "扩展", 
+    label: "extensions",
     icon: () => null,
     isNavigation: false,
   },
   today: {
-    label: "每日",
+    label: "today",
     icon: () => null,
     isNavigation: true,
-    href: "/everyday",
+    href: "/journals",
+  },
+  files: {
+    label: "files",
+    icon: () => null,
+    isNavigation: false,
   },
 }
 

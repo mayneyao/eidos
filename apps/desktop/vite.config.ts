@@ -138,9 +138,19 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         changeOrigin: true,
       },
       "/api/chat": "http://localhost:13127",
-      '^/[^/]+/files/': {
+      '/files/': {
         target: 'http://localhost:13127',
-        changeOrigin: true,
+        changeOrigin: false,
+        rewrite: (path: string) => path,
+      },
+      '/@/': {
+        target: 'http://localhost:13127',
+        changeOrigin: false,
+        rewrite: (path: string) => path,
+      },
+      '/~/': {
+        target: 'http://localhost:13127',
+        changeOrigin: false,
         rewrite: (path: string) => path,
       },
       '/static/': {

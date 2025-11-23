@@ -56,6 +56,32 @@ export const useProtocolUrl = () => {
                 }
                 break;
 
+            case 'open-space':
+                // Handle eidos open command from CLI (like "code .")
+                if ('space' in searchParams) {
+                    const spaceId = searchParams['space'];
+                    console.log(`Opening space from CLI: ${spaceId}`);
+                    
+                    // In desktop mode, use Electron IPC to switch space
+                    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+                        try {
+                            const result = await window.eidos.invoke('switch-space', spaceId);
+                            if (result.success) {
+                                console.log(`✓ Successfully switched to space: ${spaceId}`);
+                                // Electron will automatically reload to new subdomain
+                            } else {
+                                console.error('Failed to switch space:', result.error);
+                            }
+                        } catch (error) {
+                            console.error('Error switching space:', error);
+                        }
+                    } else {
+                        // Fallback for web mode (though this command is mainly for desktop)
+                        navigate(`/${spaceId}`);
+                    }
+                }
+                break;
+
             case 'search':
                 if ('space' in searchParams) {
                     const spaceId = searchParams['space'];
@@ -69,7 +95,7 @@ export const useProtocolUrl = () => {
                     console.log({ spaceId, content, title });
                     const docId = uuidv7().replace(/-/g, '');
                     await createDocWithMarkdown({ spaceId, docId, markdown: content, title, mode: "replace" });
-                    navigate(`/${spaceId}/${docId}`);
+                    navigate(`/${docId}`);
                 }
                 break;
 
@@ -83,7 +109,7 @@ export const useProtocolUrl = () => {
                 } else if ('prepend' in searchParams) {
                     await createDocWithMarkdown({ spaceId, docId, markdown: content, title: undefined, mode: "prepend" });
                 } else {
-                    navigate(`/${spaceId}/everyday/${date}`);
+                    navigate(`/journals/${date}`);
                 }
                 break;
 

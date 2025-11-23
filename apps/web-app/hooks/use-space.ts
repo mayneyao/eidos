@@ -1,174 +1,111 @@
-import { useCallback, useEffect, useState } from "react"
-import { create } from "zustand"
+import { useCallback, useEffect } from "react"
 
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 import { MsgType } from "@/lib/const"
 import { getWorker } from "@/packages/core/sqlite/worker"
-import { SpaceFileSystem } from "@/lib/storage/space"
 import { uuidv7 } from "@/lib/utils"
 
 import { isDesktopMode } from "@/lib/env"
 import { useSqlite } from "./use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
+import type { SpaceInfo } from "./use-current-space"
 
-// Space File System Store
-interface SpaceFileSystemState {
-  spaceFileSystem: SpaceFileSystem | null
-  isLoading: boolean
-  error: string | null
-}
-
-interface SpaceFileSystemActions {
-  setSpaceFileSystem: (system: SpaceFileSystem | null) => void
-  initializeSpaceFileSystem: () => Promise<void>
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  reset: () => void
-}
-
-type SpaceFileSystemStore = SpaceFileSystemState & SpaceFileSystemActions
-
-const initialSpaceState: SpaceFileSystemState = {
-  spaceFileSystem: null,
-  isLoading: false,
-  error: null
-}
-
-export const useSpaceFileSystemStore = create<SpaceFileSystemStore>((set) => ({
-  ...initialSpaceState,
-
-  setSpaceFileSystem: (system) => set({ spaceFileSystem: system }),
-
-  initializeSpaceFileSystem: async () => {
-    set({ isLoading: true, error: null })
-
-    try {
-      let system: SpaceFileSystem | null = null
-
-      if (isDesktopMode) {
-        if (typeof window !== 'undefined' && window.eidos) {
-          system = await window.eidos.getSpaceFileSystem()
-        }
-      } else {
-        system = new SpaceFileSystem()
-      }
-
-      set({ spaceFileSystem: system, isLoading: false })
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Failed to initialize space file system',
-        isLoading: false
-      })
-    }
-  },
-
-  setLoading: (loading) => set({ isLoading: loading }),
-
-  setError: (error) => set({ error: error }),
-
-  reset: () => set(initialSpaceState)
-}))
-
-export const useSpaceFileSystem = () => {
-  const { spaceFileSystem, initializeSpaceFileSystem, isLoading, error } = useSpaceFileSystemStore()
-
-  useEffect(() => {
-    if (!spaceFileSystem && !isLoading && !error) {
-      initializeSpaceFileSystem()
-    }
-  }, [spaceFileSystem, isLoading, error, initializeSpaceFileSystem])
-
-  return { spaceFileSystem, isLoading, error, initializeSpaceFileSystem }
-}
-
-export type SpaceInfo = {
-  isSyncEnabled: boolean
-  graftId?: string
-}
-
-export const useSpaceInfo = (spaceName: string) => {
-  const { spaceFileSystem } = useSpaceFileSystem()
-  const [spaceInfo, setSpaceInfo] = useState<SpaceInfo | null>(null)
-
-  const getSpaceInfo = useCallback(async (spaceName: string) => {
-    if (!spaceName) {
-      setSpaceInfo(null)
-      return
-    }
-    if (spaceFileSystem) {
-      const info = await spaceFileSystem.getSpaceInfo(spaceName)
-      setSpaceInfo(info)
-    }
-  }, [spaceName, spaceFileSystem])
-
-  useEffect(() => {
-    getSpaceInfo(spaceName)
-  }, [getSpaceInfo, spaceName])
-
-  return { getSpaceInfo, spaceInfo }
-}
 
 export const useSpace = () => {
   const { setSpaceList, spaceList } = useSqliteStore()
   const { sqlite } = useSqlite()
   const { setLastOpenedDatabase } = useLastOpened()
-  const { spaceFileSystem } = useSpaceFileSystem()
 
   const updateSpaceList = useCallback(async () => {
-    if (spaceFileSystem) {
-      const spaceNames = await spaceFileSystem.list()
-      setSpaceList(spaceNames)
+    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+      // In desktop mode, use IPC to get workspace list
+      try {
+        const spaces: SpaceInfo[] = await window.eidos.invoke('list-spaces')
+        setSpaceList(spaces)
+      } catch (error) {
+        console.error('Failed to get spaces from Electron:', error)
+      }
     }
-  }, [setSpaceList, spaceFileSystem])
+    // Web mode will only support single space, no multi-space management needed
+  }, [setSpaceList])
 
   useEffect(() => {
     updateSpaceList()
   }, [updateSpaceList])
 
-  const exportSpace = useCallback(async (spaceName: string) => {
-    if (spaceFileSystem) {
-      await spaceFileSystem.export(spaceName)
-    }
-  }, [spaceFileSystem])
-
   const deleteSpace = useCallback(
-    async (spaceName: string) => {
-      if (!spaceFileSystem) return
-
-      try {
-        await spaceFileSystem.remove(spaceName)
-        setLastOpenedDatabase("")
-
-        await new Promise(resolve => setTimeout(resolve, 100))
-
-        const spaceNames = await spaceFileSystem.list()
-        if (spaceNames.includes(spaceName)) {
-          console.warn(`Space ${spaceName} still exists after deletion attempt`)
+    async (spaceId: string) => {
+      if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+        // In desktop mode, use IPC to delete workspace
+        try {
+          const result = await window.eidos.invoke('remove-space', spaceId)
+          if (result.success) {
+            setLastOpenedDatabase("")
+            await updateSpaceList()
+          } else {
+            throw new Error('Failed to remove space')
+          }
+        } catch (error) {
+          console.error("Error deleting space:", error)
+          throw error
         }
-        setSpaceList(spaceNames)
-      } catch (error) {
-        console.error("Error deleting space:", error)
-        throw error
       }
+      // Web mode doesn't support space deletion
     },
-    [setLastOpenedDatabase, spaceFileSystem, setSpaceList]
+    [setLastOpenedDatabase, updateSpaceList]
+  )
+
+  const renameSpace = useCallback(
+    async (spaceId: string, newName: string) => {
+      if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+        try {
+          const result = await window.eidos.invoke('update-space', spaceId, { name: newName })
+          if (result.success) {
+            await updateSpaceList()
+          } else {
+            throw new Error(result.error || 'Failed to rename space')
+          }
+        } catch (error) {
+          console.error("Error renaming space:", error)
+          throw error
+        }
+      }
+      // Web mode doesn't support space renaming
+    },
+    [updateSpaceList]
   )
 
   const rebuildIndex = useCallback(async () => {
+    // Rebuild doc FTS index
     await sqlite?.doc.rebuildIndex({
       recreateFtsTable: true
     })
+    
+    // Rebuild extension FTS index
+    await sqlite?.extension.rebuildFTSIndex({
+      recreateFtsTable: true
+    })
+    
+    console.log('Rebuilt all FTS indexes')
   }, [sqlite])
 
   const createSpace = useCallback(async (spaceName: string, enableSync: boolean = false, volumeId?: string) => {
-    if (spaceFileSystem) {
-      await spaceFileSystem.create(spaceName)
-    }
-
-    if (isDesktopMode) {
-      const res = await window.eidos.invoke(MsgType.CreateSpace, { spaceName, enableSync, volumeId })
-      return res
+    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+      // In desktop mode, use new IPC interface
+      try {
+        const result = await window.eidos.invoke('register-space', spaceName, spaceName)
+        if (result.success) {
+          await updateSpaceList()
+          return result
+        } else {
+          throw new Error(result.error || 'Failed to create space')
+        }
+      } catch (error) {
+        console.error("Error creating space:", error)
+        throw error
+      }
     } else {
+      // Web mode: create space using worker
       const msgId = uuidv7()
       const worker = getWorker()
 
@@ -193,17 +130,14 @@ export const useSpace = () => {
         }
       })
     }
-  }, [spaceFileSystem])
+  }, [updateSpaceList])
 
   return {
     spaceList,
     updateSpaceList,
     createSpace,
-    exportSpace,
     deleteSpace,
     rebuildIndex,
+    renameSpace,
   }
 }
-
-export const useSpaceFileSystemLoading = () => useSpaceFileSystemStore((state) => state.isLoading)
-export const useSpaceFileSystemError = () => useSpaceFileSystemStore((state) => state.error)

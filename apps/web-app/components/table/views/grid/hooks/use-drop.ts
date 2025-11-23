@@ -2,15 +2,16 @@ import React from "react"
 import type {
   DataEditorProps,
   GridCell,
-  Item} from "@glideapps/glide-data-grid";
+  Item
+} from "@glideapps/glide-data-grid";
 import {
   GridCellKind
 } from "@glideapps/glide-data-grid"
 
-import { useFileSystem } from "@/apps/web-app/hooks/use-files"
-import { getDragFileUrl } from "@/components/file-manager/helper"
+import { useFileUpload } from "@/apps/web-app/hooks/use-file-upload"
 
 import type { FileCell } from "../cells/file/file-cell"
+import { getDragFileUrl } from "@/lib/file"
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",
@@ -30,7 +31,7 @@ export const useDrop = (props: IProps) => {
     DataEditorProps["highlightRegions"]
   >([])
 
-  const { addFiles } = useFileSystem()
+  const { addFiles } = useFileUpload()
   const [lastDropCell, setLastDropCell] = React.useState<Item | undefined>()
 
   const onDrop = React.useCallback(
@@ -62,7 +63,7 @@ export const useDrop = (props: IProps) => {
 
         addFiles(Array.from(files)).then((fileInfos) => {
           const newFileUrls = fileInfos.map(
-            (fileInfo) => "/" + fileInfo.path.split("/").slice(1).join("/")
+            (fileInfo) => "/" + fileInfo.path
           )
           const oldCell = getCellContent(cell) as FileCell
           const newValues = [

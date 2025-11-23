@@ -8,6 +8,7 @@ import { useDocEditor } from "@/apps/web-app/hooks/use-doc-editor"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { getRawTableNameById, getTableIdByRawTableName } from "@/lib/utils"
+import { ALLOWED_DOCUMENT_EXTENSIONS } from "@/lib/const"
 import systemPromptRaw from "./prompt.md?raw"
 
 import extensionBlockPrompt from "@/packages/ai/prompts/extension-block.md?raw"
@@ -32,6 +33,8 @@ export const useAdditionalData = (
     const currentNode = useCurrentNode()
     const [_map, { set, reset, get }] = useMap<string, string>()
     const [_tableMap, { set: setTable, reset: resetTable, get: getTable }] = useMap<string, string>()
+    const [_extensionMap, { set: setExtension, reset: resetExtension, get: getExtension }] = useMap<string, { slug: string; code: string }>()
+    const [_pathDocMap, { set: setPathDoc, reset: resetPathDoc, get: getPathDoc }] = useMap<string, string>()
     const { sqlite } = useSqlite()
     const { getDocMarkdown } = useDocEditor(sqlite)
 
@@ -46,6 +49,24 @@ export const useAdditionalData = (
     const docs = useMemo(
         () =>
             contextNodes.filter((node) => node.type === "doc").map((node) => node.id),
+        [contextNodes]
+    )
+
+    const extensions = useMemo(
+        () =>
+            contextNodes.filter((node) => node.type === "extension").map((node) => node.id),
+        [contextNodes]
+    )
+
+    const pathDocs = useMemo(
+        () =>
+            contextNodes.filter((node) => {
+                const isPathNode = node.id.startsWith('~') || node.id.startsWith('@/')
+                const fileName = node.name?.toLowerCase() || ''
+                // Only allow text/markdown files for pathDocs
+                const allowedTextExtensions = ALLOWED_DOCUMENT_EXTENSIONS.slice(0, 3) // .md, .markdown, .txt
+                return isPathNode && allowedTextExtensions.some(ext => fileName.endsWith(ext))
+            }).map((node) => node.id),
         [contextNodes]
     )
 
@@ -91,6 +112,44 @@ export const useAdditionalData = (
         loadTableSchemas()
     }, [tables, sqlite, setTable])
 
+    useEffect(() => {
+        async function loadExtensions() {
+            if (!sqlite) return
+
+            for (const extensionId of extensions) {
+                try {
+                    const extension = await sqlite.extension.get(extensionId)
+                    if (extension && extension.ts_code) {
+                        setExtension(extensionId, {
+                            slug: extension.slug,
+                            code: extension.ts_code
+                        })
+                    }
+                } catch (error) {
+                    console.warn(`Failed to load extension ${extensionId}:`, error)
+                }
+            }
+        }
+        loadExtensions()
+    }, [extensions, sqlite, setExtension])
+
+    useEffect(() => {
+        async function loadPathDocs() {
+            if (!sqlite) return
+
+            for (const path of pathDocs) {
+                try {
+                    // Read file content using the file system API
+                    const content = await sqlite.fs.readFile(path, { encoding: 'utf-8' })
+                    setPathDoc(path, content)
+                } catch (error) {
+                    console.warn(`Failed to load path document ${path}:`, error)
+                }
+            }
+        }
+        loadPathDocs()
+    }, [pathDocs, sqlite, setPathDoc])
+
     const additionalData = useMemo(() => {
         return `
   <additional_data>
@@ -100,6 +159,12 @@ export const useAdditionalData = (
   <attached_tables>
   ${Array.from(_tableMap.entries()).map(([tableName, schema]) => `<table id="${getTableIdByRawTableName(tableName)}" name="${tableName}" title="${contextNodes.find(node => getRawTableNameById(node.id) === tableName)?.name}">\n${schema}\n</table>`).join("\n")}
   </attached_tables>
+  <attached_extensions>
+  ${Array.from(_extensionMap.entries()).map(([extensionId, extensionData]) => `<extension id="${extensionId}" slug="${extensionData.slug}">\n${extensionData.code}\n</extension>`).join("\n")}
+  </attached_extensions>
+  <attached_path_docs>
+  ${Array.from(_pathDocMap.entries()).map(([path, content]) => `<doc path="${path}" title="${contextNodes.find(node => node.id === path)?.name}">\n${content}\n</doc>`).join("\n")}
+  </attached_path_docs>
   </additional_data>
   <use_info>
 ${currentNode ? ` <current_node id="${currentNode?.id}" name="${currentNode?.name}" type="${currentNode?.type}" />` : ""
@@ -107,7 +172,7 @@ ${currentNode ? ` <current_node id="${currentNode?.id}" name="${currentNode?.nam
   <current_space id="${space}" name="${space}" />
   </use_info>
   `
-    }, [_map, _tableMap, contextNodes, currentNode, space])
+    }, [_map, _tableMap, _extensionMap, _pathDocMap, contextNodes, currentNode, space])
 
     return additionalData
 }

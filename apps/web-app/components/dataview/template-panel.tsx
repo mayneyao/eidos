@@ -11,20 +11,18 @@ import { getTemplates } from "./template"
 interface TemplatePanelProps {
   isCollapsed: boolean
   onTemplateSelect: (sql: string) => void
-  space: string
 }
 
 export const TemplatePanel = ({
   isCollapsed,
   onTemplateSelect,
-  space,
 }: TemplatePanelProps) => {
   const [templateSearchQuery, setTemplateSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>("all")
   const { t } = useTranslation()
 
-  // Get templates for the current space (memoized)
-  const templates = useMemo(() => getTemplates(space), [space])
+  // Get templates (memoized)
+  const templates = useMemo(() => getTemplates(), [])
 
   // Template categorization and filtering logic (memoized)
   const templateCategories = useMemo(() => ({

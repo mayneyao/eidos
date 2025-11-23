@@ -1,11 +1,9 @@
-import { AlertTriangle, FolderOpen, Save, Search } from "lucide-react"
 import { useEffect, useState } from "react"
+import { AlertTriangle, FolderOpen, Save, Search } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useEngine } from "@/apps/web-app/hooks/use-engine"
-import { useSpace } from "@/apps/web-app/hooks/use-space"
+import { isDesktopMode } from "@/lib/env"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,38 +18,114 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { isDesktopMode } from "@/lib/env"
+import { useToast } from "@/components/ui/use-toast"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useEngine } from "@/apps/web-app/hooks/use-engine"
+import { useSpace } from "@/apps/web-app/hooks/use-space"
+import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 
 export function GeneralSettings() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
-  const { exportSpace, deleteSpace, rebuildIndex } = useSpace()
+  const { deleteSpace, rebuildIndex, renameSpace, spaceList, updateSpaceList } = useSpace()
   const navigate = useNavigate()
   const { close } = useEngine()
+  const { toast } = useToast()
 
   const [confirmName, setConfirmName] = useState("")
   const [isRebuilding, setIsRebuilding] = useState(false)
   const [dataFolder, setDataFolder] = useState<string>("")
+  const [spaceInfo, setSpaceInfo] = useState<SpaceInfo | null>(null)
+  const [spaceName, setSpaceName] = useState("")
+  const [isRenaming, setIsRenaming] = useState(false)
 
   useEffect(() => {
-    const loadDataFolder = async () => {
+    const loadData = async () => {
       if (isDesktopMode) {
         const folder = await window.eidos.config.get("dataFolder")
-        setDataFolder(folder)
+        setDataFolder(folder || "")
+        
+        // Load current space info
+        try {
+          const info = await window.eidos.invoke("get-current-space")
+          if (info) {
+            setSpaceInfo(info)
+            setSpaceName(info.name)
+          }
+        } catch (error) {
+          console.error("Error loading space info:", error)
+        }
       }
     }
-    loadDataFolder()
-  }, [])
+    loadData()
+  }, [space])
 
-  const handleExport = () => {
-    exportSpace(space)
+  const handleRename = async () => {
+    if (!space || !spaceName.trim()) return
+    
+    setIsRenaming(true)
+    try {
+      await renameSpace(space, spaceName.trim())
+      // Success is silent - no toast per toast rules
+      // Reload space info to get updated name
+      if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+        try {
+          const info = await window.eidos.invoke("get-current-space")
+          if (info) {
+            setSpaceInfo(info)
+            setSpaceName(info.name)
+          }
+        } catch (error) {
+          console.error("Error reloading space info:", error)
+        }
+      }
+    } catch (error) {
+      toast({
+        title: t("space.settings.renameFailed"),
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
+      // Reset to original name on error
+      if (spaceInfo) {
+        setSpaceName(spaceInfo.name)
+      }
+    } finally {
+      setIsRenaming(false)
+    }
   }
 
-  const handleDelete = async () => {
+  const handleUnregister = async () => {
     if (confirmName === space) {
-      await deleteSpace(space)
-      close()
-      navigate("/")
+      try {
+        await deleteSpace(space)
+        await updateSpaceList()
+        close()
+        
+        if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+          // In desktop mode, switch to another space if available
+          const updatedSpaces = await window.eidos.invoke("list-spaces")
+          if (updatedSpaces && updatedSpaces.length > 0) {
+            // Switch to the first available space
+            const result = await window.eidos.invoke("switch-space", updatedSpaces[0].id)
+            if (result.success) {
+              // Space switched successfully, Electron will automatically reload to new subdomain
+              return
+            }
+          }
+          // If no spaces available, navigate to landing page
+          navigate("/")
+        } else {
+          // Web mode: navigate to landing page
+          navigate("/")
+        }
+      } catch (error) {
+        console.error("Error unregistering space:", error)
+        toast({
+          title: t("space.settings.unregisterFailed"),
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        })
+      }
     } else {
       alert(t("space.settings.spaceNameMismatch"))
     }
@@ -70,19 +144,26 @@ export function GeneralSettings() {
     }
   }
 
-  const handleOpenFolder = () => {
-    if (dataFolder) {
-      const spacePath = `${dataFolder}/spaces/${space}`
-      window.eidos.openFolder(spacePath)
+  const handleOpenFolder = async () => {
+    if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+      try {
+        // Get current workspace info via IPC
+        const spaceInfo = await window.eidos.invoke("get-current-space")
+        if (spaceInfo && spaceInfo.path) {
+          window.eidos.showInFileManager(spaceInfo.path)
+        } else {
+          console.error("No space path found")
+        }
+      } catch (error) {
+        console.error("Error getting space info:", error)
+      }
     }
   }
 
   return (
     <div className="space-y-0">
       <div className="py-4">
-        <h3 className="text-lg font-medium">
-          {t("space.settings.spaceInfo")}
-        </h3>
+        <h3 className="text-lg font-medium">{t("space.settings.spaceInfo")}</h3>
       </div>
 
       <hr className="border-border" />
@@ -98,12 +179,26 @@ export function GeneralSettings() {
                 <Label htmlFor="spaceName">
                   {t("space.settings.spaceName")}
                 </Label>
-                <Input
-                  id="spaceName"
-                  value={space}
-                  disabled
-                  className="bg-muted"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="spaceName"
+                    value={spaceName}
+                    onChange={(e) => setSpaceName(e.target.value)}
+                    disabled={isRenaming || !spaceInfo}
+                    placeholder={t("space.settings.spaceNamePlaceholder")}
+                  />
+                  <Button
+                    onClick={handleRename}
+                    disabled={isRenaming || !spaceInfo || spaceName.trim() === spaceInfo?.name || !spaceName.trim()}
+                    size="xs"
+                  >
+                    <Save className="h-3.5 w-3.5 mr-1.5" />
+                    {isRenaming ? t("space.settings.saving") : t("space.settings.save")}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t("space.settings.spaceNameDescription")}
+                </p>
               </div>
             </div>
           </div>
@@ -125,25 +220,6 @@ export function GeneralSettings() {
               {t("space.settings.dataDescription")}
             </p>
             <div className="space-y-6">
-              {!isDesktopMode && (
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>{t("space.settings.exportData")}</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {t("space.settings.exportDataDescription")}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={handleExport}
-                    className="w-fit"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {t("space.settings.exportData")}
-                  </Button>
-                </div>
-              )}
-
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>{t("space.settings.rebuildSearchIndex")}</Label>
@@ -205,17 +281,17 @@ export function GeneralSettings() {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-destructive">
-                    {t("space.settings.deleteSpace")}
+                    {t("space.settings.unregisterSpace")}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    {t("space.settings.deleteSpaceDescription")}
+                    {t("space.settings.unregisterSpaceDescription")}
                   </p>
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" className="w-fit">
                       <AlertTriangle className="h-4 w-4 mr-2" />
-                      {t("space.settings.deleteSpace")}
+                      {t("space.settings.unregisterSpace")}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -224,15 +300,15 @@ export function GeneralSettings() {
                         {t("common.areYouAbsolutelySure")}
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        {t("space.settings.deleteSpaceWarning", {
-                          spaceName: space,
+                        {t("space.settings.unregisterSpaceWarning", {
+                          spaceId: space,
                         })}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <Input
                       id="confirmName"
                       type="text"
-                      placeholder={t("space.settings.typeSpaceName")}
+                      placeholder={space || ""}
                       value={confirmName}
                       onChange={(e) => setConfirmName(e.target.value)}
                     />
@@ -241,7 +317,7 @@ export function GeneralSettings() {
                         {t("common.cancel")}
                       </AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={handleDelete}
+                        onClick={handleUnregister}
                         disabled={confirmName !== space}
                       >
                         {t("common.continue")}

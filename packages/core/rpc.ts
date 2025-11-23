@@ -1,4 +1,4 @@
-import type { DataSpace } from "./DataSpace"
+import type { DataSpace } from "./data-space"
 
 export const workerStore: {
     currentCallUserId: string | null
@@ -55,5 +55,8 @@ export const handleFunctionCall = async (
         throw error;
     }
     const res = await callMethod(...params)
+    
+    // Return the result as-is (including AsyncIterable if it's an iterator function)
+    // The caller (worker.ts or main.ts) will handle iterators appropriately
     return res
 }

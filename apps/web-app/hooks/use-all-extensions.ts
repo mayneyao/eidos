@@ -1,9 +1,11 @@
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
+import { useFileHandlerStore } from "@/apps/web-app/store/file-handler-store"
 import type { EidosDataEventChannelMsg } from "@/lib/const";
 import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const"
 import { ExtensionTableName } from "@/packages/core/sqlite/const"
-import type { IExtension } from "@/packages/core/types/IExtension"
+import type { IExtension, FileHandlerMeta } from "@/packages/core/types/IExtension"
+import { BlockExtensionType } from "@/packages/core/types/IExtension"
 import { useCallback, useEffect } from "react"
 import { create } from "zustand"
 
@@ -92,6 +94,7 @@ export const useSyncExtensions = () => {
     setError,
     setReload,
   } = useExtensionStore()
+  const clearDefaultHandlerCache = useFileHandlerStore((state) => state.clearDefaultHandlerCache)
 
   const reload = useCallback(async (sortField?: ExtensionSortField, sortOrder?: ExtensionSortOrder, searchTerm?: string) => {
     setLoading(true)
@@ -153,12 +156,35 @@ export const useSyncExtensions = () => {
             case DataUpdateSignalType.Update:
               if (_new) {
                 upsertExtension(_new as unknown as IExtension)
+                // File handler updates are now handled by useAllFileHandlers hook
               }
               break
 
             case DataUpdateSignalType.Delete:
               if (_old?.id) {
                 removeExtension(_old.id)
+                
+                // Clean up file handler cache if the deleted extension is a file handler
+                try {
+                  // Parse meta if it's a string
+                  const meta = typeof _old.meta === 'string' 
+                    ? JSON.parse(_old.meta) 
+                    : _old.meta
+                  
+                  if (meta?.type === BlockExtensionType.FileHandler) {
+                    const fileHandlerMeta = meta as FileHandlerMeta
+                    const fileExtensions = fileHandlerMeta.fileHandler?.extensions || []
+                    
+                    // Clear default handler cache for all file extensions this handler supported
+                    // File handler list updates are now handled by useAllFileHandlers hook
+                    for (const fileExtension of fileExtensions) {
+                      clearDefaultHandlerCache(fileExtension)
+                    }
+                  }
+                } catch (error) {
+                  // Ignore parsing errors
+                  console.warn("Failed to parse extension meta for cache cleanup:", error)
+                }
               }
               break
             default:
@@ -175,7 +201,7 @@ export const useSyncExtensions = () => {
       bc.removeEventListener("message", handler)
       bc.close()
     }
-  }, [upsertExtension, removeExtension, setSyncing])
+  }, [upsertExtension, removeExtension, setSyncing, clearDefaultHandlerCache])
 }
 
 export const useAllExtensions = () => {

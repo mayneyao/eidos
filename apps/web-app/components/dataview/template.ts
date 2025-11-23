@@ -1,4 +1,4 @@
-export const getTemplates = (space: string) => [
+export const getTemplates = () => [
   {
     name: "queryAllFiles",
     i18nKey: "dataview.template.queryAllFiles",
@@ -10,10 +10,7 @@ export const getTemplates = (space: string) => [
 -- [path_display:file]
 SELECT
     *,
-    CASE
-        WHEN path LIKE 'spaces/%' THEN substr(path, 7)
-        ELSE path
-    END AS path_display
+    '/' || path AS path_display
 FROM eidos__files
     `
   },
@@ -27,12 +24,8 @@ FROM eidos__files
     sql: `
 -- [path_display:file]
 SELECT 
-    id,
-    CASE
-        WHEN path LIKE 'spaces/%' THEN substr(path, 7)
-        ELSE path
-    END AS path_display,
-    *
+    *,
+    '/' || path AS path_display
 FROM eidos__files WHERE mime LIKE 'image/%'
     `
   },
@@ -57,7 +50,7 @@ SELECT
     json_extract(j.value, '$.title') as title,
     json_extract(j.value, '$.description') as description,
     json_extract(j.value, '$.fetched') as fetched,
-    '/${space}/' || d.id AS pathname,
+    '/' || d.id AS pathname,
     d.created_at as created_at,
     json_extract(j.value, '$.url') as url,
     json_extract(j.value, '$.image') as image,
@@ -92,7 +85,7 @@ WITH
 SELECT
   json_extract(j.value, '$.children[0].text') as text,
   json_extract(j.value, '$.checked') as checked,
-  '/${space}/' || d.id AS pathname,
+  '/' || d.id AS pathname,
   d.created_at as created_at,
   d.id as doc_id
 FROM
@@ -135,7 +128,7 @@ WITH
 SELECT
   json_extract(j.value, '$.children[0].text') as text,
   json_extract(j.value, '$.checked') as checked,
-  '/${space}/' || d.id AS pathname,
+  '/' || d.id AS pathname,
   d.created_at as created_at,
   d.updated_at as updated_at,
   d.id as doc_id
@@ -176,7 +169,7 @@ WITH
   )
 SELECT
   json_extract(j.value, '$.text') as text,
-  '/${space}/' || d.id AS pathname,
+  '/' || d.id AS pathname,
   d.id as doc_id
 FROM
   valid_docs d,
@@ -241,7 +234,7 @@ SELECT
   text,
   url,
   type,
-  '/${space}/' || doc_id AS pathname,
+  '/' || doc_id AS pathname,
   created_at,
   doc_id
 FROM (
@@ -388,7 +381,7 @@ ORDER BY
     sql: `
 SELECT
   t.name as title,
-  '/${space}/' || t.id AS pathname, -- [pathname:url]
+  '/' || t.id AS pathname, -- [pathname:url]
   d.*
 FROM
   eidos__tree t
@@ -408,7 +401,7 @@ ORDER BY
 -- [pathname:url]
 SELECT
   t.name as title,
-  '/${space}/' || t.id AS pathname
+  '/' || t.id AS pathname
 FROM
   eidos__tree t
   JOIN sqlite_master sm ON sm.name = 'tb_' || t.id
@@ -417,6 +410,43 @@ WHERE
   AND sm.type = 'table' AND t.is_deleted = 0
 ORDER BY
   t.created_at DESC
+    `
+  },
+  {
+    name: "queryDocNodeReferences",
+    i18nKey: "dataview.template.queryDocNodeReferences",
+    descriptionKey: "dataview.template.queryDocNodeReferences.description",
+    tags: ["doc", "reference", "mention", "link"],
+    category: "doc",
+    difficulty: "intermediate",
+    sql: `
+-- [self:url]
+-- [reference:url]
+WITH
+  valid_docs AS (
+    SELECT
+      d.id,
+      d.content,
+      t.name AS self_name
+    FROM
+      eidos__docs d
+      JOIN eidos__tree t ON d.id = t.id
+    WHERE
+      json_valid(d.content) = 1
+  )
+SELECT
+  '/' || d.id AS self,
+  d.self_name,
+  '/' || json_extract(j.value, '$.id') AS reference,
+  t2.name AS reference_name
+FROM
+  valid_docs d,
+  json_tree(d.content, '$.root.children') AS j
+  LEFT JOIN eidos__tree t2 ON json_extract(j.value, '$.id') = t2.id
+WHERE
+  j.type = 'object'
+  AND json_extract(j.value, '$.type') = 'mention'
+  AND json_extract(j.value, '$.id') IS NOT NULL
     `
   }
 ]

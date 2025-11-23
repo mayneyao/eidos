@@ -8,7 +8,7 @@ export enum TreeNodeType {
 export interface ITreeNode {
   id: string
   name: string
-  type: TreeNodeType | `ext__${string}` | 'day' | 'table' | 'doc' | 'folder' | 'dataview'
+  type: TreeNodeType | `ext__${string}` | 'day' | 'table' | 'doc' | 'folder' | 'dataview' | 'extension'
   position?: number
   parent_id?: string
   is_pinned?: boolean

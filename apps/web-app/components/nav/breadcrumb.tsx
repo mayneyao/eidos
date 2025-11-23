@@ -63,7 +63,7 @@ export function BreadCrumb() {
     }
     return {
       ...p,
-      href: getLink(`/${space}/${p.path || p.id}`),
+      href: getLink(`/${p.path || p.id}`),
       label: p.name || "Untitled",
     }
   }) as ({

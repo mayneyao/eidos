@@ -239,7 +239,6 @@ export const DataViewPlaceholder = ({
                   </div>
                   <TemplateModal
                     onTemplateSelect={handleTemplateSelect}
-                    space={space}
                   >
                     <Button variant="outline" size="xs" className="gap-1 mx-2">
                       <Database className="h-3 w-3" />

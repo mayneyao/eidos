@@ -1,16 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useDebounceFn, useKeyPress } from "ahooks"
+import { useState } from "react"
+import { useKeyPress } from "ahooks"
 import {
   Bot,
   Clock3Icon,
   FilePlus2Icon,
+  LayoutGrid,
   PaintBucket,
   Palette,
   RefreshCcwIcon,
   Settings,
   Wand2,
+  Wrench,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useTranslation } from "react-i18next"
@@ -27,9 +29,10 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
+import { useToast } from "@/components/ui/use-toast"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
+import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
@@ -38,11 +41,8 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { ThemeStudio } from "../theme-studio"
 import { DocActionCommandItems } from "./doc-actions"
-// import { ExtensionCommandItems } from "./extension"
-import { useCMDKGoto, useCMDKStore, useInput } from "./hooks"
-import { NodeCommandItems } from "./nodes"
+import { useCMDKGoto, useInput } from "./hooks"
 import { SecondaryView } from "./secondary-view"
-import { SpaceCommandItems } from "./spaces"
 
 type SecondaryView = {
   component: React.ReactNode
@@ -54,11 +54,10 @@ export function CommandDialogDemo() {
     useAppRuntimeStore()
   const { openSettingsModal } = useSettings()
   const { input, setInput, mode } = useInput()
-  const { queryNodes, fullTextSearch } = useQueryNode()
   const { theme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
-  const { setSearchNodes } = useCMDKStore()
   const [secondaryView, setSecondaryView] = useState<SecondaryView>(null)
+  const { resetTabs } = useFavBlocks()
 
   const currentNode = useCurrentNode()
 
@@ -67,32 +66,32 @@ export function CommandDialogDemo() {
     setCmdkOpen(!isCmdkOpen)
   })
 
-  const updateSearchNodes = async (qs: string) => {
-    if (mode !== "search") {
-      return
-    }
-    if (qs.length > 0) {
-      const nodes = await queryNodes(qs)
-      const ftsNodes = await fullTextSearch(qs)
-      setSearchNodes([...(ftsNodes || []), ...(nodes || [])])
-    }
-  }
-  const { run } = useDebounceFn(updateSearchNodes, { wait: 500 })
-
-  useEffect(() => {
-    space && run(input)
-  }, [input, run, space])
-
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
   const { lastOpenedDatabase } = useLastOpened()
 
-  const { createDoc, rebuildFTS } = useSqlite()
+  const {
+    createDoc,
+    rebuildFTS,
+    migrateFilePaths,
+    needsPathMigration,
+    migrateDocFilePaths,
+    migrateAllDocFilePaths,
+    needsDocPathMigration,
+    migrateTableFilePaths,
+    needsTableFilePathMigration,
+  } = useSqlite()
   const goto = useCMDKGoto()
-  const goEveryday = goto(`/${lastOpenedDatabase}/everyday`)
+  const [isMigrating, setIsMigrating] = useState(false)
+  const [isMigratingDoc, setIsMigratingDoc] = useState(false)
+  const [isMigratingTable, setIsMigratingTable] = useState(false)
+  const { toast } = useToast()
+
+  // Use current workspace in desktop mode, otherwise use lastOpenedDatabase
+  const goEveryday = goto(`/journals`)
 
   const today = getToday()
-  const goToday = goto(`/${lastOpenedDatabase}/everyday/${today}`)
+  const goToday = goto(`/journals/${today}`)
   const goShare = goto("/share")
 
   const switchTheme = () => {
@@ -112,6 +111,241 @@ export function CommandDialogDemo() {
     }
   }
 
+  /**
+   * Migrate file paths in table file fields
+   * 修复表格中的 file 字段的路径格式
+   * 
+   * This function fixes file field paths in the current table by converting old path formats
+   * to the new standardized format. It checks if migration is needed before proceeding.
+   */
+  const handleMigrateTableFilePaths = async () => {
+    if (!currentNode || currentNode.type !== "table") return
+
+    setIsMigratingTable(true)
+    try {
+      const needsMigration = await needsTableFilePathMigration(currentNode.id)
+      if (!needsMigration) {
+        toast({
+          title: t(
+            "cmdk.migrateTableFilePaths.noMigrationNeeded",
+            "No Migration Needed"
+          ),
+          description: t(
+            "cmdk.migrateTableFilePaths.noMigrationNeededDesc",
+            "This table's file paths are already in the correct format."
+          ),
+        })
+        setCmdkOpen(false)
+        return
+      }
+
+      const result = await migrateTableFilePaths(currentNode.id)
+      if (result && result.migrated > 0) {
+        toast({
+          title: t(
+            "cmdk.migrateTableFilePaths.migrationCompleted",
+            "Table Paths Migrated"
+          ),
+          description: t(
+            "cmdk.migrateTableFilePaths.migrationCompletedDesc",
+            `Successfully migrated ${result.migrated} file paths in this table.`,
+            { count: result.migrated }
+          ),
+        })
+      } else if (result && result.errors > 0) {
+        toast({
+          title: t(
+            "cmdk.migrateTableFilePaths.migrationFailed",
+            "Migration Failed"
+          ),
+          description: t(
+            "cmdk.migrateTableFilePaths.migrationFailedDesc",
+            "An error occurred during migration."
+          ),
+          variant: "destructive",
+        })
+      }
+      setCmdkOpen(false)
+    } catch (error) {
+      console.error("Table file path migration failed:", error)
+      toast({
+        title: t(
+          "cmdk.migrateTableFilePaths.migrationFailed",
+          "Migration Failed"
+        ),
+        description: t(
+          "cmdk.migrateTableFilePaths.migrationFailedDesc",
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred during migration."
+        ),
+        variant: "destructive",
+      })
+    } finally {
+      setIsMigratingTable(false)
+    }
+  }
+
+  /**
+   * Migrate image and file paths in the current document
+   * 修复当前文档中的 image 和 file 路径格式
+   * 
+   * This function fixes embedded image and file references within the current document
+   * by converting old path formats to the new standardized format. It only processes
+   * the currently opened document.
+   */
+  const handleMigrateCurrentDocPaths = async () => {
+    if (!currentNode || currentNode.type !== "doc") return
+
+    setIsMigratingDoc(true)
+    try {
+      const needsMigration = await needsDocPathMigration(currentNode.id)
+      if (!needsMigration) {
+        toast({
+          title: t(
+            "cmdk.migrateDocPaths.noMigrationNeeded",
+            "No Migration Needed"
+          ),
+          description: t(
+            "cmdk.migrateDocPaths.noMigrationNeededDesc",
+            "This document's file paths are already in the correct format."
+          ),
+        })
+        setCmdkOpen(false)
+        return
+      }
+
+      const result = await migrateDocFilePaths(currentNode.id)
+      if (result && result.migrated > 0) {
+        toast({
+          title: t(
+            "cmdk.migrateDocPaths.migrationCompleted",
+            "Document Paths Migrated"
+          ),
+          description: t(
+            "cmdk.migrateDocPaths.migrationCompletedDesc",
+            `Successfully migrated ${result.migrated} file paths in this document.`,
+            { count: result.migrated }
+          ),
+        })
+      } else if (result && result.errors > 0) {
+        toast({
+          title: t("cmdk.migrateDocPaths.migrationFailed", "Migration Failed"),
+          description: t(
+            "cmdk.migrateDocPaths.migrationFailedDesc",
+            "An error occurred during migration."
+          ),
+          variant: "destructive",
+        })
+      }
+      setCmdkOpen(false)
+    } catch (error) {
+      console.error("Document path migration failed:", error)
+      toast({
+        title: t("cmdk.migrateDocPaths.migrationFailed", "Migration Failed"),
+        description: t(
+          "cmdk.migrateDocPaths.migrationFailedDesc",
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred during migration."
+        ),
+        variant: "destructive",
+      })
+    } finally {
+      setIsMigratingDoc(false)
+    }
+  }
+
+  /**
+   * Migrate file paths in the eidos__files table
+   * 修复 eidos__files 表中的路径格式
+   * 
+   * This function fixes file path records in the system files table (eidos__files).
+   * These paths are used by the image picker and file picker components throughout
+   * the application. Migrating these paths ensures all file references work correctly.
+   */
+  const handleMigrateFilePaths = async () => {
+    setIsMigrating(true)
+    try {
+      const needsFileMigration = await needsPathMigration()
+
+      if (!needsFileMigration) {
+        toast({
+          title: t(
+            "cmdk.migrateFilePaths.noMigrationNeeded",
+            "No Migration Needed"
+          ),
+          description: t(
+            "cmdk.migrateFilePaths.noMigrationNeededDesc",
+            "All file paths are already in the correct format."
+          ),
+        })
+        setCmdkOpen(false)
+        return
+      }
+
+      let totalMigrated = 0
+      let totalErrors = 0
+
+      // Migrate file table records
+      if (needsFileMigration) {
+        const fileResult = await migrateFilePaths()
+        if (fileResult) {
+          totalMigrated += fileResult.migrated
+          totalErrors += fileResult.errors
+        }
+      }
+
+      if (totalErrors > 0) {
+        toast({
+          title: t(
+            "cmdk.migrateFilePaths.migrationCompletedWithErrors",
+            "Migration Completed with Errors"
+          ),
+          description: t(
+            "cmdk.migrateFilePaths.migrationCompletedWithErrorsDesc",
+            `Successfully migrated ${totalMigrated} file paths, but ${totalErrors} items had errors. Check the console for details.`,
+            { migrated: totalMigrated, errors: totalErrors }
+          ),
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: t(
+            "cmdk.migrateFilePaths.migrationCompleted",
+            "Migration Completed"
+          ),
+          description: t(
+            "cmdk.migrateFilePaths.migrationCompletedDesc",
+            `Successfully migrated ${totalMigrated} file paths.`,
+            { count: totalMigrated }
+          ),
+        })
+      }
+      setCmdkOpen(false)
+    } catch (error) {
+      console.error("File path migration failed:", error)
+      toast({
+        title: t("cmdk.migrateFilePaths.migrationFailed", "Migration Failed"),
+        description: t(
+          "cmdk.migrateFilePaths.migrationFailedDesc",
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred during migration.",
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "An unknown error occurred during migration.",
+          }
+        ),
+        variant: "destructive",
+      })
+    } finally {
+      setIsMigrating(false)
+    }
+  }
+
   const toggleAI = () => {
     setCmdkOpen(false)
     setIsAiOpen(!isAiOpen)
@@ -119,7 +353,19 @@ export function CommandDialogDemo() {
 
   const createNewDoc = async () => {
     const docId = await createDoc("")
-    goto(`/${lastOpenedDatabase}/${docId}`)()
+    goto(`/${docId}`)()
+  }
+
+  const handleResetTabs = () => {
+    resetTabs()
+    toast({
+      title: t("cmdk.resetTabs.success", "Tabs Reset"),
+      description: t(
+        "cmdk.resetTabs.successDesc",
+        "Sidebar tabs have been reset to default."
+      ),
+    })
+    setCmdkOpen(false)
   }
 
   const { t } = useTranslation()
@@ -170,19 +416,62 @@ export function CommandDialogDemo() {
                       onSelect={() => {
                         rebuildTableFTS(currentNode.id)
                       }}
-                      value="rebuild fts"
+                      value={`${t("cmdk.rebuildFTS")} ${t("cmdk.rebuildFTS.desc")}`}
                     >
                       <RefreshCcwIcon className="mr-2 h-4 w-4" />
-                      <span>{t("cmdk.rebuildFTS")}</span>
+                      <div className="flex flex-col">
+                        <span>{t("cmdk.rebuildFTS")}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {t("cmdk.rebuildFTS.desc")}
+                        </span>
+                      </div>
+                    </CommandItem>
+                    <CommandItem
+                      onSelect={handleMigrateTableFilePaths}
+                      disabled={isMigratingTable}
+                      value={`${t("cmdk.migrateTableFilePaths")} ${t("cmdk.migrateTableFilePaths.desc")}`}
+                    >
+                      {isMigratingTable ? (
+                        <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Wrench className="mr-2 h-4 w-4" />
+                      )}
+                      <div className="flex flex-col">
+                        <span>
+                          {t("cmdk.migrateTableFilePaths")}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {t("cmdk.migrateTableFilePaths.desc")}
+                        </span>
+                      </div>
                     </CommandItem>
                   </CommandGroup>
                 )}
 
-                {currentNode?.type === "doc" && <DocActionCommandItems />}
-                {!isInkServiceMode && (
+                {currentNode?.type === "doc" && (
                   <>
-                    <NodeCommandItems />
-                    <SpaceCommandItems />
+                    <CommandGroup heading={t("cmdk.document")}>
+                      <CommandItem
+                        onSelect={handleMigrateCurrentDocPaths}
+                        disabled={isMigratingDoc}
+                        value={`${t("cmdk.migrateDocPaths")} ${t("cmdk.migrateDocPaths.desc")}`}
+                      >
+                        {isMigratingDoc ? (
+                          <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wrench className="mr-2 h-4 w-4" />
+                        )}
+                        <div className="flex flex-col">
+                          <span>
+                            {t("cmdk.migrateDocPaths")}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {t("cmdk.migrateDocPaths.desc")}
+                          </span>
+                        </div>
+                      </CommandItem>
+                    </CommandGroup>
+                    <DocActionCommandItems />
                   </>
                 )}
               </>
@@ -195,24 +484,48 @@ export function CommandDialogDemo() {
                 <span>{t("cmdk.switchTheme")}</span>
                 <CommandShortcut>⌘+Shift+L</CommandShortcut>
               </CommandItem>
-              <CommandItem onSelect={toggleGodMode}>
-                <Wand2 className="mr-2 h-4 w-4" />
-                <span>
-                  {isGodMode
-                    ? t("cmdk.disableGodMode", "Disable Creator Mode")
-                    : t("cmdk.enableGodMode", "Enable Creator Mode")}
-                </span>
-              </CommandItem>
               <CommandItem
                 onSelect={() => {
                   setSecondaryView({
                     component: <ThemeStudio />,
-                    title: t("cmdk.themeStudio", "Theme Studio"),
+                    title: t("cmdk.themeStudio"),
                   })
                 }}
               >
                 <PaintBucket className="mr-2 h-4 w-4" />
-                <span>{t("cmdk.themeStudio", "Theme Studio")}</span>
+                <span>{t("cmdk.themeStudio")}</span>
+              </CommandItem>
+              <CommandItem
+                onSelect={handleMigrateFilePaths}
+                disabled={isMigrating}
+                value="migrate file paths"
+              >
+                {isMigrating ? (
+                  <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Wrench className="mr-2 h-4 w-4" />
+                )}
+                <div className="flex flex-col">
+                  <span>{t("cmdk.migrateFilePaths")}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("cmdk.migrateFilePaths.desc")}
+                  </span>
+                </div>
+              </CommandItem>
+              <CommandItem
+                onSelect={handleResetTabs}
+                value="reset sidebar tabs"
+              >
+                <LayoutGrid className="mr-2 h-4 w-4" />
+                <div className="flex flex-col">
+                  <span>{t("cmdk.resetTabs", "Reset Sidebar Tabs")}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t(
+                      "cmdk.resetTabs.desc",
+                      "Reset sidebar tabs to default"
+                    )}
+                  </span>
+                </div>
               </CommandItem>
               {!isInkServiceMode && (
                 <CommandItem onSelect={() => openSettingsModal("general")}>

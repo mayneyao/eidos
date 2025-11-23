@@ -115,5 +115,5 @@ app.post("/api/users", async (req, res) => {
 
 Eidos 提供了完整的 API 参考文档，详细说明了所有可用的方法和功能：
 
-- [Space API 参考](../../api-reference/space.md) - 导航、文档管理和扩展节点操作
-- [AI API 参考](../../api-reference/ai.md) - 文本生成和结构化数据处理
+- [Space API 参考](../../api-reference/space) - 导航、文档管理和扩展节点操作
+- [AI API 参考](../../api-reference/ai) - 文本生成和结构化数据处理

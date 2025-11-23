@@ -18,9 +18,9 @@ export const NodeContextMenu = ({ url }: { url: string }) => {
     // Navigate to the node in the same space
     if (nodeSpace === space) {
       if (isDayPageId(nodeId)) {
-        navigate(`/${space}/everyday/${nodeId}`)
+        navigate(`/journals/${nodeId}`)
       } else {
-        navigate(`/${space}/${nodeId}`)
+        navigate(`/${nodeId}`)
       }
     }
   }
@@ -33,9 +33,9 @@ export const NodeContextMenu = ({ url }: { url: string }) => {
 
     // Open the node in a new window
     if (isDayPageId(nodeId)) {
-      window.open(`/${nodeSpace}/everyday/${nodeId}`)
+      window.open(`/journals/${nodeId}`)
     } else {
-      window.open(`/${nodeSpace}/${nodeId}`)
+      window.open(`/${nodeId}`)
     }
   }
 

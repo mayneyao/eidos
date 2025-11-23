@@ -19,8 +19,8 @@ import {
 import zip from "lodash/zip"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useFileSystem } from "@/apps/web-app/hooks/use-files"
-import { getDragFileUrl } from "@/components/file-manager/helper"
+import { useFileUpload } from "@/apps/web-app/hooks/use-file-upload"
+import { getDragFileUrl } from "@/lib/file"
 
 import { INSERT_IMAGE_COMMAND } from "../../blocks/image/plugin"
 import { INSERT_AUDIO_FILE_COMMAND } from "../../blocks/audio/plugin"
@@ -39,7 +39,7 @@ export default function DragDropPaste(): null {
   const [editor] = useLexicalComposerContext()
   // should not be here, but we need to make sure the space is set
   const { space } = useCurrentPathInfo()
-  const { addFiles } = useFileSystem()
+  const { addFiles } = useFileUpload()
   useEffect(() => {
     const removeListener = mergeRegister(
       editor.registerCommand(
@@ -50,9 +50,7 @@ export default function DragDropPaste(): null {
               const _files = await addFiles(files)
               const fileZip = zip(_files, files)
               for (const [meta, file] of fileZip) {
-                const paths = meta!.path.split("/")
-                // skip spaces
-                const path = "/" + paths.slice(1).join("/")
+                const path = "/" + meta?.path
                 if (isMimeType(file!, ACCEPTABLE_IMAGE_TYPES)) {
                   editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
                     altText: file!.name,

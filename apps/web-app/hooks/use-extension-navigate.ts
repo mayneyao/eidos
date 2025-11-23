@@ -14,7 +14,7 @@ export const useExtensionNavigate = () => {
         const blockId = getBlockIdFromUrl(url)
         if (!blockId) return
         const [id, _space] = blockId.split("@")
-        navigate(`/${_space || space}/extensions/${id}`)
+        navigate(`/extensions/${id}`)
     }
 }
 
@@ -23,6 +23,6 @@ export const useExtensionNavigateById = () => {
     const navigate = useNavigate()
     const { space } = useCurrentPathInfo()
     return (id: string) => {
-        navigate(`/${space}/extensions/${id}`)
+        navigate(`/extensions/${id}`)
     }
 }

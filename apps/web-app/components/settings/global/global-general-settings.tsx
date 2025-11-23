@@ -1,24 +1,16 @@
 import { useEffect, useState } from "react"
 import i18n from "@/locales/i18n"
 import { zodResolver } from "@hookform/resolvers/zod"
-import {
-  ArrowDownCircle,
-  CheckCircle,
-  ChevronDown,
-  Download,
-  RefreshCw,
-} from "lucide-react"
+import { CheckCircle, ChevronDown, RefreshCw } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
+import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
-import { URLS } from "@/lib/const"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
@@ -28,28 +20,10 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
-import { useActivationCodeStore } from "@/apps/web-app/hooks/use-activation"
 import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
-import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useUpdateStatus } from "@/apps/web-app/hooks/use-update-status"
-import { useConfigStore } from "@/components/settings/stores"
-import { uuidv7 } from "@/lib/utils"
-
-const profileFormSchema = z.object({
-  username: z
-    .string()
-    .min(2, {
-      message: "Username must be at least 2 characters.",
-    })
-    .max(30, {
-      message: "Username must not be longer than 30 characters.",
-    }),
-  userId: z.string().optional(),
-  avatar: z.string().optional(),
-})
 
 const appearanceFormSchema = z.object({
   theme: z.enum(["light", "dark"], {
@@ -61,7 +35,6 @@ const appearanceFormSchema = z.object({
   }),
 })
 
-type ProfileFormValues = z.infer<typeof profileFormSchema>
 type AppearanceFormValues = z.infer<typeof appearanceFormSchema>
 
 /**
@@ -76,9 +49,6 @@ function getChangelogUrl(version: string, lang: string = "en"): string {
 
 export function GlobalGeneralSettings() {
   const { t } = useTranslation()
-  const { setProfile, profile } = useConfigStore()
-  const { clientId } = useActivationCodeStore()
-  const { efsManager } = useEidosFileSystemManager()
   const { isDesktop } = useDesktopClient()
   const { theme, setTheme } = useTheme()
   const {
@@ -88,17 +58,6 @@ export function GlobalGeneralSettings() {
     checkForUpdates,
     quitAndInstall,
   } = useUpdateStatus()
-
-  // Profile form
-  const profileForm = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileFormSchema),
-    defaultValues: {
-      username: profile?.username || "",
-      userId: profile?.userId || "",
-      avatar: profile?.avatar || "",
-    },
-    mode: "onChange",
-  })
 
   // Appearance form
   const appearanceForm = useForm<AppearanceFormValues>({
@@ -156,48 +115,6 @@ export function GlobalGeneralSettings() {
     setTheme(data.theme)
   }
 
-  const handleChangeAvatar = async (field: any) => {
-    try {
-      const [fileHandle] = await (window as any).showOpenFilePicker({
-        types: [
-          {
-            description: "Images",
-            accept: {
-              "image/*": [".png", ".gif", ".jpeg", ".jpg"],
-            },
-          },
-        ],
-        excludeAcceptAllOption: true,
-        multiple: false,
-      })
-      const file = await fileHandle.getFile()
-
-      const res = await efsManager?.addFile(["static"], file)
-      if (!res) {
-        throw new Error("Failed to upload avatar.")
-      }
-      const url = "/" + res?.join("/")
-      field.onChange(url)
-
-      const currentProfile = profileForm.getValues()
-      setProfile({ 
-        ...currentProfile, 
-        avatar: url,
-        userId: currentProfile.userId || uuidv7()
-      })
-
-      toast({
-        title: t("settings.profile.avatarUpdateSuccess"),
-      })
-    } catch (error) {
-      console.error("Error changing avatar:", error)
-      toast({
-        title: t("settings.profile.avatarUpdateError"),
-        variant: "destructive",
-      })
-    }
-  }
-
   const handleToggleAutoUpdate = async (enabled: boolean) => {
     if (!isDesktop) return
 
@@ -234,7 +151,10 @@ export function GlobalGeneralSettings() {
                   ? t("nav.dropdown.menu.desktop")
                   : t("nav.dropdown.menu.web")}{" "}
                 <a
-                  href={getChangelogUrl(EIDOS_VERSION, appearanceForm.getValues("language"))}
+                  href={getChangelogUrl(
+                    EIDOS_VERSION,
+                    appearanceForm.getValues("language")
+                  )}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-blue-600 hover:text-blue-800 underline"
@@ -259,7 +179,10 @@ export function GlobalGeneralSettings() {
                       {t("settings.general.updateAvailable")} v
                       {updateInfo.version}{" "}
                       <a
-                        href={getChangelogUrl(updateInfo.version, appearanceForm.getValues("language"))}
+                        href={getChangelogUrl(
+                          updateInfo.version,
+                          appearanceForm.getValues("language")
+                        )}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-blue-600 hover:text-blue-800 underline"
@@ -451,88 +374,6 @@ export function GlobalGeneralSettings() {
                     </FormItem>
                   )}
                 />
-              </div>
-            </div>
-          </form>
-        </Form>
-      </div>
-
-      {/* Profile Section */}
-      <div className="py-4">
-        <h3 className="text-lg font-medium">{t("settings.general.profile")}</h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6">
-        <Form {...profileForm}>
-          <form className="space-y-6">
-            {/* Avatar and Username */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>{t("settings.general.avatar")}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.general.avatarDescription")}
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <FormField
-                  control={profileForm.control}
-                  name="avatar"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Avatar
-                        className="h-12 w-12 cursor-pointer"
-                        onClick={() => handleChangeAvatar(field)}
-                      >
-                        <AvatarImage
-                          src={field.value}
-                          className="object-cover"
-                        />
-                        <AvatarFallback>
-                          {profileForm
-                            .getValues("username")?.[0]
-                            ?.toUpperCase() ?? "E"}
-                        </AvatarFallback>
-                      </Avatar>
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>{t("common.name")}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.general.nameDescription")}
-                </p>
-              </div>
-              <div className="w-64">
-                <FormField
-                  control={profileForm.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input placeholder="yahaha" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            <div className="items-center justify-between hidden">
-              <div className="space-y-0.5">
-                <Label>{t("settings.general.clientId")}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.general.clientIdDescription")}
-                </p>
-              </div>
-              <div className="w-64">
-                <Input disabled value={clientId} />
               </div>
             </div>
           </form>

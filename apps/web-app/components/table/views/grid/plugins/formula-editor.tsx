@@ -370,7 +370,7 @@ export const FormulaEditor = ({
                   {t("formula.editor.example")}{" "}
                   {selectedItem?.detail === "UDF" && (
                     <Link
-                      to={`/${space}/extensions/${selectedItem.id}`}
+                      to={`/extensions/${selectedItem.id}`}
                       className="text-xs text-muted-foreground underline hover:text-destructive/80"
                     >
                       <Code size={14} />

@@ -1,10 +1,7 @@
 import { useEffect, useRef } from "react"
 
+import { ExtensionSourceType, useExtMsg } from "@/hooks/use-ext-msg"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import {
-  ExtensionSourceType,
-  useExtMsg,
-} from "@/apps/web-app/pages/extensions/hooks/use-ext-msg"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 // ScriptContainer used to run script in iframe

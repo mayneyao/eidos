@@ -138,7 +138,7 @@ SELECT * FROM vw_<node_id> WHERE created_at >= date('now', '-7 days')
 
 SELECT
   t.name as title,
-  '/<space>/' || t.id AS pathname, -- [pathname:url]
+  '/' || t.id AS pathname, -- [pathname:url]
   d.*
 FROM
   eidos__tree t
@@ -147,9 +147,9 @@ FROM
 
 这个例子演示了如何：
 
-- **创建可点击链接**：`pathname` 字段使用 `'/<space>/' || t.id` 生成可点击的 URL，用于导航到特定文档
+- **创建可点击链接**：`pathname` 字段使用 `'/' || t.id` 生成可点击的 URL，用于导航到特定文档
 - **连接多个表**：将树结构（`eidos__tree`）与文档内容（`eidos__docs`）结合
-- **使用空间变量**：将 `<space>` 替换为你的实际工作空间名称，确保链接正确工作
+- **简洁路径**：新架构下路径更加简洁，不再需要在URL中包含工作空间名称
 - **构建文档导航**：非常适合创建可搜索、可排序的所有文档列表
 
 生成的数据视图将在一个列中显示文档标题，在另一个列中显示可点击的路径名链接，点击后直接跳转到相应文档。

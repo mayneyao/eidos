@@ -1,29 +1,27 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
-import { extractConstant } from "@/packages/v3/code-tools/code-extractor"
-import { compileCode } from "@/packages/v3/compiler"
-import { getCompileMethod } from "@/packages/v3/script-compiler"
-import { useLocalStorageState, useMount, useSize } from "ahooks"
+import { compileCode, extractConstant, getCompileMethod } from "@eidos.space/v3"
+import { useMount, useSize } from "ahooks"
 import { CodeIcon, EyeIcon, PanelLeftIcon, SettingsIcon } from "lucide-react"
 import { useTheme } from "next-themes"
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import {
   useLoaderData,
   useRevalidator,
   useSearchParams,
 } from "react-router-dom"
 
+import { useExtension } from "@/apps/web-app/hooks/use-extension"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import { useExtension } from "@/apps/web-app/hooks/use-extension"
 
+import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
 import { ExtensionPreview } from "./components/extension-preview"
 import { ExtensionToolbar } from "./components/extension-toolbar"
 import { ExtensionConfig } from "./config/config"
 import { getEditorLanguage } from "./helper"
 import { useEditorStore } from "./stores/editor-store"
-import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
 
 // const CodeEditor = lazy(() => import("./editor/code-editor"))
 const SimpleCodeEditorWrapper = lazy(
@@ -42,11 +40,6 @@ export const ExtensionDetailPage = () => {
   const previewRef = useRef<HTMLDivElement>(null)
   const size = useSize(previewRef)
   const { isSidebarOpen, toggleSidebar } = useExtensionSidebarStore()
-
-  const [extensionRightPanelSize, setExtensionRightPanelSize] =
-    useLocalStorageState<number>("extension-right-panel-size", {
-      defaultValue: 30,
-    })
 
   const { scriptCodeMap, setScriptCodeMap } = useEditorStore()
 
@@ -101,13 +94,19 @@ export const ExtensionDetailPage = () => {
       ) {
         setEditorContent(ts_code || code)
         const meta = await extractConstant(ts_code || code, "meta")
-        await updateExtension({
+        const updateData: Partial<IExtension> = {
           id: script.id,
           code,
           ts_code,
           meta,
           version,
-        })
+        }
+        if (meta && meta.type) {
+          const extensionType = meta.type
+          updateData.name = meta[extensionType].name
+          updateData.description = meta[extensionType].description
+        }
+        await updateExtension(updateData)
         revalidator.revalidate()
         // toast({
         //   title: "Code Updated Successfully",

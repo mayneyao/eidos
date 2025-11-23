@@ -5,91 +5,89 @@ sidebar:
   order: 3
 ---
 
-Here's something interesting about software architecture: most systems make you think in terms of files and folders, but what if you thought in terms of _things_ instead?
+In Eidos, nodes are the fundamental data units - equivalent to files in a traditional file system. Since Eidos stores all dynamic data in a single SQLite file, we call them "nodes" rather than files. Each node has a specific type that determines its function and purpose.
 
-That's what nodes are in Eidos. They're not files—they're more like containers that can hold different types of content. Think of them as smart boxes that know what they're supposed to contain.
+## Node Types
 
-We have four types of these boxes:
+Eidos provides four built-in node types:
 
-- **doc** - for writing and thinking
-- **table** - for organizing structured data
-- **folder** - for organizing nodes
-- **dataview** - for asking questions of your data
+- **doc** - Document nodes for writing and storing text content
+- **table** - Table nodes for managing structured data
+- **folder** - Folder nodes for organizing other nodes
+- **dataview** - Data view nodes for querying and displaying data
 
-The clever bit is that these nodes live in a tree structure, just like folders, but they're much more powerful than folders. Each node knows what it is and how to behave. A document node knows it should render text beautifully. A table node knows it should let you sort and filter data.
+All nodes are organized in a tree structure, similar to a file system, but each node knows its type and how to handle its content.
 
-You can think of the whole system as modular. Want new types of nodes? Build extensions. It's like having a workshop where you can create new types of smart boxes whenever you need them.
+## Data Storage
 
-The tree structure gives you the familiar hierarchical organization you're used to, but each item in that tree is actually a sophisticated data container with its own capabilities.
-
-## How We Store Node Information
-
-Node information is stored in the `eidos__tree` table
+Node information is stored in the `eidos__tree` table:
 
 ```sql
-  CREATE TABLE IF NOT EXISTS eidos__tree (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    type TEXT,
-    parent_id TEXT NULL,
-    is_pinned BOOLEAN DEFAULT 0,
-    is_full_width BOOLEAN DEFAULT 0,
-    is_locked BOOLEAN DEFAULT 0,
-    icon TEXT NULL,
-    cover TEXT NULL,
-    is_deleted BOOLEAN DEFAULT 0,
-    hide_properties BOOLEAN DEFAULT 0,
-    position REAL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );
+CREATE TABLE IF NOT EXISTS eidos__tree (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  type TEXT,
+  parent_id TEXT NULL,
+  is_pinned BOOLEAN DEFAULT 0,
+  is_full_width BOOLEAN DEFAULT 0,
+  is_locked BOOLEAN DEFAULT 0,
+  icon TEXT NULL,
+  cover TEXT NULL,
+  is_deleted BOOLEAN DEFAULT 0,
+  hide_properties BOOLEAN DEFAULT 0,
+  position REAL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-## Field Definitions
+### Field Definitions
 
-| Field           | Type      | What it's for                         |
-| --------------- | --------- | ------------------------------------- |
-| id              | TEXT      | Unique identifier for the node        |
-| name            | TEXT      | Node name                             |
-| type            | TEXT      | Node type (doc/table/dataview/folder) |
-| icon            | TEXT      | Node icon                             |
-| cover           | TEXT      | Node cover                            |
-| parent_id       | TEXT      | Parent node ID                        |
-| is_pinned       | BOOLEAN   | Whether the node is pinned            |
-| created_at      | TIMESTAMP | Creation timestamp                    |
-| updated_at      | TIMESTAMP | Last update timestamp                 |
-| is_deleted      | BOOLEAN   | Whether the node is deleted           |
-| position        | REAL      | Node position                         |
-| is_full_width   | BOOLEAN   | Whether to display in full width      |
-| is_locked       | BOOLEAN   | Whether the node is locked            |
-| hide_properties | BOOLEAN   | Whether to hide properties            |
+| Field | Type | Description |
+|-----|------|-------------|
+| id | TEXT | Unique identifier for the node |
+| name | TEXT | Node name |
+| type | TEXT | Node type (doc/table/dataview/folder) |
+| parent_id | TEXT | Parent node ID |
+| icon | TEXT | Node icon |
+| cover | TEXT | Node cover |
+| is_pinned | BOOLEAN | Whether the node is pinned |
+| is_full_width | BOOLEAN | Whether to display in full width |
+| is_locked | BOOLEAN | Whether the node is locked |
+| is_deleted | BOOLEAN | Whether the node is deleted |
+| hide_properties | BOOLEAN | Whether to hide properties |
+| position | REAL | Node position |
+| created_at | TIMESTAMP | Creation timestamp |
+| updated_at | TIMESTAMP | Last update timestamp |
 
-## Extending Nodes
+## Extension Nodes
 
-We have prepared the `eidos__extnode` table for storing extension nodes. You can combine it with Block extensions to customize the display and interaction of nodes.
+Eidos supports adding new node types through extensions. Extension node data is stored in the `eidos__extnodes` table:
 
 ```sql
-  CREATE TABLE IF NOT EXISTS eidos__extnode (
-    id TEXT PRIMARY KEY,
-    blob BLOB,
-    text TEXT,
-    type TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );
+CREATE TABLE IF NOT EXISTS eidos__extnodes (
+  id TEXT PRIMARY KEY,
+  blob BLOB,
+  text TEXT,
+  type TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-| Field      | Type      | What it's for                  |
-| ---------- | --------- | ------------------------------ |
-| id         | TEXT      | Unique identifier for the node |
-| name       | TEXT      | Node name                      |
-| type       | TEXT      | Node type, e.g., `excalidraw`  |
-| blob       | BLOB      | Node content                   |
-| text       | TEXT      | Node text                      |
-| created_at | TIMESTAMP | Creation timestamp             |
-| updated_at | TIMESTAMP | Last update timestamp          |
+### Extension Node Fields
 
-We have prepared two different data fields for storing different types of data. Which field to use depends on the extension type. For example, the excalidraw extension uses the text field to store text data, because excalidraw node content is in JSON text format.
+| Field | Type | Description |
+|-----|------|-------------|
+| id | TEXT | Unique identifier for the node |
+| type | TEXT | Extension node type, e.g., `excalidraw` |
+| blob | BLOB | Binary data (images, audio, video, etc.) |
+| text | TEXT | Text data (JSON, Markdown, etc.) |
+| created_at | TIMESTAMP | Creation timestamp |
+| updated_at | TIMESTAMP | Last update timestamp |
 
-- blob is used to store binary data, such as images, audio, video, etc.
-- text is used to store text data, such as text, Markdown, etc.
+Extension nodes choose storage fields based on data type:
+- `blob` for storing binary data
+- `text` for storing text data
+
+For example, the excalidraw extension uses the `text` field to store JSON-formatted drawing data.

@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
-import { URLS } from "@/lib/const"
+import { EIDOS_PORT, URLS } from "@/lib/const"
 import { getToday, uuidv7 } from "@/lib/utils"
 import {
   AlertDialog,
@@ -32,6 +32,7 @@ import {
 } from "@/components/react-hook-form/form"
 import { useApiAgentStatus } from "@/apps/desktop/renderer/hooks/useApiAgentStatus"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
+
 import { CodeExample } from "./api/code-example"
 
 const apiAgentFormSchema = z.object({
@@ -46,7 +47,12 @@ const defaultValues: APIAgentFormValues = {
   enabled: false,
 }
 
-const LOCAL_API_ENDPOINT = "http://localhost:13127/rpc"
+const getLocalApiEndpoint = () => {
+  const origin = new URL(window.location.origin)
+  origin.port = EIDOS_PORT.toString()
+  origin.pathname = "/rpc"
+  return origin.toString()
+}
 
 export function GlobalAPISettings() {
   const { t } = useTranslation()
@@ -136,11 +142,15 @@ export function GlobalAPISettings() {
               </p>
             </div>
             <div className="flex gap-2 max-w-2xl items-center">
-              <Input value={LOCAL_API_ENDPOINT} readOnly className="flex-1" />
+              <Input
+                value={getLocalApiEndpoint()}
+                readOnly
+                className="flex-1"
+              />
               <Button
                 type="button"
                 variant="ghost"
-                onClick={(e) => handleCopyUrl(e, LOCAL_API_ENDPOINT)}
+                onClick={(e) => handleCopyUrl(e, getLocalApiEndpoint())}
               >
                 <CopyIcon />
               </Button>
@@ -260,7 +270,7 @@ export function GlobalAPISettings() {
           <CodeExample
             space={lastOpenedDatabase}
             endpoint={
-              showRemoteExample ? form.watch("url") : LOCAL_API_ENDPOINT
+              showRemoteExample ? form.watch("url") : getLocalApiEndpoint()
             }
             date={getToday()}
           />

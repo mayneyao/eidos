@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react"
+import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { Trash2Icon, Undo2Icon } from "lucide-react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
-import type { ITreeNode } from "@/packages/core/types/ITreeNode"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import {
@@ -36,7 +35,6 @@ export const Trash = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const allDeletedNodes = useAllNodes({ isDeleted: true })
   const { restoreNode, permanentlyDeleteNode } = useSqlite()
-  const { space } = useCurrentPathInfo()
   const [toDeleteNode, setToDeleteNode] = useState<ITreeNode | null>(null)
   const [search, setSearch] = useState("")
   const allNodes = useMemo(() => {
@@ -54,12 +52,12 @@ export const Trash = () => {
   const handleRestore = (node: ITreeNode) => {
     restoreNode(node)
     setOpen(false)
-    router(`/${space}/${node.id}`)
+    router(`/${node.id}`)
   }
 
   const handleClickNode = (node: ITreeNode) => {
     setOpen(false)
-    router(`/${space}/${node.id}`)
+    router(`/${node.id}`)
   }
 
   const handlePermanentlyDelete = (

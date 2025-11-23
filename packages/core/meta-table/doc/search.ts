@@ -83,7 +83,7 @@ export function WithSearch<T extends Constructor>(Base: T) {
             // First try: Use the original query directly (supports advanced FTS syntax)
             try {
                 const res = await this.dataSpace.exec2(
-                    `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',127) as result FROM fts_docs WHERE fts_docs MATCH ?;`,
+                    `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',63) as result FROM fts_docs WHERE fts_docs MATCH ?;`,
                     [trimmedQuery]
                 );
 
@@ -100,7 +100,7 @@ export function WithSearch<T extends Constructor>(Base: T) {
                 const escapedQuery = escapeFTSQuery(trimmedQuery, false);
                 if (escapedQuery && escapedQuery !== trimmedQuery) {
                     const res = await this.dataSpace.exec2(
-                        `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',127) as result FROM fts_docs WHERE fts_docs MATCH ?;`,
+                        `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',63) as result FROM fts_docs WHERE fts_docs MATCH ?;`,
                         [escapedQuery]
                     );
 
@@ -124,7 +124,7 @@ export function WithSearch<T extends Constructor>(Base: T) {
                     if (cleanQuery) {
                         console.log('Trying permissive search with:', cleanQuery);
                         const fallbackRes = await this.dataSpace.exec2(
-                            `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',127) as result FROM fts_docs WHERE fts_docs MATCH ?;`,
+                            `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',63) as result FROM fts_docs WHERE fts_docs MATCH ?;`,
                             [cleanQuery]
                         );
                         return fallbackRes.reverse();

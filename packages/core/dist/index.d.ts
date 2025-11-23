@@ -569,6 +569,19 @@ declare class TableManager {
   del(id: string): Promise<boolean>;
   hasSystemColumn(tableId: string, column: string): Promise<any>;
   fixTable(tableId: string): Promise<void>;
+  /**
+   * Migrate file paths in file fields from old format (/{spaceName}/files/) to new format (/files/)
+   * @returns Migration statistics
+   */
+  migrateFilePaths(): Promise<{
+    migrated: number;
+    errors: number;
+  }>;
+  /**
+   * Check if this table needs file path migration
+   * @returns True if migration is needed
+   */
+  needsFilePathMigration(): Promise<boolean>;
   static generateCreateTableSql(fields: Array<{
     name: string;
     type: FieldType;
@@ -584,23 +597,25 @@ declare enum FileSystemType {
   NFS = "nfs",
 }
 /**
- * eidos fs structure:
- * - spaces
- *  - space1
- *    - db.sqlite3
- *    - files
- *      - 1234567890.png
- *      - 0987654321.png
- *  - space2
- *    - db.sqlite3
+ * eidos fs structure (per workspace):
+ * - user-selected-directory/
+ *   - .eidos/                     ← EFS root directory
+ *     - db.sqlite3
+ *     - files/                    ← User uploaded files
+ *       - 1234567890.png
+ *       - 0987654321.png
+ *     - other-eidos-data/         ← Other Eidos data
+ *   - other-user-files...
  *
- * spaces
- * - what is a space? a space is a folder that contains a sqlite3 database, default name is db.sqlite3.
- * - one space is one database.
+ * workspace
+ * - what is a workspace? a workspace is a user-selected directory that contains a .eidos folder with a sqlite3 database.
+ * - each workspace is completely isolated with its own .eidos directory.
+ * - the .eidos directory is hidden and contains all Eidos-specific data.
  *
  * files
- * - files is a folder that contains all static files, such as images, videos, etc.
+ * - files is a folder inside .eidos that contains all static files, such as images, videos, etc.
  * - when user upload a file, it will be saved in this folder. hash will be used as file name. e.g. 1234567890.png
+ * - the EFS rootDirHandle points to the .eidos/ directory (not .eidos/files/)
  */
 declare class EidosFileSystemManager {
   rootDirHandle: FileSystemDirectoryHandle | undefined;
@@ -692,7 +707,7 @@ declare class BaseTableImpl<T = any> {
 }
 //# sourceMappingURL=base.d.ts.map
 //#endregion
-//#region meta-table/file.d.ts
+//#region meta-table/file/base.d.ts
 interface IFile {
   id: string;
   name: string;
@@ -702,50 +717,343 @@ interface IFile {
   created_at?: string;
   is_vectorized?: boolean;
 }
-declare class FileTable extends BaseTableImpl implements BaseTable<IFile> {
+declare class BaseFileTable extends BaseTableImpl<IFile> implements BaseTable<IFile> {
   name: string;
   createTableSql: string;
-  /**
-   * save file to efs
-   * @param url a url of file
-   * @param subDir sub directory of file, default is [], which means save file to spaces/\<space\>/files/, if subDir is ["a","b"], then save file to spaces/\<space\>/files/a/b/
-   * @param _name file name, default is null, which means use the file name in url
-   * @returns
-   */
-  saveFile2EFS(url: string, subDir: string[], _name?: string): Promise<IFile | null>;
   add(data: IFile): Promise<IFile>;
+  get(id: string): Promise<IFile | null>;
   getFileByPath(path: string): Promise<IFile | null>;
+  /**
+   * Get file by path (alias for getFileByPath)
+   * @param path File path
+   * @returns File metadata or null if not found
+   */
+  getByPath(path: string): Promise<IFile | null>;
   deleteFileByPathPrefix(prefix: string): Promise<boolean>;
   updateVectorized(id: string, is_vectorized: boolean): Promise<boolean>;
-  get(id: string): Promise<IFile | null>;
   del(id: string): Promise<boolean>;
-  /**
-   * get blob url of file
-   * in script or extension environment we can't access opfs file directly, so we need to use blob url to access it.
-   * @param id file id
-   * @returns
-   */
-  getBlobURL(id: string): Promise<string | null>;
-  getBlobURLbyPath(path: string): Promise<string | null>;
-  getBlobByPath(path: string): Promise<Blob>;
-  walk(): Promise<any[]>;
-  transformFileSystem(sourceFs: FileSystemType, targetFs: FileSystemType): Promise<void>;
-  uploadDir(dirHandle: FileSystemDirectoryHandle, total: number, current: number, _parentPath?: string[]): Promise<void>;
-  /**
-   * Upload a file to EFS with specified parent path
-   * @param fileData File data as ArrayBuffer or base64 string
-   * @param fileName Original file name
-   * @param mimeType File mime type
-   * @param parentPath Parent path array, defaults to ["spaces", <space>, "files"]
-   * @returns Uploaded file info
-   */
-  upload(fileData: ArrayBuffer | string,
-  // ArrayBuffer or base64 string
-  fileName: string, mimeType: string, parentPath?: string[]): Promise<IFile & {
-    publicUrl: string;
-  }>;
 }
-//# sourceMappingURL=file.d.ts.map
+//# sourceMappingURL=base.d.ts.map
+//#endregion
+//#region meta-table/file/upload.d.ts
+interface UploadOptions {
+  /** File name (optional, will be inferred from URL or required for other sources) */
+  fileName?: string;
+  /** MIME type (optional, will be inferred from File/Blob or required for ArrayBuffer/base64) */
+  mimeType?: string;
+  /** Parent directory path as array, e.g., ["subfolder", "nested"] */
+  parentPath?: string[];
+  /** Check if file already exists at the target path and return existing file if found */
+  checkDuplicate?: boolean;
+}
+//#endregion
+//#region meta-table/file/index.d.ts
+declare const ComposedFileTable: {
+  new (...args: any[]): {
+    walk(): Promise<any[]>;
+    transformFileSystem(sourceFs: FileSystemType, targetFs: FileSystemType): Promise<void>;
+    name: string;
+    createTableSql: string;
+    add(data: IFile): Promise<IFile>;
+    get(id: string): Promise<IFile | null>;
+    getFileByPath(path: string): Promise<IFile | null>;
+    getByPath(path: string): Promise<IFile | null>;
+    deleteFileByPathPrefix(prefix: string): Promise<boolean>;
+    updateVectorized(id: string, is_vectorized: boolean): Promise<boolean>;
+    del(id: string): Promise<boolean>;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    delBy(data: Partial<IFile>, db?: BaseServerDatabase): Promise<boolean>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    set(id: string, data: Partial<IFile>): Promise<boolean>;
+    list(query?: Partial<IFile> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<IFile[]>;
+    findMany(options?: FindManyOptions<IFile>): Promise<IFile[]>;
+    count(options?: Omit<FindManyOptions<IFile>, "select" | "orderBy" | "skip" | "take">): Promise<number>;
+  };
+} & {
+  new (...args: any[]): {
+    migrateFilePaths(): Promise<{
+      migrated: number;
+      errors: number;
+    }>;
+    needsPathMigration(): Promise<boolean>;
+    name: string;
+    createTableSql: string;
+    add(data: IFile): Promise<IFile>;
+    get(id: string): Promise<IFile | null>;
+    getFileByPath(path: string): Promise<IFile | null>;
+    getByPath(path: string): Promise<IFile | null>;
+    deleteFileByPathPrefix(prefix: string): Promise<boolean>;
+    updateVectorized(id: string, is_vectorized: boolean): Promise<boolean>;
+    del(id: string): Promise<boolean>;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    delBy(data: Partial<IFile>, db?: BaseServerDatabase): Promise<boolean>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    set(id: string, data: Partial<IFile>): Promise<boolean>;
+    list(query?: Partial<IFile> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<IFile[]>;
+    findMany(options?: FindManyOptions<IFile>): Promise<IFile[]>;
+    count(options?: Omit<FindManyOptions<IFile>, "select" | "orderBy" | "skip" | "take">): Promise<number>;
+  };
+} & {
+  new (...args: any[]): {
+    upload(source: string | ArrayBuffer | Blob | File, options?: UploadOptions): Promise<IFile>;
+    saveFile2EFS(url: string, subDir: string[], _name?: string): Promise<IFile | null>;
+    uploadDir(dirHandle: FileSystemDirectoryHandle, total: number, current: number, _parentPath?: string[]): Promise<void>;
+    name: string;
+    createTableSql: string;
+    add(data: IFile): Promise<IFile>;
+    get(id: string): Promise<IFile | null>;
+    getFileByPath(path: string): Promise<IFile | null>;
+    getByPath(path: string): Promise<IFile | null>;
+    deleteFileByPathPrefix(prefix: string): Promise<boolean>;
+    updateVectorized(id: string, is_vectorized: boolean): Promise<boolean>;
+    del(id: string): Promise<boolean>;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    delBy(data: Partial<IFile>, db?: BaseServerDatabase): Promise<boolean>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    set(id: string, data: Partial<IFile>): Promise<boolean>;
+    list(query?: Partial<IFile> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<IFile[]>;
+    findMany(options?: FindManyOptions<IFile>): Promise<IFile[]>;
+    count(options?: Omit<FindManyOptions<IFile>, "select" | "orderBy" | "skip" | "take">): Promise<number>;
+  };
+} & {
+  new (...args: any[]): {
+    getBlobURL(id: string): Promise<string | null>;
+    getBlobURLbyPath(path: string): Promise<string | null>;
+    getBlobByPath(path: string): Promise<Blob>;
+    name: string;
+    createTableSql: string;
+    add(data: IFile): Promise<IFile>;
+    get(id: string): Promise<IFile | null>;
+    getFileByPath(path: string): Promise<IFile | null>;
+    getByPath(path: string): Promise<IFile | null>;
+    deleteFileByPathPrefix(prefix: string): Promise<boolean>;
+    updateVectorized(id: string, is_vectorized: boolean): Promise<boolean>;
+    del(id: string): Promise<boolean>;
+    JSONFields: string[];
+    dataSpace: DataSpace;
+    initTable(createTableSql: string): void;
+    toJson: (data: T) => T;
+    columnExists(columnName: string): Promise<boolean>;
+    getTableColumns(): Promise<string[]>;
+    getRegularTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    getTempTriggers(tableName: string): Promise<{
+      name: string;
+    }[]>;
+    delBy(data: Partial<IFile>, db?: BaseServerDatabase): Promise<boolean>;
+    transformData: (data: Partial<T>) => {
+      kv: any[][];
+      updateKPlaceholder: string;
+      insertKPlaceholder: string;
+      insertVPlaceholder: string;
+      deleteKPlaceholder: string;
+      values: any[];
+    };
+    set(id: string, data: Partial<IFile>): Promise<boolean>;
+    list(query?: Partial<IFile> | undefined, opts?: {
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      order?: "ASC" | "DESC";
+      fields?: string[];
+    }): Promise<IFile[]>;
+    findMany(options?: FindManyOptions<IFile>): Promise<IFile[]>;
+    count(options?: Omit<FindManyOptions<IFile>, "select" | "orderBy" | "skip" | "take">): Promise<number>;
+  };
+} & typeof BaseFileTable;
+declare class FileTable extends ComposedFileTable {}
+//#endregion
+//#region types/IExternalFileSystem.d.ts
+/**
+ * Serializable directory entry that can be passed through message communication
+ * Replaces Node.js Dirent for IPC compatibility
+ */
+interface IDirectoryEntry {
+  /** Entry name (matches Dirent.name behavior: filename in non-recursive, relative path in recursive) */
+  name: string;
+  /** Relative path from queried directory (matches Node.js readdir recursive behavior) */
+  path: string;
+  /** Parent directory path relative to queried directory */
+  parentPath: string;
+  /** Entry type */
+  kind: 'file' | 'directory' | 'blockDevice' | 'characterDevice' | 'symbolicLink' | 'fifo' | 'socket';
+}
+/**
+ * Options for readdir
+ */
+
+/**
+ * Options for mkdir
+ */
+interface IMkdirOptions {
+  recursive?: boolean;
+}
+/**
+ * Options for readFile
+ */
+interface IReadFileOptions {
+  encoding?: BufferEncoding | null;
+  flag?: string;
+}
+/**
+ * Options for writeFile
+ */
+interface IWriteFileOptions {
+  encoding?: BufferEncoding | null;
+  mode?: number;
+  flag?: string;
+}
+/**
+ * Serializable file stats object (no methods, only properties)
+ * Compatible with Node.js fs.Stats but serializable for IPC
+ */
+interface IStats {
+  size: number;
+  mtimeMs: number;
+  atimeMs: number;
+  ctimeMs: number;
+  birthtimeMs: number;
+  isFile: boolean;
+  isDirectory: boolean;
+  isSymbolicLink: boolean;
+  isBlockDevice: boolean;
+  isCharacterDevice: boolean;
+  isFIFO: boolean;
+  isSocket: boolean;
+  mode: number;
+  uid: number;
+  gid: number;
+}
+/**
+ * External file system interface
+ * API follows Node.js fs/promises
+ *
+ * Supports:
+ * - ~/ (project folder)
+ * - @/ (mounted folders)
+ */
+interface IExternalFileSystem {
+  /**
+   * List directory contents (like fs.readdir)
+   * @param path Directory path (~/ or @/)
+   * @param options Read options
+   * @returns Array of file names or IDirectoryEntry objects
+   */
+  readdir(path: string, options: {
+    withFileTypes: true;
+    recursive?: boolean;
+  }): Promise<IDirectoryEntry[]>;
+  readdir(path: string, options?: {
+    withFileTypes?: false;
+    recursive?: boolean;
+  }): Promise<string[]>;
+  /**
+   * Create directory (like fs.mkdir)
+   * @param path Directory path to create
+   * @param options Creation options
+   * @returns Created directory path or undefined
+   */
+  mkdir(path: string, options?: IMkdirOptions): Promise<string | undefined>;
+  /**
+   * Read file contents (like fs.readFile)
+   * @param path File path (~/ or @/)
+   * @param options Encoding or read options
+   * @returns File contents as Uint8Array (binary) or string (with encoding)
+   */
+  readFile(path: string): Promise<Uint8Array>;
+  readFile(path: string, options: {
+    encoding: BufferEncoding;
+    flag?: string;
+  } | BufferEncoding): Promise<string>;
+  readFile(path: string, options?: IReadFileOptions | BufferEncoding): Promise<string | Uint8Array>;
+  /**
+   * Write file contents (like fs.writeFile)
+   * @param path File path (~/ or @/)
+   * @param data File contents as string or Uint8Array
+   * @param options Encoding or write options
+   */
+  writeFile(path: string, data: string | Uint8Array, options?: IWriteFileOptions | BufferEncoding): Promise<void>;
+  /**
+   * Get file stats (like fs.stat)
+   * @param path File path (~/ or @/)
+   * @returns Serializable file stats object
+   */
+  stat(path: string): Promise<IStats>;
+}
+//# sourceMappingURL=IExternalFileSystem.d.ts.map
 //#endregion
 //#region data-pipeline/DataChangeEventHandler.d.ts
 declare class DataChangeEventHandler {
@@ -1520,6 +1828,14 @@ declare class KVTable extends BaseTableImpl<KV> implements BaseTable<KV> {
     meta: Record<string, any>;
   }): Promise<void>;
   /**
+   * List values from the KV store with optional prefix filter
+   * @param options Options for listing
+   * @returns Promise resolving to array of KV records
+   */
+  listWithPrefix(options?: {
+    prefix?: string;
+  }): Promise<KV[]>;
+  /**
    * Delete a value from the KV store
    * @param key
    * @returns A Promise that resolves if the delete is successful.
@@ -1858,7 +2174,7 @@ declare class ThemeManager {
 //# sourceMappingURL=theme-manager.d.ts.map
 
 //#endregion
-//#region DataSpace/base.d.ts
+//#region data-space/base.d.ts
 type EidosDatabase = BaseServerDatabase;
 declare abstract class BaseDataSpace {
   db: EidosDatabase;
@@ -1890,6 +2206,7 @@ declare abstract class BaseDataSpace {
   dataEventChannel: BroadcastChannel;
   eventHandler: DataChangeEventHandler;
   efsManager?: EidosFileSystemManager;
+  externalFS?: IExternalFileSystem;
   hasMigrated: boolean;
   tableFullTextSearch: TableFullTextSearch;
   tableSemanticSearch: TableSemanticSearch;
@@ -1912,6 +2229,7 @@ declare abstract class BaseDataSpace {
     postMessage?: (data: any, transfer?: any[]) => void;
     callRenderer?: (type: any, data: any) => Promise<any>;
     efsManager?: EidosFileSystemManager;
+    externalFS?: IExternalFileSystem;
     dataEventChannel: BroadcastChannel;
     cacheSize?: number;
     isUDFWithCtx?: boolean;
@@ -1956,12 +2274,129 @@ declare abstract class BaseDataSpace {
     title: string;
     description: string;
   }): void;
+  /**
+   * navigate to node in the same space
+   * @param path e.g. "/<nodeId>"
+   * @example
+   * eidos.currentSpace.navigate("/<tableId>")
+   * eidos.currentSpace.navigate("/<docId>")
+   * eidos.currentSpace.navigate("/2025-09-30")
+   * eidos.currentSpace.navigate("/extensions/<extensionId>")
+   * eidos.currentSpace.navigate("/blocks/<blockId>")
+   */
   navigate(path: string): void;
   blockUIMsg(msg: string | null, data?: Record<string, any>): void;
 }
 //# sourceMappingURL=base.d.ts.map
 //#endregion
-//#region DataSpace/db.d.ts
+//#region sdk/fs.d.ts
+/**
+ * File system SDK for external files
+ * Environment-agnostic wrapper around IExternalFileSystem
+ *
+ * API follows Node.js fs/promises for familiarity
+ */
+declare class FSManager {
+  dataSpace: BaseDataSpace;
+  constructor(dataSpace: BaseDataSpace);
+  private get externalFS();
+  /**
+   * List directory contents
+   *
+   * @example
+   * // Get file names
+   * const files = await eidos.currentSpace.fs.readdir("~/")
+   * console.log(files) // ["package.json", "src", "README.md"]
+   *
+   * @example
+   * // Get directory entries with type information
+   * const entries = await eidos.currentSpace.fs.readdir("~/", { withFileTypes: true })
+   * entries.forEach(e => console.log(e.name, e.kind === 'directory'))
+   *
+   * @example
+   * // Recursively list all files
+   * const allFiles = await eidos.currentSpace.fs.readdir("~/", { recursive: true })
+   * console.log(allFiles) // ["package.json", "src/index.ts", "src/utils/helper.ts", ...]
+   *
+   * @example
+   * // List mounted folder
+   * const music = await eidos.currentSpace.fs.readdir("@/music")
+   */
+  readdir(path: string, options: {
+    withFileTypes: true;
+    recursive?: boolean;
+  }): Promise<IDirectoryEntry[]>;
+  readdir(path: string, options?: {
+    withFileTypes?: false;
+    recursive?: boolean;
+  }): Promise<string[]>;
+  /**
+   * Create directory
+   *
+   * @example
+   * // Create single directory
+   * await eidos.currentSpace.fs.mkdir("@/work/projects")
+   *
+   * @example
+   * // Create nested directories
+   * await eidos.currentSpace.fs.mkdir("@/work/2024/Q1", { recursive: true })
+   */
+  mkdir(path: string, options?: IMkdirOptions): Promise<string | undefined>;
+  /**
+   * Read file contents
+   *
+   * @example
+   * // Read binary file
+   * const data = await eidos.currentSpace.fs.readFile("~/image.png")
+   * console.log(data) // Uint8Array
+   *
+   * @example
+   * // Read text file with encoding
+   * const text = await eidos.currentSpace.fs.readFile("~/readme.md", "utf8")
+   * console.log(text) // string
+   *
+   * @example
+   * // Read with options
+   * const content = await eidos.currentSpace.fs.readFile("~/data.json", { encoding: "utf8" })
+   */
+  readFile(path: string): Promise<Uint8Array>;
+  readFile(path: string, options: {
+    encoding: BufferEncoding;
+    flag?: string;
+  } | BufferEncoding): Promise<string>;
+  /**
+   * Write file contents
+   *
+   * @example
+   * // Write text file
+   * await eidos.currentSpace.fs.writeFile("~/hello.txt", "Hello, World!")
+   *
+   * @example
+   * // Write binary file
+   * const data = new Uint8Array([0x89, 0x50, 0x4E, 0x47])
+   * await eidos.currentSpace.fs.writeFile("~/data.bin", data)
+   *
+   * @example
+   * // Write with encoding
+   * await eidos.currentSpace.fs.writeFile("~/config.json", JSON.stringify(config), "utf8")
+   */
+  writeFile(path: string, data: string | Uint8Array, options?: IWriteFileOptions | BufferEncoding): Promise<void>;
+  /**
+   * Get file statistics
+   *
+   * @example
+   * // Get file stats
+   * const stats = await eidos.currentSpace.fs.stat("~/readme.md")
+   * console.log(stats.size) // file size in bytes
+   * console.log(stats.isFile) // true
+   * console.log(stats.isDirectory) // false
+   * console.log(new Date(stats.mtimeMs)) // last modified time
+   */
+  stat(path: string): Promise<IStats>;
+}
+//# sourceMappingURL=fs.d.ts.map
+//#endregion
+//#region data-space/db.d.ts
 declare class DataSpaceWithDatabase extends BaseDataSpace {
   status(): Promise<{
     [key: string]: any;
@@ -2013,7 +2448,7 @@ declare class DataSpaceWithDatabase extends BaseDataSpace {
 }
 //# sourceMappingURL=db.d.ts.map
 //#endregion
-//#region DataSpace/file.d.ts
+//#region data-space/file.d.ts
 declare class DataSpaceWithFile extends DataSpaceWithDatabase {
   addFile(file: IFile): Promise<IFile>;
   uploadDir(dirHandle: FileSystemDirectoryHandle, _parentPath?: string[]): Promise<void>;
@@ -2024,13 +2459,18 @@ declare class DataSpaceWithFile extends DataSpaceWithDatabase {
   deleteFileByPathPrefix(prefix: string): Promise<boolean>;
   updateFileVectorized(id: string, isVectorized: boolean): Promise<boolean>;
   saveFile2EFS(url: string, subDir?: string[], name?: string): Promise<IFile | null>;
-  listFiles(): Promise<any[]>;
+  listFiles(): Promise<IFile[]>;
   walkFiles(): Promise<any[]>;
   transformFileSystem(sourceFs: FileSystemType, targetFs: FileSystemType): Promise<void>;
+  /**
+   * External file system operations (~/ and @/)
+   * API follows Node.js fs/promises
+   */
+  get fs(): FSManager;
 }
 //# sourceMappingURL=file.d.ts.map
 //#endregion
-//#region DataSpace/doc.d.ts
+//#region data-space/doc.d.ts
 declare class DataSpaceWithDoc extends DataSpaceWithFile {
   addDoc(docId: string, content: string, markdown: string, isDayPage?: boolean): Promise<void>;
   updateDoc(docId: string, content: string, markdown: string, _isDayPage?: boolean): Promise<void>;
@@ -2067,7 +2507,7 @@ declare class DataSpaceWithDoc extends DataSpaceWithFile {
 }
 //# sourceMappingURL=doc.d.ts.map
 //#endregion
-//#region DataSpace/table.d.ts
+//#region data-space/table.d.ts
 declare class DataSpaceWithTable extends DataSpaceWithDoc {
   table(id: string): TableManager;
   rebuildFTS(tableId: string): Promise<void>;
@@ -2163,10 +2603,25 @@ declare class DataSpaceWithTable extends DataSpaceWithDoc {
   }>;
   hasTableFTS(tableName: string): Promise<boolean>;
   runAIgeneratedSQL(sql: string, tableName: string): Promise<Record<string, any>[]>;
+  /**
+   * Migrate file paths in file fields from old format (/{spaceName}/files/) to new format (/files/)
+   * @param tableId The table ID to migrate
+   * @returns Migration statistics
+   */
+  migrateTableFilePaths(tableId: string): Promise<{
+    migrated: number;
+    errors: number;
+  }>;
+  /**
+   * Check if a table needs file path migration
+   * @param tableId The table ID to check
+   * @returns True if migration is needed
+   */
+  needsTableFilePathMigration(tableId: string): Promise<boolean>;
 }
 //# sourceMappingURL=table.d.ts.map
 //#endregion
-//#region DataSpace/index.d.ts
+//#region data-space/index.d.ts
 declare class DataSpace extends DataSpaceWithTable {}
 //#endregion
 //#region index.d.ts

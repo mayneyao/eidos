@@ -1,5 +1,5 @@
 import { getPythonWorker } from "@/lib/python/worker";
-import type { DataSpace } from "@/packages/core/DataSpace";
+import type { DataSpace } from "@eidos.space/core/data-space";
 import type { ITableActionContext } from "@/packages/core/types/IExtension";
 
 
@@ -97,14 +97,22 @@ export const callScriptById = async (id: string, input: Record<string, any>, sql
         throw new Error("Script not found")
     }
 
+    const env = Object.entries(script.bindings || {}).reduce((acc, [key, binding]) => {
+        if (binding.type === "secret" || binding.type === "text") {
+            acc[key] = binding.value
+        }
+        return acc
+    }, {} as Record<string, string>)
+
     return callJavaScript({
         input,
         code: script.code,
         id,
         context: {
-
+            env
         },
         command: cmd ?? 'default',
-        space: spaceName
+        space: spaceName,
+        bindings: script.bindings
     }, scriptContainerRef)
 }

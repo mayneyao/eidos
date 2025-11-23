@@ -468,7 +468,17 @@ export const isStandaloneBlocksPath = (pathname: string) => {
 export const isExtensionURL = (url: string) => {
   // extension <extensionId>.block.<spaceId>.eidos.localhost:13127/
   // 287c3686-f1e1-4b10-965e-2daa35a422fc.block.25-w19.eidos.localhost:13127
-  return url.endsWith('.eidos.localhost:13127')
+  try {
+    const urlObj = new URL(url)
+    const hostnameParts = urlObj.hostname.split('.')
+    return hostnameParts.length === 5 &&
+      hostnameParts[1] === 'block' &&
+      hostnameParts[3] === 'eidos' &&
+      hostnameParts[4] === 'localhost' &&
+      urlObj.port === '13127'
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -501,8 +511,10 @@ export const getExtensionUrl = (id: string, space: string, searchParams?: Record
   return newUrl
 }
 export const isFilesPath = (pathname: string) => {
-  // /:space/files/:id - now supports file names with special characters and subdirectories
-  return /^\/[\w-]+\/files\/.*$/.test(pathname)
+  // /files/* - default files path
+  // /@/* - mount files path
+  // /~/* - project files path
+  return /^\/files\/.*$/.test(pathname) || /^\/@\/.*$/.test(pathname) || /^\/~\/.*$/.test(pathname)
 }
 
 

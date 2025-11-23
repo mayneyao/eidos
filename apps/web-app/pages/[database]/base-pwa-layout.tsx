@@ -8,13 +8,10 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
-import { FileManager } from "@/components/file-manager"
+
 import { Loading } from "@/components/loading"
-import { Nav } from "@/components/nav"
 import { ScriptContainer } from "@/components/script-container"
-import { SideBar } from "@/components/sidebar"
 import { TempPanel } from "@/components/nav/temp-panel"
-import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
@@ -22,7 +19,7 @@ import { useSpaceAppStore } from "./store"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
-export function PWALayoutBase({
+export function DatabasePWALayoutBase({
   children,
   className,
 }: {
@@ -30,18 +27,10 @@ export function PWALayoutBase({
   className?: string
 }) {
   const { sqlite } = useSqlite()
-  const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
-  const { efsManager, isLoading, error } = useEidosFileSystemManager()
+  const { isShareMode } = useAppRuntimeStore()
   const { isRightPanelOpen, currentAppIndex, apps, tempPanelNode } = useSpaceAppStore()
   const currentApp = apps[currentAppIndex]
 
-  if (!efsManager || isLoading || error) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <Loading />
-      </div>
-    )
-  }
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
@@ -49,23 +38,14 @@ export function PWALayoutBase({
       </div>
     )
   }
-  // when chat is open  2:7:3
-  // when chat is close 2:10
+
   return (
-    <div className={cn("relative flex", className)}>
-      {currentPreviewFile && (
-        <iframe
-          className="hidden h-full w-full  md:block"
-          src={efsManager.getFileUrlByPath(currentPreviewFile.path)}
-        ></iframe>
-      )}
+    <div className={cn("relative  flex h-screen", className)}>
       <ScriptContainer />
       <div className="flex h-screen w-full">
-        <SideBar />
-        <div className="flex h-screen flex-col w-full">
-          <Nav />
+        <div className="flex h-screen flex-col min-w-0 grow">
           <ResizablePanelGroup direction="horizontal">
-            <div className="flex w-full pt-[38px]">
+            <div className="flex w-full pt-[38px]" style={{ height: "100%" }}>
               <ResizablePanel minSize={50}>
                 <div className={cn("flex h-full w-auto grow flex-col")}>
                   <main
@@ -95,32 +75,12 @@ export function PWALayoutBase({
                               <AIChat />
                             </Suspense>
                           )}
-                          {currentApp === "file-manager" && (
-                            <Suspense fallback={<Loading />}>
-                              <FileManager />
-                            </Suspense>
-                          )}
                         </>
                       )}
                     </div>
                   </ResizablePanel>
                 </>
               )}
-              {/* {isExtAppOpen && (
-                  <>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel
-                      className="min-w-[400px]"
-                      defaultSize={30}
-                      minSize={30}
-                      maxSize={isAiOpen ? 40 : 50}
-                    >
-                      <div className="relative flex h-full  w-[475px] shrink-0  flex-col overflow-auto p-2">
-                        <ExtensionPage />
-                      </div>
-                    </ResizablePanel>
-                  </>
-                )} */}
             </div>
           </ResizablePanelGroup>
         </div>

@@ -1,4 +1,4 @@
-import type { DataSpace, EidosTable } from "../../DataSpace"
+import type { DataSpace, EidosTable } from "../../data-space"
 import type { DataConnection } from "peerjs"
 
 import { HttpSqlite } from "./http"
@@ -11,6 +11,10 @@ import { RemoteSqlite } from "./webrtc"
 import { MsgType } from "@/lib/const"
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { uuidv7 } from "uuidv7"
+import {
+  isIteratorFunction,
+  serializeParams,
+} from "./iterator-utils"
 
 
 type IConfig = {
@@ -125,6 +129,7 @@ export const getSqliteProxy = (
           "theme",
           "dataView",
           "kv",
+          "fs"
         ].includes(method as string)
       ) {
         return new Proxy<EidosTable>({} as any, {
@@ -132,19 +137,75 @@ export const getSqliteProxy = (
             return function (params: any) {
               const thisCallId = uuidv7()
               const [_params, ...rest] = arguments
+              const methodName = `${method as string}.${subMethod as string}`
+
+              // Check if this is an iterator function using the registry
+              const isIterFunc = isIteratorFunction(methodName)
+              
+              // Smart parameter serialization - extract non-serializable values
+              const { serialized: serializedParams, extracted } = serializeParams([
+                _params,
+                ...rest,
+              ])
+              
+              // Extract AbortSignal if present (for cancellation support)
+              let abortSignal: AbortSignal | undefined
+              for (const [path, item] of extracted.entries()) {
+                if (item.type === "AbortSignal") {
+                  abortSignal = item.value
+                  break
+                }
+              }
+              
               const res = sqlite.send({
                 type: MsgType.CallFunction,
                 data: {
-                  method: `${method as string}.${subMethod as string}`,
-                  params: [_params, ...rest],
+                  method: methodName,
+                  params: serializedParams,
                   dbName,
                   userId,
                 },
                 id: thisCallId,
               })
+
+              // Use iterator mode for iterator functions
+              if (isIterFunc && sqlite.onIterator) {
+                const iterator = sqlite.onIterator(thisCallId)
+                
+                // If AbortSignal is provided, set up cancellation
+                if (abortSignal) {
+                  const cancelHandler = () => {
+                    // Send cancel message to remote
+                    // For Electron, we need to use IPC send instead of the regular send method
+                    if (sqlite instanceof LocalSqlite) {
+                      const connector = (sqlite as any).connector
+                      if (!(connector instanceof Worker)) {
+                        // Electron mode: use IPC to send cancel
+                        const cancelChannel = `sqlite-iterator-cancel-${thisCallId}`
+                        if (connector && typeof connector.send === 'function') {
+                          connector.send(cancelChannel, {
+                            type: MsgType.IteratorCancel,
+                            id: thisCallId,
+                          })
+                        }
+                      } else {
+                        // Worker mode: use postMessage
+                        connector.postMessage({
+                          type: MsgType.IteratorCancel,
+                          id: thisCallId,
+                        })
+                      }
+                    }
+                  }
+                  abortSignal.addEventListener('abort', cancelHandler)
+                }
+                
+                return iterator
+              }
               if (res) {
                 return res
               }
+
               return sqlite.onCallBack(thisCallId)
             }
           },

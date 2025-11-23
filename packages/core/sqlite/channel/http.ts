@@ -71,4 +71,13 @@ export class HttpSqlite implements ISqlite<string, IHttpSendData> {
       const polling = setInterval(checkResponse, interval)
     })
   }
+
+  /**
+   * Handle iterator/streaming functions for HTTP connections
+   * Note: HTTP is not ideal for streaming, but we provide a basic implementation
+   * This would require server-side support for Server-Sent Events (SSE) or WebSocket
+   */
+  onIterator<TValue = any>(thisCallId: string): AsyncIterable<TValue> {
+    throw new Error("Iterator functions are not supported over HTTP. Use WebSocket or local connection instead.")
+  }
 }

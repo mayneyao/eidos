@@ -4,6 +4,7 @@ import type { BrowserWindow } from 'electron';
 import { Menu, Tray, app, dialog, ipcMain, nativeImage, shell, webContents } from 'electron';
 import electronLog from 'electron-log';
 import path from 'path';
+import fs from 'fs/promises';
 import { getConfigManager } from './config';
 import { corsManager } from './cors-manager';
 import { closeDataSpace, getDataSpace, getOrSetDataSpace, reloadDataSpace } from './data-space';
@@ -15,8 +16,11 @@ import { startServer } from './server/server';
 import { AppUpdater } from './updater';
 import { createWindow } from './window-manager/createWindow';
 import { WorkerManager } from './worker-manager';
+import { GlobalShortcutManager } from './services/global-shortcut-manager';
 import console from 'electron-log';
 import { fetchAvailableModels } from '@/packages/ai/helper';
+import { migrateFromLegacyConfig, getSpaceRegistry } from './space-registry';
+import { isIteratorFunction } from '@/packages/core/sqlite/channel/iterator-utils';
 
 
 process.on('uncaughtException', (error) => {
@@ -39,6 +43,7 @@ export let win: BrowserWindow | null
 let appUpdater: AppUpdater;
 let tray: Tray | null
 let protocolHandler: ProtocolHandler;
+let globalShortcutManager: GlobalShortcutManager | null = null;
 let forceQuit = false;
 
 export const PORT = 13127;
@@ -89,13 +94,17 @@ if (!app.requestSingleInstanceLock()) {
     process.exit(0)
 }
 
+// Set up window open handler when webview DOM is ready
+// Prevents webview from opening new windows inside the app, redirects external links to system browser
 ipcMain.on('webview-dom-ready', (_, id) => {
     const wc = webContents.fromId(id)
     wc?.setWindowOpenHandler(({ url }) => {
         const protocol = (new URL(url)).protocol
+        // Only allow http and https protocol external links to open in system browser
         if (['https:', 'http:'].includes(protocol)) {
             shell.openExternal(url)
         }
+        // Deny other types of window open requests to maintain app security
         return { action: 'deny' }
     })
 })
@@ -121,20 +130,130 @@ ipcMain.handle('get-user-config-path', () => {
 });
 
 ipcMain.handle('sqlite-msg', async (event, payload) => {
-    let dataSpace = getDataSpace()
-    const { space, dbName } = payload.data
-    const spaceId = space || dbName
-    if (!dataSpace) {
-        electronLog.info('not found data space')
+    try {
+        let dataSpace = getDataSpace()
         const { space, dbName } = payload.data
-        dataSpace = await getOrSetDataSpace(dbName || space)
-        electronLog.info('switch to data space', dataSpace.dbName)
-    } else if (spaceId !== dataSpace.dbName) {
-        electronLog.info('switch to data space', dataSpace.dbName)
-        dataSpace = await getOrSetDataSpace(dbName || space)
+        const spaceId = space || dbName
+
+        if (!spaceId) {
+            throw new Error('No space ID provided in sqlite-msg');
+        }
+
+        if (!dataSpace) {
+            electronLog.info('not found data space')
+            dataSpace = await getOrSetDataSpace(spaceId)
+            electronLog.info('switch to data space', dataSpace.dbName)
+        } else if (spaceId !== dataSpace.dbName) {
+            electronLog.info('switch to data space', spaceId)
+            dataSpace = await getOrSetDataSpace(spaceId)
+        }
+
+        if (!dataSpace) {
+            throw new Error('Failed to initialize data space');
+        }
+
+        // Check if this is an iterator function using the registry
+        const isIterFunc = isIteratorFunction(payload.data.method)
+
+        // For iterator functions, create an AbortController to handle cancellation
+        let abortController: AbortController | undefined
+
+        // Prepare params - for iterator functions, we'll add AbortSignal
+        let finalParams = [...(payload.data.params || [])]
+
+        // Check if this is an iterator function and create AbortController
+        if (isIterFunc) {
+            abortController = new AbortController()
+
+            // Listen for cancel messages via IPC
+            const cancelHandler = (_event: Electron.IpcMainEvent, cancelPayload: any) => {
+                if (cancelPayload?.type === MsgType.IteratorCancel && cancelPayload?.id === payload.id) {
+                    abortController?.abort()
+                }
+            }
+            ipcMain.on(`sqlite-iterator-cancel-${payload.id}`, cancelHandler)
+
+            // Add signal to params if options object exists
+            // Note: params come serialized (AbortSignal was removed), so we add our new signal
+            if (finalParams.length > 0 && typeof finalParams[finalParams.length - 1] === 'object' && finalParams[finalParams.length - 1] !== null) {
+                const lastParam = finalParams[finalParams.length - 1]
+                // Replace or add signal with our controller's signal
+                finalParams[finalParams.length - 1] = { ...lastParam, signal: abortController.signal }
+            } else {
+                // Add options with signal
+                finalParams.push({ signal: abortController.signal })
+            }
+        }
+
+        // Create modified payload with final params
+        const modifiedPayload = {
+            ...payload.data,
+            params: finalParams,
+        }
+
+        const res = await handleFunctionCall(modifiedPayload, dataSpace)
+
+        // Check if the result is an AsyncIterable (for iterator functions like watch)
+        // Only treat as iterator if it's explicitly an iterator function (fs.watch)
+        // and the result is actually an AsyncIterable
+        if (abortController && res && typeof res === 'object' && Symbol.asyncIterator in res) {
+            // Handle async iterator: yield values as they come
+            // Use a separate IPC channel to send iterator messages
+            const iteratorChannel = `sqlite-iterator-${payload.id}`
+            try {
+                for await (const value of res as AsyncIterable<any>) {
+                    // Check if cancelled
+                    if (abortController?.signal.aborted) {
+                        break
+                    }
+                    event.sender.send(iteratorChannel, {
+                        id: payload.id,
+                        data: {
+                            value,
+                        },
+                        type: MsgType.IteratorValue,
+                    })
+                }
+                // Signal that iterator is done
+                event.sender.send(iteratorChannel, {
+                    id: payload.id,
+                    data: {},
+                    type: MsgType.IteratorDone,
+                })
+            } catch (error) {
+                // Check if it's an abort error
+                if (error instanceof Error && error.name === 'AbortError') {
+                    event.sender.send(iteratorChannel, {
+                        id: payload.id,
+                        data: {},
+                        type: MsgType.IteratorDone,
+                    })
+                } else {
+                    // Signal iterator error
+                    event.sender.send(iteratorChannel, {
+                        id: payload.id,
+                        data: {
+                            message: error instanceof Error ? error.message : String(error),
+                        },
+                        type: MsgType.IteratorError,
+                    })
+                }
+            }
+            // Return a special marker to indicate iterator mode
+            return { __isIterator: true, channel: iteratorChannel }
+        }
+
+        // Clean up cancel listener if it was registered for an iterator function
+        // but the result wasn't actually an AsyncIterable
+        if (abortController) {
+            ipcMain.removeAllListeners(`sqlite-iterator-cancel-${payload.id}`)
+        }
+
+        return res
+    } catch (error) {
+        console.error('sqlite-msg error:', error);
+        throw error;
     }
-    const res = await handleFunctionCall(payload.data, dataSpace)
-    return res
 });
 
 
@@ -202,22 +321,24 @@ ipcMain.handle('select-folder', async () => {
     }
 });
 
-ipcMain.handle('open-folder', (event, folder) => {
-    if (folder) {
-        shell.openPath(folder)
-            .then((result) => {
-                if (result) {
-                    electronLog.error(`Error opening folder: ${result}`);
-                } else {
-                    electronLog.info(`Folder opened successfully: ${folder}`);
-                }
-            })
-            .catch((error) => {
-                electronLog.error(`Error opening folder: ${error}`);
-            });
+ipcMain.handle('show-in-file-manager', async (event, path) => {
+    if (path) {
+        try {
+            const stats = await fs.stat(path);
+            if (stats.isFile()) {
+                shell.showItemInFolder(path);
+            } else {
+                shell.openPath(path);
+            }
+        } catch (error) {
+            electronLog.error('Error accessing path:', error);
+            return { success: false, error: 'Failed to access path' };
+        }
     } else {
-        electronLog.warn('No folder path provided');
+        electronLog.warn('No path provided');
+        return { success: false, error: 'No path provided' };
     }
+    return { success: true };
 });
 
 ipcMain.handle('open-url', async (event, url) => {
@@ -237,6 +358,11 @@ ipcMain.handle('open-url', async (event, url) => {
 });
 
 ipcMain.handle('reload-app', () => {
+    // Reinitialize global shortcuts after reload
+    if (win && globalShortcutManager) {
+        globalShortcutManager.setMainWindow(win);
+        // GlobalShortcutManager will handle registration based on focus state
+    }
     app.relaunch();
     win?.reload()
 });
@@ -244,8 +370,10 @@ ipcMain.handle('reload-app', () => {
 app.on('window-all-closed', () => {
     cleanupPlaygroundWatchers();
     WorkerManager.getInstance().shutdown();
-    getDataSpace()?.close()
-    win = null
+    getDataSpace()?.close();
+    globalShortcutManager?.destroy();
+    globalShortcutManager = null;
+    win = null;
 })
 
 
@@ -310,10 +438,20 @@ if (process.defaultApp) {
     app.setAsDefaultProtocolClient('eidos')
 }
 
+// Queue for protocol URLs received before app is ready
+let pendingProtocolUrl: string | null = null;
+
 app.on('open-url', (event, url) => {
     event.preventDefault();
-    if (protocolHandler) {
+    console.log('Received protocol URL:', url);
+
+    if (protocolHandler && win) {
+        // App is ready, handle immediately
         protocolHandler.handleUrl(url);
+    } else {
+        // App not ready yet, queue the URL
+        console.log('App not ready, queuing protocol URL');
+        pendingProtocolUrl = url;
     }
 });
 
@@ -329,11 +467,95 @@ app.on('second-instance', (event, commandLine) => {
     }
 });
 
-app.whenReady().then(() => {
+/**
+ * Extract spaceId from protocol URL if it's an open-space action
+ */
+function extractSpaceIdFromProtocolUrl(url: string): string | null {
+    try {
+        const urlObj = new URL(url);
+        if (urlObj.hostname === 'open-space' && urlObj.searchParams.has('space')) {
+            return urlObj.searchParams.get('space');
+        }
+    } catch (error) {
+        console.error('Failed to parse protocol URL:', error);
+    }
+    return null;
+}
+
+app.whenReady().then(async () => {
     corsManager.initialize();
 
-    win = createWindow();
+    await migrateFromLegacyConfig();
+
+    const registry = getSpaceRegistry();
     const configManager = getConfigManager();
+
+    // Check if app was launched with a protocol URL
+    let launchProtocolUrl: string | null = null;
+    let spaceIdFromProtocol: string | null = null;
+
+    // Check for pending URL from macOS 'open-url' event
+    if (pendingProtocolUrl) {
+        launchProtocolUrl = pendingProtocolUrl;
+        spaceIdFromProtocol = extractSpaceIdFromProtocolUrl(pendingProtocolUrl);
+        console.log('Found pending protocol URL:', pendingProtocolUrl, '-> spaceId:', spaceIdFromProtocol);
+    }
+
+    // Check for protocol URL in command line args (Windows/Linux)
+    if (!launchProtocolUrl && process.platform !== 'darwin') {
+        const protocolUrl = process.argv.find(arg => arg.startsWith('eidos://'));
+        if (protocolUrl) {
+            launchProtocolUrl = protocolUrl;
+            spaceIdFromProtocol = extractSpaceIdFromProtocolUrl(protocolUrl);
+            console.log('Found protocol URL in argv:', protocolUrl, '-> spaceId:', spaceIdFromProtocol);
+        }
+    }
+
+    // Determine which space to open
+    let spaceId: string | undefined;
+
+    if (spaceIdFromProtocol) {
+        // Protocol URL takes precedence - validate it exists
+        if (registry.validateSpace(spaceIdFromProtocol)) {
+            spaceId = spaceIdFromProtocol;
+            console.log('Opening space from protocol URL:', spaceId);
+            // Update last opened space
+            configManager.setLastOpenedSpace(spaceId);
+        } else {
+            console.warn(`Space from protocol URL not found: ${spaceIdFromProtocol}`);
+            // Fall back to last opened or first space
+            spaceId = configManager.getLastOpenedSpace();
+        }
+    } else {
+        // Normal startup - use last opened space
+        spaceId = configManager.getLastOpenedSpace();
+    }
+
+    // Fallback to first available space if needed
+    if (!spaceId) {
+        const firstSpace = registry.getFirstSpace();
+        spaceId = firstSpace?.id;
+
+        if (spaceId) {
+            configManager.setLastOpenedSpace(spaceId);
+        }
+    }
+
+    // Validate the final space selection
+    if (spaceId && !registry.validateSpace(spaceId)) {
+        console.warn(`Space ${spaceId} is invalid, falling back to first available space`);
+        const firstSpace = registry.getFirstSpace();
+        spaceId = firstSpace?.id;
+        if (spaceId) {
+            configManager.setLastOpenedSpace(spaceId);
+        }
+    }
+
+    // Create window with the determined spaceId
+    win = createWindow(spaceId);
+
+    // Initialize global shortcut manager (will register shortcuts when window gains focus)
+    globalShortcutManager = new GlobalShortcutManager(win);
 
     configManager.on('configChanged', ({ key, newValue }: { key: string, newValue: unknown }) => {
         if (key === 'security') {
@@ -343,6 +565,20 @@ app.whenReady().then(() => {
     createTray();
 
     protocolHandler = new ProtocolHandler(win);
+
+    // If there was a launch protocol URL that wasn't just open-space,
+    // handle it after window loads (for other protocol actions like extension install)
+    if (launchProtocolUrl && !spaceIdFromProtocol) {
+        console.log('Processing non-open-space protocol URL:', launchProtocolUrl);
+        pendingProtocolUrl = null;
+
+        win.webContents.once('did-finish-load', () => {
+            protocolHandler?.handleUrl(launchProtocolUrl);
+        });
+    } else {
+        // Clear the pending URL since we've already handled it by opening the right space
+        pendingProtocolUrl = null;
+    }
 
     win.on('close', (event) => {
         if (!forceQuit) {
@@ -363,6 +599,79 @@ app.whenReady().then(() => {
 
     ipcMain.handle('get-api-agent-status', () => {
         return getApiAgentStatus();
+    });
+
+    ipcMain.handle('list-spaces', () => {
+        const registry = getSpaceRegistry();
+        return registry.getAllSpaces();
+    });
+
+    ipcMain.handle('switch-space', async (_, spaceId: string) => {
+        const registry = getSpaceRegistry();
+        const space = registry.getSpace(spaceId);
+
+        if (!space) {
+            throw new Error(`Space not found: ${spaceId}`);
+        }
+
+        const configManager = getConfigManager();
+        configManager.setLastOpenedSpace(spaceId);
+
+        if (win) {
+            if (process.env.VITE_DEV_SERVER_URL) {
+                const devUrl = new URL(process.env.VITE_DEV_SERVER_URL);
+                const devSubdomainUrl = `http://${spaceId}.eidos.localhost:${devUrl.port}/`;
+                console.log(`🔄 Switching to space in development mode: ${devSubdomainUrl}`);
+                win.loadURL(devSubdomainUrl);
+            } else {
+                const prodSubdomainUrl = `http://${spaceId}.eidos.localhost:${PORT}/`;
+                console.log(`🔄 Switching to space in production mode: ${prodSubdomainUrl}`);
+                win.loadURL(prodSubdomainUrl);
+            }
+        }
+
+        return { success: true };
+    });
+
+    ipcMain.handle('register-space', async (_, spacePath: string, customName?: string) => {
+        const registry = getSpaceRegistry();
+        try {
+            const space = registry.registerSpace(spacePath, customName);
+            return { success: true, space };
+        } catch (error: any) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('remove-space', async (_, spaceId: string) => {
+        const registry = getSpaceRegistry();
+        const success = registry.removeSpace(spaceId);
+        return { success };
+    });
+
+    ipcMain.handle('get-current-space', () => {
+        const configManager = getConfigManager();
+        const spaceId = configManager.getLastOpenedSpace();
+        if (!spaceId) {
+            return null;
+        }
+
+        const registry = getSpaceRegistry();
+        return registry.getSpace(spaceId);
+    });
+
+    ipcMain.handle('update-space', async (_, spaceId: string, updates: { name?: string }) => {
+        const registry = getSpaceRegistry();
+        try {
+            const success = registry.updateSpace(spaceId, updates);
+            if (success) {
+                return { success: true };
+            } else {
+                return { success: false, error: 'Space not found' };
+            }
+        } catch (error: any) {
+            return { success: false, error: error.message };
+        }
     });
 });
 
@@ -419,3 +728,4 @@ ipcMain.handle('fetch-available-models', async (event, apiKey: string, providerT
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
 });
+

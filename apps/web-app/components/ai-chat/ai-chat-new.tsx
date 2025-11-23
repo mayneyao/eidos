@@ -5,7 +5,7 @@ import { Paintbrush, PauseIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useWindowSize } from "usehooks-ts"
 
-import { EIDOS_CHAT_PROJECT_ID } from "@/lib/const"
+import { EIDOS_CHAT_PROJECT_ID, ALLOWED_DOCUMENT_EXTENSIONS } from "@/lib/const"
 import { cn, uuidv7 } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/use-toast"
@@ -15,8 +15,10 @@ import { useCurrentExtension } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useExperimentConfigStore } from "@/components/settings/stores"
 import { useAppStore } from "@/apps/web-app/store/app-store"
+import { useDragStore } from "@/apps/web-app/store/drag-store"
 
 import type { UIBlock } from "../remix-chat/components/block"
+import type { FileTreeNode } from "../file-tree"
 import {
   PreviewMessage,
   ThinkingMessage,
@@ -47,6 +49,8 @@ export default function Chat() {
   const { experiment } = useExperimentConfigStore()
 
   const [withSpaceData, setWithSpaceData] = useState(experiment.enableRAG)
+
+  const { isDragging } = useDragStore()
 
   const divRef = useRef<HTMLDivElement>(null)
   const { currentSysPrompt, setCurrentSysPrompt } = useAIChatStore()
@@ -193,11 +197,76 @@ export default function Chat() {
     removeNode(nodeId, aiInputEditorRef)
   }
 
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      // Check if dragged data is from file tree
+      const dragDataStr = e.dataTransfer.getData("application/eidos-node")
+      if (!dragDataStr) return
+
+      try {
+        const dragData = JSON.parse(dragDataStr) as FileTreeNode
+
+        // Convert FileTreeNode to ITreeNode
+        const nodeId = dragData.metadata?.nodeId
+        const finalNodeId = nodeId || dragData.path
+
+        // Filter path-based nodes: only allow document files
+        const isPathNode = finalNodeId.startsWith('~') || finalNodeId.startsWith('@/')
+        if (isPathNode) {
+          const fileName = dragData.name?.toLowerCase() || ''
+          const extension = fileName.substring(fileName.lastIndexOf('.'))
+
+          if (!ALLOWED_DOCUMENT_EXTENSIONS.includes(extension)) {
+            // Skip non-document files for path-based nodes
+            return
+          }
+        }
+
+        const treeNode = {
+          id: finalNodeId,
+          name: dragData.name,
+          type: (dragData.metadata?.nodeType as any) || dragData.kind,
+          icon: dragData.metadata?.icon,
+        }
+
+        // Add to context nodes
+        addNode(treeNode)
+      } catch (error) {
+        console.error("Failed to parse drag data:", error)
+      }
+    },
+    [addNode]
+  )
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+
+
   return (
     <div
       className="relative flex h-full w-full flex-col overflow-hidden"
       ref={divRef}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
     >
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-primary/10 backdrop-blur-[1px] border-2 border-dashed border-primary/50 rounded-lg flex items-center justify-center transition-all duration-200">
+          <div className="text-center text-primary font-medium animate-pulse">
+            <div className="text-lg mb-2 flex items-center gap-2">
+              <span className="text-2xl">📎</span>
+              Drop to add to context
+            </div>
+            <div className="text-sm opacity-75">Add this item as context for AI chat</div>
+          </div>
+        </div>
+      )}
       <div
         ref={messagesContainerRef}
         className="flex min-w-0 flex-1 flex-col gap-6 overflow-auto px-2 pt-4"

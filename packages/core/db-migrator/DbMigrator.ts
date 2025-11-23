@@ -1,6 +1,6 @@
 import { generateMergeTableWithNewColumnsSql } from "../sqlite/sql-merge-table-with-new-columns"
 
-import type { DataSpace } from "../DataSpace"
+import type { DataSpace } from "../data-space"
 
 type ITable = {
   type: string

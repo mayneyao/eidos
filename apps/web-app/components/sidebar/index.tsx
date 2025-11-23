@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/web/helper"
 import { Sidebar, SidebarRail } from "@/components/ui/sidebar"
-import { DatabaseSelect } from "@/components/database-select"
+import { SpaceSelect } from "@/components/space-select"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
@@ -28,7 +28,7 @@ export const SideBar = () => {
 
       <div className="mt-auto border-t border-sidebar-border p-1">
         <div className="flex items-center justify-between gap-1">
-          {!isShareMode && <DatabaseSelect databases={spaceList} />}
+          {!isShareMode && <SpaceSelect spaces={spaceList} />}
           <div className="flex items-center gap-1">
             <Trash />
             <SpaceSettings />

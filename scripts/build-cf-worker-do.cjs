@@ -2,7 +2,7 @@ const esbuild = require("esbuild")
 
 esbuild
   .build({
-    entryPoints: ["apps/publish/lib/DataSpaceObject.ts"],
+    entryPoints: ["apps/publish/lib/data-spaceObject.ts"],
     bundle: true,
     outfile: "dist/_DataSpaceObject.js",
     platform: "browser",

@@ -1,17 +1,15 @@
-import { useMemo, useRef, useState } from "react"
 import { useDrop } from "ahooks"
+import { useMemo, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 
-import { getFilePreviewImage } from "@/lib/mime/mime"
-import { cn, proxyURL } from "@/lib/utils"
-import { AspectRatio } from "@/components/ui/aspect-ratio"
+import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
+import { useFileUpload, useFiles } from "@/apps/web-app/hooks/use-file-upload"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
-import { useFileSystem, useFiles } from "@/apps/web-app/hooks/use-files"
-import { useEidosFileSystemManager } from "@/apps/web-app/hooks/use-fs"
+import { getFilePreviewImage } from "@/lib/mime/mime"
+import { cn, proxyURL } from "@/lib/utils"
 
 export const DefaultColors = [
   "bg-red-500",
@@ -26,6 +24,7 @@ export const DefaultColors = [
   "bg-gray-700",
   "bg-gradient-to-br from-blue-200 to-red-200",
 ]
+
 export function FileSelector(props: {
   onSelected: (url: string, close?: boolean) => void
   onRemove: () => void
@@ -38,15 +37,16 @@ export function FileSelector(props: {
 }) {
   const { mblocks: allMblocks } = useAllMblocks()
   const { files } = useFiles()
-  const { efsManager } = useEidosFileSystemManager()
   const { database } = useParams()
   const images = useMemo(() => {
     return files.filter((file) => file.mime.startsWith("image/"))
   }, [files])
 
+  console.log("files", files)
+
   const dropRef = useRef(null)
   const [isHovering, setIsHovering] = useState(false)
-  const { addFiles } = useFileSystem()
+  const { addFiles } = useFileUpload()
   // color
   const handleSelectColor = (color: string) => {
     const url = `color://${color}`
@@ -67,7 +67,7 @@ export function FileSelector(props: {
       // when drop files into opfs via file manager, we don't use uuid as file name, keep the original name
       const res = await addFiles(files, false)
       const cover = res[0]
-      props.onSelected(efsManager.getFileUrlByPath(cover.path), true)
+      props.onSelected(`/${cover.path}`, true)
     },
     onDragEnter: () => setIsHovering(true),
     onDragLeave: () => setIsHovering(false),
@@ -104,7 +104,7 @@ export function FileSelector(props: {
     const file = await fileHandle.getFile()
     const res = await addFiles([file], false)
     const cover = res[0]
-    props.onSelected(efsManager.getFileUrlByPath(cover.path), true)
+    props.onSelected(`/${cover.path}`, true)
   }
 
   return (
@@ -158,7 +158,7 @@ export function FileSelector(props: {
               <h3 className="mb-2 text-sm font-medium text-muted-foreground">Images</h3>
               <div className="grid grid-cols-5 gap-2">
                 {images.map((image) => {
-                  const url = efsManager.getFileUrlByPath(image.path, database)
+                  const url = `/${image.path}`
                   const _url = getFilePreviewImage(url)
                   return (
                     <img

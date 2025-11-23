@@ -1,6 +1,6 @@
 import { getColumnIndexName } from "@/lib/utils"
 
-import type { DataSpace } from "../DataSpace"
+import type { DataSpace } from "../data-space"
 import type { TableManager } from "./table"
 
 export class IndexManager {

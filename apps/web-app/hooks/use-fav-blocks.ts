@@ -6,6 +6,7 @@ export const useFavBlocks = () => {
     tabs,
     addTab,
     removeTab,
+    resetTabs,
   } = useTabsKV()
 
   const addFavBlock = useCallback(
@@ -49,5 +50,6 @@ export const useFavBlocks = () => {
     removeFavBlock,
     isFavorite,
     toggleFavBlock,
+    resetTabs,
   }
 }

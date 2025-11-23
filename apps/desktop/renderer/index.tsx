@@ -7,22 +7,19 @@ import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6"
 import CreateSpacePage from "@/apps/desktop/renderer/initial-setup/create-space"
 import InitialSetupPage from "@/apps/desktop/renderer/initial-setup/storage-setup"
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
-import EverydayPage from "@/apps/web-app/pages/[database]/everyday/[day]/page"
-import EverydayHomePage from "@/apps/web-app/pages/[database]/everyday/page"
-import { FileManager } from "@/apps/web-app/pages/[database]/files/page"
+import { FileHandlerPage } from "@/apps/web-app/pages/[database]/file-handler/page"
+import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
+import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
 
 import "@/locales/i18n"
 import { NotFound } from "@/apps/web-app/pages/404"
-import { AppPage } from "@/apps/web-app/pages/[database]/apps/page"
 import { BlocksPage } from "@/apps/web-app/pages/[database]/blocks/page"
 import { ExtensionDetailPage } from "@/apps/web-app/pages/[database]/extensions/detail"
 import { ExtensionsEmptyState } from "@/apps/web-app/pages/[database]/extensions/empty-state"
 import { ExtensionsLayout } from "@/apps/web-app/pages/[database]/extensions/layout"
-import { ScriptPage } from "@/apps/web-app/pages/[database]/extensions/page"
 // space
 import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
 import { SpaceSetting } from "@/apps/web-app/pages/[database]/settings/page"
-import { DocEditor } from "@/apps/web-app/pages/eidtor/doc"
 import { ErrorBoundary } from "@/apps/web-app/pages/error"
 import { LabPage } from "@/apps/web-app/pages/lab"
 import { LicenseManagePage } from "@/apps/web-app/pages/license-manage/page"
@@ -52,53 +49,63 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/",
-        element: <LandingPage />,
-        loader: async ({ params }) => {
-          if (!(await window.eidos.checkIsDataFolderSet())) {
-            console.log(
-              "redirect to initial-setup",
-              window.eidos.checkIsDataFolderSet()
-            )
-            return redirect("/initial-setup")
-          }
-          return null
-        },
-      },
-      {
-        path: "initial-setup",
-        element: <InitialSetupPage />,
-      },
-      {
-        path: "create-space",
-        element: <CreateSpacePage />,
-      },
-      {
-        path: "404",
-        element: <NotFound />,
-      },
-      {
-        path: "my-licenses",
-        element: <LicenseManagePage />,
-      },
-      {
-        path: "lab",
-        element: <LabPage />,
-      },
-      {
-        path: ":database",
         element: <DesktopSpaceLayout />,
-        loader: async ({ params }) => {
-          // check the space is exist
-          if (!(await window.eidos.checkIsDataFolderSet())) {
-            return redirect("/initial-setup")
+        loader: async () => {
+          console.log("🔍 Root route loader executing")
+          console.log("📍 Current URL:", window.location.href)
+          console.log("📍 Current hostname:", window.location.hostname)
+          console.log("📍 Current port:", window.location.port)
+
+          const hostname = window.location.hostname
+          let spaceId = null
+
+          if (hostname.endsWith(".eidos.localhost")) {
+            const parts = hostname.split(".")
+            if (parts.length >= 2) {
+              spaceId = parts[0]
+            }
           }
-          if (
-            params.database &&
-            !(await window.eidos.isSpaceExist(params.database))
-          ) {
-            return redirect("/404")
+
+          console.log("Extracted space ID from hostname:", spaceId)
+
+          try {
+            console.log("Checking spaces via list-spaces IPC...")
+            const spaces = await window.eidos.invoke("list-spaces")
+            console.log("Spaces result:", spaces)
+
+            if (!spaces || spaces.length === 0) {
+              console.log("No spaces available, redirecting to initial-setup")
+              return redirect("/initial-setup")
+            }
+
+            if (spaceId) {
+              const spaceExists = spaces.some(
+                (space: any) => space.id === spaceId
+              )
+              console.log(`Checking if space '${spaceId}' exists:`, spaceExists)
+              if (!spaceExists) {
+                console.log(`Space '${spaceId}' not found, redirecting to 404`)
+                return redirect("/404")
+              }
+            }
+
+            console.log("All checks passed, proceeding normally")
+            return null
+          } catch (error) {
+            console.error("Error checking spaces via IPC:", error)
+            console.log("Falling back to legacy methods...")
+
+            const isDataFolderSet = await window.eidos.checkIsDataFolderSet()
+            console.log("checkIsDataFolderSet result:", isDataFolderSet)
+
+            if (!isDataFolderSet) {
+              console.log("Data folder not set, redirecting to initial-setup")
+              return redirect("/initial-setup")
+            }
+
+            console.log("Legacy checks passed, proceeding normally")
+            return null
           }
-          return null
         },
         children: [
           {
@@ -128,17 +135,8 @@ const router = createBrowserRouter([
             element: <SpaceSetting />,
           },
           {
-            path: "opfs",
-            element: <FileManager />,
-          },
-          {
-            path: "apps",
-            children: [
-              {
-                path: ":id",
-                element: <AppPage />,
-              },
-            ],
+            path: "file-handler",
+            element: <FileHandlerPage />,
           },
           {
             path: "extensions",
@@ -163,7 +161,7 @@ const router = createBrowserRouter([
             ],
           },
           {
-            path: "everyday",
+            path: "journals",
             children: [
               {
                 index: true,
@@ -182,6 +180,26 @@ const router = createBrowserRouter([
         ],
       },
       {
+        path: "initial-setup",
+        element: <InitialSetupPage />,
+      },
+      {
+        path: "create-space",
+        element: <CreateSpacePage />,
+      },
+      {
+        path: "404",
+        element: <NotFound />,
+      },
+      {
+        path: "my-licenses",
+        element: <LicenseManagePage />,
+      },
+      {
+        path: "lab",
+        element: <LabPage />,
+      },
+      {
         path: "share",
         children: [
           {
@@ -197,15 +215,6 @@ const router = createBrowserRouter([
                 element: <ShareNodePage />,
               },
             ],
-          },
-        ],
-      },
-      {
-        path: "editor",
-        children: [
-          {
-            path: "doc",
-            element: <DocEditor />,
           },
         ],
       },

@@ -17,13 +17,11 @@ import { getTemplates } from "./template"
 
 interface TemplateModalProps {
   onTemplateSelect: (sql: string) => void
-  space: string
   children: React.ReactNode
 }
 
 export const TemplateModal = ({
   onTemplateSelect,
-  space,
   children,
 }: TemplateModalProps) => {
   const [templateSearchQuery, setTemplateSearchQuery] = useState("")
@@ -35,8 +33,8 @@ export const TemplateModal = ({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const templateRefs = useRef<(HTMLButtonElement | null)[]>([])
 
-  // Get templates for the current space (memoized)
-  const templates = useMemo(() => getTemplates(space), [space])
+  // Get templates (memoized)
+  const templates = useMemo(() => getTemplates(), [])
 
   // Template categorization and filtering logic (memoized)
   const templateCategories = useMemo(() => ({
