@@ -1,5 +1,78 @@
 import type { BaseDocTable } from "./base";
-import { escapeFTSQuery } from "./helper";
+
+// Common search utilities
+export interface SearchOptions {
+  tableName: string;
+  fieldName: string;
+  highlightTag: string; // 'b' for <b> or 'mark' for <mark>
+  contextLength: number; // character limit for result
+  dataSpace: any; // database interface
+  transformResult?: (row: any) => any; // optional result transformation
+}
+
+export async function performTrigramSearch(
+  keywords: string[],
+  options: SearchOptions
+): Promise<any[]> {
+  const { tableName, fieldName, highlightTag, contextLength, dataSpace, transformResult } = options;
+
+  try {
+    // Build LIKE conditions for each keyword (AND logic)
+    const conditions = keywords.map(() => `${fieldName} LIKE ?`).join(" AND ");
+    const params = keywords.map(kw => `%${kw}%`);
+
+    // Build the main search query
+    const sql = `
+      SELECT *, length(${fieldName}) as len
+      FROM ${tableName}
+      WHERE ${conditions} AND ${fieldName} IS NOT NULL
+      ORDER BY len ASC
+      LIMIT 100
+    `;
+
+    const res = await dataSpace.exec2(sql, params);
+
+    // Transform results with keyword highlighting
+    return res.map((row: any) => {
+      const originalText = row[fieldName] || '';
+
+      // Truncate the original text first to avoid breaking HTML tags
+      const truncatedText = originalText.length > contextLength
+        ? originalText.substring(0, contextLength) + '...'
+        : originalText;
+
+      // Apply keyword highlighting to the truncated text
+      let highlightedResult = truncatedText;
+
+      // Create a regex that matches any of the keywords (case-insensitive)
+      const keywordPatterns = keywords.map(keyword =>
+        keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      );
+      const combinedRegex = new RegExp(`(${keywordPatterns.join('|')})`, 'gi');
+
+      // Replace all matches with highlighted versions
+      highlightedResult = highlightedResult.replace(combinedRegex, `<${highlightTag}>$1</${highlightTag}>`);
+
+      // Apply custom transformation if provided
+      if (transformResult) {
+        return {
+          ...transformResult(row),
+          result: highlightedResult
+        };
+      }
+
+      // Default result format
+      return {
+        id: row.id,
+        result: highlightedResult
+      };
+    });
+
+  } catch (error) {
+    console.error('Search failed:', error);
+    return [];
+  }
+}
 
 // Mixin to add search-specific methods
 type Constructor<T = {}> = new (...args: any[]) => T & BaseDocTable;
@@ -10,27 +83,9 @@ export function WithSearch<T extends Constructor>(Base: T) {
 
         async rebuildIndex(opts: {
             refillNullMarkdown?: boolean;
-            recreateFtsTable?: boolean;
         }) {
-            const { refillNullMarkdown, recreateFtsTable } = opts;
+            const { refillNullMarkdown } = opts;
 
-            if (recreateFtsTable) {
-                // Drop triggers first
-                await this.dataSpace.db.exec(`
-        DROP TRIGGER IF EXISTS ${this.name}_ai;
-        DROP TRIGGER IF EXISTS ${this.name}_ad;
-        DROP TRIGGER IF EXISTS ${this.name}_au;
-      `);
-                // Then drop the FTS table
-                await this.dataSpace.exec2(`DROP TABLE IF EXISTS fts_docs;`);
-                // Recreate the FTS table
-                await this.dataSpace.exec2(this.createFTSSql);
-                console.log(`Recreated fts_docs table and triggers for ${this.dataSpace.dbName}`);
-            }
-
-            await this.dataSpace.exec2(
-                `INSERT INTO fts_docs(fts_docs) VALUES('rebuild');`
-            )
             if (refillNullMarkdown) {
                 const res = await this.dataSpace.exec2(
                     `SELECT id, markdown FROM ${this.name}`
@@ -51,24 +106,22 @@ export function WithSearch<T extends Constructor>(Base: T) {
                     }
                 }
             }
-            await this.dataSpace.exec2(
-                `INSERT INTO fts_docs(fts_docs) VALUES('rebuild');`
-            )
+
             console.log(`rebuild ${this.dataSpace.dbName} index`)
         }
         /**
-         * Search documents using full-text search with progressive query processing
+         * Search documents using trigram index with LIKE queries for multi-keyword AND search
          *
-         * @param query The search query string
+         * @param query The search query string (space-separated keywords)
          * @param options Optional search configuration (kept for backward compatibility)
          * @returns Array of search results with document ID and highlighted snippets
          *
          * @example
-         * // Basic search
-         * const results = await docTable.search('hello world');
+         * // Basic multi-keyword search (AND logic)
+         * const results = await docTable.search('文件 图片'); // finds docs containing both "文件" and "图片"
          *
-         * // Advanced FTS syntax (automatically detected and handled)
-         * const results = await docTable.search('"exact phrase" AND keyword*');
+         * // Single keyword search
+         * const results = await docTable.search('笔记'); // finds docs containing "笔记"
          */
         async search(query: string, options?: { allowAdvanced?: boolean }): Promise<{ id: string; result: string }[]> {
             if (!query || typeof query !== 'string') {
@@ -80,62 +133,19 @@ export function WithSearch<T extends Constructor>(Base: T) {
                 return [];
             }
 
-            // First try: Use the original query directly (supports advanced FTS syntax)
-            try {
-                const res = await this.dataSpace.exec2(
-                    `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',63) as result FROM fts_docs WHERE fts_docs MATCH ?;`,
-                    [trimmedQuery]
-                );
-
-                // If we found results with original query, return them
-                if (res.length > 0) {
-                    return res.reverse();
-                }
-            } catch (error) {
-                console.log('Original query failed, trying escaped version:', error instanceof Error ? error.message : String(error));
+            // Split query into keywords by spaces, filter out empty strings
+            const keywords = trimmedQuery.split(/\s+/).filter(k => k.length > 0);
+            if (keywords.length === 0) {
+                return [];
             }
 
-            // Second try: Use safe escaping (exact phrase match)
-            try {
-                const escapedQuery = escapeFTSQuery(trimmedQuery, false);
-                if (escapedQuery && escapedQuery !== trimmedQuery) {
-                    const res = await this.dataSpace.exec2(
-                        `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',63) as result FROM fts_docs WHERE fts_docs MATCH ?;`,
-                        [escapedQuery]
-                    );
-
-                    if (res.length > 0) {
-                        return res.reverse();
-                    }
-                }
-            } catch (error) {
-                console.log('Escaped query also failed:', error instanceof Error ? error.message : String(error));
-            }
-
-            // Third try: If query contains special chars, try a more permissive search by tokenizing
-            if (/[\[\]\(\)\-\+\*\&\|\!\@\#\$\%\^\~]/.test(trimmedQuery)) {
-                try {
-                    // Remove special characters and search for individual words
-                    const cleanQuery = trimmedQuery
-                        .replace(/[\[\]\(\)\-\+\*\&\|\!\@\#\$\%\^\~]/g, ' ')
-                        .replace(/\s+/g, ' ')
-                        .trim();
-
-                    if (cleanQuery) {
-                        console.log('Trying permissive search with:', cleanQuery);
-                        const fallbackRes = await this.dataSpace.exec2(
-                            `SELECT id, snippet(fts_docs, 1, '<b>', '</b>','...',63) as result FROM fts_docs WHERE fts_docs MATCH ?;`,
-                            [cleanQuery]
-                        );
-                        return fallbackRes.reverse();
-                    }
-                } catch (fallbackError) {
-                    console.error('Fallback search also failed:', fallbackError);
-                }
-            }
-
-            // If all searches fail, return empty results instead of throwing
-            return [];
+            return performTrigramSearch(keywords, {
+                tableName: this.name,
+                fieldName: 'markdown',
+                highlightTag: 'b',
+                contextLength: 63,
+                dataSpace: this.dataSpace
+            });
         }
     };
 }
