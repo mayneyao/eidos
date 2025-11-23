@@ -76,17 +76,13 @@ export const useSpace = () => {
   )
 
   const rebuildIndex = useCallback(async () => {
-    // Rebuild doc FTS index
+    // Rebuild doc trigram index (no longer uses FTS)
     await sqlite?.doc.rebuildIndex({
-      recreateFtsTable: true
+      refillNullMarkdown: true
     })
-    
-    // Rebuild extension FTS index
-    await sqlite?.extension.rebuildFTSIndex({
-      recreateFtsTable: true
-    })
-    
-    console.log('Rebuilt all FTS indexes')
+
+
+    console.log('Rebuilt all indexes')
   }, [sqlite])
 
   const createSpace = useCallback(async (spaceName: string, enableSync: boolean = false, volumeId?: string) => {

@@ -14,6 +14,7 @@ import { BlockExtensionType } from "../types/IExtension";
 
 import type { BaseTable } from "./base";
 import { BaseTableImpl } from "./base";
+import { performTrigramSearch } from "./doc/search";
 
 // Re-export types for backward compatibility
 export type { ExtensionStatus, IExtension, TableViewMeta };
@@ -43,10 +44,6 @@ export class ExtensionTable
   extends BaseTableImpl<IExtension>
   implements BaseTable<IExtension> {
   name = ExtensionTableName
-  
-  createFTSSql = this.dataSpace.hasLoadExtension ? `
-  CREATE VIRTUAL TABLE IF NOT EXISTS fts_extensions USING fts5(id, slug, description, ts_code, content='${this.name}', tokenize='simple');
-  ` : `CREATE VIRTUAL TABLE IF NOT EXISTS fts_extensions USING fts5(id, slug, description, ts_code, content='${this.name}');`
 
   createTableSql = `
     CREATE TABLE IF NOT EXISTS ${this.name} (
@@ -74,28 +71,12 @@ export class ExtensionTable
       UPDATE ${this.name} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
     END;
 
-    ${this.createFTSSql}
-
-    CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_ai AFTER INSERT ON ${this.name} BEGIN
-      INSERT INTO fts_extensions(rowid, id, slug, description, ts_code) 
-      VALUES (new.rowid, new.id, new.slug, new.description, new.ts_code);
-    END;
-
-    CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_ad AFTER DELETE ON ${this.name} BEGIN
-      INSERT INTO fts_extensions(fts_extensions, rowid, id, slug, description, ts_code) 
-      VALUES('delete', old.rowid, old.id, old.slug, old.description, old.ts_code);
-    END;
-
-    CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_au AFTER UPDATE ON ${this.name} BEGIN
-      INSERT INTO fts_extensions(fts_extensions, rowid, id, slug, description, ts_code) 
-      VALUES('delete', old.rowid, old.id, old.slug, old.description, old.ts_code);
-      INSERT INTO fts_extensions(rowid, id, slug, description, ts_code) 
-      VALUES (new.rowid, new.id, new.slug, new.description, new.ts_code);
-    END;
 
     ${createAllTriggersForFields(this.name, [
     'id', 'slug', 'name', 'type', 'code', 'enabled', 'icon', 'meta'
   ])}
+
+    CREATE INDEX IF NOT EXISTS idx_${this.name}_ts_code_trigram ON ${this.name}(ts_code) WHERE ts_code IS NOT NULL;
 `
 
   JSONFields: string[] = [
@@ -485,85 +466,34 @@ export class ExtensionTable
   }
 
   /**
-   * Full-text search extensions by slug, description, and code
+   * Full-text search extensions by code using trigram + LIKE
    */
   async fullTextSearchExtensions(query: string): Promise<Array<IExtension & { result?: string }>> {
-    const sql = `
-      SELECT e.*, snippet(fts_extensions, -1, '<mark>', '</mark>', '...', 64) as result
-      FROM fts_extensions 
-      JOIN ${this.name} e ON fts_extensions.id = e.id
-      WHERE fts_extensions MATCH ?
-      ORDER BY rank
-    `
-    const res = await this.dataSpace.exec2(sql, [query])
-    return res.map((item: any) => {
-      const extension = this.toJson(item)
-      return {
-        ...extension,
-        result: item.result
-      }
-    })
-  }
-
-  /**
-   * Rebuild FTS index for all existing extensions
-   * This should be called once for migration when FTS is first introduced
-   * 
-   * @param opts Options for rebuilding
-   * @param opts.recreateFtsTable If true, drops and recreates the FTS table and triggers
-   */
-  async rebuildFTSIndex(opts?: { recreateFtsTable?: boolean }): Promise<void> {
-    const { recreateFtsTable = false } = opts || {}
-    
-    try {
-      if (recreateFtsTable) {
-        // Drop triggers first
-        await this.dataSpace.db.exec(`
-          DROP TRIGGER IF EXISTS ${this.name}_fts_ai;
-          DROP TRIGGER IF EXISTS ${this.name}_fts_ad;
-          DROP TRIGGER IF EXISTS ${this.name}_fts_au;
-        `)
-        
-        // Then drop the FTS table
-        await this.dataSpace.exec2(`DROP TABLE IF EXISTS fts_extensions;`)
-        
-        // Recreate the FTS table
-        await this.dataSpace.exec2(this.createFTSSql)
-        
-        // Recreate triggers by re-running the create table SQL
-        // The triggers are created as part of createTableSql
-        await this.dataSpace.db.exec(`
-          CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_ai AFTER INSERT ON ${this.name} BEGIN
-            INSERT INTO fts_extensions(rowid, id, slug, description, ts_code) 
-            VALUES (new.rowid, new.id, new.slug, new.description, new.ts_code);
-          END;
-
-          CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_ad AFTER DELETE ON ${this.name} BEGIN
-            INSERT INTO fts_extensions(fts_extensions, rowid, id, slug, description, ts_code) 
-            VALUES('delete', old.rowid, old.id, old.slug, old.description, old.ts_code);
-          END;
-
-          CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_fts_au AFTER UPDATE ON ${this.name} BEGIN
-            INSERT INTO fts_extensions(fts_extensions, rowid, id, slug, description, ts_code) 
-            VALUES('delete', old.rowid, old.id, old.slug, old.description, old.ts_code);
-            INSERT INTO fts_extensions(rowid, id, slug, description, ts_code) 
-            VALUES (new.rowid, new.id, new.slug, new.description, new.ts_code);
-          END;
-        `)
-        
-        console.log(`Recreated fts_extensions table and triggers for ${this.dataSpace.dbName}`)
-      }
-      
-      // Use FTS5 'rebuild' command to rebuild the index
-      // This is the recommended way for content tables
-      await this.dataSpace.exec2(`INSERT INTO fts_extensions(fts_extensions) VALUES('rebuild')`)
-      
-      console.log(`Rebuilt FTS index for extensions in ${this.dataSpace.dbName}`)
-    } catch (error) {
-      console.error('Failed to rebuild FTS index for extensions:', error)
-      throw error
+    if (!query || typeof query !== 'string') {
+      return [];
     }
+
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      return [];
+    }
+
+    // Split query into keywords by spaces, filter out empty strings
+    const keywords = trimmedQuery.split(/\s+/).filter(k => k.length > 0);
+    if (keywords.length === 0) {
+      return [];
+    }
+
+    return performTrigramSearch(keywords, {
+      tableName: this.name,
+      fieldName: 'ts_code',
+      highlightTag: 'b',
+      contextLength: 64,
+      dataSpace: this.dataSpace,
+      transformResult: (row: any) => this.toJson(row)
+    });
   }
+
 
   /**
    * Get extensions with bindings

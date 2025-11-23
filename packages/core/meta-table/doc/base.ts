@@ -23,10 +23,6 @@ export interface DocMeta {
 
 export class BaseDocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
   name = DocTableName
-  createFTSSql = this.dataSpace.hasLoadExtension ? `
-  CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}',tokenize = 'simple');
-  `: `CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(id,markdown, content='${this.name}');`
-
 
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${this.name} (
@@ -39,26 +35,14 @@ export class BaseDocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc>
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
-
   CREATE TRIGGER IF NOT EXISTS update_time_trigger__${this.name}
   AFTER UPDATE ON ${this.name}
   FOR EACH ROW
   BEGIN
     UPDATE ${this.name} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
   END;
-    ${this.createFTSSql}    
-  CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_ai AFTER INSERT ON ${this.name} BEGIN
-    INSERT INTO fts_docs(rowid,id, markdown) VALUES (new.rowid, new.id, new.markdown);
-  END;
 
-  CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_ad AFTER DELETE ON ${this.name} BEGIN
-    INSERT INTO fts_docs(fts_docs, rowid, id,markdown) VALUES('delete', old.rowid, old.id, old.markdown);
-  END;
-  
-  CREATE TEMP TRIGGER IF NOT EXISTS ${this.name}_au AFTER UPDATE ON ${this.name} BEGIN
-    INSERT INTO fts_docs(fts_docs, rowid, id, markdown) VALUES('delete', old.rowid, old.id, old.markdown);
-    INSERT INTO fts_docs(rowid, id, markdown) VALUES (new.rowid, new.id, new.markdown);
-  END;
+  CREATE INDEX IF NOT EXISTS idx_${this.name}_markdown_trigram ON ${this.name}(markdown trigram) WHERE markdown IS NOT NULL;
 `
 
 }
