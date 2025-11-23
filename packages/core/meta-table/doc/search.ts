@@ -34,21 +34,24 @@ export async function performTrigramSearch(
 
     // Transform results with keyword highlighting
     return res.map((row: any) => {
-      let highlightedResult = row[fieldName] || '';
+      const originalText = row[fieldName] || '';
 
-      // Add highlight tags around keywords
-      keywords.forEach(keyword => {
-        // Escape special regex characters and create case-insensitive match
-        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(${escapedKeyword})`, 'gi');
-        const tagName = highlightTag;
-        highlightedResult = highlightedResult.replace(regex, `<${tagName}>$1</${tagName}>`);
-      });
+      // Truncate the original text first to avoid breaking HTML tags
+      const truncatedText = originalText.length > contextLength
+        ? originalText.substring(0, contextLength) + '...'
+        : originalText;
 
-      // Truncate if too long
-      if (highlightedResult.length > contextLength) {
-        highlightedResult = highlightedResult.substring(0, contextLength) + '...';
-      }
+      // Apply keyword highlighting to the truncated text
+      let highlightedResult = truncatedText;
+
+      // Create a regex that matches any of the keywords (case-insensitive)
+      const keywordPatterns = keywords.map(keyword =>
+        keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      );
+      const combinedRegex = new RegExp(`(${keywordPatterns.join('|')})`, 'gi');
+
+      // Replace all matches with highlighted versions
+      highlightedResult = highlightedResult.replace(combinedRegex, `<${highlightTag}>$1</${highlightTag}>`);
 
       // Apply custom transformation if provided
       if (transformResult) {
