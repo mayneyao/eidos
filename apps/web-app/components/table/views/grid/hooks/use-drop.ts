@@ -8,10 +8,10 @@ import {
   GridCellKind
 } from "@glideapps/glide-data-grid"
 
-import { useFileSystem } from "@/apps/web-app/hooks/use-files"
-import { getDragFileUrl } from "@/components/file-manager/helper"
+import { useFileUpload } from "@/apps/web-app/hooks/use-file-upload"
 
 import type { FileCell } from "../cells/file/file-cell"
+import { getDragFileUrl } from "@/lib/file"
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/png",
@@ -31,7 +31,7 @@ export const useDrop = (props: IProps) => {
     DataEditorProps["highlightRegions"]
   >([])
 
-  const { addFiles } = useFileSystem()
+  const { addFiles } = useFileUpload()
   const [lastDropCell, setLastDropCell] = React.useState<Item | undefined>()
 
   const onDrop = React.useCallback(

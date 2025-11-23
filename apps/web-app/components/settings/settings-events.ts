@@ -8,7 +8,6 @@ export type SettingsSection =
   | "ai"
   | "api"
   | "key-store"
-  | "storage"
   | "sync"
   | "security"
 

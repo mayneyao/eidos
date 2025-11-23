@@ -1,9 +1,10 @@
-import { extension } from "@/lib/mime/mime"
+import { extension } from "@/lib/mime/mime";
 import type {
-  EidosFileSystemManager} from "@/lib/storage/eidos-file-system";
+  EidosFileSystemManager
+} from "@/lib/storage/eidos-file-system";
 import {
   getExternalFolderManager,
-} from "@/lib/storage/eidos-file-system"
+} from "@/lib/storage/eidos-file-system";
 
 declare var self: ServiceWorkerGlobalScope
 

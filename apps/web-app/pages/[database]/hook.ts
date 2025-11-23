@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useIndexedDB } from "@/apps/web-app/hooks/use-indexed-db"
 import { usePeer } from "@/apps/web-app/hooks/use-peer"
-import { useRegisterPeriodicSync } from "@/apps/web-app/hooks/use-register-period-sync"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useSqliteMetaTableSubscribe } from "@/apps/web-app/hooks/use-sqlite-meta-table-subscribe"
@@ -187,5 +186,4 @@ export const useLayoutInit = () => {
     }
   }, [database, tableName, sqlite])
 
-  useRegisterPeriodicSync()
 }

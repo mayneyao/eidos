@@ -11,7 +11,6 @@ import * as path from 'node:path';
 import { getConfigManager } from "./config";
 import { embedding } from "./data-space-context";
 import { NodeExternalFileSystem } from './external-fs-node';
-import { getEidosFileSystemManager } from './file-system/getEidosFileSystemManager';
 import { getSpaceDbPath } from "./file-system/space";
 import { getSpaceRegistry } from "./space-registry";
 import { getResourcePath } from "./helper";
@@ -89,12 +88,12 @@ async function initUDF(db: EidosDatabase) {
             `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
             [ExtensionTableName]
         );
-        
+
         if (tableExists.length === 0) {
             console.warn(`Extension table ${ExtensionTableName} does not exist. Skipping UDF initialization.`);
             return;
         }
-        
+
         // Query UDF extensions directly from database using the same SQL as getUDFExtensions
         const sql = `
             SELECT * FROM ${ExtensionTableName}
@@ -152,11 +151,11 @@ async function createExternalFileSystem(spaceId: string, db: EidosDatabase): Pro
     // Get project root directory from space registry
     const registry = getSpaceRegistry();
     const space = registry.getSpace(spaceId);
-    
+
     if (!space) {
         throw new Error(`Space not found: ${spaceId}`);
     }
-    
+
     const projectRoot = space.path; // This is the project root directory containing .eidos
 
     console.log(`Initializing external file system for space: ${spaceId}`);
@@ -170,12 +169,12 @@ async function createExternalFileSystem(spaceId: string, db: EidosDatabase): Pro
                 const absolutePath = path.join(projectRoot, relativePath);
                 console.log(`Resolved ~/ path: ${fsPath} -> ${absolutePath}`);
                 return absolutePath;
-            } 
+            }
             else if (fsPath.startsWith('@/')) {
                 // Mounted folder: @/mountName/... maps to mounted path
                 const parts = fsPath.substring(2).split('/');
                 const mountName = parts[0];
-                
+
                 if (!mountName) {
                     console.error('Invalid mounted path: missing mount name');
                     return null;
@@ -195,14 +194,14 @@ async function createExternalFileSystem(spaceId: string, db: EidosDatabase): Pro
 
                 const mountPath = mountRecords[0].value as string;
                 const relativePath = parts.slice(1).join('/');
-                const absolutePath = relativePath 
-                    ? path.join(mountPath, relativePath) 
+                const absolutePath = relativePath
+                    ? path.join(mountPath, relativePath)
                     : mountPath;
-                
+
                 console.log(`Resolved @/ path: ${fsPath} -> ${absolutePath}`);
                 return absolutePath;
             }
-            
+
             console.error(`Invalid path format: ${fsPath}. Must start with ~/ or @/`);
             return null;
         } catch (error) {
@@ -315,8 +314,6 @@ export class DataSpaceManager {
             dataEventChannel: new BroadcastChannel('draft-data-event-channel')
         });
 
-        const efsManager = await getEidosFileSystemManager(spaceId);
-        
         // Create external file system for ~/ and @/ paths
         const externalFS = await createExternalFileSystem(spaceId, serverDb);
 
@@ -370,13 +367,11 @@ export class DataSpaceManager {
                 return requestFromRenderer(win!.webContents, { type, data });
             },
             dataEventChannel: dataEventChannel,
-            efsManager: efsManager,
             externalFS: externalFS,
             draftDb: draftDataSpace,
             enableFTS: true
         });
-
-
+        this.dataSpace.initFileWatcher();
         return this.dataSpace;
     }
 }

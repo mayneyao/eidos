@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react"
-import { useTranslation } from "react-i18next"
+import { useEffect, useState } from "react"
 
 import { SettingsContent } from "./settings-content"
 import { SettingsSidebar } from "./settings-sidebar"

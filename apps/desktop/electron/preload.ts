@@ -1,4 +1,3 @@
-import { EidosFileSystemManager } from '@/lib/storage/eidos-file-system';
 import { contextBridge, ipcRenderer } from 'electron';
 import { getOriginPrivateDirectory } from 'native-file-system-adapter';
 
@@ -16,37 +15,6 @@ type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void;
 
 
 
-
-async function getEfsManager() {
-  // Extract space ID from subdomain
-  const hostname = window.location.hostname;
-  let spaceId: string | null = null;
-  
-  if (hostname.endsWith('.eidos.localhost')) {
-    const parts = hostname.split('.');
-    if (parts.length >= 2) {
-      spaceId = parts[0];
-    }
-  }
-  
-  if (spaceId) {
-    // Use new structure: {userDir}/.eidos (EFS root)
-    const spaceInfo = await ipcRenderer.invoke('get-current-space');
-    if (spaceInfo && spaceInfo.path) {
-      const eidosDir = `${spaceInfo.path}/.eidos`;
-      const dirHandle = await getOriginPrivateDirectory(nodeAdapter, eidosDir);
-      return new EidosFileSystemManager(dirHandle as any);
-    }
-  }
-  
-  // Fallback to old structure
-  const userDataPath = (await ipcRenderer.invoke('get-app-data-folder'));
-  const dirHandle = await getOriginPrivateDirectory(nodeAdapter, userDataPath);
-  return new EidosFileSystemManager(dirHandle as any);
-}
-
-
-
 const checkIsDataFolderSet = async () => {
   const dataFolder = await ipcRenderer.invoke('get-config', 'dataFolder')
   return !!dataFolder
@@ -54,7 +22,7 @@ const checkIsDataFolderSet = async () => {
 
 const getConfigByModel = async (model: string) => {
   const aiConfig = await ipcRenderer.invoke('get-ai-config')
-  
+
   if (!model?.includes('@')) {
     throw new Error(`Model ${model} is not valid`)
   }
@@ -181,7 +149,6 @@ function main() {
     // versions
     chrome: process.versions.chrome,
     node: process.versions.node,
-    getEfsManager: getEfsManager,
     config: {
       get: (key: keyof AppConfig) => ipcRenderer.invoke('get-config', key),
       set: (key: keyof AppConfig, value: any) => ipcRenderer.invoke('set-config', key, value),
@@ -257,21 +224,21 @@ function main() {
       });
     },
     AI: {
-      generateText: async (config: { model: string; prompt: string; [key: string]: any }) => {
+      generateText: async (config: { model: string; prompt: string;[key: string]: any }) => {
         console.log('preload generateText', config)
         const { model, ...restConfig } = config
         const reconstructedModel = await getModelByName(model)
-        
+
         return generateText({
           ...restConfig,
           model: reconstructedModel
         })
       },
-      generateObject: async (config: { model: string; prompt: string; schema: any; [key: string]: any }) => {
+      generateObject: async (config: { model: string; prompt: string; schema: any;[key: string]: any }) => {
         console.log('preload generateObject', config)
         const { model, ...restConfig } = config
         const reconstructedModel = await getModelByName(model)
-        
+
         return generateObject({
           ...restConfig,
           model: reconstructedModel

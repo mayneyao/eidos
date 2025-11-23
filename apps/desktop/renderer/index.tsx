@@ -7,7 +7,6 @@ import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6"
 import CreateSpacePage from "@/apps/desktop/renderer/initial-setup/create-space"
 import InitialSetupPage from "@/apps/desktop/renderer/initial-setup/storage-setup"
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
-import { FileManager } from "@/apps/web-app/pages/[database]/files/page"
 import { FileHandlerPage } from "@/apps/web-app/pages/[database]/file-handler/page"
 import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
 import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
@@ -134,10 +133,6 @@ const router = createBrowserRouter([
           {
             path: "settings",
             element: <SpaceSetting />,
-          },
-          {
-            path: "opfs",
-            element: <FileManager />,
           },
           {
             path: "file-handler",

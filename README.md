@@ -67,7 +67,6 @@ Get the app from: https://eidos.space/download
    - Run `pnpm install:sqlite-ext` to install required SQLite extensions (only for the first time)
 4. Start development:
    - For desktop development: Run `pnpm dev:desktop` to start the desktop app
-   - For web development: Run `pnpm dev` to start the web app (PWA)
 
 ## How Eidos works
 

@@ -1,17 +1,11 @@
-import type { FeatureExtractionPipeline} from "@xenova/transformers";
+import type { FeatureExtractionPipeline } from "@xenova/transformers";
 import { env, pipeline } from "@xenova/transformers"
 
-import { efsManager } from "@/lib/storage/eidos-file-system"
 
 let instance: FeatureExtractionPipeline | null = null
 
 async function checkLocalModelIsExist(model: string) {
-  return await efsManager.checkFileExists([
-    "static",
-    "transformers",
-    ...model.split("/"),
-    "config.json",
-  ])
+  return false
 }
 
 async function getInstances(): Promise<FeatureExtractionPipeline> {

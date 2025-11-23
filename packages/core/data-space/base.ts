@@ -1,5 +1,4 @@
 import { MsgType } from "@/lib/const";
-import type { EidosFileSystemManager } from "@/lib/storage/eidos-file-system";
 import {
   getTableIdByRawTableName
 } from "@/lib/utils";
@@ -84,7 +83,6 @@ export abstract class BaseDataSpace {
 
   // for trigger
   eventHandler: DataChangeEventHandler
-  efsManager?: EidosFileSystemManager
   externalFS?: IExternalFileSystem
 
   // for auto migration
@@ -109,7 +107,6 @@ export abstract class BaseDataSpace {
     draftDb?: BaseDataSpace
     postMessage?: (data: any, transfer?: any[]) => void
     callRenderer?: (type: any, data: any) => Promise<any>
-    efsManager?: EidosFileSystemManager
     externalFS?: IExternalFileSystem
     dataEventChannel: BroadcastChannel,
     cacheSize?: number
@@ -117,7 +114,7 @@ export abstract class BaseDataSpace {
     enableFTS?: boolean
   }) {
     const { db, activeUndoManager, dbName, draftDb,
-      context, createUDF, postMessage, efsManager, externalFS,
+      context, createUDF, postMessage, externalFS,
       dataEventChannel, hasLoadExtension, callRenderer,
       cacheSize, isUDFWithCtx, enableFTS = false } = config
     this.db = db
@@ -146,7 +143,6 @@ export abstract class BaseDataSpace {
     this.draftDb = draftDb
     this.dbName = dbName
     this.postMessage = postMessage
-    this.efsManager = efsManager
     this.externalFS = externalFS
 
     this.initUDF()

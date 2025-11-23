@@ -50,6 +50,12 @@ export function extractNonSerializable(
       return val
     }
 
+    // Handle ArrayBuffer and ArrayBufferView (TypedArrays, DataView)
+    // These are supported by Electron IPC / Structured Clone
+    if (val instanceof ArrayBuffer || ArrayBuffer.isView(val)) {
+      return val
+    }
+
     // Handle arrays
     if (Array.isArray(val)) {
       return val.map((item, index) =>
@@ -142,6 +148,11 @@ export function restoreNonSerializable(
     }
 
     if (typeof val !== "object") {
+      return val
+    }
+
+    // Handle ArrayBuffer and ArrayBufferView (TypedArrays, DataView)
+    if (val instanceof ArrayBuffer || ArrayBuffer.isView(val)) {
       return val
     }
 

@@ -168,5 +168,17 @@ export interface IExternalFileSystem {
    * @returns AsyncIterable of watch events
    */
   watch(path: string, options?: IWatchOptions): AsyncIterable<IWatchEvent>
+
+  /**
+   * Delete a file (like fs.unlink)
+   * @param path File path
+   */
+  unlink(path: string): Promise<void>
+
+  /**
+   * Delete a directory (like fs.rmdir)
+   * @param path Directory path
+   */
+  rmdir(path: string): Promise<void>
 }
 

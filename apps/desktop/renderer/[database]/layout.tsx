@@ -23,10 +23,7 @@ import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import {
-  useEidosFileSystemInitialized,
-  useEidosFileSystemManager,
-} from "@/apps/web-app/hooks/use-fs"
+
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { ScriptBreadcrumb } from "@/apps/web-app/pages/[database]/extensions/components/extension-breadcrumb"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -55,8 +52,6 @@ export function DesktopSpaceLayout() {
   }, [space])
 
   useLayoutInit()
-  useEidosFileSystemInitialized()
-  const { efsManager, isLoading, error } = useEidosFileSystemManager()
 
   const [rightPanelSize, setRightPanelSize] = useLocalStorageState<number>(
     "rightPanelSize",
@@ -86,13 +81,6 @@ export function DesktopSpaceLayout() {
     }
   }, [isActivated, navigate])
 
-  if (!efsManager || isLoading || error) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <Loading />
-      </div>
-    )
-  }
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
@@ -130,13 +118,6 @@ export function DesktopSpaceLayout() {
       {/* <DocExtBlockLoader /> */}
       <KeyboardShortCuts />
       <div className={cn("relative flex w-full overflow-hidden")}>
-        {currentPreviewFile && (
-          <iframe
-            className="hidden h-full w-full md:block"
-            src={efsManager?.getFileUrlByPath(currentPreviewFile.path)}
-          ></iframe>
-        )}
-
         <ScriptContainer />
         <SideBar />
         <main className="flex min-w-0 grow">

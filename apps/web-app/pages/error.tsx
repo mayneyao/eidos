@@ -87,7 +87,7 @@ ${errorStack}
             <p>
               <Button 
                 size="xs" 
-                onClick={() => openSettingsModal("storage")}
+                onClick={() => openSettingsModal("general")}
               >
                 {t("settings.storage.grantPermission")}
               </Button>

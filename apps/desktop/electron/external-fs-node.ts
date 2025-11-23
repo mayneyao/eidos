@@ -277,12 +277,28 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   }
 
   /**
+   * Delete a file
+   */
+  async unlink(fsPath: string): Promise<void> {
+    const absolutePath = await this.getAbsolutePath(fsPath)
+    await fs.unlink(absolutePath)
+  }
+
+  /**
+   * Delete a directory
+   */
+  async rmdir(fsPath: string): Promise<void> {
+    const absolutePath = await this.getAbsolutePath(fsPath)
+    await fs.rm(absolutePath, { recursive: true, force: true })
+  }
+
+  /**
    * Watch for changes on a file or directory
    * Returns an AsyncIterable that yields watch events
    */
   async *watch(fsPath: string, options?: IWatchOptions): AsyncIterable<IWatchEvent> {
     const absolutePath = await this.getAbsolutePath(fsPath)
-    
+
     // Create a watcher using Node.js fs.watch
     const watcher = fsWatch(absolutePath, {
       encoding: options?.encoding || 'utf8',
@@ -388,12 +404,12 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
             resolveNext = resolve
             rejectNext = reject
           })
-          
+
           // Check if this was a close signal (empty event)
           if (event.filename === '' && isDone) {
             break
           }
-          
+
           yield event
         }
       }

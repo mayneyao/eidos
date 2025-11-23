@@ -67,7 +67,6 @@
    - 运行 `pnpm install:sqlite-ext` 安装所需的 SQLite 扩展（仅首次需要）
 4. 开始开发：
    - 桌面端开发：运行 `pnpm dev:desktop` 启动桌面应用
-   - Web 端开发：运行 `pnpm dev` 启动 Web 应用（PWA）
 
 ## Eidos 工作原理
 

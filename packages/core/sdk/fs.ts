@@ -14,11 +14,11 @@ export class FSManager {
 
   constructor(public dataSpace: BaseDataSpace) { }
 
-  private get externalFS() {
+  private get externalFS(): IExternalFileSystem {
     if (!this.dataSpace.externalFS) {
       throw new Error('External file system not configured')
     }
-    
+
     // Lazily create virtual adapter that wraps the external FS
     if (!this._virtualAdapter) {
       this._virtualAdapter = new VirtualFsAdapter(
@@ -26,8 +26,8 @@ export class FSManager {
         this.dataSpace.db
       )
     }
-    
-    return this._virtualAdapter
+
+    return this._virtualAdapter!
   }
 
   /**
@@ -148,6 +148,23 @@ export class FSManager {
   }
 
   /**
+   * Check if file or directory exists
+   * 
+   * @example
+   * if (await eidos.currentSpace.fs.exists("~/config.json")) {
+   *   console.log("Config exists")
+   * }
+   */
+  async exists(path: string): Promise<boolean> {
+    try {
+      await this.externalFS.stat(path)
+      return true
+    } catch (error) {
+      return false
+    }
+  }
+
+  /**
    * Rename file or directory
    * 
    * @example
@@ -170,6 +187,26 @@ export class FSManager {
    */
   async rename(oldPath: string, newPath: string): Promise<void> {
     return await this.externalFS.rename(oldPath, newPath)
+  }
+
+  /**
+   * Delete a file
+   * 
+   * @example
+   * await eidos.currentSpace.fs.unlink("~/file.txt")
+   */
+  async unlink(path: string): Promise<void> {
+    return await this.externalFS.unlink(path)
+  }
+
+  /**
+   * Delete a directory
+   * 
+   * @example
+   * await eidos.currentSpace.fs.rmdir("~/folder")
+   */
+  async rmdir(path: string): Promise<void> {
+    return await this.externalFS.rmdir(path)
   }
 
   /**

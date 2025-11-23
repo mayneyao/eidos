@@ -62,46 +62,7 @@ export const useExtMsg = (source: ExtensionSourceType) => {
       }
       const { type, name } = event.data
       switch (type) {
-        // case ExtMsgType.loadExtension:
-        //   try {
-        //     const text = await getExtensionIndex(name)
-        //     event.ports[0].postMessage({
-        //       type: ExtMsgType.loadExtensionResp,
-        //       text,
-        //     })
-        //   } catch (error) {
-        //     console.error("Error loading extension:", error)
-        //   }
-        //   break
-        // case ExtMsgType.loadExtensionAsset:
-        //   try {
-        //     const { url } = event.data
-        //     const _url = new URL(url)
-        //     const extName = _url.hostname.split(".")[0]
-        //     const paths = _url.pathname.split("/").filter(Boolean)
-        //     const file = await efsManager.getFile(["extensions", "apps", extName, ...paths])
-        //     const contentType = file.type
-        //     if (contentType.startsWith("text")) {
-        //       const text = await file.text()
-        //       const data = {
-        //         type: "loadExtensionAssetResp",
-        //         text,
-        //         contentType,
-        //       }
-        //       event.ports[0].postMessage(data)
-        //     } else {
-        //       const buffer = await file.arrayBuffer()
-        //       const data = {
-        //         type: "loadExtensionAssetResp",
-        //         text: buffer,
-        //         contentType,
-        //       }
-        //       event.ports[0].postMessage(data)
-        //     }
-        //   } catch (error) {
-        //     console.error("Error loading extension asset:", error)
-        //   }
-        //   break
+
         case ExtMsgType.scriptCallMain:
           // script container => main thread, does not include database operation
           console.log("receive script call main", event.data)

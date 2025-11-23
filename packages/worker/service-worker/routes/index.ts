@@ -1,5 +1,4 @@
 import aiHandle, { pathname } from "../ai"
-import { backUpPullOnce, backUpPushOnce } from "../backup"
 
 import extFileHandle, { pathname as extFileHandlePathname } from "./ext-file"
 import { extHandle, pathname as extHandlePathname } from "./extensions"
@@ -29,19 +28,5 @@ export const routes = [
   {
     pathname: extHandlePathname,
     handle: extHandle,
-  },
-  {
-    pathname: "/backup-push",
-    handle: (event: FetchEvent) => {
-      event.waitUntil(backUpPushOnce())
-      return new Response("backup-push")
-    },
-  },
-  {
-    pathname: "/backup-pull",
-    handle: (event: FetchEvent) => {
-      event.waitUntil(backUpPullOnce())
-      return new Response("backup-pull")
-    },
   },
 ]

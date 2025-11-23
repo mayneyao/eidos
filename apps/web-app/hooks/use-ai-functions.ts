@@ -7,7 +7,7 @@ import { startRecorder, stopRecorder } from "@/lib/web/recorder"
 
 import { useAllTools } from "@/apps/web-app/hooks/use-all-tools"
 import { useCurrentPathInfo } from "./use-current-pathinfo"
-import { useEidosFileSystemManager } from "./use-fs"
+
 import { useScriptCall } from "./use-script-call"
 import { useSqlite } from "./use-sqlite"
 import { useTableOperation } from "./use-table"
@@ -22,7 +22,7 @@ export const useAIFunctions = () => {
   const { handleSql, sqlite } = useSqlite(database)
   // FIXME: now ai-chat is global, maybe not in table page
   const { runQuery } = useTableOperation(table ?? "", database)
-  const { efsManager } = useEidosFileSystemManager()
+
 
   const handleRunSql = useCallback(
     async (sql: string) => {
@@ -129,17 +129,31 @@ export const useAIFunctions = () => {
       case "startRecorder":
         const res = await startRecorder()
         return `recorder id: ${res}`
-      case "stopRecorder":
+      case "stopRecorder": {
         const fileUrl = await stopRecorder(parameters.id)
         console.log("recorded file url: ", fileUrl)
         return fileUrl
-      case "saveFile2EFS":
-        const fileObj = await sqlite?.saveFile2EFS(parameters.url)
-        console.log("save file to opfs: ", fileObj)
-        if (!fileObj) return "no file"
+      }
+      case "saveFile2EFS": {
+        const { url: fileUrl } = parameters
+        // Fetch the file
+        const response = await fetch(fileUrl)
+        const blob = await response.blob()
+        const arrayBuffer = await blob.arrayBuffer()
+        const uint8Array = new Uint8Array(arrayBuffer)
+
+        const fileId = getUuid()
+        // Infer filename from URL or default
+        const fileName = fileUrl.split("/").pop() || `file-${fileId}`
+        const ext = fileName.split('.').pop() || ''
+        const path = `~/.eidos/files/${fileId}.${ext}`
+
+        await sqlite?.fs.writeFile(path, uint8Array)
+
         return (
-          window.location.origin + efsManager.getFileUrlByPath(fileObj.path)
+          window.location.origin + "/" + path
         )
+      }
       case "createDoc":
         const { markdown, title } = parameters
         const docId = getUuid()
