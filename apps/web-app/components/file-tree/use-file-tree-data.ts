@@ -218,9 +218,10 @@ export const useFileTreeData = ({
       }
 
       // Set a new timeout to debounce reloads
+      // Increased delay for Windows compatibility (may fire events faster)
       reloadTimeoutRef.current = setTimeout(async () => {
         await processWatchEvent(event)
-      }, 100) // 100ms debounce
+      }, 150) // 150ms debounce
     }
 
     // Process the actual watch event
@@ -273,7 +274,12 @@ export const useFileTreeData = ({
       } catch (error) {
         console.error("[FileTree Watch] Error handling watch event:", error)
         // Fallback to full reload on error
-        await loadRootDirectory()
+        try {
+          await loadRootDirectory()
+        } catch (fallbackError) {
+          // Silently ignore fallback errors to prevent watch loop from breaking
+          console.error("[FileTree Watch] Fallback reload failed:", fallbackError)
+        }
       }
     }
 
@@ -346,7 +352,15 @@ export const useFileTreeData = ({
           error
         )
         // Fallback to reload mount directory on error
-        await loadSubDirectory(mountPath)
+        try {
+          await loadSubDirectory(mountPath)
+        } catch (fallbackError) {
+          // Silently ignore fallback errors to prevent watch loop from breaking
+          console.error(
+            `[FileTree Watch] Fallback reload failed for ${mountPath}:`,
+            fallbackError
+          )
+        }
       }
     }
 
@@ -359,10 +373,11 @@ export const useFileTreeData = ({
       }
 
       // Set a new timeout to debounce reloads for this mount
+      // Increased delay for Windows compatibility (may fire events faster)
       const timeout = setTimeout(async () => {
         await processWatchEventForMount(mountPath, event)
         mountTimeoutsRef.current.delete(mountPath)
-      }, 100) // 100ms debounce
+      }, 150) // 150ms debounce
 
       mountTimeoutsRef.current.set(mountPath, timeout)
     }

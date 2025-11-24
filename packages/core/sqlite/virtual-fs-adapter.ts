@@ -519,42 +519,103 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   }
 
   /**
+   * Check if an error is a database busy error
+   */
+  private isDatabaseBusyError(error: unknown): boolean {
+    if (error instanceof Error) {
+      return (
+        error.message.includes("database connection is busy") ||
+        error.message.includes("database is locked") ||
+        error.message.includes("busy executing a query") ||
+        error.message.includes("SQLITE_BUSY")
+      )
+    }
+    return false
+  }
+
+  /**
+   * Retry a database operation with exponential backoff if it encounters a busy error
+   */
+  private async retryOnBusy<T>(
+    operation: () => Promise<T>,
+    maxRetries = 3,
+    initialDelay = 50
+  ): Promise<T> {
+    let lastError: unknown
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation()
+      } catch (error) {
+        lastError = error
+        if (this.isDatabaseBusyError(error) && attempt < maxRetries) {
+          // Exponential backoff: 50ms, 100ms, 200ms
+          const delay = initialDelay * Math.pow(2, attempt)
+          await new Promise((resolve) => setTimeout(resolve, delay))
+          continue
+        }
+        throw error
+      }
+    }
+    throw lastError
+  }
+
+  /**
    * Build ID-based path for watch events
    * Returns the full path like "id1/id2/id3" based on parent-child relationships
+   * Uses retry logic to handle database busy errors (especially on Windows)
+   * Handles the case where the node may have been deleted (returns nodeId directly)
    */
   private async buildIdPathForWatch(nodeId: string): Promise<string> {
     if (!nodeId) return ''
 
-    // Get all ancestors of the node (including the node itself) using recursive CTE
-    // This walks up the tree from the node to the root
-    const ancestorsQuery = `
-      WITH RECURSIVE ancestor_path AS (
-        -- Start with the current node
-        SELECT id, parent_id, 1 as level
-        FROM eidos__tree 
-        WHERE id = ? AND is_deleted = 0
-        
-        UNION ALL
-        
-        -- Recursively get ancestors (walk up the tree)
-        SELECT t.id, t.parent_id, ap.level + 1
-        FROM eidos__tree t
-        INNER JOIN ancestor_path ap ON t.id = ap.parent_id
-        WHERE t.is_deleted = 0
-      )
-      SELECT id FROM ancestor_path ORDER BY level DESC
-    `
+    // Use retry logic to handle database busy errors
+    // This can happen when watch events fire during a delete transaction
+    return this.retryOnBusy(async () => {
+      try {
+        // Get all ancestors of the node (including the node itself) using recursive CTE
+        // This walks up the tree from the node to the root
+        // Note: We check is_deleted = 0, but if the node was just deleted, this query will return empty
+        const ancestorsQuery = `
+          WITH RECURSIVE ancestor_path AS (
+            -- Start with the current node
+            SELECT id, parent_id, 1 as level
+            FROM eidos__tree 
+            WHERE id = ? AND is_deleted = 0
+            
+            UNION ALL
+            
+            -- Recursively get ancestors (walk up the tree)
+            SELECT t.id, t.parent_id, ap.level + 1
+            FROM eidos__tree t
+            INNER JOIN ancestor_path ap ON t.id = ap.parent_id
+            WHERE t.is_deleted = 0
+          )
+          SELECT id FROM ancestor_path ORDER BY level DESC
+        `
 
-    const ancestors = await this.db.selectObjects(ancestorsQuery, [nodeId]) as Array<{ id: string }>
+        const ancestors = await this.db.selectObjects(ancestorsQuery, [nodeId]) as Array<{ id: string }>
 
-    if (ancestors.length === 0) {
-      return nodeId
-    }
+        // If no ancestors found, the node may have been deleted or doesn't exist
+        // Return the nodeId directly as a fallback
+        if (ancestors.length === 0) {
+          return nodeId
+        }
 
-    // Build the ID path from root to current node (ancestors are ordered from root to leaf)
-    const pathParts = ancestors.map(ancestor => ancestor.id)
+        // Build the ID path from root to current node (ancestors are ordered from root to leaf)
+        const pathParts = ancestors.map(ancestor => ancestor.id)
 
-    return pathParts.join('/')
+        return pathParts.join('/')
+      } catch (error) {
+        // If query fails (e.g., node was deleted), return nodeId as fallback
+        // This prevents watch events from breaking when nodes are deleted
+        if (this.isDatabaseBusyError(error)) {
+          throw error // Let retry logic handle it
+        }
+        // For other errors, return nodeId as fallback
+        console.warn(`Failed to build path for node ${nodeId}, using nodeId directly:`, error)
+        return nodeId
+      }
+    })
   }
 
   /**
@@ -958,7 +1019,15 @@ export class VirtualFsAdapter implements IExternalFileSystem {
             // If we have queued events, yield them
             if (watcher.queue.length > 0) {
               const event = watcher.queue.shift()!
+              // Add a delay to ensure the transaction that triggered this event has committed
+              // This is especially important on Windows where SQLite is stricter about connection state
+              // For delete events (soft delete), the UPDATE transaction needs time to commit
+              // before we can safely query the database
+              await new Promise(resolve => setTimeout(resolve, 50))
+              
               // For nodes, build the full ID path; for extensions, use the ID directly
+              // For delete events (rename eventType), the node is already marked as deleted,
+              // so buildIdPathForWatch will return nodeId directly (query returns empty)
               const fullIdPath = isNodesPath
                 ? await this.buildIdPathForWatch(event.filename)
                 : event.filename
@@ -980,7 +1049,15 @@ export class VirtualFsAdapter implements IExternalFileSystem {
               break
             }
 
+            // Add a delay to ensure the transaction that triggered this event has committed
+            // This is especially important on Windows where SQLite is stricter about connection state
+            // For delete events (soft delete), the UPDATE transaction needs time to commit
+            // before we can safely query the database
+            await new Promise(resolve => setTimeout(resolve, 50))
+
             // For nodes, build the full ID path; for extensions, use the ID directly
+            // For delete events (rename eventType), the node is already marked as deleted,
+            // so buildIdPathForWatch will return nodeId directly (query returns empty)
             const fullIdPath = isNodesPath
               ? await this.buildIdPathForWatch(rawEvent.filename)
               : rawEvent.filename
