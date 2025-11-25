@@ -2,8 +2,9 @@
 
 import { useState, type Dispatch, type SetStateAction } from "react"
 import type { Message } from "ai"
-import cx from "classnames"
 import { motion } from "framer-motion"
+
+import { cn } from "@/lib/utils"
 
 import type { Vote } from "../interface"
 import type { UIBlock } from "./block"
@@ -45,7 +46,7 @@ export const PreviewMessage = ({
       data-message-role={message.role}
     >
       <div
-        className={cx(
+        className={cn(
           "group-data-[role=user]/message:bg-primary group-data-[role=user]/message:text-primary-foreground flex gap-4 group-data-[role=user]/message:px-3 w-full group-data-[role=user]/message:w-fit group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl group-data-[role=user]/message:py-2 rounded-xl"
         )}
       >
@@ -55,7 +56,7 @@ export const PreviewMessage = ({
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full animate-spin-slow" />
             )}
             <div
-              className={cx(
+              className={cn(
                 "absolute inset-0 bg-background rounded-full flex items-center justify-center",
                 isLoading ? "inset-[2px]" : "ring-1 ring-border"
               )}
@@ -117,7 +118,7 @@ export const PreviewMessage = ({
             if (type === "text") {
               return (
                 <div
-                  className={cx(
+                  className={cn(
                     "flex flex-col gap-4 w-full",
                     message.role === "user" ? "break-all" : "break-words"
                   )}
@@ -168,7 +169,7 @@ export const ThinkingMessage = () => {
       data-message-role={role}
     >
       <div
-        className={cx(
+        className={cn(
           "flex gap-4 group-data-[role=user]/message:px-3 w-full group-data-[role=user]/message:w-fit group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl group-data-[role=user]/message:py-2 rounded-xl"
         )}
       >

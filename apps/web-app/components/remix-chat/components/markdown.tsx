@@ -1,12 +1,11 @@
 import { memo, useEffect, useRef, useState } from "react"
-import cx from "classnames"
 import Prism from "prismjs"
 import ReactMarkdown, { type Components } from "react-markdown"
 import { useNavigate } from "react-router-dom"
 import rehypeRaw from "rehype-raw"
 import remarkGfm from "remark-gfm"
 
-import { isDayPageId } from "@/lib/utils"
+import { cn, isDayPageId } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
@@ -57,7 +56,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
         // Provide better contrast for inline code in user messages
         return (
           <code
-            className={cx(
+            className={cn(
               "text-sm py-0.5 px-1 rounded-md",
               // Default style (assistant message)
               "bg-zinc-100 dark:bg-zinc-800",
@@ -88,7 +87,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
               : `index.${language}`
         return (
           <div
-            className={cx(
+            className={cn(
               "border rounded-lg p-3 mt-2",
               // Default style
               "border-zinc-200 dark:border-zinc-700",
@@ -97,7 +96,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
             )}
           >
             <div
-              className={cx(
+              className={cn(
                 "flex items-center gap-2 p-1 cursor-pointer rounded-md transition-colors",
                 // Default hover style
                 "hover:bg-zinc-100 dark:hover:bg-zinc-800",
@@ -108,7 +107,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
             >
               <span className="text-xs">{filename}</span>
               <span
-                className={cx(
+                className={cn(
                   "text-xs",
                   // Default color
                   "text-green-600",
@@ -119,7 +118,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
                 +{linesCount}
               </span>
               <span
-                className={cx(
+                className={cn(
                   "text-xs",
                   // Default color
                   "text-zinc-500 dark:text-zinc-400",
@@ -131,7 +130,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
               </span>
               {isCollapsed ? (
                 <ChevronDownIcon
-                  className={cx(
+                  className={cn(
                     "w-3.5 h-3.5 ml-auto",
                     "text-zinc-500",
                     "group-data-[role=user]/message:text-primary-foreground/70"
@@ -139,7 +138,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
                 />
               ) : (
                 <ChevronUpIcon
-                  className={cx(
+                  className={cn(
                     "w-3.5 h-3.5 ml-auto",
                     "text-zinc-500",
                     "group-data-[role=user]/message:text-primary-foreground/70"
@@ -149,7 +148,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
             </div>
             <div className={isCollapsed ? "hidden" : ""}>
               <pre
-                className={cx(
+                className={cn(
                   "!m-0",
                   // Style in user messages
                   "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground"
@@ -165,7 +164,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
       return (
         <pre
           {...(props as React.HTMLAttributes<HTMLPreElement>)}
-          className={cx(
+          className={cn(
             "w-[80dvw] md:max-w-[500px] overflow-x-scroll p-3 rounded-lg mt-2",
             // Default style
             "bg-zinc-100 dark:bg-zinc-800",
@@ -214,7 +213,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
 
       return (
         <div
-          className={cx(
+          className={cn(
             "border rounded-lg my-4",
             // Default style
             "border-zinc-200 dark:border-zinc-700",
@@ -223,7 +222,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
           )}
         >
           <pre
-            className={cx(
+            className={cn(
               "p-4 overflow-x-auto !m-0",
               // Default style
               "bg-zinc-50 dark:bg-zinc-900",
@@ -269,7 +268,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
     a: ({ node, children, ...props }: any) => {
       return (
         <a
-          className={cx(
+          className={cn(
             "hover:underline",
             // Default style
             "text-blue-500",
@@ -287,7 +286,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
     h1: ({ node, children, ...props }: any) => {
       return (
         <h1
-          className={cx(
+          className={cn(
             "text-3xl font-semibold mt-6 mb-2",
             "group-data-[role=user]/message:text-primary-foreground"
           )}
@@ -300,7 +299,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
     h2: ({ node, children, ...props }: any) => {
       return (
         <h2
-          className={cx(
+          className={cn(
             "text-2xl font-semibold mt-6 mb-2",
             "group-data-[role=user]/message:text-primary-foreground"
           )}
@@ -313,7 +312,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
     h3: ({ node, children, ...props }: any) => {
       return (
         <h3
-          className={cx(
+          className={cn(
             "text-xl font-semibold mt-6 mb-2",
             "group-data-[role=user]/message:text-primary-foreground"
           )}
@@ -326,7 +325,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
     h4: ({ node, children, ...props }: any) => {
       return (
         <h4
-          className={cx(
+          className={cn(
             "text-lg font-semibold mt-6 mb-2",
             "group-data-[role=user]/message:text-primary-foreground"
           )}
@@ -339,7 +338,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
     h5: ({ node, children, ...props }: any) => {
       return (
         <h5
-          className={cx(
+          className={cn(
             "text-base font-semibold mt-6 mb-2",
             "group-data-[role=user]/message:text-primary-foreground"
           )}
@@ -352,7 +351,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
     h6: ({ node, children, ...props }: any) => {
       return (
         <h6
-          className={cx(
+          className={cn(
             "text-sm font-semibold mt-6 mb-2",
             "group-data-[role=user]/message:text-primary-foreground"
           )}

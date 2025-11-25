@@ -9,16 +9,15 @@ import {
 } from "react"
 import { sanitizeUIMessages } from "@/packages/ai/utils"
 import type { ChatRequestOptions, CreateMessage, Message } from "ai"
-import cx from "classnames"
 import {
   AnimatePresence,
   motion,
   useMotionValue,
   useTransform,
 } from "framer-motion"
-import { nanoid } from "nanoid"
 import { useOnClickOutside } from "usehooks-ts"
 
+import { cn, uuidv7 } from "@/lib/utils"
 import {
   Tooltip,
   TooltipContent,
@@ -107,7 +106,7 @@ const Tool = ({
     <Tooltip open={isHovered && !isAnimating}>
       <TooltipTrigger asChild>
         <motion.div
-          className={cx("p-3 rounded-full", {
+          className={cn("p-3 rounded-full", {
             "bg-primary !text-primary-foreground": selectedTool === type,
           })}
           onHoverStart={() => {
@@ -148,7 +147,7 @@ const Tool = ({
   )
 }
 
-const randomArr = [...Array(6)].map((x) => nanoid(5))
+const randomArr = [...Array(6)].map(() => uuidv7())
 
 const ReadingLevelSelector = ({
   setSelectedTool,
@@ -207,7 +206,7 @@ const ReadingLevelSelector = ({
         <Tooltip open={!isAnimating}>
           <TooltipTrigger asChild>
             <motion.div
-              className={cx(
+              className={cn(
                 "absolute bg-background p-3 border rounded-full flex flex-row items-center",
                 {
                   "bg-primary text-primary-foreground": currentLevel !== 2,

@@ -1,7 +1,8 @@
 import { useState, type Dispatch, type SetStateAction } from "react"
-import cx from "classnames"
 import { BookOpenTextIcon } from "lucide-react"
 import { Link } from "react-router-dom"
+
+import { cn } from "@/lib/utils"
 
 import type { UIBlock } from "./block"
 import { DocumentToolResult } from "./document"
@@ -224,7 +225,7 @@ export const ToolCallResult = ({
         </div>
 
         <div
-          className={cx(
+          className={cn(
             "overflow-hidden transition-all duration-200",
             isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
           )}

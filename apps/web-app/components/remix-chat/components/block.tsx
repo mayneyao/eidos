@@ -6,7 +6,6 @@ import {
   type SetStateAction,
 } from "react"
 import type { Attachment, ChatRequestOptions, CreateMessage, Message } from "ai"
-import cx from "classnames"
 import { formatDistance } from "date-fns"
 import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
@@ -17,7 +16,7 @@ import {
   useWindowSize,
 } from "usehooks-ts"
 
-import { fetcher } from "@/lib/utils"
+import { cn, fetcher } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
@@ -441,7 +440,7 @@ export function Block({
               <TooltipTrigger asChild>
                 <Button
                   variant="outline"
-                  className={cx(
+                  className={cn(
                     "p-2 h-fit !pointer-events-auto dark:hover:bg-zinc-700",
                     {
                       "bg-muted": mode === "diff",
