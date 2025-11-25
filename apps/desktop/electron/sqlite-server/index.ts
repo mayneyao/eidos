@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { generatePragmaList } from './config';
 import { parseGraftStatus, parsePagesStatus } from '@/packages/sync/graft/helpers';
+import { scanCustomExtensions, loadCustomExtensions } from '@/apps/desktop/electron/sqlite-server/sqlite-extension';
 
 
 export interface NodeDomainDbInfo {
@@ -30,7 +31,9 @@ interface NodeServerDatabaseOptions {
     vec?: {
         libPath: string;
     },
-    // we make logger configurable instead of directly importing electron-log, 
+    // path to the space directory for scanning custom extensions
+    spacePath?: string;
+    // we make logger configurable instead of directly importing electron-log,
     // electron-log does not support esm, which will cause the worker code to mix cjs and esm and cannot work normally
     logger?: any;
 }
@@ -235,6 +238,7 @@ export class NodeServerDatabase extends BaseServerDatabase {
     // Helper function to initialize the connection (load extensions, apply pragmas)
     private _initializeDatabaseConnection(options: {
         simple: { libPath: string; dictPath: string; },
+        spacePath?: string;
         // Add other options if needed by initialization steps
     }) {
         this.logger.log('Initializing database connection settings (extensions, pragmas)...');
@@ -257,6 +261,23 @@ export class NodeServerDatabase extends BaseServerDatabase {
             }
         } else {
             this.logger.warn('Simple dictionary file not found, skipping simple extension enablement:', options.simple.dictPath);
+        }
+
+        // Load custom extensions if space path is provided
+        if (options.spacePath) {
+            try {
+                this.logger.log('Scanning for custom SQLite extensions...');
+                const customExtensions = scanCustomExtensions(options.spacePath, 'desktop');
+                if (customExtensions.length > 0) {
+                    this.logger.log(`Found ${customExtensions.length} custom extensions, loading...`);
+                    loadCustomExtensions(this.db, customExtensions, 'desktop');
+                } else {
+                    this.logger.log('No custom extensions found.');
+                }
+            } catch (err) {
+                this.logger.error('Failed to load custom extensions:', err);
+                // Don't throw error for custom extensions - they're optional
+            }
         }
 
         // Apply Pragma settings

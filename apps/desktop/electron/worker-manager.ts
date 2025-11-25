@@ -1,7 +1,7 @@
 import path from 'path';
 import * as worker_threads from 'worker_threads';
 import { Worker } from 'worker_threads';
-import { getSpaceDbPath } from './file-system/space';
+import { getSpaceDbPath, getSpacePath } from './file-system/space';
 
 export interface WorkerConfig {
     simplePathConfig: any;
@@ -26,6 +26,7 @@ export class WorkerManager {
         const { space, dbName } = payload.data;
         const spaceId = space || dbName;
         const spaceDbPath = getSpaceDbPath(spaceId);
+        const spacePath = getSpacePath(spaceId);
 
         let worker = this.workers.get(spaceId);
 
@@ -33,6 +34,7 @@ export class WorkerManager {
             worker = new Worker(path.join(__dirname, 'worker.js'), {
                 workerData: {
                     spaceDbPath,
+                    spacePath,
                     ...config
                 },
                 // stdout: true,

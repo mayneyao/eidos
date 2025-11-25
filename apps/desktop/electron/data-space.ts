@@ -11,7 +11,7 @@ import * as path from 'node:path';
 import { getConfigManager } from "./config";
 import { embedding } from "./data-space-context";
 import { NodeExternalFileSystem } from './external-fs-node';
-import { getSpaceDbPath } from "./file-system/space";
+import { getSpaceDbPath, getSpacePath } from "./file-system/space";
 import { getSpaceRegistry } from "./space-registry";
 import { getResourcePath } from "./helper";
 import { win } from "./main";
@@ -293,6 +293,7 @@ export class DataSpaceManager {
             },
             enableSync,
             volumeId,
+            spacePath: getSpacePath(spaceId),
             logger: console
         });
 

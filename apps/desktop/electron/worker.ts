@@ -7,7 +7,7 @@ import { isIteratorFunction } from '@/packages/core/sqlite/channel/iterator-util
 
 
 
-const { spaceDbPath, simplePathConfig, vecPathConfig, graftPathConfig } = workerData
+const { spaceDbPath, spacePath, simplePathConfig, vecPathConfig, graftPathConfig } = workerData
 class DataSpaceManager {
     private static instance: DataSpaceManager;
     private dataSpace: DataSpace | null = null;
@@ -45,6 +45,7 @@ class DataSpaceManager {
             vec: vecPathConfig,
             graft: graftPathConfig,
             enableSync: false,
+            spacePath: spacePath,
         });
         this.dataSpace = new DataSpace({
             db: serverDb,
@@ -93,17 +94,17 @@ if (parentPort) {
         }
         // Check if this is an iterator function using the registry
         const isIterFunc = isIteratorFunction(payload.data.method)
-        
+
         // For iterator functions, create an AbortController to handle cancellation
         let abortController: AbortController | undefined
-        
+
         // Prepare params - for iterator functions, we'll add AbortSignal
         let finalParams = [...(payload.data.params || [])]
-        
+
         // Check if this is an iterator function and create AbortController
         if (isIterFunc) {
             abortController = new AbortController()
-            
+
             // Listen for cancel messages
             const cancelHandler = (message: any) => {
                 if (message?.type === MsgType.IteratorCancel && message?.id === payload.id) {
@@ -111,7 +112,7 @@ if (parentPort) {
                 }
             }
             parentPort?.on('message', cancelHandler)
-            
+
             // Add signal to params if options object exists
             // Note: params come serialized (AbortSignal was removed), so we add our new signal
             if (finalParams.length > 0 && typeof finalParams[finalParams.length - 1] === 'object' && finalParams[finalParams.length - 1] !== null) {
@@ -123,15 +124,15 @@ if (parentPort) {
                 finalParams.push({ signal: abortController.signal })
             }
         }
-        
+
         // Create modified payload with final params
         const modifiedPayload = {
             ...payload.data,
             params: finalParams,
         }
-        
+
         const res = await handleFunctionCall(modifiedPayload, dataSpace)
-        
+
         // Check if the result is an AsyncIterable (for iterator functions)
         // Only treat as iterator if it's explicitly an iterator function
         // and the result is actually an AsyncIterable

@@ -16,6 +16,16 @@ export const createSpace = (spaceId: string) => {
     }
 }
 
+export const getSpacePath = (spaceId: string) => {
+    const registry = getSpaceRegistry();
+    const space = registry.getSpace(spaceId);
+    if (!space) {
+        throw new Error(`Space not found: ${spaceId}`);
+    }
+
+    return space.path;
+}
+
 export const getSpaceDbPath = (spaceId: string) => {
     const registry = getSpaceRegistry();
     const space = registry.getSpace(spaceId);
