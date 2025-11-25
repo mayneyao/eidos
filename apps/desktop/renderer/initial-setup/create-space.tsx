@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import kebabCase from "lodash/kebabCase"
 import {
   ArrowLeft,
   Database,
@@ -15,6 +14,7 @@ import { useNavigate } from "react-router-dom"
 import * as z from "zod"
 
 import { MsgType } from "@/lib/const"
+import { kebabCase } from "@/lib/lodash"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

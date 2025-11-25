@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react"
 import type { DataSpace } from "@eidos.space/core/data-space"
 import type { IEmbedding } from "@/packages/core/meta-table/embedding"
-import chunk from "lodash/chunk"
-import zip from "lodash/zip"
+import { chunk, zip } from "@/lib/lodash"
 
 import { DocLoader } from "@/packages/ai/doc_loader/doc"
 import type { LLMBaseVendor } from "@/packages/ai/llm_vendors/base"

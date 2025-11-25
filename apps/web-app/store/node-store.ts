@@ -1,6 +1,6 @@
 "use client"
 
-import orderBy from "lodash/orderBy"
+import { orderBy } from "@/lib/lodash"
 import { create } from "zustand"
 
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
@@ -13,13 +13,13 @@ interface NodeState {
   // Node collection state
   nodeIds: string[]
   nodeMap: Record<string, ITreeNode>
-  
+
   // Node management operations
   setAllNodes: (nodes: ITreeNode[]) => void
   setNode: (node: Partial<ITreeNode> & { id: string }) => void
   delNode: (nodeId: string) => void
   addNode: (node: ITreeNode) => void
-  
+
   // Helper functions
   getNode: (nodeId: string) => ITreeNode | null
   getNodesByType: (type: ITreeNode["type"] | ITreeNode["type"][]) => ITreeNode[]
@@ -106,8 +106,8 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
     const types = Array.isArray(type) ? type : [type]
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node): node is ITreeNode => 
-        node !== undefined && 
+      .filter((node): node is ITreeNode =>
+        node !== undefined &&
         (types.includes(node.type) || node.type.startsWith('ext__'))
       )
   },
@@ -116,8 +116,8 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
     const { nodeIds, nodeMap } = get()
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node): node is ITreeNode => 
-        node !== undefined && 
+      .filter((node): node is ITreeNode =>
+        node !== undefined &&
         node.parent_id === parentId
       )
   },
@@ -126,8 +126,8 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
     const { nodeIds, nodeMap } = get()
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node): node is ITreeNode => 
-        node !== undefined && 
+      .filter((node): node is ITreeNode =>
+        node !== undefined &&
         !node.parent_id
       )
   },

@@ -16,7 +16,7 @@ import {
   COMMAND_PRIORITY_LOW,
   DROP_COMMAND,
 } from "lexical"
-import zip from "lodash/zip"
+import { zip } from "@/lib/lodash"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useFileUpload } from "@/apps/web-app/hooks/use-file-upload"

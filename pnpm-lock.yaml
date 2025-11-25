@@ -518,9 +518,6 @@ importers:
       localforage:
         specifier: ^1.10.0
         version: 1.10.0
-      lodash:
-        specifier: ^4.17.21
-        version: 4.17.21
       lucide-react:
         specifier: ^0.471.2
         version: 0.471.2(react@18.3.1)

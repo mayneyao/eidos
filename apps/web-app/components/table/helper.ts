@@ -1,4 +1,4 @@
-import orderBy from "lodash/orderBy"
+import { orderBy } from "@/lib/lodash"
 
 import type { IField } from "@/packages/core/types/IField"
 

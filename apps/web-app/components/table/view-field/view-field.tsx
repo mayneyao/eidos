@@ -1,12 +1,11 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react"
+import type { IField } from "@/packages/core/types/IField"
+import type { IView } from "@/packages/core/types/IView"
 import { PlusIcon } from "@radix-ui/react-icons"
-import sortBy from "lodash/sortBy"
 import { SlidersHorizontalIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import type { IView } from "@/packages/core/types/IView"
-import type { IField } from "@/packages/core/types/IField"
-import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
+import { sortBy } from "@/lib/lodash"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -15,10 +14,11 @@ import {
 } from "@/components/ui/popover"
 import { CommonMenuItem } from "@/components/common-menu-item"
 import { useTableStore } from "@/components/table/table-store-provider"
+import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
 import { TableContext, useTableContext, useViewOperation } from "../hooks"
-import { FieldItemCard } from "./view-field-item"
 import { SortableContainer } from "../sortable"
+import { FieldItemCard } from "./view-field-item"
 
 // Refactored to use @dnd-kit for better performance
 export interface ContainerState {
@@ -35,7 +35,7 @@ export const ViewField = (props: { view?: IView }) => {
 
   const [open, setOpen] = useState(false)
   const [cards, setCards] = useState<IField[]>([])
-  
+
   const orderMap = useMemo(
     () => props.view?.order_map || {},
     [props.view?.order_map]
@@ -44,7 +44,7 @@ export const ViewField = (props: { view?: IView }) => {
     () => props.view?.hidden_fields || [],
     [props.view?.hidden_fields]
   )
-  
+
   const sortedUiColumns = useMemo(
     () =>
       sortBy(uiColumns, (item) => {
@@ -128,21 +128,32 @@ export const ViewField = (props: { view?: IView }) => {
       </PopoverTrigger>
       <PopoverContent className="w-auto p-1.5">
         <div className="flex justify-between px-1">
-          <Button size="xs" variant="ghost" onClick={showAllFields} className="h-6 text-xs">
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={showAllFields}
+            className="h-6 text-xs"
+          >
             {t("table.view.field.showAll")}
           </Button>
-          <Button size="xs" variant="ghost" onClick={hideAllFields} className="h-6 text-xs">
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={hideAllFields}
+            className="h-6 text-xs"
+          >
             {t("table.view.field.hideAll")}
           </Button>
         </div>
         <hr className="my-1" />
         <SortableContainer
-          items={cards.map(card => ({ ...card, id: card.table_column_name }))}
+          items={cards.map((card) => ({ ...card, id: card.table_column_name }))}
           onReorder={handleReorder}
           className="max-h-[320px] w-[280px] overflow-y-auto overflow-x-hidden"
           renderItem={(item, index) => {
             const card = item as IField
-            const isHidden = (hiddenFields || []).indexOf(card.table_column_name) !== -1
+            const isHidden =
+              (hiddenFields || []).indexOf(card.table_column_name) !== -1
             return (
               <FieldItemCard
                 field={card}
@@ -159,7 +170,10 @@ export const ViewField = (props: { view?: IView }) => {
         {!isView && (
           <>
             <hr className="my-1" />
-            <CommonMenuItem className="pl-3 text-xs" onClick={handleAddFieldClick}>
+            <CommonMenuItem
+              className="pl-3 text-xs"
+              onClick={handleAddFieldClick}
+            >
               <PlusIcon className="mr-1.5 h-3 w-3" />
               {t("table.view.field.addField")}
             </CommonMenuItem>

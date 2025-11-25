@@ -12,7 +12,7 @@ import {
 } from "@lexical/markdown"
 import type { LexicalEditor } from "lexical";
 import { $getRoot, $insertNodes, $nodesOfType } from "lexical"
-import zip from "lodash/zip"
+import { zip } from "@/lib/lodash"
 
 import { getAllLinks } from "@/lib/markdown"
 import { getUuid } from "@/lib/utils"

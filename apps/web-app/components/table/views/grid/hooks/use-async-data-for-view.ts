@@ -11,8 +11,7 @@ import {
   CompactSelection,
   GridCellKind
 } from "@glideapps/glide-data-grid"
-import chunk from "lodash/chunk"
-import range from "lodash/range"
+import { chunk, range } from "@/lib/lodash"
 import type {
   MutableRefObject
 } from "react";

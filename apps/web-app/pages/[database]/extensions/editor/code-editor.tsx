@@ -11,11 +11,12 @@ import {
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import Editor, { DiffEditor, loader, useMonaco } from "@monaco-editor/react"
 import { useSize } from "ahooks"
-import debounce from "lodash/debounce"
 import * as monaco from "monaco-editor"
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker"
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
 import ts from "typescript/lib/typescript"
+
+import { debounce } from "@/lib/lodash"
 
 import { useSpaceAppStore } from "../../store"
 import { getDynamicPrompt } from "../helper"

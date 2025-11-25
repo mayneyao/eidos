@@ -1,4 +1,4 @@
-import zip from "lodash/zip"
+import { zip } from "@/lib/lodash"
 
 import type { CustomCell } from "@glideapps/glide-data-grid"
 
