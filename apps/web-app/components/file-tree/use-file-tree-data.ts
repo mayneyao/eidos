@@ -11,6 +11,7 @@ interface UseFileTreeDataOptions {
   isNodesMode: boolean
   expandedNodes: Set<string>
   setExpandedNodes: React.Dispatch<React.SetStateAction<Set<string>>>
+  onScrollToNode?: (path: string) => void
 }
 
 /**
@@ -22,6 +23,7 @@ export const useFileTreeData = ({
   isNodesMode,
   expandedNodes,
   setExpandedNodes,
+  onScrollToNode,
 }: UseFileTreeDataOptions) => {
   const { sqlite } = useSqlite()
 
@@ -45,19 +47,26 @@ export const useFileTreeData = ({
 
   const loadSubDirectory = useCallback(
     async (path: string) => {
-      if (!sqlite) return
+      console.log(`loadSubDirectory called with path: ${path}`)
+      if (!sqlite) {
+        console.log("No sqlite instance")
+        return
+      }
 
       setLoadingNodes((prev) => {
         if (prev.has(path)) {
+          console.log(`Already loading: ${path}`)
           return prev // Already loading, return same reference
         }
         return new Set(prev).add(path)
       })
 
       try {
+        console.log(`Reading directory: ${path}`)
         const entries = await sqlite.fs.readdir(path, {
           withFileTypes: true,
         })
+        console.log(`Directory entries for ${path}:`, entries)
 
         const sortedEntries = sortEntries(entries)
 
@@ -66,17 +75,20 @@ export const useFileTreeData = ({
           targetPath: string,
           newChildren: FileTreeNode[]
         ): FileTreeNode[] => {
-          // Create a map of existing children for quick lookup
-          const existingChildrenMap = new Map()
-          const existingNode = nodes.find((n) => n.path === targetPath)
-          if (existingNode?.children) {
-            existingNode.children.forEach((child) => {
-              existingChildrenMap.set(child.name, child)
-            })
-          }
+          console.log(`updateTreeData called with targetPath: ${targetPath}, newChildren count: ${newChildren.length}`)
+          console.log("Current nodes:", nodes.map(n => ({ name: n.name, path: n.path })))
 
           return nodes.map((node) => {
             if (node.path === targetPath) {
+              console.log(`Found matching node: ${node.path}`)
+              // Create a map of existing children for quick lookup
+              const existingChildrenMap = new Map()
+              if (node.children) {
+                node.children.forEach((child) => {
+                  existingChildrenMap.set(child.name, child)
+                })
+              }
+
               // Merge new children with existing ones to preserve grandchildren
               const mergedChildren = newChildren.map((newChild) => {
                 const existingChild = existingChildrenMap.get(newChild.name)
@@ -93,6 +105,7 @@ export const useFileTreeData = ({
                 }
                 return newChild
               })
+              console.log(`Updated node ${targetPath} with ${mergedChildren.length} children`)
               return { ...node, children: mergedChildren }
             }
             if (node.children) {
@@ -443,8 +456,52 @@ export const useFileTreeData = ({
     }
   }, [])
 
+  // Flatten the tree data for rendering
+  const flattenTree = useCallback(
+    (
+      nodes: FileTreeNode[],
+      expanded: Set<string>,
+      level = 0,
+      result: FileTreeNode[] = []
+    ) => {
+      for (const node of nodes) {
+        // Clone node to avoid mutating original data and add level info if needed
+        // But here we just pass the node and handle level in the renderer or add a transient property
+        // For now, we'll rely on the renderer to know the level, BUT
+        // since we are flattening, we lose the structural level info unless we attach it.
+        // We can't easily attach it to FileTreeNode without changing the type.
+        // Let's assume the renderer will receive a wrapper or we extend the type in the hook return.
+        // Actually, let's just return the node and the level.
+        // Wait, the FileTreeNode interface in index.tsx doesn't have 'level'.
+        // We should probably return a new structure or just the node and let the renderer handle it?
+        // No, in a flat list, the item MUST know its level.
+        // Let's extend the type locally or just add it to the node if it's extensible.
+        // IDirectoryEntry might not be extensible.
+        // Let's create a FlattenedFileTreeNode type.
+
+        result.push({ ...node, level } as any) // We'll cast to any or a new type for now
+
+        if (
+          node.kind === "directory" &&
+          expanded.has(node.path) &&
+          node.children
+        ) {
+          flattenTree(node.children, expanded, level + 1, result)
+        }
+      }
+      return result
+    },
+    []
+  )
+
+  // Memoize the flattened data
+  const flattenedData = useCallback(() => {
+    return flattenTree(treeData, expandedNodes)
+  }, [treeData, expandedNodes, flattenTree])()
+
   return {
     treeData,
+    flattenedData, // Export the flattened data
     setTreeData,
     loadingNodes,
     loadRootDirectory,

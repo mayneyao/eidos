@@ -2,6 +2,7 @@ import React from "react"
 import { ChevronDown, ChevronRight, Pin } from "lucide-react"
 
 import { ExtNodeBadge } from "@/components/ext-node-badge"
+
 import { FileTreeContextMenu } from "./context-menu"
 import { FileTreeIcon } from "./file-tree-icon"
 import type { FileTreeNode as FileTreeNodeType } from "./index"
@@ -42,7 +43,6 @@ interface FileTreeNodeProps {
   onDragEnter?: (e: React.DragEvent) => void
   onDragLeave?: (e: React.DragEvent) => void
   onDrop?: (e: React.DragEvent) => void
-  renderChild: (child: FileTreeNodeType, childLevel: number) => React.ReactNode
 }
 
 export const FileTreeNode = ({
@@ -80,7 +80,6 @@ export const FileTreeNode = ({
   onDragEnter,
   onDragLeave,
   onDrop,
-  renderChild,
 }: FileTreeNodeProps) => {
   const canDrop = hasChildren && !isDragging
 
@@ -120,9 +119,11 @@ export const FileTreeNode = ({
         }
       >
         <div
-          className={`flex items-center rounded transition-colors cursor-pointer select-none ${isSelected ? "bg-accent" : "hover:bg-accent"
-            } ${isDragging ? "opacity-50" : ""} ${isDragOver && canDrop ? "ring-2 ring-primary bg-accent" : ""
-            }`}
+          className={`flex items-center rounded transition-colors cursor-pointer select-none ${
+            isSelected ? "bg-accent" : "hover:bg-accent"
+          } ${isDragging ? "opacity-50" : ""} ${
+            isDragOver && canDrop ? "ring-2 ring-primary bg-accent" : ""
+          }`}
           draggable={!isRenaming}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
@@ -175,18 +176,12 @@ export const FileTreeNode = ({
                 <Pin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
               )}
             </div>
-            {!isRenaming &&
-              node.metadata?.nodeType?.startsWith("ext__") && (
-                <ExtNodeBadge type={node.metadata.nodeType} />
-              )}
+            {!isRenaming && node.metadata?.nodeType?.startsWith("ext__") && (
+              <ExtNodeBadge type={node.metadata.nodeType} />
+            )}
           </div>
         </div>
       </FileTreeContextMenu>
-      {hasChildren && isExpanded && node.children && (
-        <div className="ml-0">
-          {node.children.map((child) => renderChild(child, level + 1))}
-        </div>
-      )}
     </div>
   )
 }

@@ -41,9 +41,20 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const treeContainerRef = useRef<HTMLDivElement>(null)
 
+  const scrollToNode = (nodePath: string) => {
+    const nodeElement = nodeRefs.current.get(nodePath)
+    if (nodeElement) {
+      nodeElement.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+    }
+  }
+
   // Use file tree data hook for data loading and file system watching
   const {
     treeData,
+    flattenedData,
     setTreeData,
     loadingNodes,
     loadRootDirectory,
@@ -54,6 +65,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     isNodesMode,
     expandedNodes,
     setExpandedNodes,
+    onScrollToNode: scrollToNode,
   })
 
   // Context menu operations - use baseDir or rootDir for path detection
@@ -112,18 +124,6 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       navigate(`/file-handler#${node.path}`)
     }
 
-    // Scroll to the selected node
-    scrollToNode(node.path)
-  }
-
-  const scrollToNode = (nodePath: string) => {
-    const nodeElement = nodeRefs.current.get(nodePath)
-    if (nodeElement) {
-      nodeElement.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      })
-    }
   }
 
   const findNodeByPath = (
@@ -255,7 +255,10 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     getPlaceholderText,
   })
 
-  const renderTreeNode = (node: FileTreeNode, level = 0) => {
+  const renderTreeNode = (node: FileTreeNode) => {
+    // Cast to any to access level property added by flattenTree
+    const level = (node as any).level || 0
+
     const isExpanded = expandedNodes.has(node.path)
     const isLoading = loadingNodes.has(node.path)
     const hasChildren = node.kind === "directory"
@@ -287,51 +290,62 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       : "truncate text-muted-foreground italic"
 
     return (
-      <FileTreeNode
+      <div
         key={node.path}
-        node={node}
-        level={level}
-        isExpanded={isExpanded}
-        isLoading={isLoading}
-        isSelected={isSelected}
-        isRenaming={isRenaming}
-        isDragging={isDragging}
-        isDragOver={isDragOver}
-        showPinIcon={showPinIcon}
-        displayName={displayName}
-        nameClassName={nameClassName}
-        hasChildren={hasChildren}
-        isVirtualNode={isVirtualNode}
-        isPinned={isPinned}
-        onToggle={() => toggleNode(node)}
-        onFileClick={() => handleFileClick(node)}
-        onRename={(node) => startRename(node.path)}
-        onRenameConfirm={(newName) => handleRenameConfirm(node, newName)}
-        onRenameCancel={cancelRename}
-        onDelete={handleDelete}
-        onPin={handlePin}
-        onUnpin={handleUnpin}
-        onAddToChat={handleAddToChat}
-        onCreateDoc={handleCreateDoc}
-        onCreateTable={handleCreateTable}
-        onCreateFolder={handleCreateFolder}
-        onCopySlug={handleCopySlug}
-        onCopyExtension={handleCopyExtension}
-        onDragStart={(e) => handleDragStart(e, node)}
-        onDragEnd={handleDragEnd}
-        onDragOver={hasChildren ? (e) => handleDragOver(e, node) : undefined}
-        onDragEnter={hasChildren ? (e) => handleDragEnter(e, node) : undefined}
-        onDragLeave={hasChildren ? handleDragLeave : undefined}
-        onDrop={hasChildren ? (e) => handleDrop(e, node) : undefined}
-        renderChild={renderTreeNode}
-      />
+        ref={(el) => {
+          if (el) {
+            nodeRefs.current.set(node.path, el)
+          } else {
+            nodeRefs.current.delete(node.path)
+          }
+        }}
+      >
+        <FileTreeNode
+          node={node}
+          level={level}
+          isExpanded={isExpanded}
+          isLoading={isLoading}
+          isSelected={isSelected}
+          isRenaming={isRenaming}
+          isDragging={isDragging}
+          isDragOver={isDragOver}
+          showPinIcon={showPinIcon}
+          displayName={displayName}
+          nameClassName={nameClassName}
+          hasChildren={hasChildren}
+          isVirtualNode={isVirtualNode}
+          isPinned={isPinned}
+          onToggle={() => toggleNode(node)}
+          onFileClick={() => handleFileClick(node)}
+          onRename={(node) => startRename(node.path)}
+          onRenameConfirm={(newName) => handleRenameConfirm(node, newName)}
+          onRenameCancel={cancelRename}
+          onDelete={handleDelete}
+          onPin={handlePin}
+          onUnpin={handleUnpin}
+          onAddToChat={handleAddToChat}
+          onCreateDoc={handleCreateDoc}
+          onCreateTable={handleCreateTable}
+          onCreateFolder={handleCreateFolder}
+          onCopySlug={handleCopySlug}
+          onCopyExtension={handleCopyExtension}
+          onDragStart={(e) => handleDragStart(e, node)}
+          onDragEnd={handleDragEnd}
+          onDragOver={hasChildren ? (e) => handleDragOver(e, node) : undefined}
+          onDragEnter={
+            hasChildren ? (e) => handleDragEnter(e, node) : undefined
+          }
+          onDragLeave={hasChildren ? handleDragLeave : undefined}
+          onDrop={hasChildren ? (e) => handleDrop(e, node) : undefined}
+        />
+      </div>
     )
   }
 
   // Don't render ScrollArea wrapper in nodes mode (parent should handle scrolling)
   const content = (
     <div ref={treeContainerRef} className="space-y-1 px-4 bg-sidebar">
-      {treeData.map((node) => renderTreeNode(node, 0))}
+      {flattenedData.map((node) => renderTreeNode(node))}
     </div>
   )
 
