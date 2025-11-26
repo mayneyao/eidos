@@ -180,5 +180,12 @@ export interface IExternalFileSystem {
    * @param path Directory path
    */
   rmdir(path: string): Promise<void>
+
+  /**
+   * Search for files
+   * @param query Search query
+   * @returns Array of matching file paths (virtual paths)
+   */
+  search(query: string): Promise<string[]>
 }
 

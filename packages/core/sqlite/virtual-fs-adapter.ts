@@ -807,6 +807,15 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   }
 
   /**
+   * Search for files
+   */
+  async search(query: string): Promise<string[]> {
+    // Virtual paths don't support search yet (or handled differently)
+    // For now, we delegate to underlying FS which handles ~/ and @/
+    return this.underlyingFS.search(query)
+  }
+
+  /**
    * Rename a file or directory
    * For virtual paths, this updates the database
    */
@@ -1024,7 +1033,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
               // For delete events (soft delete), the UPDATE transaction needs time to commit
               // before we can safely query the database
               await new Promise(resolve => setTimeout(resolve, 50))
-              
+
               // For nodes, build the full ID path; for extensions, use the ID directly
               // For delete events (rename eventType), the node is already marked as deleted,
               // so buildIdPathForWatch will return nodeId directly (query returns empty)

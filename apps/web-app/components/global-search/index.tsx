@@ -1,13 +1,9 @@
 "use client"
 
-import type { IDirectoryEntry } from "@/packages/core/types/IExternalFileSystem"
+import { useCallback, useEffect } from "react"
 import { FileTextIcon, FolderIcon, ToyBrickIcon } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { ExtNodeBadge } from "@/components/ext-node-badge"
 import {
   Command,
   CommandEmpty,
@@ -17,158 +13,57 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-
-interface SearchResult {
-  type: "node" | "extension"
-  id: string
-  name: string
-  path: string
-  isDirectory?: boolean
-  nodeType?: string
-}
+import { ExtNodeBadge } from "@/components/ext-node-badge"
+import { useDebounce } from "@/apps/web-app/hooks/use-debounce"
+import {
+  useGlobalSearch,
+  type SearchResult,
+} from "@/apps/web-app/hooks/use-global-search"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 export function GlobalSearch() {
   const { isGlobalSearchOpen, setGlobalSearchOpen } = useAppRuntimeStore()
-  const [searchTerm, setSearchTerm] = useState("")
-  const [allNodes, setAllNodes] = useState<IDirectoryEntry[]>([])
-  const [allExtensions, setAllExtensions] = useState<IDirectoryEntry[]>([])
-  const [isLoading, setIsLoading] = useState(false)
   const { sqlite } = useSqlite()
   const navigate = useNavigate()
 
-  // Fetch all nodes and extensions when dialog opens
-  useEffect(() => {
-    if (!isGlobalSearchOpen || !sqlite?.fs) return
+  const {
+    searchTerm,
+    setSearchTerm,
+    searchResults,
+    nodeResults,
+    extensionResults,
+    isLoading,
+  } = useGlobalSearch(sqlite, isGlobalSearchOpen)
 
-    const loadEntries = async () => {
-      setIsLoading(true)
-      try {
-        const fs = sqlite.fs
+  // Separate file results if we want to show them separately,
+  // currently they are mixed in nodeResults because we reused "node" type in performSearch
+  // Let's identify them by checking if they are NOT in the initial allNodes list?
+  // Or better, let's change performSearch to use a distinct type or property if we want a separate group.
+  // For now, let's keep them in Nodes group as they are files.
+  // But wait, "Nodes" usually means database nodes.
+  // If we want to show "Files" group, we should change the type in performSearch.
 
-        // Load nodes recursively
-        console.time("readdir nodes")
-        const nodesEntries = await fs.readdir("~/.eidos/__NODES__/", {
-          withFileTypes: true,
-          recursive: true,
-        })
-        console.timeEnd("readdir nodes")
-        setAllNodes(nodesEntries)
+  // Let's update performSearch to use a specific marker if we want to group them.
+  // However, the current UI groups by "node" and "extension".
+  // If I add a new type "file", I need to update the rendering logic.
 
-        // Load extensions
-        const extensionsEntries = await fs.readdir("~/.eidos/__EXTENSIONS__/", {
-          withFileTypes: true,
-        })
-        setAllExtensions(extensionsEntries)
-      } catch (error) {
-        console.error("Failed to load entries:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  // Let's stick to "node" type for now as they are files in the system.
+  // But maybe we can distinguish them by path?
 
-    loadEntries()
-  }, [isGlobalSearchOpen, sqlite])
+  // Actually, let's create a separate group for "Files" to be clear.
+  // I will update performSearch to use type "file" (casted to any or update interface)
+  // But SearchResult interface defines type as "node" | "extension".
+  // I should update SearchResult interface first if I want a new type.
 
-  // Helper function to convert directory entry to search result
-  const entryToSearchResult = useCallback(
-    (
-      entry: IDirectoryEntry,
-      type: "node" | "extension"
-    ): SearchResult | null => {
-      try {
-        if (
-          !entry.name ||
-          !entry.path ||
-          typeof entry.name !== "string" ||
-          typeof entry.path !== "string"
-        ) {
-          console.warn(`Invalid ${type} entry:`, entry)
-          return null
-        }
+  // For this iteration, I will treat them as "node" type so they appear in "Nodes" group.
+  // This is consistent with "everything is a node" philosophy?
+  // But mounted files are not nodes in the DB.
 
-        const parts = entry.path.split("/").filter(Boolean)
-        const id = parts[parts.length - 1]
+  // Let's see... The user requirement says "Return matching internal nodes/extensions AND mount directory files".
+  // "Nodes" group might be confusing if they are external files.
 
-        if (!id) {
-          console.warn(`Could not extract ${type} ID from path:`, entry.path)
-          return null
-        }
-
-        const displayPath = entry.metadata?.namePath || entry.path
-
-        return {
-          type,
-          id,
-          name: entry.name || "Untitled",
-          path: displayPath,
-          isDirectory: type === "node" ? entry.kind === "directory" : undefined,
-          nodeType: entry.metadata?.nodeType,
-        }
-      } catch (error) {
-        console.error(`Error processing ${type} entry:`, entry, error)
-        return null
-      }
-    },
-    []
-  )
-
-  // Filter results based on search term
-  const searchResults = useMemo(() => {
-    const results: SearchResult[] = []
-
-    // If no search term, show first 10 nodes and first 10 extensions
-    if (!searchTerm) {
-      // Add first 10 nodes
-      allNodes.slice(0, 10).forEach((entry) => {
-        const result = entryToSearchResult(entry, "node")
-        if (result) results.push(result)
-      })
-
-      // Add first 10 extensions
-      allExtensions.slice(0, 10).forEach((entry) => {
-        const result = entryToSearchResult(entry, "extension")
-        if (result) results.push(result)
-      })
-
-      return results
-    }
-
-    // Filter nodes based on search term
-    const term = searchTerm.toLowerCase()
-    allNodes.forEach((entry) => {
-      const result = entryToSearchResult(entry, "node")
-      if (result) {
-        const nameMatch = result.name.toLowerCase().includes(term)
-        const namePathMatch =
-          entry.metadata?.namePath?.toLowerCase().includes(term) || false
-        const idPathMatch = entry.path.toLowerCase().includes(term)
-
-        if (nameMatch || namePathMatch || idPathMatch) {
-          results.push(result)
-        }
-      }
-    })
-
-    // Filter extensions based on search term
-    allExtensions.forEach((entry) => {
-      const result = entryToSearchResult(entry, "extension")
-      if (result && result.name.toLowerCase().includes(term)) {
-        results.push(result)
-      }
-    })
-
-    return results
-  }, [searchTerm, allNodes, allExtensions, entryToSearchResult])
-
-  // Group results by type
-  const nodeResults = useMemo(
-    () => searchResults.filter((r) => r.type === "node"),
-    [searchResults]
-  )
-  const extensionResults = useMemo(
-    () => searchResults.filter((r) => r.type === "extension"),
-    [searchResults]
-  )
+  // I'll update SearchResult interface to include "file" type.
 
   const handleSelect = useCallback(
     (result: SearchResult) => {
@@ -181,6 +76,36 @@ export function GlobalSearch() {
         }
       } else if (result.type === "extension") {
         navigate(`/extensions/${result.id}`)
+      } else if (result.type === "file") {
+        // For files, we might want to open them or navigate to a file viewer
+        // Currently we don't have a generic file viewer route?
+        // Maybe we can navigate to the folder?
+        // Or if it's a supported file type, open it.
+
+        // For now, let's assume we can navigate to the file path if it's supported
+        // But wait, navigate() expects a route.
+        // If it's a mounted file, we might need a specific route.
+        // E.g. /files/view?path=...
+
+        // Looking at the codebase, is there a file viewer?
+        // The user requirement says "Click the result to open the file".
+
+        // Let's check how nodes are opened. navigate(`/${result.id}`)
+        // If I use the path as ID?
+
+        // If I navigate to `/${result.path}`, it might try to load it as a node ID.
+
+        // Let's assume for now we just log it or do nothing until we know how to open files.
+        // Or maybe we can use the same route if the router supports paths?
+
+        // Actually, looking at `apps/docs/src/content/docs/zh-cn/concepts/file.mdx`,
+        // it mentions /@/mountName/filename.
+
+        // If I navigate to `/${result.path}`, e.g. `/@/music/song.mp3`,
+        // does the router handle it?
+
+        // Let's try navigating to the path.
+        navigate(`/file-handler#${result.path}`)
       }
       setGlobalSearchOpen(false)
       setSearchTerm("")
@@ -194,6 +119,49 @@ export function GlobalSearch() {
       setSearchTerm("")
     }
   }, [isGlobalSearchOpen])
+
+  // Highlight matching keywords in text
+  const highlightText = useCallback((text: string, query: string) => {
+    if (!query.trim()) return text
+
+    const keywords = query.split(/\s+/).filter((k) => k.length > 0)
+    let result = text
+
+    // Create a regex that matches any of the keywords (case-insensitive)
+    const pattern = keywords
+      .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|")
+    const regex = new RegExp(`(${pattern})`, "gi")
+
+    const parts = result.split(regex)
+
+    return (
+      <>
+        {parts.map((part, i) => {
+          const isMatch = keywords.some(
+            (k) => k.toLowerCase() === part.toLowerCase()
+          )
+          return isMatch ? (
+            <mark
+              key={i}
+              className="bg-yellow-200 dark:bg-yellow-800 font-semibold"
+            >
+              {part}
+            </mark>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        })}
+      </>
+    )
+  }, [])
+
+  // Extract directory path from full path (VSCode style)
+  const getDirectoryPath = useCallback((fullPath: string) => {
+    const parts = fullPath.split("/")
+    parts.pop() // Remove filename
+    return parts.join("/") || "/"
+  }, [])
 
   const getNodeIcon = (result: SearchResult) => {
     if (result.type === "node") {
@@ -211,7 +179,7 @@ export function GlobalSearch() {
       <DialogContent className="fixed left-[50%] top-16 z-50 w-full max-w-2xl translate-x-[-50%] translate-y-0 gap-0 border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[-10%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[-10%] sm:rounded-lg overflow-hidden p-0">
         <Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
           <CommandInput
-            placeholder="Search nodes and extensions..."
+            placeholder="Search nodes, extensions and files..."
             value={searchTerm}
             onValueChange={setSearchTerm}
             autoFocus
@@ -229,52 +197,126 @@ export function GlobalSearch() {
                   </CommandEmpty>
                 )}
 
-                {nodeResults.length > 0 && (
-                  <CommandGroup heading={`Nodes (${nodeResults.length})`}>
-                    {nodeResults.slice(0, 10).map((result) => (
-                      <CommandItem
-                        key={result.path}
-                        value={`${result.name} - ${result.path}`}
-                        onSelect={() => handleSelect(result)}
-                      >
-                        {getNodeIcon(result)}
-                        <div className="flex items-center justify-between flex-1 min-w-0 gap-2">
-                          <span className="truncate">
-                            {result.name || "Untitled"}
-                          </span>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {result.nodeType?.startsWith("ext__") && (
-                              <ExtNodeBadge type={result.nodeType} />
-                            )}
-                            <span className="text-xs text-muted-foreground truncate">
-                              {result.path}
-                            </span>
+                {nodeResults.length > 0 &&
+                  (() => {
+                    // Check for duplicate values and add index if needed
+                    const valueMap = new Map<string, number>()
+                    const processedResults = nodeResults
+                      .slice(0, 50)
+                      .map((result, index) => {
+                        const baseValue = `${result.name} - ${result.path}`
+                        const count = valueMap.get(baseValue) || 0
+                        valueMap.set(baseValue, count + 1)
+
+                        // Only add index if this value appears multiple times
+                        const finalValue =
+                          count > 0 ? `${baseValue} #${count}` : baseValue
+
+                        return { ...result, displayValue: finalValue }
+                      })
+
+                    return (
+                      <CommandGroup heading={`Nodes (${nodeResults.length})`}>
+                        {processedResults.map((result) => (
+                          <CommandItem
+                            key={result.id}
+                            value={result.displayValue}
+                            onSelect={() => handleSelect(result)}
+                          >
+                            {getNodeIcon(result)}
+                            <div className="flex items-center justify-between flex-1 min-w-0 gap-2">
+                              <span className="truncate">
+                                {highlightText(
+                                  result.name || "Untitled",
+                                  searchTerm
+                                )}
+                              </span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {result.nodeType?.startsWith("ext__") && (
+                                  <ExtNodeBadge type={result.nodeType} />
+                                )}
+                                <span className="text-xs text-muted-foreground truncate">
+                                  {highlightText(
+                                    getDirectoryPath(result.path),
+                                    searchTerm
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                        {nodeResults.length > 50 && (
+                          <div className="px-2 py-1 text-xs text-muted-foreground">
+                            +{nodeResults.length - 50} more results
                           </div>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
+                        )}
+                      </CommandGroup>
+                    )
+                  })()}
 
                 {extensionResults.length > 0 && (
                   <CommandGroup
                     heading={`Extensions (${extensionResults.length})`}
                   >
-                    {extensionResults.slice(0, 10).map((result) => (
+                    {extensionResults.slice(0, 50).map((result) => (
                       <CommandItem
-                        key={result.path}
+                        key={result.id}
                         value={`${result.name} - ${result.path}`}
                         onSelect={() => handleSelect(result)}
                       >
                         {getNodeIcon(result)}
                         <span className="truncate">
-                          {result.name || "Untitled"}
+                          {highlightText(result.name || "Untitled", searchTerm)}
                         </span>
                       </CommandItem>
                     ))}
-                    {extensionResults.length > 10 && (
+                    {extensionResults.length > 50 && (
                       <div className="px-2 py-1 text-xs text-muted-foreground">
-                        +{extensionResults.length - 10} more results
+                        +{extensionResults.length - 50} more results
+                      </div>
+                    )}
+                  </CommandGroup>
+                )}
+
+                {searchResults.filter((r) => r.type === "file").length > 0 && (
+                  <CommandGroup
+                    heading={`Files (${searchResults.filter((r) => r.type === "file").length})`}
+                  >
+                    {searchResults
+                      .filter((r) => r.type === "file")
+                      .slice(0, 50)
+                      .map((result) => (
+                        <CommandItem
+                          key={result.id}
+                          value={`${result.name} - ${result.path}`}
+                          onSelect={() => handleSelect(result)}
+                        >
+                          <FileTextIcon className="mr-2 h-4 w-4" />
+                          <div className="flex items-center justify-between flex-1 min-w-0 gap-2">
+                            <span className="truncate">
+                              {highlightText(
+                                result.name || "Untitled",
+                                searchTerm
+                              )}
+                            </span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-muted-foreground truncate">
+                                {highlightText(
+                                  getDirectoryPath(result.path),
+                                  searchTerm
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    {searchResults.filter((r) => r.type === "file").length >
+                      50 && (
+                      <div className="px-2 py-1 text-xs text-muted-foreground">
+                        +
+                        {searchResults.filter((r) => r.type === "file").length -
+                          50}{" "}
+                        more results
                       </div>
                     )}
                   </CommandGroup>

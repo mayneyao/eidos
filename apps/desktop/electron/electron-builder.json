@@ -1,73 +1,62 @@
 {
-    "appId": "space.eidos.desktop",
-    "productName": "Eidos",
-    "directories": {
-        "output": "dist-app"
-    },
-    "publish": [
-        {
-            "provider": "github",
-            "owner": "mayneyao",
-            "repo": "eidos"
-        }
-    ],
-    "npmRebuild": true,
-    "generateUpdatesFilesForAllChannels": true,
-    "files": [
-        "dist/**/*",
-        "dist-electron/**/*",
-        "dist-sqlite-ext/**/*",
-        "package.json",
-        "!**/node_modules/**/*",
-        "**/node_modules/better-sqlite3/**/*",
-        "**/node_modules/@eidos.space/better-sqlite3/**/*",
-        "**/node_modules/bindings/**/*",
-        "**/node_modules/file-uri-to-path/**/*",
-        "**/node_modules/oxc-parser/**/*",
-        "**/node_modules/@oxc-parser/binding-*/**/*",
-        "**/node_modules/oxc-transform/**/*",
-        "**/node_modules/@oxc-transform/binding-*/**/*"
-    ],
-    "extraResources": [
-        {
-            "from": "dist-sqlite-ext",
-            "to": "dist-sqlite-ext",
-            "filter": [
-                "**/*"
-            ]
-        }
-    ],
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-    "win": {
-        "target": [
-            "nsis",
-            "zip"
-        ],
-        "icon": "dist/logo.png"
-    },
-    "afterSign": "scripts/notarize.cjs",
-    "mac": {
-        "target": [
-            "dmg",
-            "zip"
-        ],
-        "icon": "dist/logo.icns",
-        "hardenedRuntime": true,
-        "gatekeeperAssess": false,
-        "entitlements": "electron/build/entitlements.mac.plist",
-        "entitlementsInherit": "electron/build/entitlements.mac.plist",
-        "notarize": false
-    },
-    "linux": {
-        "target": [
-            "AppImage",
-            "zip"
-        ]
-    },
-    "protocols": {
-        "name": "eidos",
-        "schemes": [
-            "eidos"
-        ]
+  "appId": "space.eidos.desktop",
+  "productName": "Eidos",
+  "directories": {
+    "output": "dist-app"
+  },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "mayneyao",
+      "repo": "eidos"
     }
+  ],
+  "npmRebuild": true,
+  "generateUpdatesFilesForAllChannels": true,
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "dist-sqlite-ext/**/*",
+    "package.json",
+    "!**/node_modules/**/*",
+    "**/node_modules/better-sqlite3/**/*",
+    "**/node_modules/@eidos.space/better-sqlite3/**/*",
+    "**/node_modules/@vscode/ripgrep/**/*",
+    "**/node_modules/bindings/**/*",
+    "**/node_modules/file-uri-to-path/**/*",
+    "**/node_modules/oxc-parser/**/*",
+    "**/node_modules/@oxc-parser/binding-*/**/*",
+    "**/node_modules/oxc-transform/**/*",
+    "**/node_modules/@oxc-transform/binding-*/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "dist-sqlite-ext",
+      "to": "dist-sqlite-ext",
+      "filter": ["**/*"]
+    }
+  ],
+  "asarUnpack": ["**/node_modules/@vscode/ripgrep/**/*"],
+  "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+  "win": {
+    "target": ["nsis", "zip"],
+    "icon": "dist/logo.png"
+  },
+  "afterSign": "scripts/notarize.cjs",
+  "mac": {
+    "target": ["dmg", "zip"],
+    "icon": "dist/logo.icns",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "electron/build/entitlements.mac.plist",
+    "entitlementsInherit": "electron/build/entitlements.mac.plist",
+    "notarize": false
+  },
+  "linux": {
+    "target": ["AppImage", "zip"]
+  },
+  "protocols": {
+    "name": "eidos",
+    "schemes": ["eidos"]
+  }
 }

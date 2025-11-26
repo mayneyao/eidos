@@ -355,10 +355,6 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
         }
     });
 
-    // app.get('/static/*', async (c) => handleStaticFile(c))
-
-    // app.get('/extensions/*', async (c) => handleStaticFile(c))
-
     // Fallback to index.html for non-existent paths
     app.use('*', serveStatic({ path: `${dist}/index.html` }));
 

@@ -9,6 +9,13 @@ import fs from "fs/promises"
 // import { visualizer } from "rollup-plugin-visualizer"
 
 
+const externalNodeModules = [
+  '@eidos.space/better-sqlite3',
+  'oxc-parser',
+  'oxc-transform',
+  '@vscode/ripgrep'
+]
+
 // desktop do not need android and windows11
 const copyPublicPlugin = (): Plugin => {
   return {
@@ -69,11 +76,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
               plugins: [
                 esmShim() as unknown as Plugin,
               ],
-              external: [
-                '@eidos.space/better-sqlite3',
-                'oxc-parser',
-                'oxc-transform'
-              ]
+              external: externalNodeModules
             },
           },
         }
@@ -87,10 +90,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           },
           build: {
             rollupOptions: {
-              external: [
-                'oxc-parser',
-                'oxc-transform'
-              ],
+              external: externalNodeModules,
               output: {
                 format: 'es',
                 inlineDynamicImports: true,

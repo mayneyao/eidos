@@ -15,6 +15,12 @@ import type {
 } from '@eidos.space/core/types/IExternalFileSystem'
 
 /**
+ * Helper to get the path to the ripgrep binary
+ * Handles both development and production (ASAR) environments
+ */
+import { searchWithRg } from './search'
+
+/**
  * Node.js implementation for desktop environment
  * Uses node:fs/promises
  *
@@ -40,9 +46,11 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
    *   }
    *   return null
    * })
+   * })
    */
   constructor(
-    private resolvePath: (path: string) => Promise<string | null>
+    private resolvePath: (path: string) => Promise<string | null>,
+    private getMounts: () => Promise<Array<{ name: string; path: string }>>
   ) { }
 
   /**
@@ -418,6 +426,75 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       watcher.off('change', onChange)
       watcher.off('error', onError)
       watcher.off('close', onClose)
+    }
+  }
+
+  /**
+   * Search for files using ripgrep
+   */
+  /**
+   * Search for files using ripgrep
+   */
+  async search(query: string): Promise<string[]> {
+    // Parse query into keywords for filtering results
+    const keywords = query.split(/\s+/).filter(k => k.length > 0)
+    if (keywords.length === 0) {
+      return []
+    }
+
+    // Get all paths to search (project root + mounts)
+    const mounts = await this.getMounts()
+    const projectRoot = await this.resolvePath('~/')
+    const spaceFilePath = await this.resolvePath('~/.eidos')
+
+    if (!projectRoot || !spaceFilePath) {
+      return []
+    }
+
+    const searchPaths = [projectRoot, spaceFilePath, ...mounts.map(m => m.path)]
+
+    try {
+      // Perform search using the helper
+      const lines = await searchWithRg(query, searchPaths)
+
+      // Parse results and map back to virtual paths
+      const results: Set<string> = new Set()
+
+      for (const absolutePath of lines) {
+        let virtualPath: string | null = null
+
+        // Check if it's in project root
+        if (absolutePath.startsWith(projectRoot)) {
+          const relative = path.relative(projectRoot, absolutePath)
+          virtualPath = `~/${relative}`
+        }
+        // Check if it's in a mount
+        else {
+          for (const mount of mounts) {
+            if (absolutePath.startsWith(mount.path)) {
+              const relative = path.relative(mount.path, absolutePath)
+              virtualPath = `@/${mount.name}/${relative}`
+              break
+            }
+          }
+        }
+
+        if (virtualPath) {
+          // Filter against ALL keywords (case-insensitive)
+          // We check against the virtual path so it matches what user sees
+          const lowerPath = virtualPath.toLowerCase()
+          const allMatch = keywords.every(k => lowerPath.includes(k.toLowerCase()))
+
+          if (allMatch) {
+            results.add(virtualPath)
+          }
+        }
+      }
+
+      return Array.from(results)
+    } catch (error: any) {
+      console.error('Search failed:', error)
+      return []
     }
   }
 }

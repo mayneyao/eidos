@@ -244,5 +244,15 @@ export class FSManager {
   async *watch(path: string, options?: IWatchOptions): AsyncIterable<IWatchEvent> {
     yield* this.externalFS.watch(path, options)
   }
+
+  /**
+   * Search for files
+   * 
+   * @example
+   * const results = await eidos.currentSpace.fs.search("query")
+   */
+  async search(query: string): Promise<string[]> {
+    return await this.externalFS.search(query)
+  }
 }
 
