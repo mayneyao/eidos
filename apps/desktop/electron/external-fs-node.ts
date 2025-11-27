@@ -463,20 +463,21 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       for (const absolutePath of lines) {
         let virtualPath: string | null = null
 
-        // Check if it's in project root
-        if (absolutePath.startsWith(projectRoot)) {
+        // First check if it's in a mount (mounts take precedence over project root)
+        let foundInMount = false
+        for (const mount of mounts) {
+          if (absolutePath.startsWith(mount.path)) {
+            const relative = path.relative(mount.path, absolutePath)
+            virtualPath = relative ? `@/${mount.name}/${relative}` : `@/${mount.name}`
+            foundInMount = true
+            break
+          }
+        }
+
+        // If not in a mount, check if it's in project root
+        if (!foundInMount && absolutePath.startsWith(projectRoot)) {
           const relative = path.relative(projectRoot, absolutePath)
           virtualPath = `~/${relative}`
-        }
-        // Check if it's in a mount
-        else {
-          for (const mount of mounts) {
-            if (absolutePath.startsWith(mount.path)) {
-              const relative = path.relative(mount.path, absolutePath)
-              virtualPath = `@/${mount.name}/${relative}`
-              break
-            }
-          }
         }
 
         if (virtualPath) {
