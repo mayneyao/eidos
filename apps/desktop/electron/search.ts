@@ -36,18 +36,16 @@ export async function searchWithRg(query: string, searchPaths: string[]): Promis
     }
 
     // Build glob patterns for all keywords
-    // Multiple --glob patterns work as AND conditions in ripgrep
-    const globArgs = keywords.flatMap(keyword => ['--glob', `*${keyword}*`])
+    // Multiple --iglob patterns work as AND conditions in ripgrep (case-insensitive)
+    const globArgs = keywords.flatMap(keyword => ['--iglob', `*${keyword}*`])
 
     try {
         // Run ripgrep
         // --files: Print each file that would be searched without actually performing the search
-        // --glob: Multiple patterns require ALL to match (AND logic, VSCode-style)
+        // --iglob: Multiple case-insensitive patterns require ALL to match (AND logic, VSCode-style)
         const { stdout } = await execFileAsync(binPath, [
             '--files',
-            '--hidden',
             ...globArgs,
-            '--ignore-case',
             ...searchPaths
         ], {
             maxBuffer: 10 * 1024 * 1024 // 10MB buffer
