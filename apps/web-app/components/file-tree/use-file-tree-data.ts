@@ -27,7 +27,13 @@ export const useFileTreeData = ({
 }: UseFileTreeDataOptions) => {
   const { sqlite } = useSqlite()
 
-  const [treeData, setTreeData] = useState<FileTreeNode[]>(initialNodes || [])
+  // Flat data structure
+  // rootNodes: Top level nodes
+  // dirContent: Map of directory path -> list of children nodes
+  const [rootNodes, setRootNodes] = useState<FileTreeNode[]>(initialNodes || [])
+  const [dirContent, setDirContent] = useState<Map<string, FileTreeNode[]>>(
+    new Map()
+  )
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set())
 
   // Add a ref to track pending reloads to avoid duplicates
@@ -47,7 +53,7 @@ export const useFileTreeData = ({
 
   const loadSubDirectory = useCallback(
     async (path: string) => {
-      console.log(`loadSubDirectory called with path: ${path}`)
+      // console.log(`loadSubDirectory called with path: ${path}`)
       if (!sqlite) {
         console.log("No sqlite instance")
         return
@@ -55,70 +61,32 @@ export const useFileTreeData = ({
 
       setLoadingNodes((prev) => {
         if (prev.has(path)) {
-          console.log(`Already loading: ${path}`)
+          // console.log(`Already loading: ${path}`)
           return prev // Already loading, return same reference
         }
         return new Set(prev).add(path)
       })
 
       try {
-        console.log(`Reading directory: ${path}`)
+        // console.log(`Reading directory: ${path}`)
         const entries = await sqlite.fs.readdir(path, {
           withFileTypes: true,
         })
-        console.log(`Directory entries for ${path}:`, entries)
+        // console.log(`Directory entries for ${path}:`, entries)
 
-        const sortedEntries = sortEntries(entries)
+        // Inject path into entries
+        const entriesWithPaths = entries.map((entry) => ({
+          ...entry,
+          path: entry.path || `${path.endsWith("/") ? path : path + "/"}${entry.name}`,
+        }))
 
-        const updateTreeData = (
-          nodes: FileTreeNode[],
-          targetPath: string,
-          newChildren: FileTreeNode[]
-        ): FileTreeNode[] => {
-          console.log(`updateTreeData called with targetPath: ${targetPath}, newChildren count: ${newChildren.length}`)
-          console.log("Current nodes:", nodes.map(n => ({ name: n.name, path: n.path })))
+        const sortedEntries = sortEntries(entriesWithPaths)
 
-          return nodes.map((node) => {
-            if (node.path === targetPath) {
-              console.log(`Found matching node: ${node.path}`)
-              // Create a map of existing children for quick lookup
-              const existingChildrenMap = new Map()
-              if (node.children) {
-                node.children.forEach((child) => {
-                  existingChildrenMap.set(child.name, child)
-                })
-              }
-
-              // Merge new children with existing ones to preserve grandchildren
-              const mergedChildren = newChildren.map((newChild) => {
-                const existingChild = existingChildrenMap.get(newChild.name)
-                // If child existed before and was a directory with children, preserve them
-                if (
-                  existingChild &&
-                  existingChild.kind === "directory" &&
-                  existingChild.children
-                ) {
-                  return {
-                    ...newChild,
-                    children: existingChild.children,
-                  }
-                }
-                return newChild
-              })
-              console.log(`Updated node ${targetPath} with ${mergedChildren.length} children`)
-              return { ...node, children: mergedChildren }
-            }
-            if (node.children) {
-              return {
-                ...node,
-                children: updateTreeData(node.children, targetPath, newChildren),
-              }
-            }
-            return node
-          })
-        }
-
-        setTreeData((prev) => updateTreeData(prev, path, sortedEntries))
+        setDirContent((prev) => {
+          const newMap = new Map(prev)
+          newMap.set(path, sortedEntries)
+          return newMap
+        })
       } catch (error) {
         console.error(`Failed to load directory ${path}:`, error)
       } finally {
@@ -146,37 +114,23 @@ export const useFileTreeData = ({
         withFileTypes: true,
       })
 
-      const sortedEntries = sortEntries(entries)
+      // Inject path into entries
+      const entriesWithPaths = entries.map((entry) => ({
+        ...entry,
+        path: entry.path || `${rootDir.endsWith("/") ? rootDir : rootDir + "/"}${entry.name}`,
+      }))
 
-      // Preserve existing children for directories that are still present
-      setTreeData((prevTreeData) => {
-        const existingNodesMap = new Map(
-          prevTreeData.map((node) => [node.name, node])
-        )
-
-        return sortedEntries.map((newNode) => {
-          const existingNode = existingNodesMap.get(newNode.name)
-          // If node existed before and was a directory with children, preserve them
-          if (
-            existingNode &&
-            existingNode.kind === "directory" &&
-            existingNode.children
-          ) {
-            return {
-              ...newNode,
-              children: existingNode.children,
-            }
-          }
-          return newNode
-        })
-      })
+      const sortedEntries = sortEntries(entriesWithPaths)
+      setRootNodes(sortedEntries)
 
       // Reload children for all expanded directories to keep them in sync
-      const reloadPromises = Array.from(expandedNodesRef.current).map(async (path) => {
-        if (path !== rootDir) {
-          await loadSubDirectory(path)
+      const reloadPromises = Array.from(expandedNodesRef.current).map(
+        async (path) => {
+          if (path !== rootDir) {
+            await loadSubDirectory(path)
+          }
         }
-      })
+      )
 
       await Promise.all(reloadPromises)
     } catch (error) {
@@ -194,7 +148,7 @@ export const useFileTreeData = ({
   // Initialize with nodes if provided
   useEffect(() => {
     if (isNodesMode && initialNodes) {
-      setTreeData(initialNodes)
+      setRootNodes(initialNodes)
     }
   }, [isNodesMode, initialNodes])
 
@@ -291,7 +245,10 @@ export const useFileTreeData = ({
           await loadRootDirectory()
         } catch (fallbackError) {
           // Silently ignore fallback errors to prevent watch loop from breaking
-          console.error("[FileTree Watch] Fallback reload failed:", fallbackError)
+          console.error(
+            "[FileTree Watch] Fallback reload failed:",
+            fallbackError
+          )
         }
       }
     }
@@ -302,7 +259,14 @@ export const useFileTreeData = ({
     return () => {
       abortController.abort()
     }
-  }, [sqlite, rootDir, isNodesMode, expandedNodes, loadRootDirectory, loadSubDirectory])
+  }, [
+    sqlite,
+    rootDir,
+    isNodesMode,
+    expandedNodes,
+    loadRootDirectory,
+    loadSubDirectory,
+  ])
 
   // Watch for file system changes in nodes mode (watch each mount directory)
   useEffect(() => {
@@ -414,10 +378,7 @@ export const useFileTreeData = ({
         } catch (error) {
           // Ignore abort errors (expected when component unmounts)
           if (error instanceof Error && error.name !== "AbortError") {
-            console.error(
-              `FileTree watch error for ${mountPath}:`,
-              error
-            )
+            console.error(`FileTree watch error for ${mountPath}:`, error)
           }
         }
       })
@@ -465,47 +426,133 @@ export const useFileTreeData = ({
       result: FileTreeNode[] = []
     ) => {
       for (const node of nodes) {
-        // Clone node to avoid mutating original data and add level info if needed
-        // But here we just pass the node and handle level in the renderer or add a transient property
-        // For now, we'll rely on the renderer to know the level, BUT
-        // since we are flattening, we lose the structural level info unless we attach it.
-        // We can't easily attach it to FileTreeNode without changing the type.
-        // Let's assume the renderer will receive a wrapper or we extend the type in the hook return.
-        // Actually, let's just return the node and the level.
-        // Wait, the FileTreeNode interface in index.tsx doesn't have 'level'.
-        // We should probably return a new structure or just the node and let the renderer handle it?
-        // No, in a flat list, the item MUST know its level.
-        // Let's extend the type locally or just add it to the node if it's extensible.
-        // IDirectoryEntry might not be extensible.
-        // Let's create a FlattenedFileTreeNode type.
+        // Get children from dirContent
+        const children = dirContent.get(node.path)
 
-        result.push({ ...node, level } as any) // We'll cast to any or a new type for now
+        // Add current node with children attached (for compatibility)
+        // We attach children so that the renderer knows if it has children loaded
+        const nodeWithChildren = { ...node, children, level } as any
+        result.push(nodeWithChildren)
 
-        if (
-          node.kind === "directory" &&
-          expanded.has(node.path) &&
-          node.children
-        ) {
-          flattenTree(node.children, expanded, level + 1, result)
+        // If directory and expanded, add children to the flat list
+        if (node.kind === "directory" && expanded.has(node.path) && children) {
+          flattenTree(children, expanded, level + 1, result)
         }
       }
       return result
     },
-    []
+    [dirContent]
   )
 
   // Memoize the flattened data
   const flattenedData = useCallback(() => {
-    return flattenTree(treeData, expandedNodes)
-  }, [treeData, expandedNodes, flattenTree])()
+    return flattenTree(rootNodes, expandedNodes)
+  }, [rootNodes, expandedNodes, flattenTree])()
+
+  // Expand to a specific path (Locator)
+  const expandTo = useCallback(
+    async (path: string) => {
+      if (!sqlite) return
+
+      try {
+        // 1. Identify root node
+        let rootNodePath = ""
+        let rootNodeFound = false
+
+        for (const rootNode of rootNodes) {
+          if (path.startsWith(rootNode.path)) {
+            rootNodeFound = true
+            rootNodePath = rootNode.path
+            break
+          }
+        }
+
+        if (!rootNodeFound && rootDir && path.startsWith(rootDir)) {
+          rootNodePath = rootDir
+          rootNodeFound = true
+        }
+
+        if (!rootNodeFound) {
+          console.warn(`[FileTree] Could not find root for path: ${path}`)
+          return
+        }
+
+        // 2. Identify paths to expand
+        const pathSegments = path.split("/")
+        const pathsToExpand: string[] = []
+
+        // Generate all parent paths that are descendants of rootNodePath
+        // e.g. root=/a, path=/a/b/c -> expand /a, /a/b
+
+        const relativePath = path.slice(rootNodePath.length).replace(/^\//, "")
+        if (!relativePath) return // Path is the root itself
+
+        const relativeSegments = relativePath.split("/")
+
+        // Add root path first
+        pathsToExpand.push(rootNodePath)
+
+        let accumulatedPath = rootNodePath.endsWith("/")
+          ? rootNodePath.slice(0, -1)
+          : rootNodePath
+
+        for (let i = 0; i < relativeSegments.length - 1; i++) {
+          accumulatedPath = `${accumulatedPath}/${relativeSegments[i]}`
+          pathsToExpand.push(accumulatedPath)
+        }
+
+        // 3. Sequentially load and expand
+        const newExpanded = new Set(expandedNodes)
+        let changed = false
+
+        for (const p of pathsToExpand) {
+          if (!dirContent.has(p)) {
+            await loadSubDirectory(p)
+          }
+
+          if (!newExpanded.has(p)) {
+            newExpanded.add(p)
+            changed = true
+          }
+        }
+
+        if (changed) {
+          setExpandedNodes(newExpanded)
+        }
+
+        // 4. Scroll to node
+        setTimeout(() => {
+          onScrollToNode?.(path)
+        }, 100)
+
+      } catch (e) {
+        console.error(`[FileTree] expandTo failed for ${path}`, e)
+      }
+    },
+    [sqlite, rootNodes, rootDir, expandedNodes, dirContent, loadSubDirectory, setExpandedNodes, onScrollToNode]
+  )
+
+  // Listen for custom event to trigger expandTo
+  useEffect(() => {
+    const handleExpandTo = (e: CustomEvent<{ path: string }>) => {
+      if (e.detail && e.detail.path) {
+        expandTo(e.detail.path)
+      }
+    }
+
+    window.addEventListener("file-tree-expand-to" as any, handleExpandTo)
+    return () => {
+      window.removeEventListener("file-tree-expand-to" as any, handleExpandTo)
+    }
+  }, [expandTo])
 
   return {
-    treeData,
-    flattenedData, // Export the flattened data
-    setTreeData,
+    treeData: rootNodes,
+    flattenedData,
+    setTreeData: setRootNodes,
     loadingNodes,
     loadRootDirectory,
     loadSubDirectory,
+    expandTo
   }
 }
-

@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import { useNavigate } from "react-router-dom"
 
+import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 
@@ -41,13 +42,22 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const treeContainerRef = useRef<HTMLDivElement>(null)
 
-  const scrollToNode = (nodePath: string) => {
+  const scrollToNode = (nodePath: string, retryCount = 0) => {
     const nodeElement = nodeRefs.current.get(nodePath)
+
     if (nodeElement) {
       nodeElement.scrollIntoView({
-        behavior: "smooth",
+        behavior: "auto",
         block: "center",
       })
+      // Add a small highlight effect
+      nodeElement.classList.add("bg-accent/50")
+      setTimeout(() => {
+        nodeElement.classList.remove("bg-accent/50")
+      }, 2000)
+    } else if (retryCount < 20) {
+      // Retry after a short delay to allow for rendering
+      setTimeout(() => scrollToNode(nodePath, retryCount + 1), 100)
     }
   }
 
@@ -123,7 +133,6 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       // Regular file - use file handler
       navigate(`/file-handler#${node.path}`)
     }
-
   }
 
   const findNodeByPath = (
@@ -292,6 +301,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     return (
       <div
         key={node.path}
+        data-path={node.path}
         ref={(el) => {
           if (el) {
             nodeRefs.current.set(node.path, el)
@@ -342,18 +352,17 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     )
   }
 
-  // Don't render ScrollArea wrapper in nodes mode (parent should handle scrolling)
-  const content = (
-    <div ref={treeContainerRef} className="space-y-1 px-4 bg-sidebar">
+  return (
+    <div
+      ref={treeContainerRef}
+      className={cn(
+        "space-y-1 px-4 bg-sidebar",
+        !isNodesMode && "h-full overflow-y-auto"
+      )}
+    >
       {flattenedData.map((node) => renderTreeNode(node))}
     </div>
   )
-
-  if (isNodesMode) {
-    return content
-  }
-
-  return <div className="h-full overflow-y-auto">{content}</div>
 }
 
 export default FileTree

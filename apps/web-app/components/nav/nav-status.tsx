@@ -1,18 +1,24 @@
+import { useState } from "react"
 import {
   Cable,
   Cog,
+  LocateFixed,
   LockIcon,
   PinIcon,
   PinOffIcon,
   Unplug,
   Wand2,
 } from "lucide-react"
-import { useState } from "react"
-import { useLocation, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { useLocation, useSearchParams } from "react-router-dom"
 
 import { isDesktopMode } from "@/lib/env"
 import { isDayPageId } from "@/lib/utils"
+import {
+  getFileExtension,
+  useDefaultHandler,
+  useFileHandlers,
+} from "@/hooks/use-file-handlers"
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
@@ -27,13 +33,9 @@ import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { usePeer } from "@/apps/web-app/hooks/use-peer"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import {
-  getFileExtension,
-  useDefaultHandler,
-  useFileHandlers,
-} from "@/hooks/use-file-handlers"
-import { SetDefaultHandlerDialog } from "./set-default-handler-dialog"
+import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
+import { SetDefaultHandlerDialog } from "./set-default-handler-dialog"
 
 export const NavStatus = () => {
   const { t } = useTranslation()
@@ -41,6 +43,7 @@ export const NavStatus = () => {
   const [searchParams] = useSearchParams()
 
   const { isGodMode, setGodMode } = useAppRuntimeStore()
+  const { setCurrentApp } = useSidebarStore()
 
   const { connected } = useAPIAgent()
   const { runningCommand } = useAppRuntimeStore()
@@ -56,29 +59,34 @@ export const NavStatus = () => {
 
   // Check if we're on file-handler page
   const isFileHandlerPage = location.pathname.includes("/file-handler")
-  const handlerIdFromQuery = isFileHandlerPage ? searchParams.get("handler") : null
-  const filePath = isFileHandlerPage && location.hash.startsWith("#") 
-    ? location.hash.substring(1) 
-    : isFileHandlerPage 
-      ? location.hash 
-      : ""
+  const handlerIdFromQuery = isFileHandlerPage
+    ? searchParams.get("handler")
+    : null
+  const filePath =
+    isFileHandlerPage && location.hash.startsWith("#")
+      ? location.hash.substring(1)
+      : isFileHandlerPage
+        ? location.hash
+        : ""
   const fileExtension = filePath ? getFileExtension(filePath) : ""
-  
+
   // Only call hooks when on file-handler page to avoid unnecessary requests
   const { handlers } = useFileHandlers(isFileHandlerPage ? fileExtension : "")
-  const { defaultHandlerId, setDefaultHandler, isLoading: isLoadingDefault } = useDefaultHandler(
-    isFileHandlerPage ? fileExtension : ""
-  )
+  const {
+    defaultHandlerId,
+    setDefaultHandler,
+    isLoading: isLoadingDefault,
+  } = useDefaultHandler(isFileHandlerPage ? fileExtension : "")
 
   // Find current handler (from query param or default)
   const currentHandlerId = handlerIdFromQuery || defaultHandlerId
   const currentHandler = handlers.find((h) => h.id === currentHandlerId)
   const defaultHandler = handlers.find((h) => h.id === defaultHandlerId)
-  
+
   // Check if current handler differs from default handler
   const effectiveDefaultHandlerId = defaultHandlerId || handlers[0]?.id
 
-  const shouldShowSetDefaultButton = 
+  const shouldShowSetDefaultButton =
     isFileHandlerPage &&
     fileExtension &&
     handlerIdFromQuery &&
@@ -101,6 +109,25 @@ export const NavStatus = () => {
         `${location.pathname}${newSearch ? `?${newSearch}` : ""}${location.hash}`
       )
       setShowSetDefaultDialog(false)
+    }
+  }
+
+  const handleLocateFile = () => {
+    if (filePath) {
+      // Switch to files tab first to ensure the file tree is mounted
+      setCurrentApp("files")
+
+      // Decode the URL-encoded path to match the actual file tree node paths
+      const decodedPath = decodeURIComponent(filePath)
+
+      // Wait a bit for the tab to switch and component to mount
+      setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent("file-tree-expand-to", {
+            detail: { path: decodedPath },
+          })
+        )
+      }, 50)
     }
   }
 
@@ -216,6 +243,16 @@ export const NavStatus = () => {
             onConfirm={handleSetAsDefault}
           />
         </>
+      )}
+      {isFileHandlerPage && filePath && (
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={handleLocateFile}
+          title={t("nav.status.locateFile", "Locate in File Tree")}
+        >
+          <LocateFixed className="h-4 w-4" />
+        </Button>
       )}
     </>
   )
