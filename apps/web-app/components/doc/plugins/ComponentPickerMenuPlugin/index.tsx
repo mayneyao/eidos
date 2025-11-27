@@ -22,13 +22,12 @@ import {
 import { $createHeadingNode, $createQuoteNode } from "@lexical/rich-text"
 import { $patchStyleText, $setBlocksType } from "@lexical/selection"
 import { INSERT_TABLE_COMMAND } from "@lexical/table"
-import type {
-  TextNode} from "lexical";
 import {
   $createParagraphNode,
   $getSelection,
   $isRangeSelection,
-  $isTextNode
+  $isTextNode,
+  type TextNode,
 } from "lexical"
 import {
   AudioLinesIcon,
@@ -229,7 +228,7 @@ export function ComponentPickerMenuPlugin(): JSX.Element {
     }
 
     mblocks.forEach((mblock) => {
-      if (mblock.name.includes(queryString)) {
+      if (mblock.name?.includes(queryString)) {
         options.push(
           new ComponentPickerOption(mblock.name, {
             icon: <ToyBrickIcon className="h-5 w-5 flex-shrink-0" />,

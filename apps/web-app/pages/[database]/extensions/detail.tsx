@@ -1,22 +1,22 @@
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import { compileCode, extractConstant, getCompileMethod } from "@eidos.space/v3"
 import { useMount, useSize } from "ahooks"
 import { CodeIcon, EyeIcon, PanelLeftIcon, SettingsIcon } from "lucide-react"
 import { useTheme } from "next-themes"
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import {
   useLoaderData,
   useRevalidator,
   useSearchParams,
 } from "react-router-dom"
 
-import { useExtension } from "@/apps/web-app/hooks/use-extension"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-
+import { useExtension } from "@/apps/web-app/hooks/use-extension"
 import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
+
 import { ExtensionPreview } from "./components/extension-preview"
 import { ExtensionToolbar } from "./components/extension-toolbar"
 import { ExtensionConfig } from "./config/config"
@@ -103,7 +103,9 @@ export const ExtensionDetailPage = () => {
         }
         if (meta && meta.type) {
           const extensionType = meta.type
-          updateData.name = meta[extensionType].name
+          // TODO: we should unify the name and title in the future
+          updateData.name =
+            meta[extensionType].name || meta[extensionType].title || ""
           updateData.description = meta[extensionType].description
         }
         await updateExtension(updateData)
