@@ -136,24 +136,17 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
     debouncedSearch(searchTerm)
   }, [searchTerm, debouncedSearch])
 
-  // Filter results based on search term
-  const searchResults = useMemo(() => {
+
+  // Filter node results based on search term
+  const nodeResults = useMemo(() => {
     const results: SearchResult[] = []
 
-    // If no search term, show first 10 nodes and first 10 extensions
+    // If no search term, show first 10 nodes
     if (!searchTerm) {
-      // Add first 10 nodes
       allNodes.slice(0, 10).forEach((entry) => {
         const result = entryToSearchResult(entry, "node")
         if (result) results.push(result)
       })
-
-      // Add first 10 extensions
-      allExtensions.slice(0, 10).forEach((entry) => {
-        const result = entryToSearchResult(entry, "extension")
-        if (result) results.push(result)
-      })
-
       return results
     }
 
@@ -190,7 +183,24 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
     // Add sorted node results
     nodeMatches.forEach(({ result }) => results.push(result))
 
+    return results
+  }, [searchTerm, allNodes, entryToSearchResult])
+
+  // Filter extension results based on search term
+  const extensionResults = useMemo(() => {
+    const results: SearchResult[] = []
+
+    // If no search term, show first 10 extensions
+    if (!searchTerm) {
+      allExtensions.slice(0, 10).forEach((entry) => {
+        const result = entryToSearchResult(entry, "extension")
+        if (result) results.push(result)
+      })
+      return results
+    }
+
     // Filter extensions based on search term
+    const term = searchTerm.toLowerCase()
     allExtensions.forEach((entry) => {
       const result = entryToSearchResult(entry, "extension")
       if (result && result.name.toLowerCase().includes(term)) {
@@ -198,35 +208,15 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
       }
     })
 
-    // Add file search results
-    // Filter out duplicates that might be already in nodeResults (if any)
-    // For now just append
-    fileResults.forEach((result) => {
-      // Avoid duplicates if possible (check ID/path)
-      if (!results.some((r) => r.path === result.path)) {
-        results.push(result)
-      }
-    })
-
     return results
-  }, [searchTerm, allNodes, allExtensions, fileResults, entryToSearchResult])
-
-  // Group results by type
-  const nodeResults = useMemo(
-    () => searchResults.filter((r) => r.type === "node"),
-    [searchResults]
-  )
-  const extensionResults = useMemo(
-    () => searchResults.filter((r) => r.type === "extension"),
-    [searchResults]
-  )
+  }, [searchTerm, allExtensions, entryToSearchResult])
 
   return {
     searchTerm,
     setSearchTerm,
-    searchResults,
     nodeResults,
     extensionResults,
+    fileResults,
     isLoading,
     performSearch,
   }

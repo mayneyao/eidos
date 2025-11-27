@@ -30,9 +30,9 @@ export function GlobalSearch() {
   const {
     searchTerm,
     setSearchTerm,
-    searchResults,
     nodeResults,
     extensionResults,
+    fileResults,
     isLoading,
   } = useGlobalSearch(sqlite, isGlobalSearchOpen)
 
@@ -191,11 +191,14 @@ export function GlobalSearch() {
               </div>
             ) : (
               <>
-                {searchTerm && searchResults.length === 0 && (
-                  <CommandEmpty>
-                    <span>No results found for &quot;{searchTerm}&quot;</span>
-                  </CommandEmpty>
-                )}
+                {searchTerm &&
+                  nodeResults.length === 0 &&
+                  extensionResults.length === 0 &&
+                  fileResults.length === 0 && (
+                    <CommandEmpty>
+                      <span>No results found for &quot;{searchTerm}&quot;</span>
+                    </CommandEmpty>
+                  )}
 
                 {nodeResults.length > 0 &&
                   (() => {
@@ -278,45 +281,36 @@ export function GlobalSearch() {
                   </CommandGroup>
                 )}
 
-                {searchResults.filter((r) => r.type === "file").length > 0 && (
-                  <CommandGroup
-                    heading={`Files (${searchResults.filter((r) => r.type === "file").length})`}
-                  >
-                    {searchResults
-                      .filter((r) => r.type === "file")
-                      .slice(0, 50)
-                      .map((result) => (
-                        <CommandItem
-                          key={result.id}
-                          value={`${result.name} - ${result.path}`}
-                          onSelect={() => handleSelect(result)}
-                        >
-                          <FileTextIcon className="mr-2 h-4 w-4" />
-                          <div className="flex items-center justify-between flex-1 min-w-0 gap-2">
-                            <span className="truncate">
+                {fileResults.length > 0 && (
+                  <CommandGroup heading={`Files (${fileResults.length})`}>
+                    {fileResults.slice(0, 50).map((result) => (
+                      <CommandItem
+                        key={result.path}
+                        value={`${result.name} - ${result.path}`}
+                        onSelect={() => handleSelect(result)}
+                      >
+                        <FileTextIcon className="mr-2 h-4 w-4" />
+                        <div className="flex items-center justify-between flex-1 min-w-0 gap-2">
+                          <span className="truncate">
+                            {highlightText(
+                              result.name || "Untitled",
+                              searchTerm
+                            )}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-muted-foreground truncate">
                               {highlightText(
-                                result.name || "Untitled",
+                                getDirectoryPath(result.path),
                                 searchTerm
                               )}
                             </span>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-xs text-muted-foreground truncate">
-                                {highlightText(
-                                  getDirectoryPath(result.path),
-                                  searchTerm
-                                )}
-                              </span>
-                            </div>
                           </div>
-                        </CommandItem>
-                      ))}
-                    {searchResults.filter((r) => r.type === "file").length >
-                      50 && (
+                        </div>
+                      </CommandItem>
+                    ))}
+                    {fileResults.length > 50 && (
                       <div className="px-2 py-1 text-xs text-muted-foreground">
-                        +
-                        {searchResults.filter((r) => r.type === "file").length -
-                          50}{" "}
-                        more results
+                        +{fileResults.length - 50} more results
                       </div>
                     )}
                   </CommandGroup>
