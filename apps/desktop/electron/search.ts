@@ -29,24 +29,24 @@ async function getExecutablePath(): Promise<string> {
 export async function searchWithRg(query: string, searchPaths: string[]): Promise<string[]> {
     const binPath = await getExecutablePath()
 
-    // Parse query into keywords
+    // Parse query into keywords (VSCode-style)
     const keywords = query.split(/\s+/).filter(k => k.length > 0)
     if (keywords.length === 0) {
         return []
     }
 
-    // Use the longest keyword for the initial glob to optimize search
-    const primaryKeyword = keywords.reduce((a, b) => a.length >= b.length ? a : b)
+    // Build glob patterns for all keywords
+    // Multiple --glob patterns work as AND conditions in ripgrep
+    const globArgs = keywords.flatMap(keyword => ['--glob', `*${keyword}*`])
 
     try {
         // Run ripgrep
         // --files: Print each file that would be searched without actually performing the search
-        // --glob: Include or exclude files and directories for searching that match the given glob
-        // -i: Ignore case
+        // --glob: Multiple patterns require ALL to match (AND logic, VSCode-style)
         const { stdout } = await execFileAsync(binPath, [
             '--files',
             '--hidden',
-            '--glob', `*${primaryKeyword}*`,
+            ...globArgs,
             '--ignore-case',
             ...searchPaths
         ], {
