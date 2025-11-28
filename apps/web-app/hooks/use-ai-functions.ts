@@ -116,9 +116,10 @@ export const useAIFunctions = () => {
     }
     switch (name) {
       case "createRecords":
-        const { table_id, records } = parameters
-        const res1 = await sqlite?.createRecords(table_id, records)
-        return res1
+        return "not supported"
+        // const { table_id, records } = parameters
+        // const res1 = await sqlite?.createRecords(table_id, records)
+        // return res1
       case "sqlQuery":
         const { sql } = parameters
         const scope = "SQL." + sql?.trim().toUpperCase().split(" ")[0]

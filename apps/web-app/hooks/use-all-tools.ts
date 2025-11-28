@@ -2,10 +2,10 @@ import type { Tool } from "ai"
 import { useEffect, useMemo, useState } from "react"
 import type { IExtension, ToolMeta } from "@/packages/core/types/IExtension"
 import { useSqlite } from "./use-sqlite"
-import { createRecordsTool } from "./tools/table"
+// import { createRecordsTool } from "./tools/table"
 
 const builtInTools = {
-    createRecords: createRecordsTool,
+    // createRecords: createRecordsTool,
 }
 
 export const useAllTools = (): Record<string, Tool> => {
