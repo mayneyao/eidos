@@ -16,6 +16,8 @@
     "cmdk.enableGodMode": "启用创作者模式",
     "cmdk.disableGodMode": "禁用创作者模式",
     "cmdk.themeStudio": "主题工作室",
+    "cmdk.reload": "重载应用",
+    "cmdk.reload.desc": "重新加载应用程序",
     "cmdk.migrateFilePaths": "修复文件路径（全部）",
     "cmdk.migrateFilePaths.desc": "修复 eidos__files 表中的路径，影响图片和文件选择器",
     "cmdk.migrateFilePaths.noMigrationNeeded": "无需迁移",

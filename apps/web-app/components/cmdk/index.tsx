@@ -368,6 +368,11 @@ export function CommandDialogDemo() {
     setCmdkOpen(false)
   }
 
+  const handleReloadApp = async () => {
+    setCmdkOpen(false)
+    await window.eidos.reloadApp()
+  }
+
   const { t } = useTranslation()
 
   return (
@@ -483,6 +488,15 @@ export function CommandDialogDemo() {
                 <Palette className="mr-2 h-4 w-4" />
                 <span>{t("cmdk.switchTheme")}</span>
                 <CommandShortcut>⌘+Shift+L</CommandShortcut>
+              </CommandItem>
+              <CommandItem onSelect={handleReloadApp}>
+                <RefreshCcwIcon className="mr-2 h-4 w-4" />
+                <div className="flex flex-col">
+                  <span>{t("cmdk.reload")}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("cmdk.reload.desc")}
+                  </span>
+                </div>
               </CommandItem>
               <CommandItem
                 onSelect={() => {

@@ -16,6 +16,8 @@
     "cmdk.enableGodMode": "Enable Creator Mode",
     "cmdk.disableGodMode": "Disable Creator Mode",
     "cmdk.themeStudio": "Theme Studio",
+    "cmdk.reload": "Reload App",
+    "cmdk.reload.desc": "Reload the application",
     "cmdk.migrateFilePaths": "Fix File Paths (All)",
     "cmdk.migrateFilePaths.desc": "Fixes paths in eidos__files table for image/file pickers",
     "cmdk.migrateFilePaths.noMigrationNeeded": "No Migration Needed",

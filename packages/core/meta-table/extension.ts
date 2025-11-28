@@ -131,24 +131,24 @@ export class ExtensionTable
     await this.dataSpace.db.transaction(async () => {
       // Get extension info before deletion to check if it's a file handler
       const extension = await this.get(id)
-      
+
       // If it's a file handler, clean up default handler KV entries
       if (extension && extension.meta?.type === BlockExtensionType.FileHandler) {
         const meta = extension.meta as FileHandlerMeta
         const fileExtensions = meta.fileHandler?.extensions || []
-        
+
         // For each file extension this handler supports, check if it's the default handler
         for (const fileExtension of fileExtensions) {
           const key = `eidos:space:file:handler:default:${fileExtension}`
           const defaultHandlerId = await this.dataSpace.kv.get(key, 'text')
-          
+
           // If this extension is the default handler for this file extension, remove it
           if (defaultHandlerId === id) {
             await this.dataSpace.kv.delete(key)
           }
         }
       }
-      
+
       await this.dataSpace.exec2(`DELETE FROM ${this.name} WHERE id = ?`, [id])
       const chatIds = await this.dataSpace.chat.getChatIdsByProjectId(id)
       await Promise.all(chatIds.map(chatId => this.dataSpace.chat.del(chatId)))
@@ -169,23 +169,23 @@ export class ExtensionTable
     // Create placeholders for the IN clause
     const placeholders = ids.map(() => '?').join(',')
     const sql = `SELECT * FROM ${this.name} WHERE id IN (${placeholders})`
-    
+
     const res = await this.dataSpace.exec2(sql, ids)
-    
+
     // Create a map of results
     const result: Record<string, IExtension | null> = {}
-    
+
     // Initialize all requested IDs as null
     ids.forEach(id => {
       result[id] = null
     })
-    
+
     // Fill in the found extensions
     res.forEach((item: any) => {
       const extension = this.toJson(item)
       result[extension.id] = extension
     })
-    
+
     return result
   }
 
