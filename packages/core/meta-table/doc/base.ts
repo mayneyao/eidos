@@ -42,7 +42,7 @@ export class BaseDocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc>
     UPDATE ${this.name} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
   END;
 
-  CREATE INDEX IF NOT EXISTS idx_${this.name}_markdown_trigram ON ${this.name}(markdown trigram) WHERE markdown IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_${this.name}_markdown_trigram ON ${this.name}(markdown) WHERE markdown IS NOT NULL;
 `
 
 }
