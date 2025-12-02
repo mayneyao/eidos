@@ -1,6 +1,6 @@
 import { useCallback } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
@@ -24,7 +24,7 @@ export const useFileTreeOperations = (rootDir?: string) => {
   const { pin: pinNode, unpin: unpinNode } = useNode()
   const { addNode: addToChat } = useContextNodes()
   const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { toast } = useToast()
 
   const isVirtualNodesPath = rootDir?.startsWith("~/.eidos/__NODES__")

@@ -1,12 +1,12 @@
 import { ArrowLeft, ArrowUpRight } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { getBlockIdFromUrl, isDayPageId } from "@/lib/utils"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 export const NodeContextMenu = ({ url }: { url: string }) => {
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { space } = useCurrentPathInfo()
 
   const handleGoToNode = (e: Event) => {

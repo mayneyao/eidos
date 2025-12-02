@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection"
-import { useNavigate } from "react-router-dom"
 
 import { cn, isDayPageId } from "@/lib/utils"
 import {
@@ -14,6 +13,7 @@ import { useDocProperty } from "@/components/doc-property-global/hook"
 import { ItemIcon } from "@/components/sidebar/nodes"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { NodeIconEditor } from "@/apps/web-app/pages/[database]/[node]/node-icon"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 
@@ -32,7 +32,7 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
   const { space } = useCurrentPathInfo()
   const { getNode } = useQueryNode()
   const { id } = props
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { markerProperty, showReferenceNodeIcon } = useEditorInstance()
   const { properties } = useDocProperty({ docId: id })
   const { setTempPanelNode, setIsRightPanelOpen, clearCurrentApp } =
@@ -56,9 +56,9 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
     }
 
     if (isDayPageId(id)) {
-      return router(`/journals/${id}`)
+      return navigate(`/journals/${id}`)
     }
-    router(`/${id}`)
+    navigate(`/${id}`)
   }
 
   useEffect(() => {

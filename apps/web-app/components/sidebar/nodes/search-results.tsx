@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react"
 import { BlocksIcon, ChevronDown, ChevronRight } from "lucide-react"
-import { useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import type { ISearchNodes } from "@/components/cmdk/hooks"
 import type { ISearchExtensions } from "@/apps/web-app/hooks/use-query-extension"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { ExtNodeBadge } from "../../ext-node-badge"
 import { IconRenderer } from "../../ui/icon-picker"
@@ -34,7 +34,7 @@ export const SearchResults = ({
   isContentExpanded,
   setIsContentExpanded,
 }: SearchResultsProps) => {
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const selectedRef = useRef<HTMLDivElement>(null)
 
   const handleNavigate = (id: string, itemType?: string) => {
@@ -70,7 +70,7 @@ export const SearchResults = ({
     ...(isItemsExpanded ? itemMatches : []),
     ...(isContentExpanded ? ftsResults : []),
   ]
-  
+
   // Get section title based on type
   const itemsTitle = type === "nodes" ? "Nodes" : "Extensions"
 
@@ -99,7 +99,9 @@ export const SearchResults = ({
               ) : (
                 <ChevronRight className="h-3 w-3" />
               )}
-              <span className="select-none">{itemsTitle} ({itemMatches.length})</span>
+              <span className="select-none">
+                {itemsTitle} ({itemMatches.length})
+              </span>
             </div>
             {isItemsExpanded && (
               <div className="space-y-0.5 px-2">
@@ -130,11 +132,11 @@ export const SearchResults = ({
                     >
                       {type === "nodes" ? (
                         <>
-                      <ItemIcon
+                          <ItemIcon
                             type={(item as ISearchNodes).type}
-                        className="h-4 w-4 flex-shrink-0 opacity-70"
-                      />
-                      <span className="flex-1 truncate text-sm min-w-0">
+                            className="h-4 w-4 flex-shrink-0 opacity-70"
+                          />
+                          <span className="flex-1 truncate text-sm min-w-0">
                             {item.name}
                           </span>
                           <ExtNodeBadge type={(item as ISearchNodes).type} />
@@ -142,7 +144,9 @@ export const SearchResults = ({
                       ) : (
                         <>
                           {(item as ISearchExtensions).icon ? (
-                            (item as ISearchExtensions).icon!.startsWith("data:image") ? (
+                            (item as ISearchExtensions).icon!.startsWith(
+                              "data:image"
+                            ) ? (
                               <img
                                 src={(item as ISearchExtensions).icon}
                                 alt="extension icon"
@@ -159,7 +163,7 @@ export const SearchResults = ({
                           )}
                           <span className="flex-1 truncate text-sm min-w-0">
                             {(item as ISearchExtensions).slug}
-                      </span>
+                          </span>
                         </>
                       )}
                     </div>
@@ -198,9 +202,10 @@ export const SearchResults = ({
                   const currentIndex =
                     (isItemsExpanded ? itemMatches.length : 0) + idx
                   const isSelected = selectedIndex === currentIndex
-                  const displayName = type === "nodes" 
-                    ? (item as ISearchNodes).name 
-                    : (item as ISearchExtensions).slug
+                  const displayName =
+                    type === "nodes"
+                      ? (item as ISearchNodes).name
+                      : (item as ISearchExtensions).slug
                   return (
                     <div
                       key={item.id}

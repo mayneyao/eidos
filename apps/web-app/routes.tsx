@@ -1,0 +1,74 @@
+import React from "react"
+import { RouteObject, redirect } from "react-router-dom"
+
+import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
+import { BlocksPage } from "@/apps/web-app/pages/[database]/blocks/page"
+import { ExtensionDetailPage } from "@/apps/web-app/pages/[database]/extensions/detail"
+import { ExtensionsEmptyState } from "@/apps/web-app/pages/[database]/extensions/empty-state"
+import { ExtensionsLayout } from "@/apps/web-app/pages/[database]/extensions/layout"
+import { FileHandlerPage } from "@/apps/web-app/pages/[database]/file-handler/page"
+import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
+import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
+import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
+import { SpaceSetting } from "@/apps/web-app/pages/[database]/settings/page"
+
+export const spaceRoutes: RouteObject[] = [
+  {
+    index: true,
+    element: <SpaceHomePage />,
+  },
+  {
+    path: "settings",
+    element: <SpaceSetting />,
+  },
+  {
+    path: "file-handler",
+    element: <FileHandlerPage />,
+  },
+  {
+    path: "blocks",
+    children: [
+      {
+        path: ":blockId",
+        element: <BlocksPage />,
+      },
+    ],
+  },
+  {
+    path: "extensions",
+    element: <ExtensionsLayout />,
+    children: [
+      {
+        index: true,
+        element: <ExtensionsEmptyState />,
+      },
+      {
+        path: ":scriptId",
+        loader: async ({ params }) => {
+          if (!(window as any)?.sqlite) {
+            return null
+          }
+          return await (window as any)?.sqlite?.extension.get(params.scriptId)
+        },
+        element: <ExtensionDetailPage />,
+      },
+    ],
+  },
+  {
+    path: "journals",
+    children: [
+      {
+        index: true,
+        element: <EverydayHomePage />,
+      },
+      {
+        path: ":day",
+        element: <EverydayPage />,
+      },
+    ],
+  },
+  {
+    path: ":table",
+    element: <NodePage />,
+  },
+]

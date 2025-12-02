@@ -3,6 +3,8 @@ import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 
 import { getLocalDate, isWeekNodeId } from "@/lib/utils"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
+import { Editor } from "@/components/doc/editor"
 // import { Button } from "@/components/ui/button"
 // import { Calendar } from "@/components/ui/calendar"
 // import {
@@ -11,7 +13,6 @@ import { getLocalDate, isWeekNodeId } from "@/lib/utils"
 //   PopoverTrigger,
 // } from "@/components/ui/popover"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { Editor } from "@/components/doc/editor"
 
 import { WeekPage } from "../[week]/page"
 import { useDays } from "../hooks"
@@ -28,13 +29,13 @@ export function EverydayPageContent({
   const [open, setOpen] = useState(false)
   const isWeekPage = isWeekNodeId(day)
   const [month, setMonth] = useState<Date>(new Date(day as string))
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { days } = useDays()
   const { isCmdkOpen } = useAppRuntimeStore()
   const handleDayClick = (date: Date, closePopover = false) => {
     const day = getLocalDate(date)
     setMonth(date)
-    router(`/journals/${day}`)
+    navigate(`/journals/${day}`)
     closePopover && setOpen(false)
   }
   if (isWeekPage) {

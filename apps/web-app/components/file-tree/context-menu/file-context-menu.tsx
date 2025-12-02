@@ -15,7 +15,7 @@ import {
   ZapIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useFileActions } from "@/hooks/use-file-actions"
 import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
@@ -55,7 +55,7 @@ export const FileContextMenu = ({
   onDelete,
 }: FileContextMenuProps) => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const fileExtension = getFileExtension(node.path)
   const { handlers, isLoading: isLoadingHandlers } =
     useFileHandlers(fileExtension)

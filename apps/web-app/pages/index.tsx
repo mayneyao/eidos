@@ -21,6 +21,7 @@ import ShareLayout from "@/apps/web-app/pages/share/[database]/layout"
 // share
 import SharePage from "@/apps/web-app/pages/share/page"
 
+import { spaceRoutes } from "../routes"
 import { NotFound } from "./404"
 import { BlocksPage } from "./[database]/blocks/page"
 import { ExtensionDetailPage } from "./[database]/extensions/detail"
@@ -92,68 +93,7 @@ const router = createBrowserRouter([
             return null
           }
         },
-        children: [
-          {
-            index: true,
-            element: <SpaceHomePage />,
-          },
-          {
-            path: "settings",
-            element: <SpaceSetting />,
-          },
-          {
-            path: "file-handler",
-            element: <FileHandlerPage />,
-          },
-          {
-            path: "blocks",
-            children: [
-              {
-                path: ":blockId",
-                element: <BlocksPage />,
-              },
-            ],
-          },
-          {
-            path: "extensions",
-            element: <ExtensionsLayout />,
-            children: [
-              {
-                index: true,
-                element: <ExtensionsEmptyState />,
-              },
-              {
-                path: ":scriptId",
-                loader: async ({ params }) => {
-                  if (!(window as any)?.sqlite) {
-                    return null
-                  }
-                  return await (window as any)?.sqlite?.extension.get(
-                    params.scriptId
-                  )
-                },
-                element: <ExtensionDetailPage />,
-              },
-            ],
-          },
-          {
-            path: "journals",
-            children: [
-              {
-                index: true,
-                element: <EverydayHomePage />,
-              },
-              {
-                path: ":day",
-                element: <EverydayPage />,
-              },
-            ],
-          },
-          {
-            path: ":table",
-            element: <NodePage />,
-          },
-        ],
+        children: spaceRoutes,
       },
       {
         path: "share",

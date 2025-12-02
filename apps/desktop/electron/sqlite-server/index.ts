@@ -3,7 +3,6 @@ import Database from '@eidos.space/better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { generatePragmaList } from './config';
-import { parseGraftStatus } from '@/packages/sync/src/parsers';
 import { scanCustomExtensions, loadCustomExtensions } from '@/apps/desktop/electron/sqlite-server/sqlite-extension';
 
 
@@ -361,10 +360,9 @@ export class NodeServerDatabase extends BaseServerDatabase {
             return Promise.resolve({ error: 'Expected string value from pragma graft_status' });
         }
 
-        const parsedStatus = parseGraftStatus(statusString);
-
+        // const parsedStatus = parseGraftStatus(statusString);
         // this.logger.log('Parsed graft_status:', parsedStatus);
-        return Promise.resolve(parsedStatus);
+        return Promise.resolve(statusString);
     }
 
 

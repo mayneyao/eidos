@@ -1,18 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { useNavigate } from "react-router-dom";
-
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 export default function Page() {
   const [link, setLink] = useState("")
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
   const goShare = () => {
     const path = link.split("/share")[1]
-    router("/share" + path)
+    navigate("/share" + path)
   }
   return (
     <div className="flex h-full w-full flex-col items-center justify-center">

@@ -1,15 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useNavigate, useParams } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { Calendar } from "@/components/ui/calendar"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
 
 export const TodayContent = () => {
-  const router = useNavigate()
-  const { space } = useCurrentPathInfo()
-  const { day } = useParams()
+  const { navigate, params } = useRouterAdapter()
+  const { day } = params
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     day ? new Date(day) : new Date()
   )
@@ -22,7 +20,7 @@ export const TodayContent = () => {
 
   const handleDateSelect = (date: Date) => {
     const dateString = date.toLocaleDateString("en-CA").split("T")[0]
-    router(`/journals/${dateString}`)
+    navigate(`/journals/${dateString}`)
   }
 
   return (

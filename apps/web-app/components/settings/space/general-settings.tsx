@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { AlertTriangle, FolderOpen, Save, Search } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { isDesktopMode } from "@/lib/env"
 import {
@@ -28,7 +28,7 @@ export function GeneralSettings() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
   const { deleteSpace, rebuildIndex, renameSpace, spaceList, updateSpaceList } = useSpace()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { close } = useEngine()
   const { toast } = useToast()
 

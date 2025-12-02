@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { useLocation } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useAIConfigStore } from "@/components/settings/stores"
 import { AIModelSelect } from "@/components/ai-chat/ai-chat-model-select"
@@ -29,7 +29,7 @@ export function AITaskConfigForm({
   })
   const { reset } = form
   const { t } = useTranslation()
-  const location = useLocation()
+  const { location } = useRouterAdapter()
   const { isDirty } = form.formState
 
   useEffect(() => {

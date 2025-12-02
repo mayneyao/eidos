@@ -24,7 +24,7 @@ interface FileTreeNodeProps {
   isVirtualNode: boolean
   isPinned: boolean
   onToggle: () => void
-  onFileClick: () => void
+  onFileClick: (event?: React.MouseEvent) => void
   onRename: (node: FileTreeNodeType) => void
   onRenameConfirm: (newName: string) => void
   onRenameCancel: () => void
@@ -131,11 +131,11 @@ export const FileTreeNode = ({
           onDragEnter={canDrop ? onDragEnter : undefined}
           onDragLeave={canDrop ? onDragLeave : undefined}
           onDrop={canDrop ? onDrop : undefined}
-          onClick={() => {
+          onClick={(e) => {
             if (hasChildren) {
               onToggle()
             } else {
-              onFileClick()
+              onFileClick(e)
             }
           }}
         >

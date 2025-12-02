@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { cn, isStandaloneBlocksPath } from "@/lib/utils"
 import { isWindowsDesktop } from "@/lib/web/helper"
@@ -14,7 +14,7 @@ export function WindowControls() {
     return () => unsubscribe()
   }, [])
 
-  const { pathname } = useLocation()
+  const { location } = useRouterAdapter(); const { pathname } = location
   const isAppWindow = isStandaloneBlocksPath(pathname)
 
   return (

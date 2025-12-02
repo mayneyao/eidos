@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { detectDirective } from "@eidos.space/v3"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
@@ -10,7 +10,7 @@ import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
  */
 export const useBlockTabClick = (blocks: Record<string, any>) => {
   const { setCurrentApp } = useSidebarStore()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
 
   return useCallback((tabId: string) => {
     const block = blocks[tabId]

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useDebounceFn, useKeyPress } from "ahooks"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { Input } from "@/components/ui/input"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
@@ -22,7 +22,7 @@ export const TreeSearch = () => {
   const inputRef = useRef<HTMLInputElement>(null)
   const { fullTextSearch } = useQueryNode()
   const { space } = useCurrentPathInfo()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
 
   // Calculate visible nodes for keyboard navigation (FTS results only)
   const visibleNodes = searchResults

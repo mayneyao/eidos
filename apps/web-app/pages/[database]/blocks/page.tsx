@@ -1,17 +1,18 @@
-import { useParams, useLocation } from "react-router-dom"
-
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { BlockApp } from "@/components/block-renderer/block-app"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 export const BlocksPage = () => {
-  const { blockId } = useParams()
+  const {
+    params: { blockId },
+  } = useRouterAdapter()
   const { space } = useCurrentPathInfo()
-  const location = useLocation()
-  
+  const { location } = useRouterAdapter()
+
   if (!blockId) {
     return <div>Block not found</div>
   }
-  
+
   const url = `block://${blockId}@${space}${location.hash}`
   return <BlockApp url={url} height={"100%"} />
 }

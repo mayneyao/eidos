@@ -13,9 +13,10 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 
 import { cn, getBlockIdFromUrl, isDayPageId } from "@/lib/utils"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { Button } from "@/components/ui/button"
 import {
   ContextMenu,
@@ -29,6 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Link } from "@/components/ui/link"
 import { AIChatHeader } from "@/components/ai-chat/ai-chat-header"
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
@@ -39,8 +41,8 @@ import {
 } from "@/apps/web-app/pages/[database]/store"
 
 import { BlockContextMenu } from "./block-context-menu"
-import { NodeContextMenu } from "./node-context-menu"
 import { NodeAppPanel } from "./node-app-panel"
+import { NodeContextMenu } from "./node-context-menu"
 
 const DefaultAppInfoMap: Record<
   string,
@@ -73,7 +75,7 @@ export const RightPanelNav = () => {
   const { apps, addApp, deleteApp } = useAppsStore()
   const { space } = useCurrentPathInfo()
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const nodeMap = useNodeMap()
 
   const handleAppChange = (app: string) => {
@@ -276,9 +278,7 @@ export const RightPanelNav = () => {
                         setUrl={(newUrl) => updateApp(app, newUrl)}
                       />
                     )}
-                    {isNode && (
-                      <NodeContextMenu url={app} />
-                    )}
+                    {isNode && <NodeContextMenu url={app} />}
                   </ContextMenuContent>
                 </ContextMenu>
               ) : (

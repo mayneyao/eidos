@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react"
 import { format } from "date-fns"
 import { ExternalLink } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
@@ -28,7 +28,7 @@ export const DateEditor: React.FC<PropertyEditorProps> = ({
 }) => {
   const [editingValue, setEditingValue] = useState<string>("")
   const inputRef = useRef<HTMLInputElement>(null)
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { space: databaseId } = useCurrentPathInfo()
 
   const isEmpty = propIsEmpty ?? isPropertyEmpty(value)

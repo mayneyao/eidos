@@ -1,7 +1,7 @@
 import * as React from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link } from "@/components/ui/link"
 
 import { cn } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"

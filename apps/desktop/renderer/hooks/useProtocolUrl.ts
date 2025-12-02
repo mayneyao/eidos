@@ -4,11 +4,11 @@ import { isDesktopMode } from "@/lib/env";
 import { getSqliteProxy } from "@/packages/core/sqlite/channel";
 import { getToday, uuidv7 } from "@/lib/utils";
 import { useCallback, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter";
 import { useExtensionInstaller } from "./useExtensionInstaller";
 
 export const useProtocolUrl = () => {
-    const navigate = useNavigate();
+    const { navigate } = useRouterAdapter();
     const { id: userId } = useCurrentUser();
     const listenerRef = useRef<any>();
     const { installExtension } = useExtensionInstaller();
@@ -61,7 +61,7 @@ export const useProtocolUrl = () => {
                 if ('space' in searchParams) {
                     const spaceId = searchParams['space'];
                     console.log(`Opening space from CLI: ${spaceId}`);
-                    
+
                     // In desktop mode, use Electron IPC to switch space
                     if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
                         try {

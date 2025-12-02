@@ -10,7 +10,7 @@ import {
   resolveLocalFileDependencies,
   type ResolvedFile,
 } from "@eidos.space/v3"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import ts from "typescript/lib/typescript"
 
 import { useAllScripts } from "@/hooks/use-all-scripts"
@@ -87,7 +87,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
   ) => {
     const dynamicPrompt = useMemo(() => getDynamicPrompt(bindings), [bindings])
 
-    const navigate = useNavigate()
+    const { navigate } = useRouterAdapter()
     const { space } = useCurrentPathInfo()
     const { sqlite } = useSqlite()
     const allScripts = useAllScripts()

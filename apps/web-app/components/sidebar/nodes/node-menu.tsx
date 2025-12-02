@@ -18,7 +18,6 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
 
 import { isInkServiceMode } from "@/lib/env"
 import {
@@ -41,6 +40,7 @@ import { useAllExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import {
   useAppsStore,
@@ -154,11 +154,11 @@ export function NodeItem({
     }
   }, [renameInputRef])
 
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
 
   const handleDeleteTable = () => {
     deleteNode(node)
-    router(`/${databaseName}`)
+    navigate(`/${databaseName}`)
   }
   const handleRename: MouseEventHandler<HTMLDivElement> = (e) => {
     setRenameOpen(true)

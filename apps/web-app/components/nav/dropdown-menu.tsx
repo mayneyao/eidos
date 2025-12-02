@@ -24,13 +24,14 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
+import { Link } from "@/components/ui/link"
 
 import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { isDayPageId } from "@/lib/utils"
-import { useFileItemActions } from "@/hooks/use-file-item-actions"
 import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
+import { useFileItemActions } from "@/hooks/use-file-item-actions"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import {
@@ -62,6 +63,7 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useEmbedding } from "@/apps/web-app/hooks/use-embedding"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useOpenInPlayground } from "@/apps/web-app/hooks/use-open-in-playground"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
 import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
@@ -71,20 +73,20 @@ import {
   useSpaceAppStore,
 } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { useToast } from "../ui/use-toast"
 
 import { CopyShowHide } from "../copy-show-hide"
 import { NodeMoveInto } from "../node-menu/move-into"
 import { NodeExport } from "../node-menu/node-export"
 import { NodeOpenInCursor } from "../node-menu/open-in-cursor"
 import { Switch } from "../ui/switch"
+import { useToast } from "../ui/use-toast"
 import { VCardQrCode } from "../vcard-qr-code"
 import { UpdateStatusComponent } from "./update-status"
 
 export function NavDropdownMenu() {
   const { t } = useTranslation()
-  const router = useNavigate()
-  const location = useLocation()
+  const { navigate: router } = useRouterAdapter()
+  const { location } = useRouterAdapter()
   const params = useParams()
   const [open, setOpen] = useState(false)
 
@@ -100,7 +102,6 @@ export function NavDropdownMenu() {
   const isBlocksPage = location.pathname.includes("/blocks")
   const blockId = isBlocksPage ? params.blockId : null
 
-
   // Show menu item if we're on file-handler page and have a handler, or on blocks page with block ID
   const showViewExtension =
     (isFileHandlerPage &&
@@ -115,7 +116,8 @@ export function NavDropdownMenu() {
     : t("nav.dropdown.menu.viewBlock", "View Block Extension")
 
   // Show "Open with" submenu if we're on file-handler page and have multiple handlers
-  const showOpenWith = isFileHandlerPage && !isLoadingAllHandlers && allHandlers.length > 1
+  const showOpenWith =
+    isFileHandlerPage && !isLoadingAllHandlers && allHandlers.length > 1
 
   const { sqlite, deleteNode, toggleNodeFullWidth, toggleNodeLock } =
     useSqlite()
@@ -150,7 +152,8 @@ export function NavDropdownMenu() {
     isBlocksPage,
   }
 
-  const { openInFileManager, openWith, viewExtension } = useFileItemActions(fileActionsContext)
+  const { openInFileManager, openWith, viewExtension } =
+    useFileItemActions(fileActionsContext)
 
   const onPlaygroundChange = useCallback(
     async (
@@ -311,7 +314,9 @@ export function NavDropdownMenu() {
                           onClick={() => openWith(handler)}
                         >
                           {meta.fileHandler.icon && (
-                            <span className="mr-2">{meta.fileHandler.icon}</span>
+                            <span className="mr-2">
+                              {meta.fileHandler.icon}
+                            </span>
                           )}
                           {meta.fileHandler.title || handler.name}
                         </DropdownMenuItem>

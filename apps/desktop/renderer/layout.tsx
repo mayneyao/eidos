@@ -1,6 +1,5 @@
 import "@/styles/globals.css"
 import { useEffect } from "react"
-import { Outlet } from "react-router-dom"
 
 import { useSyncFileActions } from "@/hooks/use-all-file-actions"
 import { useSyncFileHandlers } from "@/hooks/use-all-file-handlers"
@@ -21,7 +20,11 @@ import { useAppStoreBase } from "@/apps/web-app/store/app-store"
 
 import { useProtocolUrl } from "./hooks/useProtocolUrl"
 
-export default function RootLayout() {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const { isInitialized, initWorker } = useWorker()
   const { isSidebarOpen, setSidebarOpen } = useAppStoreBase()
   useProtocolUrl()
@@ -47,9 +50,7 @@ export default function RootLayout() {
             id="drag-region"
           ></div>
           {/* APP MODEL， a sidebar and main */}
-          <div className="flex h-screen w-screen overflow-auto">
-            <Outlet />
-          </div>
+          <div className="flex h-screen w-screen overflow-auto">{children}</div>
           <WindowControls />
           <CommandDialogDemo />
           <ShortCuts />

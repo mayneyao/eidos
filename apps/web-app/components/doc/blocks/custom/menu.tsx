@@ -2,7 +2,7 @@ import { useState } from "react"
 import type { LexicalEditor, NodeKey } from "lexical";
 import { $getNodeByKey } from "lexical"
 import { ArrowUpRight, Settings, Trash2 } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useExtensionNavigate } from "@/apps/web-app/hooks/use-extension-navigate"
 import { Button } from "@/components/ui/button"

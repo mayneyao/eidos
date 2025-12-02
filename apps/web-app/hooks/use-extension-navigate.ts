@@ -1,5 +1,5 @@
 import { getBlockIdFromUrl } from "@/lib/utils"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useCurrentPathInfo } from "./use-current-pathinfo"
 
 
@@ -8,7 +8,7 @@ import { useCurrentPathInfo } from "./use-current-pathinfo"
  * navigate("block://<blockid>?params=xxx") will redirect to the block page
  */
 export const useExtensionNavigate = () => {
-    const navigate = useNavigate()
+    const { navigate } = useRouterAdapter()
     const { space } = useCurrentPathInfo()
     return (url: string) => {
         const blockId = getBlockIdFromUrl(url)
@@ -20,7 +20,7 @@ export const useExtensionNavigate = () => {
 
 
 export const useExtensionNavigateById = () => {
-    const navigate = useNavigate()
+    const { navigate } = useRouterAdapter()
     const { space } = useCurrentPathInfo()
     return (id: string) => {
         navigate(`/extensions/${id}`)

@@ -12,12 +12,14 @@ import {
   ToyBrickIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
+import { Link } from "@/components/ui/link"
 
 import { cn } from "@/lib/utils"
 import { isMacDesktop } from "@/lib/web/helper"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
@@ -124,7 +126,7 @@ export const SidebarTabs = () => {
   const { currentApp, setCurrentApp } = useSidebarStore()
   const { tabs: tabIds, addTab, removeTab, reorderTabs } = useTabsKV()
   const { space } = useCurrentPathInfo()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
 
   // Get block IDs (non-fixed tabs)
   const blockIds = useMemo(
@@ -208,7 +210,8 @@ export const SidebarTabs = () => {
 
       // Measure sidebar/container width dynamically instead of hardcoding.
       // Prefer the parent element of the header bar (sidebar container) when available.
-      const sidebarEl = containerRef.current?.parentElement ?? containerRef.current
+      const sidebarEl =
+        containerRef.current?.parentElement ?? containerRef.current
       const sidebarWidth = sidebarEl ? Math.floor(sidebarEl.clientWidth) : 320
       const tabWidth = 32 // w-8 = 32px
       const gap = 2 // gap-0.5 = 2px
@@ -246,7 +249,8 @@ export const SidebarTabs = () => {
     calculateVisibleTabs()
 
     // Use ResizeObserver to monitor container width changes
-    const sidebarEl = containerRef.current?.parentElement ?? containerRef.current
+    const sidebarEl =
+      containerRef.current?.parentElement ?? containerRef.current
     if (!sidebarEl) return
 
     const resizeObserver = new ResizeObserver(() => {

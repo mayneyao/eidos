@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link } from "@/components/ui/link"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"

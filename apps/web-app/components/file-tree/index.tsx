@@ -1,12 +1,11 @@
-"use client"
-
 import React, { useRef, useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
-import { useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import { FileTreeNode } from "./file-tree-node"
 import { useFileTreeData } from "./use-file-tree-data"
@@ -29,7 +28,7 @@ interface FileTreeProps {
 
 const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const { sqlite } = useSqlite()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { isFavorite } = useFavBlocks()
 
   // Determine which mode we're in
@@ -111,7 +110,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     setExpandedNodes(newExpanded)
   }
 
-  const handleFileClick = (node: FileTreeNode) => {
+  const handleFileClick = (node: FileTreeNode, event?: React.MouseEvent) => {
     // If currently renaming, cancel the rename first
     if (renamingNode) {
       cancelRename()
@@ -122,17 +121,29 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     // Set selected node
     setSelectedNode(node.path)
 
-    // Route based on metadata type
+    // Determine navigation path
+    let targetPath = ""
     if (node.metadata?.nodeType && node.metadata?.nodeType !== "extension") {
       // Navigate to node (table, doc, folder, dataview)
-      navigate(`/${node.metadata.nodeId}`)
+      targetPath = `/${node.metadata.nodeId}`
     } else if (node.metadata?.nodeType === "extension") {
       // Navigate to extension
-      navigate(`/extensions/${node.metadata.nodeId}`)
+      targetPath = `/extensions/${node.metadata.nodeId}`
     } else if (node.kind === "file") {
       // Regular file - use file handler
-      navigate(`/file-handler#${node.path}`)
+      targetPath = `/file-handler#${node.path}`
     }
+
+    if (!targetPath) return
+
+    // Check if Alt/Option key is pressed for opening in new tab
+    const openInNewTab = event?.altKey || event?.metaKey
+
+    // Delegate to navigate with options (tab logic handled internally)
+    navigate(targetPath, {
+      openInNewTab,
+      tabTitle: node.name || undefined,
+    })
   }
 
   const findNodeByPath = (
@@ -326,7 +337,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           isVirtualNode={isVirtualNode}
           isPinned={isPinned}
           onToggle={() => toggleNode(node)}
-          onFileClick={() => handleFileClick(node)}
+          onFileClick={(event) => handleFileClick(node, event)}
           onRename={(node) => startRename(node.path)}
           onRenameConfirm={(newName) => handleRenameConfirm(node, newName)}
           onRenameCancel={cancelRename}

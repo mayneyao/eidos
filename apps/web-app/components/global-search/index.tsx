@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect } from "react"
 import { FileTextIcon, FolderIcon, ToyBrickIcon } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import {
   Command,
@@ -25,7 +25,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 export function GlobalSearch() {
   const { isGlobalSearchOpen, setGlobalSearchOpen } = useAppRuntimeStore()
   const { sqlite } = useSqlite()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
 
   const {
     searchTerm,

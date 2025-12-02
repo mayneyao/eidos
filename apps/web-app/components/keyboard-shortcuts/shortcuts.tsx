@@ -8,9 +8,10 @@ import { useNavigate, useParams } from "react-router-dom"
 
 import { getDate, getToday, isDayPageId } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
+import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
-import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
@@ -34,11 +35,16 @@ export function ShortCuts() {
   const { setTheme, theme } = useTheme()
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
-  const { setSpaceSettingsOpen, setCmdkOpen, isGlobalSearchOpen, setGlobalSearchOpen } = useAppRuntimeStore()
+  const {
+    setSpaceSettingsOpen,
+    setCmdkOpen,
+    isGlobalSearchOpen,
+    setGlobalSearchOpen,
+  } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { setCurrentApp } = useSidebarStore()
   const { tabs: sortedTabs } = useTabsKV()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { toast } = useToast()
   const { createDoc } = useSqlite()
   const { day } = useParams()
@@ -46,7 +52,8 @@ export function ShortCuts() {
 
   // Get block data for directive checking
   const blockIds = useMemo(
-    () => sortedTabs.filter((id) => !["nodes", "extensions", "today"].includes(id)),
+    () =>
+      sortedTabs.filter((id) => !["nodes", "extensions", "today"].includes(id)),
     [sortedTabs]
   )
   const { blocks } = useMblocksBatch(blockIds)

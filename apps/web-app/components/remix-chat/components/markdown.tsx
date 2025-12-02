@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react"
 import Prism from "prismjs"
 import ReactMarkdown, { type Components } from "react-markdown"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import rehypeRaw from "rehype-raw"
 import remarkGfm from "remark-gfm"
 
@@ -31,7 +31,7 @@ declare global {
 }
 
 const NonMemoizedMarkdown = ({ children }: { children: string }) => {
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { space } = useCurrentPathInfo()
 
   useEffect(() => {

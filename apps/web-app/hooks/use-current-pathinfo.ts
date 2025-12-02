@@ -1,4 +1,4 @@
-import { useParams, useSearchParams } from "react-router-dom"
+import { useRouterAdapter } from "./use-router-adapter"
 
 import { getRawTableNameById } from "@/lib/utils"
 
@@ -8,19 +8,22 @@ import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import { useCurrentSpaceId } from "./use-current-space"
 
 export const useCurrentPathInfo = () => {
-  let { database, table } = useParams()
+  const { params, location } = useRouterAdapter()
+  let { database, table } = params
   const currentNode = useCurrentNode()
-  let [searchParams, setSearchParams] = useSearchParams()
+
+  // Parse search params manually
+  const searchParams = new URLSearchParams(location.search)
   const viewId = searchParams.get("v")
   const currentSpaceId = useCurrentSpaceId()
-  
+
   // Prioritize workspace ID detected from subdomain
   if (currentSpaceId) {
     database = currentSpaceId
   } else if (isInkServiceMode) {
     database = "~"
   }
-  
+
   // Ensure database is not undefined
   if (!database) {
     console.warn('No database/space ID detected, this may cause SQLite errors');

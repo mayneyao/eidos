@@ -7,7 +7,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
+import { Link } from "@/components/ui/link"
 import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { toast } from "sonner"
 

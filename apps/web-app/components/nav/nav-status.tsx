@@ -10,7 +10,6 @@ import {
   Wand2,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useLocation, useSearchParams } from "react-router-dom"
 
 import { isDesktopMode } from "@/lib/env"
 import { isDayPageId } from "@/lib/utils"
@@ -31,6 +30,7 @@ import { useAPIAgent } from "@/apps/web-app/hooks/use-api-agent"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { usePeer } from "@/apps/web-app/hooks/use-peer"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
@@ -39,8 +39,10 @@ import { SetDefaultHandlerDialog } from "./set-default-handler-dialog"
 
 export const NavStatus = () => {
   const { t } = useTranslation()
-  const location = useLocation()
-  const [searchParams] = useSearchParams()
+  const { location } = useRouterAdapter()
+
+  // Parse search params from location
+  const searchParams = new URLSearchParams(location.search)
 
   const { isGodMode, setGodMode } = useAppRuntimeStore()
   const { setCurrentApp } = useSidebarStore()
@@ -100,7 +102,7 @@ export const NavStatus = () => {
     if (currentHandlerId && setDefaultHandler) {
       await setDefaultHandler(currentHandlerId)
       // Remove handler query param to use the new default
-      const newSearchParams = new URLSearchParams(searchParams)
+      const newSearchParams = new URLSearchParams(location.search)
       newSearchParams.delete("handler")
       const newSearch = newSearchParams.toString()
       window.history.replaceState(

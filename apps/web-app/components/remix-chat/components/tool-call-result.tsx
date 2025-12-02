@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from "react"
 import { BookOpenTextIcon } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link } from "@/components/ui/link"
 
 import { cn } from "@/lib/utils"
 

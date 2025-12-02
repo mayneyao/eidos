@@ -1,11 +1,12 @@
 import { Menu, PanelRightIcon } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useLocation, useSearchParams } from "react-router-dom"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { isMac, isWindowsDesktop } from "@/lib/web/helper"
 import { Button } from "@/components/ui/button"
+import { TabBar } from "@/apps/web-app/components/tab-manager/tab-bar"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 
@@ -20,8 +21,8 @@ export const Nav = ({
   showMenu?: boolean
   children?: React.ReactNode
 }) => {
-  const location = useLocation()
-  const [searchParams] = useSearchParams()
+  const { location } = useRouterAdapter()
+  const searchParams = new URLSearchParams(location.search)
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
   const {
@@ -80,8 +81,14 @@ export const Nav = ({
         </Button>
       )}
 
-      <div className="hidden md:block min-w-0 overflow-hidden">{children || <BreadCrumb />}</div>
-      <div className="h-full grow" id="drag-region" />
+      {/* Integrated TabBar with drag-region */}
+      <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-2">
+        <TabBar />
+        <div className="hidden md:block min-w-0 overflow-hidden">
+          {children || <BreadCrumb />}
+        </div>
+      </div>
+
       <div
         className={cn("flex items-center gap-1 shrink-0 grow-0", {
           "pr-[100px]": isWindowsDesktop && !isRightPanelOpen,

@@ -1,7 +1,7 @@
 import { useIndexedDB } from "@/apps/web-app/hooks/use-indexed-db";
 import type { IExtension } from "@/packages/core/meta-table/extension";
 import { useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter";
 import { useExtension } from "../../../web-app/hooks/use-extension";
 import { EIDOS_SPACE_BASE_URL } from "@/lib/const";
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite";
@@ -10,7 +10,7 @@ import { extractConstant } from "@/packages/v3/src/code-tools/code-extractor";
 
 
 export const useExtensionInstaller = () => {
-    const navigate = useNavigate();
+    const { navigate } = useRouterAdapter();
     const { addExtension } = useExtension();
     const { sqlite } = useSqlite();
     const [lastOpenedDatabase,] = useIndexedDB(
