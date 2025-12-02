@@ -34,6 +34,7 @@
     "eventemitter3": "^5.0.1",
     "file-uri-to-path": "^2.0.0",
     "hono": "^4.5.11",
+    "keytar": "^7.9.0",
     "native-file-system-adapter": "^3.0.1",
     "oxc-parser": "^0.74.0",
     "oxc-transform": "^0.74.0",

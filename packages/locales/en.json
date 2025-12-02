@@ -469,6 +469,7 @@
     "settings.account.signup": "Sign up",
     "settings.account.testWarning": "This is currently for testing, accounts may be deleted later.",
     "settings.account.title": "Account",
+    "settings.account.description": "You can completely ignore the account unless you want to use some official services, such as sync, extension sharing, API forwarding, etc.",
     "settings.account.yourAccount": "Your account",
     "settings.ai": "AI",
     "settings.ai.addProvider": "Add Provider",

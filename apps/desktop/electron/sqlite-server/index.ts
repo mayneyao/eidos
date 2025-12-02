@@ -3,7 +3,7 @@ import Database from '@eidos.space/better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { generatePragmaList } from './config';
-import { parseGraftStatus, parsePagesStatus } from '@/packages/sync/graft/helpers';
+import { parseGraftStatus } from '@/packages/sync/src/parsers';
 import { scanCustomExtensions, loadCustomExtensions } from '@/apps/desktop/electron/sqlite-server/sqlite-extension';
 
 
@@ -336,32 +336,6 @@ export class NodeServerDatabase extends BaseServerDatabase {
         return {}
     }
 
-    async pages() {
-        if (!this.isSyncEnabled) {
-            // throw new Error("Pages operation is only available in sync mode.");
-            this.logger.warn("Pages operation called but sync is not enabled. Returning empty promise.");
-            return Promise.resolve({}); // Return promise resolving to empty object
-        }
-        if (!this.db) throw new Error("Database is not initialized.");
-        const rawResult = this.db.pragma('graft_pages');
-        this.logger.log('Raw graft_pages:', rawResult);
-
-        if (!rawResult || !Array.isArray(rawResult) || rawResult.length === 0 || typeof rawResult[0] !== 'object' || rawResult[0] === null) {
-            this.logger.error('Unexpected graft_pages format:', rawResult);
-            // Return a structured error or throw? Returning promise for now.
-            return Promise.resolve({ error: 'Unexpected format from pragma graft_pages' });
-        }
-
-        const pagesString = Object.values(rawResult[0])[0];
-
-        if (typeof pagesString !== 'string') {
-            this.logger.error('Expected string value in graft_pages result:', pagesString);
-            return Promise.resolve({ error: 'Expected string value from pragma graft_pages' });
-        }
-
-        const parsedResult = parsePagesStatus(pagesString)
-        return parsedResult
-    }
 
     async status() {
         if (!this.isSyncEnabled) {

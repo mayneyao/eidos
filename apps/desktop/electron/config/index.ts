@@ -50,6 +50,8 @@ export interface AppConfig {
     };
     // Last opened workspace ID
     lastOpenedSpace?: string;
+    // User info
+    user?: any;
 }
 
 const emptyConfig: AppConfig = {
@@ -89,6 +91,7 @@ const emptyConfig: AppConfig = {
         customThemes: [],
     },
     lastOpenedSpace: undefined,
+    user: undefined,
 };
 
 export class ConfigManager extends EventEmitter {
@@ -320,6 +323,22 @@ export class ConfigManager extends EventEmitter {
             this.saveConfig();
             console.log('Last opened space changed:', { oldValue, newValue: spaceId });
             this.emit('configChanged', { key: 'lastOpenedSpace', oldValue, newValue: spaceId });
+        }
+    }
+
+    // Getter for user
+    public getUser(): any {
+        return this.config.user;
+    }
+
+    // Setter for user
+    public setUser(user: any): void {
+        const oldValue = this.config.user;
+        if (JSON.stringify(oldValue) !== JSON.stringify(user)) {
+            this.config.user = user;
+            this.saveConfig();
+            console.log('User changed:', { oldValue, newValue: user });
+            this.emit('configChanged', { key: 'user', oldValue, newValue: user });
         }
     }
 }

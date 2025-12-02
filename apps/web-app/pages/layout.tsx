@@ -17,6 +17,7 @@ import { DevTools } from "@/components/dev-tools"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeUpdater } from "@/components/theme-updater"
 import { GodModeTooltip } from "@/components/god-mode-tooltip"
+import { AuthProvider } from "@/components/auth-provider"
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
@@ -31,27 +32,29 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <SidebarProvider defaultOpen={isSidebarOpen}>
-        {isStagingMode && (
-          <div className="fixed right-0 bottom-0 z-50 rounded-tl-lg bg-yellow-500 px-3 py-1 text-sm font-medium text-yellow-950">
-            {t("common.tips.staging")}
+      <AuthProvider>
+        <SidebarProvider defaultOpen={isSidebarOpen}>
+          {isStagingMode && (
+            <div className="fixed right-0 bottom-0 z-50 rounded-tl-lg bg-yellow-500 px-3 py-1 text-sm font-medium text-yellow-950">
+              {t("common.tips.staging")}
+            </div>
+          )}
+          <div className="flex h-screen w-screen overflow-auto">
+            <div className="h-full w-full grow">
+              <Outlet />
+            </div>
           </div>
-        )}
-        <div className="flex h-screen w-screen overflow-auto">
-          <div className="h-full w-full grow">
-            <Outlet />
-          </div>
-        </div>
-        <CommandDialogDemo />
-        <GlobalSearch />
-        <ShortCuts />
-      </SidebarProvider>
-      <DevTools />
-      <Toaster />
-      <BlockUIDialog />
-      <ReloadPrompt />
-      <ThemeUpdater />
-      <GodModeTooltip />
+          <CommandDialogDemo />
+          <GlobalSearch />
+          <ShortCuts />
+        </SidebarProvider>
+        <DevTools />
+        <Toaster />
+        <BlockUIDialog />
+        <ReloadPrompt />
+        <ThemeUpdater />
+        <GodModeTooltip />
+      </AuthProvider>
     </ThemeProvider>
   )
 }
