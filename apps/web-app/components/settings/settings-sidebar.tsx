@@ -24,7 +24,6 @@ type SettingsSection =
   | "general"
   | "ai"
   | "api"
-  | "key-store"
   | "sync"
   | "security"
 
@@ -104,13 +103,6 @@ export function SettingsSidebar({
       isAlpha: true,
       category: "global",
       disabled: !isDesktopMode,
-    },
-    {
-      id: "key-store",
-      title: t("settings.keyStore"),
-      description: t("settings.keyStoreDescription"),
-      icon: <KeyRound className="h-5 w-5" />,
-      category: "global",
     },
     // {
     //   id: "sync",

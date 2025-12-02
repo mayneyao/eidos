@@ -34,8 +34,6 @@ interface ConfigState {
   backupServer: BackupServerFormValues
   setBackupServer: (backupServer: BackupServerFormValues) => void
 
-  extensionsManagerKey: string | undefined
-  setExtensionsManagerKey: (key: string | undefined) => void
 }
 
 export const useConfigStore = create<ConfigState>()(
@@ -54,7 +52,6 @@ export const useConfigStore = create<ConfigState>()(
         S3__secretAccessKey: "",
         autoSaveGap: 360,
       },
-      extensionsManagerKey: undefined,
       setProfile: (profile) =>
         set((state) => {
           if (!state.profile.userId) {
@@ -63,7 +60,6 @@ export const useConfigStore = create<ConfigState>()(
           return { ...state, profile }
         }),
       setBackupServer: (backupServer) => set({ backupServer }),
-      setExtensionsManagerKey: (key) => set({ extensionsManagerKey: key }),
     }),
     {
       name: "settings-config",

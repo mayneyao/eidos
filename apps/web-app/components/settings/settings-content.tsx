@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next"
 import { GlobalAISettings } from "./global/global-ai-settings"
 import { GlobalAPISettings } from "./global/global-api-settings"
 import { GlobalGeneralSettings } from "./global/global-general-settings"
-import { GlobalKeyStoreSettings } from "./global/global-key-store-settings"
 import { GlobalSecuritySettings } from "./global/global-security-settings"
 import { GlobalStorageSettings } from "./global/global-storage-settings"
 import { GlobalSyncSettings } from "./global/global-sync-settings"
@@ -20,7 +19,6 @@ type SettingsSection =
   | "general"
   | "ai"
   | "api"
-  | "key-store"
   | "storage"
   | "sync"
   | "security"
@@ -48,8 +46,6 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return t("settings.ai")
       case "api":
         return t("settings.api")
-      case "key-store":
-        return t("settings.keyStore")
       case "storage":
         return t("settings.storage")
       case "sync":
@@ -77,8 +73,6 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <GlobalAISettings />
       case "api":
         return <GlobalAPISettings />
-      case "key-store":
-        return <GlobalKeyStoreSettings />
       case "storage":
         return <GlobalStorageSettings />
       case "sync":
