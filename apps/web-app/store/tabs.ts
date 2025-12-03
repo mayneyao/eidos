@@ -17,6 +17,8 @@ interface TabState {
     // Actions
     openTab: (url: string, title?: string) => void
     closeTab: (id: string) => void
+    closeOtherTabs: (id: string) => void
+    closeTabsToRight: (id: string) => void
     closeAllTabs: () => void
     setActiveTab: (id: string) => void
     updateTab: (id: string, updates: Partial<Tab>) => void
@@ -65,6 +67,36 @@ export const useTabStore = create<TabState>()(
                     } else {
                         newActiveId = null
                     }
+                }
+
+                set({
+                    tabs: newTabs,
+                    activeTabId: newActiveId,
+                })
+            },
+
+            closeOtherTabs: (id) => {
+                const { tabs } = get()
+                const tabToKeep = tabs.find((t) => t.id === id)
+                if (tabToKeep) {
+                    set({
+                        tabs: [tabToKeep],
+                        activeTabId: id,
+                    })
+                }
+            },
+
+            closeTabsToRight: (id) => {
+                const { tabs, activeTabId } = get()
+                const index = tabs.findIndex((t) => t.id === id)
+                if (index === -1) return
+
+                const newTabs = tabs.slice(0, index + 1)
+
+                // If active tab was to the right, switch to the rightmost remaining tab
+                let newActiveId = activeTabId
+                if (activeTabId && !newTabs.find((t) => t.id === activeTabId)) {
+                    newActiveId = newTabs[newTabs.length - 1]?.id || null
                 }
 
                 set({

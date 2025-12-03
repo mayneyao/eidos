@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect } from "react"
 import { FileTextIcon, FolderIcon, ToyBrickIcon } from "lucide-react"
-import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import {
   Command,
@@ -14,11 +13,11 @@ import {
 } from "@/components/ui/command"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { ExtNodeBadge } from "@/components/ext-node-badge"
-import { useDebounce } from "@/apps/web-app/hooks/use-debounce"
 import {
   useGlobalSearch,
   type SearchResult,
 } from "@/apps/web-app/hooks/use-global-search"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
@@ -70,12 +69,12 @@ export function GlobalSearch() {
       if (result.type === "node") {
         // Check if it's a journal (10 character date format)
         if (result.id.length === 10) {
-          navigate(`/journals/${result.id}`)
+          navigate(`/journals/${result.id}`, { tabTitle: result.id })
         } else {
-          navigate(`/${result.id}`)
+          navigate(`/${result.id}`, { tabTitle: result.name })
         }
       } else if (result.type === "extension") {
-        navigate(`/extensions/${result.id}`)
+        navigate(`/extensions/${result.id}`, { tabTitle: result.name })
       } else if (result.type === "file") {
         // For files, we might want to open them or navigate to a file viewer
         // Currently we don't have a generic file viewer route?
@@ -105,7 +104,8 @@ export function GlobalSearch() {
         // does the router handle it?
 
         // Let's try navigating to the path.
-        navigate(`/file-handler#${result.path}`)
+        const fileName = decodeURIComponent(result.path.split("/").pop() || "")
+        navigate(`/file-handler#${result.path}`, { tabTitle: fileName })
       }
       setGlobalSearchOpen(false)
       setSearchTerm("")

@@ -3,9 +3,23 @@ import { Plus, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
+
+import { TabContextMenu } from "./tab-context-menu"
 
 export function TabBar() {
-  const { tabs, activeTabId, openTab, closeTab, setActiveTab } = useTabStore()
+  const {
+    tabs,
+    activeTabId,
+    openTab,
+    closeTab,
+    closeOtherTabs,
+    closeTabsToRight,
+    closeAllTabs,
+    setActiveTab,
+    reorderTabs,
+  } = useTabStore()
+  const { setCurrentApp } = useSidebarStore()
 
   const handleNewTab = () => {
     openTab("/", "New Tab")
@@ -16,6 +30,33 @@ export function TabBar() {
     if (e.button === 1) {
       e.preventDefault()
       closeTab(tabId)
+      return
+    }
+
+    // Left-click to switch tab and locate in file tree
+    setActiveTab(tabId)
+    locateTabInFileTree(tabId)
+  }
+
+  const locateTabInFileTree = (tabId: string) => {
+    const tab = tabs.find(t => t.id === tabId)
+    if (!tab) return
+
+    // Check if this is a file-handler page
+    if (tab.url.startsWith('/file-handler#')) {
+      const filePath = decodeURIComponent(tab.url.substring('/file-handler#'.length))
+
+      // Switch to files tab first to ensure the file tree is mounted
+      setCurrentApp("files")
+
+      // Wait a bit for the tab to switch and component to mount
+      setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent("file-tree-expand-to", {
+            detail: { path: filePath },
+          })
+        )
+      }, 50)
     }
   }
 
@@ -35,27 +76,6 @@ export function TabBar() {
         e.preventDefault()
         handleNewTab()
       }
-
-      // Cmd/Ctrl + Tab: Next tab
-      if ((e.metaKey || e.ctrlKey) && e.key === "Tab" && !e.shiftKey) {
-        e.preventDefault()
-        const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
-        const nextIndex = (currentIndex + 1) % tabs.length
-        if (tabs[nextIndex]) {
-          setActiveTab(tabs[nextIndex].id)
-        }
-      }
-
-      // Cmd/Ctrl + Shift + Tab: Previous tab
-      if ((e.metaKey || e.ctrlKey) && e.key === "Tab" && e.shiftKey) {
-        e.preventDefault()
-        const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
-        const prevIndex =
-          currentIndex === 0 ? tabs.length - 1 : currentIndex - 1
-        if (tabs[prevIndex]) {
-          setActiveTab(tabs[prevIndex].id)
-        }
-      }
     }
 
     window.addEventListener("keydown", handleKeyDown)
@@ -68,28 +88,40 @@ export function TabBar() {
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       id="drag-region"
     >
-      {tabs.map((tab) => (
-        <div
-          key={tab.id}
-          className={cn(
-            "group flex items-center gap-1 px-2 py-1 text-sm cursor-pointer transition-colors max-w-[200px] min-w-[80px] rounded",
-            activeTabId === tab.id ? "bg-accent" : "hover:bg-accent/50"
-          )}
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-          onClick={() => setActiveTab(tab.id)}
-          onMouseDown={(e) => handleTabClick(tab.id, e)}
+      {tabs.map((tab, index) => (
+        <TabContextMenu
+          tabId={tab.id}
+          tabIndex={index}
+          totalTabs={tabs.length}
+          onClose={() => closeTab(tab.id)}
+          onCloseOthers={() => closeOtherTabs(tab.id)}
+          onCloseToRight={() => closeTabsToRight(tab.id)}
+          onCloseAll={closeAllTabs}
         >
-          <span className="truncate flex-1">{tab.title}</span>
-          <button
-            className="hover:bg-background/80 rounded p-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
-            onClick={(e) => {
-              e.stopPropagation()
-              closeTab(tab.id)
+          <div
+            className={cn(
+              "group flex items-center gap-1 px-2 py-1 text-sm cursor-pointer transition-colors max-w-[200px] min-w-[80px] rounded",
+              activeTabId === tab.id ? "bg-accent" : "hover:bg-accent/50"
+            )}
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            onClick={() => {
+              setActiveTab(tab.id)
+              locateTabInFileTree(tab.id)
             }}
+            onMouseDown={(e) => handleTabClick(tab.id, e)}
           >
-            <X className="h-3 w-3" />
-          </button>
-        </div>
+            <span className="truncate flex-1">{tab.title}</span>
+            <button
+              className="hover:bg-background/80 rounded p-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation()
+                closeTab(tab.id)
+              }}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        </TabContextMenu>
       ))}
       <button
         className="p-1 hover:bg-accent rounded opacity-60 hover:opacity-100"

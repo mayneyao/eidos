@@ -1,5 +1,4 @@
-import React from "react"
-import { RouteObject, redirect } from "react-router-dom"
+import type { RouteObject } from "react-router-dom"
 
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
 import { BlocksPage } from "@/apps/web-app/pages/[database]/blocks/page"

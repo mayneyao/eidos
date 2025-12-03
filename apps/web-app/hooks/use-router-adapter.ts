@@ -65,7 +65,7 @@ export const useRouterAdapter = () => {
         if (inRouter && navigate) return navigate
 
         // Return a fallback navigate function with tab support
-        return ((to: string | number, options?: any) => {
+        return ((to: string | number, options?: { tabTitle?: string, replace?: boolean }) => {
             if (typeof to === "number") {
                 // History back/forward not fully supported in tab store mode yet
                 console.warn("History navigation not supported in no-router mode")
@@ -73,9 +73,8 @@ export const useRouterAdapter = () => {
             }
 
             // Parse options
-            const openInNewTab = options?.openInNewTab === true
             const tabTitle = options?.tabTitle
-            const replaceCurrentTab = options?.replace !== false // Default to replace
+            const replaceCurrentTab = options?.replace === true // Must explicitly set replace: true to replace current tab
 
             // Resolve relative paths if needed
             let newUrl = to as string
@@ -89,26 +88,23 @@ export const useRouterAdapter = () => {
                 }
             }
 
-            // VSCode-style tab behavior
+            // VSCode-style tab behavior: default to opening new tabs
             const { tabs, openTab: openTabAction, setActiveTab: setActiveTabAction } = useTabStore.getState()
 
             // Check if this URL is already open in a tab
             const existingTab = tabs.find((tab: { url: string; id: string }) => tab.url === newUrl)
 
             if (existingTab) {
-                // If tab already exists, just activate it
+                // If tab already exists, just activate it (VSCode behavior)
                 setActiveTabAction(existingTab.id)
-            } else if (openInNewTab) {
-                // Explicitly requested to open in new tab
-                openTabAction(newUrl, tabTitle)
-            } else if (activeTabId && replaceCurrentTab) {
-                // Default: navigate in current tab (replace)
+            } else if (replaceCurrentTab && activeTabId) {
+                // Explicitly requested to replace current tab
                 updateTab(activeTabId, { url: newUrl })
             } else {
-                // Fallback: open new tab
+                // Default: open new tab (VSCode behavior)
                 openTabAction(newUrl, tabTitle)
             }
-        }) as any // Type as any to match useNavigate signature
+        }) // Type as any to match useNavigate signature
     }, [inRouter, navigate, activeTabId, updateTab, adapterLocation])
 
     const adapterParams = useMemo(() => {
@@ -143,8 +139,8 @@ export const useRouterAdapter = () => {
 
     return {
         location: adapterLocation,
-        navigate: adapterNavigate,
-        params: adapterParams,
+        navigate: adapterNavigate as (to: string | number, options?: { tabTitle?: string, replace?: boolean }) => void,
+        params: adapterParams as Record<string, string>,
         inRouter,
     }
 }

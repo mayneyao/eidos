@@ -35,37 +35,27 @@ import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
 function TabInnerLayout() {
-  const { scriptId } = useParams()
-  const location = useLocation()
+  // const { scriptId } = useParams()
+  // const location = useLocation()
   const element = useRoutes(spaceRoutes)
 
-  // Check if we're on file-handler page and get file path
-  const isFileHandlerPage = location.pathname.includes("/file-handler")
-  const filePath =
-    isFileHandlerPage && location.hash.startsWith("#")
-      ? decodeURIComponent(location.hash.substring(1))
-      : isFileHandlerPage
-        ? decodeURIComponent(location.hash)
-        : ""
+  // // Check if we're on file-handler page and get file path
+  // const isFileHandlerPage = location.pathname.includes("/file-handler")
+  // const filePath =
+  //   isFileHandlerPage && location.hash.startsWith("#")
+  //     ? decodeURIComponent(location.hash.substring(1))
+  //     : isFileHandlerPage
+  //       ? decodeURIComponent(location.hash)
+  //       : ""
 
-  const showCustomNav = scriptId || filePath
+  // const showCustomNav = scriptId || filePath
 
   return (
     <div className="flex flex-col h-full min-w-0">
       <Nav>
-        {showCustomNav && (
-          <>
-            {scriptId && <ScriptBreadcrumb scriptIdOrSlug={scriptId} />}
-            {filePath && (
-              <div
-                className="flex items-center text-sm text-muted-foreground pointer-events-none select-none max-w-full overflow-hidden"
-                title={filePath}
-              >
-                <span className="truncate block">{filePath}</span>
-              </div>
-            )}
-          </>
-        )}
+        {/* {showCustomNav && (
+          <>{scriptId && <ScriptBreadcrumb scriptIdOrSlug={scriptId} />}</>
+        )} */}
       </Nav>
       <div
         id="main-content"
