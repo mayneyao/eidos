@@ -43,12 +43,6 @@ export const spaceRoutes: RouteObject[] = [
       },
       {
         path: ":scriptId",
-        loader: async ({ params }) => {
-          if (!(window as any)?.sqlite) {
-            return null
-          }
-          return await (window as any)?.sqlite?.extension.get(params.scriptId)
-        },
         element: <ExtensionDetailPage />,
       },
     ],

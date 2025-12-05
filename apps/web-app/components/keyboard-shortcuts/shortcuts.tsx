@@ -236,11 +236,12 @@ export function ShortCuts() {
     setGlobalSearchOpen,
   ])
 
-  // navigate to today
-  useKeyPress(["ctrl.t", "meta.t"], () => {
-    const date = getToday()
-    navigate(`/journals/${date}`)
-  })
+  // navigate to today - now handled by global shortcut (Cmd+Shift+T)
+  // Cmd+T is now used for new-tab
+  // useKeyPress(["ctrl.t", "meta.t"], () => {
+  //   const date = getToday()
+  //   navigate(`/journals/${date}`)
+  // })
 
   // create new doc
   useKeyPress(["ctrl.n", "meta.n"], () => {

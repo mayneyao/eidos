@@ -35,8 +35,13 @@ export class GlobalShortcutManager {
     // Define all shortcuts that should work globally
     const shortcuts: ShortcutAction[] = [
       {
-        id: 'navigate-today',
+        id: 'new-tab',
         accelerator: 'CommandOrControl+T',
+        description: 'Create new tab'
+      },
+      {
+        id: 'navigate-today',
+        accelerator: 'CommandOrControl+Shift+T',
         description: 'Navigate to today'
       },
       {
@@ -98,6 +103,22 @@ export class GlobalShortcutManager {
         id: 'copy-current-url',
         accelerator: 'CommandOrControl+Shift+C',
         description: 'Copy current URL'
+      },
+      // Tab management shortcuts
+      {
+        id: 'close-current-tab',
+        accelerator: 'CommandOrControl+W',
+        description: 'Close current tab'
+      },
+      {
+        id: 'next-tab',
+        accelerator: 'Control+Tab',
+        description: 'Switch to next tab'
+      },
+      {
+        id: 'previous-tab',
+        accelerator: 'Control+Shift+Tab',
+        description: 'Switch to previous tab'
       },
     ];
 
