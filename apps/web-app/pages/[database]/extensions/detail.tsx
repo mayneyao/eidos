@@ -14,6 +14,7 @@ import {
   useExtensionByIdOrSlug,
 } from "@/apps/web-app/hooks/use-extension"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useTabTitle } from "@/apps/web-app/hooks/use-tab-title"
 import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
 
 import { ExtensionPreview } from "./components/extension-preview"
@@ -33,6 +34,7 @@ const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
   const previewRef = useRef<HTMLDivElement>(null)
   const size = useSize(previewRef)
   const { isSidebarOpen, toggleSidebar } = useExtensionSidebarStore()
+  useTabTitle(script.name)
 
   const language = getEditorLanguage(script)
   const [editorContent, setEditorContent] = useState(

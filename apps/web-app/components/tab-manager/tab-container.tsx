@@ -4,6 +4,8 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
+import { TabProvider } from "./tab-context"
+
 // Helper component to sync URL changes back to the store
 function TabUrlSyncer({
   tabId,
@@ -105,17 +107,19 @@ export function TabContainer({
       )}
     >
       <MemoryRouter initialEntries={[initialUrl]}>
-        <TabUrlSyncer
-          tabId={tabId}
-          isUpdatingFromUrlRef={isUpdatingFromUrlRef}
-        />
-        <TabNavigator
-          tabId={tabId}
-          isUpdatingFromUrlRef={isUpdatingFromUrlRef}
-        />
-        <div className="flex-1 overflow-y-auto min-h-0 h-screen">
-          {children}
-        </div>
+        <TabProvider value={{ tabId }}>
+          <TabUrlSyncer
+            tabId={tabId}
+            isUpdatingFromUrlRef={isUpdatingFromUrlRef}
+          />
+          <TabNavigator
+            tabId={tabId}
+            isUpdatingFromUrlRef={isUpdatingFromUrlRef}
+          />
+          <div className="flex-1 overflow-y-auto min-h-0 h-screen">
+            {children}
+          </div>
+        </TabProvider>
       </MemoryRouter>
     </div>
   )

@@ -142,7 +142,6 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     // Delegate to navigate with options (tab logic handled internally)
     navigate(targetPath, {
       openInNewTab,
-      tabTitle: node.name || undefined,
     })
   }
 

@@ -65,7 +65,7 @@ export const useRouterAdapter = () => {
         if (inRouter && navigate) return navigate
 
         // Return a fallback navigate function with tab support
-        return ((to: string | number, options?: { tabTitle?: string, replace?: boolean }) => {
+        return ((to: string | number, options?: { replace?: boolean, openInNewTab?: boolean }) => {
             if (typeof to === "number") {
                 // History back/forward not fully supported in tab store mode yet
                 console.warn("History navigation not supported in no-router mode")
@@ -73,8 +73,8 @@ export const useRouterAdapter = () => {
             }
 
             // Parse options
-            const tabTitle = options?.tabTitle
             const replaceCurrentTab = options?.replace === true // Must explicitly set replace: true to replace current tab
+            const forceNewTab = options?.openInNewTab === true
 
             // Resolve relative paths if needed
             let newUrl = to as string
@@ -94,7 +94,9 @@ export const useRouterAdapter = () => {
             // Check if this URL is already open in a tab
             const existingTab = tabs.find((tab: { url: string; id: string }) => tab.url === newUrl)
 
-            if (existingTab) {
+            if (forceNewTab) {
+                openTabAction(newUrl)
+            } else if (existingTab) {
                 // If tab already exists, just activate it (VSCode behavior)
                 setActiveTabAction(existingTab.id)
             } else if (replaceCurrentTab && activeTabId) {
@@ -102,7 +104,7 @@ export const useRouterAdapter = () => {
                 updateTab(activeTabId, { url: newUrl })
             } else {
                 // Default: open new tab (VSCode behavior)
-                openTabAction(newUrl, tabTitle)
+                openTabAction(newUrl)
             }
         }) // Type as any to match useNavigate signature
     }, [inRouter, navigate, activeTabId, updateTab, adapterLocation])
@@ -177,7 +179,7 @@ export const useRouterAdapter = () => {
 
     return {
         location: adapterLocation,
-        navigate: adapterNavigate as (to: string | number, options?: { tabTitle?: string, replace?: boolean }) => void,
+        navigate: adapterNavigate as (to: string | number, options?: { replace?: boolean, openInNewTab?: boolean }) => void,
         params: adapterParams as Record<string, string>,
         searchParams: adapterSearchParams,
         setSearchParams: adapterSetSearchParams as (nextInit: URLSearchParams | Record<string, string> | ((prev: URLSearchParams) => URLSearchParams | Record<string, string>)) => void,

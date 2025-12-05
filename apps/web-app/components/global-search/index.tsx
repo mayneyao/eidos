@@ -69,12 +69,12 @@ export function GlobalSearch() {
       if (result.type === "node") {
         // Check if it's a journal (10 character date format)
         if (result.id.length === 10) {
-          navigate(`/journals/${result.id}`, { tabTitle: result.id })
+          navigate(`/journals/${result.id}`)
         } else {
-          navigate(`/${result.id}`, { tabTitle: result.name })
+          navigate(`/${result.id}`)
         }
       } else if (result.type === "extension") {
-        navigate(`/extensions/${result.id}`, { tabTitle: result.name })
+        navigate(`/extensions/${result.id}`)
       } else if (result.type === "file") {
         // For files, we might want to open them or navigate to a file viewer
         // Currently we don't have a generic file viewer route?
@@ -105,7 +105,7 @@ export function GlobalSearch() {
 
         // Let's try navigating to the path.
         const fileName = decodeURIComponent(result.path.split("/").pop() || "")
-        navigate(`/file-handler#${result.path}`, { tabTitle: fileName })
+        navigate(`/file-handler#${result.path}`)
       }
       setGlobalSearchOpen(false)
       setSearchTerm("")

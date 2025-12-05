@@ -29,6 +29,7 @@ import { useEmoji } from "@/apps/web-app/hooks/use-emoji"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useTabTitle } from "@/apps/web-app/hooks/use-tab-title"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
@@ -92,6 +93,7 @@ export const NodeComponent = ({
   }
 
   const node = nodeMap[nodeId]
+  useTabTitle(node?.name)
   const parentNode = node.parent_id ? nodeMap[node.parent_id] : null
   const handleAddIcon = async () => {
     const emojiNative = await getEmoji(node?.name)

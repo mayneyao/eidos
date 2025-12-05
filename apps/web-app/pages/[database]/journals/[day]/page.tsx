@@ -5,6 +5,7 @@ import { useState } from "react"
 import { getLocalDate, isWeekNodeId } from "@/lib/utils"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { Editor } from "@/components/doc/editor"
+import { useTabTitle } from "@/apps/web-app/hooks/use-tab-title"
 // import { Button } from "@/components/ui/button"
 // import { Calendar } from "@/components/ui/calendar"
 // import {
@@ -32,6 +33,7 @@ export function EverydayPageContent({
   const { navigate } = useRouterAdapter()
   const { days } = useDays()
   const { isCmdkOpen } = useAppRuntimeStore()
+  useTabTitle(day)
   const handleDayClick = (date: Date, closePopover = false) => {
     const day = getLocalDate(date)
     setMonth(date)
