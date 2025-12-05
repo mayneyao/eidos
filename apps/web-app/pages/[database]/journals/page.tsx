@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react"
 import useInfiniteScroll from "react-infinite-scroll-hook"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Editor } from "@/components/doc/editor"
 import { Loading } from "@/components/loading"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { useAllDays, useDays } from "./hooks"
 import { getDisplayTitle } from "./utils"
@@ -16,7 +17,7 @@ export default function EverydayPage() {
   const { loading, days, hasNextPage, error, loadMore } = useAllDays(
     params.space
   )
-  let [searchParams, setSearchParams] = useSearchParams()
+  const { searchParams } = useRouterAdapter()
   const { isCmdkOpen } = useAppRuntimeStore()
 
   const [sentryRef] = useInfiniteScroll({

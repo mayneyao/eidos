@@ -1,17 +1,18 @@
 "use client"
 
 import { useEffect } from "react"
-import { Outlet, useSearchParams } from "react-router-dom"
-
 import { getSqliteProxy } from "@/packages/core/sqlite/channel"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { Outlet } from "react-router-dom"
+
 import { cn } from "@/lib/utils"
+import { useConfigStore } from "@/components/settings/stores"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { usePeerConnect } from "@/apps/web-app/hooks/use-peer"
-import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useCurrentUser } from "@/apps/web-app/hooks/user-current-user"
 import { DatabaseLayoutBase } from "@/apps/web-app/pages/[database]/base-layout"
-import { useConfigStore } from "@/components/settings/stores"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 const SwitchProxyWrapper = ({ children, conn }: any) => {
   const { setSqliteProxy } = useSqliteStore()
@@ -32,7 +33,7 @@ const SwitchProxyWrapper = ({ children, conn }: any) => {
 }
 
 export default function ShareDatabaseLayout() {
-  const [searchParams] = useSearchParams()
+  const { searchParams } = useRouterAdapter()
   const sharePeerId = searchParams.get("peerId")
   const { profile } = useConfigStore()
   const { isConnected, conn } = usePeerConnect(sharePeerId, profile.username)

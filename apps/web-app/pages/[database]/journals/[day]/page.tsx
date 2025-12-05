@@ -1,6 +1,6 @@
 import { useState } from "react"
+
 // import { CalendarIcon } from "@radix-ui/react-icons"
-import { useNavigate, useParams } from "react-router-dom"
 
 import { getLocalDate, isWeekNodeId } from "@/lib/utils"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
@@ -123,6 +123,7 @@ export function EverydayPageContent({
 }
 
 export default function EverydayPage() {
-  const { day, database } = useParams()
+  const { params } = useRouterAdapter()
+  const { day, database } = params
   return <EverydayPageContent day={day} database={database} />
 }

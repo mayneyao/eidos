@@ -4,7 +4,6 @@ import { useEffect, useMemo } from "react"
 import { useKeyPress } from "ahooks"
 import { useTheme } from "next-themes"
 import { useTranslation } from "react-i18next"
-import { useNavigate, useParams } from "react-router-dom"
 
 import { getDate, getToday, isDayPageId } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
@@ -44,10 +43,10 @@ export function ShortCuts() {
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { setCurrentApp } = useSidebarStore()
   const { tabs: sortedTabs } = useTabsKV()
-  const { navigate } = useRouterAdapter()
+  const { navigate, params } = useRouterAdapter()
   const { toast } = useToast()
   const { createDoc } = useSqlite()
-  const { day } = useParams()
+  const { day } = params
   const { space } = useCurrentPathInfo()
 
   // Get block data for directive checking

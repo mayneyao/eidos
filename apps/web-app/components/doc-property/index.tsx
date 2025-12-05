@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
-import { useParams } from "react-router-dom"
 
 import { getRawTableNameById, nonNullable } from "@/lib/utils"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
 import { CellEditor, type CellEditorRef } from "../table/cell-editor"
@@ -140,7 +140,8 @@ const FieldItem: React.FC<FieldItemProps> = ({
 }
 
 export const DocProperty = (props: IDocPropertyProps) => {
-  const { space } = useParams()
+  const { params } = useRouterAdapter()
+  const { space } = params
   const { uiColumns } = useUiColumns(getRawTableNameById(props.tableId), space!)
   const { properties, setProperty } = useDocProperty({
     tableId: props.tableId,

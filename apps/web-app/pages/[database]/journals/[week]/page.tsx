@@ -1,14 +1,16 @@
 import { useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link } from "react-router-dom"
 
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { Editor } from "@/components/doc/editor"
 import { getDaysByYearWeek } from "@/lib/utils"
+import { Editor } from "@/components/doc/editor"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { getDisplayTitle } from "../utils"
 
 export const WeekPage = () => {
-  const { day } = useParams()
+  const { params } = useRouterAdapter()
+  const { day } = params
   const [currentDay, setCurrentDay] = useState<string>("")
   const { isCmdkOpen } = useAppRuntimeStore()
   const days: any[] = getDaysByYearWeek(day!).map((day) => {

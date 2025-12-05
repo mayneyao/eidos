@@ -2,7 +2,6 @@ import { useMemo, useState } from "react"
 import { applyCode } from "@/packages/ai/generate"
 import type { Message } from "ai"
 import { Loader2, PlayIcon, RefreshCwIcon } from "lucide-react"
-import { useSearchParams } from "react-router-dom"
 import { useSWRConfig } from "swr"
 import { useCopyToClipboard } from "usehooks-ts"
 
@@ -12,6 +11,7 @@ import { useCurrentExtension } from "@/hooks/use-current-node"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { toast } from "@/components/ui/use-toast"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useEditorStore } from "@/apps/web-app/pages/[database]/extensions/stores/editor-store"
 
 import type { Vote } from "../interface"
@@ -39,7 +39,7 @@ export function MessageActions({
   const { mutate } = useSWRConfig()
   const [_, copyToClipboard] = useCopyToClipboard()
   const { setScriptCodeMap, setLayoutMode } = useEditorStore()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { searchParams, setSearchParams } = useRouterAdapter()
   const [isPreviewEnabled, setIsPreviewEnabled] = useState(false)
   const [isApplying, setIsApplying] = useState(false)
   const currentExtension = useCurrentExtension()

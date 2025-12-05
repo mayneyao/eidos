@@ -1,7 +1,6 @@
 import { useState } from "react"
 import { CalendarDays } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
 
 import { getToday } from "@/lib/utils"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"

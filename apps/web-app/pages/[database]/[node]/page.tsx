@@ -1,7 +1,6 @@
 import { useEffect } from "react"
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import { useTranslation } from "react-i18next"
-import { useParams } from "react-router-dom"
 
 import {
   DataUpdateSignalType,
@@ -28,6 +27,7 @@ import {
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useEmoji } from "@/apps/web-app/hooks/use-emoji"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -187,7 +187,8 @@ export const NodeComponent = ({
 }
 export default function TablePage() {
   const node = useCurrentNode()
-  const { table: nodeId } = useParams()
+  const { params } = useRouterAdapter()
+  const { table: nodeId } = params
   const isDayPage = isDayPageId(nodeId)
   const { space } = useCurrentPathInfo()
 

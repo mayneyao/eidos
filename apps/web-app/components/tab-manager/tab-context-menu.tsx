@@ -34,9 +34,6 @@ export function TabContextMenu({
   const isOnlyTab = totalTabs === 1
   const isLastTab = tabIndex >= totalTabs - 1
 
-  // Debug logging
-  console.log("TabContextMenu:", { tabId, tabIndex, totalTabs, isLastTab })
-
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>

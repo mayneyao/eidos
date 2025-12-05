@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react"
 import { useSize } from "ahooks"
-import { useParams, useSearchParams } from "react-router-dom"
 
-import { useMblock } from "@/apps/web-app/hooks/use-mblock"
 import { BlockApp } from "@/components/block-renderer/block-app"
+import { useMblock } from "@/apps/web-app/hooks/use-mblock"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 export default function BlockPage() {
-  const { id, database } = useParams()
-  const [searchParams] = useSearchParams()
+  const { params, searchParams } = useRouterAdapter()
+  const { id, database } = params
 
   const containerRef = useRef<HTMLDivElement>(null)
   const size = useSize(containerRef)

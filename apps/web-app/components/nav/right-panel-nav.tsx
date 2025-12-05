@@ -13,7 +13,6 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
 
 import { cn, getBlockIdFromUrl, isDayPageId } from "@/lib/utils"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
@@ -41,7 +40,6 @@ import {
 } from "@/apps/web-app/pages/[database]/store"
 
 import { BlockContextMenu } from "./block-context-menu"
-import { NodeAppPanel } from "./node-app-panel"
 import { NodeContextMenu } from "./node-context-menu"
 
 const DefaultAppInfoMap: Record<

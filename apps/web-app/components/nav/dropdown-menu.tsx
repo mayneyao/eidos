@@ -24,8 +24,6 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useParams } from "react-router-dom"
-import { Link } from "@/components/ui/link"
 
 import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
@@ -54,6 +52,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Link } from "@/components/ui/link"
 import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { DiscordIcon } from "@/components/icons/discord"
 import { NodeUpdateTime } from "@/components/nav/node-update-time"
@@ -85,9 +84,7 @@ import { UpdateStatusComponent } from "./update-status"
 
 export function NavDropdownMenu() {
   const { t } = useTranslation()
-  const { navigate: router } = useRouterAdapter()
-  const { location } = useRouterAdapter()
-  const params = useParams()
+  const { navigate: router, location, params } = useRouterAdapter()
   const [open, setOpen] = useState(false)
 
   // Check if we're on file-handler page and get current handler

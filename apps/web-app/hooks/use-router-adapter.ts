@@ -137,10 +137,50 @@ export const useRouterAdapter = () => {
         return result
     }, [inRouter, params, adapterLocation])
 
+    const adapterSearchParams = useMemo(() => {
+        if (inRouter && searchParams) return searchParams
+
+        // Parse search params from location
+        const search = adapterLocation.search
+        return new URLSearchParams(search)
+    }, [inRouter, searchParams, adapterLocation.search])
+
+    const adapterSetSearchParams = useMemo(() => {
+        if (inRouter && setSearchParams) return setSearchParams
+
+        // Return a fallback setSearchParams function with tab support
+        return (nextInit: URLSearchParams | Record<string, string> | ((prev: URLSearchParams) => URLSearchParams | Record<string, string>)) => {
+            if (!activeTabId) {
+                console.warn("Cannot set search params: no active tab")
+                return
+            }
+
+            // Compute the new search params
+            let newSearchParams: URLSearchParams
+            if (typeof nextInit === 'function') {
+                const prev = new URLSearchParams(adapterLocation.search)
+                const result = nextInit(prev)
+                newSearchParams = result instanceof URLSearchParams ? result : new URLSearchParams(result)
+            } else if (nextInit instanceof URLSearchParams) {
+                newSearchParams = nextInit
+            } else {
+                newSearchParams = new URLSearchParams(nextInit)
+            }
+
+            // Update the active tab's URL with new search params
+            const currentUrl = new URL(activeTab?.url || '/', window.location.origin)
+            currentUrl.search = newSearchParams.toString()
+
+            updateTab(activeTabId, { url: currentUrl.pathname + currentUrl.search + currentUrl.hash })
+        }
+    }, [inRouter, setSearchParams, activeTabId, activeTab, adapterLocation.search, updateTab])
+
     return {
         location: adapterLocation,
         navigate: adapterNavigate as (to: string | number, options?: { tabTitle?: string, replace?: boolean }) => void,
         params: adapterParams as Record<string, string>,
+        searchParams: adapterSearchParams,
+        setSearchParams: adapterSetSearchParams as (nextInit: URLSearchParams | Record<string, string> | ((prev: URLSearchParams) => URLSearchParams | Record<string, string>)) => void,
         inRouter,
     }
 }

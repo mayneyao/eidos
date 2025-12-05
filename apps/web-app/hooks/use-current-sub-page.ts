@@ -1,7 +1,7 @@
-import { useSearchParams } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 export const useCurrentSubPage = () => {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { searchParams, setSearchParams } = useRouterAdapter()
   //   ?v=1&p=2
   const subPageId = searchParams.get("p") ?? undefined
   const clearSubPage = () => {

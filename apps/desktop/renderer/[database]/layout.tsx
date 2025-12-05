@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef } from "react"
 import { useLocalStorageState, useSize } from "ahooks"
-import { Outlet, useLocation, useParams, useRoutes } from "react-router-dom"
+import { Outlet, useLocation, useRoutes } from "react-router-dom"
 
 import { EidosDataEventChannelName } from "@/lib/const"
 import { cn, isStandaloneBlocksPath } from "@/lib/utils"

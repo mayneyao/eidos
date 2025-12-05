@@ -1,15 +1,15 @@
-import { useDrop } from "ahooks"
 import { useMemo, useRef, useState } from "react"
-import { useParams } from "react-router-dom"
+import { useDrop } from "ahooks"
 
-import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
-import { useFileUpload, useFiles } from "@/apps/web-app/hooks/use-file-upload"
+import { getFilePreviewImage } from "@/lib/mime/mime"
+import { cn, proxyURL } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getFilePreviewImage } from "@/lib/mime/mime"
-import { cn, proxyURL } from "@/lib/utils"
+import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
+import { useFileUpload, useFiles } from "@/apps/web-app/hooks/use-file-upload"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 export const DefaultColors = [
   "bg-red-500",
@@ -37,7 +37,8 @@ export function FileSelector(props: {
 }) {
   const { mblocks: allMblocks } = useAllMblocks()
   const { files } = useFiles()
-  const { database } = useParams()
+  const { params } = useRouterAdapter()
+  const { database } = params
   const images = useMemo(() => {
     return files.filter((file) => file.mime.startsWith("image/"))
   }, [files])
@@ -115,14 +116,29 @@ export function FileSelector(props: {
       <div className="flex w-full justify-between items-center mb-2">
         <TabsList className="h-8">
           {!props.hideGallery && (
-            <TabsTrigger value="gallery" className="text-xs px-2 py-1">Gallery</TabsTrigger>
+            <TabsTrigger value="gallery" className="text-xs px-2 py-1">
+              Gallery
+            </TabsTrigger>
           )}
-          {props.showBlock && <TabsTrigger value="block" className="text-xs px-2 py-1">Block</TabsTrigger>}
-          <TabsTrigger value="upload" className="text-xs px-2 py-1">Load</TabsTrigger>
-          <TabsTrigger value="url" className="text-xs px-2 py-1">URL</TabsTrigger>
+          {props.showBlock && (
+            <TabsTrigger value="block" className="text-xs px-2 py-1">
+              Block
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="upload" className="text-xs px-2 py-1">
+            Load
+          </TabsTrigger>
+          <TabsTrigger value="url" className="text-xs px-2 py-1">
+            URL
+          </TabsTrigger>
         </TabsList>
         {!props.hideRemove && (
-          <Button size="sm" variant="destructive" onClick={props.onRemove} className="h-7 px-2 text-xs">
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={props.onRemove}
+            className="h-7 px-2 text-xs"
+          >
             Remove
           </Button>
         )}
@@ -137,7 +153,9 @@ export function FileSelector(props: {
           >
             {!props.disableColor && (
               <div className="mb-3">
-                <h3 className="mb-2 text-sm font-medium text-muted-foreground">Colors</h3>
+                <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                  Colors
+                </h3>
                 <div className="grid grid-cols-6 gap-2">
                   {DefaultColors.map((color) => {
                     return (
@@ -155,7 +173,9 @@ export function FileSelector(props: {
               </div>
             )}
             <div>
-              <h3 className="mb-2 text-sm font-medium text-muted-foreground">Images</h3>
+              <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                Images
+              </h3>
               <div className="grid grid-cols-5 gap-2">
                 {images.map((image) => {
                   const url = `/${image.path}`
@@ -214,7 +234,11 @@ export function FileSelector(props: {
             <div className="mb-3 text-xs text-muted-foreground">
               Drag & drop or click to select
             </div>
-            <Button size="sm" onClick={handleSelectLocalFile} className="h-7 px-3 text-xs">
+            <Button
+              size="sm"
+              onClick={handleSelectLocalFile}
+              className="h-7 px-3 text-xs"
+            >
               Browse
             </Button>
           </div>
@@ -227,7 +251,11 @@ export function FileSelector(props: {
             placeholder="https://example.com/image.png"
             id="web-image-url"
           />
-          <Button size="sm" onClick={handleSelectWebFile} className="h-8 px-3 text-xs">
+          <Button
+            size="sm"
+            onClick={handleSelectWebFile}
+            className="h-8 px-3 text-xs"
+          >
             Add
           </Button>
         </div>

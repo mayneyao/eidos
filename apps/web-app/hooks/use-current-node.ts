@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react"
-import { useParams } from "react-router-dom"
+
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import type { ITreeNode } from "@/packages/core/types/ITreeNode";
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
@@ -16,7 +17,8 @@ export const useNodeMap = () => {
 }
 
 export const useCurrentNode = (): ITreeNode | null => {
-  const { table: nodeId, day } = useParams()
+  const { params } = useRouterAdapter()
+  const { table: nodeId, day } = params
   const allNodesMap = useNodeMap()
   if (day && isDayPageId(day)) {
     return {
@@ -29,7 +31,8 @@ export const useCurrentNode = (): ITreeNode | null => {
 }
 
 export const useCurrentExtension = () => {
-  const { scriptId: extensionId } = useParams()
+  const { params } = useRouterAdapter()
+  const { scriptId: extensionId } = params
   const extension = useExtensionByIdOrSlug(extensionId!)
   return extension
 }

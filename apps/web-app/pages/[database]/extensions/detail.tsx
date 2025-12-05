@@ -4,17 +4,14 @@ import { compileCode, extractConstant, getCompileMethod } from "@eidos.space/v3"
 import { useMount, useSize } from "ahooks"
 import { CodeIcon, EyeIcon, PanelLeftIcon, SettingsIcon } from "lucide-react"
 import { useTheme } from "next-themes"
-import {
-  useLoaderData,
-  useRevalidator,
-  useSearchParams,
-} from "react-router-dom"
+import { useLoaderData, useRevalidator } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { useExtension } from "@/apps/web-app/hooks/use-extension"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
 
 import { ExtensionPreview } from "./components/extension-preview"
@@ -138,7 +135,7 @@ export const ExtensionDetailPage = () => {
     }
   }
 
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { searchParams, setSearchParams } = useRouterAdapter()
   const activeTab =
     searchParams.get("tab") || (shouldShowCode ? "code" : "settings")
 
