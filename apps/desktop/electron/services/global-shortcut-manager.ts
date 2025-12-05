@@ -56,7 +56,7 @@ export class GlobalShortcutManager {
       },
       {
         id: 'toggle-ai-panel',
-        accelerator: 'CommandOrControl+/',
+        accelerator: 'CommandOrControl+Alt+\\',
         description: 'Toggle AI panel'
       },
       {

@@ -258,7 +258,7 @@ export function ShortCuts() {
     setTheme(theme === "dark" ? "light" : "dark")
   })
 
-  useKeyPress(["ctrl.forwardslash", "meta.forwardslash"], () => {
+  useKeyPress(["ctrl.alt.backslash", "meta.alt.backslash"], () => {
     setIsAiOpen(!isAiOpen)
   })
 
