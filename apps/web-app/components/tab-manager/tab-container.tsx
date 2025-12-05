@@ -5,7 +5,13 @@ import { cn } from "@/lib/utils"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
 // Helper component to sync URL changes back to the store
-function TabUrlSyncer({ tabId }: { tabId: string }) {
+function TabUrlSyncer({
+  tabId,
+  isUpdatingFromUrlRef,
+}: {
+  tabId: string
+  isUpdatingFromUrlRef: React.MutableRefObject<boolean>
+}) {
   const location = useLocation()
   const updateTab = useTabStore((state) => state.updateTab)
   const prevUrlRef = useRef<string>("")
@@ -16,15 +22,29 @@ function TabUrlSyncer({ tabId }: { tabId: string }) {
     // Only update if the URL actually changed
     if (fullPath !== prevUrlRef.current) {
       prevUrlRef.current = fullPath
+      isUpdatingFromUrlRef.current = true
       updateTab(tabId, { url: fullPath })
     }
-  }, [location.pathname, location.search, location.hash, tabId, updateTab])
+  }, [
+    location.pathname,
+    location.search,
+    location.hash,
+    tabId,
+    updateTab,
+    isUpdatingFromUrlRef,
+  ])
 
   return null
 }
 
 // Helper component to sync store changes to the router
-function TabNavigator({ tabId }: { tabId: string }) {
+function TabNavigator({
+  tabId,
+  isUpdatingFromUrlRef,
+}: {
+  tabId: string
+  isUpdatingFromUrlRef: React.MutableRefObject<boolean>
+}) {
   const navigate = useNavigate()
   const location = useLocation()
   const tabUrl = useTabStore(
@@ -33,6 +53,14 @@ function TabNavigator({ tabId }: { tabId: string }) {
   const prevTabUrlRef = useRef<string>("")
 
   useEffect(() => {
+    if (isUpdatingFromUrlRef.current) {
+      isUpdatingFromUrlRef.current = false
+      if (tabUrl) {
+        prevTabUrlRef.current = tabUrl
+      }
+      return
+    }
+
     if (tabUrl && tabUrl !== prevTabUrlRef.current) {
       const currentPath = location.pathname + location.search + location.hash
 
@@ -42,7 +70,14 @@ function TabNavigator({ tabId }: { tabId: string }) {
         navigate(tabUrl)
       }
     }
-  }, [tabUrl, navigate, location.pathname, location.search, location.hash])
+  }, [
+    tabUrl,
+    navigate,
+    location.pathname,
+    location.search,
+    location.hash,
+    isUpdatingFromUrlRef,
+  ])
 
   return null
 }
@@ -60,6 +95,8 @@ export function TabContainer({
   isActive,
   children,
 }: TabContainerProps) {
+  const isUpdatingFromUrlRef = useRef(false)
+
   return (
     <div
       className={cn(
@@ -68,8 +105,14 @@ export function TabContainer({
       )}
     >
       <MemoryRouter initialEntries={[initialUrl]}>
-        <TabUrlSyncer tabId={tabId} />
-        <TabNavigator tabId={tabId} />
+        <TabUrlSyncer
+          tabId={tabId}
+          isUpdatingFromUrlRef={isUpdatingFromUrlRef}
+        />
+        <TabNavigator
+          tabId={tabId}
+          isUpdatingFromUrlRef={isUpdatingFromUrlRef}
+        />
         <div className="flex-1 overflow-y-auto min-h-0 h-screen">
           {children}
         </div>
