@@ -1,10 +1,8 @@
-import type { IExtension } from "@/packages/core/meta-table/extension"
 import { useState } from "react"
+import type { IExtension } from "@/packages/core/meta-table/extension"
 import { useTranslation } from "react-i18next"
-import { useLoaderData, useRevalidator } from "react-router-dom"
 
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useExtension } from "@/apps/web-app/hooks/use-extension"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -23,11 +21,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
-import { useRouterAdapter } from "@/hooks/use-router-adapter"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import {
+  useExtension,
+  useExtensionByIdOrSlug,
+} from "@/apps/web-app/hooks/use-extension"
 
-export const DangerZone = () => {
-  const script = useLoaderData() as IExtension
-  const revalidator = useRevalidator()
+const DangerZoneContent = ({ script }: { script: IExtension }) => {
   const { toast } = useToast()
   const { deleteExtension } = useExtension()
   const { t } = useTranslation()
@@ -100,4 +100,15 @@ export const DangerZone = () => {
       </CardContent>
     </Card>
   )
+}
+
+export const DangerZone = () => {
+  const { params } = useRouterAdapter()
+  const script = useExtensionByIdOrSlug(params.scriptId)
+
+  if (!script) {
+    return null
+  }
+
+  return <DangerZoneContent script={script} />
 }

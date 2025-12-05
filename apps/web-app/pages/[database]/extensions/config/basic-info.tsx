@@ -1,7 +1,6 @@
 import { useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import { useTranslation } from "react-i18next"
-import { useLoaderData, useRevalidator } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,11 +15,13 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { useExtension } from "@/apps/web-app/hooks/use-extension"
+import {
+  useExtension,
+  useExtensionByIdOrSlug,
+} from "@/apps/web-app/hooks/use-extension"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
-export const BasicInfo = () => {
-  const script = useLoaderData() as IExtension
-  const revalidator = useRevalidator()
+const BasicInfoContent = ({ script }: { script: IExtension }) => {
   const { toast } = useToast()
   const { updateExtension } = useExtension()
   const { t } = useTranslation()
@@ -59,7 +60,7 @@ export const BasicInfo = () => {
         ...script,
         ...formData,
       })
-      revalidator.revalidate()
+      // Data will auto-update via BroadcastChannel
     } catch (error) {
       toast({
         title: "Failed to update basic info",
@@ -205,4 +206,15 @@ export const BasicInfo = () => {
       </CardContent>
     </Card>
   )
+}
+
+export const BasicInfo = () => {
+  const { params } = useRouterAdapter()
+  const script = useExtensionByIdOrSlug(params.scriptId)
+
+  if (!script) {
+    return null
+  }
+
+  return <BasicInfoContent script={script} />
 }

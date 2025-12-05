@@ -4,13 +4,15 @@ import { compileCode, extractConstant, getCompileMethod } from "@eidos.space/v3"
 import { useMount, useSize } from "ahooks"
 import { CodeIcon, EyeIcon, PanelLeftIcon, SettingsIcon } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useLoaderData, useRevalidator } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import { useExtension } from "@/apps/web-app/hooks/use-extension"
+import {
+  useExtension,
+  useExtensionByIdOrSlug,
+} from "@/apps/web-app/hooks/use-extension"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
 
@@ -25,18 +27,17 @@ const SimpleCodeEditorWrapper = lazy(
   () => import("./editor/code-editor-wrapper")
 )
 
-export const ExtensionDetailPage = () => {
-  const script = useLoaderData() as IExtension
+const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
   const { updateExtension } = useExtension()
   const editorRef = useRef<{ save: () => void; layout: () => void }>(null)
-  const revalidator = useRevalidator()
+  const previewRef = useRef<HTMLDivElement>(null)
+  const size = useSize(previewRef)
+  const { isSidebarOpen, toggleSidebar } = useExtensionSidebarStore()
+
   const language = getEditorLanguage(script)
   const [editorContent, setEditorContent] = useState(
     script.ts_code || script.code
   )
-  const previewRef = useRef<HTMLDivElement>(null)
-  const size = useSize(previewRef)
-  const { isSidebarOpen, toggleSidebar } = useExtensionSidebarStore()
 
   const { scriptCodeMap, setScriptCodeMap } = useEditorStore()
 
@@ -76,9 +77,7 @@ export const ExtensionDetailPage = () => {
     setEditorContent(script.ts_code || script.code)
   }, [script.ts_code, script.code])
 
-  useMount(() => {
-    revalidator.revalidate()
-  })
+  // No need for manual revalidation - useExtensionByIdOrSlug auto-updates
 
   const { toast } = useToast()
 
@@ -106,7 +105,7 @@ export const ExtensionDetailPage = () => {
           updateData.description = meta[extensionType].description
         }
         await updateExtension(updateData)
-        revalidator.revalidate()
+        // Data will auto-update via BroadcastChannel in useExtensionByIdOrSlug
         // toast({
         //   title: "Code Updated Successfully",
         //   description: version
@@ -115,7 +114,7 @@ export const ExtensionDetailPage = () => {
         // })
       }
     },
-    [revalidator, script, toast, updateExtension]
+    [script, toast, updateExtension]
   )
   const { theme } = useTheme()
 
@@ -179,7 +178,7 @@ export const ExtensionDetailPage = () => {
         <ExtensionToolbar />
       </TabsList>
 
-      {revalidator.state === "loading" ? (
+      {!script ? (
         <Skeleton className="mt-8 h-[20px] w-[100px] rounded-full" />
       ) : (
         <>
@@ -229,4 +228,20 @@ export const ExtensionDetailPage = () => {
       )}
     </Tabs>
   )
+}
+
+// Wrapper component that handles loading state
+export const ExtensionDetailPage = () => {
+  const { params } = useRouterAdapter()
+  const script = useExtensionByIdOrSlug(params.scriptId)
+
+  if (!script) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Skeleton className="h-[20px] w-[100px] rounded-full" />
+      </div>
+    )
+  }
+
+  return <ExtensionDetailPageContent script={script} />
 }

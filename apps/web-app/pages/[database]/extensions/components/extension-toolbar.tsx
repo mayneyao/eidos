@@ -4,7 +4,6 @@ import { compileCode, getCompileMethod } from "@eidos.space/v3"
 import { useMount } from "ahooks"
 import { Copy, ExternalLink, PinIcon, PinOffIcon, Play } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useLoaderData, useRevalidator } from "react-router-dom"
 
 import { isDesktopMode } from "@/lib/env"
 import { getExtensionUrl, isUuid } from "@/lib/utils"
@@ -13,9 +12,13 @@ import { useToast } from "@/components/ui/use-toast"
 import { usePlayground } from "@/apps/desktop/renderer/hooks/usePlayground"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useScriptCall } from "@/apps/web-app/hooks/use-script-call"
 
-import { useExtension } from "../../../../hooks/use-extension"
+import {
+  useExtension,
+  useExtensionByIdOrSlug,
+} from "../../../../hooks/use-extension"
 import { useEditorStore } from "../stores/editor-store"
 import { CheckForUpdatesButton } from "./check-for-updates-button"
 import { ShareExtensionButton } from "./share-extension-button"
@@ -24,18 +27,12 @@ export const openUrlViaDefaultBrowser = (url: string) => {
   window.eidos.openUrl(url)
 }
 
-export const ExtensionToolbar = () => {
+const ExtensionToolbarContent = ({ script }: { script: IExtension }) => {
   const { t } = useTranslation()
-  const script = useLoaderData() as IExtension
   const { updateExtension } = useExtension()
   const editorRef = useRef<{ save: () => void; layout: () => void }>(null)
-  const revalidator = useRevalidator()
 
   const { callScript } = useScriptCall()
-  useMount(() => {
-    revalidator.revalidate()
-  })
-
   const { toast } = useToast()
   const onSubmit = useCallback(
     async (code: string, ts_code?: string) => {
@@ -45,13 +42,13 @@ export const ExtensionToolbar = () => {
           code,
           ts_code,
         })
-        revalidator.revalidate()
+        // Data will auto-update via BroadcastChannel
         toast({
           title: t("extension.toolbar.codeUpdated"),
         })
       }
     },
-    [revalidator, script, toast, updateExtension, t]
+    [script, toast, updateExtension, t]
   )
 
   const { space } = useCurrentPathInfo()
@@ -110,7 +107,7 @@ export const ExtensionToolbar = () => {
             code: compiledJs,
             ts_code: script.ts_code,
           })
-          revalidator.revalidate()
+          // Data will auto-update via BroadcastChannel
           toast({
             title: t(
               "extension.toolbar.buildSuccessful",
@@ -144,7 +141,7 @@ export const ExtensionToolbar = () => {
     } else {
       callScript(script.id, {})
     }
-  }, [script, callScript, toast, t, updateExtension, revalidator, compileCode])
+  }, [script, callScript, toast, t, updateExtension, compileCode])
 
   // if script.id is a uuid, it means the script is forked from marketplace
   const isScriptForkFromMarketplace = useMemo(() => {
@@ -211,7 +208,9 @@ export const ExtensionToolbar = () => {
       )}
       <ShareExtensionButton
         script={script}
-        onSuccess={() => revalidator.revalidate()}
+        onSuccess={() => {
+          /* Data will auto-update */
+        }}
       />
 
       {isScriptForkFromMarketplace && (
@@ -222,4 +221,16 @@ export const ExtensionToolbar = () => {
       )}
     </div>
   )
+}
+
+// Wrapper component
+export const ExtensionToolbar = () => {
+  const { params } = useRouterAdapter()
+  const script = useExtensionByIdOrSlug(params.scriptId)
+
+  if (!script) {
+    return null
+  }
+
+  return <ExtensionToolbarContent script={script} />
 }
