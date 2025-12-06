@@ -4,6 +4,7 @@ import { Plus, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useSqlite } from "@/hooks/use-sqlite"
 
 import { TabContextMenu } from "./tab-context-menu"
 
@@ -20,6 +21,7 @@ export function TabBar() {
     reorderTabs,
   } = useTabStore()
   const { setCurrentApp } = useSidebarStore()
+  const { sqlite } = useSqlite()
   // Use useCallback to stabilize handleNewTab reference
   const handleNewTab = useCallback(() => {
     openTab("/", "New Tab")
@@ -35,32 +37,60 @@ export function TabBar() {
 
     // Left-click to switch tab
     setActiveTab(tabId)
-    locateTabInFileTree(tabId)
+    void locateTabInFileTree(tabId)
   }
 
-  const locateTabInFileTree = (tabId: string) => {
-    const tab = tabs.find((t) => t.id === tabId)
-    if (!tab) return
-
-    // Check if this is a file-handler page
-    if (tab.url.startsWith("/file-handler#")) {
-      const filePath = decodeURIComponent(
-        tab.url.substring("/file-handler#".length)
-      )
-
-      // Switch to files tab first to ensure the file tree is mounted
-      setCurrentApp("files")
-
-      // Wait a bit for the tab to switch and component to mount
+  const dispatchExpandTo = useCallback(
+    (app: "files" | "nodes" | "extensions", path: string) => {
+      setCurrentApp(app)
       setTimeout(() => {
         window.dispatchEvent(
           new CustomEvent("file-tree-expand-to", {
-            detail: { path: filePath },
+            detail: { path },
           })
         )
       }, 50)
-    }
-  }
+    },
+    [setCurrentApp]
+  )
+
+  const locateTabInFileTree = useCallback(
+    async (tabId: string) => {
+      const tab = tabs.find((t) => t.id === tabId)
+      if (!tab) return
+
+      // 1) File handler tabs with explicit file paths
+      if (tab.url.startsWith("/file-handler#")) {
+        const filePath = decodeURIComponent(
+          tab.url.substring("/file-handler#".length)
+        )
+        dispatchExpandTo("files", filePath)
+        return
+      }
+
+      // 2) Node tabs: "/<nodeId>"
+      const nodeMatch = tab.url.match(/^\/([^/]+)$/)
+      if (nodeMatch) {
+        const nodeId = nodeMatch[1]
+        const idPath = (await sqlite?.tree?.getNodeIdPath?.(nodeId)) || null
+        if (!idPath) return
+        dispatchExpandTo("nodes", idPath)
+        return
+      }
+
+      // 3) Extension tabs: "/extensions/<extensionId>"
+      const extMatch = tab.url.match(/^\/extensions\/([^/]+)$/)
+      if (extMatch) {
+        const extId = extMatch[1]
+        const extPath =
+          (await (sqlite as any)?.extension?.getIdPath?.(extId)) || null
+        if (!extPath) return
+        dispatchExpandTo("extensions", extPath)
+        return
+      }
+    },
+    [tabs, sqlite?.tree, sqlite?.extension, dispatchExpandTo]
+  )
 
   return (
     <div
@@ -94,7 +124,8 @@ export function TabBar() {
                 style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                 onClick={() => {
                   setActiveTab(tab.id)
-                  locateTabInFileTree(tab.id)
+                  // Fire and forget; location handled asynchronously
+                  void locateTabInFileTree(tab.id)
                 }}
                 onMouseDown={(e) => handleTabClick(tab.id, e)}
               >

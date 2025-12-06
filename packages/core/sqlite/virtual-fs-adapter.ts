@@ -319,8 +319,14 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
     const nodes = await this.db.selectObjects(query, bind) as Array<ITreeNode & { name_path: string }>
 
-    // Transform to IDirectoryEntry - namePath is already built in SQL
-    return nodes.map((node) => this.nodeToEntry(node, node.name_path))
+    // Batch build ID paths to minimize DB roundtrips
+    const idPathMap = await this.buildIdPathMap(nodes.map((n) => n.id))
+
+    return nodes.map((node) => {
+      const idPath = idPathMap.get(node.id) || `~/.eidos/__NODES__/${node.id}`
+      const parentPath = this.getParentPathFromIdPath(idPath)
+      return this.nodeToEntry(node, node.name_path, idPath, parentPath)
+    })
   }
 
   /**
@@ -416,25 +422,13 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
     const nodes = await this.db.selectObjects(query, bind) as Array<ITreeNode & { name_path: string }>
 
-    // Transform to IDirectoryEntry - namePath is already built in SQL
-    return nodes.map((node) => {
-      const parentPath = node.parent_id
-        ? `~/.eidos/__NODES__/${node.parent_id}`
-        : "~/.eidos/__NODES__"
+    // Batch build ID paths to minimize DB roundtrips
+    const idPathMap = await this.buildIdPathMap(nodes.map((n) => n.id))
 
-      return {
-        name: node.name,
-        path: `~/.eidos/__NODES__/${node.id}`,
-        parentPath: parentPath,
-        kind: node.type === "folder" ? "directory" : "file",
-        metadata: {
-          nodeType: node.type as any,
-          nodeId: node.id,
-          isPinned: node.is_pinned || false,
-          icon: node.icon,
-          namePath: node.name_path,
-        },
-      }
+    return nodes.map((node) => {
+      const idPath = idPathMap.get(node.id) || `~/.eidos/__NODES__/${node.id}`
+      const parentPath = this.getParentPathFromIdPath(idPath)
+      return this.nodeToEntry(node, node.name_path, idPath, parentPath)
     })
   }
 
@@ -458,15 +452,23 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * Convert ITreeNode to IDirectoryEntry (non-recursive mode)
    * namePath is now built in SQL, so we just pass it through
    */
-  private nodeToEntry(node: ITreeNode, namePath: string): IDirectoryEntry {
+  private nodeToEntry(
+    node: ITreeNode,
+    namePath: string,
+    idPath: string,
+    parentPath: string
+  ): IDirectoryEntry {
     if (!node.id) {
       throw new Error(`Node has no ID`)
     }
 
+    const resolvedIdPath = idPath || `~/.eidos/__NODES__/${node.id}`
+    const resolvedParentPath = parentPath || this.getParentPathFromIdPath(resolvedIdPath)
+
     return {
       name: node.name,
-      path: `~/.eidos/__NODES__/${node.id}`,
-      parentPath: node.parent_id ? `~/.eidos/__NODES__/${node.parent_id}` : "~/.eidos/__NODES__",
+      path: resolvedIdPath,
+      parentPath: resolvedParentPath,
       kind: node.type === "folder" ? "directory" : "file",
       metadata: {
         nodeType: node.type as any,
@@ -474,48 +476,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
         isPinned: node.is_pinned || false,
         icon: node.icon,
         namePath: namePath,
+        idPath: resolvedIdPath,
       },
     }
-  }
-
-  /**
-   * Build name-based path for a single node efficiently
-   * Uses a single recursive CTE query for optimal performance
-   */
-  private async buildNamePath(nodeId: string, parentId: string | undefined, nodeName: string): Promise<string> {
-    // Fast path for root nodes
-    if (!parentId) {
-      return `~/.eidos/__NODES__/${nodeName}`;
-    }
-
-    // Build the path using a single recursive CTE query
-    // This gets all ancestors in one database operation
-    const query = `
-      WITH RECURSIVE name_path AS (
-        -- Start with the current node
-        SELECT id, name, parent_id, name as path_part, 1 as level
-        FROM eidos__tree 
-        WHERE id = ?
-        
-        UNION ALL
-        
-        -- Recursively get ancestors (include root nodes)
-        SELECT t.id, t.name, t.parent_id, t.name as path_part, np.level + 1
-        FROM eidos__tree t
-        INNER JOIN name_path np ON t.id = np.parent_id
-      )
-      SELECT name FROM name_path ORDER BY level DESC
-    `;
-
-    const ancestors = await this.db.selectObjects(query, [nodeId]) as Array<{ name: string }>;
-
-    if (ancestors.length === 0) {
-      return `~/.eidos/__NODES__/${nodeName}`;
-    }
-
-    // Build the path from root to leaf
-    const pathParts = ancestors.map(ancestor => ancestor.name);
-    return `~/.eidos/__NODES__/${pathParts.join('/')}`;
   }
 
   /**
@@ -619,96 +582,81 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   }
 
   /**
-   * Batch build name paths for multiple nodes efficiently
-   * This is much more efficient than building each path individually
+   * Build full ID-based path (including virtual root prefix) for a node
    */
-  private async batchBuildNamePaths(nodes: ITreeNode[]): Promise<IDirectoryEntry[]> {
-    if (nodes.length === 0) return [];
-
-    // Build a cache of all needed paths in parallel
-    const namePathCache = new Map<string, string>();
-    const parentPathCache = new Map<string, string>();
-
-    // Pre-build all paths in parallel for better performance
-    const pathPromises = nodes.map(async (node) => {
-      // Build name path for the node itself
-      const namePathPromise = this.buildNamePathForBatch(node, namePathCache);
-
-      // Build parent path if needed
-      const parentPathPromise = node.parent_id
-        ? this.buildNamePathForBatch({ id: node.parent_id, name: '', parent_id: undefined }, namePathCache)
-        : Promise.resolve("~/.eidos/__NODES__");
-
-      return {
-        node,
-        namePath: await namePathPromise,
-        parentPath: await parentPathPromise
-      };
-    });
-
-    const results = await Promise.all(pathPromises);
-
-    // Build final entries
-    return results.map(({ node, namePath, parentPath }) => ({
-      name: node.name,
-      path: `~/.eidos/__NODES__/${node.id}`,
-      parentPath: parentPath,
-      kind: node.type === "folder" ? "directory" : "file",
-      metadata: {
-        nodeType: node.type as any,
-        nodeId: node.id,
-        isPinned: node.is_pinned || false,
-        icon: node.icon,
-        namePath: namePath,
-      },
-    }));
+  private async buildFullIdPath(nodeId: string): Promise<string> {
+    const idChain = await this.buildIdPathForWatch(nodeId)
+    if (!idChain) {
+      return "~/.eidos/__NODES__"
+    }
+    return `~/.eidos/__NODES__/${idChain}`
   }
 
   /**
-   * Build name path for a single node using cache
+   * Compute parent path from a full ID-based path
    */
-  private async buildNamePathForBatch(node: { id: string; name: string; parent_id?: string | null }, cache: Map<string, string>): Promise<string> {
-    // Check cache first
-    if (cache.has(node.id)) {
-      return cache.get(node.id)!;
-    }
+  private getParentPathFromIdPath(fullIdPath: string): string {
+    const normalized = fullIdPath.endsWith("/")
+      ? fullIdPath.slice(0, -1)
+      : fullIdPath
+    const base = "~/.eidos/__NODES__"
+    if (!normalized.startsWith(base)) return base
+    const lastSlash = normalized.lastIndexOf("/")
+    if (lastSlash <= base.length) return base
+    return normalized.slice(0, lastSlash)
+  }
 
-    // Special case: if name is empty (parent path lookup), just return the ID-based path
-    if (!node.name && node.parent_id === undefined) {
-      const path = `~/.eidos/__NODES__/${node.id}`;
-      cache.set(node.id, path);
-      return path;
-    }
+  /**
+   * Batch build ID-based paths for multiple node IDs in one query.
+   * Returns map of nodeId -> full ID path with virtual root prefix.
+   */
+  private async buildIdPathMap(nodeIds: string[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>()
+    if (nodeIds.length === 0) return map
 
-    // Build path using the same efficient recursive CTE
-    const query = `
-      WITH RECURSIVE name_path AS (
-        SELECT id, name, parent_id, name as path_part, 1 as level
-        FROM eidos__tree 
-        WHERE id = ?
-        
+    const uniqueIds = Array.from(new Set(nodeIds))
+    const placeholders = uniqueIds.map(() => "?").join(",")
+    const sql = `
+      WITH RECURSIVE ancestor_path AS (
+        SELECT id, parent_id, id AS root, 1 AS level
+        FROM eidos__tree
+        WHERE id IN (${placeholders}) AND is_deleted = 0
+
         UNION ALL
-        
-        SELECT t.id, t.name, t.parent_id, t.name as path_part, np.level + 1
+
+        SELECT t.id, t.parent_id, ap.root, ap.level + 1
         FROM eidos__tree t
-        INNER JOIN name_path np ON t.id = np.parent_id
+        INNER JOIN ancestor_path ap ON t.id = ap.parent_id
+        WHERE t.is_deleted = 0
       )
-      SELECT name FROM name_path ORDER BY level DESC
-    `;
+      SELECT root AS node_id,
+        (
+          SELECT group_concat(id, '/')
+          FROM (
+            SELECT id
+            FROM ancestor_path ap2
+            WHERE ap2.root = ap.root
+            ORDER BY level DESC
+          )
+        ) AS id_chain
+      FROM ancestor_path ap
+      GROUP BY root
+    `
 
-    const ancestors = await this.db.selectObjects(query, [node.id]) as Array<{ name: string }>;
-
-    let path: string;
-    if (ancestors.length === 0) {
-      path = `~/.eidos/__NODES__/${node.name}`;
-    } else {
-      const pathParts = ancestors.map(ancestor => ancestor.name);
-      path = `~/.eidos/__NODES__/${pathParts.join('/')}`;
+    const rows = await this.db.selectObjects(sql, uniqueIds) as Array<{ node_id: string; id_chain: string | null }>
+    for (const row of rows) {
+      const idChain = row.id_chain || ""
+      const fullPath = idChain ? `~/.eidos/__NODES__/${idChain}` : "~/.eidos/__NODES__"
+      map.set(row.node_id, fullPath)
     }
 
-    // Cache the result
-    cache.set(node.id, path);
-    return path;
+    // Ensure every requested ID has a fallback path
+    for (const id of uniqueIds) {
+      if (!map.has(id)) {
+        map.set(id, `~/.eidos/__NODES__/${id}`)
+      }
+    }
+    return map
   }
 
   /**

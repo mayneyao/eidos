@@ -156,5 +156,35 @@ export function WithNodeOperations<T extends Constructor>(Base: T) {
                 position,
             })
         }
+
+        /**
+         * Build full ID-based path for a node (rooted at ~/.eidos/__NODES__)
+         * Returns null if node not found or deleted.
+         */
+        public async getNodeIdPath(nodeId: string): Promise<string | null> {
+            const sql = `
+                WITH RECURSIVE ancestor_path AS (
+                    SELECT id, parent_id, 1 as level
+                    FROM ${this.name}
+                    WHERE id = ? AND is_deleted = 0
+
+                    UNION ALL
+
+                    SELECT t.id, t.parent_id, ap.level + 1
+                    FROM ${this.name} t
+                    INNER JOIN ancestor_path ap ON t.id = ap.parent_id
+                    WHERE t.is_deleted = 0
+                )
+                SELECT id FROM ancestor_path ORDER BY level DESC
+            `;
+
+            const rows = await this.dataSpace.exec2(sql, [nodeId]) as Array<{ id: string }>;
+            if (!rows.length) {
+                return null;
+            }
+
+            const idChain = rows.map((row) => row.id).join("/");
+            return `~/.eidos/__NODES__/${idChain}`;
+        }
     };
 }

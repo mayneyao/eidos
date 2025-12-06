@@ -45,7 +45,7 @@ const NodesContent = () => {
             setIsContentExpanded={setIsContentExpanded}
           />
         ) : (
-          <FileTree rootDir="~/.eidos/__NODES__/" />
+          <FileTree rootDir="~/.eidos/__NODES__" />
         )}
       </div>
     </div>
