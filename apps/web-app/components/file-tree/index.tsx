@@ -151,11 +151,11 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     if (!targetPath) return
 
     // Use Alt/Option to open in new tab (Cmd/Ctrl is reserved for multi-select)
-    const openInNewTab = Boolean(event?.altKey)
+    const target = event?.altKey ? "_blank" : undefined
 
     // Delegate to navigate with options (tab logic handled internally)
     navigate(targetPath, {
-      openInNewTab,
+      target,
     })
   }
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react"
+import React, { useEffect, useRef } from "react"
 
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useTabStore } from "@/apps/web-app/store/tabs"
@@ -9,13 +9,21 @@ import { TabSwitcher } from "./tab-switcher"
 export function TabManager({ children }: { children: React.ReactNode }) {
   const { tabs, activeTabId, openTab, closeTab, setActiveTab } = useTabStore()
   const { location } = useRouterAdapter()
+  const goInTabHistory = useTabStore((state) => state.goInTabHistory)
+  const initGuardRef = useRef(false)
 
-  // Initialize with current route if no tabs exist
+  // Initialize with current route if no tabs exist, avoid duplicate Home (StrictMode)
   useEffect(() => {
-    if (tabs.length === 0) {
-      openTab(location.pathname + location.search + location.hash, "Home")
+    const targetUrl = location.pathname + location.search + location.hash
+    if (tabs.length === 0 && !initGuardRef.current) {
+      initGuardRef.current = true
+      openTab(targetUrl, "Home")
+      return
     }
-  }, [tabs.length, openTab, location])
+    if (tabs.length > 0) {
+      initGuardRef.current = false
+    }
+  }, [tabs, activeTabId, openTab, setActiveTab, location])
 
   // Handle global shortcuts for tab management
   // Moved here from TabBar because TabBar is rendered inside each tab (multiple instances),
@@ -67,6 +75,35 @@ export function TabManager({ children }: { children: React.ReactNode }) {
       }
     }
   }, [tabs, activeTabId, openTab, closeTab, setActiveTab])
+
+  // Handle mouse side buttons for back/forward within the active tab
+  useEffect(() => {
+    let lastHandled = 0
+    const handleMouseButton = (e: MouseEvent) => {
+      if (!activeTabId) return
+      // Deduplicate if the same event fires across multiple mouse event types
+      if (lastHandled === e.timeStamp) return
+
+      if (e.button === 3) {
+        e.preventDefault()
+        goInTabHistory(activeTabId, -1)
+        lastHandled = e.timeStamp
+      } else if (e.button === 4) {
+        e.preventDefault()
+        goInTabHistory(activeTabId, 1)
+        lastHandled = e.timeStamp
+      }
+    }
+
+    window.addEventListener("pointerup", handleMouseButton, { capture: true })
+    window.addEventListener("mouseup", handleMouseButton, { capture: true })
+    window.addEventListener("auxclick", handleMouseButton, { capture: true })
+    return () => {
+      window.removeEventListener("pointerup", handleMouseButton, { capture: true } as any)
+      window.removeEventListener("mouseup", handleMouseButton, { capture: true } as any)
+      window.removeEventListener("auxclick", handleMouseButton, { capture: true } as any)
+    }
+  }, [activeTabId, goInTabHistory])
 
   return (
     <div className="relative flex-1 min-h-0">

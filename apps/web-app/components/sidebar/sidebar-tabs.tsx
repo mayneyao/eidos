@@ -18,7 +18,6 @@ import { isMacDesktop } from "@/lib/web/helper"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
-import { Link } from "@/components/ui/link"
 import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
@@ -88,7 +87,7 @@ const BlockTab = memo(
     setCurrentApp: (app: string) => void
     navigate: (path: string) => void
     space: string
-    onBlockTabClick: (tabId: string) => void
+    onBlockTabClick: (tabId: string, target?: "_blank" | "_self") => void
   }) => {
     const block = blocks[tabId]
     const shortcutNum = index + 1
@@ -96,9 +95,14 @@ const BlockTab = memo(
     const isActive = currentApp === tabId
     const label = block?.name || tabId
 
-    const handleClick = useCallback(() => {
-      onBlockTabClick(tabId)
-    }, [onBlockTabClick, tabId])
+    const handleClick = useCallback(
+      (event: React.MouseEvent) => {
+        const target =
+          event.metaKey || event.ctrlKey || event.altKey ? "_blank" : undefined
+        onBlockTabClick(tabId, target)
+      },
+      [onBlockTabClick, tabId]
+    )
 
     return (
       <div key={tabId}>
@@ -147,7 +151,10 @@ export const SidebarTabs = () => {
   const [sortedTabs, setSortedTabs] = useState(tabIds)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const handleTabClick = (tabId: string) => {
+  const handleTabClick = (tabId: string, event?: React.MouseEvent) => {
+    const target = event && (event.metaKey || event.ctrlKey || event.altKey)
+      ? "_blank"
+      : undefined
     const tabConfig = TAB_CONFIG[tabId]
 
     if (tabConfig?.isNavigation && tabConfig?.href) {
@@ -157,14 +164,14 @@ export const SidebarTabs = () => {
         tabId === "today"
           ? `/journals/${new Date().toLocaleDateString("en-CA")}`
           : tabConfig.href
-      navigate(href)
+      navigate(href, { target })
     } else {
       // Regular tab or block tab
       if (tabId === "nodes" || tabId === "extensions" || tabId === "files") {
         setCurrentApp(tabId as SidebarApp)
       } else {
         // Block tab - use unified handling logic
-        handleBlockTabClick(tabId)
+        handleBlockTabClick(tabId, target)
       }
     }
   }
@@ -300,37 +307,23 @@ export const SidebarTabs = () => {
             const isActive = currentApp === tabId
             const label = tabConfig?.label || tabId
 
-            const buttonContent = (
-              <Button
-                variant={isActive ? "secondary" : "ghost"}
-                size="sm"
-                className={cn(
-                  "h-8 w-8 p-0 transition-colors flex-shrink-0",
-                  isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
-                )}
-                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                onClick={() => handleTabClick(tabId)}
-                title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
-              >
-                <Icon className="h-4 w-4" />
-              </Button>
+            return (
+              <div key={tabId}>
+                <Button
+                  variant={isActive ? "secondary" : "ghost"}
+                  size="sm"
+                  className={cn(
+                    "h-8 w-8 p-0 transition-colors flex-shrink-0",
+                    isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
+                  )}
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={(e) => handleTabClick(tabId, e)}
+                  title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
+                >
+                  <Icon className="h-4 w-4" />
+                </Button>
+              </div>
             )
-
-            if (tabConfig?.isNavigation && tabConfig?.href) {
-              // Special handling for today tab - go to current local date
-              // en-CA = Canadian English locale, which formats dates as YYYY-MM-DD
-              const href =
-                tabId === "today"
-                  ? `/journals/${new Date().toLocaleDateString("en-CA")}`
-                  : tabConfig.href
-
-              return (
-                <Link key={tabId} to={href}>
-                  {buttonContent}
-                </Link>
-              )
-            }
-            return <div key={tabId}>{buttonContent}</div>
           } else {
             // Block tabs - use BlockTab component
             return (
@@ -394,7 +387,11 @@ export const SidebarTabs = () => {
                     const tabConfig = TAB_CONFIG[tabId]
                     const label = isFixedTab ? tabConfig?.label || tabId : null
 
-                    const handleClick = () => {
+                    const handleClick = (event: React.MouseEvent) => {
+                      const target =
+                        event.metaKey || event.ctrlKey || event.altKey
+                          ? "_blank"
+                          : undefined
                       if (tabConfig?.isNavigation && tabConfig?.href) {
                         // Navigation type tab - set current app and navigate
                         setCurrentApp(tabId as SidebarApp)
@@ -402,14 +399,14 @@ export const SidebarTabs = () => {
                           tabId === "today"
                             ? `/journals/${new Date().toLocaleDateString("en-CA")}`
                             : tabConfig.href
-                        navigate(href)
+                        navigate(href, { target })
                       } else {
                         // Regular tab or block tab
                         if (isFixedTab) {
                           setCurrentApp(tabId as SidebarApp)
                         } else {
                           // Block tab - use unified handling logic
-                          handleBlockTabClick(tabId)
+                          handleBlockTabClick(tabId, target)
                         }
                       }
                     }

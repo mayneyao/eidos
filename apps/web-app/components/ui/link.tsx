@@ -48,15 +48,15 @@ export function Link({
     // Prevent default anchor behavior
     e.preventDefault()
 
-    // Check if Alt/Option key is pressed for opening in new tab
-    const shouldOpenInNewTab = e.altKey || e.metaKey
+    // Check if Alt/Option or Meta/Ctrl key is pressed for opening in new tab
+    const target = e.altKey || e.metaKey ? "_blank" : undefined
 
     // Delegate to navigate with options
     // Links should open in new tabs or activate existing by default
     navigate(to, {
       replace: false,
       state,
-      openInNewTab: shouldOpenInNewTab,
+      target,
     })
   }
 
@@ -68,7 +68,7 @@ export function Link({
       title={
         props.title ||
         (props.title === undefined
-          ? "Click to navigate, Alt+Click to open in new tab"
+          ? "Click to navigate, Alt/Cmd+Click to open in new tab"
           : props.title)
       }
     >

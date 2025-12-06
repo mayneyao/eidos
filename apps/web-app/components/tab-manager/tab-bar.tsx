@@ -1,5 +1,5 @@
 import React, { useCallback } from "react"
-import { Plus, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
@@ -19,6 +19,9 @@ export function TabBar() {
     closeAllTabs,
     setActiveTab,
     reorderTabs,
+    goInTabHistory,
+    canGoBack,
+    canGoForward,
   } = useTabStore()
   const { setCurrentApp } = useSidebarStore()
   const { sqlite } = useSqlite()
@@ -135,6 +138,43 @@ export function TabBar() {
                 )}
 
                 <span className="truncate flex-1 select-none">{tab.title}</span>
+
+                {isActive && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      className={cn(
+                        "rounded p-0.5 transition-opacity shrink-0 hover:bg-accent",
+                        canGoBack(tab.id)
+                          ? "opacity-70 hover:opacity-100"
+                          : "opacity-30 cursor-not-allowed"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        goInTabHistory(tab.id, -1)
+                      }}
+                      disabled={!canGoBack(tab.id)}
+                      title="Back"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      className={cn(
+                        "rounded p-0.5 transition-opacity shrink-0 hover:bg-accent",
+                        canGoForward(tab.id)
+                          ? "opacity-70 hover:opacity-100"
+                          : "opacity-30 cursor-not-allowed"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        goInTabHistory(tab.id, 1)
+                      }}
+                      disabled={!canGoForward(tab.id)}
+                      title="Forward"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
 
                 <button
                   className={cn(

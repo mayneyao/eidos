@@ -1,5 +1,10 @@
 import React, { useEffect, useRef } from "react"
-import { MemoryRouter, useLocation, useNavigate } from "react-router-dom"
+import {
+  MemoryRouter,
+  useLocation,
+  useNavigate,
+  useNavigationType,
+} from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { useTabStore } from "@/apps/web-app/store/tabs"
@@ -16,6 +21,10 @@ function TabUrlSyncer({
 }) {
   const location = useLocation()
   const updateTab = useTabStore((state) => state.updateTab)
+  const recordHistoryNavigation = useTabStore(
+    (state) => state.recordHistoryNavigation
+  )
+  const navigationType = useNavigationType()
   const prevUrlRef = useRef<string>("")
 
   useEffect(() => {
@@ -24,6 +33,11 @@ function TabUrlSyncer({
     // Only update if the URL actually changed
     if (fullPath !== prevUrlRef.current) {
       prevUrlRef.current = fullPath
+      recordHistoryNavigation(
+        tabId,
+        { key: location.key, url: fullPath },
+        navigationType
+      )
       isUpdatingFromUrlRef.current = true
       updateTab(tabId, { url: fullPath })
     }
@@ -31,8 +45,11 @@ function TabUrlSyncer({
     location.pathname,
     location.search,
     location.hash,
+    location.key,
     tabId,
     updateTab,
+    recordHistoryNavigation,
+    navigationType,
     isUpdatingFromUrlRef,
   ])
 
@@ -52,7 +69,21 @@ function TabNavigator({
   const tabUrl = useTabStore(
     (state) => state.tabs.find((t) => t.id === tabId)?.url
   )
+  const registerTabNavigator = useTabStore(
+    (state) => state.registerTabNavigator
+  )
+  const unregisterTabNavigator = useTabStore(
+    (state) => state.unregisterTabNavigator
+  )
+  const consumeNextNavigationOptions = useTabStore(
+    (state) => state.consumeNextNavigationOptions
+  )
   const prevTabUrlRef = useRef<string>("")
+
+  useEffect(() => {
+    registerTabNavigator(tabId, navigate)
+    return () => unregisterTabNavigator(tabId)
+  }, [tabId, navigate, registerTabNavigator, unregisterTabNavigator])
 
   useEffect(() => {
     if (isUpdatingFromUrlRef.current) {
@@ -69,7 +100,8 @@ function TabNavigator({
       // Only navigate if the tab URL is different from current location
       if (tabUrl !== currentPath) {
         prevTabUrlRef.current = tabUrl
-        navigate(tabUrl)
+        const navOptions = consumeNextNavigationOptions(tabId)
+        navigate(tabUrl, { replace: navOptions?.replace === true })
       }
     }
   }, [
@@ -78,6 +110,8 @@ function TabNavigator({
     location.pathname,
     location.search,
     location.hash,
+    consumeNextNavigationOptions,
+    tabId,
     isUpdatingFromUrlRef,
   ])
 

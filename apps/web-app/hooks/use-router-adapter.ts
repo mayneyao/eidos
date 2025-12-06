@@ -65,16 +65,19 @@ export const useRouterAdapter = () => {
         if (inRouter && navigate) return navigate
 
         // Return a fallback navigate function with tab support
-        return ((to: string | number, options?: { replace?: boolean, openInNewTab?: boolean }) => {
+        return ((to: string | number, options?: { replace?: boolean, target?: "_blank" | "_self", state?: any }) => {
             if (typeof to === "number") {
-                // History back/forward not fully supported in tab store mode yet
-                console.warn("History navigation not supported in no-router mode")
+                // Delegate to the active tab's history stack
+                const { activeTabId: storeActiveTabId, goInTabHistory } = useTabStore.getState()
+                if (storeActiveTabId) {
+                    goInTabHistory(storeActiveTabId, to)
+                }
                 return
             }
 
             // Parse options
             const replaceCurrentTab = options?.replace === true // Must explicitly set replace: true to replace current tab
-            const forceNewTab = options?.openInNewTab === true
+            const forceNewTab = options?.target === "_blank"
 
             // Resolve relative paths if needed
             let newUrl = to as string
@@ -88,38 +91,34 @@ export const useRouterAdapter = () => {
                 }
             }
 
-            // VSCode-style tab behavior: default to opening new tabs
+            // Default behavior: navigate within the active tab's history stack
             const {
                 tabs,
                 activeTabId: storeActiveTabId,
                 openTab: openTabAction,
                 setActiveTab: setActiveTabAction,
+                updateTab,
+                setNextNavigationOptions,
             } = useTabStore.getState()
-
-            // Check if this URL is already open in a tab
-            const existingTab = tabs.find((tab: { url: string; id: string }) => tab.url === newUrl)
 
             if (forceNewTab) {
                 openTabAction(newUrl)
-            } else if (existingTab) {
-                // If tab already exists, just activate it (VSCode behavior)
-                setActiveTabAction(existingTab.id)
-            } else if (replaceCurrentTab && activeTabId) {
-                // Explicitly requested to replace current tab
-                updateTab(activeTabId, { url: newUrl })
-            } else if (
-                tabs.length === 1 &&
-                tabs[0].url === "/" &&
-                (storeActiveTabId || tabs[0]?.id)
-            ) {
-                // If there's only the initial Home tab, replace it instead of opening a new one
-                const targetId = storeActiveTabId || tabs[0].id
-                updateTab(targetId, { url: newUrl })
-                setActiveTabAction(targetId)
-            } else {
-                // Default: open new tab (VSCode behavior)
-                openTabAction(newUrl)
+                return
             }
+
+            const targetId = storeActiveTabId || tabs[0]?.id
+
+            if (!targetId) {
+                openTabAction(newUrl)
+                return
+            }
+
+            if (replaceCurrentTab) {
+                setNextNavigationOptions(targetId, { replace: true })
+            }
+
+            updateTab(targetId, { url: newUrl })
+            setActiveTabAction(targetId)
         }) // Type as any to match useNavigate signature
     }, [inRouter, navigate, activeTabId, updateTab, adapterLocation])
 
@@ -193,7 +192,7 @@ export const useRouterAdapter = () => {
 
     return {
         location: adapterLocation,
-        navigate: adapterNavigate as (to: string | number, options?: { replace?: boolean, openInNewTab?: boolean, state?: any }) => void,
+        navigate: adapterNavigate as (to: string | number, options?: { replace?: boolean, target?: "_blank" | "_self", state?: any }) => void,
         params: adapterParams as Record<string, string>,
         searchParams: adapterSearchParams,
         setSearchParams: adapterSetSearchParams as (nextInit: URLSearchParams | Record<string, string> | ((prev: URLSearchParams) => URLSearchParams | Record<string, string>)) => void,

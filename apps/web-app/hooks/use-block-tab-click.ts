@@ -12,7 +12,7 @@ export const useBlockTabClick = (blocks: Record<string, any>) => {
   const { setCurrentApp } = useSidebarStore()
   const { navigate } = useRouterAdapter()
 
-  return useCallback((tabId: string) => {
+  return useCallback((tabId: string, target?: "_blank" | "_self") => {
     const block = blocks[tabId]
     const hasUseSidebar = block && block.code && detectDirective(block.code, "use sidebar")
 
@@ -21,7 +21,7 @@ export const useBlockTabClick = (blocks: Record<string, any>) => {
       setCurrentApp(tabId)
     } else {
       // Otherwise, navigate to block page normally
-      navigate(`/blocks/${tabId}`)
+      navigate(`/blocks/${tabId}`, { target })
     }
   }, [blocks, setCurrentApp, navigate])
 }

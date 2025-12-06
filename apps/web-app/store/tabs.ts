@@ -2,6 +2,11 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { nanoid } from "nanoid"
 
+export interface TabHistoryEntry {
+    key: string
+    url: string
+}
+
 export interface Tab {
     id: string
     url: string
@@ -13,6 +18,9 @@ export interface Tab {
 interface TabState {
     tabs: Tab[]
     activeTabId: string | null
+    history: Record<string, { entries: TabHistoryEntry[]; index: number }>
+    tabNavigators: Record<string, (delta: number) => void>
+    nextNavigationOptions: Record<string, { replace?: boolean }>
 
     // Actions
     openTab: (url: string, title?: string) => void
@@ -23,12 +31,27 @@ interface TabState {
     setActiveTab: (id: string) => void
     updateTab: (id: string, updates: Partial<Tab>) => void
     reorderTabs: (newTabs: Tab[]) => void
+    recordHistoryNavigation: (
+        id: string,
+        entry: TabHistoryEntry,
+        type: "POP" | "PUSH" | "REPLACE"
+    ) => void
+    canGoBack: (id: string) => boolean
+    canGoForward: (id: string) => boolean
+    registerTabNavigator: (id: string, navigator: (delta: number) => void) => void
+    unregisterTabNavigator: (id: string) => void
+    goInTabHistory: (id: string, delta: number) => void
+    setNextNavigationOptions: (id: string, options: { replace?: boolean }) => void
+    consumeNextNavigationOptions: (id: string) => { replace?: boolean } | undefined
 }
 
 export const useTabStore = create<TabState>()(
     (set, get) => ({
         tabs: [],
         activeTabId: null,
+        history: {},
+        tabNavigators: {},
+        nextNavigationOptions: {},
 
         openTab: (url, title = "New Tab") => {
             const { tabs, activeTabId } = get()
@@ -52,7 +75,7 @@ export const useTabStore = create<TabState>()(
         },
 
         closeTab: (id) => {
-            const { tabs, activeTabId } = get()
+            const { tabs, activeTabId, history, tabNavigators, nextNavigationOptions } = get()
             const newTabs = tabs.filter((t) => t.id !== id)
 
             // If we closed the active tab, switch to the next available one
@@ -71,6 +94,15 @@ export const useTabStore = create<TabState>()(
             set({
                 tabs: newTabs,
                 activeTabId: newActiveId,
+                history: Object.fromEntries(
+                    Object.entries(history).filter(([tabId]) => tabId !== id)
+                ),
+                tabNavigators: Object.fromEntries(
+                    Object.entries(tabNavigators).filter(([tabId]) => tabId !== id)
+                ),
+                nextNavigationOptions: Object.fromEntries(
+                    Object.entries(nextNavigationOptions).filter(([tabId]) => tabId !== id)
+                ),
             })
         },
 
@@ -127,6 +159,99 @@ export const useTabStore = create<TabState>()(
 
         reorderTabs: (newTabs) => {
             set({ tabs: newTabs })
+        },
+
+        recordHistoryNavigation: (id, entry, type) => {
+            set((state) => {
+                const current = state.history[id] || { entries: [], index: -1 }
+                let entries = current.entries
+                let index = current.index
+
+                if (type === "POP") {
+                    const foundIndex = entries.findIndex((e) => e.key === entry.key)
+                    if (foundIndex !== -1) {
+                        index = foundIndex
+                    } else {
+                        // If we cannot find the key, fall back to push to avoid desync
+                        entries = entries.slice(0, index + 1).concat(entry)
+                        index = entries.length - 1
+                    }
+                } else if (type === "REPLACE") {
+                    if (index >= 0 && index < entries.length) {
+                        entries = entries.map((e, i) => (i === index ? entry : e))
+                    } else if (entries.length === 0) {
+                        entries = [entry]
+                        index = 0
+                    } else {
+                        entries = entries.slice(0, index + 1).concat(entry)
+                        index = entries.length - 1
+                    }
+                } else {
+                    // PUSH
+                    entries = entries.slice(0, index + 1).concat(entry)
+                    index = entries.length - 1
+                }
+
+                return {
+                    history: {
+                        ...state.history,
+                        [id]: { entries, index },
+                    },
+                }
+            })
+        },
+
+        canGoBack: (id) => {
+            const history = get().history[id]
+            return history ? history.index > 0 : false
+        },
+
+        canGoForward: (id) => {
+            const history = get().history[id]
+            return history ? history.index < history.entries.length - 1 : false
+        },
+
+        registerTabNavigator: (id, navigator) => {
+            set((state) => ({
+                tabNavigators: { ...state.tabNavigators, [id]: navigator },
+            }))
+        },
+
+        unregisterTabNavigator: (id) => {
+            set((state) => {
+                const { [id]: _omit, ...rest } = state.tabNavigators
+                return { tabNavigators: rest }
+            })
+        },
+
+        goInTabHistory: (id, delta) => {
+            const { tabNavigators, canGoBack, canGoForward } = get()
+            if (delta < 0 && !canGoBack(id)) return
+            if (delta > 0 && !canGoForward(id)) return
+
+            const navigator = tabNavigators[id]
+            navigator?.(delta)
+        },
+
+        setNextNavigationOptions: (id, options) => {
+            set((state) => ({
+                nextNavigationOptions: {
+                    ...state.nextNavigationOptions,
+                    [id]: options,
+                },
+            }))
+        },
+
+        consumeNextNavigationOptions: (id) => {
+            const { nextNavigationOptions } = get()
+            const opts = nextNavigationOptions[id]
+            if (opts) {
+                set((state) => {
+                    const { [id]: _omit, ...rest } = state.nextNavigationOptions
+                    return { nextNavigationOptions: rest }
+                })
+            }
+            return opts
         },
     }),
 
