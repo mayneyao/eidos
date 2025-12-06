@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useSpaceSettings } from "@/hooks/use-space-settings"
 import { useDocProperty } from "@/apps/web-app/components/doc-property-global/hook"
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
@@ -16,7 +17,9 @@ interface EditorInstanceContextType {
   docProperties: Record<string, any> | null
   markerProperty: string
   showReferenceNodeIcon: boolean
-  imageAlign: 'left' | 'center' | 'right'
+  imageAlign: "left" | "center" | "right"
+  container: HTMLElement | null
+  queryWithinContainer: (selector: string) => Element | null
 }
 
 const EditorInstanceContext = createContext<EditorInstanceContextType>({
@@ -30,7 +33,9 @@ const EditorInstanceContext = createContext<EditorInstanceContextType>({
   docProperties: null,
   markerProperty: "",
   showReferenceNodeIcon: false,
-  imageAlign: 'center',
+  imageAlign: "center",
+  container: null,
+  queryWithinContainer: () => null,
 })
 
 export function EditorInstanceProvider({
@@ -50,11 +55,25 @@ export function EditorInstanceProvider({
   const { data: spaceDocSettings } = useSpaceSettings("doc", {
     markerProperty: "",
     showReferenceNodeIcon: false,
-    imageAlign: 'center',
+    imageAlign: "center",
   })
   const markerProperty = spaceDocSettings.markerProperty
   const showReferenceNodeIcon = spaceDocSettings.showReferenceNodeIcon
   const imageAlign = spaceDocSettings.imageAlign
+
+  let tabContainer: HTMLElement | null = null
+  try {
+    const { containerRef } = useTabContext()
+    tabContainer = containerRef?.current ?? null
+  } catch (error) {
+    // Ignore when not inside a TabContainer
+  }
+
+  const queryWithinContainer = (selector: string) => {
+    if (typeof document === "undefined") return null
+    if (tabContainer) return tabContainer.querySelector(selector)
+    return document.querySelector(selector)
+  }
 
   const value = {
     mblocks,
@@ -68,6 +87,8 @@ export function EditorInstanceProvider({
     markerProperty,
     showReferenceNodeIcon,
     imageAlign,
+    container: tabContainer,
+    queryWithinContainer,
   }
 
   return (

@@ -8,26 +8,27 @@ import {
 import { createDOMRange, createRectsFromDOMRange } from "@lexical/selection"
 import type {
   LexicalEditor,
-  RangeSelection} from "lexical";
+  RangeSelection
+} from "lexical";
 import {
   $getSelection,
   $isRangeSelection
 } from "lexical"
+import { useEditorInstance } from "../../../hooks/editor-instance-context"
 
 export const useUpdateLocation = (
   editor: LexicalEditor,
   selectionRef: React.MutableRefObject<RangeSelection | null>,
   boxRef: React.MutableRefObject<HTMLDivElement | null>
 ) => {
+  const { queryWithinContainer } = useEditorInstance()
   const [editorWidth, setEditorWidth] = useState(0)
-  const [containerLeft, setContainerLeft] = useState(0)
-  const selectionState = useMemo(
-    () => ({
+  const selectionState = useMemo(() => {
+    return {
       container: document.createElement("div"),
       elements: [],
-    }),
-    []
-  )
+    }
+  }, [])
 
   const updateLocation = useCallback(() => {
     editor.getEditorState().read(() => {
@@ -48,14 +49,9 @@ export const useUpdateLocation = (
         if (range !== null && boxElem !== null) {
           const { left, bottom, width } = range.getBoundingClientRect()
           const selectionRects = createRectsFromDOMRange(editor, range)
-          let correctedLeft =
-            selectionRects.length === 1 ? left + width / 2 - 125 : left - 125
-          if (correctedLeft < 10) {
-            correctedLeft = 10
-          }
-          const translateX = containerLeft
-          const translateY =
-            bottom + 8 + (window.pageYOffset || document.documentElement.scrollTop)
+          const correctedLeft = Math.max(left, 10)
+          const translateX = correctedLeft
+          const translateY = bottom + 8
 
           boxElem.style.left = "0px"
           boxElem.style.top = "0px"
@@ -75,8 +71,7 @@ export const useUpdateLocation = (
               elements[i] = elem
               container.appendChild(elem)
             }
-            const offsetTop =
-              selectionRect.top + (window.pageYOffset || document.documentElement.scrollTop)
+            const offsetTop = selectionRect.top
             const offsetLeft = selectionRect.left
             const color = "255, 212, 0"
 
@@ -98,34 +93,36 @@ export const useUpdateLocation = (
         }
       }
     })
-  }, [boxRef, editor, selectionRef, selectionState, containerLeft])
+  }, [boxRef, editor, selectionRef, selectionState])
 
   useEffect(() => {
-    const main = document.querySelector("#main-content")
+    const main = queryWithinContainer("#main-content") as HTMLElement | null
     main?.addEventListener("scroll", updateLocation)
 
     return () => {
       main?.removeEventListener("scroll", updateLocation)
     }
-  }, [updateLocation])
+  }, [queryWithinContainer, updateLocation])
 
   useLayoutEffect(() => {
     updateLocation()
-    const container = selectionState.container
-    const editorContainer = document.querySelector("#editor-container-inner")
-
-    setContainerLeft(editorContainer?.getBoundingClientRect()?.left || 0)
-    if (editorWidth !== editorContainer?.clientWidth) {
-      setEditorWidth(editorContainer?.clientWidth || 0)
+    const selectionContainer = selectionState.container
+    const editorContainer = queryWithinContainer("#editor-container-inner")
+    const containerWidth =
+      (editorContainer as HTMLElement | null)?.clientWidth || 0
+    if (editorWidth !== containerWidth) {
+      setEditorWidth(containerWidth)
     }
-    const body = document.body
-    if (body !== null) {
-      body.appendChild(container)
-      return () => {
-        body.removeChild(container)
-      }
+    document.body.appendChild(selectionContainer)
+    return () => {
+      document.body.removeChild(selectionContainer)
     }
-  }, [editorWidth, selectionState.container, updateLocation])
+  }, [
+    editorWidth,
+    queryWithinContainer,
+    selectionState.container,
+    updateLocation,
+  ])
 
   useEffect(() => {
     window.addEventListener("resize", updateLocation)

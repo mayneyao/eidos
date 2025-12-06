@@ -1,7 +1,8 @@
-import { createContext, useContext } from "react"
+import { createContext, useContext, type RefObject } from "react"
 
 interface TabContextValue {
   tabId: string
+  containerRef: RefObject<HTMLElement> | null
 }
 
 const TabContext = createContext<TabContextValue | null>(null)

@@ -13,7 +13,7 @@ import {
 import type { BookmarkPayload } from "./node";
 import { $isBookmarkNode } from "./node"
 import "./style.css"
-import { useState } from "react"
+import { useRef, useState } from "react"
 
 import { proxyURL } from "@/lib/utils"
 import { Loading } from "@/components/loading"
@@ -22,9 +22,10 @@ function BookmarkPlaceholder(props: { nodeKey: string }) {
   const { nodeKey } = props
   const [editor] = useLexicalComposerContext()
   const [loading, setLoading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const handleSelect = async () => {
-    const src = (document.getElementById("web-url") as HTMLInputElement).value
+    const src = inputRef.current?.value ?? ""
     setLoading(true)
     const data = await fetch(`https://link-preview.eidos.space/?q=${src}`)
     const json = await data.json()
@@ -63,8 +64,8 @@ function BookmarkPlaceholder(props: { nodeKey: string }) {
           <Input
             className="grow rounded-lg border border-gray-300 px-3 py-2"
             placeholder="https://eidos.space"
-            id="web-url"
             autoFocus
+            ref={inputRef}
           />
           <Button size="sm" className="w-full" onClick={() => handleSelect()}>
             Confirm

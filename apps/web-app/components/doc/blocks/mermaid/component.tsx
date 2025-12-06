@@ -68,7 +68,9 @@ export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
 
   const copyContent = useCallback(
     async (format: "png" | "svg" | "text") => {
-      const mermaidRef = document.querySelector("#mermaid-renderer")
+      const mermaidRef = ref.current?.querySelector(
+        "#mermaid-renderer"
+      ) as HTMLElement | null
       if (mermaidRef) {
         try {
           if (format === "text") {

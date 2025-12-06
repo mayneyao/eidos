@@ -9,16 +9,11 @@ import { FileHandlerPage } from "@/apps/web-app/pages/[database]/file-handler/pa
 import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
 import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
 import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
-import { SpaceSetting } from "@/apps/web-app/pages/[database]/settings/page"
 
 export const spaceRoutes: RouteObject[] = [
   {
     index: true,
     element: <SpaceHomePage />,
-  },
-  {
-    path: "settings",
-    element: <SpaceSetting />,
   },
   {
     path: "file-handler",

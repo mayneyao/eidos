@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { useEditorStore } from "../../hooks/useEditorContext"
+import { useEditorInstance } from "../../hooks/editor-instance-context"
 import { AITools } from "./ai-tools"
 
 export const INSERT_AI_COMMAND: LexicalCommand<string> =
@@ -31,11 +32,12 @@ export const INSERT_AI_COMMAND: LexicalCommand<string> =
 
 function scrollToVisualPosition(
   element: HTMLElement,
+  scrollContainer: HTMLElement | null,
   { behavior = "smooth" } = {}
 ) {
+  if (!scrollContainer) return
   const rect = element.getBoundingClientRect()
 
-  const scrollContainer = document.getElementById("main-content")
   const offsetX =
     (element.offsetWidth - (scrollContainer as HTMLElement).clientWidth) / 2
   const offsetY =
@@ -56,6 +58,7 @@ export const AIToolsPlugin = (props: any) => {
   const { setIsAIToolsOpen } = useEditorStore()
   const [content, setContent] = useState("")
   const [cancelActionConfirmOpen, setCancelActionConfirmOpen] = useState(false)
+  const { container, queryWithinContainer } = useEditorInstance()
 
   const closeConfirm = useCallback(() => {
     setCancelActionConfirmOpen(false)
@@ -79,13 +82,16 @@ export const AIToolsPlugin = (props: any) => {
   useEffect(() => {
     if (showCommentInput) {
       setTimeout(() => {
-        const box = document.getElementById("ai-tools-box")
+        const box = queryWithinContainer("#ai-tools-box") as HTMLElement | null
+        const scrollContainer = queryWithinContainer(
+          "#main-content"
+        ) as HTMLElement | null
         if (box) {
-          scrollToVisualPosition(box as HTMLElement)
+          scrollToVisualPosition(box, scrollContainer)
         }
       }, 200)
     }
-  }, [showCommentInput])
+  }, [queryWithinContainer, showCommentInput])
 
   const cancelAIAction = useCallback(
     (showConfirm?: boolean) => {
@@ -134,7 +140,7 @@ export const AIToolsPlugin = (props: any) => {
       {showCommentInput &&
         createPortal(
           <AITools cancelAIAction={cancelAIAction} content={content} />,
-          document.body
+          container ?? document.body
         )}
       <AlertDialog
         open={cancelActionConfirmOpen}

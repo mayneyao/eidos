@@ -97,6 +97,7 @@ export function TabContainer({
   isActive,
   children,
 }: TabContainerProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const isUpdatingFromUrlRef = useRef(false)
 
   return (
@@ -105,9 +106,12 @@ export function TabContainer({
         "absolute inset-0 flex flex-col h-screen",
         isActive ? "block" : "hidden"
       )}
+      id={`tab-container-${tabId}`}
+      data-tab-id={tabId}
+      ref={containerRef}
     >
       <MemoryRouter initialEntries={[initialUrl]}>
-        <TabProvider value={{ tabId }}>
+        <TabProvider value={{ tabId, containerRef }}>
           <TabUrlSyncer
             tabId={tabId}
             isUpdatingFromUrlRef={isUpdatingFromUrlRef}
