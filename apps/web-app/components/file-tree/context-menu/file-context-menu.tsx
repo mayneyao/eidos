@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import type { NavigateFunction } from "react-router-dom"
 import type {
   FileActionMeta,
   FileHandlerMeta,
@@ -42,6 +43,9 @@ interface FileContextMenuProps {
   children: React.ReactNode
   onRename?: (node: FileTreeNode) => void
   onDelete?: (node: FileTreeNode) => void
+  isMultiSelection?: boolean
+  selectionCount?: number
+  selectionHasDataview?: boolean
 }
 
 /**
@@ -53,6 +57,9 @@ export const FileContextMenu = ({
   children,
   onRename,
   onDelete,
+  isMultiSelection = false,
+  selectionCount = 1,
+  selectionHasDataview = false, // unused but kept for API symmetry
 }: FileContextMenuProps) => {
   const { t } = useTranslation()
   const { navigate } = useRouterAdapter()
@@ -66,7 +73,7 @@ export const FileContextMenu = ({
   const fileActionsContext = {
     filePath: node.path,
     space,
-    navigate,
+    navigate: navigate as unknown as NavigateFunction,
   }
 
   const { openInFileManager, openWith, executeFileAction } = useFileItemActions(fileActionsContext)
@@ -81,7 +88,9 @@ export const FileContextMenu = ({
     typeof window !== "undefined" && !!(window as any).eidos
 
   const hasAnyMenuItems =
-    showOpenWith || showFileActions || hasRenameOrDelete || showOpenFolder
+    (!isMultiSelection &&
+      (showOpenWith || showFileActions || hasRenameOrDelete || showOpenFolder)) ||
+    (!!onDelete && isMultiSelection)
 
 
   // Don't render context menu if there are no items to show
@@ -93,14 +102,14 @@ export const FileContextMenu = ({
     <ContextMenu>
       <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
-        {showOpenFolder && (
+        {!isMultiSelection && showOpenFolder && (
           <ContextMenuItem onClick={openInFileManager}>
             <FolderOpen className="mr-2 h-4 w-4" />
             {t("file.menu.openInFileManager", "Open in File Manager")}
           </ContextMenuItem>
         )}
         {/* Open with submenu (only show if multiple handlers available) */}
-        {showOpenWith && (
+        {!isMultiSelection && showOpenWith && (
           <>
             <ContextMenuSub>
               <ContextMenuSubTrigger>
@@ -127,13 +136,14 @@ export const FileContextMenu = ({
           </>
         )}
 
-        {showOpenWith &&
+        {!isMultiSelection &&
+          showOpenWith &&
           (showFileActions || hasRenameOrDelete || showOpenFolder) && (
             <ContextMenuSeparator />
           )}
 
         {/* File Actions submenu */}
-        {showFileActions && (
+        {!isMultiSelection && showFileActions && (
           <>
             <ContextMenuSub>
               <ContextMenuSubTrigger>
@@ -160,8 +170,10 @@ export const FileContextMenu = ({
           </>
         )}
 
-        {showFileActions && hasRenameOrDelete && <ContextMenuSeparator />}
-        {onRename && (
+        {!isMultiSelection && showFileActions && hasRenameOrDelete && (
+          <ContextMenuSeparator />
+        )}
+        {!isMultiSelection && onRename && (
           <ContextMenuItem onClick={() => onRename(node)}>
             <PencilLineIcon className="mr-2 h-4 w-4" />
             {t("node.menu.rename", "Rename")}

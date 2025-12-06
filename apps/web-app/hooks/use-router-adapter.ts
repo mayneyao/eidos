@@ -89,7 +89,12 @@ export const useRouterAdapter = () => {
             }
 
             // VSCode-style tab behavior: default to opening new tabs
-            const { tabs, openTab: openTabAction, setActiveTab: setActiveTabAction } = useTabStore.getState()
+            const {
+                tabs,
+                activeTabId: storeActiveTabId,
+                openTab: openTabAction,
+                setActiveTab: setActiveTabAction,
+            } = useTabStore.getState()
 
             // Check if this URL is already open in a tab
             const existingTab = tabs.find((tab: { url: string; id: string }) => tab.url === newUrl)
@@ -102,6 +107,15 @@ export const useRouterAdapter = () => {
             } else if (replaceCurrentTab && activeTabId) {
                 // Explicitly requested to replace current tab
                 updateTab(activeTabId, { url: newUrl })
+            } else if (
+                tabs.length === 1 &&
+                tabs[0].url === "/" &&
+                (storeActiveTabId || tabs[0]?.id)
+            ) {
+                // If there's only the initial Home tab, replace it instead of opening a new one
+                const targetId = storeActiveTabId || tabs[0].id
+                updateTab(targetId, { url: newUrl })
+                setActiveTabAction(targetId)
             } else {
                 // Default: open new tab (VSCode behavior)
                 openTabAction(newUrl)
@@ -179,7 +193,7 @@ export const useRouterAdapter = () => {
 
     return {
         location: adapterLocation,
-        navigate: adapterNavigate as (to: string | number, options?: { replace?: boolean, openInNewTab?: boolean }) => void,
+        navigate: adapterNavigate as (to: string | number, options?: { replace?: boolean, openInNewTab?: boolean, state?: any }) => void,
         params: adapterParams as Record<string, string>,
         searchParams: adapterSearchParams,
         setSearchParams: adapterSetSearchParams as (nextInit: URLSearchParams | Record<string, string> | ((prev: URLSearchParams) => URLSearchParams | Record<string, string>)) => void,

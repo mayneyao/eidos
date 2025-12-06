@@ -40,6 +40,9 @@ interface ExtensionContextMenuProps {
   onDelete?: (node: FileTreeNode) => void
   onCopySlug?: (node: FileTreeNode) => void
   onCopy?: (node: FileTreeNode) => void
+  isMultiSelection?: boolean
+  selectionCount?: number
+  selectionHasDataview?: boolean
 }
 
 /**
@@ -52,6 +55,8 @@ export const ExtensionContextMenu = ({
   onDelete,
   onCopySlug,
   onCopy,
+  isMultiSelection = false,
+  selectionCount = 1,
 }: ExtensionContextMenuProps) => {
   const { t } = useTranslation()
   const { isFavorite, toggleFavBlock } = useFavBlocks()
@@ -83,7 +88,7 @@ export const ExtensionContextMenu = ({
         <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-48">
           {/* Pin/Unpin for block type extensions */}
-          {extensionType === "block" && nodeId && (
+          {!isMultiSelection && extensionType === "block" && nodeId && (
             <ContextMenuItem
               onClick={() => {
                 toggleFavBlock({
@@ -106,19 +111,19 @@ export const ExtensionContextMenu = ({
               )}
             </ContextMenuItem>
           )}
-          {onRename && (
+          {!isMultiSelection && onRename && (
             <ContextMenuItem onClick={() => onRename(node)}>
               <PencilLineIcon className="mr-2 h-4 w-4" />
               {t("node.menu.rename", "Rename")}
             </ContextMenuItem>
           )}
-          {onCopySlug && (
+          {!isMultiSelection && onCopySlug && (
             <ContextMenuItem onClick={() => onCopySlug(node)}>
               <CopyIcon className="mr-2 h-4 w-4" />
               {t("extension.copySlug", "Copy Slug")}
             </ContextMenuItem>
           )}
-          {onCopy && (
+          {!isMultiSelection && onCopy && (
             <ContextMenuItem onClick={() => onCopy(node)}>
               <FilesIcon className="mr-2 h-4 w-4" />
               {t("extension.duplicate", "Duplicate")}
@@ -141,13 +146,20 @@ export const ExtensionContextMenu = ({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {t("common.confirmDelete", "Confirm Delete")}
+              {selectionCount > 1
+                ? t("extension.confirmDeleteMultiple", "Delete selected items?")
+                : t("common.confirmDelete", "Confirm Delete")}
             </DialogTitle>
             <DialogDescription>
-              {t(
-                "extension.deleteWarning",
-                "Are you sure you want to delete this extension? This action cannot be undone."
-              )}
+              {selectionCount > 1
+                ? t(
+                    "extension.deleteWarningMultiple",
+                    "Are you sure you want to delete these items? This action cannot be undone."
+                  )
+                : t(
+                    "extension.deleteWarning",
+                    "Are you sure you want to delete this extension? This action cannot be undone."
+                  )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

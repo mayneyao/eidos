@@ -56,7 +56,7 @@ export function Link({
     navigate(to, {
       replace: false,
       state,
-      openInNewTab: shouldOpenInNewTab ? true : "auto", // 'auto' means activate existing or open new
+      openInNewTab: shouldOpenInNewTab,
     })
   }
 

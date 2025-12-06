@@ -44,6 +44,9 @@ interface FileTreeNodeProps {
   onDragEnter?: (e: React.DragEvent) => void
   onDragLeave?: (e: React.DragEvent) => void
   onDrop?: (e: React.DragEvent) => void
+  isMultiSelection: boolean
+  selectionCount: number
+  selectionHasDataview: boolean
 }
 
 export const FileTreeNode = ({
@@ -82,6 +85,9 @@ export const FileTreeNode = ({
   onDragEnter,
   onDragLeave,
   onDrop,
+  isMultiSelection,
+  selectionCount,
+  selectionHasDataview,
 }: FileTreeNodeProps) => {
   const canDrop = hasChildren && !isDragging
 
@@ -119,6 +125,9 @@ export const FileTreeNode = ({
         onCopyExtension={
           node.metadata?.nodeType === "extension" ? onCopyExtension : undefined
         }
+        isMultiSelection={isMultiSelection}
+        selectionCount={selectionCount}
+        selectionHasDataview={selectionHasDataview}
       >
         <div
           className={`flex items-center rounded transition-colors cursor-pointer select-none ${

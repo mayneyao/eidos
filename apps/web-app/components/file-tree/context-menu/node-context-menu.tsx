@@ -11,7 +11,7 @@ import {
   PinOffIcon,
   Trash2Icon,
 } from "lucide-react"
-import React from "react"
+import React, { useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -24,6 +24,16 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
@@ -40,6 +50,9 @@ interface NodeContextMenuProps {
   onCreateDoc?: (parentNode: FileTreeNode) => void
   onCreateTable?: (parentNode: FileTreeNode) => void
   onCreateFolder?: (parentNode: FileTreeNode) => void
+  isMultiSelection?: boolean
+  selectionCount?: number
+  selectionHasDataview?: boolean
 }
 
 /**
@@ -56,17 +69,24 @@ export const NodeContextMenu = ({
   onCreateDoc,
   onCreateTable,
   onCreateFolder,
+  isMultiSelection = false,
+  selectionCount = 1,
+  selectionHasDataview = false,
 }: NodeContextMenuProps) => {
   const { t } = useTranslation()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const isPinned = node.metadata?.isPinned
   const isFolder = node.kind === "directory" || node.metadata?.nodeType === "folder"
 
   // Calculate which menu items to show
-  const hasRename = !!onRename
-  const hasPin = isPinned ? !!onUnpin : !!onPin
-  const hasAddToChat = !!onAddToChat
-  const hasCreate = isFolder && !!(onCreateDoc || onCreateTable || onCreateFolder)
+  const hasRename = !!onRename && !isMultiSelection
+  const hasPin = (isPinned ? !!onUnpin : !!onPin) && !isMultiSelection
+  const hasAddToChat = !!onAddToChat && !isMultiSelection
+  const hasCreate =
+    isFolder &&
+    !!(onCreateDoc || onCreateTable || onCreateFolder) &&
+    !isMultiSelection
   const hasDelete = !!onDelete
 
   // Calculate sections
@@ -152,7 +172,7 @@ export const NodeContextMenu = ({
             {/* Only show separator if there are items above */}
             {(hasTopSection || hasCreate) && <ContextMenuSeparator />}
             <ContextMenuItem
-              onClick={() => onDelete(node)}
+              onClick={() => setDeleteDialogOpen(true)}
               className="text-destructive focus:text-destructive"
             >
               <Trash2Icon className="mr-2 h-4 w-4" />
@@ -161,6 +181,62 @@ export const NodeContextMenu = ({
           </>
         )}
       </ContextMenuContent>
+
+      {/* Delete confirmation for nodes (including multi-selection) */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {selectionCount > 1
+                ? t("node.menu.deleteMultipleTitle", "Delete selected items?")
+                : t("node.menu.deleteSingleTitle", "Delete item?")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const count = selectionCount
+                const base =
+                  count === 1
+                    ? t(
+                        "node.menu.deleteDescSingle",
+                        "This will delete 1 item."
+                      )
+                    : t(
+                        "node.menu.deleteDescMultiple",
+                        `This will delete ${count} items.`
+                      )
+                if (selectionHasDataview) {
+                  return (
+                    base +
+                    " " +
+                    t(
+                      "node.menu.deleteDataviewNotice",
+                      "Regular items can be restored from Trash, but dataview items will be permanently removed."
+                    )
+                  )
+                }
+                return (
+                  base +
+                  " " +
+                  t("node.menu.deleteRecoverable", "You can restore them from Trash.")
+                )
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>
+              {t("common.cancel", "Cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setDeleteDialogOpen(false)
+                onDelete?.(node)
+              }}
+            >
+              {t("common.delete", "Delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ContextMenu>
   )
 }

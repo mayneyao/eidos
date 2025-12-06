@@ -57,10 +57,6 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const [renamingNode, setRenamingNode] = useState<string | null>(null)
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const treeContainerRef = useRef<HTMLDivElement>(null)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [pendingDeleteNodes, setPendingDeleteNodes] = useState<FileTreeNode[]>(
-    []
-  )
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false)
   const [pendingMove, setPendingMove] = useState<{
     sources: FileTreeNode[]
@@ -470,19 +466,15 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     if (nodesToDelete.length === 0) return
 
     updateSelectionState(new Set(nodesToDelete.map((n) => n.path)))
-    setPendingDeleteNodes(nodesToDelete)
-    setIsDeleteDialogOpen(true)
-  }
 
-  const confirmDeleteNodes = async () => {
-    for (const node of pendingDeleteNodes) {
-      // eslint-disable-next-line no-await-in-loop
-      await handleDelete(node)
-    }
-
-    setPendingDeleteNodes([])
-    setIsDeleteDialogOpen(false)
-    updateSelectionState(new Set(), null)
+    // Execute deletions sequentially; confirmation handled by context menus
+    ;(async () => {
+      for (const n of nodesToDelete) {
+        // eslint-disable-next-line no-await-in-loop
+        await handleDelete(n)
+      }
+      updateSelectionState(new Set(), null)
+    })()
   }
 
   const renderTreeNode = (node: FileTreeNode) => {
@@ -498,6 +490,20 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     const isDragging = draggingNode === node.path
     const isDragOver = dragOverNode === node.path
     const isVirtualNode = node.metadata?.nodeType !== undefined
+    const isMultiSelection = selectedNodes.size > 1
+    const selectionPaths =
+      selectedNodes.size > 0 ? selectedNodes : new Set([node.path])
+    const selectionNodes: FileTreeNode[] = []
+    selectionPaths.forEach((path) => {
+      const targetNode = pathToNodeMap.get(path)
+      if (targetNode) {
+        selectionNodes.push(targetNode)
+      }
+    })
+    const selectionCount = selectionNodes.length
+    const selectionHasDataview = selectionNodes.some(
+      (n) => n.metadata?.nodeType === "dataview"
+    )
 
     // Check if extension is pinned (for extensions)
     const isExtension = node.metadata?.nodeType === "extension"
@@ -571,6 +577,9 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           }
           onDragLeave={handleDragLeave}
           onDrop={hasChildren ? (e) => handleDrop(e, node) : undefined}
+          isMultiSelection={isMultiSelection}
+          selectionCount={selectionCount}
+          selectionHasDataview={selectionHasDataview}
         />
       </div>
     )
@@ -587,42 +596,6 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       >
         {flattenedData.map((node) => renderTreeNode(node))}
       </div>
-
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete selected items?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {(() => {
-                const count = pendingDeleteNodes.length
-                const hasDataview = pendingDeleteNodes.some(
-                  (n) => n.metadata?.nodeType === "dataview"
-                )
-                const base = `This will delete ${count} item${
-                  count === 1 ? "" : "s"
-                }.`
-
-                if (hasDataview) {
-                  return `${base} Regular items can be restored from Trash, but dataview items will be permanently removed.`
-                }
-                return `${base} You can restore them from Trash.`
-              })()}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setPendingDeleteNodes([])
-              }}
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteNodes}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog
         open={isMoveDialogOpen}
