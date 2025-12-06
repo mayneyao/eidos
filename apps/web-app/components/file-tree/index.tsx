@@ -1,11 +1,20 @@
-import React, { useRef, useState } from "react"
+import React, { useMemo, useRef, useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 
 import { cn } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { useTabStore } from "@/apps/web-app/store/tabs"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import { FileTreeNode } from "./file-tree-node"
 import { useFileTreeData } from "./use-file-tree-data"
@@ -37,9 +46,15 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set())
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null)
   const [renamingNode, setRenamingNode] = useState<string | null>(null)
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const treeContainerRef = useRef<HTMLDivElement>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [pendingDeleteNodes, setPendingDeleteNodes] = useState<FileTreeNode[]>(
+    []
+  )
 
   const scrollToNode = (nodePath: string, retryCount = 0) => {
     const nodeElement = nodeRefs.current.get(nodePath)
@@ -111,16 +126,6 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   }
 
   const handleFileClick = (node: FileTreeNode, event?: React.MouseEvent) => {
-    // If currently renaming, cancel the rename first
-    if (renamingNode) {
-      cancelRename()
-      // Don't change selection when clicking during rename
-      return
-    }
-
-    // Set selected node
-    setSelectedNode(node.path)
-
     // Determine navigation path
     let targetPath = ""
     if (node.metadata?.nodeType && node.metadata?.nodeType !== "extension") {
@@ -136,31 +141,13 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
     if (!targetPath) return
 
-    // Check if Alt/Option key is pressed for opening in new tab
-    const openInNewTab = event?.altKey || event?.metaKey
+    // Use Alt/Option to open in new tab (Cmd/Ctrl is reserved for multi-select)
+    const openInNewTab = Boolean(event?.altKey)
 
     // Delegate to navigate with options (tab logic handled internally)
     navigate(targetPath, {
       openInNewTab,
     })
-  }
-
-  const findNodeByPath = (
-    nodes: FileTreeNode[],
-    targetPath: string
-  ): FileTreeNode | null => {
-    // Direct path matching - both use ID-based paths now
-    for (const node of nodes) {
-      if (node.path === targetPath) {
-        return node
-      }
-
-      if (node.children) {
-        const found = findNodeByPath(node.children, targetPath)
-        if (found) return found
-      }
-    }
-    return null
   }
 
   const startRename = (nodePath: string, e?: React.MouseEvent) => {
@@ -247,7 +234,11 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     renamingNode,
     treeContainerRef,
     onRename: startRename,
-    onClearSelection: () => setSelectedNode(null),
+    onClearSelection: () => {
+      setSelectedNode(null)
+      setSelectedNodes(new Set())
+      setSelectionAnchor(null)
+    },
   })
 
   // Get placeholder text based on node type
@@ -274,6 +265,156 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     getPlaceholderText,
   })
 
+  const flattenedPaths = useMemo(
+    () => flattenedData.map((node) => node.path),
+    [flattenedData]
+  )
+
+  const pathToNodeMap = useMemo(() => {
+    const map = new Map<string, FileTreeNode>()
+    flattenedData.forEach((node) => {
+      map.set(node.path, node)
+    })
+    return map
+  }, [flattenedData])
+
+  const updateSelectionState = (
+    paths: Set<string>,
+    anchorOverride?: string | null
+  ) => {
+    const anchor =
+      anchorOverride !== undefined
+        ? anchorOverride
+        : paths.size
+          ? Array.from(paths).slice(-1)[0]
+          : null
+    setSelectedNodes(paths)
+    setSelectedNode(anchor || null)
+    setSelectionAnchor(anchor || null)
+  }
+
+  const selectRange = (anchorPath: string, targetPath: string) => {
+    const anchorIndex = flattenedPaths.indexOf(anchorPath)
+    const targetIndex = flattenedPaths.indexOf(targetPath)
+
+    if (anchorIndex === -1 || targetIndex === -1) {
+      return new Set([targetPath])
+    }
+
+    const start = Math.min(anchorIndex, targetIndex)
+    const end = Math.max(anchorIndex, targetIndex)
+    const rangePaths = flattenedPaths.slice(start, end + 1)
+    return new Set(rangePaths)
+  }
+
+  const applySelection = (
+    node: FileTreeNode,
+    event?: React.MouseEvent,
+    options?: { viaContextMenu?: boolean }
+  ) => {
+    const viaContextMenu = options?.viaContextMenu ?? false
+    const path = node.path
+    const isShift = Boolean(event?.shiftKey)
+    const isMeta = Boolean(event?.metaKey || event?.ctrlKey)
+    const anchorPath = selectionAnchor || selectedNode || path
+
+    // Preserve existing multi-selection on context menu when already selected
+    if (viaContextMenu && selectedNodes.has(path)) {
+      updateSelectionState(new Set(selectedNodes), selectionAnchor)
+      return
+    }
+
+    if (isShift) {
+      const rangeSelection = selectRange(anchorPath, path)
+      updateSelectionState(rangeSelection, anchorPath)
+      return
+    }
+
+    if (isMeta) {
+      const next = new Set(selectedNodes)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+
+      if (next.size === 0) {
+        updateSelectionState(new Set(), null)
+      } else {
+        updateSelectionState(next, anchorPath)
+      }
+      return
+    }
+
+    // Default: single selection
+    updateSelectionState(new Set([path]), path)
+  }
+
+  const handleRowClick = (
+    node: FileTreeNode,
+    hasChildren: boolean,
+    event: React.MouseEvent
+  ) => {
+    // If currently renaming, cancel the rename first
+    if (renamingNode) {
+      cancelRename()
+      return
+    }
+
+    applySelection(node, event)
+
+    const hasModifier = event.metaKey || event.ctrlKey || event.shiftKey
+
+    if (hasChildren) {
+      if (!hasModifier) {
+        toggleNode(node)
+      }
+    } else if (!hasModifier) {
+      handleFileClick(node, event)
+    }
+  }
+
+  const handleContextMenuSelection = (
+    node: FileTreeNode,
+    event: React.MouseEvent
+  ) => {
+    // Prevent React warnings for unused event in future handlers
+    if (event) {
+      // no-op
+    }
+    applySelection(node, event, { viaContextMenu: true })
+  }
+
+  const handleDeleteRequest = (node: FileTreeNode) => {
+    const selectionPaths =
+      selectedNodes.size > 0 ? selectedNodes : new Set([node.path])
+
+    const nodesToDelete: FileTreeNode[] = []
+    selectionPaths.forEach((path) => {
+      const targetNode = pathToNodeMap.get(path)
+      if (targetNode) {
+        nodesToDelete.push(targetNode)
+      }
+    })
+
+    if (nodesToDelete.length === 0) return
+
+    updateSelectionState(new Set(nodesToDelete.map((n) => n.path)))
+    setPendingDeleteNodes(nodesToDelete)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteNodes = async () => {
+    for (const node of pendingDeleteNodes) {
+      // eslint-disable-next-line no-await-in-loop
+      await handleDelete(node)
+    }
+
+    setPendingDeleteNodes([])
+    setIsDeleteDialogOpen(false)
+    updateSelectionState(new Set(), null)
+  }
+
   const renderTreeNode = (node: FileTreeNode) => {
     // Cast to any to access level property added by flattenTree
     const level = (node as any).level || 0
@@ -282,7 +423,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     const isLoading = loadingNodes.has(node.path)
     const hasChildren = node.kind === "directory"
     const isPinned = Boolean(node.metadata?.isPinned)
-    const isSelected = selectedNode === node.path
+    const isSelected = selectedNodes.has(node.path)
     const isRenaming = renamingNode === node.path
     const isDragging = draggingNode === node.path
     const isDragOver = dragOverNode === node.path
@@ -336,11 +477,14 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           isVirtualNode={isVirtualNode}
           isPinned={isPinned}
           onToggle={() => toggleNode(node)}
-          onFileClick={(event) => handleFileClick(node, event)}
+          onRowClick={(event) => handleRowClick(node, hasChildren, event)}
+          onRowContextMenu={(event) =>
+            handleContextMenuSelection(node, event)
+          }
           onRename={(node) => startRename(node.path)}
           onRenameConfirm={(newName) => handleRenameConfirm(node, newName)}
           onRenameCancel={cancelRename}
-          onDelete={handleDelete}
+          onDelete={(n) => handleDeleteRequest(n)}
           onPin={handlePin}
           onUnpin={handleUnpin}
           onAddToChat={handleAddToChat}
@@ -363,15 +507,53 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   }
 
   return (
-    <div
-      ref={treeContainerRef}
-      className={cn(
-        "space-y-1 px-4 bg-sidebar",
-        !isNodesMode && "h-full overflow-y-auto"
-      )}
-    >
-      {flattenedData.map((node) => renderTreeNode(node))}
-    </div>
+    <>
+      <div
+        ref={treeContainerRef}
+        className={cn(
+          "space-y-1 px-4 bg-sidebar",
+          !isNodesMode && "h-full overflow-y-auto"
+        )}
+      >
+        {flattenedData.map((node) => renderTreeNode(node))}
+      </div>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected items?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const count = pendingDeleteNodes.length
+                const hasDataview = pendingDeleteNodes.some(
+                  (n) => n.metadata?.nodeType === "dataview"
+                )
+                const base = `This will delete ${count} item${
+                  count === 1 ? "" : "s"
+                }.`
+
+                if (hasDataview) {
+                  return `${base} Regular items can be restored from Trash, but dataview items will be permanently removed.`
+                }
+                return `${base} You can restore them from Trash.`
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setPendingDeleteNodes([])
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteNodes}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 

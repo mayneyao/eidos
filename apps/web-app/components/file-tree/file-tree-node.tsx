@@ -24,7 +24,8 @@ interface FileTreeNodeProps {
   isVirtualNode: boolean
   isPinned: boolean
   onToggle: () => void
-  onFileClick: (event?: React.MouseEvent) => void
+  onRowClick: (event: React.MouseEvent) => void
+  onRowContextMenu?: (event: React.MouseEvent) => void
   onRename: (node: FileTreeNodeType) => void
   onRenameConfirm: (newName: string) => void
   onRenameCancel: () => void
@@ -61,7 +62,8 @@ export const FileTreeNode = ({
   isVirtualNode,
   isPinned,
   onToggle,
-  onFileClick,
+  onRowClick,
+  onRowContextMenu,
   onRename,
   onRenameConfirm,
   onRenameCancel,
@@ -120,7 +122,9 @@ export const FileTreeNode = ({
       >
         <div
           className={`flex items-center rounded transition-colors cursor-pointer select-none ${
-            isSelected ? "bg-accent" : "hover:bg-accent"
+            isSelected
+              ? "bg-primary/10 ring-1 ring-primary/60 shadow-[0_0_0_1px_var(--primary)/20]"
+              : "hover:bg-accent"
           } ${isDragging ? "opacity-50" : ""} ${
             isDragOver && canDrop ? "ring-2 ring-primary bg-accent" : ""
           }`}
@@ -131,13 +135,8 @@ export const FileTreeNode = ({
           onDragEnter={canDrop ? onDragEnter : undefined}
           onDragLeave={canDrop ? onDragLeave : undefined}
           onDrop={canDrop ? onDrop : undefined}
-          onClick={(e) => {
-            if (hasChildren) {
-              onToggle()
-            } else {
-              onFileClick(e)
-            }
-          }}
+          onClick={onRowClick}
+          onContextMenu={onRowContextMenu}
         >
           <div style={{ width: level * 18 }} className="flex-shrink-0" />
           <div className="w-4 flex-shrink-0 flex items-center justify-center">
