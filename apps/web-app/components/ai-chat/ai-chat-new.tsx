@@ -207,33 +207,41 @@ export default function Chat() {
       if (!dragDataStr) return
 
       try {
-        const dragData = JSON.parse(dragDataStr) as FileTreeNode
+        const parsedData = JSON.parse(dragDataStr) as
+          | FileTreeNode
+          | { nodes?: FileTreeNode[]; primaryPath?: string }
+          | FileTreeNode[]
 
-        // Convert FileTreeNode to ITreeNode
-        const nodeId = dragData.metadata?.nodeId
-        const finalNodeId = nodeId || dragData.path
+        const draggedNodes: FileTreeNode[] = Array.isArray(parsedData)
+          ? parsedData
+          : "nodes" in parsedData && parsedData.nodes
+            ? parsedData.nodes
+            : [parsedData as FileTreeNode]
 
-        // Filter path-based nodes: only allow document files
-        const isPathNode = finalNodeId.startsWith('~') || finalNodeId.startsWith('@/')
-        if (isPathNode) {
-          const fileName = dragData.name?.toLowerCase() || ''
-          const extension = fileName.substring(fileName.lastIndexOf('.'))
+        draggedNodes.forEach((dragNode) => {
+          const finalNodeId = dragNode.metadata?.nodeId || dragNode.path
+          const isPathNode =
+            finalNodeId?.startsWith("~") || finalNodeId?.startsWith("@/")
 
-          if (!ALLOWED_DOCUMENT_EXTENSIONS.includes(extension)) {
-            // Skip non-document files for path-based nodes
-            return
+          if (isPathNode) {
+            const fileName = dragNode.name?.toLowerCase() || ""
+            const extension = fileName
+              ? fileName.substring(fileName.lastIndexOf("."))
+              : ""
+            if (!ALLOWED_DOCUMENT_EXTENSIONS.includes(extension)) {
+              return
+            }
           }
-        }
 
-        const treeNode = {
-          id: finalNodeId,
-          name: dragData.name,
-          type: (dragData.metadata?.nodeType as any) || dragData.kind,
-          icon: dragData.metadata?.icon,
-        }
+          const treeNode = {
+            id: finalNodeId,
+            name: dragNode.name || dragNode.path,
+            type: (dragNode.metadata?.nodeType as any) || dragNode.kind,
+            icon: dragNode.metadata?.icon,
+          }
 
-        // Add to context nodes
-        addNode(treeNode)
+          addNode(treeNode)
+        })
       } catch (error) {
         console.error("Failed to parse drag data:", error)
       }

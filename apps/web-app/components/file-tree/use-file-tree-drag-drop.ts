@@ -6,9 +6,9 @@ import { useDragStore } from "@/apps/web-app/store/drag-store"
 import type { FileTreeNode } from "./index"
 
 interface ConfirmMovePayload {
-  source: FileTreeNode
+  sources: FileTreeNode[]
   target: FileTreeNode
-  newPath: string
+  newPaths: string[]
 }
 
 interface UseFileTreeDragDropOptions {
@@ -19,6 +19,8 @@ interface UseFileTreeDragDropOptions {
   setExpandedNodes: React.Dispatch<React.SetStateAction<Set<string>>>
   getPlaceholderText: (node: FileTreeNode) => string
   confirmMove?: (payload: ConfirmMovePayload) => Promise<boolean>
+  selectedNodes: Set<string>
+  getNodeByPath: (path: string) => FileTreeNode | undefined
 }
 
 /**
@@ -32,6 +34,8 @@ export const useFileTreeDragDrop = ({
   setExpandedNodes,
   getPlaceholderText,
   confirmMove,
+  selectedNodes,
+  getNodeByPath,
 }: UseFileTreeDragDropOptions) => {
   const { sqlite } = useSqlite()
   const { setDragging } = useDragStore()
@@ -49,9 +53,18 @@ export const useFileTreeDragDrop = ({
   const handleDragStart = useCallback(
     (e: React.DragEvent, node: FileTreeNode) => {
       e.stopPropagation()
-    setDraggingNode(node.path)
-    setDragOverNode(null)
+      setDraggingNode(node.path)
+      setDragOverNode(null)
       setDragging(true, node)
+
+      const pathsToDrag = selectedNodes.has(node.path)
+        ? Array.from(selectedNodes)
+        : [node.path]
+      const nodesToDrag =
+        pathsToDrag
+          .map((path) => getNodeByPath(path))
+          .filter((n): n is FileTreeNode => Boolean(n)) || []
+      const effectiveNodes = nodesToDrag.length ? nodesToDrag : [node]
 
       // Get display name for drag operations (handles empty names)
       const displayName =
@@ -61,17 +74,23 @@ export const useFileTreeDragDrop = ({
 
       // Set drag data for cross-window drag support
       const dragData = {
-        path: node.path,
-        name: displayName,
-        kind: node.kind,
-        metadata: node.metadata,
+        primaryPath: node.path,
+        nodes: effectiveNodes.map((dragNode) => ({
+          path: dragNode.path,
+          name:
+            dragNode.name && dragNode.name.trim().length > 0
+              ? dragNode.name
+              : getPlaceholderText(dragNode),
+          kind: dragNode.kind,
+          metadata: dragNode.metadata,
+        })),
       }
 
       e.dataTransfer.effectAllowed = "move"
       e.dataTransfer.setData("application/eidos-node", JSON.stringify(dragData))
       e.dataTransfer.setData("text/plain", displayName) // Fallback for external apps
     },
-    [getPlaceholderText, setDragging]
+    [getNodeByPath, getPlaceholderText, selectedNodes, setDragging]
   )
 
   const handleDragEnd = useCallback(
@@ -181,61 +200,88 @@ export const useFileTreeDragDrop = ({
         const dragDataStr = e.dataTransfer.getData("application/eidos-node")
         if (!dragDataStr) return
 
-        const dragData = JSON.parse(dragDataStr) as FileTreeNode
+        const parsedData = JSON.parse(dragDataStr) as
+          | FileTreeNode
+          | { nodes?: FileTreeNode[]; primaryPath?: string }
+          | FileTreeNode[]
 
-        // Prevent dropping onto itself
-        if (dragData.path === targetFolder.path) {
+        let draggedNodes: FileTreeNode[] = []
+        if (Array.isArray(parsedData)) {
+          draggedNodes = parsedData
+        } else if ("nodes" in parsedData && parsedData.nodes) {
+          draggedNodes = parsedData.nodes
+        } else if ("path" in parsedData) {
+          draggedNodes = [parsedData as FileTreeNode]
+        }
+
+        const resolvedNodes = draggedNodes
+          .map((dragNode) => getNodeByPath(dragNode.path) || dragNode)
+          .filter((n): n is FileTreeNode => Boolean(n))
+
+        if (resolvedNodes.length === 0) {
           return
         }
 
-        // Prevent dropping a folder into its own descendant
-        if (targetFolder.path.startsWith(dragData.path + "/")) {
+        // Prevent dropping onto itself or its descendants
+        if (resolvedNodes.some((node) => node.path === targetFolder.path)) {
+          return
+        }
+        if (
+          resolvedNodes.some((node) =>
+            targetFolder.path.startsWith(node.path + "/")
+          )
+        ) {
           console.warn("Cannot move a folder into its own descendant")
           return
         }
 
-        // Construct new path: targetFolder/draggedNode
-        const draggedNodeId = dragData.path.split("/").filter(Boolean).pop()
-        const newPath = `${targetFolder.path}/${draggedNodeId}`
+        // Construct new paths: targetFolder/draggedNodes
+        const newPaths = resolvedNodes.map((dragNode) => {
+          const draggedNodeId = dragNode.path.split("/").filter(Boolean).pop()
+          return `${targetFolder.path}/${draggedNodeId}`
+        })
 
         // Ask for confirmation before moving
         if (confirmMove) {
           const allow = await confirmMove({
-            source: dragData,
+            sources: resolvedNodes,
             target: targetFolder,
-            newPath,
+            newPaths,
           })
           if (!allow) {
             return
           }
         }
 
-        // Call rename API to move the node
-        await sqlite.fs.rename(dragData.path, newPath)
+        // Call rename API to move the nodes (sequential to surface errors)
+        // eslint-disable-next-line no-await-in-loop
+        for (let i = 0; i < resolvedNodes.length; i += 1) {
+          await sqlite.fs.rename(resolvedNodes[i].path, newPaths[i])
+        }
 
         // Reload tree data to reflect changes
-        if (isNodesMode) {
-          // In nodes mode, reload both source and target directories
+        const sourceParentPaths = new Set<string>()
+        resolvedNodes.forEach((dragNode) => {
           const sourceParentPath =
-            dragData.path.split("/").slice(0, -1).join("/") || null
+            dragNode.path.split("/").slice(0, -1).join("/") || null
           if (sourceParentPath) {
-            await loadSubDirectory(sourceParentPath)
+            sourceParentPaths.add(sourceParentPath)
           }
-          await loadSubDirectory(targetFolder.path)
-        } else {
-          const sourceParentPath =
-            dragData.path.split("/").slice(0, -1).join("/") || null
-          if (sourceParentPath) {
-            await loadSubDirectory(sourceParentPath)
-          }
-          await loadSubDirectory(targetFolder.path)
+        })
+
+        for (const parentPath of sourceParentPaths) {
+          // eslint-disable-next-line no-await-in-loop
+          await loadSubDirectory(parentPath)
+        }
+
+        await loadSubDirectory(targetFolder.path)
+        if (!isNodesMode) {
           await loadRootDirectory()
         }
 
-        // Optionally expand the target folder to show the moved item
+        // Optionally expand the target folder to show the moved items
         if (!expandedNodes.has(targetFolder.path)) {
           setExpandedNodes((prev) => new Set(prev).add(targetFolder.path))
-          await loadSubDirectory(targetFolder.path)
         }
       } catch (error) {
         console.error("Failed to move node:", error)
@@ -252,6 +298,7 @@ export const useFileTreeDragDrop = ({
       expandedNodes,
       setExpandedNodes,
       clearExpandTimeout,
+      getNodeByPath,
     ]
   )
 

@@ -63,9 +63,9 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   )
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false)
   const [pendingMove, setPendingMove] = useState<{
-    source: FileTreeNode
+    sources: FileTreeNode[]
     target: FileTreeNode
-    newPath: string
+    newPaths: string[]
     resolve: (allow: boolean) => void
   } | null>(null)
 
@@ -260,7 +260,11 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   }
 
   const confirmMove = useCallback(
-    async (payload: { source: FileTreeNode; target: FileTreeNode; newPath: string }) =>
+    async (payload: {
+      sources: FileTreeNode[]
+      target: FileTreeNode
+      newPaths: string[]
+    }) =>
       new Promise<boolean>((resolve) => {
         setPendingMove({
           ...payload,
@@ -287,6 +291,24 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     setIsMoveDialogOpen(false)
   }
 
+  const flattenedPaths = useMemo(
+    () => flattenedData.map((node) => node.path),
+    [flattenedData]
+  )
+
+  const pathToNodeMap = useMemo(() => {
+    const map = new Map<string, FileTreeNode>()
+    flattenedData.forEach((node) => {
+      map.set(node.path, node)
+    })
+    return map
+  }, [flattenedData])
+
+  const getNodeByPath = useCallback(
+    (path: string) => pathToNodeMap.get(path),
+    [pathToNodeMap]
+  )
+
   // Use drag and drop hook
   const {
     draggingNode,
@@ -305,20 +327,9 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     setExpandedNodes,
     getPlaceholderText,
     confirmMove,
+    selectedNodes,
+    getNodeByPath,
   })
-
-  const flattenedPaths = useMemo(
-    () => flattenedData.map((node) => node.path),
-    [flattenedData]
-  )
-
-  const pathToNodeMap = useMemo(() => {
-    const map = new Map<string, FileTreeNode>()
-    flattenedData.forEach((node) => {
-      map.set(node.path, node)
-    })
-    return map
-  }, [flattenedData])
 
   const updateSelectionState = useCallback(
     (paths: Set<string>, anchorOverride?: string | null) => {
@@ -628,13 +639,18 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
             <AlertDialogTitle>Move item?</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingMove
-                ? `Move “${
-                    pendingMove.source.name?.trim() ||
-                    getPlaceholderText(pendingMove.source)
-                  }” to “${
-                    pendingMove.target.name?.trim() ||
-                    getPlaceholderText(pendingMove.target)
-                  }”?`
+                ? pendingMove.sources.length === 1
+                  ? `Move “${
+                      pendingMove.sources[0].name?.trim() ||
+                      getPlaceholderText(pendingMove.sources[0])
+                    }” to “${
+                      pendingMove.target.name?.trim() ||
+                      getPlaceholderText(pendingMove.target)
+                    }”?`
+                  : `Move ${pendingMove.sources.length} items to “${
+                      pendingMove.target.name?.trim() ||
+                      getPlaceholderText(pendingMove.target)
+                    }”?`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
