@@ -1,4 +1,10 @@
-import React, { useCallback, useMemo, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 
 import { cn } from "@/lib/utils"
@@ -314,20 +320,37 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     return map
   }, [flattenedData])
 
-  const updateSelectionState = (
-    paths: Set<string>,
-    anchorOverride?: string | null
-  ) => {
-    const anchor =
-      anchorOverride !== undefined
-        ? anchorOverride
-        : paths.size
-          ? Array.from(paths).slice(-1)[0]
-          : null
-    setSelectedNodes(paths)
-    setSelectedNode(anchor || null)
-    setSelectionAnchor(anchor || null)
-  }
+  const updateSelectionState = useCallback(
+    (paths: Set<string>, anchorOverride?: string | null) => {
+      const anchor =
+        anchorOverride !== undefined
+          ? anchorOverride
+          : paths.size
+            ? Array.from(paths).slice(-1)[0]
+            : null
+      setSelectedNodes(paths)
+      setSelectedNode(anchor || null)
+      setSelectionAnchor(anchor || null)
+    },
+    []
+  )
+
+  useEffect(() => {
+    const handleExpandToSelect = (event: Event) => {
+      const customEvent = event as CustomEvent<{ path?: string }>
+      const targetPath = customEvent.detail?.path
+      if (!targetPath) return
+      updateSelectionState(new Set([targetPath]), targetPath)
+    }
+
+    window.addEventListener("file-tree-expand-to" as any, handleExpandToSelect)
+    return () => {
+      window.removeEventListener(
+        "file-tree-expand-to" as any,
+        handleExpandToSelect
+      )
+    }
+  }, [updateSelectionState])
 
   const selectRange = (anchorPath: string, targetPath: string) => {
     const anchorIndex = flattenedPaths.indexOf(anchorPath)
