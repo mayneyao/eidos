@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react"
+import React, { useCallback, useMemo, useRef, useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 
 import { cn } from "@/lib/utils"
@@ -55,6 +55,13 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const [pendingDeleteNodes, setPendingDeleteNodes] = useState<FileTreeNode[]>(
     []
   )
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false)
+  const [pendingMove, setPendingMove] = useState<{
+    source: FileTreeNode
+    target: FileTreeNode
+    newPath: string
+    resolve: (allow: boolean) => void
+  } | null>(null)
 
   const scrollToNode = (nodePath: string, retryCount = 0) => {
     const nodeElement = nodeRefs.current.get(nodePath)
@@ -246,6 +253,34 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     return "Untitled"
   }
 
+  const confirmMove = useCallback(
+    async (payload: { source: FileTreeNode; target: FileTreeNode; newPath: string }) =>
+      new Promise<boolean>((resolve) => {
+        setPendingMove({
+          ...payload,
+          resolve,
+        })
+        setIsMoveDialogOpen(true)
+      }),
+    []
+  )
+
+  const handleMoveConfirm = () => {
+    if (pendingMove) {
+      pendingMove.resolve(true)
+    }
+    setPendingMove(null)
+    setIsMoveDialogOpen(false)
+  }
+
+  const handleMoveCancel = () => {
+    if (pendingMove) {
+      pendingMove.resolve(false)
+    }
+    setPendingMove(null)
+    setIsMoveDialogOpen(false)
+  }
+
   // Use drag and drop hook
   const {
     draggingNode,
@@ -263,6 +298,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     expandedNodes,
     setExpandedNodes,
     getPlaceholderText,
+    confirmMove,
   })
 
   const flattenedPaths = useMemo(
@@ -495,11 +531,11 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           onCopyExtension={handleCopyExtension}
           onDragStart={(e) => handleDragStart(e, node)}
           onDragEnd={handleDragEnd}
-          onDragOver={hasChildren ? (e) => handleDragOver(e, node) : undefined}
+          onDragOver={(e) => handleDragOver(e, node)}
           onDragEnter={
             hasChildren ? (e) => handleDragEnter(e, node) : undefined
           }
-          onDragLeave={hasChildren ? handleDragLeave : undefined}
+          onDragLeave={handleDragLeave}
           onDrop={hasChildren ? (e) => handleDrop(e, node) : undefined}
         />
       </div>
@@ -549,6 +585,42 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
             </AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteNodes}>
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={isMoveDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleMoveCancel()
+          } else {
+            setIsMoveDialogOpen(true)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingMove
+                ? `Move “${
+                    pendingMove.source.name?.trim() ||
+                    getPlaceholderText(pendingMove.source)
+                  }” to “${
+                    pendingMove.target.name?.trim() ||
+                    getPlaceholderText(pendingMove.target)
+                  }”?`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleMoveCancel}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleMoveConfirm}>
+              Move
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

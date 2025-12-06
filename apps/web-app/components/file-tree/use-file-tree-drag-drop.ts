@@ -1,9 +1,15 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useDragStore } from "@/apps/web-app/store/drag-store"
 
 import type { FileTreeNode } from "./index"
+
+interface ConfirmMovePayload {
+  source: FileTreeNode
+  target: FileTreeNode
+  newPath: string
+}
 
 interface UseFileTreeDragDropOptions {
   isNodesMode: boolean
@@ -12,6 +18,7 @@ interface UseFileTreeDragDropOptions {
   expandedNodes: Set<string>
   setExpandedNodes: React.Dispatch<React.SetStateAction<Set<string>>>
   getPlaceholderText: (node: FileTreeNode) => string
+  confirmMove?: (payload: ConfirmMovePayload) => Promise<boolean>
 }
 
 /**
@@ -24,16 +31,26 @@ export const useFileTreeDragDrop = ({
   expandedNodes,
   setExpandedNodes,
   getPlaceholderText,
+  confirmMove,
 }: UseFileTreeDragDropOptions) => {
   const { sqlite } = useSqlite()
   const { setDragging } = useDragStore()
   const [dragOverNode, setDragOverNode] = useState<string | null>(null)
   const [draggingNode, setDraggingNode] = useState<string | null>(null)
+  const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const clearExpandTimeout = useCallback(() => {
+    if (expandTimeoutRef.current) {
+      clearTimeout(expandTimeoutRef.current)
+      expandTimeoutRef.current = null
+    }
+  }, [])
 
   const handleDragStart = useCallback(
     (e: React.DragEvent, node: FileTreeNode) => {
       e.stopPropagation()
-      setDraggingNode(node.path)
+    setDraggingNode(node.path)
+    setDragOverNode(null)
       setDragging(true, node)
 
       // Get display name for drag operations (handles empty names)
@@ -57,31 +74,62 @@ export const useFileTreeDragDrop = ({
     [getPlaceholderText, setDragging]
   )
 
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    e.stopPropagation()
-    setDraggingNode(null)
-    setDragOverNode(null)
-    setDragging(false)
-  }, [setDragging])
+  const handleDragEnd = useCallback(
+    (e: React.DragEvent) => {
+      e.stopPropagation()
+      setDraggingNode(null)
+      setDragOverNode(null)
+      setDragging(false)
+      clearExpandTimeout()
+    },
+    [clearExpandTimeout, setDragging]
+  )
 
   const handleDragOver = useCallback(
     (e: React.DragEvent, node: FileTreeNode) => {
       // Allow drag over on all nodes for external drop support (e.g., AI chat)
       e.preventDefault()
       e.stopPropagation()
-      e.dataTransfer.dropEffect = "copy"
+      e.dataTransfer.dropEffect = "move"
 
-      // Only set drag over state for directories (for visual feedback)
-      if (node.kind === "directory") {
-        if (dragOverNode !== node.path) {
-          setDragOverNode(node.path)
-        }
-      } else {
-        // Clear drag over state for files
+      if (node.kind !== "directory") {
         setDragOverNode(null)
+        clearExpandTimeout()
+        return
+      }
+
+      const sameTarget = dragOverNode === node.path
+      if (!sameTarget) {
+        setDragOverNode(node.path)
+        clearExpandTimeout()
+      }
+
+      const alreadyExpanded = expandedNodes.has(node.path)
+      const hasPending = Boolean(expandTimeoutRef.current)
+      if (!alreadyExpanded && !hasPending) {
+        expandTimeoutRef.current = setTimeout(async () => {
+          setExpandedNodes((prev) => {
+            const next = new Set(prev)
+            next.add(node.path)
+            return next
+          })
+          try {
+            await loadSubDirectory(node.path)
+          } catch (err) {
+            console.error("Failed to auto-expand on drag over:", err)
+          } finally {
+            expandTimeoutRef.current = null
+          }
+        }, 400)
       }
     },
-    [dragOverNode]
+    [
+      clearExpandTimeout,
+      dragOverNode,
+      expandedNodes,
+      loadSubDirectory,
+      setExpandedNodes,
+    ]
   )
 
   const handleDragEnter = useCallback((e: React.DragEvent, node: FileTreeNode) => {
@@ -93,19 +141,28 @@ export const useFileTreeDragDrop = ({
     setDragOverNode(node.path)
   }, [])
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.stopPropagation()
-    // Only clear if we're actually leaving this node (not entering a child)
-    if (e.currentTarget === e.target) {
-      setDragOverNode(null)
-    }
-  }, [])
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      e.stopPropagation()
+      const related = e.relatedTarget as Node | null
+      const isStillInside =
+        related && e.currentTarget instanceof Element
+          ? e.currentTarget.contains(related)
+          : false
+
+      if (!isStillInside) {
+        setDragOverNode(null)
+        clearExpandTimeout()
+      }
+    },
+    [clearExpandTimeout]
+  )
 
   const handleExternalDragOver = useCallback((e: React.DragEvent) => {
     // Allow drag over for external drop targets (e.g., AI chat)
     e.preventDefault()
     e.stopPropagation()
-    e.dataTransfer.dropEffect = "copy"
+    e.dataTransfer.dropEffect = "move"
   }, [])
 
   const handleDrop = useCallback(
@@ -141,6 +198,18 @@ export const useFileTreeDragDrop = ({
         const draggedNodeId = dragData.path.split("/").filter(Boolean).pop()
         const newPath = `${targetFolder.path}/${draggedNodeId}`
 
+        // Ask for confirmation before moving
+        if (confirmMove) {
+          const allow = await confirmMove({
+            source: dragData,
+            target: targetFolder,
+            newPath,
+          })
+          if (!allow) {
+            return
+          }
+        }
+
         // Call rename API to move the node
         await sqlite.fs.rename(dragData.path, newPath)
 
@@ -148,12 +217,18 @@ export const useFileTreeDragDrop = ({
         if (isNodesMode) {
           // In nodes mode, reload both source and target directories
           const sourceParentPath =
-            dragData.path.split("/").slice(0, -1).join("/") || dragData.path
+            dragData.path.split("/").slice(0, -1).join("/") || null
           if (sourceParentPath) {
             await loadSubDirectory(sourceParentPath)
           }
           await loadSubDirectory(targetFolder.path)
         } else {
+          const sourceParentPath =
+            dragData.path.split("/").slice(0, -1).join("/") || null
+          if (sourceParentPath) {
+            await loadSubDirectory(sourceParentPath)
+          }
+          await loadSubDirectory(targetFolder.path)
           await loadRootDirectory()
         }
 
@@ -166,6 +241,7 @@ export const useFileTreeDragDrop = ({
         console.error("Failed to move node:", error)
       } finally {
         setDraggingNode(null)
+        clearExpandTimeout()
       }
     },
     [
@@ -175,6 +251,7 @@ export const useFileTreeDragDrop = ({
       loadSubDirectory,
       expandedNodes,
       setExpandedNodes,
+      clearExpandTimeout,
     ]
   )
 
