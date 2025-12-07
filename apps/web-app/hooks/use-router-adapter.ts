@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import {
     useInRouterContext,
     useLocation as useRouterLocation,
@@ -61,11 +61,19 @@ export const useRouterAdapter = () => {
         }
     }, [inRouter, location, activeTab])
 
-    const adapterNavigate = useMemo(() => {
-        if (inRouter && navigate) return navigate
+    // Keep a stable ref so fallback navigate doesn't change identity
+    const adapterLocationRef = useRef(adapterLocation)
+    useEffect(() => {
+        adapterLocationRef.current = adapterLocation
+    }, [adapterLocation])
 
-        // Return a fallback navigate function with tab support
-        return ((to: string | number, options?: { replace?: boolean, target?: "_blank" | "_self", state?: any }) => {
+    const adapterNavigate = useCallback(
+        (to: string | number, options?: { replace?: boolean; target?: "_blank" | "_self"; state?: any }) => {
+            if (inRouter && navigate) {
+                navigate(to as any, options)
+                return
+            }
+
             if (typeof to === "number") {
                 // Delegate to the active tab's history stack
                 const { activeTabId: storeActiveTabId, goInTabHistory } = useTabStore.getState()
@@ -81,9 +89,10 @@ export const useRouterAdapter = () => {
 
             // Resolve relative paths if needed
             let newUrl = to as string
+            const currentLocation = adapterLocationRef.current
             if (!newUrl.startsWith("/") && !newUrl.startsWith("http")) {
                 // Simple relative path handling
-                const currentPath = adapterLocation.pathname
+                const currentPath = currentLocation.pathname
                 if (currentPath.endsWith("/")) {
                     newUrl = currentPath + newUrl
                 } else {
@@ -119,8 +128,9 @@ export const useRouterAdapter = () => {
 
             updateTab(targetId, { url: newUrl })
             setActiveTabAction(targetId)
-        }) // Type as any to match useNavigate signature
-    }, [inRouter, navigate, activeTabId, updateTab, adapterLocation])
+        },
+        [inRouter, navigate],
+    )
 
     const adapterParams = useMemo(() => {
         if (inRouter && params) return params

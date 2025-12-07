@@ -9,6 +9,7 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useTabTitle } from "@/hooks/use-tab-title"
 
 // Helper function to render keyboard shortcut
 const renderShortcut = (keys: string) => {
@@ -46,6 +47,7 @@ export default function DatabaseHome() {
     useAppRuntimeStore()
   const { toggleSidebar } = useSidebar()
 
+  useTabTitle("Home")
   const handleCreateDoc = useCallback(async () => {
     if (!space) return
     const docId = await createDoc("")

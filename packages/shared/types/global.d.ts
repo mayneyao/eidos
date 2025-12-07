@@ -1,3 +1,4 @@
+/// <reference types="./url.d.ts" />
 // interface FileSystemDirectoryHandle {
 //   [Symbol.asyncIterator](): AsyncIterableIterator<[string, FileSystemHandle]>
 //   entries(): AsyncIterableIterator<[string, FileSystemHandle]>
