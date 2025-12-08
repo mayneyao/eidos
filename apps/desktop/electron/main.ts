@@ -1,6 +1,6 @@
 import { MsgType } from '@/lib/const';
 import { handleFunctionCall } from '@/packages/core/rpc';
-import type { BrowserWindow } from 'electron';
+import { BrowserWindow } from 'electron';
 import { Menu, Tray, app, dialog, ipcMain, nativeImage, shell, webContents } from 'electron';
 import electronLog from 'electron-log';
 import path from 'path';
@@ -403,7 +403,7 @@ function createTray() {
         return
     }
     try {
-        const iconPath = path.join(process.env.VITE_PUBLIC, 'logo.png');
+        const iconPath = path.join(process.env.VITE_PUBLIC || '', 'logo.png');
         electronLog.info('Tray icon path:', iconPath);
 
         const icon = nativeImage.createFromPath(iconPath);
@@ -728,4 +728,108 @@ ipcMain.handle('fetch-available-models', async (event, apiKey: string, providerT
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
 });
+
+// Native context menu handling
+ipcMain.handle('show-native-context-menu', async (event, options: { items: NativeMenuItem[], x?: number, y?: number }) => {
+    try {
+        const { items, x, y } = options;
+
+        // Convert menu items to Electron menu template with click handlers
+        const menuTemplate = convertToElectronMenuTemplateWithIds(items);
+
+        // Create and show the menu
+        const menu = Menu.buildFromTemplate(menuTemplate);
+
+        // Get the window from the event sender
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (!window) {
+            throw new Error('Cannot find window from event sender');
+        }
+
+        // Show the menu at the specified position or at cursor
+        if (x !== undefined && y !== undefined) {
+            menu.popup({
+                window,
+                x: Math.round(x),
+                y: Math.round(y),
+                callback: () => {
+                    // Menu closed - cleanup if needed
+                }
+            });
+        } else {
+            menu.popup({
+                window,
+                callback: () => {
+                    // Menu closed - cleanup if needed
+                }
+            });
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('Error showing native context menu:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+});
+
+// Helper function to convert menu items with IDs for click handling
+function convertToElectronMenuTemplateWithIds(items: NativeMenuItem[]): Electron.MenuItemConstructorOptions[] {
+    return items.map((item, index) => {
+        if (item.type === 'separator') {
+            return {
+                type: 'separator' as const,
+            }
+        }
+
+        if (item.type === 'submenu') {
+            return {
+                label: item.label,
+                enabled: item.enabled ?? true,
+                submenu: convertToElectronMenuTemplateWithIds(item.submenu),
+                icon: item.icon,
+                click: item.id ? () => {
+                    // Send click event back to renderer with the item ID
+                    const focusedWindow = BrowserWindow.getFocusedWindow();
+                    if (focusedWindow) {
+                        focusedWindow.webContents.send('native-menu-click', item.id);
+                    }
+                } : undefined,
+            }
+        }
+
+        // For text, checkbox, and radio items
+        const baseItem = {
+            label: item.label,
+            enabled: item.enabled ?? true,
+            accelerator: (item as any).accelerator,
+            icon: (item as any).icon,
+            click: item.id ? () => {
+                // Send click event back to renderer with the item ID
+                const focusedWindow = BrowserWindow.getFocusedWindow();
+                if (focusedWindow) {
+                    focusedWindow.webContents.send('native-menu-click', item.id);
+                }
+            } : undefined,
+        };
+
+        if (item.type === 'checkbox') {
+            return {
+                ...baseItem,
+                type: 'checkbox' as const,
+                checked: item.checked ?? false,
+            };
+        }
+
+        if (item.type === 'radio') {
+            return {
+                ...baseItem,
+                type: 'radio' as const,
+                checked: item.checked ?? false,
+            };
+        }
+
+        // Default text item
+        return baseItem;
+    });
+}
 

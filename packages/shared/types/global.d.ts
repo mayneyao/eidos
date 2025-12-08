@@ -1,4 +1,5 @@
 /// <reference types="./url.d.ts" />
+/// <reference types="./native-menu.d.ts" />
 // interface FileSystemDirectoryHandle {
 //   [Symbol.asyncIterator](): AsyncIterableIterator<[string, FileSystemHandle]>
 //   entries(): AsyncIterableIterator<[string, FileSystemHandle]>

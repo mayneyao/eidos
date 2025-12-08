@@ -53,6 +53,9 @@ interface Window {
             generateText: typeof import('ai').generateText
             generateObject: typeof import('ai').generateObject
         }
+        showNativeMenu: (items: NativeMenuItem[], position?: { clientX: number; clientY: number }) => Promise<void>
+        on: (channel: string, listener: (...args: any[]) => void) => string | undefined
+        off: (channel: string, listenerId: string) => void
     }
 
 }
