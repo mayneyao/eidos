@@ -2,6 +2,7 @@
 
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import {
+  ExternalLinkIcon,
   FileIcon,
   FileSpreadsheetIcon,
   FolderPlusIcon,
@@ -15,15 +16,15 @@ import React, { useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuSeparator as ContextMenuSeparator,
+  NativeContextMenuSub as ContextMenuSub,
+  NativeContextMenuSubContent as ContextMenuSubContent,
+  NativeContextMenuSubTrigger as ContextMenuSubTrigger,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +51,7 @@ interface NodeContextMenuProps {
   onCreateDoc?: (parentNode: FileTreeNode) => void
   onCreateTable?: (parentNode: FileTreeNode) => void
   onCreateFolder?: (parentNode: FileTreeNode) => void
+  onOpenInNewTab?: (node: FileTreeNode) => void
   isMultiSelection?: boolean
   selectionCount?: number
   selectionHasDataview?: boolean
@@ -69,6 +71,7 @@ export const NodeContextMenu = ({
   onCreateDoc,
   onCreateTable,
   onCreateFolder,
+  onOpenInNewTab,
   isMultiSelection = false,
   selectionCount = 1,
   selectionHasDataview = false,
@@ -83,6 +86,7 @@ export const NodeContextMenu = ({
   const hasRename = !!onRename && !isMultiSelection
   const hasPin = (isPinned ? !!onUnpin : !!onPin) && !isMultiSelection
   const hasAddToChat = !!onAddToChat && !isMultiSelection
+  const hasOpenInNewTab = !!onOpenInNewTab && !isMultiSelection
   const hasCreate =
     isFolder &&
     !!(onCreateDoc || onCreateTable || onCreateFolder) &&
@@ -91,10 +95,11 @@ export const NodeContextMenu = ({
 
   // Calculate sections
   const hasTopSection = hasRename || hasPin || hasAddToChat
+  const hasOpenSection = hasOpenInNewTab
   const hasBottomSection = hasDelete
 
   // Don't render context menu if there are no items to show
-  if (!hasTopSection && !hasCreate && !hasBottomSection) {
+  if (!hasTopSection && !hasCreate && !hasOpenSection && !hasBottomSection) {
     return <>{children}</>
   }
 
@@ -132,11 +137,23 @@ export const NodeContextMenu = ({
           </ContextMenuSub>
         )}
 
-        {/* Medium-risk operations */}
-        {(hasPin || hasAddToChat) && (
+        {/* Open in new tab */}
+        {hasOpenInNewTab && (
           <>
             {/* Show separator if there are create items above */}
             {hasCreate && <ContextMenuSeparator />}
+            <ContextMenuItem onClick={() => onOpenInNewTab(node)}>
+              <ExternalLinkIcon className="mr-2 h-4 w-4" />
+              {t("node.menu.openInNewTab", "Open in New Tab")}
+            </ContextMenuItem>
+          </>
+        )}
+
+        {/* Medium-risk operations */}
+        {(hasPin || hasAddToChat) && (
+          <>
+            {/* Show separator if there are create or open items above */}
+            {(hasCreate || hasOpenInNewTab) && <ContextMenuSeparator />}
 
             {hasPin &&
               (isPinned

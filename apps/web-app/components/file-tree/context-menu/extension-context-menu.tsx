@@ -1,26 +1,19 @@
 "use client"
 
+import React, { useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import {
   CopyIcon,
+  ExternalLinkIcon,
   FilesIcon,
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
   Trash2Icon,
 } from "lucide-react"
-import React, { useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import { Button } from "@/components/ui/button"
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
 import {
   Dialog,
   DialogContent,
@@ -29,6 +22,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuSeparator as ContextMenuSeparator,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
+import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 
 interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
@@ -41,6 +42,7 @@ interface ExtensionContextMenuProps {
   onDelete?: (node: FileTreeNode) => void
   onCopySlug?: (node: FileTreeNode) => void
   onCopy?: (node: FileTreeNode) => void
+  onOpenInNewTab?: (node: FileTreeNode) => void
   isMultiSelection?: boolean
   selectionCount?: number
   selectionHasDataview?: boolean
@@ -56,6 +58,7 @@ export const ExtensionContextMenu = ({
   onDelete,
   onCopySlug,
   onCopy,
+  onOpenInNewTab,
   isMultiSelection = false,
   selectionCount = 1,
 }: ExtensionContextMenuProps) => {
@@ -88,6 +91,14 @@ export const ExtensionContextMenu = ({
       <ContextMenu>
         <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-48">
+          {/* Open in new tab */}
+          {!isMultiSelection && onOpenInNewTab && (
+            <ContextMenuItem onClick={() => onOpenInNewTab(node)}>
+              <ExternalLinkIcon className="mr-2 h-4 w-4" />
+              {t("node.menu.openInNewTab", "Open in New Tab")}
+            </ContextMenuItem>
+          )}
+          
           {/* Create operations */}
           {!isMultiSelection && onCopy && (
             <ContextMenuItem onClick={() => onCopy(node)}>
@@ -97,51 +108,53 @@ export const ExtensionContextMenu = ({
           )}
 
           {/* Medium-risk operations */}
-          {(!isMultiSelection && (extensionType === "block" && nodeId || onCopySlug)) && (
-            <>
-              {/* Show separator if there are duplicate actions above */}
-              {!isMultiSelection && onCopy && <ContextMenuSeparator />}
+          {!isMultiSelection &&
+            ((extensionType === "block" && nodeId) || onCopySlug) && (
+              <>
+                {/* Show separator if there are duplicate actions above */}
+                {!isMultiSelection && onCopy && <ContextMenuSeparator />}
 
-              {!isMultiSelection && extensionType === "block" && nodeId && (
-                <ContextMenuItem
-                  onClick={() => {
-                    toggleFavBlock({
-                      id: nodeId,
-                      name: node.name,
-                      icon: extensionIcon,
-                    })
-                  }}
-                >
-                  {isExtensionPinned ? (
-                    <>
-                      <PinOffIcon className="mr-2 h-4 w-4" />
-                      {t("common.unpin", "Unpin")}
-                    </>
-                  ) : (
-                    <>
-                      <PinIcon className="mr-2 h-4 w-4" />
-                      {t("common.pin", "Pin")}
-                    </>
-                  )}
-                </ContextMenuItem>
-              )}
+                {!isMultiSelection && extensionType === "block" && nodeId && (
+                  <ContextMenuItem
+                    onClick={() => {
+                      toggleFavBlock({
+                        id: nodeId,
+                        name: node.name,
+                        icon: extensionIcon,
+                      })
+                    }}
+                  >
+                    {isExtensionPinned ? (
+                      <>
+                        <PinOffIcon className="mr-2 h-4 w-4" />
+                        {t("common.unpin", "Unpin")}
+                      </>
+                    ) : (
+                      <>
+                        <PinIcon className="mr-2 h-4 w-4" />
+                        {t("common.pin", "Pin")}
+                      </>
+                    )}
+                  </ContextMenuItem>
+                )}
 
-              {!isMultiSelection && onCopySlug && (
-                <ContextMenuItem onClick={() => onCopySlug(node)}>
-                  <CopyIcon className="mr-2 h-4 w-4" />
-                  {t("extension.copySlug", "Copy Slug")}
-                </ContextMenuItem>
-              )}
-            </>
-          )}
+                {!isMultiSelection && onCopySlug && (
+                  <ContextMenuItem onClick={() => onCopySlug(node)}>
+                    <CopyIcon className="mr-2 h-4 w-4" />
+                    {t("extension.copySlug", "Copy Slug")}
+                  </ContextMenuItem>
+                )}
+              </>
+            )}
 
           {/* Rename and delete operations */}
-          {(!isMultiSelection && onRename || onDelete) && (
+          {((!isMultiSelection && onRename) || onDelete) && (
             <>
               {/* Show separator if there are other actions above */}
-              {(!isMultiSelection && (onCopy || extensionType === "block" && nodeId || onCopySlug)) && (
-                <ContextMenuSeparator />
-              )}
+              {!isMultiSelection &&
+                (onCopy ||
+                  (extensionType === "block" && nodeId) ||
+                  onCopySlug) && <ContextMenuSeparator />}
 
               {!isMultiSelection && onRename && (
                 <ContextMenuItem onClick={() => onRename(node)}>
@@ -201,4 +214,3 @@ export const ExtensionContextMenu = ({
     </>
   )
 }
-

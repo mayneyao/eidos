@@ -15,6 +15,7 @@ import {
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
+import { SettingsExternalLinks } from "./settings-external-links"
 
 type SettingsSection =
   | "space-general"
@@ -308,6 +309,13 @@ export function SettingsSidebar({
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* External Links */}
+      <div className="p-3 border-t">
+        <div className="flex justify-start">
+          <SettingsExternalLinks />
         </div>
       </div>
     </div>

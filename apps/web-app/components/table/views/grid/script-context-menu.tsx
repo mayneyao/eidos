@@ -6,7 +6,7 @@ import type {
   TableActionMeta,
 } from "@/packages/core/types/IExtension"
 
-import { ContextMenuItem } from "@/components/ui/context-menu"
+import { NativeContextMenuItem as ContextMenuItem } from "@/components/ui/native-context-menu"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useCurrentUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { getTableIdByRawTableName } from "@/lib/utils"

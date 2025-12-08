@@ -11,13 +11,13 @@ import {
 
 import { getTableIdByRawTableName, shortenId } from "@/lib/utils"
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuSeparator as ContextMenuSeparator,
+  NativeContextMenuShortcut as ContextMenuShortcut,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import {
   AlertDialog,
   AlertDialogAction,

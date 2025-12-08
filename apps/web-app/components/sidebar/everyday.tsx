@@ -5,11 +5,11 @@ import { useTranslation } from "react-i18next"
 import { getToday } from "@/lib/utils"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import {
   Dialog,
   DialogContent,

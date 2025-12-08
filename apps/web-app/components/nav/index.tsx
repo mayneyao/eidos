@@ -11,7 +11,6 @@ import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 
 import { BreadCrumb } from "./breadcrumb"
-import { NavDropdownMenu } from "./dropdown-menu"
 import { NavStatus } from "./nav-status"
 
 export const Nav = ({
@@ -95,7 +94,6 @@ export const Nav = ({
         })}
       >
         <NavStatus />
-        <NavDropdownMenu />
         {isDesktopMode && !isRightPanelOpen && (
           <Button size="xs" variant="ghost" onClick={() => handleAppChange(0)}>
             <PanelRightIcon className="h-5 w-5" />

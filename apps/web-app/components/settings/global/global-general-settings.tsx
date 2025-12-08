@@ -9,6 +9,7 @@ import * as z from "zod"
 
 import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
+import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -23,7 +24,6 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/react-hook-form/form"
-import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { useUpdateStatus } from "@/apps/web-app/hooks/use-update-status"
 
 const appearanceFormSchema = z.object({
@@ -136,6 +136,7 @@ export function GlobalGeneralSettings() {
       })
     }
   }
+
 
   return (
     <div className="space-y-0">
@@ -422,6 +423,7 @@ export function GlobalGeneralSettings() {
           </div>
         </div>
       </div>
+
     </div>
   )
 }

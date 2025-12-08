@@ -7,6 +7,7 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { useNode } from "@/hooks/use-nodes"
 import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useToast } from "@/components/ui/use-toast"
 
 interface FileTreeNode extends IDirectoryEntry {
@@ -25,6 +26,7 @@ export const useFileTreeOperations = (rootDir?: string) => {
   const { addNode: addToChat } = useContextNodes()
   const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
   const { navigate } = useRouterAdapter()
+  const { openTab } = useTabStore()
   const { toast } = useToast()
 
   const isVirtualNodesPath = rootDir?.startsWith("~/.eidos/__NODES__")
@@ -144,6 +146,33 @@ export const useFileTreeOperations = (rootDir?: string) => {
       }, 100)
     },
     [addToChat, setIsRightPanelOpen, setCurrentApp]
+  )
+
+  /**
+   * Open node in new tab
+   */
+  const handleOpenInNewTab = useCallback(
+    (node: FileTreeNode) => {
+      const nodeId = node.metadata?.nodeId
+      const extensionType = node.metadata?.extensionType
+
+      if (isVirtualNodesPath && nodeId) {
+        // Open node in new tab
+        openTab(`/${nodeId}`, node.name)
+      } else if (isVirtualExtensionsPath && nodeId) {
+        // Open extension in new tab
+        if (extensionType === "block") {
+          openTab(`/blocks/${nodeId}`, node.name)
+        } else {
+          openTab(`/extensions/${nodeId}`, node.name)
+        }
+      } else {
+        // For regular files, try to open with default handler
+        // This might not work for all file types, but we can try
+        console.warn("Open in new tab not supported for regular files yet")
+      }
+    },
+    [openTab, isVirtualNodesPath, isVirtualExtensionsPath]
   )
 
   /**
@@ -296,6 +325,7 @@ export const useFileTreeOperations = (rootDir?: string) => {
     handlePin,
     handleUnpin,
     handleAddToChat,
+    handleOpenInNewTab,
     handleCreateDoc,
     handleCreateTable,
     handleCreateFolder,

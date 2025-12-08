@@ -42,3 +42,10 @@ export const onSettingsClose = (callback: (event: CustomEvent) => void) => {
   window.addEventListener(SETTINGS_CLOSE_EVENT, callback as EventListener)
   return () => window.removeEventListener(SETTINGS_CLOSE_EVENT, callback as EventListener)
 }
+
+// External links for settings
+export const SETTINGS_EXTERNAL_LINKS = {
+  github: "https://github.com/mayneyao/eidos",
+  discord: "https://discord.gg/8J9pZ6Z",
+  website: "https://eidos.space"
+} as const

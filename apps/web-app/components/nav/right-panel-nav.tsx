@@ -18,11 +18,11 @@ import { cn, getBlockIdFromUrl, isDayPageId } from "@/lib/utils"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { Button } from "@/components/ui/button"
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import {
   DropdownMenu,
   DropdownMenuContent,

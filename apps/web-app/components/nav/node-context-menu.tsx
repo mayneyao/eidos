@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowUpRight } from "lucide-react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { getBlockIdFromUrl, isDayPageId } from "@/lib/utils"
-import { ContextMenuItem } from "@/components/ui/context-menu"
+import { NativeContextMenuItem as ContextMenuItem } from "@/components/ui/native-context-menu"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 
 export const NodeContextMenu = ({ url }: { url: string }) => {

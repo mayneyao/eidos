@@ -21,15 +21,15 @@ import { useTranslation } from "react-i18next"
 
 import { isInkServiceMode } from "@/lib/env"
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuSeparator as ContextMenuSeparator,
+  NativeContextMenuSub as ContextMenuSub,
+  NativeContextMenuSubContent as ContextMenuSubContent,
+  NativeContextMenuSubTrigger as ContextMenuSubTrigger,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import {
   Popover,
   PopoverContent,
@@ -316,7 +316,8 @@ export function NodeItem({
             </ContextMenuItem>
           </>
         )}
-        {node.type === "doc" && (
+        {/* TODO: NodeMoveInto with Command component not supported in native context menu */}
+        {/* {node.type === "doc" && (
           <>
             <ContextMenuSub>
               <ContextMenuSubTrigger>
@@ -328,7 +329,7 @@ export function NodeItem({
               </ContextMenuSubContent>
             </ContextMenuSub>
           </>
-        )}
+        )} */}
         {node.type !== "folder" && <NodeExportContextMenu node={node} />}
         {/* <NodeOpenInCursorContextMenu node={node} /> */}
       </ContextMenuContent>

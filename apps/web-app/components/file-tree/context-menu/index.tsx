@@ -22,6 +22,7 @@ interface FileTreeContextMenuProps {
   onCreateDoc?: (parentNode: FileTreeNode) => void
   onCreateTable?: (parentNode: FileTreeNode) => void
   onCreateFolder?: (parentNode: FileTreeNode) => void
+  onOpenInNewTab?: (node: FileTreeNode) => void
   onCopySlug?: (node: FileTreeNode) => void
   onCopyExtension?: (node: FileTreeNode) => void
   isMultiSelection?: boolean
@@ -44,6 +45,7 @@ export const FileTreeContextMenu = ({
   onCreateDoc,
   onCreateTable,
   onCreateFolder,
+  onOpenInNewTab,
   onCopySlug,
   onCopyExtension,
   isMultiSelection = false,
@@ -58,6 +60,7 @@ export const FileTreeContextMenu = ({
     return (
       <FileContextMenu
         node={node}
+        onOpenInNewTab={onOpenInNewTab}
         isMultiSelection={isMultiSelection}
         selectionCount={selectionCount}
         selectionHasDataview={selectionHasDataview}
@@ -78,6 +81,7 @@ export const FileTreeContextMenu = ({
         onDelete={onDelete}
         onCopySlug={onCopySlug}
         onCopy={onCopyExtension}
+        onOpenInNewTab={onOpenInNewTab}
         isMultiSelection={isMultiSelection}
         selectionCount={selectionCount}
       >
@@ -98,6 +102,7 @@ export const FileTreeContextMenu = ({
       onCreateDoc={onCreateDoc}
       onCreateTable={onCreateTable}
       onCreateFolder={onCreateFolder}
+      onOpenInNewTab={onOpenInNewTab}
       isMultiSelection={isMultiSelection}
       selectionCount={selectionCount}
       selectionHasDataview={selectionHasDataview}

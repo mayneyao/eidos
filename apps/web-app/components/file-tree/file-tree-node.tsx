@@ -36,6 +36,7 @@ interface FileTreeNodeProps {
   onCreateDoc?: (node: FileTreeNodeType) => void
   onCreateTable?: (node: FileTreeNodeType) => void
   onCreateFolder?: (node: FileTreeNodeType) => void
+  onOpenInNewTab?: (node: FileTreeNodeType) => void
   onCopySlug?: (node: FileTreeNodeType) => void
   onCopyExtension?: (node: FileTreeNodeType) => void
   onDragStart: (e: React.DragEvent) => void
@@ -77,6 +78,7 @@ export const FileTreeNode = ({
   onCreateDoc,
   onCreateTable,
   onCreateFolder,
+  onOpenInNewTab,
   onCopySlug,
   onCopyExtension,
   onDragStart,
@@ -119,6 +121,7 @@ export const FileTreeNode = ({
             ? onCreateFolder
             : undefined
         }
+        onOpenInNewTab={onOpenInNewTab}
         onCopySlug={
           node.metadata?.nodeType === "extension" ? onCopySlug : undefined
         }

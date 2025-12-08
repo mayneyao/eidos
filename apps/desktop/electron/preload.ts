@@ -10,8 +10,7 @@ import type { ApiAgentStatus } from './server/api-agent';
 import { generateText, generateObject } from 'ai';
 import { getProvider } from '@/packages/ai/helper';
 
-// Native menu types
-import type { NativeMenuItem, ShowNativeMenuOptions } from 'shared';
+
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void;
 

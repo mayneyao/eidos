@@ -107,6 +107,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     handlePin,
     handleUnpin,
     handleAddToChat,
+    handleOpenInNewTab,
     handleCreateDoc,
     handleCreateTable,
     handleCreateFolder,
@@ -564,6 +565,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           onPin={handlePin}
           onUnpin={handleUnpin}
           onAddToChat={handleAddToChat}
+          onOpenInNewTab={handleOpenInNewTab}
           onCreateDoc={handleCreateDoc}
           onCreateTable={handleCreateTable}
           onCreateFolder={handleCreateFolder}

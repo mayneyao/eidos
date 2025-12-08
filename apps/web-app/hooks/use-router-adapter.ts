@@ -135,28 +135,28 @@ export const useRouterAdapter = () => {
     const adapterParams = useMemo(() => {
         if (inRouter && params) return params
 
-        // Manual param parsing for common patterns
-        // Assumes pattern like /:database/:table or /:database/journals/:day
-        // This is a simplified parser and might need to be robustified based on actual routes
+        // Manual param parsing for route patterns (no more :database prefix)
         const path = adapterLocation.pathname
         const parts = path.split("/").filter(Boolean)
         const result: Record<string, string> = {}
 
-        // Heuristic matching based on known routes
-        // /:database
-        if (parts.length >= 1) result.database = parts[0]
-
-        // /:database/:table (node)
-        if (parts.length >= 2) result.table = parts[1]
-
-        // /:database/journals/:day
-        if (parts.length >= 3 && parts[1] === "journals") {
-            result.day = parts[2]
-        }
-
-        // /:database/extensions/:scriptId
-        if (parts.length >= 3 && parts[1] === "extensions") {
-            result.scriptId = parts[2]
+        // Handle different route patterns without database prefix
+        if (parts.length >= 1) {
+            if (parts[0] === "file-handler") {
+                // /file-handler - no additional params
+            } else if (parts[0] === "blocks" && parts.length >= 2) {
+                // /blocks/:blockId
+                result.blockId = parts[1]
+            } else if (parts[0] === "extensions" && parts.length >= 2) {
+                // /extensions/:scriptId
+                result.scriptId = parts[1]
+            } else if (parts[0] === "journals" && parts.length >= 2) {
+                // /journals/:day
+                result.day = parts[1]
+            } else {
+                // /:table (node page) - first part is the table/node ID
+                result.table = parts[0]
+            }
         }
 
         return result

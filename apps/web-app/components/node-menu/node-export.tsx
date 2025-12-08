@@ -5,11 +5,11 @@ import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { downloadFile } from "@/lib/web/file"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import {
-  ContextMenuItem,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuSub as ContextMenuSub,
+  NativeContextMenuSubContent as ContextMenuSubContent,
+  NativeContextMenuSubTrigger as ContextMenuSubTrigger,
+} from "@/components/ui/native-context-menu"
 import {
   DropdownMenuItem,
   DropdownMenuSub,

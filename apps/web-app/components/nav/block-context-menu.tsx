@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowUpRight, Settings, Trash2 } from "lucide-react"
 import { getBlockIdFromUrl, getExtensionUrl } from "@/lib/utils"
 import { useExtensionNavigate } from "@/apps/web-app/hooks/use-extension-navigate"
 import { Button } from "@/components/ui/button"
-import { ContextMenuItem } from "@/components/ui/context-menu"
+import { NativeContextMenuItem as ContextMenuItem } from "@/components/ui/native-context-menu"
 import {
   Dialog,
   DialogContent,
