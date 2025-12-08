@@ -102,82 +102,88 @@ export const NodeContextMenu = ({
     <ContextMenu>
       <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-56">
-        {/* Basic operations: Rename, Pin/Unpin, Add to Chat */}
-        {hasRename && (
-          <ContextMenuItem onClick={() => onRename(node)}>
-            <PencilLineIcon className="mr-2 h-4 w-4" />
-            {t("node.menu.rename", "Rename")}
-          </ContextMenuItem>
-        )}
-
-        {hasPin &&
-          (isPinned
-            ? onUnpin && (
-                <ContextMenuItem onClick={() => onUnpin(node)}>
-                  <PinOffIcon className="mr-2 h-4 w-4" />
-                  {t("node.menu.unpin", "Unpin")}
-                </ContextMenuItem>
-              )
-            : onPin && (
-                <ContextMenuItem onClick={() => onPin(node)}>
-                  <PinIcon className="mr-2 h-4 w-4" />
-                  {t("node.menu.pin", "Pin")}
-                </ContextMenuItem>
-              ))}
-
-        {hasAddToChat && (
-          <ContextMenuItem onClick={() => onAddToChat(node)}>
-            <MessageSquareIcon className="mr-2 h-4 w-4" />
-            {t("node.menu.addToChat", "Add to Chat")}
-          </ContextMenuItem>
-        )}
-
-        {/* Create sub-items (only for folders) */}
+        {/* Create operations */}
         {hasCreate && (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <FolderPlusIcon className="mr-2 h-4 w-4" />
+              {t("node.menu.new", "New")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {onCreateDoc && (
+                <ContextMenuItem onClick={() => onCreateDoc(node)}>
+                  <FileIcon className="mr-2 h-4 w-4" />
+                  {t("node.menu.newDoc", "New Doc")}
+                </ContextMenuItem>
+              )}
+              {onCreateTable && (
+                <ContextMenuItem onClick={() => onCreateTable(node)}>
+                  <FileSpreadsheetIcon className="mr-2 h-4 w-4" />
+                  {t("node.menu.newTable", "New Table")}
+                </ContextMenuItem>
+              )}
+              {onCreateFolder && (
+                <ContextMenuItem onClick={() => onCreateFolder(node)}>
+                  <FolderPlusIcon className="mr-2 h-4 w-4" />
+                  {t("node.menu.newFolder", "New Folder")}
+                </ContextMenuItem>
+              )}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
+
+        {/* Medium-risk operations */}
+        {(hasPin || hasAddToChat) && (
           <>
-            {/* Only show separator if there are items above */}
-            {hasTopSection && <ContextMenuSeparator />}
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <FolderPlusIcon className="mr-2 h-4 w-4" />
-                {t("node.menu.new", "New")}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent>
-                {onCreateDoc && (
-                  <ContextMenuItem onClick={() => onCreateDoc(node)}>
-                    <FileIcon className="mr-2 h-4 w-4" />
-                    {t("node.menu.newDoc", "New Doc")}
-                  </ContextMenuItem>
-                )}
-                {onCreateTable && (
-                  <ContextMenuItem onClick={() => onCreateTable(node)}>
-                    <FileSpreadsheetIcon className="mr-2 h-4 w-4" />
-                    {t("node.menu.newTable", "New Table")}
-                  </ContextMenuItem>
-                )}
-                {onCreateFolder && (
-                  <ContextMenuItem onClick={() => onCreateFolder(node)}>
-                    <FolderPlusIcon className="mr-2 h-4 w-4" />
-                    {t("node.menu.newFolder", "New Folder")}
-                  </ContextMenuItem>
-                )}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
+            {/* Show separator if there are create items above */}
+            {hasCreate && <ContextMenuSeparator />}
+
+            {hasPin &&
+              (isPinned
+                ? onUnpin && (
+                    <ContextMenuItem onClick={() => onUnpin(node)}>
+                      <PinOffIcon className="mr-2 h-4 w-4" />
+                      {t("node.menu.unpin", "Unpin")}
+                    </ContextMenuItem>
+                  )
+                : onPin && (
+                    <ContextMenuItem onClick={() => onPin(node)}>
+                      <PinIcon className="mr-2 h-4 w-4" />
+                      {t("node.menu.pin", "Pin")}
+                    </ContextMenuItem>
+                  ))}
+
+            {hasAddToChat && (
+              <ContextMenuItem onClick={() => onAddToChat(node)}>
+                <MessageSquareIcon className="mr-2 h-4 w-4" />
+                {t("node.menu.addToChat", "Add to Chat")}
+              </ContextMenuItem>
+            )}
           </>
         )}
 
-        {/* Delete (dangerous action, always at the bottom) */}
-        {hasDelete && (
+        {/* Rename and delete operations */}
+        {(hasRename || hasDelete) && (
           <>
-            {/* Only show separator if there are items above */}
-            {(hasTopSection || hasCreate) && <ContextMenuSeparator />}
-            <ContextMenuItem
-              onClick={() => setDeleteDialogOpen(true)}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2Icon className="mr-2 h-4 w-4" />
-              {t("common.delete", "Delete")}
-            </ContextMenuItem>
+            {/* Show separator if there are other items above */}
+            {(hasCreate || hasPin || hasAddToChat) && <ContextMenuSeparator />}
+
+            {hasRename && (
+              <ContextMenuItem onClick={() => onRename(node)}>
+                <PencilLineIcon className="mr-2 h-4 w-4" />
+                {t("node.menu.rename", "Rename")}
+              </ContextMenuItem>
+            )}
+
+            {hasDelete && (
+              <ContextMenuItem
+                onClick={() => setDeleteDialogOpen(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2Icon className="mr-2 h-4 w-4" />
+                {t("common.delete", "Delete")}
+              </ContextMenuItem>
+            )}
           </>
         )}
       </ContextMenuContent>

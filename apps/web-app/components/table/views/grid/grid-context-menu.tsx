@@ -168,6 +168,7 @@ export function GridContextMenu({
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-64">
+        {/* Open operations */}
         <ContextMenuItem onSelect={() => openRow(true)}>
           <MoveUpRightIcon className="pr-2" />
           Open
@@ -176,29 +177,38 @@ export function GridContextMenu({
           <MoveDiagonalIcon className="pr-2" />
           Open in full page
         </ContextMenuItem>
-        {!isReadOnly && (
-          <ContextMenuItem onClick={handleDelete}>
-            <Trash2Icon className="pr-2" />
-            Delete Rows ({count})
+        {currentField?.type === "url" && (
+          <ContextMenuItem onSelect={openURl}>
+            <ExternalLinkIcon className="pr-2" />
+            Open URL
           </ContextMenuItem>
         )}
-        <ContextMenuSeparator />
-        {currentField?.type === "url" && (
+
+        {/* Medium-risk operations */}
+        {!isReadOnly && (
           <>
-            <ContextMenuItem onSelect={openURl}>
-              <ExternalLinkIcon className="pr-2" />
-              Open URL
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={openAItools}>
+              <SparklesIcon className="pr-2" />
+              Ask AI
+              <ContextMenuShortcut>Alt+I</ContextMenuShortcut>
             </ContextMenuItem>
           </>
         )}
-        {!isReadOnly && (
-          <ContextMenuItem onClick={openAItools}>
-            <SparklesIcon className="pr-2" />
-            Ask AI
-            <ContextMenuShortcut>Alt+I</ContextMenuShortcut>
-          </ContextMenuItem>
-        )}
+
+        {/* Script actions */}
         <ScriptContextMenu getRows={getRows} count={count} />
+
+        {/* Delete operations */}
+        {!isReadOnly && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={handleDelete}>
+              <Trash2Icon className="pr-2" />
+              Delete Rows ({count})
+            </ContextMenuItem>
+          </>
+        )}
       </ContextMenuContent>
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

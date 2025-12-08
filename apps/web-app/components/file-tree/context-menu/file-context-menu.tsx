@@ -102,91 +102,91 @@ export const FileContextMenu = ({
     <ContextMenu>
       <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
+        {/* Open operations */}
         {!isMultiSelection && showOpenFolder && (
           <ContextMenuItem onClick={openInFileManager}>
             <FolderOpen className="mr-2 h-4 w-4" />
             {t("file.menu.openInFileManager", "Open in File Manager")}
           </ContextMenuItem>
         )}
-        {/* Open with submenu (only show if multiple handlers available) */}
-        {!isMultiSelection && showOpenWith && (
-          <>
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <FileIcon className="mr-2 h-4 w-4" />
-                {t("file.menu.openWith", "Open with")}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent>
-                {handlers.map((handler) => {
-                  const meta = handler.meta as FileHandlerMeta
-                  return (
-                    <ContextMenuItem
-                      key={handler.id}
-                      onClick={() => openWith(handler)}
-                    >
-                      {meta.fileHandler.icon && (
-                        <span className="mr-2">{meta.fileHandler.icon}</span>
-                      )}
-                      {meta.fileHandler.title || handler.name}
-                    </ContextMenuItem>
-                  )
-                })}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-          </>
-        )}
 
-        {!isMultiSelection &&
-          showOpenWith &&
-          (showFileActions || hasRenameOrDelete || showOpenFolder) && (
-            <ContextMenuSeparator />
-          )}
+        {/* Open with submenu */}
+        {!isMultiSelection && showOpenWith && (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <FileIcon className="mr-2 h-4 w-4" />
+              {t("file.menu.openWith", "Open with")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {handlers.map((handler) => {
+                const meta = handler.meta as FileHandlerMeta
+                return (
+                  <ContextMenuItem
+                    key={handler.id}
+                    onClick={() => openWith(handler)}
+                  >
+                    {meta.fileHandler.icon && (
+                      <span className="mr-2">{meta.fileHandler.icon}</span>
+                    )}
+                    {meta.fileHandler.title || handler.name}
+                  </ContextMenuItem>
+                )
+              })}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
 
         {/* File Actions submenu */}
         {!isMultiSelection && showFileActions && (
-          <>
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <ZapIcon className="mr-2 h-4 w-4" />
-                {t("file.menu.actions", "File Actions")}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent>
-                {fileActions.map((action) => {
-                  const meta = action.meta as FileActionMeta
-                  return (
-                    <ContextMenuItem
-                      key={action.id}
-                      onClick={() => executeFileAction(action)}
-                    >
-                      {meta.fileAction.icon && (
-                        <span className="mr-2">{meta.fileAction.icon}</span>
-                      )}
-                      {meta.fileAction.name || action.name}
-                    </ContextMenuItem>
-                  )
-                })}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-          </>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <ZapIcon className="mr-2 h-4 w-4" />
+              {t("file.menu.actions", "File Actions")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {fileActions.map((action) => {
+                const meta = action.meta as FileActionMeta
+                return (
+                  <ContextMenuItem
+                    key={action.id}
+                    onClick={() => executeFileAction(action)}
+                  >
+                    {meta.fileAction.icon && (
+                      <span className="mr-2">{meta.fileAction.icon}</span>
+                    )}
+                    {meta.fileAction.name || action.name}
+                  </ContextMenuItem>
+                )
+              })}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
         )}
 
-        {!isMultiSelection && showFileActions && hasRenameOrDelete && (
-          <ContextMenuSeparator />
-        )}
-        {!isMultiSelection && onRename && (
-          <ContextMenuItem onClick={() => onRename(node)}>
-            <PencilLineIcon className="mr-2 h-4 w-4" />
-            {t("node.menu.rename", "Rename")}
-          </ContextMenuItem>
-        )}
-        {onDelete && (
-          <ContextMenuItem
-            onClick={() => onDelete(node)}
-            className="text-destructive focus:text-destructive"
-          >
-            <Trash2Icon className="mr-2 h-4 w-4" />
-            {t("common.delete", "Delete")}
-          </ContextMenuItem>
+        {/* Rename and delete operations */}
+        {(!isMultiSelection && onRename || onDelete) && (
+          <>
+            {/* Show separator if there are open actions above */}
+            {!isMultiSelection && (showOpenFolder || showOpenWith || showFileActions) && (
+              <ContextMenuSeparator />
+            )}
+
+            {!isMultiSelection && onRename && (
+              <ContextMenuItem onClick={() => onRename(node)}>
+                <PencilLineIcon className="mr-2 h-4 w-4" />
+                {t("node.menu.rename", "Rename")}
+              </ContextMenuItem>
+            )}
+
+            {onDelete && (
+              <ContextMenuItem
+                onClick={() => onDelete(node)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2Icon className="mr-2 h-4 w-4" />
+                {t("common.delete", "Delete")}
+              </ContextMenuItem>
+            )}
+          </>
         )}
       </ContextMenuContent>
     </ContextMenu>
