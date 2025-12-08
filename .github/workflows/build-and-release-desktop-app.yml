@@ -51,12 +51,12 @@ jobs:
             artifact_name: windows-artifacts
             list_command: Get-ChildItem -Path apps/desktop/dist-app -Force
             shell: bash
-          - os: macos-13
+          - os: macos-15-intel
             platform: macos-intel
             artifact_name: macos-intel-artifacts
             needs_codesign: true
             list_command: ls -la apps/desktop/dist-app
-          - os: macos-14
+          - os: macos-15
             platform: macos-arm
             artifact_name: macos-arm-artifacts
             needs_codesign: true
