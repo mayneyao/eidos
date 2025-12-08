@@ -40,8 +40,13 @@ export class GlobalShortcutManager {
         description: 'Create new tab'
       },
       {
-        id: 'navigate-today',
+        id: 'restore-last-closed-tab',
         accelerator: 'CommandOrControl+Shift+T',
+        description: 'Restore last closed tab'
+      },
+      {
+        id: 'navigate-today',
+        accelerator: 'CommandOrControl+Shift+D',
         description: 'Navigate to today'
       },
       {

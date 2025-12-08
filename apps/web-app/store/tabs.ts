@@ -15,12 +15,20 @@ export interface Tab {
     lastAccessTime: number
 }
 
+export interface ClosedTab {
+    url: string
+    title: string
+    icon?: string
+    historyState?: { entries: TabHistoryEntry[]; index: number }
+}
+
 interface TabState {
     tabs: Tab[]
     activeTabId: string | null
     history: Record<string, { entries: TabHistoryEntry[]; index: number }>
     tabNavigators: Record<string, (delta: number) => void>
     nextNavigationOptions: Record<string, { replace?: boolean }>
+    closedTabsStack: ClosedTab[]
 
     // Actions
     openTab: (url: string, title?: string) => void
@@ -43,6 +51,7 @@ interface TabState {
     goInTabHistory: (id: string, delta: number) => void
     setNextNavigationOptions: (id: string, options: { replace?: boolean }) => void
     consumeNextNavigationOptions: (id: string) => { replace?: boolean } | undefined
+    reopenLastClosedTab: () => void
 }
 
 export const useTabStore = create<TabState>()(
@@ -52,6 +61,7 @@ export const useTabStore = create<TabState>()(
         history: {},
         tabNavigators: {},
         nextNavigationOptions: {},
+        closedTabsStack: [],
 
         openTab: (url, title = "New Tab") => {
             const { tabs, activeTabId } = get()
@@ -75,8 +85,22 @@ export const useTabStore = create<TabState>()(
         },
 
         closeTab: (id) => {
-            const { tabs, activeTabId, history, tabNavigators, nextNavigationOptions } = get()
+            const { tabs, activeTabId, history, tabNavigators, nextNavigationOptions, closedTabsStack } = get()
+            const closedTab = tabs.find((t) => t.id === id)
             const newTabs = tabs.filter((t) => t.id !== id)
+
+            // Save the closed tab to the stack for potential restoration
+            if (closedTab) {
+                const closedTabInfo: ClosedTab = {
+                    url: closedTab.url,
+                    title: closedTab.title,
+                    icon: closedTab.icon,
+                    historyState: history[id],
+                }
+                // Add to stack, limit to 10 most recent closed tabs
+                const newStack = [...closedTabsStack, closedTabInfo].slice(-10)
+                set({ closedTabsStack: newStack })
+            }
 
             // If we closed the active tab, switch to the next available one
             let newActiveId = activeTabId
@@ -252,6 +276,30 @@ export const useTabStore = create<TabState>()(
                 })
             }
             return opts
+        },
+
+        reopenLastClosedTab: () => {
+            const { closedTabsStack, tabs } = get()
+            if (closedTabsStack.length === 0) return
+
+            // Pop the last closed tab from the stack
+            const lastClosed = closedTabsStack[closedTabsStack.length - 1]
+            const newStack = closedTabsStack.slice(0, -1)
+
+            // Create a new tab with the closed tab's information
+            const newTab: Tab = {
+                id: nanoid(),
+                url: lastClosed.url,
+                title: lastClosed.title,
+                icon: lastClosed.icon,
+                lastAccessTime: Date.now(),
+            }
+
+            set({
+                closedTabsStack: newStack,
+                tabs: [...tabs, newTab],
+                activeTabId: newTab.id,
+            })
         },
     }),
 

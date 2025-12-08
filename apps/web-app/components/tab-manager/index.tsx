@@ -4,10 +4,16 @@ import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import { TabContainer } from "./tab-container"
-import { TabSwitcher } from "./tab-switcher"
 
 export function TabManager({ children }: { children: React.ReactNode }) {
-  const { tabs, activeTabId, openTab, closeTab, setActiveTab } = useTabStore()
+  const {
+    tabs,
+    activeTabId,
+    openTab,
+    closeTab,
+    setActiveTab,
+    reopenLastClosedTab,
+  } = useTabStore()
   const { location } = useRouterAdapter()
   const goInTabHistory = useTabStore((state) => state.goInTabHistory)
   const initGuardRef = useRef(false)
@@ -33,6 +39,9 @@ export function TabManager({ children }: { children: React.ReactNode }) {
       switch (action.id) {
         case "new-tab":
           openTab("/", "New Tab")
+          break
+        case "restore-last-closed-tab":
+          reopenLastClosedTab()
           break
         case "close-current-tab":
           if (activeTabId) {
@@ -74,7 +83,7 @@ export function TabManager({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [tabs, activeTabId, openTab, closeTab, setActiveTab])
+  }, [tabs, activeTabId, openTab, closeTab, setActiveTab, reopenLastClosedTab])
 
   // Handle mouse side buttons for back/forward within the active tab
   useEffect(() => {
@@ -99,9 +108,15 @@ export function TabManager({ children }: { children: React.ReactNode }) {
     window.addEventListener("mouseup", handleMouseButton, { capture: true })
     window.addEventListener("auxclick", handleMouseButton, { capture: true })
     return () => {
-      window.removeEventListener("pointerup", handleMouseButton, { capture: true } as any)
-      window.removeEventListener("mouseup", handleMouseButton, { capture: true } as any)
-      window.removeEventListener("auxclick", handleMouseButton, { capture: true } as any)
+      window.removeEventListener("pointerup", handleMouseButton, {
+        capture: true,
+      } as any)
+      window.removeEventListener("mouseup", handleMouseButton, {
+        capture: true,
+      } as any)
+      window.removeEventListener("auxclick", handleMouseButton, {
+        capture: true,
+      } as any)
     }
   }, [activeTabId, goInTabHistory])
 
