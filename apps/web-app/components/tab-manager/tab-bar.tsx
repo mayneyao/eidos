@@ -103,7 +103,7 @@ export function TabBar() {
 
   return (
     <div
-      className="flex items-center gap-0 flex-1 min-w-0"
+      className="flex items-center gap-0 flex-1 min-w-0 rounded-md border border-border/60 bg-muted/60 px-1"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       id="drag-region"
     >
@@ -124,8 +124,8 @@ export function TabBar() {
             >
               <div
                 className={cn(
-                  "group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer transition-colors",
-                  "w-[240px] min-w-0 max-w-[240px] border-r border-border/50",
+                  "group relative flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer transition-colors leading-5",
+                  "w-[200px] min-w-0 max-w-[200px] border-r border-border/50",
                   isActive
                     ? "bg-background text-foreground"
                     : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"

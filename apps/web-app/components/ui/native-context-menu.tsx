@@ -1,4 +1,22 @@
 import * as React from "react"
+import { isWindowsDesktop } from "@/lib/web/helper"
+import {
+  ContextMenu,
+  ContextMenuCheckboxItem as RadixContextMenuCheckboxItem,
+  ContextMenuContent as RadixContextMenuContent,
+  ContextMenuGroup as RadixContextMenuGroup,
+  ContextMenuItem as RadixContextMenuItem,
+  ContextMenuLabel as RadixContextMenuLabel,
+  ContextMenuPortal as RadixContextMenuPortal,
+  ContextMenuRadioGroup as RadixContextMenuRadioGroup,
+  ContextMenuRadioItem as RadixContextMenuRadioItem,
+  ContextMenuSeparator as RadixContextMenuSeparator,
+  ContextMenuShortcut as RadixContextMenuShortcut,
+  ContextMenuSub as RadixContextMenuSub,
+  ContextMenuSubContent as RadixContextMenuSubContent,
+  ContextMenuSubTrigger as RadixContextMenuSubTrigger,
+  ContextMenuTrigger as RadixContextMenuTrigger,
+} from "./context-menu"
 
 // Native menu item types - import from shared types
 type NativeMenuItem =
@@ -41,6 +59,14 @@ const useMenuCollector = () => {
   const itemsRef = React.useRef<Map<string, NativeMenuItem>>(new Map())
   const submenusRef = React.useRef<Map<string, { trigger: NativeMenuItem, items: NativeMenuItem[] }>>(new Map())
   const orderRef = React.useRef<string[]>([])
+
+  React.useEffect(() => {
+    return () => {
+      itemsRef.current.clear()
+      submenusRef.current.clear()
+      orderRef.current = []
+    }
+  }, [])
 
   const registerItem = React.useCallback((id: string, item: NativeMenuItem, onClick?: () => void) => {
     itemsRef.current.set(id, item)
@@ -90,6 +116,7 @@ const useMenuCollector = () => {
 
 // Context to collect menu items
 const NativeMenuContext = React.createContext<ReturnType<typeof useMenuCollector> | null>(null)
+const NativeMenuModeContext = React.createContext<{ useNative: boolean }>({ useNative: true })
 
 // Main Native Context Menu component - only for desktop
 interface NativeContextMenuProps {
@@ -101,6 +128,21 @@ const NativeContextMenu: React.FC<NativeContextMenuProps> = ({
   children,
   onOpenChange
 }) => {
+  const detectNativeMenu = React.useCallback(() => {
+    if (typeof window === "undefined") return false
+    try {
+      return Boolean(window.eidos?.showNativeMenu) && !isWindowsDesktop
+    } catch {
+      return false
+    }
+  }, [])
+
+  const [useNativeMenu, setUseNativeMenu] = React.useState<boolean>(detectNativeMenu)
+
+  React.useEffect(() => {
+    setUseNativeMenu(detectNativeMenu())
+  }, [detectNativeMenu])
+
   const clickHandlersRef = React.useRef<Map<string, () => void>>(new Map())
   const menuCollector = useMenuCollector()
 
@@ -143,35 +185,45 @@ const NativeContextMenu: React.FC<NativeContextMenuProps> = ({
     }
   }, [])
 
+  if (!useNativeMenu) {
+    return (
+      <NativeMenuModeContext.Provider value={{ useNative: false }}>
+        <ContextMenu onOpenChange={onOpenChange}>{children}</ContextMenu>
+      </NativeMenuModeContext.Provider>
+    )
+  }
+
   return (
-    <NativeMenuContext.Provider value={menuContextValue}>
-      {React.Children.map(children, (child) => {
-        if (React.isValidElement(child) && child.type === NativeContextMenuTrigger) {
-          return React.cloneElement(child, {
-            ...child.props,
-            onContextMenu: async (event: React.MouseEvent) => {
-              event.preventDefault()
+    <NativeMenuModeContext.Provider value={{ useNative: true }}>
+      <NativeMenuContext.Provider value={menuContextValue}>
+        {React.Children.map(children, (child) => {
+          if (React.isValidElement(child) && child.type === NativeContextMenuTrigger) {
+            return React.cloneElement(child, {
+              ...child.props,
+              onContextMenu: async (event: React.MouseEvent) => {
+                event.preventDefault()
 
-              // Show native menu with collected items
-              const menuItems = menuContextValue.getMenuItems()
-              if (menuItems.length > 0 && window.eidos?.showNativeMenu) {
-                try {
-                  // Create a simple position object instead of passing the full event
-                  const position = event ? { clientX: event.clientX, clientY: event.clientY } : undefined
-                  await window.eidos.showNativeMenu(menuItems, position)
-                  onOpenChange?.(true)
-                } catch (error) {
-                  console.error('Failed to show native context menu:', error)
+                // Show native menu with collected items
+                const menuItems = menuContextValue.getMenuItems()
+                if (menuItems.length > 0 && window.eidos?.showNativeMenu) {
+                  try {
+                    // Create a simple position object instead of passing the full event
+                    const position = event ? { clientX: event.clientX, clientY: event.clientY } : undefined
+                    await window.eidos.showNativeMenu(menuItems, position)
+                    onOpenChange?.(true)
+                  } catch (error) {
+                    console.error('Failed to show native context menu:', error)
+                  }
                 }
-              }
 
-              child.props.onContextMenu?.(event)
-            }
-          })
-        }
-        return child
-      })}
-    </NativeMenuContext.Provider>
+                child.props.onContextMenu?.(event)
+              }
+            })
+          }
+          return child
+        })}
+      </NativeMenuContext.Provider>
+    </NativeMenuModeContext.Provider>
   )
 }
 
@@ -184,6 +236,23 @@ const NativeContextMenuTrigger = React.forwardRef<
     asChild?: boolean
   }
 >(({ asChild = false, children, ...props }, ref) => {
+  const { useNative } = React.useContext(NativeMenuModeContext)
+
+  if (!useNative) {
+    if (asChild) {
+      return (
+        <RadixContextMenuTrigger asChild ref={ref as any} {...props}>
+          {children}
+        </RadixContextMenuTrigger>
+      )
+    }
+    return (
+      <RadixContextMenuTrigger ref={ref as any} {...props}>
+        {children}
+      </RadixContextMenuTrigger>
+    )
+  }
+
   if (asChild) {
     const child = React.Children.only(children) as React.ReactElement
     return React.cloneElement(child, {
@@ -200,7 +269,16 @@ const NativeContextMenuContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ children, ...props }, ref) => {
-  // Render children invisibly to allow them to register with context
+  const { useNative } = React.useContext(NativeMenuModeContext)
+
+  if (!useNative) {
+    return (
+      <RadixContextMenuContent ref={ref as any} {...props}>
+        {children}
+      </RadixContextMenuContent>
+    )
+  }
+
   return (
     <div
       ref={ref}
@@ -231,6 +309,7 @@ const NativeContextMenuItem = React.forwardRef<
 >(({ children, disabled, onSelect, onClick, accelerator, ...props }, ref) => {
   const menuContext = React.useContext(NativeMenuContext)
   const itemId = React.useId()
+  const { useNative } = React.useContext(NativeMenuModeContext)
 
   // Extract text content and accelerator for native menu
   const extractMenuInfo = (children: React.ReactNode): { label: string; accelerator?: string } => {
@@ -260,6 +339,8 @@ const NativeContextMenuItem = React.forwardRef<
   const finalAccelerator = accelerator || extractedAccelerator
 
   React.useEffect(() => {
+    if (!useNative) return
+
     if (menuContext && label) {
       const handleAction = () => {
         onSelect?.(new Event('select'))
@@ -279,20 +360,33 @@ const NativeContextMenuItem = React.forwardRef<
         menuContext.unregisterItem(itemId)
       }
     }
-  }, [menuContext, itemId, label, disabled, onSelect, onClick, finalAccelerator])
+  }, [menuContext, itemId, label, disabled, onSelect, onClick, finalAccelerator, useNative])
 
-  // Handle click events if onClick is provided
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     onSelect?.(new Event('select'))
     onClick?.(event)
   }
 
-  // Don't render anything if no onClick provided (pure native menu item)
+  if (!useNative) {
+    return (
+      <RadixContextMenuItem
+        ref={ref as any}
+        disabled={disabled}
+        onSelect={(event) => {
+          onSelect?.(event as any)
+          onClick?.(event as any)
+        }}
+        {...props}
+      >
+        {children}
+      </RadixContextMenuItem>
+    )
+  }
+
   if (!onClick) {
     return <div ref={ref} style={{ display: 'none' }} {...props} />
   }
 
-  // Render clickable element if onClick is provided
   return (
     <div
       ref={ref}
@@ -317,6 +411,7 @@ const NativeContextMenuCheckboxItem = React.forwardRef<
 >(({ children, checked, disabled, onCheckedChange, ...props }, ref) => {
   const menuContext = React.useContext(NativeMenuContext)
   const itemId = React.useId()
+  const { useNative } = React.useContext(NativeMenuModeContext)
 
   const getTextContent = (children: React.ReactNode): string => {
     if (typeof children === 'string') return children
@@ -332,6 +427,7 @@ const NativeContextMenuCheckboxItem = React.forwardRef<
   const label = getTextContent(children)
 
   React.useEffect(() => {
+    if (!useNative) return
     if (menuContext && label) {
       menuContext.registerItem(itemId, {
         type: 'checkbox',
@@ -347,7 +443,21 @@ const NativeContextMenuCheckboxItem = React.forwardRef<
         menuContext.unregisterItem(itemId)
       }
     }
-  }, [menuContext, itemId, label, checked, disabled, onCheckedChange])
+  }, [menuContext, itemId, label, checked, disabled, onCheckedChange, useNative])
+
+  if (!useNative) {
+    return (
+      <RadixContextMenuCheckboxItem
+        ref={ref as any}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+        {...props}
+      >
+        {children}
+      </RadixContextMenuCheckboxItem>
+    )
+  }
 
   return <div ref={ref} style={{ display: 'none' }} {...props} />
 })
@@ -362,6 +472,7 @@ const NativeContextMenuRadioItem = React.forwardRef<
 >(({ children, disabled, ...props }, ref) => {
   const menuContext = React.useContext(NativeMenuContext)
   const itemId = React.useId()
+  const { useNative } = React.useContext(NativeMenuModeContext)
 
   const getTextContent = (children: React.ReactNode): string => {
     if (typeof children === 'string') return children
@@ -377,6 +488,7 @@ const NativeContextMenuRadioItem = React.forwardRef<
   const label = getTextContent(children)
 
   React.useEffect(() => {
+    if (!useNative) return
     if (menuContext && label) {
       menuContext.registerItem(itemId, {
         type: 'radio',
@@ -391,7 +503,15 @@ const NativeContextMenuRadioItem = React.forwardRef<
         menuContext.unregisterItem(itemId)
       }
     }
-  }, [menuContext, itemId, label, disabled])
+  }, [menuContext, itemId, label, disabled, useNative])
+
+  if (!useNative) {
+    return (
+      <RadixContextMenuRadioItem ref={ref as any} disabled={disabled} {...props}>
+        {children}
+      </RadixContextMenuRadioItem>
+    )
+  }
 
   return <div ref={ref} style={{ display: 'none' }} {...props} />
 })
@@ -404,8 +524,10 @@ const NativeContextMenuSeparator = React.forwardRef<
 >((props, ref) => {
   const menuContext = React.useContext(NativeMenuContext)
   const itemId = React.useId()
+  const { useNative } = React.useContext(NativeMenuModeContext)
 
   React.useEffect(() => {
+    if (!useNative) return
     if (menuContext) {
       menuContext.registerItem(itemId, {
         type: 'separator',
@@ -417,7 +539,11 @@ const NativeContextMenuSeparator = React.forwardRef<
         menuContext.unregisterItem(itemId)
       }
     }
-  }, [menuContext, itemId])
+  }, [menuContext, itemId, useNative])
+
+  if (!useNative) {
+    return <RadixContextMenuSeparator ref={ref as any} {...props} />
+  }
 
   return <div ref={ref} style={{ display: 'none' }} {...props} />
 })
@@ -427,25 +553,49 @@ NativeContextMenuSeparator.displayName = "NativeContextMenuSeparator"
 const NativeContextMenuLabel = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->((props, ref) => <div ref={ref} style={{ display: 'none' }} {...props} />)
+>((props, ref) => {
+  const { useNative } = React.useContext(NativeMenuModeContext)
+  if (!useNative) {
+    return <RadixContextMenuLabel ref={ref as any} {...props} />
+  }
+  return <div ref={ref} style={{ display: 'none' }} {...props} />
+})
 NativeContextMenuLabel.displayName = "NativeContextMenuLabel"
 
 const NativeContextMenuShortcut = React.forwardRef<
   HTMLSpanElement,
   React.HTMLAttributes<HTMLSpanElement>
->((props, ref) => <span ref={ref} style={{ display: 'none' }} {...props} />)
+>((props, ref) => {
+  const { useNative } = React.useContext(NativeMenuModeContext)
+  if (!useNative) {
+    return <RadixContextMenuShortcut ref={ref as any} {...props} />
+  }
+  return <span ref={ref} style={{ display: 'none' }} {...props} />
+})
 NativeContextMenuShortcut.displayName = "NativeContextMenuShortcut"
 
 const NativeContextMenuGroup = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->((props, ref) => <div ref={ref} style={{ display: 'none' }} {...props} />)
+>((props, ref) => {
+  const { useNative } = React.useContext(NativeMenuModeContext)
+  if (!useNative) {
+    return <RadixContextMenuGroup ref={ref as any} {...props} />
+  }
+  return <div ref={ref} style={{ display: 'none' }} {...props} />
+})
 NativeContextMenuGroup.displayName = "NativeContextMenuGroup"
 
 const NativeContextMenuPortal = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->((props, ref) => <div ref={ref} style={{ display: 'none' }} {...props} />)
+>((props, ref) => {
+  const { useNative } = React.useContext(NativeMenuModeContext)
+  if (!useNative) {
+    return <RadixContextMenuPortal ref={ref as any} {...props} />
+  }
+  return <div ref={ref} style={{ display: 'none' }} {...props} />
+})
 NativeContextMenuPortal.displayName = "NativeContextMenuPortal"
 
 // Submenu collector hook with registration callback
@@ -499,12 +649,14 @@ const NativeContextMenuSub = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ children, ...props }, ref) => {
+  const { useNative } = React.useContext(NativeMenuModeContext)
   const parentContext = React.useContext(NativeMenuContext)
   const triggerInfoRef = React.useRef<{ label: string; enabled?: boolean; icon?: string } | null>(null)
   const itemId = React.useId()
   const submenuCollectorRef = React.useRef<ReturnType<typeof useSubmenuCollector> | null>(null)
 
   const checkAndRegister = React.useCallback(() => {
+    if (!useNative) return
     const submenuCollector = submenuCollectorRef.current
     if (parentContext && triggerInfoRef.current && submenuCollector && submenuCollector.getItems().length > 0) {
       const submenuItems = submenuCollector.getItems()
@@ -541,12 +693,21 @@ const NativeContextMenuSub = React.forwardRef<
   }), [checkAndRegister])
 
   React.useEffect(() => {
+    if (!useNative) return
     return () => {
       if (parentContext) {
         parentContext.unregisterItem(itemId)
       }
     }
-  }, [parentContext, itemId])
+  }, [parentContext, itemId, useNative])
+
+  if (!useNative) {
+    return (
+      <RadixContextMenuSub ref={ref as any} {...props}>
+        {children}
+      </RadixContextMenuSub>
+    )
+  }
 
   return (
     <NativeSubmenuTriggerContext.Provider value={triggerContextValue}>
@@ -564,8 +725,17 @@ const NativeContextMenuSubContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ children, ...props }, ref) => {
+  const { useNative } = React.useContext(NativeMenuModeContext)
   const submenuContext = React.useContext(NativeSubmenuContext)
   const parentContext = React.useContext(NativeMenuContext)
+
+  if (!useNative) {
+    return (
+      <RadixContextMenuSubContent ref={ref as any} {...props}>
+        {children}
+      </RadixContextMenuSubContent>
+    )
+  }
 
   const menuContextValue = React.useMemo(() => ({
     registerItem: submenuContext?.registerItem || (() => {}),
@@ -589,6 +759,7 @@ const NativeContextMenuSubTrigger = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ children, ...props }, ref) => {
+  const { useNative } = React.useContext(NativeMenuModeContext)
   const triggerContext = React.useContext(NativeSubmenuTriggerContext)
 
   // Extract text content for submenu trigger
@@ -607,13 +778,21 @@ const NativeContextMenuSubTrigger = React.forwardRef<
 
   // Set trigger info
   React.useEffect(() => {
-    if (triggerContext && label) {
+    if (useNative && triggerContext && label) {
       triggerContext.setTriggerInfo({
         label,
         enabled: true,
       })
     }
-  }, [triggerContext, label])
+  }, [triggerContext, label, useNative])
+
+  if (!useNative) {
+    return (
+      <RadixContextMenuSubTrigger ref={ref as any} {...props}>
+        {children}
+      </RadixContextMenuSubTrigger>
+    )
+  }
 
   return <div ref={ref} style={{ display: 'none' }} {...props} />
 })
@@ -622,7 +801,13 @@ NativeContextMenuSubTrigger.displayName = "NativeContextMenuSubTrigger"
 const NativeContextMenuRadioGroup = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->((props, ref) => <div ref={ref} style={{ display: 'none' }} {...props} />)
+>((props, ref) => {
+  const { useNative } = React.useContext(NativeMenuModeContext)
+  if (!useNative) {
+    return <RadixContextMenuRadioGroup ref={ref as any} {...props} />
+  }
+  return <div ref={ref} style={{ display: 'none' }} {...props} />
+})
 NativeContextMenuRadioGroup.displayName = "NativeContextMenuRadioGroup"
 
 export {

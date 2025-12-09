@@ -52,6 +52,14 @@ export interface AppConfig {
     lastOpenedSpace?: string;
     // User info
     user?: any;
+    // Persisted window state for desktop shell
+    windowState?: {
+        width: number;
+        height: number;
+        x?: number;
+        y?: number;
+        isMaximized?: boolean;
+    };
 }
 
 const emptyConfig: AppConfig = {
@@ -92,6 +100,7 @@ const emptyConfig: AppConfig = {
     },
     lastOpenedSpace: undefined,
     user: undefined,
+    windowState: undefined,
 };
 
 export class ConfigManager extends EventEmitter {

@@ -19,9 +19,14 @@ const defaultViewOptions: WebContentsViewConstructorOptions = {
 
 
 export function createWindow(spaceId?: string) {
+    const configManager = getConfigManager();
+    const savedWindowState = configManager.get('windowState');
+
     let baseWindowConfig: Electron.BrowserWindowConstructorOptions = {
-        width: 1440,
-        height: 900,
+        width: savedWindowState?.width ?? 1440,
+        height: savedWindowState?.height ?? 900,
+        x: savedWindowState?.x,
+        y: savedWindowState?.y,
         ...defaultViewOptions
     };
 
@@ -56,6 +61,22 @@ export function createWindow(spaceId?: string) {
     }
 
     const win = new BrowserWindow(baseWindowConfig);
+    const persistWindowState = () => {
+        if (win.isDestroyed()) return;
+        const bounds = win.isMaximized() ? win.getNormalBounds() : win.getBounds();
+        configManager.set('windowState', {
+            ...bounds,
+            isMaximized: win.isMaximized(),
+        });
+    };
+
+    if (savedWindowState?.isMaximized) {
+        win.maximize();
+    }
+
+    win.on('resize', persistWindowState);
+    win.on('move', persistWindowState);
+    win.on('close', persistWindowState);
     const windowManager = new WindowManager(win)
 
     // Set up geolocation permission handler

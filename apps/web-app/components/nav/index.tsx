@@ -1,6 +1,4 @@
-import { Menu, PanelLeftIcon, PanelRightIcon } from "lucide-react"
-import { useTheme } from "next-themes"
-
+import { PanelRightIcon } from "lucide-react"
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { isMac, isWindowsDesktop } from "@/lib/web/helper"
@@ -13,25 +11,14 @@ import { useAppStore } from "@/apps/web-app/store/app-store"
 import { BreadCrumb } from "./breadcrumb"
 import { NavStatus } from "./nav-status"
 
-export const Nav = ({
-  showMenu = true,
-  children,
-}: {
-  showMenu?: boolean
-  children?: React.ReactNode
-}) => {
+export const Nav = ({ children }: { children?: React.ReactNode }) => {
   const { location } = useRouterAdapter()
-  const searchParams = new URLSearchParams(location.search)
-  const { isSidebarOpen, setSidebarOpen } = useAppStore()
+  const { isSidebarOpen } = useAppStore()
 
   const {
     isRightPanelOpen,
     setIsRightPanelOpen,
-    isExtAppOpen,
-    setIsExtAppOpen,
-    apps,
     currentAppIndex,
-    setCurrentAppIndex,
   } = useSpaceAppStore()
 
   const handleAppChange = (index: number) => {
@@ -40,10 +27,6 @@ export const Nav = ({
     } else {
       setIsRightPanelOpen(true, index)
     }
-  }
-
-  const toggleSidebar = () => {
-    setSidebarOpen(!isSidebarOpen)
   }
 
   return (
@@ -68,17 +51,6 @@ export const Nav = ({
         }
       )}
     >
-      {showMenu && (
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={toggleSidebar}
-          // className="hidden md:block"
-        >
-          <PanelLeftIcon className="h-5 w-5" />
-        </Button>
-      )}
-
       {/* Integrated TabBar with drag-region */}
       <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-2">
         <TabBar />
