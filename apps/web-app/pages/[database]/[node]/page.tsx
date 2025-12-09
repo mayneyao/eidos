@@ -57,6 +57,9 @@ export const NodeComponent = ({
   const { updateIcon, updateCover, updateHideProperties } = useNode()
   const { space } = useCurrentPathInfo()
   const { isCmdkOpen } = useAppRuntimeStore()
+  const node = nodeId ? nodeMap[nodeId] : null
+
+  useTabTitle(node?.name)
 
   useEffect(() => {
     const bc = new BroadcastChannel(EidosDataEventChannelName)
@@ -88,12 +91,10 @@ export const NodeComponent = ({
   if (isRootPage) {
     return <FolderTree folderId={undefined} />
   }
-  if (!nodeId) {
+  if (!nodeId || !node) {
     return null
   }
 
-  const node = nodeMap[nodeId]
-  useTabTitle(node?.name)
   const parentNode = node.parent_id ? nodeMap[node.parent_id] : null
   const handleAddIcon = async () => {
     const emojiNative = await getEmoji(node?.name)
