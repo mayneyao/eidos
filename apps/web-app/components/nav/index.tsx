@@ -1,4 +1,5 @@
 import { PanelRightIcon } from "lucide-react"
+
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { isMac, isWindowsDesktop } from "@/lib/web/helper"
@@ -15,11 +16,8 @@ export const Nav = ({ children }: { children?: React.ReactNode }) => {
   const { location } = useRouterAdapter()
   const { isSidebarOpen } = useAppStore()
 
-  const {
-    isRightPanelOpen,
-    setIsRightPanelOpen,
-    currentAppIndex,
-  } = useSpaceAppStore()
+  const { isRightPanelOpen, setIsRightPanelOpen, currentAppIndex } =
+    useSpaceAppStore()
 
   const handleAppChange = (index: number) => {
     if (index === currentAppIndex) {
@@ -54,9 +52,9 @@ export const Nav = ({ children }: { children?: React.ReactNode }) => {
       {/* Integrated TabBar with drag-region */}
       <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-2">
         <TabBar />
-        <div className="hidden md:block min-w-0 overflow-hidden">
+        {/* <div className="hidden md:block min-w-0 overflow-hidden">
           {children || <BreadCrumb />}
-        </div>
+        </div> */}
       </div>
 
       <div

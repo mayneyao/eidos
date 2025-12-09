@@ -8,6 +8,8 @@ export interface SearchOptions {
   contextLength: number; // character limit for result
   dataSpace: any; // database interface
   transformResult?: (row: any) => any; // optional result transformation
+  extraWhere?: string; // optional additional WHERE condition without leading AND
+  extraParams?: any[]; // params for extraWhere
 }
 
 export async function performTrigramSearch(
@@ -20,17 +22,19 @@ export async function performTrigramSearch(
     // Build LIKE conditions for each keyword (AND logic)
     const conditions = keywords.map(() => `${fieldName} LIKE ?`).join(" AND ");
     const params = keywords.map(kw => `%${kw}%`);
+    const extraWhere = options.extraWhere ? ` AND ${options.extraWhere}` : "";
+    const extraParams = options.extraParams || [];
 
     // Build the main search query
     const sql = `
       SELECT *, length(${fieldName}) as len
       FROM ${tableName}
-      WHERE ${conditions} AND ${fieldName} IS NOT NULL
+      WHERE ${conditions} AND ${fieldName} IS NOT NULL${extraWhere}
       ORDER BY len ASC
       LIMIT 100
     `;
 
-    const res = await dataSpace.exec2(sql, params);
+    const res = await dataSpace.exec2(sql, [...params, ...extraParams]);
 
     // Transform results with keyword highlighting
     return res.map((row: any) => {
@@ -123,7 +127,10 @@ export function WithSearch<T extends Constructor>(Base: T) {
          * // Single keyword search
          * const results = await docTable.search('笔记'); // finds docs containing "笔记"
          */
-        async search(query: string, options?: { allowAdvanced?: boolean }): Promise<{ id: string; result: string }[]> {
+        async search(
+            query: string,
+            options?: { allowAdvanced?: boolean; onlyDayPages?: boolean }
+        ): Promise<{ id: string; result: string }[]> {
             if (!query || typeof query !== 'string') {
                 return [];
             }
@@ -144,7 +151,8 @@ export function WithSearch<T extends Constructor>(Base: T) {
                 fieldName: 'markdown',
                 highlightTag: 'b',
                 contextLength: 63,
-                dataSpace: this.dataSpace
+                dataSpace: this.dataSpace,
+                extraWhere: options?.onlyDayPages ? "is_day_page = 1" : undefined
             });
         }
     };

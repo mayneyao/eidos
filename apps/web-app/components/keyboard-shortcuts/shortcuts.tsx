@@ -163,8 +163,9 @@ export function ShortCuts() {
                   }[targetTabId] || {}
 
                 if (tabConfig.isNavigation && targetTabId === "today") {
-                  // Navigate to today's journal
+                  // Navigate to today's journal and activate tab
                   const today = getToday()
+                  setCurrentApp("today")
                   navigate(`/journals/${today}`)
                 } else if (
                   targetTabId === "nodes" ||

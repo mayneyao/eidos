@@ -193,6 +193,33 @@ export const useSqlite = (dbName?: string) => {
     },
     [sqlWorker]
   )
+  const getDocMarkdownBatch = useCallback(
+    async (docIds: string[]) => {
+      if (!sqlWorker) return []
+      if (!docIds.length) return []
+      const res = await sqlWorker.doc.getMarkdownBatch(docIds)
+      return res as { id: string; markdown: string }[]
+    },
+    [sqlWorker]
+  )
+
+  const searchDayPages = useCallback(
+    async (term: string, page: number = 0, pageSize: number = 20) => {
+      if (!sqlWorker) return []
+      const res = await sqlWorker.searchDayPages(term, page, pageSize)
+      return res as { id: string; markdown: string }[]
+    },
+    [sqlWorker]
+  )
+
+  const fullTextSearch = useCallback(
+    async (query: string) => {
+      if (!sqlWorker) return []
+      const res = await sqlWorker.fullTextSearch(query)
+      return res as { id: string; result: string }[]
+    },
+    [sqlWorker]
+  )
 
   const addNode2List = useCallback(
     (node: ITreeNode) => {
@@ -528,6 +555,9 @@ export const useSqlite = (dbName?: string) => {
     renameNode,
     getDoc,
     getDocMarkdown,
+    getDocMarkdownBatch,
+    searchDayPages,
+    fullTextSearch,
     deleteNode,
     restoreNode,
     toggleNodeFullWidth,
