@@ -219,9 +219,15 @@ export function TabContextMenu({
       if (platform.includes("mac")) {
         return t("nav.dropdown.menu.revealInFinder", "Reveal in Finder")
       } else if (platform.includes("win")) {
-        return t("nav.dropdown.menu.revealInExplorer", "Reveal in File Explorer")
+        return t(
+          "nav.dropdown.menu.revealInExplorer",
+          "Reveal in File Explorer"
+        )
       } else {
-        return t("nav.dropdown.menu.revealInFileManager", "Reveal in File Manager")
+        return t(
+          "nav.dropdown.menu.revealInFileManager",
+          "Reveal in File Manager"
+        )
       }
     }
     return t("nav.dropdown.menu.revealInFileManager", "Reveal in File Manager")
@@ -307,17 +313,6 @@ export function TabContextMenu({
     [node, space, sqlite, toast]
   )
 
-  const { openInPlayground } = useOpenInPlayground({
-    onPlaygroundChange,
-  })
-
-  const deleteCurrentNode = () => {
-    if (node) {
-      deleteNode(node)
-      tabNavigate(`/`)
-    }
-  }
-
   const handleAddToPanel = () => {
     if (!node) return
     // Create node app URL in the format node://<nodeid>@<space>
@@ -402,9 +397,7 @@ export function TabContextMenu({
               <ContextMenuSeparator />
               <ContextMenuItem onClick={openInFileManager}>
                 <FolderOpen className="mr-2 h-4 w-4" />
-                <span>
-                  {getRevealText()}
-                </span>
+                <span>{getRevealText()}</span>
               </ContextMenuItem>
             </>
           )}
@@ -485,12 +478,6 @@ export function TabContextMenu({
                   </ContextMenuSub>
                 </>
               )} */}
-              {!isDayPageId(node.id) && (
-                <ContextMenuItem onClick={deleteCurrentNode}>
-                  <Trash2Icon className="mr-2 h-4 w-4"></Trash2Icon>
-                  <span>{t("common.delete")}</span>
-                </ContextMenuItem>
-              )}
               <NodeUpdateTime />
             </>
           )}

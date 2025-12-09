@@ -137,7 +137,7 @@ export function TabContainer({
   return (
     <div
       className={cn(
-        "absolute inset-0 flex flex-col h-screen",
+        "absolute inset-0 flex flex-col h-full",
         isActive ? "block" : "hidden"
       )}
       id={`tab-container-${tabId}`}
@@ -154,7 +154,7 @@ export function TabContainer({
             tabId={tabId}
             isUpdatingFromUrlRef={isUpdatingFromUrlRef}
           />
-          <div className="flex-1 overflow-y-auto min-h-0 h-screen">
+          <div className="flex-1 overflow-y-auto min-h-0 h-full">
             {children}
           </div>
         </TabProvider>

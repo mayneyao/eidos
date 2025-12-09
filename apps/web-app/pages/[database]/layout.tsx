@@ -6,9 +6,11 @@ import { useWindowControlsOverlayVisible } from "@/apps/web-app/hooks/use-window
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
+import { TabManager } from "@/apps/web-app/components/tab-manager"
 
 import { DatabaseLayoutBase } from "./base-layout"
 import { DatabasePWALayoutBase } from "./base-pwa-layout"
+import { TabContentLayout } from "./tab-content-layout"
 import { useLayoutInit } from "./hook"
 
 export default function DatabaseLayout() {
@@ -32,7 +34,9 @@ export default function DatabaseLayout() {
       <DatabasePWALayoutBase>
         <DocExtBlockLoader />
         <KeyboardShortCuts />
-        <Outlet />
+        <TabManager>
+          <TabContentLayout />
+        </TabManager>
       </DatabasePWALayoutBase>
     )
   }
@@ -40,7 +44,9 @@ export default function DatabaseLayout() {
     <DatabaseLayoutBase>
       <DocExtBlockLoader />
       <KeyboardShortCuts />
-      <Outlet />
+      <TabManager>
+        <TabContentLayout />
+      </TabManager>
     </DatabaseLayoutBase>
   )
 }

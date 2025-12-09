@@ -34,29 +34,11 @@ import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
-function TabInnerLayout() {
-  // const { scriptId } = useParams()
-  // const location = useLocation()
+// Component for tab-specific content (only the main content area)
+function TabContentLayout() {
   const element = useRoutes(spaceRoutes)
-
-  // // Check if we're on file-handler page and get file path
-  // const isFileHandlerPage = location.pathname.includes("/file-handler")
-  // const filePath =
-  //   isFileHandlerPage && location.hash.startsWith("#")
-  //     ? decodeURIComponent(location.hash.substring(1))
-  //     : isFileHandlerPage
-  //       ? decodeURIComponent(location.hash)
-  //       : ""
-
-  // const showCustomNav = scriptId || filePath
-
   return (
     <div className="flex flex-col h-full min-w-0">
-      <Nav>
-        {/* {showCustomNav && (
-          <>{scriptId && <ScriptBreadcrumb scriptIdOrSlug={scriptId} />}</>
-        )} */}
-      </Nav>
       <div
         id="main-content"
         className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
@@ -152,8 +134,9 @@ export function DesktopSpaceLayout() {
               minSize={50}
             >
               <div className="h-full flex flex-col">
+                <Nav />
                 <TabManager>
-                  <TabInnerLayout />
+                  <TabContentLayout />
                 </TabManager>
               </div>
             </ResizablePanel>

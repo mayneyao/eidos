@@ -107,16 +107,17 @@ const BlockTab = memo(
     return (
       <div key={tabId}>
         <Button
-          variant={isActive ? "secondary" : "ghost"}
+          variant="ghost"
           size="sm"
-          className={cn(
-            "h-8 w-8 p-0 transition-colors flex-shrink-0",
-            isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
-          )}
+          className="h-8 w-8 p-0 transition-colors flex-shrink-0 relative"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           onClick={handleClick}
           title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
         >
+          {/* Active tab indicator */}
+          {isActive && (
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+          )}
           <Icon className="h-4 w-4" />
         </Button>
       </div>
@@ -310,16 +311,17 @@ export const SidebarTabs = () => {
             return (
               <div key={tabId}>
                 <Button
-                  variant={isActive ? "secondary" : "ghost"}
+                  variant="ghost"
                   size="sm"
-                  className={cn(
-                    "h-8 w-8 p-0 transition-colors flex-shrink-0",
-                    isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
-                  )}
+                  className="h-8 w-8 p-0 transition-colors flex-shrink-0 relative"
                   style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                   onClick={(e) => handleTabClick(tabId, e)}
                   title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
                 >
+                  {/* Active tab indicator */}
+                  {isActive && (
+                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+                  )}
                   <Icon className="h-4 w-4" />
                 </Button>
               </div>

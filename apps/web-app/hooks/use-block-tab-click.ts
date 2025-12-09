@@ -16,12 +16,13 @@ export const useBlockTabClick = (blocks: Record<string, any>) => {
     const block = blocks[tabId]
     const hasUseSidebar = block && block.code && detectDirective(block.code, "use sidebar")
 
-    if (hasUseSidebar) {
-      // If block contains 'use sidebar' directive, render in sidebar
-      setCurrentApp(tabId)
-    } else {
-      // Otherwise, navigate to block page normally
+    // Always set current app for proper tab activation state
+    setCurrentApp(tabId)
+
+    if (!hasUseSidebar) {
+      // If block does not contain 'use sidebar' directive, navigate to block page
       navigate(`/blocks/${tabId}`, { target })
     }
+    // If block has 'use sidebar' directive, it will render in sidebar automatically
   }, [blocks, setCurrentApp, navigate])
 }

@@ -11,33 +11,6 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabTitle } from "@/hooks/use-tab-title"
 
-// Helper function to render keyboard shortcut
-const renderShortcut = (keys: string) => {
-  const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0
-  const parts = keys.split(" + ").map((key) => {
-    // Replace Ctrl/Cmd with platform-specific key
-    if (key === "Ctrl/Cmd") {
-      return isMac ? "⌘" : "Ctrl"
-    }
-    return key
-  })
-
-  return (
-    <div className="flex items-center gap-1">
-      {parts.map((key, index) => (
-        <span key={index}>
-          <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-            {key}
-          </kbd>
-          {index < parts.length - 1 && (
-            <span className="mx-0.5 text-muted-foreground text-[10px]">+</span>
-          )}
-        </span>
-      ))}
-    </div>
-  )
-}
-
 export default function DatabaseHome() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
@@ -48,6 +21,7 @@ export default function DatabaseHome() {
   const { toggleSidebar } = useSidebar()
 
   useTabTitle("Home")
+
   const handleCreateDoc = useCallback(async () => {
     if (!space) return
     const docId = await createDoc("")
@@ -73,96 +47,91 @@ export default function DatabaseHome() {
   }, [toggleSidebar])
 
   return (
-    <div className="flex h-full w-full items-center justify-center p-8">
-      <div className="flex w-full max-w-xl flex-col items-center gap-8">
-        {/* Logo */}
+    <div className="flex h-full items-center justify-center p-8">
+      <div className="w-full max-w-xl flex flex-col items-center gap-8">
         <div className="opacity-30 scale-75">
           <EidosIcon />
         </div>
+        <div className="w-full flex flex-col gap-1.5">
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
+            onClick={handleCreateDoc}
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {t("welcome.newDocument", "New Document")}
+              </span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              ⌘ + N
+            </kbd>
+          </Button>
 
-        {/* Quick Actions */}
-        <div className="w-full">
-          <div className="flex flex-col gap-1.5">
-            <Button
-              variant="ghost"
-              className="h-auto px-3 py-2"
-              onClick={handleCreateDoc}
-            >
-              <div className="flex w-full items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {t("welcome.newDocument", "New Document")}
-                  </span>
-                </div>
-                {renderShortcut("Ctrl/Cmd + N")}
-              </div>
-            </Button>
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
+            onClick={handleOpenCommandPalette}
+          >
+            <div className="flex items-center gap-2">
+              <Command className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {t("welcome.commandPalette", "Command Palette")}
+              </span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              ⌘ + K
+            </kbd>
+          </Button>
 
-            <Button
-              variant="ghost"
-              className="h-auto px-3 py-2"
-              onClick={handleOpenCommandPalette}
-            >
-              <div className="flex w-full items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Command className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {t("welcome.commandPalette", "Command Palette")}
-                  </span>
-                </div>
-                {renderShortcut("Ctrl/Cmd + K")}
-              </div>
-            </Button>
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
+            onClick={handleOpenGlobalSearch}
+          >
+            <div className="flex items-center gap-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {t("welcome.searchNodes", "Search Nodes")}
+              </span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              ⌘ + P
+            </kbd>
+          </Button>
 
-            <Button
-              variant="ghost"
-              className="h-auto px-3 py-2"
-              onClick={handleOpenGlobalSearch}
-            >
-              <div className="flex w-full items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Search className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {t("welcome.searchNodes", "Search Nodes")}
-                  </span>
-                </div>
-                {renderShortcut("Ctrl/Cmd + P")}
-              </div>
-            </Button>
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
+            onClick={handleToggleSidebar}
+          >
+            <div className="flex items-center gap-2">
+              <PanelLeft className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {t("welcome.toggleSidebar", "Toggle Sidebar")}
+              </span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              ⌘ + \
+            </kbd>
+          </Button>
 
-            <Button
-              variant="ghost"
-              className="h-auto px-3 py-2"
-              onClick={handleToggleSidebar}
-            >
-              <div className="flex w-full items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <PanelLeft className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {t("welcome.toggleSidebar", "Toggle Sidebar")}
-                  </span>
-                </div>
-                {renderShortcut("Ctrl/Cmd + \\")}
-              </div>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="h-auto px-3 py-2"
-              onClick={handleOpenSettings}
-            >
-              <div className="flex w-full items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Settings className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {t("welcome.settings", "Settings")}
-                  </span>
-                </div>
-                {renderShortcut("Ctrl/Cmd + ,")}
-              </div>
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
+            onClick={handleOpenSettings}
+          >
+            <div className="flex items-center gap-2">
+              <Settings className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {t("welcome.settings", "Settings")}
+              </span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              ⌘ + ,
+            </kbd>
+          </Button>
         </div>
       </div>
     </div>

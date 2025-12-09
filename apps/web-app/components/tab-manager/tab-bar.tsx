@@ -108,7 +108,7 @@ export function TabBar() {
       id="drag-region"
     >
       {/* Tabs container - can compress with overflow hidden */}
-      <div className="flex items-center gap-0 flex-1 min-w-0 overflow-hidden">
+      <div className="flex items-center gap-0 min-w-0 overflow-hidden">
         {tabs.map((tab, index) => {
           const isActive = activeTabId === tab.id
           return (
@@ -125,7 +125,7 @@ export function TabBar() {
               <div
                 className={cn(
                   "group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer transition-colors",
-                  "flex-1 min-w-[80px] max-w-[240px] border-r border-border/50",
+                  "w-[240px] min-w-0 max-w-[240px] border-r border-border/50",
                   isActive
                     ? "bg-background text-foreground"
                     : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"

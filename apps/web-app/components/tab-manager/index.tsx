@@ -4,6 +4,7 @@ import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import { TabContainer } from "./tab-container"
+import { Nav } from "../nav"
 
 export function TabManager({ children }: { children: React.ReactNode }) {
   const {

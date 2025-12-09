@@ -5,7 +5,6 @@ import {
   FileIcon,
   MoreHorizontalIcon,
   PanelRightIcon,
-  PlusIcon,
   ToyBrickIcon,
   Trash2,
   ViewIcon,
@@ -80,11 +79,6 @@ export const RightPanelNav = () => {
     // Clear tempPanelNode when switching to a currentApp
     setCurrentApp(app)
   }
-  const handleAddApp = (blockId: string) => {
-    const app = `block://${blockId}@${space}`
-    addApp(app)
-    setCurrentApp(app)
-  }
   const displayApps = useMemo(() => {
     return apps.filter((app) => {
       if (app.startsWith("block://")) {
@@ -103,11 +97,6 @@ export const RightPanelNav = () => {
 
   const { mblocks } = useAllMblocks()
 
-  const displayMblocks = useMemo(() => {
-    return mblocks.filter((mblock) => {
-      return !apps.includes(`block://${mblock.id}@${space}`)
-    })
-  }, [mblocks, apps, space])
 
   const getAppInfo = (app: string) => {
     if (app.startsWith("block://")) {
@@ -245,11 +234,13 @@ export const RightPanelNav = () => {
                       variant="ghost"
                       onClick={() => handleAppChange(app)}
                       className={cn("rounded-b-none relative", {
-                        "after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary":
-                          isCurrentApp,
                         "opacity-50": !appInfo?.available,
                       })}
                     >
+                      {/* Active tab indicator */}
+                      {isCurrentApp && (
+                        <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+                      )}
                       {typeof IconOrUri === "string" ? (
                         <img src={IconOrUri} alt={title} className="h-4 w-4" />
                       ) : (
@@ -284,11 +275,12 @@ export const RightPanelNav = () => {
                   size="xs"
                   variant="ghost"
                   onClick={() => handleAppChange(app)}
-                  className={cn("rounded-b-none relative", {
-                    "after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary":
-                      isCurrentApp,
-                  })}
+                  className="rounded-b-none relative"
                 >
+                  {/* Active tab indicator */}
+                  {isCurrentApp && (
+                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+                  )}
                   {typeof IconOrUri === "string" ? (
                     <img src={IconOrUri} alt={title} className="h-4 w-4" />
                   ) : (
@@ -331,47 +323,6 @@ export const RightPanelNav = () => {
           </DropdownMenu>
         )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="xs" variant="ghost" className="rounded-b-none">
-              <PlusIcon className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            {mblocks.length === 0 && (
-              <p className="p-2 text-sm text-gray-500">
-                There are no blocks in this space. Try to{" "}
-                <Link
-                  to={`/extensions`}
-                  className="flex items-center gap-2 text-blue-500"
-                >
-                  <span>create block</span>
-                </Link>
-              </p>
-            )}
-            {displayMblocks.map((block) => (
-              <DropdownMenuItem
-                key={block.id}
-                onClick={() => {
-                  handleAddApp(block.id)
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  {block.icon && block.icon.startsWith("data:image") ? (
-                    <img
-                      src={block.icon}
-                      alt={block.name}
-                      className="h-4 w-4"
-                    />
-                  ) : (
-                    <ToyBrickIcon className="h-4 w-4" />
-                  )}
-                  <span>{block.name}</span>
-                </div>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
       <div className="drag-region grow"></div>
       {/* Only show currentApp UI when tempPanelNode is not active */}

@@ -1,4 +1,4 @@
-import { Menu, PanelRightIcon } from "lucide-react"
+import { Menu, PanelLeftIcon, PanelRightIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { isDesktopMode } from "@/lib/env"
@@ -42,7 +42,6 @@ export const Nav = ({
     }
   }
 
-  const { theme } = useTheme()
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen)
   }
@@ -76,7 +75,7 @@ export const Nav = ({
           onClick={toggleSidebar}
           // className="hidden md:block"
         >
-          <Menu className="h-5 w-5" />
+          <PanelLeftIcon className="h-5 w-5" />
         </Button>
       )}
 
