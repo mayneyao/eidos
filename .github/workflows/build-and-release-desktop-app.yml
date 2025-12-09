@@ -24,6 +24,8 @@ jobs:
         run: cd apps/desktop && node scripts/download-libsimple.cjs
 
       - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: pnpm install
 
       - name: Build frontend application
@@ -86,6 +88,8 @@ jobs:
         run: cd apps/desktop && node scripts/download-libsimple.cjs
 
       - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: pnpm install
 
       - name: Import Code-Signing Certificates (macOS only)
