@@ -103,7 +103,7 @@ export function TabBar() {
 
   return (
     <div
-      className="flex items-center gap-0 flex-1 min-w-0 rounded-md border border-border/60 bg-muted/60 px-1"
+      className="flex items-center gap-0 flex-1 min-w-0 px-1"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       id="drag-region"
     >

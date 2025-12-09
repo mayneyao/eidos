@@ -32,7 +32,7 @@ export const Nav = ({ children }: { children?: React.ReactNode }) => {
   return (
     <div
       className={cn(
-        "flex w-full shrink-0 border-separate items-center justify-between px-1 h-[38px] border-b",
+        "flex w-full shrink-0 border-separate items-center justify-between px-1 h-[38px] border-b border-border/60 bg-muted/60",
         {
           fixed: navigator.windowControlsOverlay?.visible,
           "!pl-[72px]":

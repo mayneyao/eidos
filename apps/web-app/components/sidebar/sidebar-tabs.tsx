@@ -109,7 +109,12 @@ const BlockTab = memo(
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0 transition-colors flex-shrink-0 relative"
+          className={cn(
+            "h-8 w-8 p-0 transition-colors flex-shrink-0 relative",
+            isActive
+              ? "bg-background text-foreground"
+              : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          )}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           onClick={handleClick}
           title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
@@ -284,7 +289,7 @@ export const SidebarTabs = () => {
     <div
       ref={containerRef}
       className={cn(
-        "flex h-[38px] items-center justify-between px-1 border-b border-sidebar-border transition-all duration-200",
+        "flex h-[38px] items-center justify-between px-1 border-b border-border/60 bg-muted/60 transition-all duration-200",
         {
           "pl-[76px]": isMacDesktop(),
           "pl-4": !isMacDesktop(),
@@ -313,7 +318,12 @@ export const SidebarTabs = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 transition-colors flex-shrink-0 relative"
+                  className={cn(
+                    "h-8 w-8 p-0 transition-colors flex-shrink-0 relative",
+                    isActive
+                      ? "bg-background text-foreground"
+                      : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  )}
                   style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                   onClick={(e) => handleTabClick(tabId, e)}
                   title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
@@ -354,7 +364,10 @@ export const SidebarTabs = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 transition-all duration-200 flex-shrink-0 hover:bg-sidebar-accent/50"
+                className={cn(
+                  "h-8 w-8 p-0 transition-all duration-200 flex-shrink-0 relative",
+                  "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                )}
                 style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                 title="More tabs"
               >

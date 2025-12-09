@@ -152,7 +152,7 @@ export function DesktopSpaceLayout() {
                 >
                   <div
                     className={cn(
-                      "px-1 flex justify-end h-[38px] items-center shrink-0 border-b",
+                      "px-1 flex justify-end h-[38px] items-center shrink-0 border-b border-border/60 bg-muted/60",
                       {
                         "pr-[100px]": isWindowsDesktop && isRightPanelOpen,
                       }

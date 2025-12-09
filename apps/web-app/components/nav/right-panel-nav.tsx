@@ -60,6 +60,18 @@ const DefaultAppInfoMap: Record<
   },
 }
 
+const tabButtonBaseClass =
+  "relative h-8 w-8 p-0 transition-colors flex-shrink-0"
+const inactiveTabColorClass =
+  "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+const activeTabColorClass = "bg-background text-foreground"
+const tabButtonClass = (isActive?: boolean, extra?: string) =>
+  cn(
+    tabButtonBaseClass,
+    isActive ? activeTabColorClass : inactiveTabColorClass,
+    extra
+  )
+
 export const RightPanelNav = () => {
   const {
     setIsRightPanelOpen,
@@ -233,9 +245,12 @@ export const RightPanelNav = () => {
                       size="xs"
                       variant="ghost"
                       onClick={() => handleAppChange(app)}
-                      className={cn("rounded-b-none relative", {
-                        "opacity-50": !appInfo?.available,
-                      })}
+                      className={tabButtonClass(
+                        isCurrentApp,
+                        cn("rounded-b-none", {
+                          "opacity-50": !appInfo?.available,
+                        })
+                      )}
                     >
                       {/* Active tab indicator */}
                       {isCurrentApp && (
@@ -275,7 +290,7 @@ export const RightPanelNav = () => {
                   size="xs"
                   variant="ghost"
                   onClick={() => handleAppChange(app)}
-                  className="rounded-b-none relative"
+                  className={tabButtonClass(isCurrentApp, "rounded-b-none")}
                 >
                   {/* Active tab indicator */}
                   {isCurrentApp && (
@@ -295,7 +310,11 @@ export const RightPanelNav = () => {
         {displayApps.length > visibleCount && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="xs" variant="ghost" className="rounded-b-none">
+              <Button
+                size="xs"
+                variant="ghost"
+                className={tabButtonClass(false, "rounded-b-none")}
+              >
                 <MoreHorizontalIcon className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -334,6 +353,7 @@ export const RightPanelNav = () => {
             size="xs"
             variant="ghost"
             onClick={handleOpenTempNode}
+            className={tabButtonClass(false)}
             title={`Open ${tempPanelNode.name} in new tab`}
           >
             <ExternalLinkIcon className="h-4 w-4" />
@@ -342,6 +362,7 @@ export const RightPanelNav = () => {
             size="xs"
             variant="ghost"
             onClick={handleCloseTempNode}
+            className={tabButtonClass(false)}
             title="Close temporary panel"
           >
             <XIcon className="h-4 w-4" />
@@ -352,6 +373,7 @@ export const RightPanelNav = () => {
         size="xs"
         variant="ghost"
         onClick={() => setIsRightPanelOpen(false, -1)}
+        className={tabButtonClass(false)}
       >
         <PanelRightIcon className="h-4 w-4" />
       </Button>
