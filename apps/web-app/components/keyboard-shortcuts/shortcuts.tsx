@@ -52,7 +52,9 @@ export function ShortCuts() {
   // Get block data for directive checking
   const blockIds = useMemo(
     () =>
-      sortedTabs.filter((id) => !["nodes", "extensions", "today"].includes(id)),
+      sortedTabs.filter(
+        (id) => !["nodes", "extensions", "today", "files"].includes(id)
+      ),
     [sortedTabs]
   )
   const { blocks } = useMblocksBatch(blockIds)
@@ -156,6 +158,7 @@ export function ShortCuts() {
                   {
                     nodes: { isNavigation: false },
                     extensions: { isNavigation: false },
+                    files: { isNavigation: false },
                     today: { isNavigation: true, href: "/journals" },
                   }[targetTabId] || {}
 
@@ -165,7 +168,8 @@ export function ShortCuts() {
                   navigate(`/journals/${today}`)
                 } else if (
                   targetTabId === "nodes" ||
-                  targetTabId === "extensions"
+                  targetTabId === "extensions" ||
+                  targetTabId === "files"
                 ) {
                   // Regular tab
                   setCurrentApp(targetTabId)
