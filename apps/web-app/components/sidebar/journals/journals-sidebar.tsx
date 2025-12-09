@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useRef } from "react"
 import { useVirtualList } from "ahooks"
+import { useEffect, useMemo, useRef } from "react"
 import useInfiniteScroll from "react-infinite-scroll-hook"
 
-import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 
 import { useJournalsSidebarData } from "./use-journals"
 
@@ -68,13 +68,31 @@ export const JournalsSidebar = () => {
     return rows
   }, [search, searchResults, sections])
 
-  const [virtualList] = useVirtualList(virtualData, {
+  const [virtualList, scrollTo] = useVirtualList(virtualData, {
     containerTarget: containerRef,
     wrapperTarget: wrapperRef,
-    itemHeight: (index) =>
-      virtualData[index]?.type === "section" ? 28 : 92,
+    itemHeight: (index) => (virtualData[index]?.type === "section" ? 28 : 92),
     overscan: 12,
   })
+
+  // Scroll to a given day id when receiving custom event
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string }>).detail
+      const targetId = detail?.id
+      if (!targetId || !scrollTo || !virtualData.length) return
+      const idx = virtualData.findIndex(
+        (row) => row.type === "day" && row.id === targetId
+      )
+      if (idx >= 0) {
+        const targetIdx = Math.max(0, idx - 3) // approximate centering
+        scrollTo(targetIdx)
+      }
+    }
+    window.addEventListener("journals-scroll-to-day", handler as EventListener)
+    return () =>
+      window.removeEventListener("journals-scroll-to-day", handler as EventListener)
+  }, [scrollTo, virtualData])
 
   const [sentryRef] = useInfiniteScroll({
     loading,
@@ -137,7 +155,10 @@ export const JournalsSidebar = () => {
             ))}
           </div>
         ) : (
-          <div ref={containerRef} className="h-full w-full overflow-y-auto pr-1">
+          <div
+            ref={containerRef}
+            className="h-full w-full overflow-y-auto pr-1"
+          >
             <div ref={wrapperRef} className="space-y-2">
               {virtualData.length ? (
                 virtualList.map((item) => {
@@ -151,8 +172,12 @@ export const JournalsSidebar = () => {
                     )
                   }
                   const id = data.id
-                  const titleHighlight = search ? searchTitleHighlights[id] : undefined
-                  const contentHighlight = search ? searchContentHighlights[id] : undefined
+                  const titleHighlight = search
+                    ? searchTitleHighlights[id]
+                    : undefined
+                  const contentHighlight = search
+                    ? searchContentHighlights[id]
+                    : undefined
                   const snippet = contentHighlight ?? previews[id]
                   const isActive = activeDay === id || currentDay === id
                   return (
@@ -160,9 +185,10 @@ export const JournalsSidebar = () => {
                       <button
                         onClick={() => handleOpen(id)}
                         className={cn(
-                          "w-full rounded-lg border px-3 py-2 text-left transition-colors",
-                          "bg-muted/30 hover:bg-muted/50 hover:border-border",
-                          isActive && "border-primary/70 bg-primary/10"
+                          "w-full rounded-lg border px-3 py-2 text-left",
+                          isActive
+                            ? "border-primary/70 bg-primary/10"
+                            : "bg-muted/30 hover:bg-accent/40 hover:border-border transition-colors duration-100"
                         )}
                       >
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -170,7 +196,9 @@ export const JournalsSidebar = () => {
                             {titleHighlight ? (
                               <span
                                 className="[&_b]:text-destructive [&_b]:font-semibold"
-                                dangerouslySetInnerHTML={{ __html: titleHighlight }}
+                                dangerouslySetInnerHTML={{
+                                  __html: titleHighlight,
+                                }}
                               />
                             ) : (
                               id
@@ -183,7 +211,9 @@ export const JournalsSidebar = () => {
                             contentHighlight ? (
                               <span
                                 className="[&_b]:text-destructive [&_b]:font-semibold"
-                                dangerouslySetInnerHTML={{ __html: contentHighlight }}
+                                dangerouslySetInnerHTML={{
+                                  __html: contentHighlight,
+                                }}
                               />
                             ) : (
                               snippet || "No content yet"
@@ -216,4 +246,3 @@ export const JournalsSidebar = () => {
     </div>
   )
 }
-

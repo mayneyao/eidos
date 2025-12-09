@@ -57,20 +57,11 @@ export const useJournalsSidebarData = () => {
     setActiveDay(currentDay)
   }, [currentDay])
 
-  useEffect(() => {
-    console.log("[TodaySidebar] days loaded", {
-      count: days.length,
-      first: days[0]?.id,
-      hasNextPage,
-      loading,
-    })
-  }, [days, hasNextPage, loading])
+
 
   const handleLoadMore = useCallback(async () => {
-    console.log("[TodaySidebar] loadMore triggered", { hasNextPage, loading })
     try {
       await loadMore()
-      console.log("[TodaySidebar] loadMore finished")
     } catch (err) {
       console.warn("[TodaySidebar] loadMore error", err)
     }
@@ -95,11 +86,6 @@ export const useJournalsSidebarData = () => {
         .slice(0, MAX_PREVIEW_COUNT)
 
       if (!targetIds.length) return
-      console.log("[TodaySidebar] fetchPreviews start", {
-        targetCount: targetIds.length,
-        sample: targetIds.slice(0, 5),
-      })
-
       let entries: [string, string][] = []
       try {
         if (getDocMarkdownBatch) {
@@ -124,9 +110,6 @@ export const useJournalsSidebarData = () => {
             })
           )
         }
-        console.log("[TodaySidebar] fetchPreviews done", {
-          loaded: entries.length,
-        })
       } catch (error) {
         console.warn("[TodaySidebar] Failed to batch load journal previews", error)
         entries = targetIds.map((id) => [id, ""])
@@ -215,11 +198,11 @@ export const useJournalsSidebarData = () => {
         // cache snippets from id-like markdown results to avoid refetch
         setPreviews((prev) => {
           const next = { ...prev }
-          ;(idLikeRes as any[]).forEach((item) => {
-            if (item.markdown !== undefined) {
-              next[item.id] = buildSnippet(item.markdown || "")
-            }
-          })
+            ; (idLikeRes as any[]).forEach((item) => {
+              if (item.markdown !== undefined) {
+                next[item.id] = buildSnippet(item.markdown || "")
+              }
+            })
           return next
         })
       } catch (error) {

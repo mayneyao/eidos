@@ -1,7 +1,7 @@
 import React, { useCallback } from "react"
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn, isDayPageId } from "@/lib/utils"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
@@ -62,6 +62,7 @@ export function TabBar() {
       const tab = tabs.find((t) => t.id === tabId)
       if (!tab) return
 
+      console.log("tab", tab)
       const url = "http://localhost" + tab.url
       // 1) File handler tabs with explicit file paths
       const fileHandlerPattern = new URLPattern({ pathname: "/file-handler" })
@@ -84,7 +85,23 @@ export function TabBar() {
         return
       }
 
-      // 3) Extension tabs: "/extensions/<extensionId>"
+      // 3) Journal tabs: "/journals/:day"
+      const journalPattern = new URLPattern({ pathname: "/journals/:day" })
+      const journalMatch = journalPattern.exec(url)
+      if (journalMatch?.pathname?.groups?.day) {
+        const day = journalMatch.pathname.groups.day
+        if (isDayPageId(day)) {
+          window.dispatchEvent(
+            new CustomEvent("journals-scroll-to-day", {
+              detail: { id: day },
+            })
+          )
+          return
+        }
+        return
+      }
+
+      // 4) Extension tabs: "/extensions/<extensionId>"
       const extPattern = new URLPattern({
         pathname: "/extensions/:extensionId",
       })
