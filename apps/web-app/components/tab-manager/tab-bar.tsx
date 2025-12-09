@@ -44,8 +44,16 @@ export function TabBar() {
   }
 
   const dispatchExpandTo = useCallback(
-    (app: "files" | "nodes" | "extensions", path: string) => {
+    (app: "files" | "nodes" | "extensions" | "today", path: string) => {
       setCurrentApp(app)
+      if (app === "today") {
+        window.dispatchEvent(
+          new CustomEvent("journals-scroll-to-day", {
+            detail: { id: path },
+          })
+        )
+        return
+      }
       setTimeout(() => {
         window.dispatchEvent(
           new CustomEvent("file-tree-expand-to", {
@@ -91,12 +99,7 @@ export function TabBar() {
       if (journalMatch?.pathname?.groups?.day) {
         const day = journalMatch.pathname.groups.day
         if (isDayPageId(day)) {
-          window.dispatchEvent(
-            new CustomEvent("journals-scroll-to-day", {
-              detail: { id: day },
-            })
-          )
-          return
+          dispatchExpandTo("today", day)
         }
         return
       }

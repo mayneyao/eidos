@@ -183,7 +183,11 @@ export const JournalsSidebar = () => {
                   return (
                     <div key={id} ref={itemRef}>
                       <button
-                        onClick={() => handleOpen(id)}
+                        onClick={(event) =>
+                          handleOpen(id, {
+                            target: event.altKey ? "_blank" : undefined,
+                          })
+                        }
                         className={cn(
                           "w-full rounded-lg border px-3 py-2 text-left",
                           isActive

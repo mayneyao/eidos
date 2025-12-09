@@ -1,12 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { getToday, getYesterday } from "@/lib/utils"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAllDays } from "@/apps/web-app/pages/[database]/journals/hooks"
+import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
+import { getToday, getYesterday } from "@/lib/utils"
 
 const MAX_PREVIEW_COUNT = 40
 
@@ -68,9 +68,11 @@ export const useJournalsSidebarData = () => {
   }, [hasNextPage, loadMore, loading])
 
   const handleOpen = useCallback(
-    (dayId: string) => {
-      setActiveDay(dayId)
-      navigate(`/journals/${dayId}`)
+    (dayId: string, options?: { target?: "_blank" | "_self" }) => {
+      if (options?.target !== "_blank") {
+        setActiveDay(dayId)
+      }
+      navigate(`/journals/${dayId}`, { target: options?.target })
     },
     [navigate]
   )
