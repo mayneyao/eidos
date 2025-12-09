@@ -44,11 +44,22 @@ export function TabManager({ children }: { children: React.ReactNode }) {
         case "restore-last-closed-tab":
           reopenLastClosedTab()
           break
-        case "close-current-tab":
-          if (activeTabId) {
-            closeTab(activeTabId)
+        case "close-current-tab": {
+          if (!activeTabId) break
+
+          const shouldHideWindow =
+            tabs.length <= 1 &&
+            typeof window !== "undefined" &&
+            window.eidos?.closeWindow
+
+          if (shouldHideWindow) {
+            window.eidos?.closeWindow()
+            break
           }
+
+          closeTab(activeTabId)
           break
+        }
         case "next-tab":
           {
             const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
