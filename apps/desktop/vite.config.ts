@@ -14,7 +14,6 @@ const externalNodeModules = [
   'oxc-parser',
   'oxc-transform',
   '@vscode/ripgrep',
-  'keytar'
 ]
 
 // desktop do not need android and windows11

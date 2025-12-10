@@ -1,8 +1,8 @@
 import crypto from 'crypto';
-import keytarPkg from 'keytar'
-import { KEYTAR_CONFIG, OAUTH_CONFIG } from '@/lib/const';
-
-const { setPassword, getPassword, deletePassword } = keytarPkg;
+import fs from 'fs/promises';
+import path from 'path';
+import { app, safeStorage } from 'electron';
+import { OAUTH_CONFIG } from '@/lib/const';
 
 // PKCE utilities
 function base64URLEncode(buffer: Buffer): string {
@@ -40,14 +40,75 @@ export interface UserInfo {
     [key: string]: any;
 }
 
-const { SERVICE_NAME, ACCOUNT_NAME } = KEYTAR_CONFIG;
+const TOKENS_DIR = 'auth';
+const TOKENS_FILE_NAME = 'oauth_tokens.bin';
+let warnedAboutPlaintextStorage = false;
+
+async function ensureAppReady() {
+    if (!app.isReady()) {
+        await app.whenReady();
+    }
+}
+
+async function getTokensFilePath(): Promise<string> {
+    await ensureAppReady();
+    return path.join(app.getPath('userData'), TOKENS_DIR, TOKENS_FILE_NAME);
+}
+
+async function writeSecureTokens(tokensJson: string): Promise<void> {
+    const filePath = await getTokensFilePath();
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+
+    const encryptionAvailable = safeStorage.isEncryptionAvailable();
+    if (!encryptionAvailable && !warnedAboutPlaintextStorage) {
+        console.warn('Electron safeStorage encryption unavailable; storing tokens unencrypted on disk.');
+        warnedAboutPlaintextStorage = true;
+    }
+
+    const payload = encryptionAvailable
+        ? safeStorage.encryptString(tokensJson)
+        : Buffer.from(tokensJson, 'utf-8');
+
+    await fs.writeFile(filePath, payload);
+}
+
+async function readSecureTokens(): Promise<string | null> {
+    try {
+        const filePath = await getTokensFilePath();
+        const raw = await fs.readFile(filePath);
+        if (!raw?.length) {
+            return null;
+        }
+
+        return safeStorage.isEncryptionAvailable()
+            ? safeStorage.decryptString(raw)
+            : raw.toString('utf-8');
+    } catch (error: any) {
+        if (error?.code === 'ENOENT') {
+            return null;
+        }
+        console.error('Failed to read stored tokens:', error);
+        return null;
+    }
+}
+
+async function clearSecureTokens(): Promise<void> {
+    try {
+        const filePath = await getTokensFilePath();
+        await fs.unlink(filePath);
+    } catch (error: any) {
+        if (error?.code !== 'ENOENT') {
+            console.warn('Failed to clear stored tokens:', error);
+        }
+    }
+}
 
 // In-memory storage for PKCE code_verifier (temporary, only needed during auth flow)
 let pendingCodeVerifier: string | null = null;
 
 /**
  * CredentialsManager handles secure storage of OAuth tokens and user information
- * using the system keyring via keytar (similar to VSCode's approach)
+ * using Electron safeStorage (encrypted payload written to disk)
  */
 export class CredentialsManager {
     /**
@@ -82,7 +143,7 @@ export class CredentialsManager {
         return codeVerifier;
     }
     /**
-     * Store OAuth tokens securely in the system keyring
+     * Store OAuth tokens securely using Electron safeStorage
      */
     static async setTokens(tokens: OAuthTokens): Promise<void> {
         try {
@@ -92,7 +153,7 @@ export class CredentialsManager {
                 _stored_at: Date.now()
             };
             const tokensJson = JSON.stringify(tokensWithTimestamp);
-            await setPassword(SERVICE_NAME, ACCOUNT_NAME, tokensJson);
+            await writeSecureTokens(tokensJson);
         } catch (error) {
             console.error('Failed to store OAuth tokens:', error);
             throw new Error('Failed to securely store authentication tokens');
@@ -100,15 +161,29 @@ export class CredentialsManager {
     }
 
     /**
-     * Retrieve OAuth tokens from the system keyring
+     * Internal helper to read raw tokens (with metadata) from disk
+     */
+    private static async readStoredTokens(): Promise<OAuthTokens | null> {
+        const tokensJson = await readSecureTokens();
+        if (!tokensJson) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(tokensJson) as OAuthTokens;
+        } catch (error) {
+            console.error('Failed to parse stored tokens:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Retrieve OAuth tokens from disk
      */
     static async getTokens(): Promise<OAuthTokens | null> {
         try {
-            const tokensJson = await getPassword(SERVICE_NAME, ACCOUNT_NAME);
-            if (!tokensJson) {
-                return null;
-            }
-            const tokens = JSON.parse(tokensJson) as OAuthTokens;
+            const tokens = await this.readStoredTokens();
+            if (!tokens) return null;
             // Remove internal timestamp before returning
             const { _stored_at, ...publicTokens } = tokens;
             return publicTokens;
@@ -120,7 +195,7 @@ export class CredentialsManager {
 
     /**
      * Store user information in the config (non-sensitive info)
-     * Sensitive tokens are stored separately in keyring
+     * Sensitive tokens are stored separately via safeStorage
      */
     static async setUserInfo(userInfo: UserInfo): Promise<void> {
         const { getConfigManager } = await import('./config');
@@ -151,10 +226,10 @@ export class CredentialsManager {
      */
     static async clearAll(): Promise<void> {
         try {
-            // Remove tokens from keyring
-            await deletePassword(SERVICE_NAME, ACCOUNT_NAME);
+            // Remove tokens from disk
+            await clearSecureTokens();
         } catch (error) {
-            console.warn('Failed to clear tokens from keyring:', error);
+            console.warn('Failed to clear tokens from storage:', error);
         }
 
         // Clear user info from config
@@ -223,12 +298,8 @@ export class CredentialsManager {
      */
     static async isAccessTokenExpired(): Promise<boolean> {
         try {
-            const tokensJson = await getPassword(SERVICE_NAME, ACCOUNT_NAME);
-            if (!tokensJson) {
-                return true; // No tokens means expired
-            }
-
-            const tokens = JSON.parse(tokensJson) as OAuthTokens;
+            const tokens = await this.readStoredTokens();
+            if (!tokens) return true; // No tokens means expired
             if (!tokens.access_token || !tokens.expires_in || !tokens._stored_at) {
                 return false; // If we don't have expiration info, assume it's valid (backward compatibility)
             }

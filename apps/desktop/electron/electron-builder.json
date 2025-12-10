@@ -27,8 +27,7 @@
     "**/node_modules/oxc-parser/**/*",
     "**/node_modules/@oxc-parser/binding-*/**/*",
     "**/node_modules/oxc-transform/**/*",
-    "**/node_modules/@oxc-transform/binding-*/**/*",
-    "**/node_modules/keytar/**/*"
+    "**/node_modules/@oxc-transform/binding-*/**/*"
   ],
   "extraResources": [
     {

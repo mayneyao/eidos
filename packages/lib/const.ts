@@ -168,9 +168,3 @@ export const OAUTH_CONFIG = {
   // Token management
   TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000, // 5 minutes before expiration
 } as const
-
-// Keytar (system keyring) configuration for secure credential storage
-export const KEYTAR_CONFIG = {
-  SERVICE_NAME: 'eidos',
-  ACCOUNT_NAME: 'oauth',
-} as const

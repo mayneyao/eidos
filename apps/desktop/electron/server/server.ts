@@ -244,7 +244,7 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
             const tokens: OAuthTokens = await tokenResponse.json();
 
             console.log('tokens', tokens)
-            // Store tokens securely using keytar
+            // Store tokens securely
             await CredentialsManager.setTokens(tokens);
 
             // Fetch user info using the access token
