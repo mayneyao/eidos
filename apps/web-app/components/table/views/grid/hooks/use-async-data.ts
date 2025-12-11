@@ -1,4 +1,5 @@
 import type {
+  BaseGridMouseEventArgs,
   CellArray,
   DataEditorProps,
   DataEditorRef,
@@ -143,9 +144,12 @@ export function useAsyncData<TRowType>(data: {
             ...cell,
             readonly: true,
             allowOverlay: true,
-            onClickUri: (args: any) => {
+            onClickUri: (args: BaseGridMouseEventArgs) => {
               if (cell.data.startsWith("/")) {
-                navigate(cell.data)
+                const openInNewTab = args.ctrlKey || args.metaKey
+                navigate(cell.data, {
+                  target: openInNewTab ? "_blank" : undefined,
+                })
               } else {
                 window.open(cell.data, "_blank")
               }
