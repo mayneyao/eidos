@@ -6,6 +6,7 @@ import { getConfigManager } from '../config';
 import { PORT } from '../main';
 import { setupGeolocationHandler } from '../services/geolocation';
 import { WindowManager } from './wm';
+import { debounce } from '@/packages/lib/lodash';
 
 const defaultViewOptions: WebContentsViewConstructorOptions = {
     webPreferences: {
@@ -70,11 +71,16 @@ export function createWindow(spaceId?: string) {
         });
     };
 
+    // Create debounced version of persistWindowState for resize events
+    const debouncedPersistWindowState = debounce(persistWindowState, 400);
+
     if (savedWindowState?.isMaximized) {
         win.maximize();
     }
 
-    win.on('resize', persistWindowState);
+    // Apply debouncing to resize events to prevent excessive state persistence
+    win.on('resize', debouncedPersistWindowState);
+    // Keep immediate persistence for move and close events
     win.on('move', persistWindowState);
     win.on('close', persistWindowState);
     const windowManager = new WindowManager(win)
