@@ -1,4 +1,5 @@
 import * as React from "react"
+import { cn } from "@/lib/utils"
 import { isWindowsDesktop } from "@/lib/web/helper"
 import {
   ContextMenu,
@@ -400,15 +401,25 @@ const NativeContextMenuItem = React.forwardRef<
 })
 NativeContextMenuItem.displayName = "NativeContextMenuItem"
 
+type NativeContextMenuCheckboxItemProps = Omit<
+  React.ComponentPropsWithoutRef<typeof RadixContextMenuCheckboxItem>,
+  'checked' | 'onCheckedChange'
+> & {
+  checked?: boolean
+  onCheckedChange?: (checked: boolean) => void
+}
+
 // Checkbox item component
-const NativeContextMenuCheckboxItem = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & {
-    checked?: boolean
-    disabled?: boolean
-    onCheckedChange?: (checked: boolean) => void
-  }
->(({ children, checked, disabled, onCheckedChange, ...props }, ref) => {
+const NativeContextMenuCheckboxItem: React.ForwardRefExoticComponent<
+  NativeContextMenuCheckboxItemProps & React.RefAttributes<HTMLDivElement>
+> = React.forwardRef<HTMLDivElement, NativeContextMenuCheckboxItemProps>(({
+  children,
+  checked,
+  disabled,
+  onCheckedChange,
+  onSelect,
+  ...props
+}, ref) => {
   const menuContext = React.useContext(NativeMenuContext)
   const itemId = React.useId()
   const { useNative } = React.useContext(NativeMenuModeContext)
@@ -435,7 +446,10 @@ const NativeContextMenuCheckboxItem = React.forwardRef<
         checked,
         id: itemId,
         enabled: !disabled,
-      }, () => onCheckedChange?.(!checked))
+      }, () => {
+        onSelect?.(new Event('select'))
+        onCheckedChange?.(!checked)
+      })
     }
 
     return () => {
@@ -443,7 +457,7 @@ const NativeContextMenuCheckboxItem = React.forwardRef<
         menuContext.unregisterItem(itemId)
       }
     }
-  }, [menuContext, itemId, label, checked, disabled, onCheckedChange, useNative])
+  }, [menuContext, itemId, label, checked, disabled, onCheckedChange, onSelect, useNative])
 
   if (!useNative) {
     return (
@@ -452,6 +466,7 @@ const NativeContextMenuCheckboxItem = React.forwardRef<
         checked={checked}
         disabled={disabled}
         onCheckedChange={onCheckedChange}
+        onSelect={onSelect}
         {...props}
       >
         {children}
@@ -463,13 +478,18 @@ const NativeContextMenuCheckboxItem = React.forwardRef<
 })
 NativeContextMenuCheckboxItem.displayName = "NativeContextMenuCheckboxItem"
 
+type NativeContextMenuRadioItemProps = React.ComponentPropsWithoutRef<typeof RadixContextMenuRadioItem>
+
 // Radio item component
-const NativeContextMenuRadioItem = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & {
-    disabled?: boolean
-  }
->(({ children, disabled, ...props }, ref) => {
+const NativeContextMenuRadioItem: React.ForwardRefExoticComponent<
+  NativeContextMenuRadioItemProps & React.RefAttributes<HTMLDivElement>
+> = React.forwardRef<HTMLDivElement, NativeContextMenuRadioItemProps>(({
+  children,
+  disabled,
+  value,
+  onSelect,
+  ...props
+}, ref) => {
   const menuContext = React.useContext(NativeMenuContext)
   const itemId = React.useId()
   const { useNative } = React.useContext(NativeMenuModeContext)
@@ -495,7 +515,7 @@ const NativeContextMenuRadioItem = React.forwardRef<
         label,
         id: itemId,
         enabled: !disabled,
-      })
+      }, () => onSelect?.(new Event('select')))
     }
 
     return () => {
@@ -503,11 +523,17 @@ const NativeContextMenuRadioItem = React.forwardRef<
         menuContext.unregisterItem(itemId)
       }
     }
-  }, [menuContext, itemId, label, disabled, useNative])
+  }, [menuContext, itemId, label, disabled, onSelect, useNative])
 
   if (!useNative) {
     return (
-      <RadixContextMenuRadioItem ref={ref as any} disabled={disabled} {...props}>
+      <RadixContextMenuRadioItem
+        ref={ref as any}
+        disabled={disabled}
+        value={value}
+        onSelect={onSelect}
+        {...props}
+      >
         {children}
       </RadixContextMenuRadioItem>
     )
@@ -565,10 +591,19 @@ NativeContextMenuLabel.displayName = "NativeContextMenuLabel"
 const NativeContextMenuShortcut = React.forwardRef<
   HTMLSpanElement,
   React.HTMLAttributes<HTMLSpanElement>
->((props, ref) => {
+>(({ className, ...props }, ref) => {
   const { useNative } = React.useContext(NativeMenuModeContext)
   if (!useNative) {
-    return <RadixContextMenuShortcut ref={ref as any} {...props} />
+    return (
+      <span
+        ref={ref}
+        className={cn(
+          "ml-auto text-xs tracking-widest text-muted-foreground",
+          className
+        )}
+        {...props}
+      />
+    )
   }
   return <span ref={ref} style={{ display: 'none' }} {...props} />
 })
@@ -592,7 +627,7 @@ const NativeContextMenuPortal = React.forwardRef<
 >((props, ref) => {
   const { useNative } = React.useContext(NativeMenuModeContext)
   if (!useNative) {
-    return <RadixContextMenuPortal ref={ref as any} {...props} />
+    return <RadixContextMenuPortal {...props} />
   }
   return <div ref={ref} style={{ display: 'none' }} {...props} />
 })
@@ -703,7 +738,7 @@ const NativeContextMenuSub = React.forwardRef<
 
   if (!useNative) {
     return (
-      <RadixContextMenuSub ref={ref as any} {...props}>
+      <RadixContextMenuSub {...props}>
         {children}
       </RadixContextMenuSub>
     )
