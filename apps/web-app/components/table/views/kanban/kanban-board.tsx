@@ -5,7 +5,7 @@ import { SelectField } from "@/packages/core/fields/select"
 import type { IField } from "@/packages/core/types/IField"
 import { useVirtualList } from "ahooks"
 import { Minimize, Plus } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
@@ -54,7 +54,7 @@ export const KanbanBoard = memo(
     const containerRef = useRef(null)
     const wrapperRef = useRef(null)
     const cardHeight = computeCardHeight(showFields.length)
-    const { theme } = useTheme()
+    const { resolvedTheme } = useTheme()
     const { t } = useTranslation()
     const { createItem } = useKanbanItemOperations(
       tableId,
@@ -85,7 +85,7 @@ export const KanbanBoard = memo(
     })
     const bgColor = SelectField.getColorValue(
       status.color || "gray",
-      theme === "dark" ? "dark" : "light",
+      resolvedTheme === "dark" ? "dark" : "light",
       0.2
     )
     const cardWidth =

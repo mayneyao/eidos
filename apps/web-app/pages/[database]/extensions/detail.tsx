@@ -3,7 +3,7 @@ import type { IExtension } from "@/packages/core/meta-table/extension"
 import { compileCode, extractConstant, getCompileMethod } from "@eidos.space/v3"
 import { useMount, useSize } from "ahooks"
 import { CodeIcon, EyeIcon, PanelLeftIcon, SettingsIcon } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -118,7 +118,7 @@ const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
     },
     [script, toast, updateExtension]
   )
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
 
   useEffect(() => {
     editorRef.current?.layout()
@@ -215,7 +215,7 @@ const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
                 language={language}
                 bindings={script.bindings}
                 scriptId={script.id}
-                theme={theme === "dark" ? "vs-dark" : "light"}
+                theme={resolvedTheme === "dark" ? "vs-dark" : "light"}
                 customCompile={getCompileMethod(script)}
               />
             </Suspense>

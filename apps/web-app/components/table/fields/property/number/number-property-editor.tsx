@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { ChevronsUpDown } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useTranslation } from "react-i18next"
 
 import type { NumberProperty } from "@/packages/core/fields/number"
@@ -50,11 +50,11 @@ export const NumberPropertyEditor = (props: IFieldPropertyEditorProps) => {
   const [openFormat, setOpenFormat] = useState(false)
   const [openColor, setOpenColor] = useState(false)
   const [colors, setColors] = useState<{ name: string; value: string }[]>([])
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
 
   useEffect(() => {
-    setColors(SelectField.colors[theme as "light" | "dark"])
-  }, [theme])
+    setColors(SelectField.colors[resolvedTheme as "light" | "dark"])
+  }, [resolvedTheme])
 
   const updateProperty = (updates: Partial<NumberProperty>) => {
     const updatedProperty = {

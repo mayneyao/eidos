@@ -12,7 +12,7 @@ import {
   getAllLibs,
   uiComponentsDependencies,
 } from "@eidos.space/v3"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import { isDesktopMode } from "@/lib/env"
 import { getThemeVariables } from "@/lib/web/theme"
@@ -67,17 +67,17 @@ export const BlockRenderer = React.forwardRef<
     const [uiComponents, setUiComponents] = useState<string[]>([])
     const [isLoading, setIsLoading] = useState(!isDesktopMode)
     const { space } = useCurrentPathInfo()
-    const { theme } = useTheme()
+    const { resolvedTheme } = useTheme()
     const { currentThemeName } = useThemeStore()
     const allThemes = useAllThemes()
 
     const themeVariables = useMemo(() => {
       const currentThemeDef = allThemes.find((t) => t.name === currentThemeName)
       if (currentThemeDef) {
-        return getThemeVariables(currentThemeDef.css, theme === "dark")
+        return getThemeVariables(currentThemeDef.css, resolvedTheme === "dark")
       }
       return {}
-    }, [allThemes, currentThemeName, theme])
+    }, [allThemes, currentThemeName, resolvedTheme])
 
     const [importMap, setImportMap] = useState<string>("")
 
@@ -137,7 +137,7 @@ export const BlockRenderer = React.forwardRef<
 
       const html = `
       <!DOCTYPE html>
-      <html class="${theme}">
+      <html class="${resolvedTheme}">
         <head>
           ${importMap}
           <script>${tailwindRaw}</script>
@@ -311,10 +311,10 @@ export const BlockRenderer = React.forwardRef<
     useEffect(() => {
       if (!iframeRef.current) return
       iframeRef.current.contentWindow?.postMessage(
-        { type: "theme-change", theme, variables: themeVariables },
+        { type: "theme-change", theme: resolvedTheme, variables: themeVariables },
         "*"
       )
-    }, [theme, themeVariables])
+    }, [resolvedTheme, themeVariables])
 
     useEffect(() => {
       if (!iframeRef.current) return

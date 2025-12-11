@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react"
 import { useKeyPress } from "ahooks"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useTranslation } from "react-i18next"
 
 import { getDate, getToday, isDayPageId } from "@/lib/utils"
@@ -31,7 +31,7 @@ interface ShortcutAction {
 
 export function ShortCuts() {
   const { t } = useTranslation()
-  const { setTheme, theme } = useTheme()
+  const { setTheme, resolvedTheme } = useTheme()
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
   const {
@@ -76,7 +76,7 @@ export function ShortCuts() {
           break
 
         case "toggle-theme":
-          setTheme(theme === "dark" ? "light" : "dark")
+          setTheme(resolvedTheme === "dark" ? "light" : "dark")
           break
 
         case "toggle-ai-panel":
@@ -222,7 +222,7 @@ export function ShortCuts() {
     }
   }, [
     t,
-    theme,
+    resolvedTheme,
     isAiOpen,
     space,
     day,
@@ -260,7 +260,7 @@ export function ShortCuts() {
 
   useKeyPress(["shift.ctrl.l", "shift.meta.l"], (e) => {
     e.preventDefault()
-    setTheme(theme === "dark" ? "light" : "dark")
+    setTheme(resolvedTheme === "dark" ? "light" : "dark")
   })
 
   useKeyPress(["ctrl.alt.backslash", "meta.alt.backslash"], () => {

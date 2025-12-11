@@ -129,7 +129,6 @@ export const uiComponentsDependencies = {
   },
   "sonner": {
     "thirdPartyLibs": [
-      "next-themes",
       "sonner"
     ],
     "uiLibs": []

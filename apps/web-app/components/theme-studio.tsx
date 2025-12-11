@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { PlusCircle, TelescopeIcon, Trash2 } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useTranslation } from "react-i18next"
 
 import { useThemeStore } from "@/apps/web-app/store/theme-store"
@@ -22,7 +22,7 @@ interface ThemeFormData {
 export function ThemeStudio() {
   const { t } = useTranslation()
   const [error, setError] = useState<string | null>(null)
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
   const {
     setCurrentThemeName,
     currentThemeName,
@@ -44,7 +44,7 @@ export function ThemeStudio() {
     css: defaultTheme,
   })
 
-  const isDarkMode = theme === "dark"
+  const isDarkMode = resolvedTheme === "dark"
 
   // Handle keyboard navigation
   useEffect(() => {

@@ -10,7 +10,7 @@ import {
 import { useDynamicTheme } from "@/components/table/views/grid/theme"
 
 import "@glideapps/glide-data-grid/dist/index.css"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useCallback, useRef } from "react"
 
 interface DataGridProps {
@@ -74,8 +74,8 @@ const getCellContent = (
 
 export function DataGrid({ data, onDataChange }: DataGridProps) {
   const gridRef = useRef<HTMLDivElement>(null)
-  const { theme } = useTheme()
-  const _theme = useDynamicTheme(theme || "light")
+  const { resolvedTheme } = useTheme()
+  const _theme = useDynamicTheme(resolvedTheme || "light")
   const onCellEdited = useCallback(
     ([col, row]: Item, newValue: GridCell) => {
       if (newValue.kind !== GridCellKind.Text) return

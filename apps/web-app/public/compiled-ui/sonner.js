@@ -1,12 +1,34 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 "use client";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import { useTheme } from "next-themes";
 import { Toaster as Sonner } from "sonner";
+const getRootTheme = /* @__PURE__ */ __name(() => {
+  if (typeof document === "undefined") return "light";
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
+}, "getRootTheme");
+const useLocalTheme = /* @__PURE__ */ __name(() => {
+  const [theme, setTheme] = useState(getRootTheme);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const updateTheme = () => setTheme(getRootTheme());
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"]
+    });
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", updateTheme);
+    return () => {
+      observer.disconnect();
+      media.removeEventListener("change", updateTheme);
+    };
+  }, []);
+  return { theme };
+}, "useLocalTheme");
 const Toaster = /* @__PURE__ */ __name(({ ...props }) => {
-  const { theme = "system" } = useTheme();
+  const { theme } = useLocalTheme();
   return /* @__PURE__ */ React.createElement(
     Sonner,
     {

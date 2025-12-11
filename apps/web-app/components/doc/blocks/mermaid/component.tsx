@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getNodeByKey, type NodeKey } from "lexical"
 import { ChevronDown } from "lucide-react"
-import { useTheme } from "next-themes"
 
 import { isInkServiceMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
@@ -26,7 +25,6 @@ export interface MermaidProps {
 export const Mermaid: React.FC<MermaidProps> = ({ text, nodeKey }) => {
   const [mermaidText, setMermaidText] = useState<string>(text)
   const [mode, setMode] = useState<"preview" | "edit">("preview")
-  const { theme } = useTheme()
   const [open, setOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 

@@ -15,7 +15,7 @@ import {
   Wand2,
   Wrench,
 } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
@@ -55,7 +55,7 @@ export function CommandDialogDemo() {
     useAppRuntimeStore()
   const { openSettingsModal } = useSettings()
   const { input, setInput, mode } = useInput()
-  const { theme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
   const [secondaryView, setSecondaryView] = useState<SecondaryView>(null)
   const { resetTabs } = useFavBlocks()
@@ -96,7 +96,7 @@ export function CommandDialogDemo() {
   const goShare = goto("/share")
 
   const switchTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light"
+    const newTheme = resolvedTheme === "light" ? "dark" : "light"
     setTheme(newTheme)
   }
 

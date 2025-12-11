@@ -6,7 +6,7 @@ import {
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Trash } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import { Input } from "@/components/ui/input"
 import {
@@ -35,7 +35,7 @@ export const SelectOption = ({
     setOpen(false)
   }
 
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
   const handleColorChange = (e: any) => {
     onColorChange(option.id, e.target.dataset.color)
     e.stopPropagation()
@@ -77,7 +77,7 @@ export const SelectOption = ({
             style={{
               background: `${SelectField.getColorValue(
                 option.color,
-                theme as any
+                resolvedTheme as any
               )}`,
             }}
           >
@@ -106,7 +106,7 @@ export const SelectOption = ({
           </div>
           <div className="flex flex-col">
             <span className="pl-1 opacity-60">colors</span>
-            {SelectField.colors[theme as "light"].map((color) => (
+            {SelectField.colors[resolvedTheme as "light"].map((color) => (
               <div
                 data-color={color.name}
                 key={color.name}
