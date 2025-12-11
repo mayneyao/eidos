@@ -25,6 +25,10 @@ interface FileTreeContextMenuProps {
   onOpenInNewTab?: (node: FileTreeNode) => void
   onCopySlug?: (node: FileTreeNode) => void
   onCopyExtension?: (node: FileTreeNode) => void
+  onShareExtension?: (node: FileTreeNode) => void
+  onCopyExtensionCode?: (node: FileTreeNode) => void
+  onOpenExtensionStandalone?: (node: FileTreeNode) => void
+  onOpenExtensionDefaultBrowser?: (node: FileTreeNode) => void
   isMultiSelection?: boolean
   selectionCount?: number
   selectionHasDataview?: boolean
@@ -48,6 +52,10 @@ export const FileTreeContextMenu = ({
   onOpenInNewTab,
   onCopySlug,
   onCopyExtension,
+  onShareExtension,
+  onCopyExtensionCode,
+  onOpenExtensionStandalone,
+  onOpenExtensionDefaultBrowser,
   isMultiSelection = false,
   selectionCount = 1,
   selectionHasDataview = false,
@@ -82,6 +90,10 @@ export const FileTreeContextMenu = ({
         onCopySlug={onCopySlug}
         onCopy={onCopyExtension}
         onOpenInNewTab={onOpenInNewTab}
+        onShare={onShareExtension}
+        onCopyCode={onCopyExtensionCode}
+        onOpenStandalone={onOpenExtensionStandalone}
+        onOpenDefaultBrowser={onOpenExtensionDefaultBrowser}
         isMultiSelection={isMultiSelection}
         selectionCount={selectionCount}
       >

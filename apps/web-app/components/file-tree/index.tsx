@@ -113,6 +113,10 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     handleCreateFolder,
     handleCopySlug,
     handleCopyExtension,
+    handleShareExtension,
+    handleCopyExtensionCode,
+    handleOpenExtensionStandalone,
+    handleOpenExtensionDefaultBrowser,
   } = useFileTreeOperations(effectiveRootDir)
 
   const toggleNode = async (node: FileTreeNode) => {
@@ -571,6 +575,10 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           onCreateFolder={handleCreateFolder}
           onCopySlug={handleCopySlug}
           onCopyExtension={handleCopyExtension}
+          onShareExtension={handleShareExtension}
+          onCopyExtensionCode={handleCopyExtensionCode}
+          onOpenExtensionStandalone={handleOpenExtensionStandalone}
+          onOpenExtensionDefaultBrowser={handleOpenExtensionDefaultBrowser}
           onDragStart={(e) => handleDragStart(e, node)}
           onDragEnd={handleDragEnd}
           onDragOver={(e) => handleDragOver(e, node)}

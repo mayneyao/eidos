@@ -9,6 +9,8 @@ import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useToast } from "@/components/ui/use-toast"
+import { getExtensionUrl } from "@/lib/utils"
+import { isDesktopMode } from "@/lib/env"
 
 interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
@@ -154,18 +156,12 @@ export const useFileTreeOperations = (rootDir?: string) => {
   const handleOpenInNewTab = useCallback(
     (node: FileTreeNode) => {
       const nodeId = node.metadata?.nodeId
-      const extensionType = node.metadata?.extensionType
-
       if (isVirtualNodesPath && nodeId) {
         // Open node in new tab
         openTab(`/${nodeId}`, node.name)
       } else if (isVirtualExtensionsPath && nodeId) {
         // Open extension in new tab
-        if (extensionType === "block") {
-          openTab(`/blocks/${nodeId}`, node.name)
-        } else {
-          openTab(`/extensions/${nodeId}`, node.name)
-        }
+        openTab(`/extensions/${nodeId}`, node.name)
       } else {
         // For regular files, try to open with default handler
         // This might not work for all file types, but we can try
@@ -320,6 +316,87 @@ export const useFileTreeOperations = (rootDir?: string) => {
     [sqlite, navigate, toast]
   )
 
+  /**
+   * Share extension (open share flow on extension detail page)
+   */
+  const handleShareExtension = useCallback(
+    (node: FileTreeNode) => {
+      const nodeId = node.metadata?.nodeId
+      if (!nodeId) return
+
+      navigate(`/extensions/${nodeId}?action=share`)
+    },
+    [navigate]
+  )
+
+  /**
+   * Copy extension code/ts_code to clipboard
+   */
+  const handleCopyExtensionCode = useCallback(
+    async (node: FileTreeNode) => {
+      if (!sqlite) return
+      const nodeId = node.metadata?.nodeId
+      if (!nodeId) return
+
+      try {
+        const extension = await sqlite.extension.get(nodeId)
+        const codeToCopy = extension?.ts_code || extension?.code
+        if (!codeToCopy) {
+          toast({
+            title: "No code found",
+            description: "This extension does not have code to copy.",
+            variant: "destructive",
+          })
+          return
+        }
+        await navigator.clipboard.writeText(codeToCopy)
+      } catch (error) {
+        console.error("Failed to copy extension code:", error)
+        toast({
+          title: "Failed to copy code",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        })
+      }
+    },
+    [sqlite, toast]
+  )
+
+
+  /**
+   * Open extension in standalone window (block only)
+   */
+  const handleOpenExtensionStandalone = useCallback(
+    (node: FileTreeNode) => {
+      const nodeId = node.metadata?.nodeId
+      const extensionType = node.metadata?.extensionType
+      if (!nodeId || extensionType !== "block") return
+
+      const url = getExtensionUrl(nodeId, space)
+      window.open(url, "_blank")
+    },
+    [space]
+  )
+
+  /**
+   * Open extension in default browser (debug, desktop only)
+   */
+  const handleOpenExtensionDefaultBrowser = useCallback(
+    (node: FileTreeNode) => {
+      const nodeId = node.metadata?.nodeId
+      const extensionType = node.metadata?.extensionType
+      if (!nodeId || extensionType !== "block") return
+
+      const url = getExtensionUrl(nodeId, space)
+      if (isDesktopMode && (window as any)?.eidos?.openUrl) {
+        ; (window as any).eidos.openUrl(url)
+      } else {
+        window.open(url, "_blank")
+      }
+    },
+    [space]
+  )
+
   return {
     handleDelete,
     handlePin,
@@ -331,6 +408,10 @@ export const useFileTreeOperations = (rootDir?: string) => {
     handleCreateFolder,
     handleCopySlug,
     handleCopyExtension,
+    handleShareExtension,
+    handleCopyExtensionCode,
+    handleOpenExtensionStandalone,
+    handleOpenExtensionDefaultBrowser,
   }
 }
 

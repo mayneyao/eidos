@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import { Share2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -23,11 +23,15 @@ import { useExtensionMarketplace } from "../hooks/use-extension-marketplace"
 interface ShareExtensionButtonProps {
   script: IExtension
   onSuccess: () => void
+  autoOpen?: boolean
+  onAutoOpen?: () => void
 }
 
 export const ShareExtensionButton = ({
   script,
   onSuccess,
+  autoOpen = false,
+  onAutoOpen,
 }: ShareExtensionButtonProps) => {
   const { t } = useTranslation()
   const auth = useAuthOptional()
@@ -45,6 +49,14 @@ export const ShareExtensionButton = ({
     accessToken: auth?.accessToken,
   })
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+
+  // Auto-open share dialog when requested (e.g., from context menu navigation)
+  useEffect(() => {
+    if (autoOpen && !shareDialogOpen) {
+      setShareDialogOpen(true)
+      onAutoOpen?.()
+    }
+  }, [autoOpen, shareDialogOpen, onAutoOpen])
 
   const handleSubmitOrPublish = useCallback(async () => {
     if (!hasAuth) {

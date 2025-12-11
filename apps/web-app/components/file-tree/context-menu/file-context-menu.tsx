@@ -26,6 +26,7 @@ import {
   NativeContextMenuContent as ContextMenuContent,
   NativeContextMenuItem as ContextMenuItem,
   NativeContextMenuSeparator as ContextMenuSeparator,
+  NativeContextMenuShortcut,
   NativeContextMenuSub as ContextMenuSub,
   NativeContextMenuSubContent as ContextMenuSubContent,
   NativeContextMenuSubTrigger as ContextMenuSubTrigger,
@@ -204,7 +205,8 @@ export const FileContextMenu = ({
             {!isMultiSelection && onRename && (
               <ContextMenuItem onClick={() => onRename(node)}>
                 <PencilLineIcon className="mr-2 h-4 w-4" />
-                {t("node.menu.rename", "Rename")}
+                <span className="flex-1">{t("node.menu.rename", "Rename")}</span>
+                <NativeContextMenuShortcut>Enter</NativeContextMenuShortcut>
               </ContextMenuItem>
             )}
 

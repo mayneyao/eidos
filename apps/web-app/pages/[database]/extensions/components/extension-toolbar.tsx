@@ -27,7 +27,15 @@ export const openUrlViaDefaultBrowser = (url: string) => {
   window.eidos.openUrl(url)
 }
 
-const ExtensionToolbarContent = ({ script }: { script: IExtension }) => {
+const ExtensionToolbarContent = ({
+  script,
+  autoOpenShare = false,
+  onShareAutoOpened,
+}: {
+  script: IExtension
+  autoOpenShare?: boolean
+  onShareAutoOpened?: () => void
+}) => {
   const { t } = useTranslation()
   const { updateExtension } = useExtension()
   const editorRef = useRef<{ save: () => void; layout: () => void }>(null)
@@ -200,7 +208,7 @@ const ExtensionToolbarContent = ({ script }: { script: IExtension }) => {
           size="sm"
           onClick={handleOpenInStandalone}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          title="Open in standalone mode (Hold Alt/Option to open in default browser)"
+          title="Preview in new window (Hold Alt/Option to preview in default browser)"
         >
           <ExternalLink className="h-4 w-4" />
           {/* <span>Standalone</span> */}
@@ -211,6 +219,8 @@ const ExtensionToolbarContent = ({ script }: { script: IExtension }) => {
         onSuccess={() => {
           /* Data will auto-update */
         }}
+        autoOpen={autoOpenShare}
+        onAutoOpen={onShareAutoOpened}
       />
 
       {isScriptForkFromMarketplace && (
@@ -225,12 +235,28 @@ const ExtensionToolbarContent = ({ script }: { script: IExtension }) => {
 
 // Wrapper component
 export const ExtensionToolbar = () => {
-  const { params } = useRouterAdapter()
+  const { params, searchParams, setSearchParams } = useRouterAdapter()
   const script = useExtensionByIdOrSlug(params.scriptId)
+
+  const autoOpenShare = searchParams.get("action") === "share"
+
+  const handleShareAutoOpened = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete("action")
+      return next
+    })
+  }, [setSearchParams])
 
   if (!script) {
     return null
   }
 
-  return <ExtensionToolbarContent script={script} />
+  return (
+    <ExtensionToolbarContent
+      script={script}
+      autoOpenShare={autoOpenShare}
+      onShareAutoOpened={handleShareAutoOpened}
+    />
+  )
 }

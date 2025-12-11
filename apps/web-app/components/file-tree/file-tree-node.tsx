@@ -39,6 +39,10 @@ interface FileTreeNodeProps {
   onOpenInNewTab?: (node: FileTreeNodeType) => void
   onCopySlug?: (node: FileTreeNodeType) => void
   onCopyExtension?: (node: FileTreeNodeType) => void
+  onShareExtension?: (node: FileTreeNodeType) => void
+  onCopyExtensionCode?: (node: FileTreeNodeType) => void
+  onOpenExtensionStandalone?: (node: FileTreeNodeType) => void
+  onOpenExtensionDefaultBrowser?: (node: FileTreeNodeType) => void
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: (e: React.DragEvent) => void
   onDragOver?: (e: React.DragEvent) => void
@@ -81,6 +85,10 @@ export const FileTreeNode = ({
   onOpenInNewTab,
   onCopySlug,
   onCopyExtension,
+  onShareExtension,
+  onCopyExtensionCode,
+  onOpenExtensionStandalone,
+  onOpenExtensionDefaultBrowser,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -127,6 +135,24 @@ export const FileTreeNode = ({
         }
         onCopyExtension={
           node.metadata?.nodeType === "extension" ? onCopyExtension : undefined
+        }
+        onShareExtension={
+          node.metadata?.nodeType === "extension" ? onShareExtension : undefined
+        }
+        onCopyExtensionCode={
+          node.metadata?.nodeType === "extension"
+            ? onCopyExtensionCode
+            : undefined
+        }
+        onOpenExtensionStandalone={
+          node.metadata?.nodeType === "extension"
+            ? onOpenExtensionStandalone
+            : undefined
+        }
+        onOpenExtensionDefaultBrowser={
+          node.metadata?.nodeType === "extension"
+            ? onOpenExtensionDefaultBrowser
+            : undefined
         }
         isMultiSelection={isMultiSelection}
         selectionCount={selectionCount}
