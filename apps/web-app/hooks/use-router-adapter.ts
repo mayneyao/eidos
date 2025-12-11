@@ -69,13 +69,27 @@ export const useRouterAdapter = () => {
 
     const adapterNavigate = useCallback(
         (to: string | number, options?: { replace?: boolean; target?: "_blank" | "_self"; state?: any }) => {
-            if (inRouter && navigate) {
-                navigate(to as any, options)
-                return
+            const resolveUrl = (rawTo: string) => {
+                let newUrl = rawTo
+                const currentLocation = adapterLocationRef.current
+                if (!newUrl.startsWith("/") && !newUrl.startsWith("http")) {
+                    // Simple relative path handling
+                    const currentPath = currentLocation.pathname
+                    if (currentPath.endsWith("/")) {
+                        newUrl = currentPath + newUrl
+                    } else {
+                        newUrl = currentPath + "/" + newUrl
+                    }
+                }
+                return newUrl
             }
 
             if (typeof to === "number") {
-                // Delegate to the active tab's history stack
+                // Prefer router history when available
+                if (inRouter && navigate) {
+                    navigate(to as any, options)
+                    return
+                }
                 const { activeTabId: storeActiveTabId, goInTabHistory } = useTabStore.getState()
                 if (storeActiveTabId) {
                     goInTabHistory(storeActiveTabId, to)
@@ -83,22 +97,21 @@ export const useRouterAdapter = () => {
                 return
             }
 
-            // Parse options
             const replaceCurrentTab = options?.replace === true // Must explicitly set replace: true to replace current tab
             const forceNewTab = options?.target === "_blank"
 
-            // Resolve relative paths if needed
-            let newUrl = to as string
-            const currentLocation = adapterLocationRef.current
-            if (!newUrl.startsWith("/") && !newUrl.startsWith("http")) {
-                // Simple relative path handling
-                const currentPath = currentLocation.pathname
-                if (currentPath.endsWith("/")) {
-                    newUrl = currentPath + newUrl
-                } else {
-                    newUrl = currentPath + "/" + newUrl
-                }
+            if (forceNewTab) {
+                const { openTab: openTabAction } = useTabStore.getState()
+                openTabAction(resolveUrl(to))
+                return
             }
+
+            if (inRouter && navigate) {
+                navigate(to as any, options)
+                return
+            }
+
+            const newUrl = resolveUrl(to)
 
             // Default behavior: navigate within the active tab's history stack
             const {
@@ -109,11 +122,6 @@ export const useRouterAdapter = () => {
                 updateTab,
                 setNextNavigationOptions,
             } = useTabStore.getState()
-
-            if (forceNewTab) {
-                openTabAction(newUrl)
-                return
-            }
 
             const targetId = storeActiveTabId || tabs[0]?.id
 
