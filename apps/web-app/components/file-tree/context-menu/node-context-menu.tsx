@@ -190,7 +190,7 @@ export const NodeContextMenu = ({
               <ContextMenuItem onClick={() => onRename(node)}>
                 <PencilLineIcon className="mr-2 h-4 w-4" />
                 <span className="flex-1">{t("node.menu.rename", "Rename")}</span>
-                <NativeContextMenuShortcut>Enter</NativeContextMenuShortcut>
+                <NativeContextMenuShortcut>F2</NativeContextMenuShortcut>
               </ContextMenuItem>
             )}
 

@@ -139,7 +139,10 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     setExpandedNodes(newExpanded)
   }
 
-  const handleFileClick = (node: FileTreeNode, event?: React.MouseEvent) => {
+  const handleFileClick = (
+    node: FileTreeNode,
+    event?: React.MouseEvent | React.KeyboardEvent
+  ) => {
     // Determine navigation path
     let targetPath = ""
     if (node.metadata?.nodeType && node.metadata?.nodeType !== "extension") {
@@ -155,10 +158,15 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
     if (!targetPath) return
 
-    const openInNewTab = Boolean(
-      event?.metaKey || event?.ctrlKey || event?.button === 1
+    const isMouseEvent = event?.nativeEvent instanceof MouseEvent
+    const mouseButton =
+      isMouseEvent && event ? (event as React.MouseEvent).button : undefined
+    const shouldOpenInNewTab = Boolean(
+      isMouseEvent
+        ? event.metaKey || event.ctrlKey || mouseButton === 1
+        : event?.metaKey || event?.ctrlKey
     )
-    const target = openInNewTab ? "_blank" : undefined
+    const target = shouldOpenInNewTab ? "_blank" : undefined
 
     // Delegate to navigate with options (tab logic handled internally)
     navigate(targetPath, {
@@ -349,6 +357,85 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     []
   )
 
+  const focusNodeElement = useCallback((path: string) => {
+    const element = nodeRefs.current.get(path)
+    if (element) {
+      element.focus({ preventScroll: true })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedNode) return
+    if (renamingNode && renamingNode === selectedNode) return
+    focusNodeElement(selectedNode)
+  }, [selectedNode, renamingNode, focusNodeElement])
+
+  const focusAndSelect = useCallback(
+    (path: string) => {
+      if (!path) return
+      updateSelectionState(new Set([path]), path)
+      requestAnimationFrame(() => focusNodeElement(path))
+    },
+    [updateSelectionState, focusNodeElement]
+  )
+
+  const moveFocusByOffset = useCallback(
+    (currentPath: string, offset: number) => {
+      const currentIndex = flattenedPaths.indexOf(currentPath)
+      if (currentIndex === -1) return
+
+      const nextIndex = currentIndex + offset
+      if (nextIndex < 0 || nextIndex >= flattenedPaths.length) return
+
+      const targetPath = flattenedPaths[nextIndex]
+      focusAndSelect(targetPath)
+    },
+    [flattenedPaths, focusAndSelect]
+  )
+
+  const getNodeLevel = useCallback(
+    (index: number) => ((flattenedData[index] as any)?.level ?? 0),
+    [flattenedData]
+  )
+
+  const findParentPath = useCallback(
+    (path: string) => {
+      const currentIndex = flattenedPaths.indexOf(path)
+      if (currentIndex === -1) return null
+
+      const currentLevel = getNodeLevel(currentIndex)
+
+      for (let i = currentIndex - 1; i >= 0; i--) {
+        if (getNodeLevel(i) < currentLevel) {
+          return flattenedData[i].path
+        }
+      }
+
+      return null
+    },
+    [flattenedData, flattenedPaths, getNodeLevel]
+  )
+
+  const findFirstChildPath = useCallback(
+    (path: string) => {
+      const currentIndex = flattenedPaths.indexOf(path)
+      if (currentIndex === -1) return null
+
+      const nextNode = flattenedData[currentIndex + 1]
+      if (!nextNode) return null
+
+      const currentLevel = getNodeLevel(currentIndex)
+      const nextLevel = getNodeLevel(currentIndex + 1)
+
+      if (nextLevel === currentLevel + 1) {
+        return nextNode.path
+      }
+
+      return null
+    },
+    [flattenedData, flattenedPaths, getNodeLevel]
+  )
+
   useEffect(() => {
     const handleExpandToSelect = (event: Event) => {
       const customEvent = event as CustomEvent<{ path?: string }>
@@ -382,7 +469,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
   const applySelection = (
     node: FileTreeNode,
-    event?: React.MouseEvent,
+    event?: React.MouseEvent | React.KeyboardEvent,
     options?: { viaContextMenu?: boolean; forceSingleSelection?: boolean }
   ) => {
     const viaContextMenu = options?.viaContextMenu ?? false
@@ -432,7 +519,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const handleRowClick = (
     node: FileTreeNode,
     hasChildren: boolean,
-    event: React.MouseEvent
+    event: React.MouseEvent | React.KeyboardEvent
   ) => {
     // If currently renaming, cancel the rename first
     if (renamingNode) {
@@ -440,8 +527,15 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       return
     }
 
-    const openInNewTab =
-      event.metaKey || event.ctrlKey || event.button === 1 /* middle click */
+    let openInNewTab = false
+    if (event.nativeEvent instanceof MouseEvent) {
+      const mouseEvent = event as React.MouseEvent
+      openInNewTab =
+        mouseEvent.metaKey ||
+        mouseEvent.ctrlKey ||
+        mouseEvent.button === 1 /* middle click */
+    }
+
     const hasSelectionModifier = event.shiftKey
 
     applySelection(node, event, { forceSingleSelection: openInNewTab })
@@ -467,6 +561,70 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       return
     }
     applySelection(node, event, { viaContextMenu: true })
+  }
+
+  const handleRowKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+    node: FileTreeNode,
+    hasChildren: boolean,
+    isExpanded: boolean
+  ) => {
+    if (renamingNode === node.path) return
+
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault()
+        moveFocusByOffset(node.path, 1)
+        return
+      case "ArrowUp":
+        event.preventDefault()
+        moveFocusByOffset(node.path, -1)
+        return
+      case "ArrowRight":
+        if (hasChildren) {
+          event.preventDefault()
+          if (!isExpanded) {
+            toggleNode(node)
+          } else {
+            const firstChildPath = findFirstChildPath(node.path)
+            if (firstChildPath) {
+              focusAndSelect(firstChildPath)
+            }
+          }
+        }
+        return
+      case "ArrowLeft": {
+        event.preventDefault()
+        if (hasChildren && isExpanded) {
+          toggleNode(node)
+        } else {
+          const parentPath = findParentPath(node.path)
+          if (parentPath) {
+            focusAndSelect(parentPath)
+          }
+        }
+        return
+      }
+      case "Home":
+        event.preventDefault()
+        if (flattenedPaths.length) {
+          focusAndSelect(flattenedPaths[0])
+        }
+        return
+      case "End":
+        event.preventDefault()
+        if (flattenedPaths.length) {
+          focusAndSelect(flattenedPaths[flattenedPaths.length - 1])
+        }
+        return
+      case "Enter":
+      case " ":
+        event.preventDefault()
+        handleRowClick(node, hasChildren, event)
+        return
+      default:
+        return
+    }
   }
 
   const handleDeleteRequest = (node: FileTreeNode) => {
@@ -495,7 +653,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     })()
   }
 
-  const renderTreeNode = (node: FileTreeNode) => {
+  const renderTreeNode = (node: FileTreeNode, index: number) => {
     // Cast to any to access level property added by flattenTree
     const level = (node as any).level || 0
 
@@ -543,17 +701,22 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       ? "truncate text-foreground"
       : "truncate text-muted-foreground italic"
 
+    const isActive = selectedNode
+      ? selectedNode === node.path
+      : index === 0
+
+    const setNodeRef = (el: HTMLDivElement | null) => {
+      if (el) {
+        nodeRefs.current.set(node.path, el)
+      } else {
+        nodeRefs.current.delete(node.path)
+      }
+    }
+
     return (
       <div
         key={node.path}
         data-path={node.path}
-        ref={(el) => {
-          if (el) {
-            nodeRefs.current.set(node.path, el)
-          } else {
-            nodeRefs.current.delete(node.path)
-          }
-        }}
       >
         <FileTreeNode
           node={node}
@@ -568,10 +731,18 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
           displayName={displayName}
           nameClassName={nameClassName}
           hasChildren={hasChildren}
+          isActive={isActive}
+          ariaLevel={level + 1}
+          ariaSelected={isSelected}
+          ariaExpanded={hasChildren ? isExpanded : undefined}
           isVirtualNode={isVirtualNode}
           isPinned={isPinned}
+          nodeRef={setNodeRef}
           onToggle={() => toggleNode(node)}
           onRowClick={(event) => handleRowClick(node, hasChildren, event)}
+          onRowKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) =>
+            handleRowKeyDown(event, node, hasChildren, isExpanded)
+          }
           onRowContextMenu={(event) =>
             handleContextMenuSelection(node, event)
           }
@@ -612,12 +783,14 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     <>
       <div
         ref={treeContainerRef}
+        role="tree"
+        aria-multiselectable="true"
         className={cn(
           "space-y-1 px-4 bg-sidebar",
           !isNodesMode && "h-full overflow-y-auto"
         )}
       >
-        {flattenedData.map((node) => renderTreeNode(node))}
+        {flattenedData.map((node, index) => renderTreeNode(node, index))}
       </div>
 
       <AlertDialog

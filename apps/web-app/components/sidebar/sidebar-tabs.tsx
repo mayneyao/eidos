@@ -158,18 +158,16 @@ export const SidebarTabs = () => {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const handleTabClick = (tabId: string, event?: React.MouseEvent) => {
-    const target = event && (event.metaKey || event.ctrlKey || event.altKey)
-      ? "_blank"
-      : undefined
+    const target =
+      event && (event.metaKey || event.ctrlKey || event.altKey)
+        ? "_blank"
+        : undefined
     const tabConfig = TAB_CONFIG[tabId]
 
     if (tabConfig?.isNavigation && tabConfig?.href) {
       // Navigation type tab - set current app and navigate
       setCurrentApp(tabId as SidebarApp)
-      const href =
-        tabId === "today"
-          ? `/journals/${new Date().toLocaleDateString("en-CA")}`
-          : tabConfig.href
+      const href = tabConfig.href
       navigate(href, { target })
     } else {
       // Regular tab or block tab

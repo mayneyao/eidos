@@ -35,8 +35,8 @@ export const useFileTreeKeyboard = ({
         return
       }
 
-      // Enter key to start rename
-      if (e.key === "Enter" && selectedNode) {
+      // Use F2 to start rename to avoid conflicting with navigation Enter/Space
+      if (e.key === "F2" && selectedNode) {
         e.preventDefault()
         e.stopPropagation()
         onRename(selectedNode)

@@ -21,10 +21,16 @@ interface FileTreeNodeProps {
   displayName: string
   nameClassName: string
   hasChildren: boolean
+  isActive: boolean
+  ariaLevel: number
+  ariaSelected: boolean
+  ariaExpanded?: boolean
   isVirtualNode: boolean
   isPinned: boolean
+  nodeRef?: (el: HTMLDivElement | null) => void
   onToggle: () => void
-  onRowClick: (event: React.MouseEvent) => void
+  onRowClick: (event: React.MouseEvent | React.KeyboardEvent) => void
+  onRowKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
   onRowContextMenu?: (event: React.MouseEvent) => void
   onRename: (node: FileTreeNodeType) => void
   onRenameConfirm: (newName: string) => void
@@ -67,10 +73,16 @@ export const FileTreeNode = ({
   displayName,
   nameClassName,
   hasChildren,
+  isActive,
+  ariaLevel,
+  ariaSelected,
+  ariaExpanded,
   isVirtualNode,
   isPinned,
+  nodeRef,
   onToggle,
   onRowClick,
+  onRowKeyDown,
   onRowContextMenu,
   onRename,
   onRenameConfirm,
@@ -159,6 +171,12 @@ export const FileTreeNode = ({
         selectionHasDataview={selectionHasDataview}
       >
         <div
+          ref={nodeRef}
+          role="treeitem"
+          aria-level={ariaLevel}
+          aria-selected={ariaSelected}
+          aria-expanded={hasChildren ? ariaExpanded : undefined}
+          tabIndex={isActive ? 0 : -1}
           className={`flex items-center rounded transition-colors cursor-pointer select-none ${
             isSelected
               ? "bg-primary/10 ring-1 ring-primary/60 shadow-[0_0_0_1px_var(--primary)/20]"
@@ -175,6 +193,7 @@ export const FileTreeNode = ({
           onDrop={canDrop ? onDrop : undefined}
           onClick={onRowClick}
           onContextMenu={onRowContextMenu}
+          onKeyDown={onRowKeyDown}
         >
           <div style={{ width: level * 18 }} className="flex-shrink-0" />
           <div className="w-4 flex-shrink-0 flex items-center justify-center">
