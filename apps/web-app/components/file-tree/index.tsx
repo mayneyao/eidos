@@ -155,8 +155,10 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
     if (!targetPath) return
 
-    // Use Alt/Option to open in new tab (Cmd/Ctrl is reserved for multi-select)
-    const target = event?.altKey ? "_blank" : undefined
+    const openInNewTab = Boolean(
+      event?.metaKey || event?.ctrlKey || event?.button === 1
+    )
+    const target = openInNewTab ? "_blank" : undefined
 
     // Delegate to navigate with options (tab logic handled internally)
     navigate(targetPath, {
@@ -381,13 +383,19 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
   const applySelection = (
     node: FileTreeNode,
     event?: React.MouseEvent,
-    options?: { viaContextMenu?: boolean }
+    options?: { viaContextMenu?: boolean; forceSingleSelection?: boolean }
   ) => {
     const viaContextMenu = options?.viaContextMenu ?? false
+    const forceSingleSelection = options?.forceSingleSelection ?? false
     const path = node.path
     const isShift = Boolean(event?.shiftKey)
     const isMeta = Boolean(event?.metaKey || event?.ctrlKey)
     const anchorPath = selectionAnchor || selectedNode || path
+
+    if (forceSingleSelection) {
+      updateSelectionState(new Set([path]), path)
+      return
+    }
 
     // Preserve existing multi-selection on context menu when already selected
     if (viaContextMenu && selectedNodes.has(path)) {
@@ -432,15 +440,17 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
       return
     }
 
-    applySelection(node, event)
+    const openInNewTab =
+      event.metaKey || event.ctrlKey || event.button === 1 /* middle click */
+    const hasSelectionModifier = event.shiftKey
 
-    const hasModifier = event.metaKey || event.ctrlKey || event.shiftKey
+    applySelection(node, event, { forceSingleSelection: openInNewTab })
 
     if (hasChildren) {
-      if (!hasModifier) {
+      if (!hasSelectionModifier && !openInNewTab) {
         toggleNode(node)
       }
-    } else if (!hasModifier) {
+    } else if (!hasSelectionModifier) {
       handleFileClick(node, event)
     }
   }
@@ -449,9 +459,12 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     node: FileTreeNode,
     event: React.MouseEvent
   ) => {
-    // Prevent React warnings for unused event in future handlers
-    if (event) {
-      // no-op
+    // Ignore ctrl/meta + left click opening the native menu; still toggle selection
+    if ((event.ctrlKey || event.metaKey) && event.button === 0) {
+      event.preventDefault()
+      event.stopPropagation()
+      applySelection(node, event)
+      return
     }
     applySelection(node, event, { viaContextMenu: true })
   }
