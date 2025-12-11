@@ -2,6 +2,7 @@ import type { WebContentsViewConstructorOptions } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import os from "node:os";
 import path from 'path';
+import { debounce } from '@/lib/lodash';
 import { getConfigManager } from '../config';
 import { PORT } from '../main';
 import { setupGeolocationHandler } from '../services/geolocation';
@@ -61,7 +62,7 @@ export function createWindow(spaceId?: string) {
     }
 
     const win = new BrowserWindow(baseWindowConfig);
-    const persistWindowState = () => {
+    const saveWindowState = () => {
         if (win.isDestroyed()) return;
         const bounds = win.isMaximized() ? win.getNormalBounds() : win.getBounds();
         configManager.set('windowState', {
@@ -69,6 +70,8 @@ export function createWindow(spaceId?: string) {
             isMaximized: win.isMaximized(),
         });
     };
+    // Debounce to avoid excessive config writes during resize/move
+    const persistWindowState = debounce(saveWindowState, 200);
 
     if (savedWindowState?.isMaximized) {
         win.maximize();
@@ -76,7 +79,7 @@ export function createWindow(spaceId?: string) {
 
     win.on('resize', persistWindowState);
     win.on('move', persistWindowState);
-    win.on('close', persistWindowState);
+    win.on('close', saveWindowState);
     const windowManager = new WindowManager(win)
 
     // Set up geolocation permission handler
