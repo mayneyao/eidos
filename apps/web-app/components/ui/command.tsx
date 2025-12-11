@@ -20,10 +20,12 @@ const Command = React.forwardRef<
 ))
 Command.displayName = CommandPrimitive.displayName
 
-const CommandDialog = ({
+type CommandDialogProps = React.ComponentProps<typeof Dialog>
+
+const CommandDialog: React.FC<CommandDialogProps> = ({
   children,
   ...props
-}: React.ComponentProps<typeof Dialog>) => {
+}) => {
   return (
     <Dialog {...props}>
       <DialogContent className="overflow-hidden p-0">
@@ -142,7 +144,13 @@ CommandShortcut.displayName = "CommandShortcut"
 
 export {
   Command,
-  CommandDialog, CommandEmpty,
-  CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
 }
 

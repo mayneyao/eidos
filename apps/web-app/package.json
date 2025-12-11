@@ -12,7 +12,8 @@
     "build": "NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "generate-icons": "node scripts/generate-icons.cjs",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",

@@ -5,10 +5,11 @@ import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils"
 
-const Drawer = ({
+type DrawerProps = React.ComponentProps<typeof DrawerPrimitive.Root>
+const Drawer: React.FC<DrawerProps> = ({
   shouldScaleBackground = true,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
+}) => (
   <DrawerPrimitive.Root
     shouldScaleBackground={shouldScaleBackground}
     {...props}
@@ -16,11 +17,14 @@ const Drawer = ({
 )
 Drawer.displayName = "Drawer"
 
-const DrawerTrigger = DrawerPrimitive.Trigger as typeof DrawerPrimitive.Trigger
+type DrawerTriggerComponent = typeof DrawerPrimitive.Trigger
+const DrawerTrigger: DrawerTriggerComponent = DrawerPrimitive.Trigger
 
-const DrawerPortal = DrawerPrimitive.Portal as typeof DrawerPrimitive.Portal
+type DrawerPortalComponent = typeof DrawerPrimitive.Portal
+const DrawerPortal: DrawerPortalComponent = DrawerPrimitive.Portal
 
-const DrawerClose = DrawerPrimitive.Close as typeof DrawerPrimitive.Close
+type DrawerCloseComponent = typeof DrawerPrimitive.Close
+const DrawerClose: DrawerCloseComponent = DrawerPrimitive.Close
 
 const DrawerOverlay: React.ForwardRefExoticComponent<
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay> & React.RefAttributes<React.ElementRef<typeof DrawerPrimitive.Overlay>>

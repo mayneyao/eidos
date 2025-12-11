@@ -12,6 +12,7 @@
     "dev": "bun run src/index.ts",
     "build": "bun build src/index.ts --compile --outfile dist/eidos && bash -c 'if [ -d dist-sqlite-ext ]; then cp -r dist-sqlite-ext dist/; echo \"✓ Copied extensions to dist/\"; else echo \"⚠️  No extensions found. Run: bun run setup\"; fi'",
     "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
     "clean": "rm -rf dist dist-sqlite-ext"
   },
   "keywords": [

@@ -8,7 +8,9 @@
     "dev:simple": "vite --config vite.config.ts simple.html",
     "build": "vite build",
     "build:simple": "vite build --config vite.config.ts simple.html",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit"
   },
   "dependencies": {
     "react": "^18.2.0",

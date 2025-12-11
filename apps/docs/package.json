@@ -9,7 +9,9 @@
     "preview": "astro preview",
     "deploy": "wrangler deploy",
     "deploy:preview": "wrangler deploy --env preview",
-    "astro": "astro"
+    "astro": "astro",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.4.1",

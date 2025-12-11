@@ -21,6 +21,7 @@
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "typecheck": "pnpm run --recursive typecheck",
+    "typecheck:tsgo": "pnpm run --recursive typecheck:tsgo",
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
     "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
     "patch": "node scripts/version.cjs patch",
@@ -32,6 +33,7 @@
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "^3.7.2",
     "@types/node": "^20.19.1",
+    "@typescript/native-preview": "7.0.0-dev.20251210.1",
     "@vitejs/plugin-react": "^4.7.0",
     "oxlint": "^1.3.0",
     "prettier": "^3.5.3",

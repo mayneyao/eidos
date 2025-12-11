@@ -165,11 +165,11 @@ export const TagsValue = ({
 
 export type TagsContentProps = ComponentProps<typeof PopoverContent>
 
-export const TagsContent = ({
+export const TagsContent: React.FC<TagsContentProps> = ({
   className,
   children,
   ...props
-}: TagsContentProps) => {
+}) => {
   const { width } = useTagsContext()
 
   return (

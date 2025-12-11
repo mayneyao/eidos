@@ -16,7 +16,6 @@
     "strictNullChecks": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "baseUrl": ".",
     "paths": {
       "@/locales/*": ["../../packages/locales/*"],
       "@/worker/*": ["../../packages/worker/*"],

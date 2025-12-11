@@ -12,7 +12,8 @@
   "scripts": {
     "build": "tsdown",
     "prepublishOnly": "npm run build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit"
   },
   "type": "module",
   "publishConfig": {
