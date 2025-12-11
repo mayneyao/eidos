@@ -1,35 +1,23 @@
 import { useCallback, useState } from "react"
-import type {
-  FileHandlerMeta,
-  IExtension,
-} from "@/packages/core/types/IExtension"
+import type { FileHandlerMeta } from "@/packages/core/types/IExtension"
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import {
-  Download,
+  CopyIcon,
   FileCodeIcon,
   FileIcon,
   FolderOpen,
-  HomeIcon,
   LockIcon,
   LockOpenIcon,
   MailIcon,
-  MessageSquareIcon,
-  MoreHorizontal,
   MoveHorizontal,
-  PackageIcon,
   PanelRightIcon,
-  Trash2Icon,
-  X,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { URLS } from "@/lib/const"
-import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { isDayPageId } from "@/lib/utils"
-import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
+import { useFileHandlers } from "@/hooks/use-file-handlers"
 import { useFileItemActions } from "@/hooks/use-file-item-actions"
 import { useSqlite } from "@/hooks/use-sqlite"
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -38,30 +26,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-// import {
-//   ContextMenu,
-//   ContextMenuContent,
-//   ContextMenuItem,
-//   ContextMenuSeparator,
-//   ContextMenuShortcut,
-//   ContextMenuSub,
-//   ContextMenuSubContent,
-//   ContextMenuSubTrigger,
-//   ContextMenuTrigger,
-// } from "@/components/ui/context-menu"
-
 import {
   NativeContextMenu as ContextMenu,
   NativeContextMenuContent as ContextMenuContent,
@@ -76,12 +40,21 @@ import {
 import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { NodeUpdateTime } from "@/components/nav/node-update-time"
 import { useExperimentConfigStore } from "@/components/settings/stores"
+// import {
+//   ContextMenu,
+//   ContextMenuContent,
+//   ContextMenuItem,
+//   ContextMenuSeparator,
+//   ContextMenuShortcut,
+//   ContextMenuSub,
+//   ContextMenuSubContent,
+//   ContextMenuSubTrigger,
+//   ContextMenuTrigger,
+// } from "@/components/ui/context-menu"
+
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useEmbedding } from "@/apps/web-app/hooks/use-embedding"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
-import { useOpenInPlayground } from "@/apps/web-app/hooks/use-open-in-playground"
-import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
 import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
 import { useHandlerSelection } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-handler-selection"
@@ -93,9 +66,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import { CopyShowHide } from "../copy-show-hide"
-import { NodeMoveInto } from "../node-menu/move-into"
 import { NodeExportContextMenu } from "../node-menu/node-export"
-import { NodeOpenInCursor } from "../node-menu/open-in-cursor"
 import { Switch } from "../ui/switch"
 import { useToast } from "../ui/use-toast"
 import { VCardQrCode } from "../vcard-qr-code"
@@ -252,6 +223,35 @@ export function TabContextMenu({
   const { experiment } = useExperimentConfigStore()
   const { space } = useCurrentPathInfo()
   const { toast } = useToast()
+  const handleCopyFilePath = useCallback(async () => {
+    if (!filePath) return
+
+    if (!navigator?.clipboard?.writeText) {
+      toast({
+        title: t("file.menu.copyFilePathUnavailable", "Cannot copy file path"),
+        description: t(
+          "file.menu.copyFilePathUnavailableDesc",
+          "Clipboard access is not available."
+        ),
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(filePath)
+      toast({
+        title: t("file.menu.copyFilePath", "Copied file path"),
+        description: filePath,
+      })
+    } catch (error) {
+      toast({
+        title: t("file.menu.copyFilePathError", "Failed to copy file path"),
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
+    }
+  }, [filePath, t, toast])
   const updateTab = useTabStore((state) => state.updateTab)
 
   // Custom navigate function for tab context
@@ -279,40 +279,6 @@ export function TabContextMenu({
   const { openInFileManager, openWith, viewExtension } =
     useFileItemActions(fileActionsContext)
 
-  const onPlaygroundChange = useCallback(
-    async (
-      filename: string,
-      content: string,
-      spaceName: string,
-      blockId: string
-    ) => {
-      if (spaceName !== space || !node || blockId !== node.id) {
-        return
-      }
-      const res = await sqlite?.doc.createOrUpdate({
-        id: node.id,
-        text: content,
-        type: "markdown",
-        mode: "replace",
-      })
-      console.log("res", res)
-      if (res?.success) {
-        toast({
-          title: res.msg,
-        })
-        console.log(`Document ${filename} changed in playground`)
-
-        // Trigger custom event to refresh the editor
-        window.dispatchEvent(
-          new CustomEvent("eidos-doc-refresh", {
-            detail: { docId: node.id },
-          })
-        )
-      }
-    },
-    [node, space, sqlite, toast]
-  )
-
   const handleAddToPanel = () => {
     if (!node) return
     // Create node app URL in the format node://<nodeid>@<space>
@@ -337,8 +303,6 @@ export function TabContextMenu({
             <ContextMenuShortcut>Command+W</ContextMenuShortcut>
           </ContextMenuItem>
 
-          <ContextMenuSeparator />
-
           <ContextMenuItem onClick={onCloseOthers} disabled={isOnlyTab}>
             Close Others
           </ContextMenuItem>
@@ -347,20 +311,7 @@ export function TabContextMenu({
             Close Tabs to the Right
           </ContextMenuItem>
 
-          <ContextMenuSeparator />
-
           <ContextMenuItem onClick={onCloseAll}>Close All</ContextMenuItem>
-
-          {/* Context-specific operations */}
-          {showViewExtension && (
-            <>
-              <ContextMenuSeparator />
-              <ContextMenuItem onClick={viewExtension}>
-                <FileCodeIcon className="mr-2 h-4 w-4" />
-                <span>{viewExtensionText}</span>
-              </ContextMenuItem>
-            </>
-          )}
 
           {/* Open with submenu (file-handler page with multiple handlers) */}
           {showOpenWith && (
@@ -391,10 +342,25 @@ export function TabContextMenu({
             </>
           )}
 
-          {/* Open file in file manager (file-handler page only) */}
+          {/* Context-specific operations */}
+          {showViewExtension && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem onClick={viewExtension}>
+                <FileCodeIcon className="mr-2 h-4 w-4" />
+                <span>{viewExtensionText}</span>
+              </ContextMenuItem>
+            </>
+          )}
+
+          {/* File-handler specific file operations */}
           {isFileHandlerPage && filePath && (
             <>
               <ContextMenuSeparator />
+              <ContextMenuItem onClick={handleCopyFilePath}>
+                <CopyIcon className="mr-2 h-4 w-4" />
+                <span>{t("file.menu.copyFilePath", "Copy file path")}</span>
+              </ContextMenuItem>
               <ContextMenuItem onClick={openInFileManager}>
                 <FolderOpen className="mr-2 h-4 w-4" />
                 <span>{getRevealText()}</span>
