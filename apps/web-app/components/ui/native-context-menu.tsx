@@ -55,45 +55,98 @@ type NativeMenuItem =
       enabled?: boolean
   }
 
+const isNativeMenuItem = (
+  item: NativeMenuItem | null | undefined
+): item is NativeMenuItem => Boolean(item)
+
 // Hook to collect menu items using refs (avoiding state updates)
 const useMenuCollector = () => {
   const itemsRef = React.useRef<Map<string, NativeMenuItem>>(new Map())
   const submenusRef = React.useRef<Map<string, { trigger: NativeMenuItem, items: NativeMenuItem[] }>>(new Map())
   const orderRef = React.useRef<string[]>([])
+  const labelIndexRef = React.useRef<Map<string, string>>(new Map())
 
-  React.useEffect(() => {
-    return () => {
-      itemsRef.current.clear()
-      submenusRef.current.clear()
-      orderRef.current = []
+  const getDedupeKey = React.useCallback((item: NativeMenuItem) => {
+    if (item.type === 'separator') return null
+    if (item.type === 'submenu') return `submenu:${item.label}`
+    if ('label' in item && item.label) {
+      return `${item.type}:${item.label}`
     }
+    return null
   }, [])
 
-  const registerItem = React.useCallback((id: string, item: NativeMenuItem, onClick?: () => void) => {
-    itemsRef.current.set(id, item)
-    if (!orderRef.current.includes(id)) {
-      orderRef.current.push(id)
-    }
-  }, [])
-
-  const unregisterItem = React.useCallback((id: string) => {
+  const removeById = React.useCallback((id: string) => {
     itemsRef.current.delete(id)
     submenusRef.current.delete(id)
     const index = orderRef.current.indexOf(id)
     if (index > -1) {
       orderRef.current.splice(index, 1)
     }
+    // Remove any label index pointing to this id
+    labelIndexRef.current.forEach((value, key) => {
+      if (value === id) {
+        labelIndexRef.current.delete(key)
+      }
+    })
   }, [])
 
+  React.useEffect(() => {
+    return () => {
+      itemsRef.current.clear()
+      submenusRef.current.clear()
+      orderRef.current = []
+      labelIndexRef.current.clear()
+    }
+  }, [])
+
+  const registerItem = React.useCallback((id: string, item: NativeMenuItem, onClick?: () => void) => {
+    const dedupeKey = getDedupeKey(item)
+    if (dedupeKey) {
+      const existingId = labelIndexRef.current.get(dedupeKey)
+      if (existingId && existingId !== id) {
+        removeById(existingId)
+      }
+      labelIndexRef.current.set(dedupeKey, id)
+    }
+
+    // Ensure stale registrations are removed before adding the latest one
+    removeById(id)
+    itemsRef.current.set(id, item)
+    if (!orderRef.current.includes(id)) {
+      orderRef.current.push(id)
+    }
+  }, [getDedupeKey, removeById])
+
+  const unregisterItem = React.useCallback((id: string) => {
+    removeById(id)
+  }, [removeById])
+
   const registerSubmenu = React.useCallback((triggerId: string, trigger: NativeMenuItem, items: NativeMenuItem[]) => {
+    const dedupeKey = getDedupeKey(trigger)
+    if (dedupeKey) {
+      const existingId = labelIndexRef.current.get(dedupeKey)
+      if (existingId && existingId !== triggerId) {
+        removeById(existingId)
+      }
+      labelIndexRef.current.set(dedupeKey, triggerId)
+    }
+
+    removeById(triggerId)
     submenusRef.current.set(triggerId, { trigger, items })
     if (!orderRef.current.includes(triggerId)) {
       orderRef.current.push(triggerId)
     }
-  }, [])
+  }, [getDedupeKey, removeById])
 
-  const getMenuItems = React.useCallback(() => {
+  const getMenuItems = React.useCallback<() => NativeMenuItem[]>(() => {
+    const seenIds = new Set<string>()
+
     return orderRef.current.map(id => {
+      if (seenIds.has(id)) {
+        return null
+      }
+      seenIds.add(id)
+
       if (submenusRef.current.has(id)) {
         const submenu = submenusRef.current.get(id)!
         // Assume trigger is a text item
@@ -109,7 +162,7 @@ const useMenuCollector = () => {
       } else {
         return itemsRef.current.get(id)!
       }
-    }).filter(Boolean)
+    }).filter(isNativeMenuItem)
   }, [])
 
   return { registerItem, unregisterItem, registerSubmenu, getMenuItems }
@@ -638,8 +691,42 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
   const itemsRef = React.useRef<Map<string, NativeMenuItem>>(new Map())
   const clickHandlersRef = React.useRef<Map<string, () => void>>(new Map())
   const orderRef = React.useRef<string[]>([])
+  const labelIndexRef = React.useRef<Map<string, string>>(new Map())
+
+  const getDedupeKey = React.useCallback((item: NativeMenuItem) => {
+    if (item.type === 'separator') return null
+    if (item.type === 'submenu') return `submenu:${item.label}`
+    if ('label' in item && item.label) {
+      return `${item.type}:${item.label}`
+    }
+    return null
+  }, [])
+
+  const removeById = React.useCallback((id: string) => {
+    itemsRef.current.delete(id)
+    clickHandlersRef.current.delete(id)
+    const index = orderRef.current.indexOf(id)
+    if (index > -1) {
+      orderRef.current.splice(index, 1)
+    }
+    labelIndexRef.current.forEach((value, key) => {
+      if (value === id) {
+        labelIndexRef.current.delete(key)
+      }
+    })
+  }, [])
 
   const registerItem = React.useCallback((id: string, item: NativeMenuItem, onClick?: () => void) => {
+    const dedupeKey = getDedupeKey(item)
+    if (dedupeKey) {
+      const existingId = labelIndexRef.current.get(dedupeKey)
+      if (existingId && existingId !== id) {
+        removeById(existingId)
+      }
+      labelIndexRef.current.set(dedupeKey, id)
+    }
+
+    removeById(id)
     itemsRef.current.set(id, item)
     if (onClick) {
       clickHandlersRef.current.set(id, onClick)
@@ -648,20 +735,25 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
       orderRef.current.push(id)
     }
     onItemsChange?.()
-  }, [onItemsChange])
+  }, [getDedupeKey, onItemsChange, removeById])
 
   const unregisterItem = React.useCallback((id: string) => {
-    itemsRef.current.delete(id)
-    clickHandlersRef.current.delete(id)
-    const index = orderRef.current.indexOf(id)
-    if (index > -1) {
-      orderRef.current.splice(index, 1)
-    }
+    removeById(id)
     onItemsChange?.()
-  }, [onItemsChange])
+  }, [onItemsChange, removeById])
 
-  const getItems = React.useCallback(() => {
-    return orderRef.current.map(id => itemsRef.current.get(id)!).filter(Boolean)
+  const getItems = React.useCallback<() => NativeMenuItem[]>(() => {
+    const seenIds = new Set<string>()
+
+    return orderRef.current
+      .map(id => {
+        if (seenIds.has(id)) {
+          return null
+        }
+        seenIds.add(id)
+        return itemsRef.current.get(id)!
+      })
+      .filter(isNativeMenuItem)
   }, [])
 
   const getClickHandlers = React.useCallback(() => {
