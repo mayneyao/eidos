@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import type {
   InitialConfigType} from "@lexical/react/LexicalComposer";
@@ -55,12 +55,19 @@ interface EditorProps {
   topComponent?: React.ReactNode
   coverComponent?: React.ReactNode
   propertyComponent?: React.ReactNode
+  renderTitle?: (params: {
+    title: string
+    setTitle: (value: string) => void
+    inputRef: React.RefObject<HTMLInputElement>
+    canChangeTitle: boolean
+  }) => React.ReactNode
 }
 
 export function PureEditor(props: EditorProps) {
   const canChangeTitle = props.onTitleChange !== undefined
   const ref = React.useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState(props.title ?? "")
+  const titleInputRef = useRef<HTMLInputElement>(null)
 
   const { isToolbarVisible } = useEditorStore()
   const [floatingAnchorElem, setFloatingAnchorElem] =
@@ -93,6 +100,39 @@ export function PureEditor(props: EditorProps) {
     setTitle(props.title ?? "")
   }, [props.title])
 
+  const titleSection =
+    props.showTitle &&
+    (props.renderTitle ? (
+      props.renderTitle({
+        title,
+        setTitle,
+        inputRef: titleInputRef,
+        canChangeTitle,
+      })
+    ) : (
+      <div className="mb-4 flex w-full items-baseline">
+        {props.beforeTitle && <div>{props.beforeTitle}</div>}
+        <input
+          id="doc-title"
+          placeholder="Untitled"
+          className="h-[50px] w-[90%] truncate bg-transparent text-4xl font-bold text-primary outline-none"
+          value={title}
+          title={title}
+          style={props.titleStyle}
+          autoComplete="off"
+          disabled={!canChangeTitle}
+          ref={titleInputRef}
+          onKeyDown={(e) => {
+            // press Enter to active editor
+          }}
+          onChange={(e) => {
+            setTitle(e.target.value)
+          }}
+        />
+        {props.afterTitle && <div className="ml-2">{props.afterTitle}</div>}
+      </div>
+    ))
+
   return (
     <div className="flex w-full flex-col" id="main-content">
       {props.coverComponent}
@@ -104,28 +144,7 @@ export function PureEditor(props: EditorProps) {
         id="eidos-editor-container"
       >
         {props.topComponent}
-        {props.showTitle && (
-          <div className="mb-4 flex w-full items-baseline">
-            {props.beforeTitle && <div>{props.beforeTitle}</div>}
-            <input
-              id="doc-title"
-              placeholder="Untitled"
-              className="h-[50px] w-[90%] truncate bg-transparent text-4xl font-bold text-primary outline-none"
-              value={title}
-              title={title}
-              style={props.titleStyle}
-              autoComplete="off"
-              disabled={!canChangeTitle}
-              onKeyDown={(e) => {
-                // press Enter to active editor
-              }}
-              onChange={(e) => {
-                setTitle(e.target.value)
-              }}
-            />
-            {props.afterTitle && <div className="ml-2">{props.afterTitle}</div>}
-          </div>
-        )}
+        {titleSection}
         {props.propertyComponent}
         <LexicalComposer initialConfig={initConfig}>
           <div

@@ -52,7 +52,6 @@ export function BreadCrumb() {
     parentId: node?.parent_id,
   })
 
-  const { space } = useCurrentPathInfo()
   const { getLink } = useLink()
 
   const items = paths.map((p, index) => {

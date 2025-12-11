@@ -1,12 +1,12 @@
 "use client"
 
-import { useVirtualList } from "ahooks"
 import { useEffect, useMemo, useRef } from "react"
+import { useVirtualList } from "ahooks"
 import useInfiniteScroll from "react-infinite-scroll-hook"
 
+import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils"
 
 import { useJournalsSidebarData } from "./use-journals"
 
@@ -91,7 +91,10 @@ export const JournalsSidebar = () => {
     }
     window.addEventListener("journals-scroll-to-day", handler as EventListener)
     return () =>
-      window.removeEventListener("journals-scroll-to-day", handler as EventListener)
+      window.removeEventListener(
+        "journals-scroll-to-day",
+        handler as EventListener
+      )
   }, [scrollTo, virtualData])
 
   const [sentryRef] = useInfiniteScroll({
@@ -185,7 +188,10 @@ export const JournalsSidebar = () => {
                       <button
                         onClick={(event) =>
                           handleOpen(id, {
-                            target: event.altKey ? "_blank" : undefined,
+                            target:
+                              event.metaKey || event.ctrlKey
+                                ? "_blank"
+                                : undefined,
                           })
                         }
                         className={cn(
@@ -208,7 +214,6 @@ export const JournalsSidebar = () => {
                               id
                             )}
                           </span>
-                          <span>{formatDate(id)}</span>
                         </div>
                         <div className="mt-1 text-xs text-muted-foreground line-clamp-2 min-h-[32px]">
                           {snippet !== undefined ? (

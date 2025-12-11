@@ -19,7 +19,6 @@ export const useContextNodes = () => {
     removeContextNode,
     clearContextNodes,
   } = useAIChatStore()
-  const { space } = useCurrentPathInfo()
 
   /**
    * Add a node to context, handles duplicates automatically
@@ -49,10 +48,6 @@ export const useContextNodes = () => {
     clearContextNodes()
   }, [clearContextNodes])
 
-  // Clear context nodes when space changes
-  useEffect(() => {
-    clearNodes()
-  }, [space])
 
   /**
    * Check if a node exists in context

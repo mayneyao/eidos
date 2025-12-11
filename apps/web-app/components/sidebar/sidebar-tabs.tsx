@@ -167,7 +167,10 @@ export const SidebarTabs = () => {
     if (tabConfig?.isNavigation && tabConfig?.href) {
       // Navigation type tab - set current app and navigate
       setCurrentApp(tabId as SidebarApp)
-      const href = tabConfig.href
+      const href =
+        tabId === "today"
+          ? `/journals/${new Date().toLocaleDateString("en-CA")}`
+          : tabConfig.href
       navigate(href, { target })
     } else {
       // Regular tab or block tab
