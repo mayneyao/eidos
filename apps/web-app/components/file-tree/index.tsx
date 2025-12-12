@@ -217,14 +217,24 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     }
 
     try {
-      // Construct new path
-      // For virtual paths, we just need to change the last segment (the name)
-      const pathParts = node.path.split("/")
-      pathParts[pathParts.length - 1] = newName
-      const newPath = pathParts.join("/")
+      // Check if this is a virtual node (has nodeType in metadata)
+      const isVirtualNode = node.metadata?.nodeType !== undefined
 
-      // Call rename API
-      await sqlite.fs.rename(node.path, newPath)
+      if (isVirtualNode && node.metadata?.nodeId) {
+        // For virtual nodes, update the node name directly via database API
+        // This prevents path-based rename logic from interpreting "/" as parent changes
+        await sqlite.tree.updateNodeName(node.metadata.nodeId, newName)
+      } else {
+        // For regular files/directories, use filesystem rename
+        // Construct new path
+        // For virtual paths, we just need to change the last segment (the name)
+        const pathParts = node.path.split("/")
+        pathParts[pathParts.length - 1] = newName
+        const newPath = pathParts.join("/")
+
+        // Call rename API
+        await sqlite.fs.rename(node.path, newPath)
+      }
 
       // Reload tree data to reflect changes
       if (isNodesMode) {
