@@ -13,7 +13,7 @@
     "uuidv"
   ],
   "[typescript]": {
-    "editor.defaultFormatter": "vscode.typescript-language-features"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "oxc.enable": true,
   "editor.codeActionsOnSave": {

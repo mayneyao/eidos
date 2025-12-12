@@ -15,8 +15,8 @@ export function useTabTitle(title: string | undefined | null) {
     const updateTab = useTabStore((state) => state.updateTab)
 
     useEffect(() => {
-        if (tabId && title) {
-            updateTab(tabId, { title })
+        if (tabId) {
+            updateTab(tabId, { title: title || "Untitled" })
         }
     }, [tabId, title, updateTab])
 }

@@ -42,6 +42,11 @@ interface Window {
         maximizeWindow: () => void
         unmaximizeWindow: () => void
         closeWindow: () => void
+        // system info
+        platform: string
+        arch: string
+        chrome: string
+        node: string
         onWindowStateChange: (callback: (state: 'maximized' | 'restored') => void) => () => void
         initializePlayground: (space: string, blockId: string, files: PlaygroundFile[]) => Promise<string>
         getApiAgentStatus: () => Promise<import('./server/api-agent').ApiAgentStatus>

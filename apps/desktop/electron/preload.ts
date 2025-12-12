@@ -151,6 +151,9 @@ function main() {
     // versions
     chrome: process.versions.chrome,
     node: process.versions.node,
+    // system info
+    platform: process.platform,
+    arch: process.arch,
     config: {
       get: (key: keyof AppConfig) => ipcRenderer.invoke('get-config', key),
       set: (key: keyof AppConfig, value: any) => ipcRenderer.invoke('set-config', key, value),

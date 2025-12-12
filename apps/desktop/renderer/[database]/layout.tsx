@@ -22,6 +22,7 @@ import { TempPanel } from "@/components/nav/temp-panel"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { TabManager } from "@/apps/web-app/components/tab-manager"
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
@@ -31,11 +32,13 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { useLayoutInit } from "../../../web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
+import { TabErrorBoundary } from "../TabErrorBoundary"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
 // Component for tab-specific content (only the main content area)
 function TabContentLayout() {
+  const { tabId } = useTabContext()
   const element = useRoutes(spaceRoutes)
   return (
     <div className="flex flex-col h-full min-w-0">
@@ -43,7 +46,9 @@ function TabContentLayout() {
         id="main-content"
         className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
       >
-        {element}
+        <TabErrorBoundary tabId={tabId}>
+          {element}
+        </TabErrorBoundary>
       </div>
     </div>
   )

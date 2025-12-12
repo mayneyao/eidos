@@ -7,11 +7,14 @@ import "@/locales/i18n"
 import { DesktopSpaceLayout } from "./[database]/layout"
 // extensions
 import RootLayout from "./layout"
+import { ErrorBoundary } from "./ErrorBoundary"
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RootLayout>
-      <DesktopSpaceLayout />
-    </RootLayout>{" "}
+    <ErrorBoundary>
+      <RootLayout>
+        <DesktopSpaceLayout />
+      </RootLayout>
+    </ErrorBoundary>
   </React.StrictMode>
 )
