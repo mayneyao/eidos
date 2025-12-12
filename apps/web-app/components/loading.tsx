@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { Loader2, SparklesIcon } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 export const Loading = () => <Loader2 className="h-5 w-5 animate-spin" />
 
@@ -29,8 +29,8 @@ export function SVGAnimator({
   height?: number
   settings?: AnimationSettings
 }) {
-  const { theme } = useTheme()
-  const darkMode = theme === "dark"
+  const { resolvedTheme } = useTheme()
+  const darkMode = resolvedTheme === "dark"
 
   const svgRef = useRef<HTMLDivElement>(null)
 

@@ -5,7 +5,6 @@ import {
   FileIcon,
   MoreHorizontalIcon,
   PanelRightIcon,
-  PlusIcon,
   ToyBrickIcon,
   Trash2,
   ViewIcon,
@@ -13,22 +12,23 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router-dom"
 
 import { cn, getBlockIdFromUrl, isDayPageId } from "@/lib/utils"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { Button } from "@/components/ui/button"
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Link } from "@/components/ui/link"
 import { AIChatHeader } from "@/components/ai-chat/ai-chat-header"
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
@@ -40,7 +40,6 @@ import {
 
 import { BlockContextMenu } from "./block-context-menu"
 import { NodeContextMenu } from "./node-context-menu"
-import { NodeAppPanel } from "./node-app-panel"
 
 const DefaultAppInfoMap: Record<
   string,
@@ -61,6 +60,18 @@ const DefaultAppInfoMap: Record<
   },
 }
 
+const tabButtonBaseClass =
+  "relative h-8 w-8 p-0 transition-colors flex-shrink-0"
+const inactiveTabColorClass =
+  "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+const activeTabColorClass = "bg-background text-foreground"
+const tabButtonClass = (isActive?: boolean, extra?: string) =>
+  cn(
+    tabButtonBaseClass,
+    isActive ? activeTabColorClass : inactiveTabColorClass,
+    extra
+  )
+
 export const RightPanelNav = () => {
   const {
     setIsRightPanelOpen,
@@ -73,16 +84,11 @@ export const RightPanelNav = () => {
   const { apps, addApp, deleteApp } = useAppsStore()
   const { space } = useCurrentPathInfo()
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const nodeMap = useNodeMap()
 
   const handleAppChange = (app: string) => {
     // Clear tempPanelNode when switching to a currentApp
-    setCurrentApp(app)
-  }
-  const handleAddApp = (blockId: string) => {
-    const app = `block://${blockId}@${space}`
-    addApp(app)
     setCurrentApp(app)
   }
   const displayApps = useMemo(() => {
@@ -103,11 +109,6 @@ export const RightPanelNav = () => {
 
   const { mblocks } = useAllMblocks()
 
-  const displayMblocks = useMemo(() => {
-    return mblocks.filter((mblock) => {
-      return !apps.includes(`block://${mblock.id}@${space}`)
-    })
-  }, [mblocks, apps, space])
 
   const getAppInfo = (app: string) => {
     if (app.startsWith("block://")) {
@@ -244,12 +245,17 @@ export const RightPanelNav = () => {
                       size="xs"
                       variant="ghost"
                       onClick={() => handleAppChange(app)}
-                      className={cn("rounded-b-none relative", {
-                        "after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary":
-                          isCurrentApp,
-                        "opacity-50": !appInfo?.available,
-                      })}
+                      className={tabButtonClass(
+                        isCurrentApp,
+                        cn("rounded-b-none", {
+                          "opacity-50": !appInfo?.available,
+                        })
+                      )}
                     >
+                      {/* Active tab indicator */}
+                      {isCurrentApp && (
+                        <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+                      )}
                       {typeof IconOrUri === "string" ? (
                         <img src={IconOrUri} alt={title} className="h-4 w-4" />
                       ) : (
@@ -276,9 +282,7 @@ export const RightPanelNav = () => {
                         setUrl={(newUrl) => updateApp(app, newUrl)}
                       />
                     )}
-                    {isNode && (
-                      <NodeContextMenu url={app} />
-                    )}
+                    {isNode && <NodeContextMenu url={app} />}
                   </ContextMenuContent>
                 </ContextMenu>
               ) : (
@@ -286,11 +290,12 @@ export const RightPanelNav = () => {
                   size="xs"
                   variant="ghost"
                   onClick={() => handleAppChange(app)}
-                  className={cn("rounded-b-none relative", {
-                    "after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary":
-                      isCurrentApp,
-                  })}
+                  className={tabButtonClass(isCurrentApp, "rounded-b-none")}
                 >
+                  {/* Active tab indicator */}
+                  {isCurrentApp && (
+                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+                  )}
                   {typeof IconOrUri === "string" ? (
                     <img src={IconOrUri} alt={title} className="h-4 w-4" />
                   ) : (
@@ -305,7 +310,11 @@ export const RightPanelNav = () => {
         {displayApps.length > visibleCount && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="xs" variant="ghost" className="rounded-b-none">
+              <Button
+                size="xs"
+                variant="ghost"
+                className={tabButtonClass(false, "rounded-b-none")}
+              >
                 <MoreHorizontalIcon className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -333,47 +342,6 @@ export const RightPanelNav = () => {
           </DropdownMenu>
         )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="xs" variant="ghost" className="rounded-b-none">
-              <PlusIcon className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            {mblocks.length === 0 && (
-              <p className="p-2 text-sm text-gray-500">
-                There are no blocks in this space. Try to{" "}
-                <Link
-                  to={`/extensions`}
-                  className="flex items-center gap-2 text-blue-500"
-                >
-                  <span>create block</span>
-                </Link>
-              </p>
-            )}
-            {displayMblocks.map((block) => (
-              <DropdownMenuItem
-                key={block.id}
-                onClick={() => {
-                  handleAddApp(block.id)
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  {block.icon && block.icon.startsWith("data:image") ? (
-                    <img
-                      src={block.icon}
-                      alt={block.name}
-                      className="h-4 w-4"
-                    />
-                  ) : (
-                    <ToyBrickIcon className="h-4 w-4" />
-                  )}
-                  <span>{block.name}</span>
-                </div>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
       <div className="drag-region grow"></div>
       {/* Only show currentApp UI when tempPanelNode is not active */}
@@ -385,6 +353,7 @@ export const RightPanelNav = () => {
             size="xs"
             variant="ghost"
             onClick={handleOpenTempNode}
+            className={tabButtonClass(false)}
             title={`Open ${tempPanelNode.name} in new tab`}
           >
             <ExternalLinkIcon className="h-4 w-4" />
@@ -393,6 +362,7 @@ export const RightPanelNav = () => {
             size="xs"
             variant="ghost"
             onClick={handleCloseTempNode}
+            className={tabButtonClass(false)}
             title="Close temporary panel"
           >
             <XIcon className="h-4 w-4" />
@@ -403,6 +373,7 @@ export const RightPanelNav = () => {
         size="xs"
         variant="ghost"
         onClick={() => setIsRightPanelOpen(false, -1)}
+        className={tabButtonClass(false)}
       >
         <PanelRightIcon className="h-4 w-4" />
       </Button>

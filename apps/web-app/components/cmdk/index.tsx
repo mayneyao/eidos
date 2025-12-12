@@ -6,6 +6,7 @@ import {
   Bot,
   Clock3Icon,
   FilePlus2Icon,
+  Keyboard,
   LayoutGrid,
   PaintBucket,
   Palette,
@@ -14,7 +15,7 @@ import {
   Wand2,
   Wrench,
 } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
@@ -50,11 +51,11 @@ type SecondaryView = {
 } | null
 
 export function CommandDialogDemo() {
-  const { isCmdkOpen, setCmdkOpen, isGodMode, setGodMode } =
+  const { isCmdkOpen, setCmdkOpen, isGodMode, setGodMode, isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
     useAppRuntimeStore()
   const { openSettingsModal } = useSettings()
   const { input, setInput, mode } = useInput()
-  const { theme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
   const [secondaryView, setSecondaryView] = useState<SecondaryView>(null)
   const { resetTabs } = useFavBlocks()
@@ -95,7 +96,7 @@ export function CommandDialogDemo() {
   const goShare = goto("/share")
 
   const switchTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light"
+    const newTheme = resolvedTheme === "light" ? "dark" : "light"
     setTheme(newTheme)
   }
 
@@ -542,11 +543,20 @@ export function CommandDialogDemo() {
                 </div>
               </CommandItem>
               {!isInkServiceMode && (
-                <CommandItem onSelect={() => openSettingsModal("general")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>{t("common.settings")}</span>
+                <CommandItem
+                  onSelect={() => {
+                    setKeyboardShortcutsOpen(!isKeyboardShortcutsOpen)
+                    setCmdkOpen(false)
+                  }}
+                >
+                  <Keyboard className="mr-2 h-4 w-4" />
+                  <span>{t("nav.dropdown.menu.keyboardShortcuts", "Keyboard Shortcuts")}</span>
                 </CommandItem>
               )}
+              <CommandItem onSelect={() => openSettingsModal("general")}>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>{t("common.settings")}</span>
+              </CommandItem>
             </CommandGroup>
           </CommandList>
         </>

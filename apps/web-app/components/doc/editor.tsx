@@ -54,6 +54,12 @@ interface EditorProps {
   plugins?: React.ReactNode
   disableExtPlugins?: boolean
   disablePlaceholder?: boolean
+  renderTitle?: (params: {
+    title: string
+    setTitle: (value: string) => void
+    inputRef: React.RefObject<HTMLInputElement>
+    canChangeTitle: boolean
+  }) => React.ReactNode
 }
 
 export function InnerEditor(props: EditorProps) {
@@ -187,6 +193,49 @@ export function Editor(props: EditorProps) {
     window.addEventListener("eidos-editor-activate-title", handleActivateHeader)
   }, [])
 
+  const titleSection =
+    props.showTitle &&
+    (props.renderTitle ? (
+      props.renderTitle({
+        title,
+        setTitle,
+        inputRef: titleInputRef,
+        canChangeTitle,
+      })
+    ) : (
+      <div
+        className={cn(
+          "mb-4 flex w-full items-baseline gap-2",
+          props.className
+        )}
+      >
+        {props.beforeTitle && <div>{props.beforeTitle}</div>}
+        <input
+          id="doc-title"
+          placeholder={t("doc.untitled")}
+          className="h-[50px] max-w-xs grow truncate bg-transparent text-4xl font-bold text-primary outline-none sm:max-w-full"
+          value={title}
+          title={title}
+          style={props.titleStyle}
+          ref={titleInputRef}
+          autoComplete="off"
+          disabled={!canChangeTitle}
+          onKeyDown={(e) => {
+            // press Enter to active editor
+            if (e.key === "Enter" || e.key === "Tab") {
+              e.stopPropagation()
+              e.preventDefault()
+              window.dispatchEvent(new Event("eidos-editor-focus"))
+            }
+          }}
+          onChange={(e) => {
+            setTitle(e.target.value)
+          }}
+        />
+        {props.afterTitle && <div className="ml-2">{props.afterTitle}</div>}
+      </div>
+    ))
+
   return (
     <div className="doc-editor-area flex w-full flex-col">
       {props.coverComponent}
@@ -198,39 +247,7 @@ export function Editor(props: EditorProps) {
         id="eidos-editor-container"
       >
         {props.topComponent}
-        {props.showTitle && (
-          <div
-            className={cn(
-              "mb-4 flex w-full items-baseline gap-2",
-              props.className
-            )}
-          >
-            {props.beforeTitle && <div>{props.beforeTitle}</div>}
-            <input
-              id="doc-title"
-              placeholder={t("doc.untitled")}
-              className="h-[50px] max-w-xs grow truncate bg-transparent text-4xl font-bold text-primary outline-none sm:max-w-full"
-              value={title}
-              title={title}
-              style={props.titleStyle}
-              ref={titleInputRef}
-              autoComplete="off"
-              disabled={!canChangeTitle}
-              onKeyDown={(e) => {
-                // press Enter to active editor
-                if (e.key === "Enter" || e.key === "Tab") {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  window.dispatchEvent(new Event("eidos-editor-focus"))
-                }
-              }}
-              onChange={(e) => {
-                setTitle(e.target.value)
-              }}
-            />
-            {props.afterTitle && <div className="ml-2">{props.afterTitle}</div>}
-          </div>
-        )}
+        {titleSection}
         {props.propertyComponent}
         {isLoading ? (
           <div className="flex h-full items-center gap-2">

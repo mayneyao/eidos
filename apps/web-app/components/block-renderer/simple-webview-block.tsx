@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import { getThemeVariables } from "@/lib/web/theme"
 import { useAllThemes } from "@/hooks/use-all-themes"
@@ -18,26 +18,26 @@ export const SimpleWebViewBlock: React.FC<SimpleWebViewBlockProps> = ({
   height,
 }) => {
   const webviewRef = useRef<HTMLWebViewElement | null>(null)
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
   const { currentThemeName } = useThemeStore()
   const allThemes = useAllThemes()
 
   const themeVariables = React.useMemo(() => {
     const currentThemeDef = allThemes.find((t) => t.name === currentThemeName)
     if (currentThemeDef) {
-      return getThemeVariables(currentThemeDef.css, theme === "dark")
+      return getThemeVariables(currentThemeDef.css, resolvedTheme === "dark")
     }
     return {}
-  }, [allThemes, currentThemeName, theme])
+  }, [allThemes, currentThemeName, resolvedTheme])
 
   // Handle theme changes
   useEffect(() => {
     if (!webviewRef.current) return
     webviewRef.current.contentWindow?.postMessage(
-      { type: "theme-change", theme, variables: themeVariables },
+      { type: "theme-change", theme: resolvedTheme, variables: themeVariables },
       "*"
     )
-  }, [theme, themeVariables])
+  }, [resolvedTheme, themeVariables])
 
   // Setup webview event listeners
   useEffect(() => {

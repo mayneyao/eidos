@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { SelectOption } from "@/packages/core/fields/select"
 import { Check } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import { cn } from "@/lib/utils"
 import {
@@ -40,7 +40,7 @@ export const SelectEditor = ({
   const [_options, setOptions] = useState<SelectOption[]>(options)
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
   useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
@@ -84,7 +84,7 @@ export const SelectEditor = ({
           tabIndex={0}
         >
           {_value && _value.length ? (
-            option && <SelectOptionItem theme={theme} option={option} />
+            option && <SelectOptionItem theme={resolvedTheme} option={option} />
           ) : (
             <EmptyValue />
           )}
@@ -120,7 +120,7 @@ export const SelectEditor = ({
                       _value === option.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <SelectOptionItem theme={theme} option={option} />
+                  <SelectOptionItem theme={resolvedTheme} option={option} />
                 </CommandItem>
               ))}
               {Boolean(_value?.length) &&

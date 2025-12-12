@@ -15,6 +15,7 @@ import {
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
+import { SettingsExternalLinks } from "./settings-external-links"
 
 type SettingsSection =
   | "space-general"
@@ -24,7 +25,6 @@ type SettingsSection =
   | "general"
   | "ai"
   | "api"
-  | "key-store"
   | "sync"
   | "security"
 
@@ -104,13 +104,6 @@ export function SettingsSidebar({
       isAlpha: true,
       category: "global",
       disabled: !isDesktopMode,
-    },
-    {
-      id: "key-store",
-      title: t("settings.keyStore"),
-      description: t("settings.keyStoreDescription"),
-      icon: <KeyRound className="h-5 w-5" />,
-      category: "global",
     },
     // {
     //   id: "sync",
@@ -316,6 +309,13 @@ export function SettingsSidebar({
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* External Links */}
+      <div className="p-3 border-t">
+        <div className="flex justify-start">
+          <SettingsExternalLinks />
         </div>
       </div>
     </div>

@@ -1,12 +1,13 @@
 import { useCallback } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useRouterAdapter } from "./use-router-adapter"
 
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { useCurrentPathInfo } from "./use-current-pathinfo"
 
 export const useLink = () => {
-  const [searchParams] = useSearchParams()
+  const { location } = useRouterAdapter()
+  const searchParams = new URLSearchParams(location.search)
   const { isShareMode } = useAppRuntimeStore()
 
   const getLink = (pathname: string) => {
@@ -20,17 +21,17 @@ export const useLink = () => {
 }
 
 export const useGotoCurrentSpaceHome = () => {
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { space } = useCurrentPathInfo()
   return () => {
     // Workspace identified by subdomain, path doesn't include space
-    router("/")
+    navigate("/")
   }
 }
 export const useGoto = () => {
-  const router = useNavigate()
+  const { navigate, location } = useRouterAdapter()
   const { isShareMode } = useAppRuntimeStore()
-  const [searchParams] = useSearchParams()
+  const searchParams = new URLSearchParams(location.search)
 
   const gotoAtShareMode = useCallback(
     (space: string, tableName?: string, rowId?: string) => {
@@ -42,9 +43,9 @@ export const useGoto = () => {
         path += `?p=${rowId}`
       }
       path += `?${searchParams.toString()}`
-      router(path)
+      navigate(path)
     },
-    [router, searchParams]
+    [navigate, searchParams]
   )
 
   const goto = useCallback(
@@ -57,9 +58,9 @@ export const useGoto = () => {
       if (rowId) {
         path += `?p=${rowId}`
       }
-      router(path)
+      navigate(path)
     },
-    [router]
+    [navigate]
   )
 
   if (isShareMode) {

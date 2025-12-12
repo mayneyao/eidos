@@ -13,7 +13,7 @@ const externalNodeModules = [
   '@eidos.space/better-sqlite3',
   'oxc-parser',
   'oxc-transform',
-  '@vscode/ripgrep'
+  '@vscode/ripgrep',
 ]
 
 // desktop do not need android and windows11
@@ -70,6 +70,11 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           assetsInclude: ['**/*.node'],
           resolve: {
             alias: sharedAlias,
+          },
+          define: {
+            // Explicitly define process.env.NODE_ENV for electron main process
+            // This ensures it's replaced at build time, not evaluated at runtime
+            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
           },
           build: {
             rollupOptions: {

@@ -26,6 +26,7 @@ export const useFileTreeData = ({
   onScrollToNode,
 }: UseFileTreeDataOptions) => {
   const { sqlite } = useSqlite()
+  const normalizedRootDir = rootDir ? rootDir.replace(/\/+$/, "") : rootDir
 
   // Flat data structure
   // rootNodes: Top level nodes
@@ -107,17 +108,17 @@ export const useFileTreeData = ({
   }, [expandedNodes])
 
   const loadRootDirectory = useCallback(async () => {
-    if (!sqlite || !rootDir) return
+    if (!sqlite || !normalizedRootDir) return
 
     try {
-      const entries = await sqlite.fs.readdir(rootDir, {
+      const entries = await sqlite.fs.readdir(normalizedRootDir, {
         withFileTypes: true,
       })
 
       // Inject path into entries
       const entriesWithPaths = entries.map((entry) => ({
         ...entry,
-        path: entry.path || `${rootDir.endsWith("/") ? rootDir : rootDir + "/"}${entry.name}`,
+        path: entry.path || `${normalizedRootDir.endsWith("/") ? normalizedRootDir : normalizedRootDir + "/"}${entry.name}`,
       }))
 
       const sortedEntries = sortEntries(entriesWithPaths)
@@ -126,7 +127,7 @@ export const useFileTreeData = ({
       // Reload children for all expanded directories to keep them in sync
       const reloadPromises = Array.from(expandedNodesRef.current).map(
         async (path) => {
-          if (path !== rootDir) {
+          if (path !== normalizedRootDir) {
             await loadSubDirectory(path)
           }
         }
@@ -136,14 +137,14 @@ export const useFileTreeData = ({
     } catch (error) {
       console.error("Failed to load root directory:", error)
     }
-  }, [sqlite, rootDir, loadSubDirectory])
+  }, [sqlite, normalizedRootDir, loadSubDirectory])
 
   // Load root directory only in rootDir mode
   useEffect(() => {
-    if (!isNodesMode && sqlite && rootDir) {
+    if (!isNodesMode && sqlite && normalizedRootDir) {
       loadRootDirectory()
     }
-  }, [isNodesMode, sqlite, rootDir, loadRootDirectory])
+  }, [isNodesMode, sqlite, normalizedRootDir, loadRootDirectory])
 
   // Initialize with nodes if provided
   useEffect(() => {
@@ -154,7 +155,7 @@ export const useFileTreeData = ({
 
   // Watch for file system changes (only in rootDir mode)
   useEffect(() => {
-    if (isNodesMode || !sqlite || !rootDir) return
+    if (isNodesMode || !sqlite || !normalizedRootDir) return
 
     const abortController = new AbortController()
     const { signal } = abortController
@@ -162,7 +163,7 @@ export const useFileTreeData = ({
     // Start watching the root directory
     const watchDirectory = async () => {
       try {
-        for await (const event of sqlite.fs.watch(rootDir, {
+        for await (const event of sqlite.fs.watch(normalizedRootDir, {
           recursive: true,
           signal,
         })) {
@@ -204,13 +205,13 @@ export const useFileTreeData = ({
 
         // Find the deepest directory in the path that is currently expanded
         // We start from the parent of the changed file and walk up
-        let targetPathToReload = rootDir
+        let targetPathToReload = normalizedRootDir
 
         // Construct full paths for all segments
         // If path is "a/b/c", we check "root/a/b", then "root/a", then "root"
         for (let i = pathParts.length - 1; i >= 0; i--) {
           const subPath = pathParts.slice(0, i + 1).join("/")
-          const fullPath = `${rootDir}/${subPath}`
+          const fullPath = `${normalizedRootDir}/${subPath}`
 
           // If this directory is expanded, we should reload it
           // This ensures we reload the closest visible parent to the change
@@ -229,7 +230,7 @@ export const useFileTreeData = ({
         pendingReloadsRef.current.add(targetPathToReload)
 
         try {
-          if (targetPathToReload === rootDir) {
+        if (targetPathToReload === normalizedRootDir) {
             await loadRootDirectory()
           } else {
             await loadSubDirectory(targetPathToReload)
@@ -261,7 +262,7 @@ export const useFileTreeData = ({
     }
   }, [
     sqlite,
-    rootDir,
+    normalizedRootDir,
     isNodesMode,
     expandedNodes,
     loadRootDirectory,
@@ -467,8 +468,8 @@ export const useFileTreeData = ({
           }
         }
 
-        if (!rootNodeFound && rootDir && path.startsWith(rootDir)) {
-          rootNodePath = rootDir
+        if (!rootNodeFound && normalizedRootDir && path.startsWith(normalizedRootDir)) {
+          rootNodePath = normalizedRootDir
           rootNodeFound = true
         }
 
@@ -485,7 +486,13 @@ export const useFileTreeData = ({
         // e.g. root=/a, path=/a/b/c -> expand /a, /a/b
 
         const relativePath = path.slice(rootNodePath.length).replace(/^\//, "")
-        if (!relativePath) return // Path is the root itself
+        if (!relativePath) {
+          // Path is exactly the root node; still scroll to it
+          setTimeout(() => {
+            onScrollToNode?.(path)
+          }, 100)
+          return
+        }
 
         const relativeSegments = relativePath.split("/")
 
@@ -529,7 +536,7 @@ export const useFileTreeData = ({
         console.error(`[FileTree] expandTo failed for ${path}`, e)
       }
     },
-    [sqlite, rootNodes, rootDir, expandedNodes, dirContent, loadSubDirectory, setExpandedNodes, onScrollToNode]
+    [sqlite, rootNodes, normalizedRootDir, expandedNodes, dirContent, loadSubDirectory, setExpandedNodes, onScrollToNode]
   )
 
   // Listen for custom event to trigger expandTo

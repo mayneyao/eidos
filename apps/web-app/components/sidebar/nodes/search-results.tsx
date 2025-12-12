@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react"
 import { BlocksIcon, ChevronDown, ChevronRight } from "lucide-react"
-import { useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import type { ISearchNodes } from "@/components/cmdk/hooks"
 import type { ISearchExtensions } from "@/apps/web-app/hooks/use-query-extension"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { ExtNodeBadge } from "../../ext-node-badge"
 import { IconRenderer } from "../../ui/icon-picker"
@@ -34,10 +34,10 @@ export const SearchResults = ({
   isContentExpanded,
   setIsContentExpanded,
 }: SearchResultsProps) => {
-  const navigate = useNavigate()
-  const selectedRef = useRef<HTMLDivElement>(null)
+  const { navigate } = useRouterAdapter()
+  const selectedRef = useRef<HTMLButtonElement>(null)
 
-  const handleNavigate = (id: string, itemType?: string) => {
+  const handleNavigate = (id: string) => {
     if (type === "extensions") {
       navigate(`/extensions/${id}`)
     } else {
@@ -70,7 +70,7 @@ export const SearchResults = ({
     ...(isItemsExpanded ? itemMatches : []),
     ...(isContentExpanded ? ftsResults : []),
   ]
-  
+
   // Get section title based on type
   const itemsTitle = type === "nodes" ? "Nodes" : "Extensions"
 
@@ -99,7 +99,9 @@ export const SearchResults = ({
               ) : (
                 <ChevronRight className="h-3 w-3" />
               )}
-              <span className="select-none">{itemsTitle} ({itemMatches.length})</span>
+              <span className="select-none">
+                {itemsTitle} ({itemMatches.length})
+              </span>
             </div>
             {isItemsExpanded && (
               <div className="space-y-0.5 px-2">
@@ -108,10 +110,10 @@ export const SearchResults = ({
                   const currentIndex = idx
                   const isSelected = selectedIndex === currentIndex
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={item.id}
                       ref={isSelected ? selectedRef : null}
-                      tabIndex={0}
                       onClick={() => handleNavigate(item.id)}
                       onFocus={() => setSelectedIndex(currentIndex)}
                       onKeyDown={(e) => {
@@ -121,20 +123,19 @@ export const SearchResults = ({
                         }
                       }}
                       className={cn(
-                        "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer min-w-0",
-                        "hover:bg-accent/50 active:bg-accent",
-                        "transition-all duration-150",
-                        "focus:outline-none",
-                        isSelected && "bg-accent ring-2 ring-primary/20"
+                        "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left",
+                        isSelected
+                          ? "border-primary/70 bg-primary/10"
+                          : "bg-muted/30 hover:bg-accent/40 hover:border-border transition-colors duration-100"
                       )}
                     >
                       {type === "nodes" ? (
                         <>
-                      <ItemIcon
+                          <ItemIcon
                             type={(item as ISearchNodes).type}
-                        className="h-4 w-4 flex-shrink-0 opacity-70"
-                      />
-                      <span className="flex-1 truncate text-sm min-w-0">
+                            className="h-4 w-4 flex-shrink-0 opacity-70"
+                          />
+                          <span className="flex-1 truncate text-sm min-w-0">
                             {item.name}
                           </span>
                           <ExtNodeBadge type={(item as ISearchNodes).type} />
@@ -142,7 +143,9 @@ export const SearchResults = ({
                       ) : (
                         <>
                           {(item as ISearchExtensions).icon ? (
-                            (item as ISearchExtensions).icon!.startsWith("data:image") ? (
+                            (item as ISearchExtensions).icon!.startsWith(
+                              "data:image"
+                            ) ? (
                               <img
                                 src={(item as ISearchExtensions).icon}
                                 alt="extension icon"
@@ -159,10 +162,10 @@ export const SearchResults = ({
                           )}
                           <span className="flex-1 truncate text-sm min-w-0">
                             {(item as ISearchExtensions).slug}
-                      </span>
+                          </span>
                         </>
                       )}
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -198,14 +201,15 @@ export const SearchResults = ({
                   const currentIndex =
                     (isItemsExpanded ? itemMatches.length : 0) + idx
                   const isSelected = selectedIndex === currentIndex
-                  const displayName = type === "nodes" 
-                    ? (item as ISearchNodes).name 
-                    : (item as ISearchExtensions).slug
+                  const displayName =
+                    type === "nodes"
+                      ? (item as ISearchNodes).name
+                      : (item as ISearchExtensions).slug
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={item.id}
                       ref={isSelected ? selectedRef : null}
-                      tabIndex={0}
                       onClick={() => handleNavigate(item.id)}
                       onFocus={() => setSelectedIndex(currentIndex)}
                       onKeyDown={(e) => {
@@ -215,13 +219,10 @@ export const SearchResults = ({
                         }
                       }}
                       className={cn(
-                        "flex flex-col gap-1.5 px-3 py-2 rounded-md cursor-pointer min-w-0",
-                        "hover:bg-accent/50 active:bg-accent",
-                        "transition-all duration-150",
-                        "border border-transparent hover:border-border/50",
-                        "focus:outline-none",
-                        isSelected &&
-                          "bg-accent ring-2 ring-primary/20 border-primary/30"
+                        "w-full rounded-lg border px-3 py-2 text-left",
+                        isSelected
+                          ? "border-primary/70 bg-primary/10"
+                          : "bg-muted/30 hover:bg-accent/40 hover-border-border transition-colors duration-100"
                       )}
                     >
                       <div className="text-sm font-medium truncate min-w-0">
@@ -230,8 +231,9 @@ export const SearchResults = ({
                       {item.result && (
                         <div
                           className={cn(
-                            "fts-result text-[11px] leading-relaxed text-muted-foreground/90",
-                            "overflow-hidden break-words line-clamp-4"
+                            "fts-result mt-1 text-xs leading-relaxed text-muted-foreground",
+                            "overflow-hidden break-words line-clamp-3 min-h-[36px]",
+                            "[&_b]:text-destructive [&_b]:font-semibold"
                           )}
                           style={{
                             wordBreak: "break-word",
@@ -242,7 +244,7 @@ export const SearchResults = ({
                           }}
                         />
                       )}
-                    </div>
+                    </button>
                   )
                 })}
               </div>

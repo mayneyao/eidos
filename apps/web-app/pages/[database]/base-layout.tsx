@@ -20,6 +20,7 @@ import { useSpaceAppStore } from "./store"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
+
 export function DatabaseLayoutBase({
   children,
   className,
@@ -63,12 +64,7 @@ export function DatabaseLayoutBase({
             >
               <ResizablePanel minSize={50}>
                 <div className={cn("flex h-full w-auto grow flex-col")}>
-                  <main
-                    id="main-content"
-                    className="z-[1] flex w-full grow flex-col overflow-y-auto"
-                  >
-                    {children}
-                  </main>
+                  {children}
                 </div>
               </ResizablePanel>
               {isRightPanelOpen && (

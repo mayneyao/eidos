@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import { serializePropsToUrl } from "@/lib/utils"
 import { getThemeVariables } from "@/lib/web/theme"
@@ -28,7 +28,7 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
 }) => {
   const webviewRef = useRef<HTMLWebViewElement | null>(null)
   const { space } = useCurrentPathInfo()
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
   const { currentThemeName } = useThemeStore()
   const allThemes = useAllThemes()
 
@@ -45,10 +45,10 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
   const themeVariables = React.useMemo(() => {
     const currentThemeDef = allThemes.find((t) => t.name === currentThemeName)
     if (currentThemeDef) {
-      return getThemeVariables(currentThemeDef.css, theme === "dark")
+      return getThemeVariables(currentThemeDef.css, resolvedTheme === "dark")
     }
     return {}
-  }, [allThemes, currentThemeName, theme])
+  }, [allThemes, currentThemeName, resolvedTheme])
 
   // Handle props changes
   useEffect(() => {
@@ -63,10 +63,10 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
   useEffect(() => {
     if (!webviewRef.current) return
     webviewRef.current.contentWindow?.postMessage(
-      { type: "theme-change", theme, variables: themeVariables },
+      { type: "theme-change", theme: resolvedTheme, variables: themeVariables },
       "*"
     )
-  }, [theme, themeVariables])
+  }, [resolvedTheme, themeVariables])
 
   // Setup webview event listeners
   useEffect(() => {

@@ -33,18 +33,28 @@
     {
       "from": "dist-sqlite-ext",
       "to": "dist-sqlite-ext",
-      "filter": ["**/*"]
+      "filter": [
+        "**/*"
+      ]
     }
   ],
-  "asarUnpack": ["**/node_modules/@vscode/ripgrep/**/*"],
+  "asarUnpack": [
+    "**/node_modules/@vscode/ripgrep/**/*"
+  ],
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "win": {
-    "target": ["nsis", "zip"],
+    "target": [
+      "nsis",
+      "zip"
+    ],
     "icon": "dist/logo.png"
   },
   "afterSign": "scripts/notarize.cjs",
   "mac": {
-    "target": ["dmg", "zip"],
+    "target": [
+      "dmg",
+      "zip"
+    ],
     "icon": "dist/logo.icns",
     "hardenedRuntime": true,
     "gatekeeperAssess": false,
@@ -53,10 +63,15 @@
     "notarize": false
   },
   "linux": {
-    "target": ["AppImage", "zip"]
+    "target": [
+      "AppImage",
+      "zip"
+    ]
   },
   "protocols": {
     "name": "eidos",
-    "schemes": ["eidos"]
+    "schemes": [
+      "eidos"
+    ]
   }
 }

@@ -146,3 +146,25 @@ export const ALLOWED_DOCUMENT_EXTENSIONS = [
   '.php', '.rb', '.sh', '.yaml', '.yml', '.toml', '.ini',
   '.cfg', '.conf'
 ]
+
+// OAuth / Authentication constants
+export const OAUTH_CONFIG = {
+  // OAuth server base URL (use EIDOS_SPACE_BASE_URL for consistency)
+  AUTH_SERVER_BASE_URL: EIDOS_SPACE_BASE_URL,
+
+  // OAuth endpoints (relative to AUTH_SERVER_BASE_URL)
+  ENDPOINTS: {
+    AUTHORIZE: '/api/auth/oauth2/authorize',
+    TOKEN: '/api/auth/oauth2/token',
+    USERINFO: '/api/auth/oauth2/userinfo',
+    END_SESSION: '/api/auth/oauth2/endsession',
+  },
+
+  // Client configuration
+  CLIENT_ID: 'desktop.eidos.space',
+  REDIRECT_URI: `http://127.0.0.1:${EIDOS_PORT}/oauth/callback`,
+  SCOPES: 'openid profile email',
+
+  // Token management
+  TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000, // 5 minutes before expiration
+} as const

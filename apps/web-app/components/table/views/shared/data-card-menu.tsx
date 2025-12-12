@@ -2,11 +2,11 @@ import { MoveDiagonalIcon, MoveUpRightIcon, Trash2Icon } from "lucide-react"
 
 import { getRawTableNameById, shortenId } from "@/lib/utils"
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"

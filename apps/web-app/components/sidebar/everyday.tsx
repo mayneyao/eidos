@@ -1,17 +1,15 @@
 import { useState } from "react"
 import { CalendarDays } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router-dom"
 
 import { getToday } from "@/lib/utils"
-import { useDocEditor } from "@/apps/web-app/hooks/use-doc-editor"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import {
   Dialog,
   DialogContent,
@@ -20,6 +18,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Link } from "@/components/ui/link"
+import { useDocEditor } from "@/apps/web-app/hooks/use-doc-editor"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 
 import { Button } from "../ui/button"
 import { Progress } from "../ui/progress"
@@ -31,7 +32,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
   const [progress, setProgress] = useState(0)
   const [importing, setImporting] = useState(false)
   const [open, setOpen] = useState(false)
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const today = getToday()
   const getDir = async () => {
     if (!sqlite) return
@@ -82,10 +83,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
             className="w-full justify-start font-normal"
             asChild
           >
-            <Link
-              to={`/journals/${today}`}
-              className="[&>svg]:!size-5"
-            >
+            <Link to={`/journals/${today}`} className="[&>svg]:!size-5">
               <CalendarDays className="pr-1" />
               {/* {t("common.today")} */}
             </Link>

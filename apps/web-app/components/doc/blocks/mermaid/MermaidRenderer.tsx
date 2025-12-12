@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 interface MermaidRendererProps {
   text: string
@@ -9,7 +9,7 @@ interface MermaidRendererProps {
 const MermaidRenderer: React.FC<MermaidRendererProps> = ({ text }) => {
   const [svg, setSvg] = useState<string>("")
   const [error, setError] = useState<string>("")
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
   const mermaidRef = useRef<HTMLDivElement>(null)
   const [isMermaidInitialized, setIsMermaidInitialized] = useState(false)
 
@@ -18,7 +18,7 @@ const MermaidRenderer: React.FC<MermaidRendererProps> = ({ text }) => {
       try {
         mermaid.initialize({
           startOnLoad: false,
-          theme: theme === "dark" ? "dark" : "default",
+          theme: resolvedTheme === "dark" ? "dark" : "default",
         })
       } catch (error) {
         // Mermaid is already initialized, ignore the error
@@ -27,7 +27,7 @@ const MermaidRenderer: React.FC<MermaidRendererProps> = ({ text }) => {
     }
 
     initializeMermaid()
-  }, [theme])
+  }, [resolvedTheme])
 
   useEffect(() => {
     const renderMermaid = async () => {

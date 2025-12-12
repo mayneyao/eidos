@@ -2,7 +2,7 @@ import { useMemo, useRef } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import type { NodeKey } from "lexical";
 import { $getNodeByKey } from "lexical"
-import { Link } from "react-router-dom"
+import { Link } from "@/components/ui/link"
 
 import { getBlockIdFromUrl, getBlockUrl } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"

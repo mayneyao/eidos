@@ -37,7 +37,7 @@ async function loadPublicKey() {
   )
 }
 
-export async function verifyMessage(payload: object, signature: ArrayBuffer) {
+export async function verifyMessage(payload: object, signature: BufferSource) {
   let encoded = getMessageEncoding(payload)
   const publicKey = await loadPublicKey()
   return await window.crypto.subtle.verify(

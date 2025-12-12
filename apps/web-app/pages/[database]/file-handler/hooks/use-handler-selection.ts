@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import type { FileHandlerMeta, IExtension } from "@/packages/core/types/IExtension"
 import {
   useDefaultHandler,
@@ -12,9 +12,9 @@ import {
  * Also supports handler ID from URL query parameter for immediate selection
  */
 export function useHandlerSelection(fileExtension: string) {
-  const [searchParams] = useSearchParams()
+  const { searchParams } = useRouterAdapter()
   const handlerIdFromQuery = searchParams.get("handler")
-  
+
   const { handlers, isLoading: isLoadingHandlers } =
     useFileHandlers(fileExtension)
   const {

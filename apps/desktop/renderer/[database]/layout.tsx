@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef } from "react"
 import { useLocalStorageState, useSize } from "ahooks"
-import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom"
+import { Outlet, useLocation, useRoutes } from "react-router-dom"
 
 import { EidosDataEventChannelName } from "@/lib/const"
 import { cn, isStandaloneBlocksPath } from "@/lib/utils"
@@ -21,28 +21,47 @@ import { RightPanelNav } from "@/components/nav/right-panel-nav"
 import { TempPanel } from "@/components/nav/temp-panel"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
+import { TabManager } from "@/apps/web-app/components/tab-manager"
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { ScriptBreadcrumb } from "@/apps/web-app/pages/[database]/extensions/components/extension-breadcrumb"
+import { spaceRoutes } from "@/apps/web-app/routes"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { useLayoutInit } from "../../../web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
+import { TabErrorBoundary } from "../TabErrorBoundary"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
+
+// Component for tab-specific content (only the main content area)
+function TabContentLayout() {
+  const { tabId } = useTabContext()
+  const element = useRoutes(spaceRoutes)
+  return (
+    <div className="flex flex-col h-full min-w-0">
+      <div
+        id="main-content"
+        className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
+      >
+        <TabErrorBoundary tabId={tabId}>
+          {element}
+        </TabErrorBoundary>
+      </div>
+    </div>
+  )
+}
 
 export function DesktopSpaceLayout() {
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isRightPanelOpen, currentApp, resetCurrentApp, tempPanelNode } =
     useSpaceAppStore()
-  const navigate = useNavigate()
   const { isActivated } = useActivation()
-  const isBlocksPath = isStandaloneBlocksPath(useLocation().pathname)
+  const isBlocksPath = isStandaloneBlocksPath(window.location.pathname)
 
-  const { scriptId } = useParams()
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const size = useSize(rightPanelRef)
   const { space } = useCurrentPathInfo()
@@ -77,9 +96,9 @@ export function DesktopSpaceLayout() {
 
   useEffect(() => {
     if (!isActivated) {
-      navigate("/my-license")
+      window.location.href = "/my-license"
     }
-  }, [isActivated, navigate])
+  }, [isActivated])
 
   if (!isShareMode && !sqlite) {
     return (
@@ -103,16 +122,6 @@ export function DesktopSpaceLayout() {
     )
   }
 
-  // Check if we're on file-handler page and get file path
-  const isFileHandlerPage = location.pathname.includes("/file-handler")
-  const filePath =
-    isFileHandlerPage && location.hash.startsWith("#")
-      ? decodeURIComponent(location.hash.substring(1))
-      : isFileHandlerPage
-        ? decodeURIComponent(location.hash)
-        : ""
-
-  const showCustomNav = scriptId || filePath
   return (
     <>
       {/* <DocExtBlockLoader /> */}
@@ -129,28 +138,11 @@ export function DesktopSpaceLayout() {
               defaultSize={100 - (isRightPanelOpen ? rightPanelSize! : 0)}
               minSize={50}
             >
-              <div className="flex flex-col h-full min-w-0">
-                <Nav>
-                  {
-                    showCustomNav && <>
-                      {scriptId && <ScriptBreadcrumb scriptIdOrSlug={scriptId} />}
-                      {filePath && (
-                        <div
-                          className="flex items-center text-sm text-muted-foreground pointer-events-none select-none max-w-full overflow-hidden"
-                          title={filePath}
-                        >
-                          <span className="truncate block">{filePath}</span>
-                        </div>
-                      )}
-                    </>
-                  }
-                </Nav>
-                <div
-                  id="main-content"
-                  className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
-                >
-                  <Outlet />
-                </div>
+              <div className="h-full flex flex-col">
+                <Nav />
+                <TabManager>
+                  <TabContentLayout />
+                </TabManager>
               </div>
             </ResizablePanel>
             {isRightPanelOpen && (
@@ -165,7 +157,7 @@ export function DesktopSpaceLayout() {
                 >
                   <div
                     className={cn(
-                      "px-1 flex justify-end h-[38px] items-center shrink-0 border-b",
+                      "px-1 flex justify-end h-[38px] items-center shrink-0 border-b border-border/60 bg-muted/60",
                       {
                         "pr-[100px]": isWindowsDesktop && isRightPanelOpen,
                       }

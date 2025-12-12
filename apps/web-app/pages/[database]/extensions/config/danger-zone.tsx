@@ -1,8 +1,8 @@
 import { useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import { useTranslation } from "react-i18next"
-import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom"
 
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -22,15 +22,16 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useExtension } from "@/apps/web-app/hooks/use-extension"
+import {
+  useExtension,
+  useExtensionByIdOrSlug,
+} from "@/apps/web-app/hooks/use-extension"
 
-export const DangerZone = () => {
-  const script = useLoaderData() as IExtension
-  const revalidator = useRevalidator()
+const DangerZoneContent = ({ script }: { script: IExtension }) => {
   const { toast } = useToast()
   const { deleteExtension } = useExtension()
   const { t } = useTranslation()
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { space } = useCurrentPathInfo()
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -39,7 +40,7 @@ export const DangerZone = () => {
     try {
       await deleteExtension(script.id)
       setShowDeleteDialog(false)
-      router(`/extensions`)
+      navigate(`/extensions`)
     } catch (error) {
       toast({
         title: "Failed to delete script",
@@ -61,9 +62,7 @@ export const DangerZone = () => {
       </CardHeader>
       <CardContent className="flex items-center justify-between">
         <div className="flex flex-col">
-          <p className="font-medium">
-            {t("extension.config.deleteExtension")}
-          </p>
+          <p className="font-medium">{t("extension.config.deleteExtension")}</p>
           <p className="text-sm text-muted-foreground">
             {t("extension.config.deleteExtensionDescription")}
           </p>
@@ -101,4 +100,15 @@ export const DangerZone = () => {
       </CardContent>
     </Card>
   )
+}
+
+export const DangerZone = () => {
+  const { params } = useRouterAdapter()
+  const script = useExtensionByIdOrSlug(params.scriptId)
+
+  if (!script) {
+    return null
+  }
+
+  return <DangerZoneContent script={script} />
 }

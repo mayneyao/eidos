@@ -5,7 +5,7 @@ import {
   type IExtension,
 } from "@/packages/core/types/IExtension"
 import { ExternalLinkIcon, FileIcon, TrashIcon } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +29,7 @@ interface FileTypeConfig {
 
 export function FileHandlersSettings() {
   const { sqlite } = useSqlite()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { database } = useCurrentPathInfo()
   const [fileHandlers, setFileHandlers] = useState<
     IExtension<FileHandlerMeta>[]

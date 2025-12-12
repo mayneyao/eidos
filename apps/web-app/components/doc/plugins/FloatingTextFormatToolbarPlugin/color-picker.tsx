@@ -1,7 +1,7 @@
 import { useCallback, type MouseEventHandler } from "react"
 import { $patchStyleText } from "@lexical/selection"
 import { $getSelection, $isRangeSelection, type LexicalEditor } from "lexical"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import { cn } from "@/lib/utils"
 
@@ -64,7 +64,7 @@ export const ColorPicker = ({
     e.preventDefault()
   }
 
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
   return (
     <div className="w-full p-3">
       <div className="space-y-3">
@@ -83,7 +83,7 @@ export const ColorPicker = ({
                     index === 0
                       ? {
                           backgroundColor:
-                            theme === "light" ? "black" : "white",
+                            resolvedTheme === "light" ? "black" : "white",
                         }
                       : { backgroundColor: color }
                   }

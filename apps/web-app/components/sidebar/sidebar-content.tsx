@@ -11,6 +11,7 @@ import { BlockApp } from "../block-renderer/block-app"
 import FileTree from "../file-tree"
 import { ExtensionSidebarHeader } from "./extensions/extension-sidebar-header"
 import { FilesSidebar } from "./files"
+import { JournalsSidebar } from "./journals/journals-sidebar"
 import { SearchResults } from "./nodes/search-results"
 import { TreeSidebarHeader } from "./nodes/tree-sidebar-header"
 import { useTreeSidebarStore } from "./nodes/tree-sidebar-store"
@@ -45,7 +46,7 @@ const NodesContent = () => {
             setIsContentExpanded={setIsContentExpanded}
           />
         ) : (
-          <FileTree rootDir="~/.eidos/__NODES__/" />
+          <FileTree rootDir="~/.eidos/__NODES__" />
         )}
       </div>
     </div>
@@ -115,6 +116,8 @@ export const SidebarContent = () => {
         return <ExtensionsContent />
       case "nodes":
         return <NodesContent />
+      case "today":
+        return <JournalsSidebar />
       case "files":
         return <FilesContent />
       default:

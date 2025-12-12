@@ -35,8 +35,8 @@ export const useFileTreeKeyboard = ({
         return
       }
 
-      // Enter key to start rename
-      if (e.key === "Enter" && selectedNode) {
+      // Use F2 to start rename to avoid conflicting with navigation Enter/Space
+      if (e.key === "F2" && selectedNode) {
         e.preventDefault()
         e.stopPropagation()
         onRename(selectedNode)
@@ -62,11 +62,23 @@ export const useFileTreeKeyboard = ({
       }
     }
 
-    // Handle blur to clear selection when focus moves outside
+    const isContextMenuElement = (node: Node | null) => {
+      if (!node || !(node instanceof Element)) return false
+      return Boolean(node.closest('[data-state], [role="menu"]'))
+    }
+
+    // Handle blur to clear selection when focus moves outside (but keep when context menu opens)
     const handleBlur = (e: FocusEvent) => {
       // Check if the focus is moving outside of the tree container
       const treeContainer = treeContainerRef.current
-      if (treeContainer && !treeContainer.contains(e.relatedTarget as Node)) {
+      const nextTarget = e.relatedTarget as Node | null
+
+      // If focus moves to context menu (or null during menu open), keep selection
+      if (isContextMenuElement(nextTarget) || nextTarget === null) {
+        return
+      }
+
+      if (treeContainer && !treeContainer.contains(nextTarget)) {
         onClearSelection()
       }
     }

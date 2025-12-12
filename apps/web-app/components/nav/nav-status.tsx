@@ -1,24 +1,22 @@
-import { useState } from "react"
 import {
   Cable,
   Cog,
-  LocateFixed,
   LockIcon,
   PinIcon,
   PinOffIcon,
   Unplug,
   Wand2,
 } from "lucide-react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useLocation, useSearchParams } from "react-router-dom"
 
-import { isDesktopMode } from "@/lib/env"
-import { isDayPageId } from "@/lib/utils"
-import {
-  getFileExtension,
-  useDefaultHandler,
-  useFileHandlers,
-} from "@/hooks/use-file-handlers"
+import { useAPIAgent } from "@/apps/web-app/hooks/use-api-agent"
+import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
+import { useNode } from "@/apps/web-app/hooks/use-nodes"
+import { usePeer } from "@/apps/web-app/hooks/use-peer"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { AvatarList } from "@/components/avatar-list"
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
@@ -26,24 +24,24 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { AvatarList } from "@/components/avatar-list"
-import { useAPIAgent } from "@/apps/web-app/hooks/use-api-agent"
-import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
-import { useNode } from "@/apps/web-app/hooks/use-nodes"
-import { usePeer } from "@/apps/web-app/hooks/use-peer"
-import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
+import {
+  getFileExtension,
+  useDefaultHandler,
+  useFileHandlers,
+} from "@/hooks/use-file-handlers"
+import { isDesktopMode } from "@/lib/env"
+import { isDayPageId } from "@/lib/utils"
 
 import { SetDefaultHandlerDialog } from "./set-default-handler-dialog"
 
 export const NavStatus = () => {
   const { t } = useTranslation()
-  const location = useLocation()
-  const [searchParams] = useSearchParams()
+  const { location } = useRouterAdapter()
+
+  // Parse search params from location
+  const searchParams = new URLSearchParams(location.search)
 
   const { isGodMode, setGodMode } = useAppRuntimeStore()
-  const { setCurrentApp } = useSidebarStore()
 
   const { connected } = useAPIAgent()
   const { runningCommand } = useAppRuntimeStore()
@@ -100,7 +98,7 @@ export const NavStatus = () => {
     if (currentHandlerId && setDefaultHandler) {
       await setDefaultHandler(currentHandlerId)
       // Remove handler query param to use the new default
-      const newSearchParams = new URLSearchParams(searchParams)
+      const newSearchParams = new URLSearchParams(location.search)
       newSearchParams.delete("handler")
       const newSearch = newSearchParams.toString()
       window.history.replaceState(
@@ -109,25 +107,6 @@ export const NavStatus = () => {
         `${location.pathname}${newSearch ? `?${newSearch}` : ""}${location.hash}`
       )
       setShowSetDefaultDialog(false)
-    }
-  }
-
-  const handleLocateFile = () => {
-    if (filePath) {
-      // Switch to files tab first to ensure the file tree is mounted
-      setCurrentApp("files")
-
-      // Decode the URL-encoded path to match the actual file tree node paths
-      const decodedPath = decodeURIComponent(filePath)
-
-      // Wait a bit for the tab to switch and component to mount
-      setTimeout(() => {
-        window.dispatchEvent(
-          new CustomEvent("file-tree-expand-to", {
-            detail: { path: decodedPath },
-          })
-        )
-      }, 50)
     }
   }
 
@@ -243,16 +222,6 @@ export const NavStatus = () => {
             onConfirm={handleSetAsDefault}
           />
         </>
-      )}
-      {isFileHandlerPage && filePath && (
-        <Button
-          size="xs"
-          variant="ghost"
-          onClick={handleLocateFile}
-          title={t("nav.status.locateFile", "Locate in File Tree")}
-        >
-          <LocateFixed className="h-4 w-4" />
-        </Button>
       )}
     </>
   )

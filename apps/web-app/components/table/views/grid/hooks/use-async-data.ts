@@ -1,4 +1,5 @@
 import type {
+  BaseGridMouseEventArgs,
   CellArray,
   DataEditorProps,
   DataEditorRef,
@@ -41,7 +42,7 @@ import { TableContext } from "@/components/table/hooks"
 import { isInkServiceMode, isDesktopMode } from "@/lib/env"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useDataMutation } from "./use-data-mutation"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
@@ -124,7 +125,7 @@ export function useAsyncData<TRowType>(data: {
     })
   }, [])
   const { isReadOnly } = useContext(TableContext)
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
 
   const getCellContent = useCallback<DataEditorProps["getCellContent"]>(
     (cell) => {
@@ -143,9 +144,12 @@ export function useAsyncData<TRowType>(data: {
             ...cell,
             readonly: true,
             allowOverlay: true,
-            onClickUri: (args: any) => {
+            onClickUri: (args: BaseGridMouseEventArgs) => {
               if (cell.data.startsWith("/")) {
-                navigate(cell.data)
+                const openInNewTab = args.ctrlKey || args.metaKey
+                navigate(cell.data, {
+                  target: openInNewTab ? "_blank" : undefined,
+                })
               } else {
                 window.open(cell.data, "_blank")
               }

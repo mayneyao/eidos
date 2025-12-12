@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { detectDirective } from "@eidos.space/v3"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
@@ -10,18 +10,19 @@ import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
  */
 export const useBlockTabClick = (blocks: Record<string, any>) => {
   const { setCurrentApp } = useSidebarStore()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
 
-  return useCallback((tabId: string) => {
+  return useCallback((tabId: string, target?: "_blank" | "_self") => {
     const block = blocks[tabId]
     const hasUseSidebar = block && block.code && detectDirective(block.code, "use sidebar")
 
-    if (hasUseSidebar) {
-      // If block contains 'use sidebar' directive, render in sidebar
-      setCurrentApp(tabId)
-    } else {
-      // Otherwise, navigate to block page normally
-      navigate(`/blocks/${tabId}`)
+    // Always set current app for proper tab activation state
+    setCurrentApp(tabId)
+
+    if (!hasUseSidebar) {
+      // If block does not contain 'use sidebar' directive, navigate to block page
+      navigate(`/blocks/${tabId}`, { target })
     }
+    // If block has 'use sidebar' directive, it will render in sidebar automatically
   }, [blocks, setCurrentApp, navigate])
 }

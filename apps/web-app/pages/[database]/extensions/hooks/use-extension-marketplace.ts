@@ -9,7 +9,10 @@ import { isUuid } from "@/lib/utils";
 interface UseExtensionMarketplaceProps {
     script: IExtension;
     editorContent: string;
+    /** @deprecated Use accessToken instead */
     apiKey?: string;
+    /** OAuth access token for authentication */
+    accessToken?: string | null;
 }
 
 // Define input structure for publishing a new version, mirroring the backend
@@ -35,11 +38,25 @@ interface LatestVersionResponse {
 }
 
 
-export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseExtensionMarketplaceProps) => {
+export const useExtensionMarketplace = ({ script, editorContent, apiKey, accessToken }: UseExtensionMarketplaceProps) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false); // Add state for publishing
     const { toast } = useToast();
     const { updateExtension } = useExtension();
+
+    // Helper to get auth headers - prefer accessToken over apiKey
+    const getAuthHeaders = (): Record<string, string> => {
+        if (accessToken) {
+            return { 'Authorization': `Bearer ${accessToken}` };
+        }
+        if (apiKey) {
+            return { 'x-api-key': apiKey };
+        }
+        return {};
+    };
+
+    // Check if authenticated (has either token)
+    const hasAuth = !!(accessToken || apiKey);
 
     // check update
     const checkUpdate = useCallback(async (): Promise<LatestVersionResponse | null> => {
@@ -69,11 +86,11 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
             });
             return;
         }
-        if (!apiKey) {
+        if (!hasAuth) {
             toast({
                 variant: "destructive",
                 title: "Submission Failed",
-                description: "API Key is missing.",
+                description: "Authentication is required. Please login first.",
             });
             return;
         }
@@ -103,7 +120,7 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        'x-api-key': apiKey,
+                        ...getAuthHeaders(),
                     },
                     body: JSON.stringify(payload),
                 }
@@ -136,7 +153,7 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
         } finally {
             setIsSubmitting(false);
         }
-    }, [script, editorContent, toast, updateExtension, apiKey]);
+    }, [script, editorContent, toast, updateExtension, hasAuth, getAuthHeaders]);
 
     const publishNewVersion = useCallback(async () => {
         if (!script?.marketplace_id) {
@@ -147,11 +164,11 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
             });
             return;
         }
-        if (!apiKey) {
+        if (!hasAuth) {
             toast({
                 variant: "destructive",
                 title: "Publish Failed",
-                description: "API Key is missing.",
+                description: "Authentication is required. Please login first.",
             });
             return;
         }
@@ -188,7 +205,7 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        'x-api-key': apiKey,
+                        ...getAuthHeaders(),
                     },
                     body: JSON.stringify(apiPayload),
                 }
@@ -220,7 +237,7 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
         } finally {
             setIsPublishing(false);
         }
-    }, [script, editorContent, toast, apiKey]);
+    }, [script, editorContent, toast, hasAuth, getAuthHeaders]);
 
     return {
         isSubmitting,
@@ -228,5 +245,6 @@ export const useExtensionMarketplace = ({ script, editorContent, apiKey }: UseEx
         isPublishing,
         publishNewVersion,
         checkUpdate,
+        hasAuth,
     };
 }; 

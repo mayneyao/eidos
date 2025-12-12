@@ -12,12 +12,12 @@ import {
   ToyBrickIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { isMacDesktop } from "@/lib/web/helper"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
@@ -87,7 +87,7 @@ const BlockTab = memo(
     setCurrentApp: (app: string) => void
     navigate: (path: string) => void
     space: string
-    onBlockTabClick: (tabId: string) => void
+    onBlockTabClick: (tabId: string, target?: "_blank" | "_self") => void
   }) => {
     const block = blocks[tabId]
     const shortcutNum = index + 1
@@ -95,23 +95,34 @@ const BlockTab = memo(
     const isActive = currentApp === tabId
     const label = block?.name || tabId
 
-    const handleClick = useCallback(() => {
-      onBlockTabClick(tabId)
-    }, [onBlockTabClick, tabId])
+    const handleClick = useCallback(
+      (event: React.MouseEvent) => {
+        const target =
+          event.metaKey || event.ctrlKey || event.altKey ? "_blank" : undefined
+        onBlockTabClick(tabId, target)
+      },
+      [onBlockTabClick, tabId]
+    )
 
     return (
       <div key={tabId}>
         <Button
-          variant={isActive ? "secondary" : "ghost"}
+          variant="ghost"
           size="sm"
           className={cn(
-            "h-8 w-8 p-0 transition-colors flex-shrink-0",
-            isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
+            "h-8 w-8 p-0 transition-colors flex-shrink-0 relative",
+            isActive
+              ? "bg-background text-foreground"
+              : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           )}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           onClick={handleClick}
           title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
         >
+          {/* Active tab indicator */}
+          {isActive && (
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+          )}
           <Icon className="h-4 w-4" />
         </Button>
       </div>
@@ -124,7 +135,7 @@ export const SidebarTabs = () => {
   const { currentApp, setCurrentApp } = useSidebarStore()
   const { tabs: tabIds, addTab, removeTab, reorderTabs } = useTabsKV()
   const { space } = useCurrentPathInfo()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
 
   // Get block IDs (non-fixed tabs)
   const blockIds = useMemo(
@@ -146,7 +157,11 @@ export const SidebarTabs = () => {
   const [sortedTabs, setSortedTabs] = useState(tabIds)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const handleTabClick = (tabId: string) => {
+  const handleTabClick = (tabId: string, event?: React.MouseEvent) => {
+    const target =
+      event && (event.metaKey || event.ctrlKey || event.altKey)
+        ? "_blank"
+        : undefined
     const tabConfig = TAB_CONFIG[tabId]
 
     if (tabConfig?.isNavigation && tabConfig?.href) {
@@ -156,14 +171,14 @@ export const SidebarTabs = () => {
         tabId === "today"
           ? `/journals/${new Date().toLocaleDateString("en-CA")}`
           : tabConfig.href
-      navigate(href)
+      navigate(href, { target })
     } else {
       // Regular tab or block tab
       if (tabId === "nodes" || tabId === "extensions" || tabId === "files") {
         setCurrentApp(tabId as SidebarApp)
       } else {
         // Block tab - use unified handling logic
-        handleBlockTabClick(tabId)
+        handleBlockTabClick(tabId, target)
       }
     }
   }
@@ -208,7 +223,8 @@ export const SidebarTabs = () => {
 
       // Measure sidebar/container width dynamically instead of hardcoding.
       // Prefer the parent element of the header bar (sidebar container) when available.
-      const sidebarEl = containerRef.current?.parentElement ?? containerRef.current
+      const sidebarEl =
+        containerRef.current?.parentElement ?? containerRef.current
       const sidebarWidth = sidebarEl ? Math.floor(sidebarEl.clientWidth) : 320
       const tabWidth = 32 // w-8 = 32px
       const gap = 2 // gap-0.5 = 2px
@@ -246,7 +262,8 @@ export const SidebarTabs = () => {
     calculateVisibleTabs()
 
     // Use ResizeObserver to monitor container width changes
-    const sidebarEl = containerRef.current?.parentElement ?? containerRef.current
+    const sidebarEl =
+      containerRef.current?.parentElement ?? containerRef.current
     if (!sidebarEl) return
 
     const resizeObserver = new ResizeObserver(() => {
@@ -273,7 +290,7 @@ export const SidebarTabs = () => {
     <div
       ref={containerRef}
       className={cn(
-        "flex h-[38px] items-center justify-between px-1 border-b border-sidebar-border transition-all duration-200",
+        "flex h-[38px] items-center justify-between px-1 border-b border-border/60 bg-muted/60 transition-all duration-200",
         {
           "pl-[76px]": isMacDesktop(),
           "pl-4": !isMacDesktop(),
@@ -297,37 +314,29 @@ export const SidebarTabs = () => {
             const isActive = currentApp === tabId
             const label = tabConfig?.label || tabId
 
-            const buttonContent = (
-              <Button
-                variant={isActive ? "secondary" : "ghost"}
-                size="sm"
-                className={cn(
-                  "h-8 w-8 p-0 transition-colors flex-shrink-0",
-                  isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
-                )}
-                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                onClick={() => handleTabClick(tabId)}
-                title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
-              >
-                <Icon className="h-4 w-4" />
-              </Button>
+            return (
+              <div key={tabId}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-8 w-8 p-0 transition-colors flex-shrink-0 relative",
+                    isActive
+                      ? "bg-background text-foreground"
+                      : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  )}
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={(e) => handleTabClick(tabId, e)}
+                  title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
+                >
+                  {/* Active tab indicator */}
+                  {isActive && (
+                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+                  )}
+                  <Icon className="h-4 w-4" />
+                </Button>
+              </div>
             )
-
-            if (tabConfig?.isNavigation && tabConfig?.href) {
-              // Special handling for today tab - go to current local date
-              // en-CA = Canadian English locale, which formats dates as YYYY-MM-DD
-              const href =
-                tabId === "today"
-                  ? `/journals/${new Date().toLocaleDateString("en-CA")}`
-                  : tabConfig.href
-
-              return (
-                <Link key={tabId} to={href}>
-                  {buttonContent}
-                </Link>
-              )
-            }
-            return <div key={tabId}>{buttonContent}</div>
           } else {
             // Block tabs - use BlockTab component
             return (
@@ -356,7 +365,10 @@ export const SidebarTabs = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 transition-all duration-200 flex-shrink-0 hover:bg-sidebar-accent/50"
+                className={cn(
+                  "h-8 w-8 p-0 transition-all duration-200 flex-shrink-0 relative",
+                  "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                )}
                 style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                 title="More tabs"
               >
@@ -391,7 +403,11 @@ export const SidebarTabs = () => {
                     const tabConfig = TAB_CONFIG[tabId]
                     const label = isFixedTab ? tabConfig?.label || tabId : null
 
-                    const handleClick = () => {
+                    const handleClick = (event: React.MouseEvent) => {
+                      const target =
+                        event.metaKey || event.ctrlKey || event.altKey
+                          ? "_blank"
+                          : undefined
                       if (tabConfig?.isNavigation && tabConfig?.href) {
                         // Navigation type tab - set current app and navigate
                         setCurrentApp(tabId as SidebarApp)
@@ -399,14 +415,14 @@ export const SidebarTabs = () => {
                           tabId === "today"
                             ? `/journals/${new Date().toLocaleDateString("en-CA")}`
                             : tabConfig.href
-                        navigate(href)
+                        navigate(href, { target })
                       } else {
                         // Regular tab or block tab
                         if (isFixedTab) {
                           setCurrentApp(tabId as SidebarApp)
                         } else {
                           // Block tab - use unified handling logic
-                          handleBlockTabClick(tabId)
+                          handleBlockTabClick(tabId, target)
                         }
                       }
                     }

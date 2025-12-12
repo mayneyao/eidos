@@ -3,6 +3,7 @@ import type { LexicalEditor, NodeKey } from "lexical";
 import { $getNodeByKey } from "lexical"
 
 import { $isCustomBlockNode } from "../node"
+import { useEditorInstance } from "../../../hooks/editor-instance-context"
 
 export function useResizable({
     initialHeight,
@@ -15,6 +16,7 @@ export function useResizable({
     editor: LexicalEditor
     isSelecting: boolean
 }) {
+    const { container } = useEditorInstance()
     const [height, setHeight] = useState<number>(initialHeight)
     const isDragging = useRef(false)
     const startY = useRef(0)
@@ -47,13 +49,14 @@ export function useResizable({
     )
 
     const cleanup = useCallback(() => {
-        document.body.style.cursor = ""
-        document.body.style.userSelect = ""
+        const target = (container ?? document.body) as HTMLElement
+        target.style.cursor = ""
+        target.style.userSelect = ""
         window.removeEventListener("mousemove", handleMouseMove)
         window.removeEventListener("mouseup", handleMouseUp)
-        const overlay = document.getElementById("drag-overlay")
+        const overlay = target.querySelector("#drag-overlay")
         overlay?.remove()
-    }, [handleMouseMove, handleMouseUp])
+    }, [container, handleMouseMove, handleMouseUp])
 
     const handleMouseDown = useCallback(
         (e: React.MouseEvent) => {
@@ -64,8 +67,9 @@ export function useResizable({
             startY.current = e.clientY
             startHeight.current = height
 
-            document.body.style.cursor = "ns-resize"
-            document.body.style.userSelect = "none"
+            const target = (container ?? document.body) as HTMLElement
+            target.style.cursor = "ns-resize"
+            target.style.userSelect = "none"
 
             const overlay = document.createElement("div")
             overlay.id = "drag-overlay"
@@ -77,12 +81,12 @@ export function useResizable({
         bottom: 0;
         z-index: 9999;
       `
-            document.body.appendChild(overlay)
+            target.appendChild(overlay)
 
             window.addEventListener("mousemove", handleMouseMove)
             window.addEventListener("mouseup", handleMouseUp)
         },
-        [height, handleMouseMove, handleMouseUp, isSelecting]
+        [container, height, handleMouseMove, handleMouseUp, isSelecting]
     )
 
     useEffect(() => {

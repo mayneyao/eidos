@@ -94,7 +94,9 @@ export const ChartBlock: React.FC<ChartBlockProps> = ({
 
   const copyContent = useCallback(
     async (format: "png" | "svg" | "text") => {
-      const chartRef = document.querySelector("#chart-renderer")
+      const chartRef = containerRef.current?.querySelector(
+        "#chart-renderer"
+      ) as HTMLElement | null
       if (chartRef) {
         try {
           if (format === "text") {

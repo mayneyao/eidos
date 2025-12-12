@@ -5,7 +5,7 @@ import {
 } from '@/lib/web/theme'
 import retroArcade from "@/styles/themes/retro-arcade.css?raw"
 import defaultTheme from "@/styles/themes/default.css?raw"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useCallback, useEffect } from "react"
 import { useAllThemes } from "./use-all-themes"
 import { useSqliteKV } from "./use-sqlite-kv"
@@ -48,7 +48,7 @@ export const handleApplyTheme = (rawCss: string, isDarkMode: boolean) => {
 
 export const useApplyThemeByName = () => {
     const { currentThemeName } = useThemeStore()
-    const { theme = "light" } = useTheme()
+    const { resolvedTheme } = useTheme()
     const allThemes = useAllThemes()
     const [themeMode, setThemeMode] = useSqliteKV<string>('eidos:space:settings:theme:mode', 'light')
     const applyTheme = useCallback((mode: string, themeName: string) => {
@@ -63,9 +63,9 @@ export const useApplyThemeByName = () => {
     }, [applyTheme, currentThemeName])
 
     useEffect(() => {
-        applyTheme(theme, currentThemeName)
-        setThemeMode(theme)
-    }, [currentThemeName, theme])
+        applyTheme(resolvedTheme, currentThemeName)
+        setThemeMode(resolvedTheme)
+    }, [currentThemeName, resolvedTheme])
 
     return {
         applyTheme,

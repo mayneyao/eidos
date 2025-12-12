@@ -156,16 +156,20 @@ export const useCommonKeyboardShortcuts = () => {
 
   return [
     {
-      key: "Ctrl/Cmd + /",
-      description: t('kbd.shortcuts.common.toggleChatbotDescription'),
-    },
-    {
       key: "Ctrl/Cmd + \\",
       description: t('kbd.shortcuts.common.toggleSidebarDescription'),
     },
     {
+      key: "Ctrl/Cmd + Alt + \\",
+      description: t('kbd.shortcuts.common.toggleChatbotDescription'),
+    },
+    {
       key: "Ctrl/Cmd + K",
       description: t('kbd.shortcuts.common.toggleCommandPaletteDescription'),
+    },
+    {
+      key: "Ctrl/Cmd + P",
+      description: t('kbd.shortcuts.common.searchByNameDescription'),
     },
     {
       key: "Ctrl/Cmd + N",
@@ -173,15 +177,7 @@ export const useCommonKeyboardShortcuts = () => {
     },
     {
       key: "Ctrl/Cmd + T",
-      description: t('kbd.shortcuts.common.navigateToTodayDescription'),
-    },
-    {
-      key: "Ctrl/Cmd + Shift + [",
-      description: t('kbd.shortcuts.common.navigateToPreviousDayDescription'),
-    },
-    {
-      key: "Ctrl/Cmd + Shift + ]",
-      description: t('kbd.shortcuts.common.navigateToNextDayDescription'),
+      description: t('kbd.shortcuts.common.newTabDescription'),
     },
     {
       key: "Ctrl/Cmd + Shift + L",
@@ -194,10 +190,6 @@ export const useCommonKeyboardShortcuts = () => {
     {
       key: "Ctrl/Cmd + ,",
       description: t('kbd.shortcuts.common.openSettingsDescription'),
-    },
-    {
-      key: "Shift + Ctrl/Cmd + C",
-      description: t('kbd.shortcuts.common.copyUrlDescription'),
     },
     {
       key: "Ctrl/Cmd + 1-9",

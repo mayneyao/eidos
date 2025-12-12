@@ -1,16 +1,32 @@
 import { handleFunctionCall } from '@/packages/core/rpc';
 import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
+import { OAUTH_CONFIG } from '@/lib/const';
 import { containsBinaryData, parseMultipartFormData, processBinaryDataForResponse, ProxyHandler, restoreBinaryData } from '@eidos.space/sandbox';
 import { serve } from '@hono/node-server';
+import { BrowserWindow } from 'electron';
 import { log } from 'electron-log';
 import { Hono } from 'hono';
 import path from 'path';
+import { getConfigManager } from '../config';
+import { CredentialsManager, type OAuthTokens, type UserInfo } from '../credentials';
 import { getOrSetDataSpace } from '../data-space';
 import { getFileFromPath, getSpaceFileFromPath } from '../file-system/space';
 import { getSpaceRegistry } from '../space-registry';
 import { interceptExtensionRequest } from './ext-server';
 import { serveFile } from './serve-file';
 import { serveStatic } from './server-static';
+
+// Channel name for auth state changes
+export const AUTH_STATE_CHANGED_CHANNEL = 'auth-state-changed';
+
+/**
+ * Broadcast auth state change to all renderer windows
+ */
+function broadcastAuthStateChange(authenticated: boolean, user?: UserInfo | null) {
+    BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send(AUTH_STATE_CHANGED_CHANNEL, { authenticated, user });
+    });
+}
 
 
 
@@ -147,6 +163,202 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
     // host static files
     app.use('/*', serveStatic({ root: dist }));
     log('static files served from', dist)
+
+    // OIDC Implementation with PKCE
+
+    // Initiate OAuth flow with PKCE
+    app.get('/api/auth/login', async (c) => {
+        try {
+            // Generate PKCE parameters
+            const pkce = CredentialsManager.generatePKCE();
+
+            // Store code_verifier in memory for later use in callback
+            CredentialsManager.setCodeVerifier(pkce.codeVerifier);
+
+            // Build authorization URL with PKCE parameters
+            const authUrl = new URL(`${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.AUTHORIZE}`);
+            authUrl.searchParams.set('client_id', OAUTH_CONFIG.CLIENT_ID);
+            authUrl.searchParams.set('redirect_uri', OAUTH_CONFIG.REDIRECT_URI);
+            authUrl.searchParams.set('response_type', 'code');
+            authUrl.searchParams.set('scope', OAUTH_CONFIG.SCOPES);
+            authUrl.searchParams.set('code_challenge', pkce.codeChallenge);
+            authUrl.searchParams.set('code_challenge_method', pkce.codeChallengeMethod);
+            authUrl.searchParams.set('prompt', 'consent');
+
+            return c.json({ url: authUrl.toString() });
+        } catch (error: any) {
+            return c.json({ error: error.message }, 500);
+        }
+    });
+
+    app.get('/oauth/callback', async (c) => {
+        const url = new URL(c.req.url);
+        const code = url.searchParams.get('code');
+        const error = url.searchParams.get('error');
+
+        if (error) {
+            const errorDescription = url.searchParams.get('error_description') || error;
+            return c.html(`
+                <html>
+                    <body>
+                        <h1>Login Failed</h1>
+                        <p>${errorDescription}</p>
+                        <p>You can close this window and try again.</p>
+                    </body>
+                </html>
+            `);
+        }
+
+        if (!code) {
+            return c.text('No code provided', 400);
+        }
+
+        try {
+            // Retrieve the stored code_verifier from memory
+            const codeVerifier = CredentialsManager.getAndClearCodeVerifier();
+            if (!codeVerifier) {
+                return c.text('PKCE code_verifier not found. Please start the login process again.', 400);
+            }
+
+            // Exchange code for tokens using PKCE (no client_secret needed)
+            const tokenUrl = `${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.TOKEN}`;
+            const tokenResponse = await fetch(tokenUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    client_id: OAUTH_CONFIG.CLIENT_ID,
+                    redirect_uri: OAUTH_CONFIG.REDIRECT_URI,
+                    grant_type: 'authorization_code',
+                    code: code,
+                    code_verifier: codeVerifier,
+                }),
+            });
+
+            if (!tokenResponse.ok) {
+                const errorText = await tokenResponse.text();
+                return c.text(`Token exchange failed: ${errorText}`, 500);
+            }
+
+            const tokens: OAuthTokens = await tokenResponse.json();
+
+            console.log('tokens', tokens)
+            // Store tokens securely
+            await CredentialsManager.setTokens(tokens);
+
+            // Fetch user info using the access token
+            const userInfoUrl = `${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.USERINFO}`;
+            const userInfoResponse = await fetch(userInfoUrl, {
+                headers: {
+                    'Authorization': `Bearer ${tokens.access_token}`
+                }
+            });
+
+            let user: UserInfo | null = null;
+            if (userInfoResponse.ok) {
+                user = await userInfoResponse.json();
+                // Store user info separately (non-sensitive data)
+                await CredentialsManager.setUserInfo(user!);
+            } else {
+                // Fallback if userinfo fails
+                console.error('Failed to fetch user info');
+            }
+
+            // Broadcast auth state change to frontend
+            broadcastAuthStateChange(true, user);
+
+            return c.html(`
+                <html>
+                    <body>
+                        <h1>Login Successful</h1>
+                        <p>You can close this window and return to Eidos.</p>
+                        <script>
+                            // Optional: Try to close window or focus app
+                            // window.close();
+                        </script>
+                    </body>
+                </html>
+            `);
+        } catch (error: any) {
+            return c.text(`Authentication error: ${error.message}`, 500);
+        }
+    });
+
+    app.get('/api/auth/user', async (c) => {
+        try {
+            const isAuthenticated = await CredentialsManager.isAuthenticated();
+            if (!isAuthenticated) {
+                return c.json({ authenticated: false }, 401);
+            }
+
+            // Try to get a valid access token (will auto-refresh if needed)
+            const accessToken = await CredentialsManager.getAccessToken();
+            const user = await CredentialsManager.getUserInfo();
+
+            return c.json({
+                authenticated: !!accessToken,
+                user: user,
+                // Don't expose tokens in the API response for security
+                hasValidTokens: !!accessToken
+            });
+        } catch (error: any) {
+            console.error('Error checking authentication status:', error);
+            return c.json({ authenticated: false, error: error.message }, 500);
+        }
+    });
+
+    app.post('/api/auth/logout', async (c) => {
+        try {
+            // Get tokens before clearing for server-side logout
+            const tokens = await CredentialsManager.getTokens();
+
+            // Notify server to end session if we have an id_token
+            if (tokens?.id_token) {
+                try {
+                    const endSessionUrl = new URL(`${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.END_SESSION}`);
+                    endSessionUrl.searchParams.set('id_token_hint', tokens.id_token);
+
+                    await fetch(endSessionUrl.toString(), {
+                        method: 'GET',
+                    });
+                } catch (endSessionError) {
+                    // Log but don't fail - still clear local credentials
+                    console.error('Failed to end session on server:', endSessionError);
+                }
+            }
+
+            // Clear local credentials
+            await CredentialsManager.clearAll();
+            // Broadcast auth state change to frontend
+            broadcastAuthStateChange(false, null);
+            return c.json({ success: true });
+        } catch (error: any) {
+            console.error('Error during logout:', error);
+            return c.json({ success: false, error: error.message }, 500);
+        }
+    });
+
+    // Get access token for authenticated API requests
+    // This endpoint should only be called from trusted frontend code
+    app.get('/api/auth/token', async (c) => {
+        try {
+            const isAuthenticated = await CredentialsManager.isAuthenticated();
+            if (!isAuthenticated) {
+                return c.json({ error: 'Not authenticated' }, 401);
+            }
+
+            const accessToken = await CredentialsManager.getAccessToken();
+            if (!accessToken) {
+                return c.json({ error: 'Failed to get access token' }, 401);
+            }
+
+            return c.json({ access_token: accessToken });
+        } catch (error: any) {
+            console.error('Error getting access token:', error);
+            return c.json({ error: error.message }, 500);
+        }
+    });
 
     // handle api calls
     app.post('/rpc', async (c) => {

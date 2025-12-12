@@ -18,19 +18,18 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
 
 import { isInkServiceMode } from "@/lib/env"
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuSeparator as ContextMenuSeparator,
+  NativeContextMenuSub as ContextMenuSub,
+  NativeContextMenuSubContent as ContextMenuSubContent,
+  NativeContextMenuSubTrigger as ContextMenuSubTrigger,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import {
   Popover,
   PopoverContent,
@@ -41,6 +40,7 @@ import { useAllExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import {
   useAppsStore,
@@ -154,11 +154,11 @@ export function NodeItem({
     }
   }, [renameInputRef])
 
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
 
   const handleDeleteTable = () => {
     deleteNode(node)
-    router(`/${databaseName}`)
+    navigate(`/${databaseName}`)
   }
   const handleRename: MouseEventHandler<HTMLDivElement> = (e) => {
     setRenameOpen(true)
@@ -316,7 +316,8 @@ export function NodeItem({
             </ContextMenuItem>
           </>
         )}
-        {node.type === "doc" && (
+        {/* TODO: NodeMoveInto with Command component not supported in native context menu */}
+        {/* {node.type === "doc" && (
           <>
             <ContextMenuSub>
               <ContextMenuSubTrigger>
@@ -328,7 +329,7 @@ export function NodeItem({
               </ContextMenuSubContent>
             </ContextMenuSub>
           </>
-        )}
+        )} */}
         {node.type !== "folder" && <NodeExportContextMenu node={node} />}
         {/* <NodeOpenInCursorContextMenu node={node} /> */}
       </ContextMenuContent>

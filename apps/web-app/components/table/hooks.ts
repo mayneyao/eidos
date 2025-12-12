@@ -8,7 +8,6 @@ import {
   useMemo,
   useState
 } from "react"
-import { useSearchParams } from "react-router-dom"
 
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"

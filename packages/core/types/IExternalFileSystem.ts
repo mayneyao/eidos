@@ -21,6 +21,8 @@ export interface IDirectoryEntry {
     extensionType?: "script" | "block"
     /** Path based on node names (instead of IDs) */
     namePath?: string
+    /** ID-based virtual path (rooted at ~/.eidos/__NODES__) */
+    idPath?: string
   }
 }
 

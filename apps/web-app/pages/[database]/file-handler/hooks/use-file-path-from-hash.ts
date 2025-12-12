@@ -1,12 +1,12 @@
 import { useMemo } from "react"
-import { useLocation } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { getFileExtension } from "@/hooks/use-file-handlers"
 
 /**
  * Hook to extract file path and related information from URL hash
  */
 export function useFilePathFromHash() {
-  const location = useLocation()
+  const { location } = useRouterAdapter()
 
   const filePath = useMemo(() => {
     const hash = location.hash

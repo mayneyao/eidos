@@ -1,5 +1,5 @@
 import type { DocActionMeta, FileActionMeta, IExtension } from "@/packages/core/types/IExtension"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { generateIdV7 } from "@/lib/utils"
@@ -25,7 +25,7 @@ import fileHandlerTemplate from "./templates/block/file-handler.tsx?raw"
 
 export const useNewExtension = () => {
   const { addExtension } = useExtension()
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { space } = useCurrentPathInfo()
   const { setFocusedExtensionId } = useExtensionSidebarStore()
 
@@ -238,7 +238,7 @@ export const useNewExtension = () => {
     // Set the focused extension ID to scroll to it in the sidebar
     setFocusedExtensionId(newScriptId)
 
-    router(`/extensions/${newScriptId}`)
+    navigate(`/extensions/${newScriptId}`)
   }
 
   return {

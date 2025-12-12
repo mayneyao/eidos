@@ -1,3 +1,4 @@
+import { useTabTitle } from "@/apps/web-app/hooks/use-tab-title"
 
 import { HandlerRenderer } from "./components/handler-renderer"
 import { LoadingState } from "./components/loading-state"
@@ -8,6 +9,7 @@ import { useHandlerSelection } from "./hooks/use-handler-selection"
 
 export function FileHandlerPage() {
   const { filePath, fileExtension, fileName } = useFilePathFromHash()
+  useTabTitle(fileName)
   const { handlers, selectedHandler, isLoadingHandlers, isLoadingDefault } =
     useHandlerSelection(fileExtension)
 

@@ -1,14 +1,16 @@
 import { useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import type { IBindings } from "@/packages/core/types/IExtension"
-import { useLoaderData, useRevalidator } from "react-router-dom"
 
-import { useExtension } from "@/apps/web-app/hooks/use-extension"
+import {
+  useExtension,
+  useExtensionByIdOrSlug,
+} from "@/apps/web-app/hooks/use-extension"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+
 import { ExtensionBindings } from "./extension-bindings"
 
-export const BindingsConfig = () => {
-  const extension = useLoaderData() as IExtension
-  const revalidator = useRevalidator()
+const BindingsConfigContent = ({ extension }: { extension: IExtension }) => {
   const [bindings, setBindings] = useState<IBindings>(extension.bindings || {})
   const { updateExtension } = useExtension()
 
@@ -19,7 +21,7 @@ export const BindingsConfig = () => {
         id: extension.id,
         bindings: newBindings,
       })
-      revalidator.revalidate()
+      // Data will auto-update via BroadcastChannel
     } catch (error) {
       console.error("Failed to update extension bindings", error)
     }
@@ -31,4 +33,15 @@ export const BindingsConfig = () => {
       onUpdateBindings={handleUpdateBindings}
     />
   )
+}
+
+export const BindingsConfig = () => {
+  const { params } = useRouterAdapter()
+  const extension = useExtensionByIdOrSlug(params.scriptId)
+
+  if (!extension) {
+    return null
+  }
+
+  return <BindingsConfigContent extension={extension} />
 }

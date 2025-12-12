@@ -68,6 +68,14 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
     return doc?.markdown
   }
 
+  public async getDocMarkdownBatch(docIds: string[]) {
+    return this.doc.getMarkdownBatch(docIds)
+  }
+
+  public async searchDayPages(term: string, page: number = 0, pageSize: number = 20) {
+    return this.doc.searchDayPages(term, page, pageSize)
+  }
+
   /**
    * if you want to create or update a day page, you should pass a day page id. page id is like 2021-01-01
    * @param docId
@@ -138,7 +146,7 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
   }
 
   public async fullTextSearch(query: string) {
-    return this.doc.search(query)
+    return this.doc.search(query, { onlyDayPages: true })
   }
 
   public async listDays(page: number) {

@@ -8,9 +8,10 @@ import { getEmbeddingWorker } from "@/lib/embedding/worker"
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { getWorker } from "@/packages/core/sqlite/worker"
 
+
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useThemeStore } from "@/apps/web-app/store/theme-store"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "./use-router-adapter"
 import {
   _convertEmail2State,
   _convertHtml2State,
@@ -24,7 +25,7 @@ const Markdown = lazy(() => import("@/components/remix-chat/components/markdown"
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { id: userId } = useCurrentUser()
   const {
     setWebsocketConnected,

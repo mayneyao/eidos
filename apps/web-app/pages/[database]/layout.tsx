@@ -1,23 +1,24 @@
 import { useEffect } from "react"
-import { Outlet, useNavigate } from "react-router-dom"
+import { Outlet } from "react-router-dom"
 
-
-import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
-import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { useActivation } from "@/apps/web-app/hooks/use-activation"
 import { useWindowControlsOverlayVisible } from "@/apps/web-app/hooks/use-window-controls-overlay-visiabe"
+import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
+import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
+import { TabManager } from "@/apps/web-app/components/tab-manager"
 
 import { DatabaseLayoutBase } from "./base-layout"
 import { DatabasePWALayoutBase } from "./base-pwa-layout"
+import { TabContentLayout } from "./tab-content-layout"
 import { useLayoutInit } from "./hook"
 
 export default function DatabaseLayout() {
   const windowControlsOverlayVisible = useWindowControlsOverlayVisible()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { isActivated } = useActivation()
 
   useLayoutInit()
-
 
   useEffect(() => {
     if (!isActivated) {
@@ -33,7 +34,9 @@ export default function DatabaseLayout() {
       <DatabasePWALayoutBase>
         <DocExtBlockLoader />
         <KeyboardShortCuts />
-        <Outlet />
+        <TabManager>
+          <TabContentLayout />
+        </TabManager>
       </DatabasePWALayoutBase>
     )
   }
@@ -41,7 +44,9 @@ export default function DatabaseLayout() {
     <DatabaseLayoutBase>
       <DocExtBlockLoader />
       <KeyboardShortCuts />
-      <Outlet />
+      <TabManager>
+        <TabContentLayout />
+      </TabManager>
     </DatabaseLayoutBase>
   )
 }

@@ -28,7 +28,7 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
 
         async listAllDayPages() {
             const res = await this.dataSpace.exec2(
-                `SELECT id FROM ${this.name} WHERE is_day_page = 1 AND markdown != '' ORDER BY id DESC`
+                `SELECT id FROM ${this.name} WHERE is_day_page = 1 ORDER BY id DESC`
             )
             return res.map((item: any) => ({
                 id: item.id,
@@ -43,6 +43,55 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
             )
             return res.map((item: any) => ({
                 id: item.id,
+            }))
+        }
+
+        /**
+         * Batch fetch markdown for a set of doc ids.
+         */
+        async getMarkdownBatch(ids: string[]): Promise<{ id: string; markdown: string }[]> {
+            if (!ids.length) return []
+            const placeholders = ids.map(() => "?").join(",")
+            try {
+                const rows = await this.dataSpace.exec2(
+                    `SELECT id, markdown FROM ${this.name} WHERE id IN (${placeholders})`,
+                    ids
+                )
+
+                // preserve input order; missing ids return empty string instead of throwing
+                const markdownMap = new Map<string, string>()
+                rows.forEach((row: any) => {
+                    markdownMap.set(row.id, row.markdown || "")
+                })
+                return ids.map((id) => ({
+                    id,
+                    markdown: markdownMap.get(id) ?? "",
+                }))
+            } catch (error) {
+                console.warn("getMarkdownBatch failed, returning empty for missing ids", error)
+                return ids.map((id) => ({
+                    id,
+                    markdown: "",
+                }))
+            }
+        }
+
+        async searchDayPages(
+            term: string,
+            page: number = 0,
+            pageSize: number = 20
+        ): Promise<{ id: string; markdown: string }[]> {
+            const like = `%${term}%`
+            const rows = await this.dataSpace.exec2(
+                `SELECT id, markdown FROM ${this.name}
+                 WHERE is_day_page = 1 AND (id LIKE ? OR markdown LIKE ?)
+                 ORDER BY id DESC
+                 LIMIT ?, ?`,
+                [like, like, page * pageSize, pageSize]
+            )
+            return rows.map((row: any) => ({
+                id: row.id,
+                markdown: row.markdown || "",
             }))
         }
 

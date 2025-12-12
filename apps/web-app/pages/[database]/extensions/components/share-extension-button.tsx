@@ -1,9 +1,8 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 import { Share2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-// import { authClient } from "@/lib/auth-client"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,47 +15,52 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-// TODO: Import a store or context to get the API key
-// Example: import { useApiKeyStore } from "@/stores/api-key-store";
-import { useConfigStore } from "@/components/settings/stores"
+import { useAuthOptional } from "@/components/auth-provider"
 import { useSettings } from "@/apps/web-app/hooks/use-settings"
 
-// import { LoginDialog } from "@/components/login-dialog"
-
 import { useExtensionMarketplace } from "../hooks/use-extension-marketplace"
-
-// Import the config store
 
 interface ShareExtensionButtonProps {
   script: IExtension
   onSuccess: () => void
-  // apiKey?: string; // Or get it from a store
+  autoOpen?: boolean
+  onAutoOpen?: () => void
 }
 
 export const ShareExtensionButton = ({
   script,
   onSuccess,
+  autoOpen = false,
+  onAutoOpen,
 }: ShareExtensionButtonProps) => {
   const { t } = useTranslation()
+  const auth = useAuthOptional()
+  const { openSettingsModal } = useSettings()
 
-  const publishingApiKey = useConfigStore((state) => state.extensionsManagerKey) // Use the single publishingApiKey
-
-  const { isSubmitting, submitExtension, isPublishing, publishNewVersion } =
-    useExtensionMarketplace({
-      script,
-      editorContent: script.ts_code || script.code,
-      apiKey: publishingApiKey, // Pass the publishingApiKey to the hook
-    })
-  // const { data: session, refetch } = authClient.useSession()
-  // const user = session?.user
-  // const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false)
+  const {
+    isSubmitting,
+    submitExtension,
+    isPublishing,
+    publishNewVersion,
+    hasAuth,
+  } = useExtensionMarketplace({
+    script,
+    editorContent: script.ts_code || script.code,
+    accessToken: auth?.accessToken,
+  })
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
-  // const [loginFromShare, setLoginFromShare] = useState(false)
+
+  // Auto-open share dialog when requested (e.g., from context menu navigation)
+  useEffect(() => {
+    if (autoOpen && !shareDialogOpen) {
+      setShareDialogOpen(true)
+      onAutoOpen?.()
+    }
+  }, [autoOpen, shareDialogOpen, onAutoOpen])
 
   const handleSubmitOrPublish = useCallback(async () => {
-    if (!publishingApiKey) {
-      // This case is now handled by the handleConfirmClick redirecting to settings
-      // The hook will also show a toast if an attempt is made without a key.
+    if (!hasAuth) {
+      // This case is now handled by the handleConfirmClick redirecting to login
       return
     }
     if (script.marketplace_id) {
@@ -66,46 +70,47 @@ export const ShareExtensionButton = ({
     }
     onSuccess()
     setShareDialogOpen(false)
-  }, [script, publishingApiKey, publishNewVersion, submitExtension, onSuccess])
+  }, [script, hasAuth, publishNewVersion, submitExtension, onSuccess])
 
-  const { openSettingsModal } = useSettings()
-  
   const handleConfirmClick = useCallback(() => {
-    if (!publishingApiKey) {
-      // Open settings modal to API key section
-      openSettingsModal("key-store")
+    if (!hasAuth) {
+      // Redirect to login via settings
+      openSettingsModal("general")
       setShareDialogOpen(false)
       return
     }
     handleSubmitOrPublish()
-  }, [handleSubmitOrPublish, publishingApiKey, openSettingsModal])
-
-  // const handleLoginSuccess = useCallback(() => {
-  //   refetch()
-  //   if (loginFromShare) {
-  //     setLoginFromShare(false)
-  //     setShareDialogOpen(true)
-  //   }
-  // }, [refetch, loginFromShare])
+  }, [handleSubmitOrPublish, hasAuth, openSettingsModal])
 
   const getDialogDescription = () => {
-    if (!publishingApiKey) {
-      return "An API key is required to share extensions. Please configure it in the API Key Management section of Settings."
+    if (!hasAuth) {
+      return t(
+        "extensions.share.loginRequired",
+        "Login is required to share extensions. Please login in the General section of Settings."
+      )
     }
     if (script.marketplace_id) {
-      return "This action will update the existing public extension listing with the current code and metadata. Are you sure you want to proceed?"
+      return t(
+        "extensions.share.updateDescription",
+        "This action will update the existing public extension listing with the current code and metadata. Are you sure you want to proceed?"
+      )
     }
-    return "This action will submit the current code as a new public extension to the marketplace. Are you sure you want to proceed?"
+    return t(
+      "extensions.share.submitDescription",
+      "This action will submit the current code as a new public extension to the marketplace. Are you sure you want to proceed?"
+    )
   }
 
   const getConfirmButtonText = () => {
     if (isSubmitting || isPublishing) {
-      return "Submitting..."
+      return t("extensions.share.submitting", "Submitting...")
     }
-    if (!publishingApiKey) {
-      return "Go to Settings"
+    if (!hasAuth) {
+      return t("extensions.share.goToSettings", "Go to Settings")
     }
-    return script.marketplace_id ? "Confirm & Publish" : "Confirm & Submit"
+    return script.marketplace_id
+      ? t("extensions.share.confirmPublish", "Confirm & Publish")
+      : t("extensions.share.confirmSubmit", "Confirm & Submit")
   }
 
   if (!["block", "udf", "script"].includes(script.type)) {
@@ -138,18 +143,13 @@ export const ShareExtensionButton = ({
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmClick}
-              disabled={(isSubmitting || isPublishing) && !!publishingApiKey} // Disable only if submitting/publishing WITH an API key
+              disabled={(isSubmitting || isPublishing) && hasAuth} // Disable only if submitting/publishing WITH auth
             >
               {getConfirmButtonText()}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {/* <LoginDialog
-        open={isLoginDialogOpen}
-        onOpenChange={setIsLoginDialogOpen}
-        onSuccess={handleLoginSuccess}
-      /> */}
     </>
   )
 }

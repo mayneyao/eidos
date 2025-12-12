@@ -25,7 +25,10 @@ type BoxStyle = {
 export function useMouseSelection(
   getSelectionItems: () => NodeListOf<Element>
 ) {
-  const { setIsSelecting: setGlobalIsSelecting } = useEditorInstance()
+  const {
+    setIsSelecting: setGlobalIsSelecting,
+    queryWithinContainer,
+  } = useEditorInstance()
   const [editor] = useLexicalComposerContext()
   const [startX, setStartX] = useState(0)
   const [startY, setStartY] = useState(0)
@@ -93,29 +96,37 @@ export function useMouseSelection(
   }, [editor])
 
   useEffect(() => {
-    const container = document.querySelector(".doc-editor-area") as HTMLElement
+    const container = queryWithinContainer(
+      ".doc-editor-area"
+    ) as HTMLElement | null
 
-    function disableSelection() {
-      container.setAttribute("style", "user-select: none")
-      document.querySelectorAll("#main-content > *").forEach((el) => {
+    const queryAllWithinContainer = (selector: string) => {
+      if (!container && typeof document === "undefined") return []
+      return Array.from(
+        (container ?? document).querySelectorAll(selector) ?? []
+      )
+    }
+
+    const disableSelection = () => {
+      container?.setAttribute("style", "user-select: none")
+      queryAllWithinContainer("#main-content > *").forEach((el) => {
         ;(el as HTMLElement).style.userSelect = "none"
       })
     }
 
-    function enableSelection() {
-      container.setAttribute("style", "user-select: auto")
-      document.querySelectorAll("#main-content > *").forEach((el) => {
+    const enableSelection = () => {
+      container?.setAttribute("style", "user-select: auto")
+      queryAllWithinContainer("#main-content > *").forEach((el) => {
         ;(el as HTMLElement).style.userSelect = "auto"
       })
     }
     function handleMouseDown(e: MouseEvent) {
       removeAllSelection()
-      const docTitle = document.querySelector("#doc-title")
-      const editorContainer = document.querySelector(".editor-input")
-      const dragHandle = document.querySelector(".draggable-block-menu")
-      const docPropertyGlobalContainer = document.querySelector(
-        "#doc-property-container"
-      )
+      const docTitle = queryWithinContainer("#doc-title")
+      const editorContainer = queryWithinContainer(".editor-input")
+      const dragHandle = queryWithinContainer(".draggable-block-menu")
+      const docPropertyGlobalContainer =
+        queryWithinContainer("#doc-property-container")
       const isClickOnEditor = editorContainer?.contains(e.target as Node)
       const isClickOnDragHandle = dragHandle?.contains(e.target as Node)
       const isClickOnDocTitle = docTitle?.contains(e.target as Node)
@@ -244,7 +255,15 @@ export function useMouseSelection(
         container.removeEventListener("mouseleave", handleMouseLeave)
       }
     }
-  }, [isSelecting, startX, startY, boxStyle, getSelectionItems, selectedKeySet])
+  }, [
+    isSelecting,
+    startX,
+    startY,
+    boxStyle,
+    getSelectionItems,
+    selectedKeySet,
+    queryWithinContainer,
+  ])
 
   useEffect(() => {
     return () => {

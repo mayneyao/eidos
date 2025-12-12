@@ -1,7 +1,7 @@
 import React, { useMemo } from "react"
 import { SelectField, type SelectOption } from "@/packages/core/fields/select"
 import { XIcon } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import { cn } from "@/lib/utils"
 import {
@@ -52,7 +52,7 @@ export const MultiSelectEditor = ({
   const [oldOptionsMap, setOldOptionsMap] = React.useState(optionsMap)
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false)
 
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
   const [values, setValues] = React.useState(value ? value.split(",") : [])
 
   const allOptions = values
@@ -156,7 +156,7 @@ export const MultiSelectEditor = ({
                   style={{
                     background: SelectField.getColorValue(
                       option?.color || SelectField.defaultColor,
-                      theme as any
+                      resolvedTheme as any
                     ),
                   }}
                 >
@@ -165,7 +165,7 @@ export const MultiSelectEditor = ({
               ) : (
                 <SelectOptionItem
                   key={optionId}
-                  theme={theme}
+                  theme={resolvedTheme}
                   option={option}
                 />
               )
@@ -202,7 +202,7 @@ export const MultiSelectEditor = ({
                   style={{
                     background: SelectField.getColorValue(
                       option.color,
-                      theme as any
+                      resolvedTheme as any
                     ),
                   }}
                 >
@@ -247,7 +247,7 @@ export const MultiSelectEditor = ({
                     handleSelect(option.id)
                   }}
                 >
-                  <SelectOptionItem theme={theme} option={option} />
+                  <SelectOptionItem theme={resolvedTheme} option={option} />
                 </CommandItem>
               ))}
               {Boolean(inputValue.length) &&
@@ -262,7 +262,7 @@ export const MultiSelectEditor = ({
                   >
                     <span>Create</span>
                     <SelectOptionItem
-                      theme={theme}
+                      theme={resolvedTheme}
                       option={{
                         id: inputValue,
                         name: inputValue,

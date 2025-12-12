@@ -1,6 +1,6 @@
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { XIcon } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { isDayPageId } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +17,7 @@ export const AIContextNodes = ({
   contextNodes,
   onRemoveNode,
 }: AIContextNodesProps) => {
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { space } = useCurrentPathInfo()
 
   if (!contextNodes || contextNodes.length === 0) {

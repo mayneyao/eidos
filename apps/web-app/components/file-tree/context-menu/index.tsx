@@ -22,8 +22,16 @@ interface FileTreeContextMenuProps {
   onCreateDoc?: (parentNode: FileTreeNode) => void
   onCreateTable?: (parentNode: FileTreeNode) => void
   onCreateFolder?: (parentNode: FileTreeNode) => void
+  onOpenInNewTab?: (node: FileTreeNode) => void
   onCopySlug?: (node: FileTreeNode) => void
   onCopyExtension?: (node: FileTreeNode) => void
+  onShareExtension?: (node: FileTreeNode) => void
+  onCopyExtensionCode?: (node: FileTreeNode) => void
+  onOpenExtensionStandalone?: (node: FileTreeNode) => void
+  onOpenExtensionDefaultBrowser?: (node: FileTreeNode) => void
+  isMultiSelection?: boolean
+  selectionCount?: number
+  selectionHasDataview?: boolean
 }
 
 /**
@@ -41,8 +49,16 @@ export const FileTreeContextMenu = ({
   onCreateDoc,
   onCreateTable,
   onCreateFolder,
+  onOpenInNewTab,
   onCopySlug,
   onCopyExtension,
+  onShareExtension,
+  onCopyExtensionCode,
+  onOpenExtensionStandalone,
+  onOpenExtensionDefaultBrowser,
+  isMultiSelection = false,
+  selectionCount = 1,
+  selectionHasDataview = false,
 }: FileTreeContextMenuProps) => {
   const nodeType = node.metadata?.nodeType
   const isExtension = nodeType === "extension"
@@ -52,6 +68,10 @@ export const FileTreeContextMenu = ({
     return (
       <FileContextMenu
         node={node}
+        onOpenInNewTab={onOpenInNewTab}
+        isMultiSelection={isMultiSelection}
+        selectionCount={selectionCount}
+        selectionHasDataview={selectionHasDataview}
       // onRename={onRename}
       // onDelete={onDelete}
       >
@@ -69,6 +89,13 @@ export const FileTreeContextMenu = ({
         onDelete={onDelete}
         onCopySlug={onCopySlug}
         onCopy={onCopyExtension}
+        onOpenInNewTab={onOpenInNewTab}
+        onShare={onShareExtension}
+        onCopyCode={onCopyExtensionCode}
+        onOpenStandalone={onOpenExtensionStandalone}
+        onOpenDefaultBrowser={onOpenExtensionDefaultBrowser}
+        isMultiSelection={isMultiSelection}
+        selectionCount={selectionCount}
       >
         {children}
       </ExtensionContextMenu>
@@ -87,6 +114,10 @@ export const FileTreeContextMenu = ({
       onCreateDoc={onCreateDoc}
       onCreateTable={onCreateTable}
       onCreateFolder={onCreateFolder}
+      onOpenInNewTab={onOpenInNewTab}
+      isMultiSelection={isMultiSelection}
+      selectionCount={selectionCount}
+      selectionHasDataview={selectionHasDataview}
     >
       {children}
     </NodeContextMenu>

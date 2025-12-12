@@ -21,7 +21,7 @@ import React, {
 } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import { cn } from "@/lib/utils"
 import { useTableOperation } from "@/apps/web-app/hooks/use-table"
@@ -64,8 +64,8 @@ interface IGridProps {
 
 export default function GridView(props: IGridProps) {
   const { tableName, databaseName } = props
-  const { theme = "light" } = useTheme()
-  const _theme = useDynamicTheme(theme)
+  const { resolvedTheme } = useTheme()
+  const _theme = useDynamicTheme(resolvedTheme)
   const { setCurrentTableSchema } = useSpaceAppStore()
   const glideDataGridRef = useRef<DataEditorRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -320,7 +320,7 @@ export default function GridView(props: IGridProps) {
     [setMenu]
   )
 
-  const { onItemHovered, getRowThemeOverride } = useHover({ theme })
+  const { onItemHovered, getRowThemeOverride } = useHover({ theme: _theme.name })
   const { onDragLeave, onDrop, onDragOverCell, highlights } = useDrop({
     getCellContent,
     setCellValue: (col, row, value) => onCellEdited?.([col, row], value),

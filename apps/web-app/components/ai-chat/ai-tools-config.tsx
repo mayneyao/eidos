@@ -1,5 +1,5 @@
 import { WrenchIcon } from "lucide-react"
-import { useMemo } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Badge } from "@/components/ui/badge"
@@ -13,14 +13,63 @@ import {
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { useAllTools } from "@/apps/web-app/hooks/use-all-tools"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useExtensionNavigateById } from "@/apps/web-app/hooks/use-extension-navigate"
-
-import { useAIChatStore } from "./store"
+import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 
 interface AIToolsConfigProps {
   isLoading?: boolean
   onToolsChange?: (filteredTools: Record<string, any>) => void
+}
+
+const ENABLED_TOOLS_KV_KEY = "eidos:space:ai-tools"
+const MAX_STEPS_KV_KEY = "eidos:space:ai-tools:max-steps"
+const DEFAULT_MAX_STEPS = 5
+
+const buildDefaultToolState = (tools: Record<string, any>) =>
+  Object.keys(tools).reduce(
+    (acc, toolName) => ({ ...acc, [toolName]: true }),
+    {} as Record<string, boolean>
+  )
+
+function useEnabledToolsKV(tools: Record<string, any>) {
+  const [kvEnabledTools, setKvEnabledTools] = useSqliteKV<Record<string, boolean>>(
+    ENABLED_TOOLS_KV_KEY,
+    {}
+  )
+
+  useEffect(() => {
+    const toolNames = Object.keys(tools)
+    const hasStoredValue = kvEnabledTools && Object.keys(kvEnabledTools).length > 0
+
+    if (!toolNames.length || hasStoredValue) return
+
+    setKvEnabledTools(buildDefaultToolState(tools))
+  }, [kvEnabledTools, setKvEnabledTools, tools])
+
+  return {
+    enabledTools: kvEnabledTools || {},
+    setEnabledTools: setKvEnabledTools,
+  }
+}
+
+function useMaxStepsKV() {
+  const [kvMaxSteps, setKvMaxSteps] = useSqliteKV<number>(
+    MAX_STEPS_KV_KEY,
+    DEFAULT_MAX_STEPS
+  )
+
+  const setMaxSteps = useCallback(
+    (value: number) => {
+      if (Number.isNaN(value) || value <= 0) return
+      setKvMaxSteps(value)
+    },
+    [setKvMaxSteps]
+  )
+
+  return {
+    maxSteps: kvMaxSteps ?? DEFAULT_MAX_STEPS,
+    setMaxSteps,
+  }
 }
 
 export function AIToolsConfig({
@@ -28,36 +77,10 @@ export function AIToolsConfig({
   onToolsChange,
 }: AIToolsConfigProps) {
   const { t } = useTranslation()
-  const { space } = useCurrentPathInfo()
   const tools = useAllTools()
+  const { maxSteps, setMaxSteps } = useMaxStepsKV()
 
-  const {
-    getEnabledTools,
-    setEnabledTools,
-    toggleTool,
-    getMaxSteps,
-    setMaxSteps,
-    maxSteps: storeMaxSteps,
-    enabledTools: storeEnabledTools,
-  } = useAIChatStore()
-
-  const enabledTools = useMemo(() => {
-    const currentEnabledTools = storeEnabledTools[space] || {}
-    if (Object.keys(currentEnabledTools).length === 0) {
-      const initialState: Record<string, boolean> = {}
-      Object.keys(tools).forEach((toolName) => {
-        initialState[toolName] = true
-      })
-      setEnabledTools(space, initialState)
-      return initialState
-    }
-    return currentEnabledTools
-  }, [tools, space, setEnabledTools, storeEnabledTools])
-
-  const maxSteps = useMemo(
-    () => getMaxSteps(space),
-    [getMaxSteps, space, storeMaxSteps]
-  )
+  const { enabledTools, setEnabledTools } = useEnabledToolsKV(tools)
 
   const filteredTools = useMemo(() => {
     const filtered: Record<string, any> = {}
@@ -69,19 +92,21 @@ export function AIToolsConfig({
     return filtered
   }, [tools, enabledTools])
 
-  useMemo(() => {
+  useEffect(() => {
     onToolsChange?.(filteredTools)
   }, [filteredTools, onToolsChange])
 
   const handleToggleTool = (toolName: string) => {
-    toggleTool(space, toolName)
+    setEnabledTools({
+      ...enabledTools,
+      [toolName]: !enabledTools[toolName],
+    })
   }
 
   const handleMaxStepsChange = (value: string) => {
     const steps = parseInt(value, 10)
     if (!isNaN(steps) && steps > 0) {
-      console.log("Setting maxSteps to:", steps, "for space:", space)
-      setMaxSteps(space, steps)
+      setMaxSteps(steps)
     }
   }
 
@@ -179,12 +204,10 @@ export function AIToolsConfig({
 
 // Hook to get filtered tools for external use
 export function useFilteredTools() {
-  const { space } = useCurrentPathInfo()
   const tools = useAllTools()
-  const { enabledTools: storeEnabledTools } = useAIChatStore()
+  const { enabledTools } = useEnabledToolsKV(tools)
 
   return useMemo(() => {
-    const enabledTools = storeEnabledTools[space] || {}
     const filtered: Record<string, any> = {}
 
     Object.entries(tools).forEach(([key, tool]) => {
@@ -196,13 +219,11 @@ export function useFilteredTools() {
     })
 
     return filtered
-  }, [tools, space, storeEnabledTools])
+  }, [tools, enabledTools])
 }
 
 // Hook to get max steps for external use
 export function useMaxSteps() {
-  const { space } = useCurrentPathInfo()
-  const { getMaxSteps } = useAIChatStore()
-
-  return useMemo(() => getMaxSteps(space), [getMaxSteps, space])
+  const { maxSteps } = useMaxStepsKV()
+  return maxSteps
 }

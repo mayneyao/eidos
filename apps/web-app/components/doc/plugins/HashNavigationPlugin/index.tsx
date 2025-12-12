@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $isHeadingNode } from "@lexical/rich-text"
 import { $createRangeSelection, $getRoot, $setSelection } from "lexical"
-import { useLocation } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 /**
  * Plugin to handle URL hash navigation to headings
@@ -11,7 +11,7 @@ import { useLocation } from "react-router-dom"
  */
 export function HashNavigationPlugin() {
   const [editor] = useLexicalComposerContext()
-  const location = useLocation()
+  const { location } = useRouterAdapter()
 
   // Function to find heading by exact text match
   const findHeadingByText = useCallback(

@@ -34,18 +34,7 @@ import { AIContentEditor } from "./ai-msg-editor";
 import { useGenerateChartConfig } from "./hooks/use-generate-chart";
 import { useUpdateLocation } from "./hooks/use-update-location";
 import { PromptList } from "./prompt-list";
-
-function setPlaceholderHeight(height: number) {
-  document
-    .getElementById("ai-content-placeholder")
-    ?.setAttribute("style", `height: ${height}px;`)
-}
-
-function resetPlaceholderHeight() {
-  document
-    .getElementById("ai-content-placeholder")
-    ?.setAttribute("style", `height: 0px;`)
-}
+import { useEditorInstance } from "../../hooks/editor-instance-context";
 
 export function AITools({
   cancelAIAction,
@@ -72,9 +61,27 @@ export function AITools({
   const { getConfigByModel, textModel, codingModel } = useAiConfig()
   const { t } = useTranslation()
   const { generateConfig, isLoading: isChartLoading } = useGenerateChartConfig()
+  const { queryWithinContainer, container } = useEditorInstance()
 
   const aiContentBoxRef = useRef<HTMLDivElement>(null)
   const isGenerateChartRef = useRef(false)
+
+  const setPlaceholderHeight = useCallback(
+    (height: number) => {
+      const placeholder = queryWithinContainer(
+        "#ai-content-placeholder"
+      ) as HTMLElement | null
+      placeholder?.setAttribute("style", `height: ${height}px;`)
+    },
+    [queryWithinContainer]
+  )
+
+  const resetPlaceholderHeight = useCallback(() => {
+    const placeholder = queryWithinContainer(
+      "#ai-content-placeholder"
+    ) as HTMLElement | null
+    placeholder?.setAttribute("style", `height: 0px;`)
+  }, [queryWithinContainer])
 
   useEffect(() => {
     if (!aiContentBoxRef.current) {

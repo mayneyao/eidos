@@ -10,6 +10,8 @@ import type { ApiAgentStatus } from './server/api-agent';
 import { generateText, generateObject } from 'ai';
 import { getProvider } from '@/packages/ai/helper';
 
+
+
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void;
 
 
@@ -149,6 +151,9 @@ function main() {
     // versions
     chrome: process.versions.chrome,
     node: process.versions.node,
+    // system info
+    platform: process.platform,
+    arch: process.arch,
     config: {
       get: (key: keyof AppConfig) => ipcRenderer.invoke('get-config', key),
       set: (key: keyof AppConfig, value: any) => ipcRenderer.invoke('set-config', key, value),
@@ -222,6 +227,43 @@ function main() {
           }
         } as Response;
       });
+    },
+
+    /**
+     * Show native context menu (only available in desktop Electron app)
+     * @param items Menu items to display
+     * @param event Optional mouse event to position the menu
+     */
+    showNativeMenu: async (
+      items: Array<NativeMenuItem | null | undefined | false>,
+      position?: { clientX: number; clientY: number }
+    ): Promise<void> => {
+      // Filter out null, undefined, and false items
+      const filteredItems = items.filter((item): item is NativeMenuItem => !!item);
+
+      if (filteredItems.length === 0) {
+        return;
+      }
+
+      // Get position from position object
+      let x: number | undefined;
+      let y: number | undefined;
+
+      if (position) {
+        x = position.clientX;
+        y = position.clientY;
+      }
+
+      try {
+        await ipcRenderer.invoke('show-native-context-menu', {
+          items: filteredItems,
+          x,
+          y,
+        });
+      } catch (error) {
+        console.error('Error showing native context menu:', error);
+        throw error;
+      }
     },
     AI: {
       generateText: async (config: { model: string; prompt: string;[key: string]: any }) => {

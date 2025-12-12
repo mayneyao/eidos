@@ -2,19 +2,21 @@ import { useEffect, useState } from "react"
 import i18n from "@/locales/i18n"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CheckCircle, ChevronDown, RefreshCw } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
 import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
+import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
-import { toast } from "@/components/ui/use-toast"
+import { useAuthOptional } from "@/components/auth-provider"
 import {
   Form,
   FormControl,
@@ -22,7 +24,6 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/react-hook-form/form"
-import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { useUpdateStatus } from "@/apps/web-app/hooks/use-update-status"
 
 const appearanceFormSchema = z.object({
@@ -59,6 +60,8 @@ export function GlobalGeneralSettings() {
     quitAndInstall,
   } = useUpdateStatus()
 
+  const { toast } = useToast()
+
   // Appearance form
   const appearanceForm = useForm<AppearanceFormValues>({
     resolver: zodResolver(appearanceFormSchema),
@@ -71,6 +74,10 @@ export function GlobalGeneralSettings() {
   // Auto update state
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true)
   const [isLoadingConfig, setIsLoadingConfig] = useState(true)
+
+  // Auth from provider
+  const auth = useAuthOptional()
+  const user = auth?.user
 
   // Load appearance preferences
   useEffect(() => {
@@ -129,6 +136,7 @@ export function GlobalGeneralSettings() {
       })
     }
   }
+
 
   return (
     <div className="space-y-0">
@@ -379,6 +387,43 @@ export function GlobalGeneralSettings() {
           </form>
         </Form>
       </div>
+      {/* Account Section */}
+      <div className="py-4">
+        <h3 className="text-lg font-medium">
+          {t("settings.account.title", "Account")}
+        </h3>
+      </div>
+
+      <hr className="border-border" />
+
+      <p className="text-sm text-muted-foreground py-2">
+        {t("settings.account.description")}
+      </p>
+
+      <div className="py-6">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>{t("settings.account.user", "User")}</Label>
+              <p className="text-sm text-muted-foreground">
+                {user
+                  ? user.name || user.email
+                  : t("settings.account.notLoggedIn", "Not logged in")}
+              </p>
+            </div>
+            {user ? (
+              <Button variant="outline" onClick={() => auth?.logout()}>
+                {t("settings.account.logout", "Logout")}
+              </Button>
+            ) : (
+              <Button onClick={() => auth?.login()}>
+                {t("settings.account.login", "Login")}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
     </div>
   )
 }

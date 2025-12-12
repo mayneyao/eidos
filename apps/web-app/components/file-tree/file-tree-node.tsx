@@ -21,10 +21,17 @@ interface FileTreeNodeProps {
   displayName: string
   nameClassName: string
   hasChildren: boolean
+  isActive: boolean
+  ariaLevel: number
+  ariaSelected: boolean
+  ariaExpanded?: boolean
   isVirtualNode: boolean
   isPinned: boolean
+  nodeRef?: (el: HTMLDivElement | null) => void
   onToggle: () => void
-  onFileClick: () => void
+  onRowClick: (event: React.MouseEvent | React.KeyboardEvent) => void
+  onRowKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
+  onRowContextMenu?: (event: React.MouseEvent) => void
   onRename: (node: FileTreeNodeType) => void
   onRenameConfirm: (newName: string) => void
   onRenameCancel: () => void
@@ -35,14 +42,22 @@ interface FileTreeNodeProps {
   onCreateDoc?: (node: FileTreeNodeType) => void
   onCreateTable?: (node: FileTreeNodeType) => void
   onCreateFolder?: (node: FileTreeNodeType) => void
+  onOpenInNewTab?: (node: FileTreeNodeType) => void
   onCopySlug?: (node: FileTreeNodeType) => void
   onCopyExtension?: (node: FileTreeNodeType) => void
+  onShareExtension?: (node: FileTreeNodeType) => void
+  onCopyExtensionCode?: (node: FileTreeNodeType) => void
+  onOpenExtensionStandalone?: (node: FileTreeNodeType) => void
+  onOpenExtensionDefaultBrowser?: (node: FileTreeNodeType) => void
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: (e: React.DragEvent) => void
   onDragOver?: (e: React.DragEvent) => void
   onDragEnter?: (e: React.DragEvent) => void
   onDragLeave?: (e: React.DragEvent) => void
   onDrop?: (e: React.DragEvent) => void
+  isMultiSelection: boolean
+  selectionCount: number
+  selectionHasDataview: boolean
 }
 
 export const FileTreeNode = ({
@@ -58,10 +73,17 @@ export const FileTreeNode = ({
   displayName,
   nameClassName,
   hasChildren,
+  isActive,
+  ariaLevel,
+  ariaSelected,
+  ariaExpanded,
   isVirtualNode,
   isPinned,
+  nodeRef,
   onToggle,
-  onFileClick,
+  onRowClick,
+  onRowKeyDown,
+  onRowContextMenu,
   onRename,
   onRenameConfirm,
   onRenameCancel,
@@ -72,14 +94,22 @@ export const FileTreeNode = ({
   onCreateDoc,
   onCreateTable,
   onCreateFolder,
+  onOpenInNewTab,
   onCopySlug,
   onCopyExtension,
+  onShareExtension,
+  onCopyExtensionCode,
+  onOpenExtensionStandalone,
+  onOpenExtensionDefaultBrowser,
   onDragStart,
   onDragEnd,
   onDragOver,
   onDragEnter,
   onDragLeave,
   onDrop,
+  isMultiSelection,
+  selectionCount,
+  selectionHasDataview,
 }: FileTreeNodeProps) => {
   const canDrop = hasChildren && !isDragging
 
@@ -111,16 +141,46 @@ export const FileTreeNode = ({
             ? onCreateFolder
             : undefined
         }
+        onOpenInNewTab={onOpenInNewTab}
         onCopySlug={
           node.metadata?.nodeType === "extension" ? onCopySlug : undefined
         }
         onCopyExtension={
           node.metadata?.nodeType === "extension" ? onCopyExtension : undefined
         }
+        onShareExtension={
+          node.metadata?.nodeType === "extension" ? onShareExtension : undefined
+        }
+        onCopyExtensionCode={
+          node.metadata?.nodeType === "extension"
+            ? onCopyExtensionCode
+            : undefined
+        }
+        onOpenExtensionStandalone={
+          node.metadata?.nodeType === "extension"
+            ? onOpenExtensionStandalone
+            : undefined
+        }
+        onOpenExtensionDefaultBrowser={
+          node.metadata?.nodeType === "extension"
+            ? onOpenExtensionDefaultBrowser
+            : undefined
+        }
+        isMultiSelection={isMultiSelection}
+        selectionCount={selectionCount}
+        selectionHasDataview={selectionHasDataview}
       >
         <div
+          ref={nodeRef}
+          role="treeitem"
+          aria-level={ariaLevel}
+          aria-selected={ariaSelected}
+          aria-expanded={hasChildren ? ariaExpanded : undefined}
+          tabIndex={isActive ? 0 : -1}
           className={`flex items-center rounded transition-colors cursor-pointer select-none ${
-            isSelected ? "bg-accent" : "hover:bg-accent"
+            isSelected
+              ? "bg-primary/10 ring-1 ring-primary/60 shadow-[0_0_0_1px_var(--primary)/20]"
+              : "hover:bg-accent"
           } ${isDragging ? "opacity-50" : ""} ${
             isDragOver && canDrop ? "ring-2 ring-primary bg-accent" : ""
           }`}
@@ -131,13 +191,9 @@ export const FileTreeNode = ({
           onDragEnter={canDrop ? onDragEnter : undefined}
           onDragLeave={canDrop ? onDragLeave : undefined}
           onDrop={canDrop ? onDrop : undefined}
-          onClick={() => {
-            if (hasChildren) {
-              onToggle()
-            } else {
-              onFileClick()
-            }
-          }}
+          onClick={onRowClick}
+          onContextMenu={onRowContextMenu}
+          onKeyDown={onRowKeyDown}
         >
           <div style={{ width: level * 18 }} className="flex-shrink-0" />
           <div className="w-4 flex-shrink-0 flex items-center justify-center">

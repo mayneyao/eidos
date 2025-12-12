@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo } from "react"
 import { useKeyPress } from "ahooks"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useTranslation } from "react-i18next"
-import { useNavigate, useParams } from "react-router-dom"
 
 import { getDate, getToday, isDayPageId } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
+import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
-import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
@@ -31,22 +31,30 @@ interface ShortcutAction {
 
 export function ShortCuts() {
   const { t } = useTranslation()
-  const { setTheme, theme } = useTheme()
+  const { setTheme, resolvedTheme } = useTheme()
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
-  const { setSpaceSettingsOpen, setCmdkOpen, isGlobalSearchOpen, setGlobalSearchOpen } = useAppRuntimeStore()
+  const {
+    setSpaceSettingsOpen,
+    setCmdkOpen,
+    isGlobalSearchOpen,
+    setGlobalSearchOpen,
+  } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { setCurrentApp } = useSidebarStore()
   const { tabs: sortedTabs } = useTabsKV()
-  const navigate = useNavigate()
+  const { navigate, params } = useRouterAdapter()
   const { toast } = useToast()
   const { createDoc } = useSqlite()
-  const { day } = useParams()
+  const { day } = params
   const { space } = useCurrentPathInfo()
 
   // Get block data for directive checking
   const blockIds = useMemo(
-    () => sortedTabs.filter((id) => !["nodes", "extensions", "today"].includes(id)),
+    () =>
+      sortedTabs.filter(
+        (id) => !["nodes", "extensions", "today", "files"].includes(id)
+      ),
     [sortedTabs]
   )
   const { blocks } = useMblocksBatch(blockIds)
@@ -68,7 +76,7 @@ export function ShortCuts() {
           break
 
         case "toggle-theme":
-          setTheme(theme === "dark" ? "light" : "dark")
+          setTheme(resolvedTheme === "dark" ? "light" : "dark")
           break
 
         case "toggle-ai-panel":
@@ -150,16 +158,19 @@ export function ShortCuts() {
                   {
                     nodes: { isNavigation: false },
                     extensions: { isNavigation: false },
+                    files: { isNavigation: false },
                     today: { isNavigation: true, href: "/journals" },
                   }[targetTabId] || {}
 
                 if (tabConfig.isNavigation && targetTabId === "today") {
-                  // Navigate to today's journal
+                  // Navigate to today's journal and activate tab
                   const today = getToday()
+                  setCurrentApp("today")
                   navigate(`/journals/${today}`)
                 } else if (
                   targetTabId === "nodes" ||
-                  targetTabId === "extensions"
+                  targetTabId === "extensions" ||
+                  targetTabId === "files"
                 ) {
                   // Regular tab
                   setCurrentApp(targetTabId)
@@ -211,7 +222,7 @@ export function ShortCuts() {
     }
   }, [
     t,
-    theme,
+    resolvedTheme,
     isAiOpen,
     space,
     day,
@@ -230,11 +241,12 @@ export function ShortCuts() {
     setGlobalSearchOpen,
   ])
 
-  // navigate to today
-  useKeyPress(["ctrl.t", "meta.t"], () => {
-    const date = getToday()
-    navigate(`/journals/${date}`)
-  })
+  // navigate to today - now handled by global shortcut (Cmd+Shift+T)
+  // Cmd+T is now used for new-tab
+  // useKeyPress(["ctrl.t", "meta.t"], () => {
+  //   const date = getToday()
+  //   navigate(`/journals/${date}`)
+  // })
 
   // create new doc
   useKeyPress(["ctrl.n", "meta.n"], () => {
@@ -248,10 +260,10 @@ export function ShortCuts() {
 
   useKeyPress(["shift.ctrl.l", "shift.meta.l"], (e) => {
     e.preventDefault()
-    setTheme(theme === "dark" ? "light" : "dark")
+    setTheme(resolvedTheme === "dark" ? "light" : "dark")
   })
 
-  useKeyPress(["ctrl.forwardslash", "meta.forwardslash"], () => {
+  useKeyPress(["ctrl.alt.backslash", "meta.alt.backslash"], () => {
     setIsAiOpen(!isAiOpen)
   })
 

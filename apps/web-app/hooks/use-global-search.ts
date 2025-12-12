@@ -74,7 +74,7 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
 
         // Load nodes recursively
         console.time("readdir nodes")
-        const nodesEntries = await fs.readdir("~/.eidos/__NODES__/", {
+        const nodesEntries = await fs.readdir("~/.eidos/__NODES__", {
           withFileTypes: true,
           recursive: true,
         })
@@ -82,7 +82,7 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
         setAllNodes(nodesEntries)
 
         // Load extensions
-        const extensionsEntries = await fs.readdir("~/.eidos/__EXTENSIONS__/", {
+        const extensionsEntries = await fs.readdir("~/.eidos/__EXTENSIONS__", {
           withFileTypes: true,
         })
         setAllExtensions(extensionsEntries)

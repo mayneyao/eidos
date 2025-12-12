@@ -1,11 +1,8 @@
+import { useMemo, useState } from "react"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { Trash2Icon, Undo2Icon } from "lucide-react"
-import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
 
-import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +25,9 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 
 export const Trash = () => {
   const [open, setOpen] = useState(false)
@@ -43,7 +43,7 @@ export const Trash = () => {
     )
   }, [search, allDeletedNodes])
 
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
 
   const handleOpenChange = (open: boolean) => {
     setOpen(open)
@@ -52,12 +52,12 @@ export const Trash = () => {
   const handleRestore = (node: ITreeNode) => {
     restoreNode(node)
     setOpen(false)
-    router(`/${node.id}`)
+    navigate(`/${node.id}`)
   }
 
   const handleClickNode = (node: ITreeNode) => {
     setOpen(false)
-    router(`/${node.id}`)
+    navigate(`/${node.id}`)
   }
 
   const handlePermanentlyDelete = (

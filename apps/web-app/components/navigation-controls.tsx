@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, ArrowRight, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { isMac } from "@/lib/web/helper"
 import { Button } from "@/components/ui/button"
@@ -35,7 +35,7 @@ declare global {
 
 export function NavigationControls() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
 

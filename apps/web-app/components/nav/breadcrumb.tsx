@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Link, useParams } from "react-router-dom"
 
 import {
   Breadcrumb,
@@ -27,15 +26,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type {
-  INodePath} from "@/apps/web-app/hooks/use-current-node";
+import { Link } from "@/components/ui/link"
 import {
   useCurrentNode,
   useCurrentNodePath,
+  type INodePath,
 } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useLink } from "@/apps/web-app/hooks/use-goto"
 import { useMediaQuery } from "@/apps/web-app/hooks/use-media-query"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { NodeName } from "../node-name"
 
@@ -44,14 +44,14 @@ const ITEMS_TO_DISPLAY = 3
 export function BreadCrumb() {
   const [open, setOpen] = React.useState(false)
   const isDesktop = useMediaQuery("(min-width: 768px)")
-  const { day } = useParams()
+  const { params } = useRouterAdapter()
+  const { day } = params
   const node = useCurrentNode()
   const paths = useCurrentNodePath({
     nodeId: node?.id || day,
     parentId: node?.parent_id,
   })
 
-  const { space } = useCurrentPathInfo()
   const { getLink } = useLink()
 
   const items = paths.map((p, index) => {

@@ -203,6 +203,19 @@ export class ExtensionTable
     return Promise.resolve(true)
   }
 
+  /**
+   * Build the ID-based virtual path for an extension (~/ .eidos/__EXTENSIONS__/id)
+   * Returns null if the extension does not exist.
+   */
+  async getIdPath(extensionId: string): Promise<string | null> {
+    const rows = await this.dataSpace.exec2(
+      `SELECT id FROM ${this.name} WHERE id = ?`,
+      [extensionId]
+    )
+    if (rows.length === 0) return null
+    return `~/.eidos/__EXTENSIONS__/${extensionId}`
+  }
+
   async updateBindings(id: string, bindings: IBindings) {
     this.dataSpace.exec2(`UPDATE ${this.name} SET bindings = ? WHERE id = ?`, [
       JSON.stringify(bindings),

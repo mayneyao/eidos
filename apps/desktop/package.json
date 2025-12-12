@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.25.1",
+  "version": "0.26.0",
   "description": "Eidos is an extensible framework for personal data management.",
   "main": "dist-electron/main.js",
   "start": "electron .",
@@ -13,7 +13,8 @@
     "build": "shx rm -rf dist-electron && cross-env NODE_OPTIONS=--max-old-space-size=8192 EIDOS_SERVICE_MODE=desktop vite build --mode desktop",
     "package": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.json",
     "package:dev": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.dev.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit"
   },
   "keywords": [],
   "author": "",

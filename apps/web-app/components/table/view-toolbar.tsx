@@ -8,7 +8,7 @@ import { useKeyPress } from "ahooks"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import ReactDOM from "react-dom"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { cn, getTableIdByRawTableName, shortenId, uuidv7 } from "@/lib/utils"
 import {
@@ -263,7 +263,7 @@ export const ViewToolbar = (props: {
   // )
 
   const { updateViews, views } = useTableOperation(tableName!, space)
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { addView, delView, moveViewPosition } = useViewOperation()
 
   const isView = tableName.startsWith("vw_")

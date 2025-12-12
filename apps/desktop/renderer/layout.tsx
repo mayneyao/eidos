@@ -1,9 +1,10 @@
 import "@/styles/globals.css"
 import { useEffect } from "react"
-import { Outlet } from "react-router-dom"
 
+import { useSyncFileActions } from "@/hooks/use-all-file-actions"
 import { useSyncFileHandlers } from "@/hooks/use-all-file-handlers"
 import { SidebarProvider } from "@/components/ui/sidebar"
+import { AuthProvider } from "@/components/auth-provider"
 import { BlockUIDialog } from "@/components/block-ui-dialog"
 import { CommandDialogDemo } from "@/components/cmdk"
 import { DevTools } from "@/components/dev-tools"
@@ -18,9 +19,12 @@ import { useWorker } from "@/apps/web-app/hooks/use-worker"
 import { useAppStoreBase } from "@/apps/web-app/store/app-store"
 
 import { useProtocolUrl } from "./hooks/useProtocolUrl"
-import { useSyncFileActions } from "@/hooks/use-all-file-actions"
 
-export default function RootLayout() {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const { isInitialized, initWorker } = useWorker()
   const { isSidebarOpen, setSidebarOpen } = useAppStoreBase()
   useProtocolUrl()
@@ -34,27 +38,31 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <SidebarProvider defaultOpen={isSidebarOpen} open={isSidebarOpen} onOpenChange={setSidebarOpen}>
-        {/* Transparent titlebar for dragging */}
-        <div
-          className="h-[8px] w-full bg-transparent absolute top-0 left-0"
-          id="drag-region"
-        ></div>
-        {/* APP MODEL， a sidebar and main */}
-        <div className="flex h-screen w-screen overflow-auto">
-          <Outlet />
-        </div>
-        <WindowControls />
-        <CommandDialogDemo />
-        <ShortCuts />
-        <GlobalSearch />
-      </SidebarProvider>
-      <DevTools />
+      <AuthProvider>
+        <SidebarProvider
+          defaultOpen={isSidebarOpen}
+          open={isSidebarOpen}
+          onOpenChange={setSidebarOpen}
+        >
+          {/* Transparent titlebar for dragging */}
+          <div
+            className="h-[8px] w-full bg-transparent absolute top-0 left-0"
+            id="drag-region"
+          ></div>
+          {/* APP MODEL， a sidebar and main */}
+          <div className="flex h-screen w-screen overflow-auto">{children}</div>
+          <WindowControls />
+          <CommandDialogDemo />
+          <ShortCuts />
+          <GlobalSearch />
+        </SidebarProvider>
+        <DevTools />
 
-      <Toaster />
-      <BlockUIDialog />
-      <ThemeUpdater />
-      <GodModeTooltip />
+        <Toaster />
+        <BlockUIDialog />
+        <ThemeUpdater />
+        <GodModeTooltip />
+      </AuthProvider>
     </ThemeProvider>
   )
 }

@@ -1,5 +1,5 @@
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
-import { useNavigate } from "react-router-dom"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { create } from "zustand"
 
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -23,11 +23,11 @@ export const useCMDKStore = create<{
 }))
 
 export const useCMDKGoto = () => {
-  const router = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { setCmdkOpen } = useAppRuntimeStore()
   const goto = (path: string) => () => {
     setCmdkOpen(false)
-    router(path)
+    navigate(path)
   }
   return goto
 }

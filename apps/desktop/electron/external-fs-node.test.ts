@@ -35,7 +35,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readdir('~/')
             expect(result).toContain('file1.txt')
@@ -53,7 +53,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readdir('~/', { withFileTypes: true })
 
@@ -86,7 +86,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(mountDir, relativePath)
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readdir('@/music', { withFileTypes: true })
 
@@ -116,7 +116,7 @@ describe('NodeExternalFileSystem', () => {
           return path.join(projectRoot, fsPath.substring(2))
         }
         return null
-      })
+      }, async () => [])
 
       const result = await fileSystem.readdir('~/', { withFileTypes: true, recursive: true })
 
@@ -136,7 +136,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readdir('~/', { withFileTypes: true })
             const fileEntry = result.find(e => e.name === 'file.txt')
@@ -152,7 +152,7 @@ describe('NodeExternalFileSystem', () => {
           return relativePath ? path.join(mountDir, relativePath) : mountDir
         }
         return null
-      })
+      }, async () => [])
 
       const result = await fileSystem.readdir('@/music', { withFileTypes: true })
       const fileEntry = result.find(e => e.name === 'file.txt')
@@ -167,7 +167,7 @@ describe('NodeExternalFileSystem', () => {
           return path.join(projectRoot, fsPath.substring(2))
         }
         return null
-      })
+      }, async () => [])
 
       // Test both '~' and '~/' should produce same results
       const result1 = await fileSystem.readdir('~', { withFileTypes: true })
@@ -186,7 +186,7 @@ describe('NodeExternalFileSystem', () => {
     })
 
     it('should throw error when path cannot be resolved', async () => {
-      const fileSystem = new NodeExternalFileSystem(async () => null)
+      const fileSystem = new NodeExternalFileSystem(async () => null, async () => [])
 
       await expect(fileSystem.readdir('~/nonexistent')).rejects.toThrow('Cannot resolve path: ~/nonexistent')
     })
@@ -202,7 +202,7 @@ describe('NodeExternalFileSystem', () => {
                     return mountDir
                 }
                 return null
-            })
+            }, async () => [])
 
             await fileSystem.mkdir('@/music/newfolder')
 
@@ -217,7 +217,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(mountDir, relativePath)
                 }
                 return null
-            })
+            }, async () => [])
 
             await fileSystem.mkdir('@/music/nested/deep/folder', { recursive: true })
 
@@ -231,7 +231,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             await fileSystem.mkdir('~/newprojectfolder')
 
@@ -240,7 +240,7 @@ describe('NodeExternalFileSystem', () => {
         })
 
         it('should throw error when path cannot be resolved', async () => {
-            const fileSystem = new NodeExternalFileSystem(async () => null)
+            const fileSystem = new NodeExternalFileSystem(async () => null, async () => [])
 
             await expect(fileSystem.mkdir('@/nonexistent/folder')).rejects.toThrow('Cannot resolve path: @/nonexistent/folder')
         })
@@ -257,7 +257,7 @@ describe('NodeExternalFileSystem', () => {
           return path.join(projectRoot, fsPath.substring(2))
         }
         return null
-      })
+      }, async () => [])
 
       const result = await fileSystem.readdir('~/', { withFileTypes: true, recursive: true })
 
@@ -279,7 +279,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readdir('~/', { withFileTypes: true })
             const fileEntry = result.find(e => e.name === 'file.txt')
@@ -297,7 +297,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readdir('~/', { withFileTypes: true })
             const fileEntry = result.find(e => e.name === 'rootfile.txt')
@@ -316,7 +316,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readFile('~/hello.txt', 'utf8')
             expect(result).toBe(content)
@@ -332,7 +332,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readFile('~/test.txt', { encoding: 'utf8' })
             expect(result).toBe(content)
@@ -348,7 +348,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readFile('~/image.png')
             expect(result).toBeInstanceOf(Uint8Array)
@@ -365,7 +365,7 @@ describe('NodeExternalFileSystem', () => {
                     return relativePath ? path.join(mountDir, relativePath) : mountDir
                 }
                 return null
-            })
+            }, async () => [])
 
             const result = await fileSystem.readFile('@/music/data.txt', 'utf8')
             expect(result).toBe(content)
@@ -377,13 +377,13 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             await expect(fileSystem.readFile('~/nonexistent.txt', 'utf8')).rejects.toThrow()
         })
 
         it('should throw error when path cannot be resolved', async () => {
-            const fileSystem = new NodeExternalFileSystem(async () => null)
+            const fileSystem = new NodeExternalFileSystem(async () => null, async () => [])
 
             await expect(fileSystem.readFile('~/test.txt', 'utf8')).rejects.toThrow('Cannot resolve path: ~/test.txt')
         })
@@ -398,7 +398,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             await fileSystem.writeFile('~/hello.txt', content)
 
@@ -414,7 +414,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             await fileSystem.writeFile('~/test.txt', content, 'utf8')
 
@@ -430,7 +430,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             await fileSystem.writeFile('~/image.png', binaryData)
 
@@ -446,7 +446,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             await fileSystem.writeFile('~/options.txt', content, { encoding: 'utf8', mode: 0o644 })
 
@@ -463,7 +463,7 @@ describe('NodeExternalFileSystem', () => {
                     return relativePath ? path.join(mountDir, relativePath) : mountDir
                 }
                 return null
-            })
+            }, async () => [])
 
             await fileSystem.writeFile('@/music/song.txt', content)
 
@@ -472,7 +472,7 @@ describe('NodeExternalFileSystem', () => {
         })
 
         it('should throw error when path cannot be resolved', async () => {
-            const fileSystem = new NodeExternalFileSystem(async () => null)
+            const fileSystem = new NodeExternalFileSystem(async () => null, async () => [])
 
             await expect(fileSystem.writeFile('~/test.txt', 'content')).rejects.toThrow('Cannot resolve path: ~/test.txt')
         })
@@ -487,7 +487,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             await fileSystem.writeFile('~/overwrite.txt', newContent)
 
@@ -506,7 +506,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const stats = await fileSystem.stat('~/testfile.txt')
 
@@ -531,7 +531,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const stats = await fileSystem.stat('~/testdir')
 
@@ -551,7 +551,7 @@ describe('NodeExternalFileSystem', () => {
                     return relativePath ? path.join(mountDir, relativePath) : mountDir
                 }
                 return null
-            })
+            }, async () => [])
 
             const stats = await fileSystem.stat('@/music/mounted.txt')
 
@@ -566,13 +566,13 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             await expect(fileSystem.stat('~/nonexistent.txt')).rejects.toThrow()
         })
 
         it('should throw error when path cannot be resolved', async () => {
-            const fileSystem = new NodeExternalFileSystem(async () => null)
+            const fileSystem = new NodeExternalFileSystem(async () => null, async () => [])
 
             await expect(fileSystem.stat('~/test.txt')).rejects.toThrow('Cannot resolve path: ~/test.txt')
         })
@@ -585,7 +585,7 @@ describe('NodeExternalFileSystem', () => {
                     return path.join(projectRoot, fsPath.substring(2))
                 }
                 return null
-            })
+            }, async () => [])
 
             const stats = await fileSystem.stat('~/checkprops.txt')
 
