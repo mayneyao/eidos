@@ -6,8 +6,9 @@ import electronLog from 'electron-log';
 import path from 'path';
 import fs from 'fs/promises';
 import { getConfigManager } from './config';
+import { CredentialsManager } from './credentials';
 import { corsManager } from './cors-manager';
-import { closeDataSpace, getDataSpace, getOrSetDataSpace, reloadDataSpace } from './data-space';
+import { closeDataSpace, DataSpaceManager, getDataSpace, getOrSetDataSpace, reloadDataSpace } from './data-space';
 import { cleanupPlaygroundWatchers, initializePlayground } from './file-system/playground';
 import { getResourcePath } from './helper';
 import { ProtocolHandler } from './protocol-handler';
@@ -21,6 +22,7 @@ import console from 'electron-log';
 import { fetchAvailableModels } from '@/packages/ai/helper';
 import { migrateFromLegacyConfig, getSpaceRegistry } from './space-registry';
 import { isIteratorFunction } from '@/packages/core/sqlite/channel/iterator-utils';
+import { GraftDb } from './sync/graft-db';
 
 
 process.on('uncaughtException', (error) => {
@@ -258,10 +260,27 @@ ipcMain.handle('sqlite-msg', async (event, payload) => {
 
 
 ipcMain.handle('sqlite-msg-read', async (event, payload) => {
+
+    const credentials = await CredentialsManager.getSyncCredentials('eidos.space');
+    if (!credentials) {
+        throw new Error(`Credentials for eidos.space not found`);
+    }
+    const { space, dbName } = payload.data
+    const spaceId = space || dbName
+    const spaceInfo = getSpaceRegistry().getSpace(spaceId);
+    if (!spaceInfo) {
+        throw new Error(`Space ${spaceId} not found`);
+    }
     return WorkerManager.getInstance().executeTask(payload, {
         simplePathConfig,
         vecPathConfig,
-        graftPathConfig
+        spaceInfo,
+        graftPathConfig: {
+            libPath: graftPath,
+            enabled: spaceInfo.sync?.enabled ?? false,
+            remote: spaceInfo.sync?.remote ?? '',
+            credentials,
+        },
     });
 });
 
@@ -279,29 +298,47 @@ ipcMain.handle(MsgType.Pull, async (event, args) => {
     const dataSpace = await getOrSetDataSpace(spaceName)
     return dataSpace?.pull()
 })
-ipcMain.handle(MsgType.Reset, async (event, args) => {
+
+ipcMain.handle(MsgType.Push, async (event, args) => {
     const { spaceName } = args
     const dataSpace = await getOrSetDataSpace(spaceName)
-    return dataSpace?.reset()
+    return dataSpace?.push()
 })
 
+ipcMain.handle(MsgType.Fetch, async (event, args) => {
+    const { spaceName } = args
+    const dataSpace = await getOrSetDataSpace(spaceName)
+    return dataSpace?.fetch()
+})
+
+ipcMain.handle(MsgType.Hydrate, async (event, args) => {
+    const { spaceName } = args
+    const dataSpace = await getOrSetDataSpace(spaceName)
+    return dataSpace?.hydrate()
+})
+
+ipcMain.handle(MsgType.Snapshot, async (event, args) => {
+    const { spaceName } = args
+    const dataSpace = await getOrSetDataSpace(spaceName)
+    return dataSpace?.snapshot()
+})
 ipcMain.handle(MsgType.Status, async (event, args) => {
     const { spaceName } = args
     const dataSpace = await getOrSetDataSpace(spaceName)
     return dataSpace?.status()
 })
 
-ipcMain.handle(MsgType.Pages, async (event, args) => {
+ipcMain.handle(MsgType.Volumes, async (event, args) => {
     const { spaceName } = args
     const dataSpace = await getOrSetDataSpace(spaceName)
-    return dataSpace?.pages()
+    return dataSpace?.volumes()
 })
 
 
 ipcMain.handle(MsgType.CreateSpace, async (event, args) => {
     const { spaceName, enableSync, volumeId } = args
     const data = { spaceName }
-    const dataSpace = await getOrSetDataSpace(spaceName, enableSync, volumeId)
+    const dataSpace = await getOrSetDataSpace(spaceName)
     if (dataSpace) {
         return { data, success: true }
     } else {
@@ -388,6 +425,23 @@ ipcMain.handle('quit-and-install', () => {
 
 ipcMain.handle('initialize-playground', (event, space, blockId, files) => {
     return initializePlayground(space, blockId, files)
+});
+
+// Credentials management
+ipcMain.handle('set-sync-credentials', async (event, credentials, providerId) => {
+    return CredentialsManager.setSyncCredentials(credentials, providerId);
+});
+
+ipcMain.handle('get-sync-credentials', async (event, providerId) => {
+    return CredentialsManager.getSyncCredentials(providerId);
+});
+
+ipcMain.handle('clear-sync-credentials', async (event, providerId) => {
+    return CredentialsManager.clearSyncCredentials(providerId);
+});
+
+ipcMain.handle('has-sync-credentials', async (event, providerId) => {
+    return CredentialsManager.hasSyncCredentials(providerId);
 });
 
 
@@ -633,10 +687,16 @@ app.whenReady().then(async () => {
         return { success: true };
     });
 
-    ipcMain.handle('register-space', async (_, spacePath: string, customName?: string) => {
+    ipcMain.handle('register-space', async (_, spacePath: string, options:{
+        customName?: string,
+        remoteUrl?: string,
+    } = {}) => {
         const registry = getSpaceRegistry();
         try {
-            const space = registry.registerSpace(spacePath, customName);
+            const space = registry.registerSpace(spacePath, {
+                customName: options.customName,
+                remoteUrl: options.remoteUrl,
+            });
             return { success: true, space };
         } catch (error: any) {
             return { success: false, error: error.message };
@@ -659,6 +719,68 @@ app.whenReady().then(async () => {
         const registry = getSpaceRegistry();
         return registry.getSpace(spaceId);
     });
+
+    ipcMain.handle('space-enable-sync', async (_, spaceId: string, remote: string) => {
+        const dataSpace = getDataSpace();
+        if (!dataSpace) {
+            throw new Error('No active data space');
+        }
+        const registry = getSpaceRegistry();
+        const spaceInfo = registry.getSpace(spaceId);
+        if (!spaceInfo) {
+            throw new Error('Space not found');
+        }
+        const graftDb = new GraftDb(dataSpace);
+        await graftDb.convertToGraft({
+            ...spaceInfo,
+            sync: {
+                enabled: true,
+                remote: remote,
+            },
+        });
+    });
+
+    ipcMain.handle('space-disable-sync', async (_, spaceId: string) => {
+        const dataSpace = getDataSpace();
+        if (!dataSpace) {
+            throw new Error('No active data space');
+        }
+        const registry = getSpaceRegistry();
+        const spaceInfo = registry.getSpace(spaceId);
+        if (!spaceInfo) {
+            throw new Error('Space not found');
+        }
+        const graftDb = new GraftDb(dataSpace);
+        await graftDb.checkoutFromGraft(spaceInfo);
+        return { success: true };
+    });
+
+    ipcMain.handle('get-sync-status', () => {
+        const dataSpace = getDataSpace();
+        if (!dataSpace) {
+            return { enabled: false };
+        }
+
+        // Type assertion since we know dataSpace.db is NodeServerDatabase in desktop
+        const db = dataSpace.db as any;
+        return { enabled: db.isSyncEnabled || false };
+    });
+
+    ipcMain.handle('get-sync-remote', () => {
+        const dataSpace = getDataSpace();
+        if (!dataSpace) {
+            return { remote: null };
+        }
+
+        const registry = getSpaceRegistry();
+        const currentSpace = registry.getLastOpenedSpace();
+        if (!currentSpace) {
+            return { remote: null };
+        }
+
+        return { remote: currentSpace.sync?.remote || null };
+    });
+
 
     ipcMain.handle('update-space', async (_, spaceId: string, updates: { name?: string }) => {
         const registry = getSpaceRegistry();

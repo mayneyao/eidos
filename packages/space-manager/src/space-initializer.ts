@@ -9,6 +9,8 @@ export interface SpaceInitOptions {
    */
   name?: string;
 
+  remoteUrl?: string;
+
   /**
    * Extension library paths (required for database initialization)
    */
@@ -61,7 +63,10 @@ export class SpaceInitializer {
 
       // 4. Register space
       const registry = getSpaceRegistry();
-      const space = registry.registerSpace(targetPath, this.options.name);
+      const space = registry.registerSpace(targetPath, {
+        customName: this.options.name,
+        remoteUrl: this.options.remoteUrl,
+      });
       this.logger?.log(`Space registered with ID: ${space.id}`);
 
       return space;

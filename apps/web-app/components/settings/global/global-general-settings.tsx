@@ -2,14 +2,12 @@ import { useEffect, useState } from "react"
 import i18n from "@/locales/i18n"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CheckCircle, ChevronDown, RefreshCw } from "lucide-react"
-import { useTheme } from "@/components/theme-provider"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
-import { URLS } from "@/lib/const"
+import { SYNC_INTERNAL_URL, URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
-import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -24,7 +22,31 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/react-hook-form/form"
+import { useTheme } from "@/components/theme-provider"
+import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { useUpdateStatus } from "@/apps/web-app/hooks/use-update-status"
+
+interface SyncBucketCredentials {
+  bucketName: string
+  accessKeyId: string
+  secretAccessKey: string
+  tokenId: string
+  endpoint: string
+}
+
+interface SyncBucketError {
+  success: false
+  message: string
+  details?: any
+  statusCode: number
+}
+
+interface SyncBucketResult {
+  success: true
+  data: SyncBucketCredentials
+}
+
+type SyncInitResponse = SyncBucketResult | SyncBucketError
 
 const appearanceFormSchema = z.object({
   theme: z.enum(["light", "dark"], {
@@ -75,8 +97,23 @@ export function GlobalGeneralSettings() {
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true)
   const [isLoadingConfig, setIsLoadingConfig] = useState(true)
 
+  // Sync state
+  const [syncEnabled, setSyncEnabled] = useState(false)
+  const [isInitializingSync, setIsInitializingSync] = useState(false)
+
   // Auth from provider
   const auth = useAuthOptional()
+
+  // Helper to get auth headers - similar to extension marketplace
+  const getAuthHeaders = (): Record<string, string> => {
+    if (auth?.accessToken) {
+      return { Authorization: `Bearer ${auth.accessToken}` }
+    }
+    return {}
+  }
+
+  // Check if authenticated
+  const hasSyncAuth = !!auth?.accessToken
   const user = auth?.user
 
   // Load appearance preferences
@@ -137,6 +174,67 @@ export function GlobalGeneralSettings() {
     }
   }
 
+  const handleInitializeSync = async () => {
+    if (!hasSyncAuth) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login first to initialize sync.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsInitializingSync(true)
+    try {
+      const response = await fetch(SYNC_INTERNAL_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+      })
+
+      const data: SyncInitResponse = await response.json()
+      console.log("Sync initialization response:", data)
+
+      if (!response.ok) {
+        throw new Error(
+          data.success === false
+            ? data.message
+            : `HTTP error! status: ${response.status}`
+        )
+      }
+
+      // Store credentials if initialization was successful
+      if (data.success && isDesktop) {
+        try {
+          await window.eidos.credentials.setSyncCredentials(
+            data.data,
+            "eidos.space"
+          )
+          console.log("Sync credentials stored successfully")
+        } catch (storageError) {
+          console.error("Failed to store sync credentials:", storageError)
+          // Don't fail the whole operation if storage fails, just log it
+        }
+      }
+
+      toast({
+        title: "Sync Initialized",
+        description: `Initialization completed successfully. Credentials ${isDesktop ? "stored" : "retrieved"}.`,
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Failed to initialize sync:", error)
+      toast({
+        title: "Sync Initialization Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setIsInitializingSync(false)
+    }
+  }
 
   return (
     <div className="space-y-0">
@@ -424,6 +522,51 @@ export function GlobalGeneralSettings() {
         </div>
       </div>
 
+      {/* Sync Section */}
+      <div className="py-4">
+        <h3 className="text-lg font-medium">Sync</h3>
+      </div>
+
+      <hr className="border-border" />
+
+      <div className="py-6">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Enable Sync</Label>
+              <p className="text-sm text-muted-foreground">
+                Enable synchronization for your data
+              </p>
+            </div>
+            <Switch checked={syncEnabled} onCheckedChange={setSyncEnabled} />
+          </div>
+
+          {syncEnabled && (
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Initialize Sync</Label>
+                <p className="text-sm text-muted-foreground">
+                  {!hasSyncAuth
+                    ? "Login required to initialize sync service."
+                    : "Initialize sync service. Check console for initialization details."}
+                </p>
+              </div>
+              <Button
+                onClick={handleInitializeSync}
+                disabled={isInitializingSync || !hasSyncAuth}
+                variant="outline"
+                size="sm"
+              >
+                {!hasSyncAuth
+                  ? "Login Required"
+                  : isInitializingSync
+                    ? "Initializing..."
+                    : "Initialize"}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

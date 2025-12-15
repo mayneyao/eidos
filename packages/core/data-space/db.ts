@@ -9,18 +9,30 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
   public status() {
     return this.db.status()
   }
-
-  public pages() {
-    return this.db.pages()
-  }
-
   public pull() {
     return this.db.pull()
   }
 
-  public reset() {
-    return this.db.reset()
+  public push() {
+    return this.db.push()
   }
+
+  public fetch(){
+    return this.db.fetch()
+  }
+
+  public hydrate() {
+    return this.db.hydrate()
+  }
+
+  public snapshot() {
+    return this.db.snapshot()
+  }
+
+  public volumes() {
+    return this.db.volumes()
+  }
+
 
   // close db
   public close() {

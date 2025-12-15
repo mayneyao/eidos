@@ -1,13 +1,13 @@
-import { handleFunctionCall } from '@/packages/core/rpc';
+import { MsgType } from '@/lib/const';
 import { DataSpace } from "@/packages/core/data-space";
+import { handleFunctionCall } from '@/packages/core/rpc';
+import { isIteratorFunction } from '@/packages/core/sqlite/channel/iterator-utils';
 import { parentPort, workerData } from 'worker_threads';
 import { NodeServerDatabase } from "./sqlite-server";
-import { MsgType } from '@/lib/const';
-import { isIteratorFunction } from '@/packages/core/sqlite/channel/iterator-utils';
 
 
 
-const { spaceDbPath, spacePath, simplePathConfig, vecPathConfig, graftPathConfig } = workerData
+const {  spacePath, simplePathConfig, vecPathConfig, graftPathConfig,spaceInfo } = workerData
 class DataSpaceManager {
     private static instance: DataSpaceManager;
     private dataSpace: DataSpace | null = null;
@@ -36,7 +36,7 @@ class DataSpaceManager {
         console.log("init space", spaceName)
 
         const serverDb = new NodeServerDatabase({
-            path: spaceDbPath,
+            spaceInfo: spaceInfo,
             options: {
                 readonly: true,
             }
@@ -44,7 +44,6 @@ class DataSpaceManager {
             simple: simplePathConfig,
             vec: vecPathConfig,
             graft: graftPathConfig,
-            enableSync: false,
             spacePath: spacePath,
         });
         this.dataSpace = new DataSpace({

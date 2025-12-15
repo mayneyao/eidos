@@ -22,6 +22,7 @@ type SettingsSection =
   | "space-document"
   | "space-mounts"
   | "space-file-handlers"
+  | "space-sync"
   | "general"
   | "ai"
   | "api"
@@ -40,7 +41,7 @@ interface SettingsItem {
 
 interface SettingsSidebarProps {
   activeSection: SettingsSection
-  onSectionChange: (section: SettingsSection) => void
+  onSectionChange: (section: SettingsSection | ((prev: SettingsSection) => SettingsSection)) => void
   showSpaceSettings?: boolean
 }
 
@@ -72,6 +73,13 @@ export function SettingsSidebar({
       title: t("space.settings.mounts"),
       description: t("space.settings.mountsDescription"),
       icon: <Folder className="h-5 w-5" />,
+      category: "space",
+    },
+    {
+      id: "space-sync",
+      title: t("space.settings.sync"),
+      description: t("space.settings.syncDescription"),
+      icon: <Cloud className="h-5 w-5" />,
       category: "space",
     },
     // {

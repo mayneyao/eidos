@@ -113,8 +113,6 @@ export class ConfigManager extends EventEmitter {
         this.configPath = configPath;
         this.isGlobalConfig = isGlobalConfig;
         this.config = this.loadConfig();
-        // Ensure existing configs have the new sync structure and defaults
-        this.ensureDefaultSyncConfig();
         // Ensure AI config has version field for synchronization
         this.ensureDefaultAIConfig();
     }
@@ -172,56 +170,6 @@ export class ConfigManager extends EventEmitter {
                 console.warn("AI config version missing or invalid, applying default.");
                 this.config.ai.version = emptyConfig.ai.version;
                 needsSave = true;
-            }
-        }
-        if (needsSave) {
-            this.saveConfig();
-        }
-    }
-
-    // Ensure that the loaded config has the sync structure, applying defaults if missing
-    // Renamed from ensureDefaultSyncGraftConfig to handle sync.enabled as well
-    private ensureDefaultSyncConfig(): void {
-        let needsSave = false;
-        // Ensure sync object exists
-        if (typeof this.config.sync !== 'object' || this.config.sync === null) {
-            console.warn("Sync config section missing, initializing with defaults.");
-            this.config.sync = JSON.parse(JSON.stringify(emptyConfig.sync)); // Deep clone default sync
-            needsSave = true;
-        } else {
-            // Check if sync.enabled is missing and apply default
-            if (typeof this.config.sync.enabled !== 'boolean') {
-                console.warn(`Sync config key 'enabled' missing or invalid, applying default.`);
-                this.config.sync.enabled = emptyConfig.sync.enabled;
-                needsSave = true;
-            }
-
-            // Ensure sync.graft object exists
-            if (typeof this.config.sync.graft !== 'object' || this.config.sync.graft === null) {
-                console.warn("Sync.graft config section missing, initializing with defaults.");
-                this.config.sync.graft = { ...emptyConfig.sync.graft };
-                needsSave = true;
-            } else {
-                // Check individual keys within sync.graft and apply defaults if missing
-                for (const key of Object.keys(emptyConfig.sync.graft) as Array<keyof GraftConfig>) {
-                    // Ensure the key exists and is of the correct type (basic check)
-                    // If graft exists, we assume its internal keys might be missing or wrong type
-                    if (!(key in this.config.sync.graft) || typeof (this.config.sync.graft as any)[key] !== typeof emptyConfig.sync.graft[key]) {
-                        // Apply default only if key is missing, handle type mismatch potentially elsewhere if needed
-                        if (!(key in this.config.sync.graft)) {
-                            console.warn(`Sync.graft config key '${key}' missing, applying default.`);
-                            (this.config.sync.graft as any)[key] = emptyConfig.sync.graft[key];
-                            needsSave = true;
-                        } else if (key === 'token' && typeof this.config.sync.graft.token === 'undefined') {
-                            // Special case: allow undefined for token
-                        }
-                        else if (typeof (this.config.sync.graft as any)[key] !== typeof emptyConfig.sync.graft[key]) {
-                            console.warn(`Sync.graft config key '${key}' has incorrect type, applying default.`);
-                            (this.config.sync.graft as any)[key] = emptyConfig.sync.graft[key];
-                            needsSave = true;
-                        }
-                    }
-                }
             }
         }
         if (needsSave) {

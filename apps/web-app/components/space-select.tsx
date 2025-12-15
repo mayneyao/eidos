@@ -31,10 +31,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
-import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -54,11 +54,13 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [selectedFolder, setSelectedFolder] = React.useState<string>("")
+  const [remoteUrl, setRemoteUrl] = React.useState<string>("")
   const [isSelectingFolder, setIsSelectingFolder] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
 
   const reset = () => {
     setSelectedFolder("")
+    setRemoteUrl("")
   }
 
   const goto = useGoto()
@@ -107,12 +109,15 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     setLoading(true)
     try {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
-        // Desktop mode: create space with selected folder
+        // Desktop mode: create space with selected folder and optional remote URL
         const result = await window.eidos.invoke(
           "register-space",
-          selectedFolder
+          selectedFolder,
+          {
+            remoteUrl: remoteUrl || undefined,
+          }
         )
-        
+
         if (result.success && result.space) {
           await updateSpaceList()
           await handleSelect(result.space.id as string)
@@ -148,9 +153,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
             {space ? (
               <div className="flex items-center gap-3">
                 <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-80" />
-                <span>
-                  {spaces.find((s) => s.id === space)?.name || space}
-                </span>
+                <span>{spaces.find((s) => s.id === space)?.name || space}</span>
               </div>
             ) : (
               t("space.select.selectDatabase")
@@ -250,6 +253,22 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {t("space.select.folderDescription")}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="remote-url">
+                  {t("space.select.remoteUrl")} ({t("common.optional")})
+                </Label>
+                <Input
+                  id="remote-url"
+                  type="url"
+                  placeholder={t("space.select.remoteUrlPlaceholder")}
+                  value={remoteUrl}
+                  onChange={(e) => setRemoteUrl(e.target.value)}
+                  className="flex-1"
+                />
+                <p className="text-sm text-muted-foreground">
+                  {t("space.select.remoteUrlDescription")}
                 </p>
               </div>
             </div>

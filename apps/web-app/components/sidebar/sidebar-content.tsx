@@ -3,6 +3,8 @@
 import { detectDirective } from "@eidos.space/v3"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
+import { useCurrentSpaceId } from "@/hooks/use-current-space"
+import { DEFAULT_TABS } from "@/hooks/use-tabs-kv"
 import { useMblock } from "@/apps/web-app/hooks/use-mblock"
 import { useExtensionStore } from "@/apps/web-app/store/extension-store"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
@@ -11,6 +13,7 @@ import { BlockApp } from "../block-renderer/block-app"
 import FileTree from "../file-tree"
 import { ExtensionSidebarHeader } from "./extensions/extension-sidebar-header"
 import { FilesSidebar } from "./files"
+import { GraftSidebar } from "./graft/graft-sidebar"
 import { JournalsSidebar } from "./journals/journals-sidebar"
 import { SearchResults } from "./nodes/search-results"
 import { TreeSidebarHeader } from "./nodes/tree-sidebar-header"
@@ -99,7 +102,7 @@ const FilesContent = () => {
 }
 
 const BlockContent = ({ block }: { block: any }) => {
-  const { space } = useCurrentPathInfo()
+  const space = useCurrentSpaceId()
   if (!block.id) {
     return <div>Block not found</div>
   }
@@ -120,11 +123,13 @@ export const SidebarContent = () => {
         return <JournalsSidebar />
       case "files":
         return <FilesContent />
+      case "graft":
+        return <GraftSidebar />
       default:
         // Check if currentApp is a block ID with 'use sidebar' directive
         if (
           currentApp &&
-          !["extensions", "nodes", "today", "files"].includes(currentApp) &&
+          !DEFAULT_TABS.includes(currentApp) &&
           block &&
           block.code &&
           detectDirective(block.code, "use sidebar")

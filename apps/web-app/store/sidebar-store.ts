@@ -5,9 +5,10 @@ export type SidebarApp =
   | "extensions"
   | "today"
   | "files"
+  | "graft"
   | string
 
-export type TabId = "nodes" | "extensions" | "today" | "files" | string
+export type TabId = "nodes" | "extensions" | "today" | "files" | "graft" | string
 
 export type SidebarTab = {
   id: TabId
@@ -37,6 +38,11 @@ export const TAB_CONFIG: Record<string, Omit<SidebarTab, 'id'>> = {
   },
   files: {
     label: "files",
+    icon: () => null,
+    isNavigation: false,
+  },
+  graft: {
+    label: "graft",
     icon: () => null,
     isNavigation: false,
   },

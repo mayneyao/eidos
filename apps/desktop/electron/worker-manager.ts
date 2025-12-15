@@ -2,18 +2,34 @@ import path from 'path';
 import * as worker_threads from 'worker_threads';
 import { Worker } from 'worker_threads';
 import { getSpaceDbPath, getSpacePath } from './file-system/space';
+import type { SpaceInfo } from './space-registry';
+import { getSpaceRegistry } from './space-registry';
+import type { SyncBucketCredentials } from './credentials';
 
 export interface WorkerConfig {
-    simplePathConfig: any;
-    vecPathConfig: any;
-    graftPathConfig: any;
+    simplePathConfig: {
+        libPath: string;
+        dictPath: string;
+    };
+    vecPathConfig: {
+        libPath: string;
+    };
+    graftPathConfig: {
+        libPath: string;
+        enabled: boolean;
+        remote: string;
+        credentials: SyncBucketCredentials;
+    };
+    spaceInfo: SpaceInfo
 }
 
 export class WorkerManager {
     private static instance: WorkerManager;
     private workers: Map<string, Worker> = new Map();
 
-    private constructor() { }
+    private constructor() { 
+
+    }
 
     public static getInstance(): WorkerManager {
         if (!WorkerManager.instance) {
@@ -29,13 +45,27 @@ export class WorkerManager {
         const spacePath = getSpacePath(spaceId);
 
         let worker = this.workers.get(spaceId);
+        const spaceInfo  = getSpaceRegistry().getSpace(spaceId);
+        if (!spaceInfo) {
+            throw new Error(`Space ${spaceId} not found`);
+        }
+        const enableSync = spaceInfo.sync?.enabled ?? false;
+        const remote = spaceInfo.sync?.remote ?? '';
 
+        
         if (!worker) {
             worker = new Worker(path.join(__dirname, 'worker.js'), {
                 workerData: {
                     spaceDbPath,
                     spacePath,
-                    ...config
+                    ...config,
+                    graftPathConfig: {
+                        libPath: config.graftPathConfig.libPath,
+                        enabled: enableSync,
+                        remote,
+                        credentials: config.graftPathConfig.credentials,
+                    },
+                    spaceInfo
                 },
                 // stdout: true,
                 // stderr: true,

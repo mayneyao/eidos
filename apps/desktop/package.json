@@ -38,7 +38,7 @@
     "native-file-system-adapter": "^3.0.1",
     "oxc-parser": "^0.74.0",
     "oxc-transform": "^0.74.0",
-    "sqlite-graft": "^0.1.3",
+    "sqlite-graft": "^0.2.1",
     "sqlite-vec": "0.1.7-alpha.2",
     "ws": "^8.18.2",
     "zod": "^3.25.67"
