@@ -1,153 +1,135 @@
 
-type ParsedSnapshot = {
-    latestLsn: number;
-    pageCount: number;
-    primaryLsn: number; // LSN repeated in the second part
-    marker: string; // The character marker (e.g., 'r')
-    secondaryLsn: number; // The LSN after the marker
-} | null; // Allow null if parsing fails
+// No changes to remote Log 74ggdmAVtx-3CLG4igbxFLAr
 
-export type GraftStatus = {
-    clientId: string;
-    volumeId: string;
-    currentSnapshot: ParsedSnapshot;
-    currentSnapshotRaw: string; // Keep the original string
-    autosync: boolean;
-    volumeStatus: 'Ok' | string; // Allow other statuses
-};
-
-export function parseGraftStatus(statusString: string): GraftStatus {
-    const lines = statusString.trim().split('\n');
-    const resultJson: Partial<GraftStatus> = {}; // Use Partial for intermediate state
-
-    if (lines.length > 0 && lines[0] !== 'Graft Status') {
-        console.warn('First line is not "Graft Status":', lines[0]);
-    }
-
-    const startIndex = lines[0] === 'Graft Status' ? 1 : 0;
-
-    // Regex to parse the snapshot string, e.g., "Snapshot[220;52][220r189]"
-    const snapshotRegex = /^Snapshot\[(\d+);(\d+)\]\[(\d+)([a-zA-Z])(\d+)\]$/;
-
-    for (let i = startIndex; i < lines.length; i++) {
-        const line = lines[i];
-        const separatorIndex = line.indexOf(':');
-        if (separatorIndex === -1) {
-            console.warn('Skipping line without colon:', line);
-            continue;
-        }
-
-        const keyRaw = line.substring(0, separatorIndex).trim();
-        const valueRaw = line.substring(separatorIndex + 1).trim();
-
-        switch (keyRaw) {
-            case 'Client ID':
-                resultJson.clientId = valueRaw;
-                break;
-            case 'Volume ID':
-                resultJson.volumeId = valueRaw;
-                break;
-            case 'Current snapshot':
-                resultJson.currentSnapshotRaw = valueRaw; // Store raw string
-                const match = valueRaw.match(snapshotRegex);
-                if (match) {
-                    resultJson.currentSnapshot = {
-                        latestLsn: parseInt(match[1], 10),
-                        pageCount: parseInt(match[2], 10),
-                        primaryLsn: parseInt(match[3], 10),
-                        marker: match[4],
-                        secondaryLsn: parseInt(match[5], 10),
-                    };
-                } else {
-                    console.warn('Failed to parse Current snapshot string:', valueRaw);
-                    resultJson.currentSnapshot = null; // Set to null if format is unexpected
-                }
-                break;
-            case 'Autosync':
-                resultJson.autosync = valueRaw.toLowerCase() === 'true';
-                break;
-            case 'Volume status':
-                resultJson.volumeStatus = valueRaw as GraftStatus['volumeStatus'];
-                break;
-            default:
-                // Handle unknown keys - maybe convert to camelCase and add?
-                let keyCamelCase = keyRaw.replace(/\s(.)/g, (_match, group1) => group1.toUpperCase()).replace(/\s/g, '');
-                keyCamelCase = keyCamelCase.charAt(0).toLowerCase() + keyCamelCase.slice(1);
-                console.warn('Unknown graft_status key:', keyRaw, 'Storing as is with camelCase key:', keyCamelCase);
-                (resultJson as any)[keyCamelCase] = valueRaw; // Store unknown keys dynamically
-        }
-    }
-
-    // Add checks for required fields before casting
-    if (resultJson.clientId === undefined ||
-        resultJson.volumeId === undefined ||
-        resultJson.currentSnapshotRaw === undefined || // Check raw string presence
-        resultJson.currentSnapshot === undefined || // Check ParsedSnapshot presence (even if null)
-        resultJson.autosync === undefined ||
-        resultJson.volumeStatus === undefined) {
-        console.error('Failed to parse GraftStatus completely, missing fields:', resultJson);
-        // Decide how to handle incomplete data, maybe throw an error or return a default/error state
-        // For now, we'll still attempt the cast but it might be inaccurate
-        return resultJson as GraftStatus; // This cast might be unsafe if fields are missing
-    }
-
-
-    return resultJson as GraftStatus;
+export interface GraftPushResult {
+  rawMessage?: string
 }
 
+export interface GraftNewResult {
+  volumeId?: string
+  localLog?: string
+  remoteLog?: string
+  rawMessage?: string
+}
 
-type PageStatus = {
-    pageno: number;
-    lsn: number;
-    state: 'cached' | 'pending' | string; // Keep string for potential future states
-};
+/**
+ * Parse graft_new command response into structured data
+ */
+export function parseGraftNew(data: any): GraftNewResult | null {
+  if (Array.isArray(data) && data.length > 0) {
+    const message = Object.keys(data[0])[0]
+    const volumeMatch = message.match(/Volume ([a-zA-Z0-9_-]+)/)
+    const localLogMatch = message.match(/local Log ([a-zA-Z0-9_-]+)/)
+    const remoteLogMatch = message.match(/remote Log ([a-zA-Z0-9_-]+)/)
 
-export function parsePagesStatus(pagesString: string): PageStatus[] {
-    const lines = pagesString.trim().split('\n');
-    const result: PageStatus[] = [];
+    return {
+      volumeId: volumeMatch ? volumeMatch[1] : undefined,
+      localLog: localLogMatch ? localLogMatch[1] : undefined,
+      remoteLog: remoteLogMatch ? remoteLogMatch[1] : undefined,
+      rawMessage: message,
+    }
+  }
+  return null
+}
 
-    if (lines.length === 0) {
-        return result;
+/**
+ *
+ * Example output of graft_status:
+On tag main
+Local Log 74ggdkaEty-3ceZy5bybqxtK is grafted to
+remote Log 74ggdkaEty-3hwck1nEBsyvG.
+
+The Volume is ahead of the remote by 30 commits.
+  (use 'pragma graft_push' to push changes)
+ */
+
+export interface GraftStatus {
+  currentBranch?: string
+  localLogId?: string
+  remoteLogId?: string
+  status?: "ahead" | "behind" | "up_to_date" | "diverged"
+  commitDiff?: number
+  suggestedAction?: string
+  isGrafted?: boolean
+}
+
+/**
+ * Parse graft_status command output into structured data
+ */
+export function parseGraftStatus(output: string): GraftStatus {
+  const lines = output
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+
+  const status: GraftStatus = {
+    isGrafted: false,
+  }
+
+  for (const line of lines) {
+    // Parse current branch/tag
+    if (line.startsWith("On tag ") || line.startsWith("On branch ")) {
+      status.currentBranch = line.replace(/^(On tag |On branch )/, "")
     }
 
-    // Expecting header: 'pageno   | lsn    | state'
-    const header = lines[0].trim();
-    if (!header.startsWith('pageno') || !header.includes('| lsn') || !header.includes('| state')) {
-        console.warn('Unexpected pages header format:', header);
-        // Attempt to parse anyway if header is missing or malformed, starting from index 0
+    // Parse local log ID
+    else if (line.includes("Local Log ") && line.includes(" is grafted to")) {
+      const match = line.match(/Local Log ([^ ]+)/)
+      if (match) {
+        status.localLogId = match[1]
+        status.isGrafted = true
+      }
     }
 
-    // Start from index 1 if the header seems correct, otherwise start from 0
-    const startIndex = (header.startsWith('pageno') && header.includes('| lsn') && header.includes('| state')) ? 1 : 0;
-
-
-    for (let i = startIndex; i < lines.length; i++) {
-        const line = lines[i];
-        const parts = line.split('|');
-
-        if (parts.length !== 3) {
-            console.warn('Skipping malformed pages line:', line);
-            continue;
-        }
-
-        const pagenoStr = parts[0].trim();
-        const lsnStr = parts[1].trim();
-        const stateStr = parts[2].trim();
-
-        const pageno = parseInt(pagenoStr, 10);
-        const lsn = parseInt(lsnStr, 10);
-
-        if (isNaN(pageno) || isNaN(lsn)) {
-            console.warn('Failed to parse numbers from pages line:', line);
-            continue;
-        }
-
-        result.push({
-            pageno: pageno,
-            lsn: lsn,
-            state: stateStr as PageStatus['state'], // Assume state is valid for now
-        });
+    // Parse remote log ID
+    else if (line.includes("remote Log ")) {
+      const match = line.match(/remote Log ([^ ]+)/)
+      if (match) {
+        status.remoteLogId = match[1]
+      }
     }
 
-    return result;
-} 
+    // Parse ahead/behind status
+    else if (line.includes("The Volume is ahead of the remote by")) {
+      const match = line.match(/ahead of the remote by (\d+) commit(?:s)?/)
+      if (match) {
+        status.status = "ahead"
+        status.commitDiff = parseInt(match[1], 10)
+      }
+    } else if (line.includes("The Volume is behind the remote by")) {
+      const match = line.match(/behind the remote by (\d+) commit(?:s)?/)
+      if (match) {
+        status.status = "behind"
+        status.commitDiff = parseInt(match[1], 10)
+      }
+    } else if (line.includes("The Volume is up to date")) {
+      status.status = "up_to_date"
+      status.commitDiff = 0
+    } else if (line.includes("The Volume has diverged")) {
+      status.status = "diverged"
+      // For diverged state, we might have additional info about ahead/behind
+      const aheadMatch = line.match(/ahead by (\d+)/)
+      const behindMatch = line.match(/behind by (\d+)/)
+      if (aheadMatch && behindMatch) {
+        // Could store both ahead and behind counts if needed
+        status.commitDiff =
+          parseInt(aheadMatch[1], 10) - parseInt(behindMatch[1], 10)
+      }
+    }
+
+    // Parse suggested action
+    else if (
+      line.includes("use 'pragma graft_push'") ||
+      line.includes("use 'pragma graft_pull'")
+    ) {
+      if (line.includes("graft_push")) {
+        status.suggestedAction = "push"
+      } else if (line.includes("graft_pull")) {
+        status.suggestedAction = "pull"
+      }
+    }
+  }
+
+  return status
+}

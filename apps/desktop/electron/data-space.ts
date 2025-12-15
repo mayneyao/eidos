@@ -8,66 +8,15 @@ import { ipcMain } from "electron";
 import console from 'electron-log';
 import { EventEmitter } from 'events';
 import * as path from 'node:path';
-import { getConfigManager } from "./config";
+import { CredentialsManager } from "./credentials";
 import { embedding } from "./data-space-context";
 import { NodeExternalFileSystem } from './external-fs-node';
 import { getSpaceDbPath, getSpacePath } from "./file-system/space";
-import { getSpaceRegistry } from "./space-registry";
 import { getResourcePath } from "./helper";
 import { win } from "./main";
+import { getSpaceRegistry } from "./space-registry";
 import { NodeServerDatabase } from "./sqlite-server";
 
-
-// --- START: Helper function to apply Graft Config to Environment --- 
-function applyGraftConfigToEnv(): void {
-    try {
-        const configManager = getConfigManager();
-        const isSyncEnabled = configManager.isSyncEnabled();
-        const graftConfig = configManager.getGraftConfig();
-        if (!isSyncEnabled) {
-            console.log('Sync is disabled, skipping Graft config application');
-            return;
-        }
-        console.log('Applying Graft config to environment variables:', graftConfig);
-
-        // Only set env vars if the corresponding config value is present
-        if (graftConfig.metastore) {
-            process.env.GRAFT_METASTORE = graftConfig.metastore;
-            console.log(`Set GRAFT_METASTORE=${graftConfig.metastore}`);
-        }
-        if (graftConfig.pagestore) {
-            process.env.GRAFT_PAGESTORE = graftConfig.pagestore;
-            console.log(`Set GRAFT_PAGESTORE=${graftConfig.pagestore}`);
-        }
-        if (graftConfig.token) { // Check if token exists
-            process.env.GRAFT_TOKEN = graftConfig.token;
-            console.log(`Set GRAFT_TOKEN=***`); // Avoid logging the actual token
-        } else {
-            // Ensure env var is unset if config value is missing/undefined
-            delete process.env.GRAFT_TOKEN;
-            console.log('Unset GRAFT_TOKEN');
-        }
-        // Always set autosync (default is true)
-        process.env.GRAFT_AUTOSYNC = String(graftConfig.autosync);
-        console.log(`Set GRAFT_AUTOSYNC=${graftConfig.autosync}`);
-
-        if (graftConfig.clientId) { // Check if clientId exists
-            process.env.GRAFT_CLIENT_ID = graftConfig.clientId;
-            console.log(`Set GRAFT_CLIENT_ID=${graftConfig.clientId}`);
-        } else {
-            // Ensure env var is unset if config value is missing/undefined
-            delete process.env.GRAFT_CLIENT_ID;
-            console.log('Unset GRAFT_CLIENT_ID');
-        }
-        // GRAFT_DIR is not handled here as NodeServerDatabase manages the file path directly.
-        // If the rust extension absolutely needs GRAFT_DIR, it might require further changes.
-
-    } catch (error) {
-        console.error('Failed to read graft config or set environment variables:', error);
-        // Decide if this is fatal. For now, just log and continue.
-    }
-}
-// --- END: Helper function --- 
 
 function requestFromRenderer(webContents: WebContents, arg: any) {
     return new Promise((resolve, reject) => {
@@ -246,6 +195,9 @@ export class DataSpaceManager {
     }
 
     public async reload(): Promise<DataSpace | null> {
+        // 
+
+        console.log('====== reload data space ======')
         if (!this.dataSpace) {
             return null;
         }
@@ -273,7 +225,7 @@ export class DataSpaceManager {
         return true;
     }
 
-    public async getOrSetDataSpace(spaceId: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
+    public async getOrSetDataSpace(spaceId: string, syncOptions?: { enabled: boolean, remote?: string, volumeId?: string }): Promise<DataSpace> {
         if (this.dataSpace && this.dataSpace.dbName !== spaceId) {
             // Close both main and draft databases when switching to a different space
             this.dataSpace.close();
@@ -282,17 +234,32 @@ export class DataSpaceManager {
             return this.dataSpace;
         }
         console.log("init space", spaceId)
+        const enableSync = syncOptions?.enabled ?? false;
         const libPath = getResourcePath(`dist-sqlite-ext/libsimple`);
         const dictPath = getResourcePath('dist-sqlite-ext/dict');
         const graftLibPath = getResourcePath('dist-sqlite-ext/libgraft');
         const vecLibPath = getResourcePath('dist-sqlite-ext/libvec');
 
-        // --- START: Set Graft Environment Variables from Config ---
-        applyGraftConfigToEnv(); // Call the helper function
-        // --- END: Set Graft Environment Variables from Config ---
+        const credentials = await CredentialsManager.getSyncCredentials('eidos.space');
+        if (!credentials) {
+            throw new Error(`Credentials for eidos.space not found`);
+        }
 
+        const spaceInfo = getSpaceRegistry().getSpace(spaceId);
+        if (!spaceInfo) {
+            throw new Error(`Space not found: ${spaceId}`);
+        }
         const serverDb = new NodeServerDatabase({
-            path: getSpaceDbPath(spaceId),
+            spaceInfo: spaceInfo,
+            updateVolumeId: (volumeId: string) => {
+                spaceInfo.sync = {
+                    ...spaceInfo.sync ?? {},
+                    enabled: spaceInfo.sync?.enabled ?? false,
+                    remote: spaceInfo.sync?.remote ?? '',
+                    volumeId: volumeId,
+                }
+                getSpaceRegistry().updateSpace(spaceId, spaceInfo);
+            },
             options: {
                 timeout: 3000,
             }
@@ -303,25 +270,29 @@ export class DataSpaceManager {
             },
             graft: {
                 libPath: graftLibPath,
+                enabled: enableSync,
+                remote: syncOptions?.remote ?? '',
+                credentials,
+                volumeId: syncOptions?.volumeId ?? '',
             },
             vec: {
                 libPath: vecLibPath,
             },
-            enableSync,
-            volumeId,
             spacePath: getSpacePath(spaceId),
             logger: console
         });
 
         const draftDataSpace = new DataSpace({
             db: new NodeServerDatabase({
-                path: ':memory:',
+                spaceInfo: {
+                    ...spaceInfo,
+                    path: ':memory:',
+                },
             }, {
                 simple: {
                     libPath,
                     dictPath,
                 },
-                enableSync: false,
                 logger: console
             }),
             activeUndoManager: false,
@@ -402,8 +373,14 @@ export function getDataSpace(): DataSpace | null {
     return DataSpaceManager.getInstance().getDataSpace();
 }
 
-export function getOrSetDataSpace(spaceId: string, enableSync: boolean = false, volumeId?: string): Promise<DataSpace> {
-    return DataSpaceManager.getInstance().getOrSetDataSpace(spaceId, enableSync, volumeId);
+export function getOrSetDataSpace(spaceId: string): Promise<DataSpace> {
+
+    const spaceInfo = getSpaceRegistry().getSpace(spaceId);
+    if (!spaceInfo) {
+        throw new Error(`Space not found: ${spaceId}`);
+    }
+
+    return DataSpaceManager.getInstance().getOrSetDataSpace(spaceId, spaceInfo.sync);
 }
 
 export function reloadDataSpace(): Promise<{ success: boolean }> {

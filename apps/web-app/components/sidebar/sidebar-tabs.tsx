@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ChevronDownIcon,
   FolderOpen,
+  GitBranch,
   GripVertical,
   ListTreeIcon,
   SettingsIcon,
@@ -20,7 +21,7 @@ import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
-import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
+import { DEFAULT_TABS, useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
 import {
   TAB_CONFIG,
   useSidebarStore,
@@ -43,6 +44,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   extensions: BlocksIcon,
   settings: SettingsIcon,
   today: CalendarDays,
+  graft: GitBranch,
 }
 
 const getIconForTab = (tabId: string) => {
@@ -139,10 +141,7 @@ export const SidebarTabs = () => {
 
   // Get block IDs (non-fixed tabs)
   const blockIds = useMemo(
-    () =>
-      tabIds.filter(
-        (id) => !["nodes", "extensions", "today", "files"].includes(id)
-      ),
+    () => tabIds.filter((id) => !DEFAULT_TABS.includes(id)),
     [tabIds]
   )
 
@@ -174,7 +173,7 @@ export const SidebarTabs = () => {
       navigate(href, { target })
     } else {
       // Regular tab or block tab
-      if (tabId === "nodes" || tabId === "extensions" || tabId === "files") {
+      if (DEFAULT_TABS.includes(tabId)) {
         setCurrentApp(tabId as SidebarApp)
       } else {
         // Block tab - use unified handling logic
@@ -303,9 +302,7 @@ export const SidebarTabs = () => {
         {visibleItems.map((tab, index) => {
           const tabId = tab.id
           const tabConfig = TAB_CONFIG[tabId]
-          const isFixedTab = ["nodes", "extensions", "today", "files"].includes(
-            tabId
-          )
+          const isFixedTab = DEFAULT_TABS.includes(tabId)
 
           if (isFixedTab) {
             // Fixed tabs (nodes, extensions, today, files)
@@ -394,12 +391,7 @@ export const SidebarTabs = () => {
                     const shortcutNum = index + 1 // Based on display order
                     const Icon = getIconForTab(tabId)
                     const isVisible = visibleItems.some((vt) => vt.id === tabId)
-                    const isFixedTab = [
-                      "nodes",
-                      "extensions",
-                      "today",
-                      "files",
-                    ].includes(tabId)
+                    const isFixedTab = DEFAULT_TABS.includes(tabId)
                     const tabConfig = TAB_CONFIG[tabId]
                     const label = isFixedTab ? tabConfig?.label || tabId : null
 

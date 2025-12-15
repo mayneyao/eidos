@@ -83,6 +83,20 @@ export class SpaceRegistry {
     return spaces.find(space => space.id === id) || null;
   }
 
+  public setSpaceSync(spaceId: string, sync: { enabled: boolean, remote: string, volumeId?: string }): void {
+    const space = this.getSpace(spaceId);
+    if (!space) {
+      throw new Error(`Space not found: ${spaceId}`);
+    }
+    space.sync = sync;
+
+    console.log('setSpaceSync', spaceId, sync);
+    const config = this.loadSpacesConfig();
+    config.spaces = config.spaces.map(o => o.id === spaceId ? space : o);
+    console.log('config', config.spaces);
+    this.saveSpacesConfig(config);
+  }
+
   public getFirstSpace(): SpaceInfo | null {
     const spaces = this.getAllSpaces();
     return spaces.length > 0 ? spaces[0] : null;
@@ -110,7 +124,10 @@ export class SpaceRegistry {
     this.saveGlobalConfig(globalConfig);
   }
 
-  public registerSpace(spacePath: string, customName?: string): SpaceInfo {
+  public registerSpace(spacePath: string, options:{
+    customName?: string,
+    remoteUrl?: string,
+  } = {}): SpaceInfo {
     if (!fs.existsSync(spacePath)) {
       throw new Error(`Path does not exist: ${spacePath}`);
     }
@@ -129,8 +146,12 @@ export class SpaceRegistry {
 
     const space: SpaceInfo = {
       id: spaceId,
-      name: customName || folderName.charAt(0).toUpperCase() + folderName.slice(1),
-      path: spacePath
+      name: options.customName || folderName.charAt(0).toUpperCase() + folderName.slice(1),
+      path: spacePath,
+      sync: options.remoteUrl ? {
+        enabled: true,
+        remote: options.remoteUrl,
+      } : undefined,
     };
 
     const config = this.loadSpacesConfig();

@@ -10,12 +10,14 @@ import { DocumentSettings } from "./space/document-settings"
 import { FileHandlersSettings } from "./space/file-handlers-settings"
 import { GeneralSettings } from "./space/general-settings"
 import { MountSettings } from "./space/mount-settings"
+import { SpaceSyncSettings } from "./space/space-sync-settings"
 
 type SettingsSection =
   | "space-general"
   | "space-document"
   | "space-mounts"
   | "space-file-handlers"
+  | "space-sync"
   | "general"
   | "ai"
   | "api"
@@ -40,6 +42,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return t("space.settings.mounts")
       case "space-file-handlers":
         return "File Handlers"
+      case "space-sync":
+        return t("space.settings.sync")
       case "general":
         return t("settings.general")
       case "ai":
@@ -67,6 +71,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <MountSettings />
       case "space-file-handlers":
         return <FileHandlersSettings />
+      case "space-sync":
+        return <SpaceSyncSettings />
       case "general":
         return <GlobalGeneralSettings />
       case "ai":

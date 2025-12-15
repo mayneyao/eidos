@@ -61,6 +61,12 @@ interface Window {
         showNativeMenu: (items: NativeMenuItem[], position?: { clientX: number; clientY: number }) => Promise<void>
         on: (channel: string, listener: (...args: any[]) => void) => string | undefined
         off: (channel: string, listenerId: string) => void
+        credentials: {
+            setSyncCredentials: (credentials: SyncBucketCredentials, providerId: string = 'eidos.space') => Promise<void>
+            getSyncCredentials: (providerId: string = 'eidos.space') => Promise<SyncBucketCredentials | null>
+            clearSyncCredentials: (providerId: string = 'eidos.space') => Promise<void>
+            hasSyncCredentials: (providerId: string = 'eidos.space') => Promise<boolean>
+        }
     }
 
 }

@@ -12,8 +12,13 @@ export enum MsgType {
   Status = "Status",
   Pull = "Pull",
   Push = "Push",
-  Reset = "Reset",
-  Pages = "Pages",
+  Fetch = "Fetch",
+  Hydrate = "Hydrate",
+  Snapshot = "Snapshot",
+  Info = "Info",
+  Audit = "Audit",
+  Version = "Version",
+  Volumes = "Volumes",
   // msg worker => window
   Error = "Error",
   QueryResp = "QueryResp",
@@ -168,3 +173,6 @@ export const OAUTH_CONFIG = {
   // Token management
   TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000, // 5 minutes before expiration
 } as const
+
+
+export const SYNC_INTERNAL_URL = EIDOS_SPACE_BASE_URL + "/api/sync/init"

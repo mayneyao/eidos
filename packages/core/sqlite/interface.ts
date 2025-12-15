@@ -43,30 +43,55 @@ export interface ISqlite<T, D> {
 }
 
 
-export abstract class BaseServerDatabase {
+type CommonVersionControlResult = Promise<Record<string, any>>;
+
+export abstract class BaseServerDatabase  {
   filename?: string
 
   get isWalMode() {
     return true
   }
 
-  pages(): Promise<{ [key: string]: any; }> {
+
+  // inspect
+  info(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  status(): Promise<{ [key: string]: any; }> {
+  status(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  pull(): Promise<{ [key: string]: any; }> {
+  snapshot(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  push(): Promise<{ [key: string]: any; }> {
+  volumes(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  reset(): Promise<{ [key: string]: any; }> {
+  audit(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+  
+  version(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  // sync
+  hydrate(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  fetch(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  pull(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  push(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 

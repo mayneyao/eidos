@@ -89,7 +89,10 @@ export const useSpace = () => {
     if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
       // In desktop mode, use new IPC interface
       try {
-        const result = await window.eidos.invoke('register-space', spaceName, spaceName)
+        const result = await window.eidos.invoke('register-space', spaceName, {
+          customName: spaceName,
+          remoteUrl: enableSync ? volumeId : undefined,
+        })
         if (result.success) {
           await updateSpaceList()
           return result

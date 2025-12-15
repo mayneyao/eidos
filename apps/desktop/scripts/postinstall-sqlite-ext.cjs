@@ -118,9 +118,11 @@ function findSourcePath(basePackageName, packageName, extension) {
   try {
     const pnpmEntries = fs.readdirSync(pnpmDir)
     const prefix = `${packageName}@`
-    packageVersionDir = pnpmEntries.find((entry) => entry.startsWith(prefix))
 
-    if (!packageVersionDir) {
+    // Find all entries that match the prefix
+    const matchingEntries = pnpmEntries.filter((entry) => entry.startsWith(prefix))
+
+    if (matchingEntries.length === 0) {
       // Add basePackageName to logs
       console.error(
         `postinstall-${basePackageName}: Could not find directory starting with ${prefix} in ${pnpmDir}`
@@ -131,9 +133,31 @@ function findSourcePath(basePackageName, packageName, extension) {
       ) // Log first few entries for debugging
       return null
     }
+
+    // Sort by version (semver) to get the latest version
+    matchingEntries.sort((a, b) => {
+      // Extract version from entries like "sqlite-vec-darwin-arm64@0.1.1-alpha.2"
+      const versionA = a.split('@')[1] || '0.0.0'
+      const versionB = b.split('@')[1] || '0.0.0'
+
+      // Simple semver comparison (can be improved for more complex cases)
+      const partsA = versionA.split('.').map(Number)
+      const partsB = versionB.split('.').map(Number)
+
+      for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+        const a = partsA[i] || 0
+        const b = partsB[i] || 0
+        if (a > b) return -1 // a is newer
+        if (a < b) return 1  // b is newer
+      }
+      return 0 // same version
+    })
+
+    packageVersionDir = matchingEntries[0] // First (latest) after sorting
+
     // Add basePackageName to logs
     console.log(
-      `postinstall-${basePackageName}: Found package version directory: ${packageVersionDir}`
+      `postinstall-${basePackageName}: Found ${matchingEntries.length} versions, using latest: ${packageVersionDir}`
     )
   } catch (e) {
     if (e.code === "ENOENT") {

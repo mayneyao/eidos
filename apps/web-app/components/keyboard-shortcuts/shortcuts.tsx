@@ -2,17 +2,17 @@
 
 import { useEffect, useMemo } from "react"
 import { useKeyPress } from "ahooks"
-import { useTheme } from "@/components/theme-provider"
 import { useTranslation } from "react-i18next"
 
 import { getDate, getToday, isDayPageId } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
+import { useTheme } from "@/components/theme-provider"
 import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
+import { DEFAULT_TABS, useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -51,10 +51,7 @@ export function ShortCuts() {
 
   // Get block data for directive checking
   const blockIds = useMemo(
-    () =>
-      sortedTabs.filter(
-        (id) => !["nodes", "extensions", "today", "files"].includes(id)
-      ),
+    () => sortedTabs.filter((id) => !DEFAULT_TABS.includes(id)),
     [sortedTabs]
   )
   const { blocks } = useMblocksBatch(blockIds)
@@ -167,11 +164,7 @@ export function ShortCuts() {
                   const today = getToday()
                   setCurrentApp("today")
                   navigate(`/journals/${today}`)
-                } else if (
-                  targetTabId === "nodes" ||
-                  targetTabId === "extensions" ||
-                  targetTabId === "files"
-                ) {
+                } else if (DEFAULT_TABS.includes(targetTabId)) {
                   // Regular tab
                   setCurrentApp(targetTabId)
                 } else {
