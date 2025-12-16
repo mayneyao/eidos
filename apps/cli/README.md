@@ -23,6 +23,7 @@ Eidos CLI is a **headless version of Eidos** that runs entirely from the command
 - 🌐 **Serve** - Run local API server for any space
 - 💻 **Open** - Open spaces in desktop app (like `code .`)
 - 📦 **Manage** - List and manage all your spaces
+- 🔄 **Graft** - Initialize graft storage for remote syncing
 - 🔗 **Mount** - Mount external directories for file access
 
 ## Quick Start
@@ -144,6 +145,51 @@ eidos open /path/to/space
 - Space must be initialized (contains `.eidos/` directory)
 - Space must be registered in global config
 - Eidos desktop app must be installed
+
+### 🔄 Initialize Graft Storage for Syncing
+
+Convert a space to use graft storage format for remote syncing:
+
+```bash
+# Initialize graft storage in current space
+eidos graft init
+
+# Initialize with explicit credentials
+eidos graft init --access-key-id YOUR_KEY \
+                 --secret-access-key YOUR_SECRET \
+                 --bucket-name eidos-sync \
+                 --endpoint https://s3.eidos.space
+
+# Initialize specific space with remote URL
+eidos graft init /path/to/space \
+                 --remote https://eidos.space/username/space-id.graft
+```
+
+**What it does:**
+
+- Converts `db.sqlite3` to `.graft` storage format
+- Creates `graft.toml` configuration file
+- Imports existing database data into graft storage
+- Registers `volumeId` in space configuration (`~/.eidos/spaces.json`)
+- Enables remote synchronization capabilities
+
+**Credentials:**
+
+You can provide S3-compatible storage credentials via:
+- Command-line options (shown above)
+- Environment variables:
+  ```bash
+  export AWS_ACCESS_KEY_ID=your_key
+  export AWS_SECRET_ACCESS_KEY=your_secret
+  export AWS_BUCKET_NAME=eidos-sync
+  export AWS_ENDPOINT=https://s3.eidos.space
+  ```
+
+**After initialization:**
+
+The space is ready for syncing with remote storage. Your data is stored in:
+- `.eidos/graft.toml` - Configuration file
+- `.eidos/.graft/` - Graft storage directory
 
 ### 🔗 Mount External Directories
 
@@ -361,6 +407,7 @@ apps/cli/
 │   │   ├── init.ts       # Space initialization
 │   │   ├── serve.ts      # API server
 │   │   ├── open.ts       # Open in desktop app
+│   │   ├── graft.ts      # Graft storage initialization
 │   │   ├── mount.ts      # Mount external directories
 │   │   ├── unmount.ts    # Remove mounts
 │   │   └── install.ts    # Installation management
