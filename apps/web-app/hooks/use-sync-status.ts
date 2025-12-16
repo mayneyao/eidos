@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 import { create } from 'zustand';
 import type { GraftStatus } from '@/packages/sync/graft/helpers';
 import { useCurrentSpaceId } from './use-current-space';
+import { useSqlite } from './use-sqlite';
 
 interface SyncStatusState {
     status: GraftStatus | null;
@@ -25,9 +26,10 @@ export function useSpaceSyncStatus() {
     const { status, lastUpdated, setStatus } = useSyncStatusStore();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
+    const { sqlite } = useSqlite()
 
     const fetchStatus = useCallback(async () => {
-        if (!spaceId) {
+        if (!spaceId || !sqlite) {
             console.log('useSpaceSyncStatus: No spaceId available, skipping fetch');
             return;
         }
@@ -36,7 +38,7 @@ export function useSpaceSyncStatus() {
         setIsLoading(true);
         setError(null);
         try {
-            const result = await window.eidos.invoke(MsgType.Status, { spaceName: spaceId });
+            const result = await sqlite.status();
             console.log('useSpaceSyncStatus: Status fetched successfully:', result);
             setStatus(result);
         } catch (err) {

@@ -20,6 +20,7 @@
   "author": "mayneyao",
   "license": "ISC",
   "dependencies": {
+    "@eidos.space/echo": "workspace:*",
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.5.2",
     "lodash": "^4.17.21",

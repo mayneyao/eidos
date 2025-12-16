@@ -1,6 +1,7 @@
 import type { DataSpace, EidosTable } from "../../data-space"
 import type { DataConnection } from "peerjs"
 
+// Legacy imports (kept for backward compatibility)
 import { HttpSqlite } from "./http"
 import type { ILocalSendData } from "./local";
 import { LocalSqlite } from "./local"
@@ -16,13 +17,81 @@ import {
   serializeParams,
 } from "./iterator-utils"
 
+// Echo imports (new implementation)
+import {
+  createEchoClient,
+  WebWorkerTransport,
+  ElectronIPCTransport,
+  HTTPTransport,
+  WebRTCTransport,
+  type EchoClient,
+  type ProxyOptions,
+  getIteratorFunctions,
+} from "@eidos.space/echo"
+
 
 type IConfig = {
   isShareMode?: boolean
   connection?: DataConnection
   isReadonly?: boolean
+  // New option to force using legacy implementation
+  useLegacy?: boolean
 }
+
+/**
+ * Get SQLite channel/transport
+ * Now uses Echo library by default for better type safety and consistency
+ */
 export const getSqliteChannel = (dbName: string, userId: string, config?: IConfig) => {
+  // Allow forcing legacy implementation if needed
+  if (config?.useLegacy) {
+    return getLegacySqliteChannel(dbName, userId, config)
+  }
+
+  // Use Echo implementation
+  let transport: any
+  
+  if (isDesktopMode) {
+    const ipcRenderer = config?.isReadonly 
+      ? (window as any).eidosReadonly 
+      : (window as any).eidos
+    transport = new ElectronIPCTransport(ipcRenderer, { 
+      readonly: config?.isReadonly 
+    })
+  } else if (isInkServiceMode) {
+    transport = new HTTPTransport("/server/api")
+  } else if (config?.connection) {
+    transport = new WebRTCTransport(config.connection)
+  } else {
+    transport = new WebWorkerTransport(getWorker())
+  }
+
+  // Return transport wrapped in legacy-compatible interface
+  return {
+    connector: transport.connector,
+    send: transport.send.bind(transport),
+    onCallBack: (callId: string) => {
+      return new Promise((resolve, reject) => {
+        const handler = (message: any) => {
+          if (message.id !== callId) return
+          
+          if (message.type === 'QueryResp' || message.type === MsgType.QueryResp) {
+            resolve(message.data.result)
+          } else if (message.type === 'Error' || message.type === MsgType.Error) {
+            reject(new Error(message.data.message))
+          }
+        }
+        transport.onMessage(handler)
+      })
+    },
+    onIterator: transport.onIterator?.bind(transport),
+  }
+}
+
+/**
+ * Legacy implementation (kept for fallback)
+ */
+function getLegacySqliteChannel(dbName: string, userId: string, config?: IConfig) {
   let sqlite: ISqlite<any, ILocalSendData>
   if (isDesktopMode) {
     if (config?.isReadonly) {
@@ -46,12 +115,60 @@ export const getSqliteChannel = (dbName: string, userId: string, config?: IConfi
   return sqlite
 }
 
+/**
+ * Get SQLite proxy with full DataSpace API
+ * Now powered by Echo for better type safety and consistency
+ */
 export const getSqliteProxy = (
   dbName: string,
   userId: string,
   config?: IConfig
 ) => {
-  const sqlite = getSqliteChannel(dbName, userId, config)
+  // Allow forcing legacy implementation if needed
+  if (config?.useLegacy) {
+    return getLegacySqliteProxy(dbName, userId, config)
+  }
+
+  // Use Echo implementation
+  let transport: any
+  
+  if (isDesktopMode) {
+    const ipcRenderer = config?.isReadonly 
+      ? (window as any).eidosReadonly 
+      : (window as any).eidos
+    transport = new ElectronIPCTransport(ipcRenderer, { 
+      readonly: config?.isReadonly 
+    })
+  } else if (isInkServiceMode) {
+    transport = new HTTPTransport("/server/api")
+  } else if (config?.connection) {
+    transport = new WebRTCTransport(config.connection)
+  } else {
+    transport = new WebWorkerTransport(getWorker())
+  }
+
+  // Get registered iterator functions from the global registry
+  const iteratorFunctionNames = getIteratorFunctions()
+  const iteratorFunctions = new Set(iteratorFunctionNames)
+
+  const proxyOptions: ProxyOptions = {
+    context: { dbName, userId },
+    timeout: 30000,
+    iteratorFunctions,
+  }
+
+  return createEchoClient<DataSpace>(transport, proxyOptions)
+}
+
+/**
+ * Legacy proxy implementation (kept for fallback)
+ */
+function getLegacySqliteProxy(
+  dbName: string,
+  userId: string,
+  config?: IConfig
+) {
+  const sqlite = getLegacySqliteChannel(dbName, userId, config)
   return new Proxy<DataSpace>({} as any, {
     get(target, method) {
       if (method == "_config") {

@@ -1,5 +1,4 @@
 import { MsgType } from '@/lib/const';
-import { handleFunctionCall } from '@/packages/core/rpc';
 import { BrowserWindow } from 'electron';
 import { Menu, Tray, app, dialog, ipcMain, nativeImage, shell, webContents } from 'electron';
 import electronLog from 'electron-log';
@@ -21,8 +20,9 @@ import { GlobalShortcutManager } from './services/global-shortcut-manager';
 import console from 'electron-log';
 import { fetchAvailableModels } from '@/packages/ai/helper';
 import { migrateFromLegacyConfig, getSpaceRegistry } from './space-registry';
-import { isIteratorFunction } from '@/packages/core/sqlite/channel/iterator-utils';
 import { initGraftDatabase } from './sync/init';
+import { EchoServerHandler } from '@eidos.space/echo/server';
+import type { EchoMessage } from '@eidos.space/echo';
 
 
 process.on('uncaughtException', (error) => {
@@ -131,16 +131,27 @@ ipcMain.handle('get-user-config-path', () => {
     return path.join(app.getPath('userData'), 'config.json');
 });
 
-ipcMain.handle('sqlite-msg', async (event, payload) => {
+// Cache for Echo server handlers (one per space)
+const echoHandlers = new Map<string, EchoServerHandler>();
+
+ipcMain.handle('sqlite-msg', async (event, payload: EchoMessage) => {
+    const startTime = Date.now();
+    const requestId = payload.id.substring(-8);
+    
     try {
-        let dataSpace = getDataSpace()
+        console.log(`[${requestId}] START: ${payload.data.method}`);
         const { space, dbName } = payload.data
         const spaceId = space || dbName
 
         if (!spaceId) {
+            console.error(`[${requestId}] Missing space ID for method:`, payload.data.method);
+            console.error(`[${requestId}] Payload data keys:`, Object.keys(payload.data));
+            console.error(`[${requestId}] Full payload.data:`, JSON.stringify(payload.data, null, 2));
             throw new Error('No space ID provided in sqlite-msg');
         }
 
+        let dataSpace = getDataSpace()
+        
         if (!dataSpace) {
             electronLog.info('not found data space')
             dataSpace = await getOrSetDataSpace(spaceId)
@@ -154,106 +165,61 @@ ipcMain.handle('sqlite-msg', async (event, payload) => {
             throw new Error('Failed to initialize data space');
         }
 
-        // Check if this is an iterator function using the registry
-        const isIterFunc = isIteratorFunction(payload.data.method)
+        // Get or create Echo server handler for this space
+        if (!echoHandlers.has(spaceId)) {
+            echoHandlers.set(spaceId, new EchoServerHandler(dataSpace));
+        }
+        const handler = echoHandlers.get(spaceId)!;
 
-        // For iterator functions, create an AbortController to handle cancellation
-        let abortController: AbortController | undefined
+        console.log(`[${requestId}] Handler ready, elapsed: ${Date.now() - startTime}ms`);
 
-        // Prepare params - for iterator functions, we'll add AbortSignal
-        let finalParams = [...(payload.data.params || [])]
+        // For Electron IPC, we need to capture the response as Echo message format
+        let responseMessage: EchoMessage | null = null;
+        let isIterator = false;
 
-        // Check if this is an iterator function and create AbortController
-        if (isIterFunc) {
-            abortController = new AbortController()
-
-            // Listen for cancel messages via IPC
-            const cancelHandler = (_event: Electron.IpcMainEvent, cancelPayload: any) => {
-                if (cancelPayload?.type === MsgType.IteratorCancel && cancelPayload?.id === payload.id) {
-                    abortController?.abort()
+        // Create a port adapter for Electron IPC
+        const iteratorChannel = `sqlite-iterator-${payload.id}`;
+        const portAdapter = {
+            postMessage: (message: EchoMessage) => {
+                console.log(`[${requestId}] postMessage called, type: ${message.type}, elapsed: ${Date.now() - startTime}ms`);
+                // For iterator messages, send via IPC channel
+                if (message.type === 'IteratorValue' || message.type === 'IteratorDone' || message.type === 'IteratorError') {
+                    isIterator = true;
+                    event.sender.send(iteratorChannel, message);
+                } 
+                // For regular responses or errors, capture the entire message
+                else {
+                    responseMessage = message;
                 }
-            }
-            ipcMain.on(`sqlite-iterator-cancel-${payload.id}`, cancelHandler)
-
-            // Add signal to params if options object exists
-            // Note: params come serialized (AbortSignal was removed), so we add our new signal
-            if (finalParams.length > 0 && typeof finalParams[finalParams.length - 1] === 'object' && finalParams[finalParams.length - 1] !== null) {
-                const lastParam = finalParams[finalParams.length - 1]
-                // Replace or add signal with our controller's signal
-                finalParams[finalParams.length - 1] = { ...lastParam, signal: abortController.signal }
-            } else {
-                // Add options with signal
-                finalParams.push({ signal: abortController.signal })
-            }
-        }
-
-        // Create modified payload with final params
-        const modifiedPayload = {
-            ...payload.data,
-            params: finalParams,
-        }
-
-        const res = await handleFunctionCall(modifiedPayload, dataSpace)
-
-        // Check if the result is an AsyncIterable (for iterator functions like watch)
-        // Only treat as iterator if it's explicitly an iterator function (fs.watch)
-        // and the result is actually an AsyncIterable
-        if (abortController && res && typeof res === 'object' && Symbol.asyncIterator in res) {
-            // Handle async iterator: yield values as they come
-            // Use a separate IPC channel to send iterator messages
-            const iteratorChannel = `sqlite-iterator-${payload.id}`
-            try {
-                for await (const value of res as AsyncIterable<any>) {
-                    // Check if cancelled
-                    if (abortController?.signal.aborted) {
-                        break
-                    }
-                    event.sender.send(iteratorChannel, {
-                        id: payload.id,
-                        data: {
-                            value,
-                        },
-                        type: MsgType.IteratorValue,
-                    })
+            },
+            addEventListener: (type: string, listener: any) => {
+                // Listen for cancel messages
+                if (type === 'message') {
+                    const cancelChannel = `sqlite-iterator-cancel-${payload.id}`;
+                    ipcMain.on(cancelChannel, (_event, data) => {
+                        listener({ data });
+                    });
                 }
-                // Signal that iterator is done
-                event.sender.send(iteratorChannel, {
-                    id: payload.id,
-                    data: {},
-                    type: MsgType.IteratorDone,
-                })
-            } catch (error) {
-                // Check if it's an abort error
-                if (error instanceof Error && error.name === 'AbortError') {
-                    event.sender.send(iteratorChannel, {
-                        id: payload.id,
-                        data: {},
-                        type: MsgType.IteratorDone,
-                    })
-                } else {
-                    // Signal iterator error
-                    event.sender.send(iteratorChannel, {
-                        id: payload.id,
-                        data: {
-                            message: error instanceof Error ? error.message : String(error),
-                        },
-                        type: MsgType.IteratorError,
-                    })
-                }
-            }
-            // Return a special marker to indicate iterator mode
-            return { __isIterator: true, channel: iteratorChannel }
-        }
+            },
+        };
 
-        // Clean up cancel listener if it was registered for an iterator function
-        // but the result wasn't actually an AsyncIterable
-        if (abortController) {
-            ipcMain.removeAllListeners(`sqlite-iterator-cancel-${payload.id}`)
-        }
+        console.log(`[${requestId}] Calling handler.handle()...`);
+        // Handle the message using Echo's server handler
+        await handler.handle(payload, portAdapter as any);
+        console.log(`[${requestId}] handler.handle() completed, elapsed: ${Date.now() - startTime}ms`);
 
-        return res
+        // Return the appropriate response in Echo message format
+        if (isIterator) {
+            // For iterators, the client expects this special marker
+            console.log(`[${requestId}] Returning iterator marker, elapsed: ${Date.now() - startTime}ms`);
+            return { __isIterator: true, channel: iteratorChannel };
+        }
+        
+        // Return the Echo message (with type, id, data)
+        console.log(`[${requestId}] COMPLETE: Returning response, total time: ${Date.now() - startTime}ms`);
+        return responseMessage;
     } catch (error) {
-        console.error('sqlite-msg error:', error);
+        console.error(`[${requestId}] ERROR after ${Date.now() - startTime}ms:`, error);
         throw error;
     }
 });

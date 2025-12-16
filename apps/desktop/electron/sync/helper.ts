@@ -38,10 +38,10 @@ prefix = "${remoteSpaceId}"
         }
 
 
-        if (!(fs.existsSync(graftConfigPath))) {
-            // throw new Error(`Graft config file ${graftConfigPath} not found`);
-            // mkdir -p .eidos/.graft
-            fs.mkdirSync(path.join(space.path, '.eidos', '.graft'), { recursive: true });
+        const graftDataDir = path.join(space.path, '.eidos', '.graft');
+        if (!(fs.existsSync(graftDataDir))) {
+            console.log(`Graft data directory ${graftDataDir} not found, creating it`);
+            fs.mkdirSync(graftDataDir, { recursive: true });
         }
         process.env.GRAFT_CONFIG = graftConfigPath;
         console.log(`Set GRAFT_CONFIG=${graftConfigPath}`);

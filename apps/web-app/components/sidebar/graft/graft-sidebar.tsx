@@ -11,7 +11,6 @@ import { useTranslation } from "react-i18next"
 
 import {
   EidosDataEventChannelName,
-  MsgType,
   type EidosDataEventChannelMsg,
 } from "@/lib/const"
 import { Button } from "@/components/ui/button"
@@ -24,11 +23,13 @@ import {
 import { useCurrentSpaceId } from "@/apps/web-app/hooks/use-current-space"
 import { useSpaceSyncStatus } from "@/apps/web-app/hooks/use-sync-status"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 
 export const GraftSidebar = () => {
   const { t } = useTranslation()
   const spaceId = useCurrentSpaceId()
   const { currentApp } = useSidebarStore()
+  const { sqlite } = useSqlite()
   const {
     status: syncStatus,
     lastUpdated,
@@ -70,11 +71,11 @@ export const GraftSidebar = () => {
   }, [debouncedFetchStatus])
 
   const handlePull = async () => {
-    if (!spaceId || isPulling) return
+    if (!spaceId || isPulling || !sqlite) return
 
     setIsPulling(true)
     try {
-      await window.eidos.invoke(MsgType.Pull, { spaceName: spaceId })
+      await sqlite.pull()
       await fetchStatus() // Refresh status after pull
     } catch (error) {
       console.error("Failed to pull:", error)
@@ -84,11 +85,11 @@ export const GraftSidebar = () => {
   }
 
   const handlePush = async () => {
-    if (!spaceId || isPushing) return
+    if (!spaceId || isPushing || !sqlite) return
 
     setIsPushing(true)
     try {
-      await window.eidos.invoke(MsgType.Push, { spaceName: spaceId })
+      await sqlite.push()
       await fetchStatus() // Refresh status after push
     } catch (error) {
       console.error("Failed to push:", error)
@@ -103,13 +104,11 @@ export const GraftSidebar = () => {
   }
 
   const handleVolumes = async () => {
-    if (!spaceId || isVolumesFetching) return
+    if (!spaceId || isVolumesFetching || !sqlite) return
 
     setIsVolumesFetching(true)
     try {
-      const res = await window.eidos.invoke(MsgType.Volumes, {
-        spaceName: spaceId,
-      })
+      const res = await sqlite.volumes()
       console.log("handleVolumes: Volumes fetched successfully:", res)
     } catch (error) {
       console.error("Failed to fetch volumes:", error)
@@ -119,11 +118,11 @@ export const GraftSidebar = () => {
   }
 
   const handleActiveFetch = async () => {
-    if (!spaceId || isActiveFetching) return
+    if (!spaceId || isActiveFetching || !sqlite) return
 
     setIsActiveFetching(true)
     try {
-      await window.eidos.invoke(MsgType.Fetch, { spaceName: spaceId })
+      await sqlite.fetch()
       await fetchStatus() // Refresh status after fetch
     } catch (error) {
       console.error("Failed to fetch:", error)

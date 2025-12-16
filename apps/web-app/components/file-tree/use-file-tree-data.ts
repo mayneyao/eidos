@@ -114,6 +114,7 @@ export const useFileTreeData = ({
       const entries = await sqlite.fs.readdir(normalizedRootDir, {
         withFileTypes: true,
       })
+      console.log('entries',entries)
 
       // Inject path into entries
       const entriesWithPaths = entries.map((entry) => ({

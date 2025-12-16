@@ -1,0 +1,67 @@
+{
+  "name": "@eidos.space/echo",
+  "version": "0.1.0",
+  "description": "Universal RPC library for cross-environment remote procedure calls",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./server": {
+      "types": "./src/server/index.ts",
+      "import": "./src/server/index.ts"
+    },
+    "./transports": {
+      "types": "./src/transports/index.ts",
+      "import": "./src/transports/index.ts"
+    },
+    "./middleware": {
+      "types": "./src/middleware/index.ts",
+      "import": "./src/middleware/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "rpc",
+    "ipc",
+    "worker",
+    "electron",
+    "webrtc",
+    "http",
+    "child-process",
+    "remote-procedure-call"
+  ],
+  "author": "Eidos Team",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "uuidv7": "^1.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "jsdom": "^24.0.0",
+    "typescript": "^5.8.0",
+    "tsdown": "^0.2.17",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "electron": ">=28.0.0"
+  },
+  "peerDependenciesMeta": {
+    "electron": {
+      "optional": true
+    }
+  }
+}
+

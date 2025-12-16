@@ -72,6 +72,11 @@ export class NodeServerDatabase extends BaseServerDatabase {
     if (!spaceInfo) {
       throw new Error('Space info not found')
     }
+
+    if (!(fs.existsSync(path.join(spaceInfo.path, '.eidos')))) {
+      fs.mkdirSync(path.join(spaceInfo.path, '.eidos'), { recursive: true });
+    }
+
     try {
       this.isSyncEnabled = options.graft?.enabled ?? false
       if (this.isSyncEnabled && options.graft?.credentials) {
