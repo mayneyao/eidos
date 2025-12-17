@@ -96,7 +96,6 @@ class DataSpaceManager {
                 // embedding,
             },
             createUDF: initUDF,
-            hasLoadExtension: true,
             postMessage: (data: any, transfer?: any[]) => {
                 // Worker can't send messages to renderer directly
                 // This should not be called in worker context

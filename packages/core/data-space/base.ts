@@ -71,7 +71,6 @@ export abstract class BaseDataSpace {
   dataChangeTrigger: DataChangeTrigger
   linkRelationUpdater: LinkRelationUpdater
   allTables: BaseTable<any>[] = []
-  hasLoadExtension = false
   // worker to main thread
   postMessage?: (data: any, transfer?: any[]) => void
   callRenderer?: (type: any, data: any) => Promise<any>
@@ -99,7 +98,6 @@ export abstract class BaseDataSpace {
       setInterval?: typeof setInterval
       embedding?: (text: string) => Promise<Array<number>>
     }
-    hasLoadExtension?: boolean
     createUDF?: (db: EidosDatabase) => void
     draftDb?: EidosDatabase
     postMessage?: (data: any, transfer?: any[]) => void
@@ -120,7 +118,6 @@ export abstract class BaseDataSpace {
       postMessage,
       externalFS,
       dataEventChannel,
-      hasLoadExtension,
       callRenderer,
       cacheSize,
       isUDFWithCtx,
@@ -130,7 +127,6 @@ export abstract class BaseDataSpace {
     this.context = context
 
     this.isUDFWithCtx = Boolean(isUDFWithCtx)
-    this.hasLoadExtension = Boolean(hasLoadExtension)
     if (cacheSize) {
       this.setCacheSize(cacheSize)
     }
