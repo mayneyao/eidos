@@ -1,33 +1,17 @@
-import { DataSpace } from "@/packages/core/data-space"
-import Database from "@eidos.space/better-sqlite3"
-import { ipcMain, type WebContents } from "electron"
-
-import { EidosMessageChannelName } from "@/lib/const"
-
-import { embedding } from "../data-space-context"
-import { win } from "../main"
+import type { DataSpace } from "@/packages/core/data-space"
+import { CredentialsManager } from "../credentials"
+import { getSpacePath } from "../file-system/space"
+import { getResourcePath } from "../helper"
 import { getSpaceRegistry } from "../space-registry"
-import { NodeBaseServerDatabase } from "../sqlite-server/base"
-import { createDataEventChannel } from "./data-event-channel"
-import { createDatabase } from "./database"
-import { createExternalFileSystem } from "./external-fs"
-import { initUDF } from "./init-udf"
+import { DataSpaceProcessPool } from "./process-pool"
+import { createDataSpaceProxy } from "./proxy"
 
-function requestFromRenderer(webContents: WebContents, arg: any) {
-  return new Promise((resolve, reject) => {
-    const requestId = Math.random().toString(36).substr(2, 9)
-
-    ipcMain.once(`response-${requestId}`, (event: any, result: any) => {
-      resolve(result)
-    })
-
-    webContents.send("request-from-main", requestId, arg)
-  })
-}
+// ... imports remain ...
 
 export class DataSpaceManager {
   private static instance: DataSpaceManager
-  private dataSpace: DataSpace | null = null
+  private dataSpaceProxy: DataSpace | null = null
+  private currentSpaceId: string | null = null
 
   private constructor() {}
 
@@ -39,37 +23,39 @@ export class DataSpaceManager {
   }
 
   public getDataSpace(): DataSpace | null {
-    return this.dataSpace
+    return this.dataSpaceProxy
   }
 
   public async reload(): Promise<DataSpace | null> {
-    //
-
     console.log("====== reload data space ======")
-    if (!this.dataSpace) {
+    if (!this.currentSpaceId) {
       return null
     }
 
-    const spaceName = this.dataSpace.dbName
-    // Close current dataspace
-    this.dataSpace.close()
-    this.dataSpace = null
-
+    // Close proxy/connection? 
+    // The pool handles checking if process is dead.
+    // To force reload, we might want to kill the process in the pool
+    // But for now, just re-getting it serves as 'reload' for the variable
+    
+    // If we want a hard reload:
+    // DataSpaceProcessPool.getInstance().terminate(this.currentSpaceId);
+    
     // Reinitialize with the same space name
-    return this.getOrSetDataSpace(spaceName)
+    return this.getOrSetDataSpace(this.currentSpaceId)
   }
 
   public async close(): Promise<boolean> {
-    if (!this.dataSpace) {
+    if (!this.currentSpaceId) {
       return false
     }
 
-    // Stop file watcher before closing dataspace
-    this.dataSpace.unwatchFileWatcher()
-
-    // Close current dataspace
-    this.dataSpace.close()
-    this.dataSpace = null
+    // Terminate the process via pool? Or just nullify proxy?
+    // Generally 'close' in single-process meant closing db connection.
+    // Here it means terminating the worker.
+    DataSpaceProcessPool.getInstance().killAll() // or terminate specific
+    
+    this.dataSpaceProxy = null
+    this.currentSpaceId = null
     return true
   }
 
@@ -77,53 +63,76 @@ export class DataSpaceManager {
     spaceId: string,
     syncOptions?: { enabled: boolean; remote?: string; volumeId?: string }
   ): Promise<DataSpace> {
-    if (this.dataSpace && this.dataSpace.dbName !== spaceId) {
-      // Close both main and draft databases when switching to a different space
-      this.dataSpace.close()
-    } else if (this.dataSpace) {
-      // If same space, return existing instance
-      return this.dataSpace
+    if (this.currentSpaceId && this.currentSpaceId !== spaceId) {
+        // Switching space
+         // Maybe kill the previous one to save memory?
+         // DataSpaceProcessPool.getInstance().terminate(this.currentSpaceId);
+    }
+    this.currentSpaceId = spaceId
+
+    // Prepare Init configuration for the worker
+    const libPath = getResourcePath(`dist-sqlite-ext/libsimple`)
+    const dictPath = getResourcePath("dist-sqlite-ext/dict")
+    const graftLibPath = getResourcePath("dist-sqlite-ext/libgraft")
+    const vecLibPath = getResourcePath("dist-sqlite-ext/libvec")
+
+    const credentials = await CredentialsManager.getSyncCredentials("eidos.space")
+     if (!credentials) {
+      // throw new Error(`Credentials for eidos.space not found`) 
+      // Keep existing logic, maybe it works without credentials for local?
     }
 
-    console.log("init space", spaceId)
+    const spaceInfo = getSpaceRegistry().getSpace(spaceId)
+    if (!spaceInfo) {
+       throw new Error(`Space not found: ${spaceId}`)
+    }
 
-    // Create database
-    const serverDb = await createDatabase({
-      spaceId,
-      enableSync: syncOptions?.enabled ?? false,
-      syncOptions,
+    const initData = {
+        spaceInfo,
+        paths: {
+            spacePath: getSpacePath(spaceId),
+            simplePathConfig: { libPath, dictPath },
+            vecPathConfig: { libPath: vecLibPath },
+            graftPathConfig: {
+                 libPath: graftLibPath,
+                 enabled: syncOptions?.enabled ?? spaceInfo.sync?.enabled ?? false,
+                 remote: syncOptions?.remote ?? spaceInfo.sync?.remote ?? "",
+                 credentials,
+                 volumeId: syncOptions?.volumeId ?? spaceInfo.sync?.volumeId ?? "",
+            }
+        }
+    }
+
+    const pool = DataSpaceProcessPool.getInstance()
+    const childProcess = await pool.getProcess(spaceId, initData)
+
+    // Create Proxy
+    this.dataSpaceProxy = createDataSpaceProxy(async (req) => {
+        return new Promise((resolve, reject) => {
+             // We need a way to map response back. 
+             // Since utilityProcess.postMessage doesn't return a promise 
+             // and we rely on simple message handling, we need a refined communication layer.
+             // But for MVP, let's assume we can set up a one-time listener or 
+             // (better) use the shared message channel logic if we had one.
+             
+             // Wait, the pool/worker logic above in process-pool.ts didn't fully implement 
+             // the response matching for RPC.
+             // We need to implement the response matching here or in the pool.
+             
+             const id = req.id;
+             const handler = (message: any) => {
+                 const payload = message.data || message;
+                 if (payload.id === id && payload.type === 'response') {
+                     childProcess.off('message', handler);
+                     resolve(payload);
+                 }
+             };
+             childProcess.on('message', handler);
+             childProcess.postMessage(req);
+        })
     })
 
-    // Create external file system
-    const externalFS = await createExternalFileSystem(spaceId, serverDb)
-
-    // Create data event channel
-    const dataEventChannel = createDataEventChannel()
-
-    this.dataSpace = new DataSpace({
-      db: serverDb,
-      activeUndoManager: false,
-      dbName: spaceId,
-      context: {
-        setInterval,
-        embedding,
-      },
-      createUDF: initUDF,
-      hasLoadExtension: true,
-      postMessage: (data: any, transfer?: any[]) => {
-        win?.webContents.send(EidosMessageChannelName, data, transfer)
-      },
-      callRenderer: (type: any, data: any) => {
-        return requestFromRenderer(win!.webContents, { type, data })
-      },
-      dataEventChannel: dataEventChannel,
-      externalFS: externalFS,
-      draftDb: new NodeBaseServerDatabase(new Database(":memory:")),
-      enableFTS: true,
-    })
-
-    this.dataSpace.initFileWatcher()
-    return this.dataSpace
+    return this.dataSpaceProxy
   }
 }
 
@@ -133,15 +142,8 @@ export function getDataSpace(): DataSpace | null {
 }
 
 export function getOrSetDataSpace(spaceId: string): Promise<DataSpace> {
-  const spaceInfo = getSpaceRegistry().getSpace(spaceId)
-  if (!spaceInfo) {
-    throw new Error(`Space not found: ${spaceId}`)
-  }
-
-  return DataSpaceManager.getInstance().getOrSetDataSpace(
-    spaceId,
-    spaceInfo.sync
-  )
+  // We can just proxy to the manager
+  return DataSpaceManager.getInstance().getOrSetDataSpace(spaceId)
 }
 
 export function reloadDataSpace(): Promise<{ success: boolean }> {

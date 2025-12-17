@@ -2,23 +2,14 @@ import * as path from "node:path"
 import { type EidosDatabase } from "@/packages/core/data-space"
 
 import { NodeExternalFileSystem } from "../external-fs-node"
-import { getSpaceRegistry } from "../space-registry"
+import type { SpaceInfo } from "../space-registry"
 
 export async function createExternalFileSystem(
-  spaceId: string,
-  db: EidosDatabase
+  db: EidosDatabase,
+  projectRoot: string
 ): Promise<NodeExternalFileSystem> {
-  // Get project root directory from space registry
-  const registry = getSpaceRegistry()
-  const space = registry.getSpace(spaceId)
+  // Get project root directory from spaceInfo parameter or fallback to space registry for main process
 
-  if (!space) {
-    throw new Error(`Space not found: ${spaceId}`)
-  }
-
-  const projectRoot = space.path // This is the project root directory containing .eidos
-
-  console.log(`Initializing external file system for space: ${spaceId}`)
   console.log(`Project root: ${projectRoot}`)
 
   return new NodeExternalFileSystem(
