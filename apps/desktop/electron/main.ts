@@ -1,28 +1,26 @@
 import { MsgType } from '@/lib/const';
+import { fetchAvailableModels } from '@/packages/ai/helper';
 import { handleFunctionCall } from '@/packages/core/rpc';
-import { BrowserWindow } from 'electron';
-import { Menu, Tray, app, dialog, ipcMain, nativeImage, shell, webContents } from 'electron';
-import electronLog from 'electron-log';
-import path from 'path';
+import { isIteratorFunction } from '@/packages/core/sqlite/channel/iterator-utils';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray, webContents } from 'electron';
+import { default as console, default as electronLog } from 'electron-log';
 import fs from 'fs/promises';
+import path from 'path';
 import { getConfigManager } from './config';
-import { CredentialsManager } from './credentials';
 import { corsManager } from './cors-manager';
-import { closeDataSpace, DataSpaceManager, getDataSpace, getOrSetDataSpace, reloadDataSpace } from './data-space';
+import { CredentialsManager } from './credentials';
+import { closeDataSpace, getDataSpace, getOrSetDataSpace, reloadDataSpace } from './data-space';
 import { cleanupPlaygroundWatchers, initializePlayground } from './file-system/playground';
 import { getResourcePath } from './helper';
 import { ProtocolHandler } from './protocol-handler';
 import { getApiAgentStatus, initApiAgent } from './server/api-agent';
 import { startServer } from './server/server';
+import { GlobalShortcutManager } from './services/global-shortcut-manager';
+import { getSpaceRegistry, migrateFromLegacyConfig } from './space-registry';
+import { GraftDb } from './sync/graft-db';
 import { AppUpdater } from './updater';
 import { createWindow } from './window-manager/createWindow';
 import { WorkerManager } from './worker-manager';
-import { GlobalShortcutManager } from './services/global-shortcut-manager';
-import console from 'electron-log';
-import { fetchAvailableModels } from '@/packages/ai/helper';
-import { migrateFromLegacyConfig, getSpaceRegistry } from './space-registry';
-import { isIteratorFunction } from '@/packages/core/sqlite/channel/iterator-utils';
-import { GraftDb } from './sync/graft-db';
 
 
 process.on('uncaughtException', (error) => {

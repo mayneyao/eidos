@@ -35,7 +35,7 @@ class DataSpaceManager {
         }
         console.log("init space", spaceName)
 
-        const serverDb = new NodeServerDatabase({
+        const serverDb = await NodeServerDatabase.create({
             spaceInfo: spaceInfo,
             options: {
                 readonly: true,

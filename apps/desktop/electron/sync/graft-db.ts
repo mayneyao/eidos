@@ -1,14 +1,30 @@
 import type { DataSpace } from "@/packages/core/data-space";
-import Database from "@eidos.space/better-sqlite3";
-import path from "path";
-import { getResourcePath } from "../helper";
-import { applyGraftConfigToEnv } from "./helper";
-import { parseGraftNew } from "@/packages/sync/graft/helpers";
-import type { SpaceInfo } from "../space-registry";
-import { CredentialsManager } from "../credentials";
-import { isVFSInitialized } from "../sqlite-server";
-import fs from "node:fs";
 import { getSpaceRegistry } from "@/packages/space-manager/src/space-registry";
+import Database from "@eidos.space/better-sqlite3";
+import fs from "node:fs";
+import path from "path";
+import { CredentialsManager } from "../credentials";
+import { getResourcePath } from "../helper";
+import type { SpaceInfo } from "../space-registry";
+import { isVFSInitialized } from "../sqlite-server/initializer";
+import { applyGraftConfigToEnv } from "./helper";
+
+
+function registerGraftVFS(graftLibPath: string): void {
+    if (isVFSInitialized) {
+        console.warn('====== VFS is already initialized ======')
+        return;
+    }
+    const vfsRegistrationDb = new Database(':memory:');
+    try {
+        vfsRegistrationDb.loadExtension(graftLibPath);
+    } catch (err: any) {
+        throw new Error(`Failed to load graft VFS extension from ${graftLibPath}: ${err.message}`);
+    } finally {
+        vfsRegistrationDb.close();
+    }
+}
+
 
 export class GraftDb {
     private dataSpace: DataSpace;
@@ -17,30 +33,10 @@ export class GraftDb {
         this.dataSpace = dataSpace;
     }
 
-
-    private async registerGraftVFS(graftLibPath: string): Promise<void> {
-        if (isVFSInitialized) {
-            console.warn('====== VFS is already initialized ======')
-            return;
-        }
-        const vfsRegistrationDb = new Database(':memory:');
-        try {
-            vfsRegistrationDb.loadExtension(graftLibPath);
-        } catch (err: any) {
-            throw new Error(`Failed to load graft VFS extension from ${graftLibPath}: ${err.message}`);
-        } finally {
-            vfsRegistrationDb.close();
-        }
-    }
-
-    /**
-     * 把 db.sqlite3 转为 graft 的存储
-     */
     public async convertToGraft(spaceInfo: SpaceInfo): Promise<void> {
-        // 确保数据库在 WAL 模式下进行检查点
         await this.dataSpace.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
 
-        // 获取同步凭据
+        // 
         const credentials = await CredentialsManager.getSyncCredentials('eidos.space');
         if (!credentials) {
             throw new Error('Credentials not found');
@@ -58,7 +54,6 @@ export class GraftDb {
             console.log('Removed graft directory:', graftDirPath);
         }
 
-        // 应用 graft 配置到环境变量
         applyGraftConfigToEnv(spaceInfo, credentials);
 
         const registry = getSpaceRegistry();
@@ -68,35 +63,27 @@ export class GraftDb {
         });
     }
 
-    /**
-     * 从 graft 检出 db.sqlite3
-     */
+
     public async checkoutFromGraft(spaceInfo: SpaceInfo): Promise<void> {
         const graftLibPath = getResourcePath('dist-sqlite-ext/libgraft');
 
-        // 获取同步凭据
         const credentials = await CredentialsManager.getSyncCredentials('eidos.space');
         if (!credentials) {
             throw new Error('Credentials not found');
         }
 
-        // // 应用 graft 配置到环境变量
         applyGraftConfigToEnv(spaceInfo, credentials);
+        registerGraftVFS(graftLibPath);
 
-        await this.registerGraftVFS(graftLibPath);
-        // 连接到 graft 数据库
         const db = new Database("file:main?vfs=graft");
 
         try {
-            // 从远程拉取最新的数据
             const fetchResult = await db.pragma('graft_fetch');
             console.log('Graft fetch result:', fetchResult);
 
-            // 合并远程数据
             const pullResult = await db.pragma('graft_pull');
             console.log('Graft pull result:', pullResult);
 
-            // 从 graft 导出到本地 SQLite 文件
             const dbPath = path.join(spaceInfo.path, '.eidos', 'db.sqlite3');
             db.pragma(`graft_export = "${dbPath}";`);
             console.log('Graft export completed to:', dbPath);
@@ -131,7 +118,6 @@ export class GraftDb {
                 remote: spaceInfo.sync?.remote || '',
             });
         } finally {
-            // 关闭数据库连接
             db.close();
         }
     }
