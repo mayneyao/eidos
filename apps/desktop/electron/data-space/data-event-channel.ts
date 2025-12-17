@@ -2,17 +2,16 @@ import { EventEmitter } from "events"
 
 import { EidosDataEventChannelName } from "@/lib/const"
 
-import { win } from "../main"
+type MessageForwarder = (channel: string, data: any) => void
 
-export function createDataEventChannel() {
+export function createDataEventChannel(forwardTo: MessageForwarder) {
   const dataEventEmitter = new EventEmitter()
 
   return {
     name: EidosDataEventChannelName,
     postMessage: (data: any) => {
-      win?.webContents.send(EidosDataEventChannelName, data)
+      forwardTo(EidosDataEventChannelName, data)
 
-      // delay to emit event to avoid query busy
       setTimeout(() => {
         dataEventEmitter.emit("message", { data })
       }, 100)

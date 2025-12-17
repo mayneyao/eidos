@@ -38,6 +38,10 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 export let win: BrowserWindow | null
+
+export function getMainWindowWebContents() {
+  return win?.webContents || null
+}
 let appUpdater: AppUpdater;
 let tray: Tray | null
 let protocolHandler: ProtocolHandler;

@@ -7,6 +7,7 @@ import { createExternalFileSystem } from "./data-space/external-fs";
 import { initUDF } from "./data-space/init-udf";
 import { NodeServerDatabase } from "./sqlite-server";
 import type { SpaceInfo } from './space-registry';
+import { createDataEventChannel } from './data-space/data-event-channel';
 // import { embedding } from "./data-space-context";
 
 // Config can be set via workerData (threads) or argv (process) or message (IPC)
@@ -85,7 +86,13 @@ class DataSpaceManager {
         const externalFS = await createExternalFileSystem(serverDb, spaceInfo.path);
 
         // Create data event channel
-        const dataEventChannel = new BroadcastChannel('draft-data-event-channel');
+        const dataEventChannel = createDataEventChannel((channel: string, data: any) => {
+            process.parentPort.postMessage({
+                type: 'forward-to-renderer',
+                channel,
+                data
+            });
+        });
 
         this.dataSpace = new DataSpace({
             db: serverDb,
@@ -269,7 +276,7 @@ let dataSpace = getDataSpace()
 
 
 
-const communicationPort = parentPort || (process as any).parentPort
+const communicationPort = parentPort || process.parentPort
 
 if (communicationPort) {
     communicationPort.on('message', async (message: any) => {

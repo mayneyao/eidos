@@ -1,4 +1,5 @@
 import { utilityProcess, MessageChannelMain, app } from 'electron';
+import { getMainWindowWebContents } from '../main';
 import path from 'path';
 import { EventEmitter } from 'events';
 import type { InitMessage } from './rpc-types';
@@ -69,6 +70,20 @@ export class DataSpaceProcessPool extends EventEmitter {
     };
     
     this.processes.set(spaceId, item);
+
+    // Setup message handler for forwarding messages to renderer
+    child.on('message', (message: any) => {
+      const payload = message;
+      if (payload.type === 'forward-to-renderer') {
+        // Forward message to renderer process
+        const webContents = getMainWindowWebContents();
+        if (webContents) {
+          webContents.send(payload.channel, payload.data);
+        } else {
+          console.warn('No main window webContents available, skipping message forward');
+        }
+      }
+    });
 
     // Setup lifecycle handlers
     child.on('exit', (code) => {
