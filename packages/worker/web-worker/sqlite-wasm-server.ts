@@ -4,19 +4,20 @@ import sqlite3InitModule from "@sqlite.org/sqlite-wasm"
 import { logger } from "@/lib/env"
 
 import { EidosDataEventChannelName } from "@/lib/const"
-import type { BaseServerDatabase } from "@/packages/core/sqlite/interface"
+import { BaseServerDatabase } from "@/packages/core/sqlite/interface"
 import { DataSpace } from "@/packages/core/data-space"
 import { ExtensionTableName } from "@/packages/core/sqlite/const"
 
 const log = logger.info
 const error = logger.error
 
-// SQLiteWasmDatabase implements BaseServerDatabase for sqlite-wasm
-export class SQLiteWasmDatabase implements BaseServerDatabase {
+// SQLiteWasmDatabase extends BaseServerDatabase for sqlite-wasm
+export class SQLiteWasmDatabase extends BaseServerDatabase {
   filename?: string;
   private db: Database; // Using any for now to avoid type issues
 
   constructor(db: Database) {
+    super()
     this.db = db;
     this.filename = db.filename;
   }
@@ -241,7 +242,7 @@ export class SqliteServer {
       db: serverDb,
       activeUndoManager: false,
       dbName: name,
-      draftDb,
+      draftDb: draftDb?.db,
       createUDF,
       context: {
         setInterval: setInterval,

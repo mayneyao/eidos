@@ -73,7 +73,7 @@ export abstract class BaseServerDatabase  {
   audit(): CommonVersionControlResult {
     return Promise.resolve({})
   }
-  
+
   version(): CommonVersionControlResult {
     return Promise.resolve({})
   }

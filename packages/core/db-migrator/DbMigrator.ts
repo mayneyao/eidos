@@ -1,6 +1,5 @@
+import type { BaseServerDatabase } from "../sqlite/interface"
 import { generateMergeTableWithNewColumnsSql } from "../sqlite/sql-merge-table-with-new-columns"
-
-import type { DataSpace } from "../data-space"
 
 type ITable = {
   type: string
@@ -24,16 +23,26 @@ type IColumn = {
  */
 export class DbMigrator {
   constructor(
-    private db: DataSpace,
-    private draftDb: DataSpace,
+    private db: BaseServerDatabase,
+    private draftDb: BaseServerDatabase,
     private allowDeletions = false
-  ) { }
+  ) {}
+
+  private async exec(db: BaseServerDatabase, sql: string) {
+    return await db.exec({
+      sql,
+      returnValue: "resultRows",
+      rowMode: "object",
+    })
+  }
 
   private async compareTables() {
-    const tables: ITable[] = await this.db.syncExec2(
+    const tables: ITable[] = await this.exec(
+      this.db,
       `select * from sqlite_schema where type='table' AND name  like 'eidos__%';`
     )
-    const draftTables: ITable[] = await this.draftDb.syncExec2(
+    const draftTables: ITable[] = await this.exec(
+      this.draftDb,
       `select * from sqlite_schema where type='table' AND name  like 'eidos__%';`
     )
 
@@ -55,10 +64,12 @@ export class DbMigrator {
   }
 
   private async compareColumns(tableName: string) {
-    const columns: IColumn[] = await this.db.syncExec2(
+    const columns: IColumn[] = await this.exec(
+      this.db,
       `PRAGMA table_info(${tableName});`
     )
-    const draftColumns: IColumn[] = await this.draftDb.syncExec2(
+    const draftColumns: IColumn[] = await this.exec(
+      this.draftDb,
       `PRAGMA table_info(${tableName});`
     )
     // console.log(tableName, columns, draftColumns)
@@ -89,7 +100,7 @@ export class DbMigrator {
     // console.log("newTables", newTables)
     // console.log("removedTables", removedTables)
     // for (const table of newTables) {
-    //   this.db.syncExec2(table.sql)
+    //   this.exec(this.db, table.sql)
     // }
     return { newTables, removedTables }
   }
@@ -111,7 +122,7 @@ export class DbMigrator {
       sql += columnDefineSql
       try {
         console.log(sql)
-        this.db.syncExec2(sql)
+        this.exec(this.db, sql)
         console.log(`migrateTable ${tableName} add column ${name}`)
       } catch (error) {
         if (
@@ -121,7 +132,8 @@ export class DbMigrator {
           )
         ) {
           console.warn(`migrateTable ${tableName} add column ${name} failed`)
-          const createTableSqlRes = this.db.syncExec2(
+          const createTableSqlRes = this.exec(
+            this.db,
             `SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`
           )
           const createTableSql = (await createTableSqlRes)[0].sql
@@ -131,7 +143,7 @@ export class DbMigrator {
             columnDefineSql
           )
           console.log("use newSql to migrate", newSql.sql)
-          this.db.syncExec2(newSql.sql)
+          this.exec(this.db, newSql.sql)
         } else {
           console.log(error)
         }
@@ -141,12 +153,9 @@ export class DbMigrator {
   }
 
   public async migrate() {
-    if (this.db.hasMigrated) {
-      console.log("db has migrated")
-      return
-    }
     const { removedTables } = await this.migrateTables()
-    const tables: ITable[] = await this.db.syncExec2(
+    const tables: ITable[] = await this.exec(
+      this.db,
       `select * from sqlite_schema where type='table' AND name  like 'eidos__%';`
     )
     for (const table of tables) {
@@ -162,7 +171,7 @@ export class DbMigrator {
 
   private async cleanDraftDb() {
     // delete draft db
-    this.draftDb.db.close()
+    this.draftDb.close()
     // now we use memory db, so we don't need to delete draft db
     // const rootDirHandle = await navigator.storage.getDirectory()
     // new EidosFileSystemManager(rootDirHandle)
