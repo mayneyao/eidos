@@ -1,6 +1,5 @@
-import { ExtNodeTableName } from "../sqlite/const";
-import type { BaseTable } from "./base";
-import { BaseTableImpl } from "./base";
+import { ExtNodeTableName } from "../sqlite/const"
+import { BaseTableImpl, type BaseTable } from "./base"
 
 export interface IExtNode {
   id: string
@@ -11,7 +10,10 @@ export interface IExtNode {
   updated_at?: string
 }
 
-export class ExtNodeTable extends BaseTableImpl<IExtNode> implements BaseTable<IExtNode> {
+export class ExtNodeTable
+  extends BaseTableImpl<IExtNode>
+  implements BaseTable<IExtNode>
+{
   name = ExtNodeTableName
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${this.name} (
@@ -43,13 +45,19 @@ export class ExtNodeTable extends BaseTableImpl<IExtNode> implements BaseTable<I
     return extNode?.text || null
   }
 
-
   async setBlob(id: string, blob: Buffer): Promise<boolean> {
     return this.set(id, { blob })
   }
 
   async setText(id: string, text: string): Promise<boolean> {
-    return this.set(id, { text })
+    await this.dataSpace.exec2(
+      `
+      UPDATE ${this.name}
+      SET text = ?
+      WHERE id = ? AND text != ?
+    `,
+      [text, id, text]
+    )
+    return true
   }
-
-} 
+}
