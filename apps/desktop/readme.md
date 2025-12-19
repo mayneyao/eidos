@@ -40,13 +40,13 @@ Unlike traditional Electron apps that load files directly via `file://` protocol
 
 The local server provides several endpoints:
 
-| Endpoint       | Purpose                                 |
-| -------------- | --------------------------------------- |
-| `/rpc`         | RPC calls to SQLite and core functions  |
-| `/files/*`     | Serve files from space's file storage   |
-| `/~/*`         | Serve files from space's root directory |
-| `/@/<mount>/*` | Serve files from mounted directories    |
-| `/api/chat`    | AI chat API                             |
+| Endpoint       | Purpose                                                      |
+| -------------- | ------------------------------------------------------------ |
+| `/rpc`         | RPC calls to SQLite and core functions                       |
+| `/files/*`     | Serve files from space's file storage. eq `~/.eidos/files/*` |
+| `/~/*`         | Serve files from space's root directory                      |
+| `/@/<mount>/*` | Serve files from mounted directories                         |
+| `/api/chat`    | AI chat API                                                  |
 
 #### Development vs Production
 

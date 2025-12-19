@@ -74,13 +74,43 @@ export class DataSpaceProcessPool extends EventEmitter {
     // Setup message handler for forwarding messages to renderer
     child.on('message', (message: any) => {
       const payload = message;
+
       if (payload.type === 'forward-to-renderer') {
         // Forward message to renderer process
         const webContents = getMainWindowWebContents();
         if (webContents) {
           webContents.send(payload.channel, payload.data);
         } else {
-          console.warn('No main window webContents available, skipping message forward');
+          console.warn('[ProcessPool] No main window webContents available, skipping message forward');
+        }
+      } else if (payload.type === 'call-renderer') {
+        // Handle call-renderer requests (bidirectional)
+        const webContents = getMainWindowWebContents();
+        if (webContents) {
+          // Set up response listener
+          const responseHandler = (event: any, result: any) => {
+            // Send response back to worker
+            child.postMessage({
+              type: 'renderer-response',
+              requestId: payload.requestId,
+              data: result
+            });
+          };
+
+          // Listen for response from renderer
+          const { ipcMain } = require('electron');
+          ipcMain.once(`response-${payload.requestId}`, responseHandler);
+
+          // Send request to renderer
+          webContents.send('request-from-main', payload.requestId, payload.data);
+        } else {
+          console.warn('[ProcessPool] No main window webContents available, cannot call renderer');
+          // Send error response back to worker
+          child.postMessage({
+            type: 'renderer-response',
+            requestId: payload.requestId,
+            data: { error: 'No main window available' }
+          });
         }
       }
     });
