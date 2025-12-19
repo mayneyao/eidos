@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useDebounceFn, useKeyPress } from "ahooks"
-import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { Input } from "@/components/ui/input"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useQueryNode } from "@/apps/web-app/hooks/use-query-node"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useTreeSidebarStore } from "./tree-sidebar-store"
 
@@ -46,8 +46,8 @@ export const TreeSearch = () => {
     // Enable search mode when there's a search term
     setIsSearchMode(true)
 
-    // Perform only full-text search (content search)
-    const ftsNodes = await fullTextSearch(term)
+    // Perform full-text search across all documents
+    const ftsNodes = await fullTextSearch(term, { onlyDayPages: false })
 
     setSearchResults(ftsNodes || [])
   }

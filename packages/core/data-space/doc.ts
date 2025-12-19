@@ -1,4 +1,5 @@
 import { isDayPageId } from "@/lib/utils"
+
 import { timeit } from "../helper"
 import { TreeNodeType } from "../types/ITreeNode"
 import { DataSpaceWithFile } from "./file"
@@ -51,11 +52,14 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
     return doc?.content
   }
 
-  public async getDocMarkdown(docId: string, {
-    withTitle = false,
-  }: {
-    withTitle?: boolean
-  } = {}) {
+  public async getDocMarkdown(
+    docId: string,
+    {
+      withTitle = false,
+    }: {
+      withTitle?: boolean
+    } = {}
+  ) {
     const doc = await this.doc.get(docId)
     if (withTitle) {
       if (isDayPageId(docId)) {
@@ -72,7 +76,11 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
     return this.doc.getMarkdownBatch(docIds)
   }
 
-  public async searchDayPages(term: string, page: number = 0, pageSize: number = 20) {
+  public async searchDayPages(
+    term: string,
+    page: number = 0,
+    pageSize: number = 20
+  ) {
     return this.doc.searchDayPages(term, page, pageSize)
   }
 
@@ -96,7 +104,7 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
       type: "markdown",
       parent_id,
       title,
-      mode
+      mode,
     })
   }
 
@@ -138,15 +146,22 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
   }
 
   public async listAllDocIds() {
-    const res = await this.doc.list({
-    }, {
-      fields: ["id"]
-    })
+    const res = await this.doc.list(
+      {},
+      {
+        fields: ["id"],
+      }
+    )
     return res.map((doc) => doc.id)
   }
 
-  public async fullTextSearch(query: string) {
-    return this.doc.search(query, { onlyDayPages: true })
+  public async fullTextSearch(
+    query: string,
+    options?: { onlyDayPages?: boolean }
+  ) {
+    return this.doc.search(query, {
+      onlyDayPages: options?.onlyDayPages ?? true,
+    })
   }
 
   public async listDays(page: number) {
