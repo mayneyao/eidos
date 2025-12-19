@@ -97,7 +97,7 @@ export abstract class BaseServerDatabase {
     return Promise.resolve({})
   }
 
-  clone(remoteLogId: string): CommonVersionControlResult {
+  clone(remoteLogId?: string): CommonVersionControlResult {
     return Promise.resolve({})
   }
 

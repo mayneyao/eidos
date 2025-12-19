@@ -4,6 +4,7 @@ import {
   parseGraftStatus,
   parseGraftTags,
   parseGraftVolumes,
+  parseGraftAudit,
 } from "@/packages/sync/graft/helpers"
 import type Database from "@eidos.space/better-sqlite3"
 
@@ -213,7 +214,14 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     return this.graftCommand("graft_info", parseGraftInfo)
   }
 
-  async clone(remoteLogId: string) {
-    return this.graftCommand(`graft_clone = "${remoteLogId}"`)
+  async clone(remoteLogId?: string) {
+    if (remoteLogId) {
+      return this.graftCommand(`graft_clone = "${remoteLogId}"`)
+    }
+    return this.graftCommand("graft_clone")
+  }
+
+  async audit() {
+    return this.graftCommand("graft_audit", parseGraftAudit)
   }
 }

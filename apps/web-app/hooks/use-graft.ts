@@ -1,4 +1,10 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useDebounce, useDebounceFn } from "ahooks"
+
+import {
+  EidosDataEventChannelName,
+  type EidosDataEventChannelMsg,
+} from "@/lib/const"
 
 import { useSqlite } from "./use-sqlite"
 import { useSpaceSyncStatus } from "./use-sync-status"
@@ -21,6 +27,8 @@ export const useGraft = () => {
   const [isCloning, setIsCloning] = useState(false)
   const [isHydrating, setIsHydrating] = useState(false)
   const [tags, setTags] = useState<any>(null)
+  const [graftInfo, setGraftInfo] = useState<any>(null)
+  const [auditResult, setAuditResult] = useState<any>(null)
 
   const runOp = useCallback(
     async <T>(
@@ -55,7 +63,7 @@ export const useGraft = () => {
     () => runOp(() => sqlite!.push(), setIsPushing),
     [runOp, sqlite]
   )
-  const fetchActive = useCallback(
+  const fetch = useCallback(
     () => runOp(() => sqlite!.fetch(), setIsActiveFetching),
     [runOp, sqlite]
   )
@@ -79,20 +87,46 @@ export const useGraft = () => {
     [runOp, sqlite]
   )
 
+  const info = useCallback(
+    () =>
+      runOp(
+        () => sqlite!.info(),
+        () => {},
+        {
+          refresh: false,
+          onSuccess: (res) => setGraftInfo(res),
+        }
+      ),
+    [runOp, sqlite]
+  )
+
+  const audit = useCallback(
+    () =>
+      runOp(
+        () => sqlite!.audit(),
+        () => {},
+        {
+          refresh: false,
+          onSuccess: (res) => setAuditResult(res),
+        }
+      ),
+    [runOp, sqlite]
+  )
+
   const refreshStatus = useCallback(
     () =>
       runOp(
-        async () => Promise.all([fetchStatus(), fetchTags()]),
+        async () => Promise.all([fetchStatus(), fetchTags(), info(), audit()]),
         setIsFetching,
         {
           refresh: false,
         }
       ),
-    [runOp, fetchStatus, fetchTags]
+    [runOp, fetchStatus, fetchTags, info, audit]
   )
 
   const clone = useCallback(
-    async (remoteLogId: string) => {
+    async (remoteLogId?: string) => {
       return runOp(async () => {
         await sqlite!.clone(remoteLogId)
         await sqlite!.pull()
@@ -101,6 +135,23 @@ export const useGraft = () => {
     },
     [runOp, sqlite]
   )
+
+  const { run: debouncedRefreshStatus } = useDebounceFn(refreshStatus, {
+    wait: 300,
+  })
+  useEffect(() => {
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
+
+    const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
+      debouncedRefreshStatus()
+    }
+
+    bc.addEventListener("message", handler)
+    return () => {
+      bc.removeEventListener("message", handler)
+      bc.close()
+    }
+  }, [debouncedRefreshStatus])
 
   return {
     status,
@@ -115,13 +166,16 @@ export const useGraft = () => {
     isCloning,
     isHydrating,
     tags,
+    graftInfo,
+    auditResult,
     pull,
     push,
-    fetchActive,
+    fetch,
     hydrate,
     volumes,
     fetchTags,
     refreshStatus,
+    audit,
     clone,
     sqlite,
   }

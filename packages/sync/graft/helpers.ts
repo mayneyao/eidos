@@ -1,5 +1,3 @@
-// No changes to remote Log 74ggdmAVtx-3CLG4igbxFLAr
-
 export interface GraftPushResult {
   rawMessage?: string
 }
@@ -286,6 +284,15 @@ export function parseGraftVolumes(data: any): GraftVolume[] {
   return volumes
 }
 
+export interface GraftAudit {
+  localPages?: number
+  totalPages?: number
+  percentage?: number
+  checksum?: string
+  needsHydrate?: boolean
+  rawMessage?: string
+}
+
 export interface GraftInfo {
   volumeId?: string
   localLog?: string
@@ -342,4 +349,52 @@ export function parseGraftInfo(data: any): GraftInfo | null {
   }
 
   return info
+}
+
+/**
+ * Parse graft_audit command output into structured data
+ */
+export function parseGraftAudit(data: any): GraftAudit | null {
+  let output = ""
+  if (typeof data === "string") {
+    output = data
+  } else if (Array.isArray(data) && data.length > 0) {
+    output = data.map((row) => Object.keys(row)[0]).join("\n")
+  }
+
+  if (!output) return null
+
+  const audit: GraftAudit = {
+    rawMessage: output,
+  }
+
+  const lines = output
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+
+  for (const line of lines) {
+    // Parse cached pages info like "Cached 2661 of 2661 pages (100%) from the remote Log."
+    const pagesMatch = line.match(/Cached (\d+) of (\d+) pages \((\d+)%\)/)
+    if (pagesMatch) {
+      audit.localPages = parseInt(pagesMatch[1], 10)
+      audit.totalPages = parseInt(pagesMatch[2], 10)
+      audit.percentage = parseInt(pagesMatch[3], 10)
+      audit.needsHydrate = audit.localPages !== audit.totalPages
+    }
+
+    // Parse checksum if fully hydrated
+    const checksumMatch = line.match(/Checksum: ([a-zA-Z0-9]+)/)
+    if (checksumMatch) {
+      audit.checksum = checksumMatch[1]
+    }
+
+    // Check if suggests hydrate
+    if (line.includes("use 'pragma graft_hydrate'")) {
+      audit.needsHydrate = true
+    }
+  }
+
+  return audit
 }

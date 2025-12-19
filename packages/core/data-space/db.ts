@@ -37,8 +37,16 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
     return this.db.volumes()
   }
 
-  public clone(remoteLogId: string) {
+  public clone(remoteLogId?: string) {
     return this.db.clone(remoteLogId)
+  }
+
+  public info() {
+    return this.db.info()
+  }
+
+  public audit() {
+    return this.db.audit()
   }
 
   // close db

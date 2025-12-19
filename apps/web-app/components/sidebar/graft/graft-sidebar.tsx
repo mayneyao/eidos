@@ -1,15 +1,23 @@
 import { useEffect, useState } from "react"
 import {
   ArrowDown,
-  ArrowDownToLine,
   ArrowUp,
   ArrowUpFromLine,
-  Droplets,
   GitPullRequest,
-  List,
   RefreshCw,
+  RotateCcw,
 } from "lucide-react"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
@@ -24,6 +32,7 @@ import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 export const GraftSidebar = () => {
   const spaceId = useCurrentSpaceId()
   const { currentApp } = useSidebarStore()
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
   const {
     sqlite,
     status: syncStatus,
@@ -32,35 +41,53 @@ export const GraftSidebar = () => {
     isPulling,
     isPushing,
     isFetching,
-    isVolumesFetching,
-    isTagsLoading,
     isActiveFetching,
     isCloning,
-    isHydrating,
     tags,
+    graftInfo,
+    auditResult,
     pull: handlePull,
     push: handlePush,
-    fetchActive: handleActiveFetch,
-    hydrate: handleHydrate,
-    volumes: handleVolumes,
-    refreshStatus: handleFetch,
-    fetchTags: handleTags,
+    fetch,
+    refreshStatus,
     clone,
   } = useGraft()
-
-  const [remoteLogId, setRemoteLogId] = useState("")
 
   // Auto-refresh status when graft tab becomes active
   useEffect(() => {
     if (currentApp === "graft" && spaceId) {
-      handleFetch()
+      refreshStatus()
+      fetch()
     }
-  }, [currentApp, spaceId, handleFetch])
+  }, [currentApp, spaceId, refreshStatus, fetch])
 
   const handleClone = async () => {
-    if (!remoteLogId) return
-    await clone(remoteLogId)
-    setRemoteLogId("")
+    await clone()
+    setShowResetConfirm(false)
+  }
+
+  const handleResetClick = () => {
+    setShowResetConfirm(true)
+  }
+
+  const handleRefreshAndFetch = async () => {
+    refreshStatus()
+    fetch()
+  }
+
+  const getRelativeTime = (date: Date) => {
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSeconds = Math.floor(diffMs / 1000)
+    const diffMinutes = Math.floor(diffSeconds / 60)
+    const diffHours = Math.floor(diffMinutes / 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffSeconds < 60) return "just now"
+    if (diffMinutes < 60) return `${diffMinutes}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
   }
 
   const getStatusColor = () => {
@@ -190,49 +217,50 @@ export const GraftSidebar = () => {
       <div className="flex items-center justify-between border-b border-border/60 px-4 py-1">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold">Graft</h2>
-          {syncStatus && (
-            <div className={`text-xs ml-1`}>{getStatusSummary()}</div>
-          )}
+          {syncStatus && <div className={`text-xs`}>{getStatusSummary()}</div>}
         </div>
         <div className="flex items-center gap-1">
-          <ToolButton
-            icon={List}
-            onClick={handleVolumes}
-            loading={isVolumesFetching}
-            tooltip="Fetch volumes"
-          />
-          <ToolButton
-            icon={ArrowDownToLine}
-            onClick={handleActiveFetch}
-            loading={isActiveFetching}
-            tooltip="Fetch latest changes from remote"
-          />
-          <ToolButton
-            icon={Droplets}
-            onClick={handleHydrate}
-            loading={isHydrating}
-            disabled={!sqlite}
-            tooltip="Hydrate missing blob/page data from remote"
-          />
-          <ToolButton
-            icon={GitPullRequest}
-            onClick={handlePull}
-            loading={isPulling}
-            disabled={!canPull}
-            tooltip="Pull latest changes"
-          />
-          <ToolButton
-            icon={ArrowUpFromLine}
-            onClick={handlePush}
-            loading={isPushing}
-            disabled={!canPush}
-            tooltip="Push local changes"
-          />
+          {syncStatus?.status === "behind" && (
+            <ToolButton
+              icon={GitPullRequest}
+              onClick={handlePull}
+              loading={isPulling}
+              disabled={!canPull}
+              tooltip="Pull latest changes"
+            />
+          )}
+          {syncStatus?.status === "ahead" && (
+            <>
+              <ToolButton
+                icon={ArrowUpFromLine}
+                onClick={handlePush}
+                loading={isPushing}
+                disabled={!canPush}
+                tooltip="Push local changes"
+              />
+              <ToolButton
+                icon={RotateCcw}
+                onClick={handleResetClick}
+                loading={isCloning}
+                disabled={!sqlite}
+                tooltip="Reset to remote state"
+              />
+            </>
+          )}
+          {syncStatus?.status === "diverged" && (
+            <ToolButton
+              icon={RotateCcw}
+              onClick={handleClone}
+              loading={isCloning}
+              disabled={!sqlite}
+              tooltip="Reset to remote state"
+            />
+          )}
           <ToolButton
             icon={RefreshCw}
-            onClick={handleFetch}
-            loading={isStatusLoading || isFetching}
-            tooltip="Refresh sync status"
+            onClick={handleRefreshAndFetch}
+            loading={isActiveFetching || isStatusLoading || isFetching}
+            tooltip="Fetch latest changes from remote"
           />
         </div>
       </div>
@@ -240,7 +268,7 @@ export const GraftSidebar = () => {
       {/* Status Info */}
       <div className="flex-1 space-y-4 p-4 overflow-y-auto">
         <div className="space-y-3">
-          <h3 className="text-sm font-medium">Repository Status</h3>
+          <h3 className="text-sm font-medium">Status</h3>
 
           {/* Detailed Status */}
           <div className="space-y-2 text-sm">
@@ -253,85 +281,79 @@ export const GraftSidebar = () => {
                   </p>
                 )}
                 <div className="flex flex-col gap-1">
-                  <p>
-                    <span className="text-muted-foreground mr-1">Status:</span>
-                    <span className="font-medium text-foreground">
-                      {getStatusText()}
-                    </span>
-                  </p>
-                  {(syncStatus.ahead !== undefined ||
-                    syncStatus.behind !== undefined) &&
-                    syncStatus.status !== "up_to_date" && (
-                      <div className="flex items-center gap-1.5 py-1">
-                        <div className="flex h-1.5 flex-1 items-stretch rounded-full bg-muted/50 overflow-hidden">
-                          <div
-                            className="bg-green-500 transition-all duration-500 ease-out flex-shrink-0"
-                            style={{
-                              width: `${
-                                (syncStatus.ahead || 0) > 0
-                                  ? Math.max(
-                                      15,
-                                      ((syncStatus.ahead || 0) /
-                                        ((syncStatus.ahead || 0) +
-                                          (syncStatus.behind || 0))) *
-                                        100
-                                    )
-                                  : 0
-                              }%`,
-                              opacity: (syncStatus.ahead || 0) > 0 ? 1 : 0,
-                            }}
-                          />
-                          <div
-                            className="bg-red-500 transition-all duration-500 ease-out flex-shrink-0"
-                            style={{
-                              width: `${
-                                (syncStatus.behind || 0) > 0
-                                  ? Math.max(
-                                      15,
-                                      ((syncStatus.behind || 0) /
-                                        ((syncStatus.ahead || 0) +
-                                          (syncStatus.behind || 0))) *
-                                        100
-                                    )
-                                  : 0
-                              }%`,
-                              opacity: (syncStatus.behind || 0) > 0 ? 1 : 0,
-                              marginLeft:
-                                (syncStatus.ahead || 0) > 0 &&
-                                (syncStatus.behind || 0) > 0
-                                  ? "1px"
-                                  : "0",
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                </div>
-                {(syncStatus.localLogId || syncStatus.remoteLogId) && (
-                  <div className="mt-2 space-y-1 rounded bg-muted/20 p-2">
-                    {syncStatus.localLogId && (
-                      <div className="font-mono text-[10px] text-muted-foreground flex flex-col">
-                        <span>Local Log:</span>
-                        <span className="break-all mt-0.5">
-                          {syncStatus.localLogId}
-                        </span>
-                      </div>
-                    )}
-                    {syncStatus.remoteLogId && (
-                      <div className="font-mono text-[10px] text-muted-foreground flex flex-col mt-1.5">
-                        <span>Remote Log:</span>
-                        <span className="break-all mt-0.5">
-                          {syncStatus.remoteLogId}
-                        </span>
-                      </div>
+                  <div className="flex items-center justify-between">
+                    <p>
+                      <span className="text-muted-foreground mr-1">
+                        Status:
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {getStatusText()}
+                      </span>
+                    </p>
+                    {lastUpdated && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {getRelativeTime(lastUpdated)}
+                      </span>
                     )}
                   </div>
-                )}
-                {lastUpdated && (
-                  <p className="text-[10px] text-muted-foreground mt-1 text-right">
-                    Last updated: {lastUpdated.toLocaleTimeString()}
-                  </p>
-                )}
+                  <div className="flex items-center gap-1.5 py-1">
+                    <div className="flex h-1.5 flex-1 items-stretch rounded-full bg-muted/50 overflow-hidden">
+                      <div
+                        className={`transition-all duration-500 ease-out flex-shrink-0 ${
+                          (syncStatus.ahead || 0) > 0
+                            ? "bg-green-500"
+                            : "bg-muted"
+                        }`}
+                        style={{
+                          width: `${
+                            (syncStatus.ahead || 0) > 0 &&
+                            (syncStatus.behind || 0) > 0
+                              ? Math.max(
+                                  15,
+                                  ((syncStatus.ahead || 0) /
+                                    ((syncStatus.ahead || 0) +
+                                      (syncStatus.behind || 0))) *
+                                    100
+                                )
+                              : (syncStatus.ahead || 0) > 0
+                                ? 100
+                                : 0
+                          }%`,
+                          opacity: (syncStatus.ahead || 0) > 0 ? 1 : 0.3,
+                        }}
+                      />
+                      <div
+                        className={`transition-all duration-500 ease-out flex-shrink-0 ${
+                          (syncStatus.behind || 0) > 0
+                            ? "bg-red-500"
+                            : "bg-muted"
+                        }`}
+                        style={{
+                          width: `${
+                            (syncStatus.ahead || 0) > 0 &&
+                            (syncStatus.behind || 0) > 0
+                              ? Math.max(
+                                  15,
+                                  ((syncStatus.behind || 0) /
+                                    ((syncStatus.ahead || 0) +
+                                      (syncStatus.behind || 0))) *
+                                    100
+                                )
+                              : (syncStatus.behind || 0) > 0
+                                ? 100
+                                : 0
+                          }%`,
+                          opacity: (syncStatus.behind || 0) > 0 ? 1 : 0.3,
+                          marginLeft:
+                            (syncStatus.ahead || 0) > 0 &&
+                            (syncStatus.behind || 0) > 0
+                              ? "1px"
+                              : "0",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </>
             ) : (
               <p className="text-muted-foreground">
@@ -340,56 +362,36 @@ export const GraftSidebar = () => {
             )}
           </div>
         </div>
-        {/* <div className="space-y-3 rounded-lg border border-border/40 bg-muted/30 p-3">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4 text-primary opacity-70" />
-            <h3 className="text-sm font-semibold">Clone Remote</h3>
-          </div>
-          <div className="flex flex-col gap-2">
-            <input
-              type="text"
-              placeholder="Enter remote log ID"
-              className="w-full rounded-md border border-input bg-background/50 px-3 py-1.5 text-sm shadow-sm transition-all placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:bg-background"
-              value={remoteLogId}
-              onChange={(e) => setRemoteLogId(e.target.value)}
-              disabled={isCloning}
-            />
-            <Button
-              size="sm"
-              className="w-full shadow-sm active:scale-95 transition-transform"
-              onClick={handleClone}
-              disabled={!remoteLogId || isCloning || !sqlite}
-            >
-              {isCloning ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Cloning...
-                </>
-              ) : (
-                "Clone Repository"
+
+        {/* Info Section */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium">Info</h3>
+          <div className="space-y-2 text-sm">
+            {graftInfo?.snapshotSize && (
+              <p>
+                <span className="text-muted-foreground">Size:</span>{" "}
+                {graftInfo.snapshotSize}
+              </p>
+            )}
+            {auditResult &&
+              auditResult.localPages !== undefined &&
+              auditResult.totalPages !== undefined && (
+                <p>
+                  <span className="text-muted-foreground">Cached:</span>{" "}
+                  {auditResult.localPages} / {auditResult.totalPages} pages
+                  {auditResult.percentage !== undefined && (
+                    <span className="text-xs text-muted-foreground ml-1">
+                      ({auditResult.percentage}%)
+                    </span>
+                  )}
+                </p>
               )}
-            </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground opacity-70">
-            Initializes sync by cloning from a remote log identifier.
-          </p>
-        </div> */}
+        </div>
+
         {/* Tags Section */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium">Tags</h3>
-            <Button
-              size="xs"
-              variant="ghost"
-              className="h-6 w-6 p-0 opacity-60"
-              onClick={handleTags}
-              disabled={isTagsLoading}
-            >
-              <RefreshCw
-                className={`h-3 w-3 ${isTagsLoading ? "animate-spin" : ""}`}
-              />
-            </Button>
-          </div>
+          <h3 className="text-sm font-medium">Tags</h3>
           <div className="space-y-2">
             {tags && Array.isArray(tags) ? (
               tags.map((tag: any) => (
@@ -449,6 +451,27 @@ export const GraftSidebar = () => {
         </div>
         {/* Commit History */}
       </div>
+
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset to Remote State</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will discard all local changes and reset your repository to
+              match the remote state. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClone}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Reset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
