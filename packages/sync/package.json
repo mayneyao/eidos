@@ -1,5 +1,5 @@
 {
-  "name": "sync",
+  "name": "@eidos.space/sync",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -15,5 +15,8 @@
   "devDependencies": {
     "@types/node": "^20.4.1",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.955.0"
   }
 }

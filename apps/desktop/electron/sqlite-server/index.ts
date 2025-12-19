@@ -10,7 +10,7 @@ export interface NodeDomainDbInfo {
   config: {
     options?: Database.Options
     spaceInfo?: SpaceInfo
-    updateVolumeId?: (volumeId: string) => void
+    remoteLogId?: string
   }
 }
 
@@ -26,8 +26,8 @@ interface NodeServerDatabaseOptions {
     enabled?: boolean
     remote?: string
     credentials?: SyncBucketCredentials
-    volumeId?: string
     isVFSInitialized?: boolean
+    remoteLogId?: string
   }
   // vec extension
   vec?: {
@@ -57,7 +57,10 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
     config: NodeDomainDbInfo["config"],
     options: NodeServerDatabaseOptions
   ): Promise<NodeServerDatabase> {
-    const initializer = new NodeDatabaseInitializer(options)
+    const initializer = new NodeDatabaseInitializer({
+      ...options,
+      remoteLogId: config.remoteLogId,
+    })
     const { db, isSyncEnabled } = await initializer.initializeDatabase(config)
 
     return new NodeServerDatabase(db, isSyncEnabled, options.logger)

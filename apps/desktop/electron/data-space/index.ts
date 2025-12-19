@@ -6,6 +6,7 @@ import { getResourcePath } from "../helper"
 import { getSpaceRegistry } from "../space-registry"
 import { DataSpaceProcessPool } from "./process-pool"
 import { RpcClient } from "./rpc-client"
+import log from "electron-log"
 
 export class DataSpaceManager {
   private static instance: DataSpaceManager
@@ -64,7 +65,7 @@ export class DataSpaceManager {
 
   public async getOrSetDataSpace(
     spaceId: string,
-    syncOptions?: { enabled: boolean; remote?: string; volumeId?: string }
+    syncOptions?: { enabled: boolean; remote?: string }
   ): Promise<DataSpace> {
     if (this.currentSpaceId === spaceId && this.dataSpaceProxy) {
       return this.dataSpaceProxy
@@ -101,7 +102,6 @@ export class DataSpaceManager {
           enabled: syncOptions?.enabled ?? spaceInfo.sync?.enabled ?? false,
           remote: syncOptions?.remote ?? spaceInfo.sync?.remote ?? "",
           credentials,
-          volumeId: syncOptions?.volumeId ?? spaceInfo.sync?.volumeId ?? "",
         },
       },
     }
@@ -111,6 +111,32 @@ export class DataSpaceManager {
 
     // Create RPC Client and Proxy
     const client = new RpcClient(childProcess as any)
+
+    // Listen for log messages from worker
+    childProcess.on("message", (payload: any) => {
+      if (payload.type === "log") {
+        const { level, message, args, timestamp } = payload
+        const logMessage = `[${spaceId}] ${message}${args.length > 0 ? ' ' + args.join(' ') : ''}`
+
+        switch (level) {
+          case 'info':
+            log.info(logMessage)
+            break
+          case 'warn':
+            log.warn(logMessage)
+            break
+          case 'error':
+            log.error(logMessage)
+            break
+          case 'debug':
+            log.debug(logMessage)
+            break
+          default:
+            log.log(logMessage)
+        }
+      }
+    })
+
     const proxy = client.createProxy()
     this.dataSpaceProxy = proxy
 

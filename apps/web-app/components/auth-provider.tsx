@@ -139,8 +139,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     fetchUser()
     fetchAccessToken()
 
-    // Poll for user status (less frequent since we have IPC)
-    const interval = setInterval(fetchUser, 60000) // 60 seconds
+    // Poll for auth status (check both user and token)
+    const interval = setInterval(async () => {
+      await fetchUser()
+      await fetchAccessToken()
+    }, 30000) // 30 seconds
 
     // Listen for auth state changes from main process (OAuth callback / logout)
     let unsubscribe: (() => void) | undefined
@@ -176,7 +179,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      isAuthenticated: !!user,
+      isAuthenticated: !!user && !!accessToken,
       isLoading,
       accessToken,
       login,

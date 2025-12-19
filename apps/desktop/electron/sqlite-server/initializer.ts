@@ -1,27 +1,27 @@
 import fs from "fs"
-import Database from "@eidos.space/better-sqlite3"
 import path from "path"
+import Database from "@eidos.space/better-sqlite3"
 
-import {
-  loadCustomExtensions,
-  scanCustomExtensions,
-} from "./sqlite-extension"
 import type { SyncBucketCredentials } from "../credentials"
-import type { SpaceInfo } from "../space-registry";
-import { applyGraftConfigToEnv } from "../sync/helper"
+import type { SpaceInfo } from "../space-registry"
+import {
+  applyGraftConfigToEnv,
+  isInitializationOperation,
+} from "../sync/helper"
 import { generatePragmaList } from "./config"
-import { parseGraftNew, parseGraftStatus } from "@/packages/sync/graft/helpers"
+import { loadCustomExtensions, scanCustomExtensions } from "./sqlite-extension"
 
 export interface NodeDomainDbInfo {
   type: "node"
   config: {
     options?: Database.Options
     spaceInfo?: SpaceInfo
-    updateVolumeId?: (volumeId: string) => void
+    remoteLogId?: string
   }
 }
 
 interface NodeServerDatabaseOptions {
+  remoteLogId?: string
   // for full text search
   simple: {
     libPath: string
@@ -33,7 +33,6 @@ interface NodeServerDatabaseOptions {
     enabled?: boolean
     remote?: string
     credentials?: SyncBucketCredentials
-    volumeId?: string
     isVFSInitialized?: boolean
   }
   // vec extension
@@ -47,7 +46,7 @@ interface NodeServerDatabaseOptions {
   logger?: any
 }
 
-export let isVFSInitialized = false;
+export let isVFSInitialized = false
 
 export class NodeDatabaseInitializer {
   private logger: any = console
@@ -64,17 +63,19 @@ export class NodeDatabaseInitializer {
   async initializeDatabase(config: NodeDomainDbInfo["config"]): Promise<{
     db: Database.Database
     isSyncEnabled: boolean
-    volumeId?: string
   }> {
     const spaceInfo = config.spaceInfo
     if (!spaceInfo) {
-      throw new Error('Space info not found')
+      throw new Error("Space info not found")
     }
 
     try {
       const isSyncEnabled = this.options.graft?.enabled ?? false
 
+      let isInit = false
       if (isSyncEnabled && this.options.graft?.credentials) {
+        isInit = isInitializationOperation(spaceInfo)
+        this.logger.log("isInit", isInit)
         applyGraftConfigToEnv(spaceInfo, this.options.graft?.credentials)
       }
 
@@ -84,7 +85,15 @@ export class NodeDatabaseInitializer {
       }
 
       // Create database connection
-      const { db, volumeId } = this.createDatabaseConnection(spaceInfo, config, isSyncEnabled)
+      const { db } = this.createDatabaseConnection(
+        spaceInfo,
+        config,
+        isSyncEnabled
+      )
+
+      if (isInit) {
+        this.initializeWithRemoteSpace(db)
+      }
 
       // Initialize database connection (extensions, pragmas)
       this.initializeDatabaseConnection(db)
@@ -94,11 +103,29 @@ export class NodeDatabaseInitializer {
 
       this.logger.log("Database initialized successfully.")
 
-      return { db, isSyncEnabled, volumeId }
+      return { db, isSyncEnabled }
     } catch (error) {
       this.logger.error("Error during database initialization:", error)
       throw error
     }
+  }
+
+  private initializeWithRemoteSpace(db: Database.Database) {
+    if (!this.options.remoteLogId) {
+      this.logger.warn(
+        "Remote log id not found, skipping remote space initialization"
+      )
+      return
+    }
+    this.logger.log(
+      "Initializing with remote space...",
+      this.options.remoteLogId
+    )
+
+    db.pragma(`graft_clone = "${this.options.remoteLogId}"`)
+    db.pragma(`graft_pull`)
+    db.pragma(`graft_hydrate`)
+    this.logger.log("Remote space initialized successfully.")
   }
 
   private initializeVFS() {
@@ -121,7 +148,7 @@ export class NodeDatabaseInitializer {
       )
     } finally {
       vfsRegistrationDb.close()
-      isVFSInitialized = true;
+      isVFSInitialized = true
     }
   }
 
@@ -129,36 +156,16 @@ export class NodeDatabaseInitializer {
     spaceInfo: SpaceInfo,
     config: NodeDomainDbInfo["config"],
     isSyncEnabled: boolean
-  ): { db: Database.Database; volumeId?: string } {
-    const dbPath = spaceInfo.path == ':memory:' ? ':memory:' : path.join(spaceInfo.path, '.eidos', 'db.sqlite3')
-    const dbUri = isSyncEnabled ? `file:main?vfs=graft` : dbPath
+  ): { db: Database.Database } {
+    const dbPath =
+      spaceInfo.path == ":memory:"
+        ? ":memory:"
+        : path.join(spaceInfo.path, ".eidos", "db.sqlite3")
+    const dbUri = isSyncEnabled ? `file:production?vfs=graft` : dbPath
 
     this.logger.log("Creating database instance...", dbUri)
     const db = new Database(dbUri, config.options)
     this.logger.log("Database instance created.")
-
-    let volumeId: string | undefined
-
-    if (isSyncEnabled) {
-      volumeId = spaceInfo.sync?.volumeId
-      if (!volumeId) {
-        // initialize a new volume
-        const parsedRes = db.pragma("graft_new")
-        const graftInfo = parseGraftNew(parsedRes)
-        volumeId = graftInfo?.volumeId
-
-        // if exists .eidos/db.sqlite3, import it to the graft
-        const existingDbPath = path.join(spaceInfo.path, '.eidos', 'db.sqlite3');
-        if (fs.existsSync(existingDbPath)) {
-          db.pragma(`graft_import = "${existingDbPath}";`);
-          this.logger.log(`Imported db.sqlite3 to graft`)
-        }
-        // write volumeId to .eidos/volume.id
-        config.updateVolumeId?.(volumeId!)
-      }
-      this.loadGraftExtension(db, volumeId!)
-      this.logger.log(`Graft volume switched to ${volumeId}`)
-    }
 
     // Verify database is open
     if (!db?.open) {
@@ -167,11 +174,13 @@ export class NodeDatabaseInitializer {
     const result = db?.prepare("select 1 as result").get()
     this.logger.log("Database is open:", result)
 
-    return { db, volumeId }
+    return { db }
   }
 
   private initializeDatabaseConnection(db: Database.Database) {
-    this.logger.log("Initializing database connection settings (extensions, pragmas)...")
+    this.logger.log(
+      "Initializing database connection settings (extensions, pragmas)..."
+    )
 
     // Load Simple extension if dictionary exists
     if (fs.existsSync(this.options.simple.dictPath)) {
@@ -258,18 +267,5 @@ export class NodeDatabaseInitializer {
       .get() as any
     this.logger.log(row.query)
     db.prepare("select jieba_dict(?)").run(options.dictPath)
-  }
-
-  private loadGraftExtension(db: Database.Database, volumeId: string) {
-    db.pragma(`graft_switch = "${volumeId}"`)
-    const status = db.pragma("graft_status")
-    this.logger.log(
-      `Graft volume switched to ${volumeId}, status: ${JSON.stringify(status)}`
-    )
-    console.log("GRAFT_CONFIG=", process.env.GRAFT_CONFIG)
-    console.log("AWS_ACCESS_KEY_ID=", process.env.AWS_ACCESS_KEY_ID)
-    console.log("AWS_SECRET_ACCESS_KEY=", process.env.AWS_SECRET_ACCESS_KEY)
-    console.log("AWS_REGION=", process.env.AWS_REGION)
-    console.log("AWS_ENDPOINT=", process.env.AWS_ENDPOINT)
   }
 }

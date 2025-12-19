@@ -1,5 +1,6 @@
 import { workerData } from "worker_threads"
 import { DataSpace } from "@/packages/core/data-space"
+import { BucketClient } from "@/packages/sync/bucket"
 
 import { EidosMessageChannelName } from "@/lib/const"
 
@@ -10,6 +11,33 @@ import { createExternalFileSystem } from "./external-fs"
 import { initUDF } from "./init-udf"
 import { RpcServer } from "./rpc-server"
 
+// Logger that forwards messages to main process
+function createLogger() {
+  const log = (level: string, message: any, ...args: any[]) => {
+    const port = process.parentPort
+    if (port) {
+      port.postMessage({
+        type: "log",
+        level,
+        message: typeof message === 'string' ? message : JSON.stringify(message),
+        args: args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)),
+        timestamp: new Date().toISOString(),
+      })
+    }
+  }
+
+  return {
+    info: (message: any, ...args: any[]) => log('info', message, ...args),
+    warn: (message: any, ...args: any[]) => log('warn', message, ...args),
+    error: (message: any, ...args: any[]) => log('error', message, ...args),
+    debug: (message: any, ...args: any[]) => log('debug', message, ...args),
+    log: (message: any, ...args: any[]) => log('log', message, ...args),
+  }
+}
+
+// Global logger instance
+const logger = createLogger()
+
 // Config can be set via workerData (threads) or argv (process) or message (IPC)
 let config: any = workerData
 
@@ -18,7 +46,7 @@ try {
     config = JSON.parse(process.argv[2])
   }
 } catch (e) {
-  console.error("Failed to parse config from argv", e)
+  logger.error("Failed to parse config from argv", e)
 }
 
 // Global config variables
@@ -58,6 +86,27 @@ class DataSpaceManager {
     return true
   }
 
+  private async getRemoteLogId(
+    syncClient: BucketClient | undefined,
+    remote: string | undefined,
+    bucketName: string
+  ) {
+    if (!syncClient || !remote) {
+      return undefined
+    }
+    const remoteSpaceName = remote.split("/").pop()?.split(".")[0]
+    const prefix = remoteSpaceName ? `${remoteSpaceName}/logs/` : ""
+    const remoteLogIds = await syncClient.listSubFolders(bucketName, prefix)
+    if (!remoteLogIds.length) {
+      return undefined
+    }
+    const remoteLogIdPath = remoteLogIds[0]
+    logger.debug("remoteLogIdPath", remoteLogIdPath)
+    const remoteLogId = remoteLogIdPath.split("/").filter(Boolean).pop()
+    logger.debug("remoteLogId", remoteLogId)
+    return remoteLogId
+  }
+
   public async getOrSetDataSpace(spaceName: string): Promise<DataSpace> {
     if (this.dataSpace && this.dataSpace.dbName !== spaceName) {
       // Close both main and draft databases when switching to a different space
@@ -66,12 +115,24 @@ class DataSpaceManager {
       // If same space, return existing instance
       return this.dataSpace
     }
-    console.log("init space", spaceName)
+    logger.info("init space", spaceName)
+
+    // Create sync client if credentials available
+    const syncClient = graftPathConfig?.credentials
+      ? new BucketClient(graftPathConfig.credentials)
+      : undefined
+
+    const remoteLogId = await this.getRemoteLogId(
+      syncClient,
+      spaceInfo.sync?.remote,
+      graftPathConfig?.credentials?.bucketName
+    )
 
     // Create database with sync support
     const serverDb = await NodeServerDatabase.create(
       {
         spaceInfo: spaceInfo,
+        remoteLogId: remoteLogId,
         options: {
           readonly: false, // Worker can have full access
         },
@@ -81,6 +142,7 @@ class DataSpaceManager {
         vec: vecPathConfig,
         graft: graftPathConfig,
         spacePath: spacePath,
+        logger: logger,
       }
     )
 
@@ -122,43 +184,47 @@ class DataSpaceManager {
       // TODO: remove this, use dataeventchannel instead
       callRenderer: (type: any, data: any) => {
         return new Promise((resolve, reject) => {
-          const requestId = Math.random().toString(36).substr(2, 9);
-          const port = process.parentPort;
+          const requestId = Math.random().toString(36).substr(2, 9)
+          const port = process.parentPort
 
           if (!port) {
-            reject(new Error("No parent port available"));
-            return;
+            reject(new Error("No parent port available"))
+            return
           }
 
           // Set up response listener
           const responseHandler = (event: any) => {
-            const payload = event.data;
-            if (payload.type === 'renderer-response' && payload.requestId === requestId) {
-              port.off('message', responseHandler);
-              resolve(payload.data);
+            const payload = event.data
+            if (
+              payload.type === "renderer-response" &&
+              payload.requestId === requestId
+            ) {
+              port.off("message", responseHandler)
+              resolve(payload.data)
             }
-          };
+          }
 
-          port.on('message', responseHandler);
+          port.on("message", responseHandler)
 
           // Send request to main process
           port.postMessage({
             type: "call-renderer",
             requestId,
             channel: EidosMessageChannelName,
-            data: { type, data }
-          });
+            data: { type, data },
+          })
 
           // Timeout after 30 seconds
           setTimeout(() => {
-            port.off('message', responseHandler);
-            reject(new Error("callRenderer timeout"));
-          }, 30000);
-        });
+            port.off("message", responseHandler)
+            reject(new Error("callRenderer timeout"))
+          }, 30000)
+        })
       },
       dataEventChannel: dataEventChannel,
       externalFS: externalFS,
       enableFTS: true,
+      syncClient: syncClient,
     })
 
     this.dataSpace.initFileWatcher()
@@ -184,7 +250,7 @@ if (communicationPort) {
   communicationPort.on("message", async (event: any) => {
     const payload = event.data
     if (payload.type === "init") {
-      console.log("Worker received init config")
+      logger.info("Worker received init config")
       spacePath = payload.paths.spacePath
       simplePathConfig = payload.paths.simplePathConfig
       vecPathConfig = payload.paths.vecPathConfig
@@ -197,11 +263,11 @@ if (communicationPort) {
 }
 
 process.on("exit", async (code) => {
-  console.log(`Worker is exiting with code ${code}`)
+  logger.info(`Worker is exiting with code ${code}`)
   await DataSpaceManager.getInstance().close()
 })
 
 process.on("beforeExit", async () => {
-  console.log("worker beforeExit")
+  logger.info("worker beforeExit")
   await DataSpaceManager.getInstance().close()
 })

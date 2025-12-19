@@ -9,7 +9,7 @@ import * as z from "zod"
 import { SYNC_INTERNAL_URL, URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -113,7 +113,7 @@ export function GlobalGeneralSettings() {
   }
 
   // Check if authenticated
-  const hasSyncAuth = !!auth?.accessToken
+  const isAuthenticated = auth?.isAuthenticated ?? false
   const user = auth?.user
 
   // Load appearance preferences
@@ -175,13 +175,22 @@ export function GlobalGeneralSettings() {
   }
 
   const handleInitializeSync = async () => {
-    if (!hasSyncAuth) {
+    if (!isAuthenticated) {
       toast({
         title: "Authentication Required",
         description: "Please login first to initialize sync.",
         variant: "destructive",
       })
-      return
+      return false
+    }
+
+    if (!isDesktop) {
+      toast({
+        title: "Sync Not Available",
+        description: "Sync is only available in the desktop application.",
+        variant: "destructive",
+      })
+      return false
     }
 
     setIsInitializingSync(true)
@@ -194,8 +203,14 @@ export function GlobalGeneralSettings() {
         },
       })
 
-      const data: SyncInitResponse = await response.json()
-      console.log("Sync initialization response:", data)
+      let data: SyncInitResponse
+      try {
+        data = await response.json()
+        console.log("Sync initialization response:", data)
+      } catch (jsonError) {
+        console.error("Failed to parse response JSON:", jsonError)
+        throw new Error(`Invalid response format: ${response.status} ${response.statusText}`)
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -224,13 +239,17 @@ export function GlobalGeneralSettings() {
         description: `Initialization completed successfully. Credentials ${isDesktop ? "stored" : "retrieved"}.`,
         variant: "default",
       })
+      return true
     } catch (error) {
       console.error("Failed to initialize sync:", error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error("Error details:", { message: errorMessage, error })
       toast({
         title: "Sync Initialization Failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: errorMessage || "Unknown error occurred",
         variant: "destructive",
       })
+      return false
     } finally {
       setIsInitializingSync(false)
     }
@@ -504,12 +523,12 @@ export function GlobalGeneralSettings() {
             <div className="space-y-0.5">
               <Label>{t("settings.account.user", "User")}</Label>
               <p className="text-sm text-muted-foreground">
-                {user
+                {isAuthenticated && user
                   ? user.name || user.email
                   : t("settings.account.notLoggedIn", "Not logged in")}
               </p>
             </div>
-            {user ? (
+            {isAuthenticated ? (
               <Button variant="outline" onClick={() => auth?.logout()}>
                 {t("settings.account.logout", "Logout")}
               </Button>
@@ -519,52 +538,34 @@ export function GlobalGeneralSettings() {
               </Button>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Sync Section */}
-      <div className="py-4">
-        <h3 className="text-lg font-medium">Sync</h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Enable Sync</Label>
-              <p className="text-sm text-muted-foreground">
-                Enable synchronization for your data
-              </p>
-            </div>
-            <Switch checked={syncEnabled} onCheckedChange={setSyncEnabled} />
-          </div>
-
-          {syncEnabled && (
+          {isDesktop && (
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Initialize Sync</Label>
-                <p className="text-sm text-muted-foreground">
-                  {!hasSyncAuth
-                    ? "Login required to initialize sync service."
-                    : "Initialize sync service. Check console for initialization details."}
-                </p>
+                <Label>Enable Sync</Label>
+              <p className="text-sm text-muted-foreground">
+                {isInitializingSync
+                  ? "Initializing sync service..."
+                  : !isAuthenticated
+                    ? "Login required to enable synchronization"
+                    : "Enable synchronization for your data"}
+              </p>
               </div>
-              <Button
-                onClick={handleInitializeSync}
-                disabled={isInitializingSync || !hasSyncAuth}
-                variant="outline"
-                size="sm"
-              >
-                {!hasSyncAuth
-                  ? "Login Required"
-                  : isInitializingSync
-                    ? "Initializing..."
-                    : "Initialize"}
-              </Button>
+              <Switch
+                checked={syncEnabled}
+                disabled={isInitializingSync || !isAuthenticated}
+                onCheckedChange={async (enabled) => {
+                  if (enabled) {
+                    const success = await handleInitializeSync()
+                    setSyncEnabled(success)
+                  } else {
+                    setSyncEnabled(false)
+                  }
+                }}
+              />
             </div>
           )}
+
         </div>
       </div>
     </div>

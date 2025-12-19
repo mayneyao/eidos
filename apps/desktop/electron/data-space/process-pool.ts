@@ -1,6 +1,7 @@
 import { utilityProcess, MessageChannelMain, app } from 'electron';
-import { getMainWindowWebContents } from '../main';
 import path from 'path';
+import fs from 'fs';
+import { getMainWindowWebContents } from '../main';
 import { EventEmitter } from 'events';
 import type { InitMessage } from './rpc-types';
 
@@ -40,15 +41,16 @@ export class DataSpaceProcessPool extends EventEmitter {
         }
     }
 
-    const processPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'dist-electron/worker.js')
-      : path.join(app.getAppPath(), 'dist-electron/worker.js');
+    const processPath = path.join(__dirname, 'worker.js');
 
     console.log(`Spawning utility process for ${spaceId} at ${processPath}`);
-    
-    // In dev mode, we might need to handle TS execution if not pre-compiled, 
-    // but usually electron-vite handles this by outputting to dist-electron.
-    // We assume dist-electron/worker.js exists.
+
+    // Check if worker file exists before attempting to fork
+    if (!fs.existsSync(processPath)) {
+        const errorMsg = `Worker file not found at ${processPath}. This will prevent space ${spaceId} from loading.`;
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+    }
 
     const child = utilityProcess.fork(processPath, [], {
         serviceName: `eidos-space-${spaceId}`,
@@ -57,6 +59,7 @@ export class DataSpaceProcessPool extends EventEmitter {
 
     let resolveReady: () => void;
     let rejectReady: (e: Error) => void;
+    let isReady = false;
     const readyPromise = new Promise<void>((resolve, reject) => {
         resolveReady = resolve;
         rejectReady = reject;
@@ -68,7 +71,7 @@ export class DataSpaceProcessPool extends EventEmitter {
       ready: readyPromise,
       lastUsed: Date.now(),
     };
-    
+
     this.processes.set(spaceId, item);
 
     // Setup message handler for forwarding messages to renderer
@@ -119,6 +122,10 @@ export class DataSpaceProcessPool extends EventEmitter {
     child.on('exit', (code) => {
       console.log(`Process for ${spaceId} exited with code ${code}`);
       this.processes.delete(spaceId);
+      // If process exits with non-zero code before ready, reject the promise
+      if (code !== 0 && !isReady) {
+        rejectReady(new Error(`Worker process for space ${spaceId} exited with code ${code}`));
+      }
     });
 
     child.on('spawn', () => {
@@ -131,12 +138,13 @@ export class DataSpaceProcessPool extends EventEmitter {
         };
         child.postMessage(initMsg);
     });
-    
+
     // Wait for worker to signal it's ready (optional, or just resolve immediately if we trust postMessage queue)
     // For now, let's assume valid start on spawn, but a real "ready" ack is better.
     // If we want a strict ready signal, the worker should send one back.
     // Let's rely on standard IPC queueing for now, resolve immediately.
-    
+
+    isReady = true;
     resolveReady!();
 
     return readyPromise.then(() => child);

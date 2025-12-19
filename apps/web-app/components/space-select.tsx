@@ -43,6 +43,16 @@ interface ISpaceSelectProps {
   spaces: SpaceInfo[]
 }
 
+const getRemotePathname = (url?: string) => {
+  if (!url) return ""
+  try {
+    const u = new URL(url)
+    return u.pathname
+  } catch (e) {
+    return url
+  }
+}
+
 export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
@@ -148,12 +158,30 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
             role="combobox"
             size="sm"
             aria-expanded={open}
-            className="w-full min-w-[180px] justify-between"
+            className="w-full min-w-[180px] justify-between h-auto py-2"
           >
             {space ? (
               <div className="flex items-center gap-3">
                 <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-80" />
-                <span>{spaces.find((s) => s.id === space)?.name || space}</span>
+                <div className="flex items-center justify-between w-full overflow-hidden text-left">
+                  <span className="truncate shrink-0 font-medium mr-2">
+                    {spaces.find((s) => s.id === space)?.name || space}
+                  </span>
+                  {(() => {
+                    const currentSpaceInfo = spaces.find((s) => s.id === space)
+                    if (
+                      currentSpaceInfo?.sync?.enabled &&
+                      currentSpaceInfo.sync.remote
+                    ) {
+                      return (
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {getRemotePathname(currentSpaceInfo.sync.remote)}
+                        </span>
+                      )
+                    }
+                    return null
+                  })()}
+                </div>
               </div>
             ) : (
               t("space.select.selectDatabase")
@@ -162,12 +190,13 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         </PopoverTrigger>
         <PopoverContent className="w-full min-w-[180px] p-0">
           <Command>
+            <CommandInput
+              placeholder={t("space.select.searchDatabase")}
+              value={searchValue}
+              onValueChange={setSearchValue}
+              autoFocus
+            />
             <CommandList>
-              <CommandInput
-                placeholder={t("space.select.searchDatabase")}
-                value={searchValue}
-                onValueChange={setSearchValue}
-              />
               <CommandEmpty>
                 <div>{t("common.noResultsFound")}</div>
               </CommandEmpty>
@@ -189,13 +218,20 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                           : "opacity-0"
                       )}
                     />
-                    {space.name}
+                    <div className="flex items-center justify-between w-full overflow-hidden">
+                      <span className="truncate shrink-0 mr-2">
+                        {space.name}
+                      </span>
+                      {space.sync?.enabled && space.sync.remote && (
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {getRemotePathname(space.sync.remote)}
+                        </span>
+                      )}
+                    </div>
                   </CommandItem>
                 ))}
               </CommandGroup>
-            </CommandList>
-            <CommandSeparator />
-            <CommandList>
+              <CommandSeparator />
               <CommandGroup>
                 <DialogTrigger asChild>
                   <CommandItem

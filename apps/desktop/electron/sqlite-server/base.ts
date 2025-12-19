@@ -1,6 +1,10 @@
 import { BaseServerDatabase } from "@/packages/core/sqlite/interface"
-// Import here to avoid circular dependency
-import { parseGraftStatus } from "@/packages/sync/graft/helpers"
+import {
+  parseGraftInfo,
+  parseGraftStatus,
+  parseGraftTags,
+  parseGraftVolumes,
+} from "@/packages/sync/graft/helpers"
 import type Database from "@eidos.space/better-sqlite3"
 
 export class NodeBaseServerDatabase extends BaseServerDatabase {
@@ -197,7 +201,19 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     return this.graftCommand("graft_snapshot")
   }
 
+  async tags() {
+    return this.graftCommand("graft_tags", parseGraftTags)
+  }
+
   async volumes() {
-    return this.graftCommand("graft_volumes")
+    return this.graftCommand("graft_volumes", parseGraftVolumes)
+  }
+
+  async info() {
+    return this.graftCommand("graft_info", parseGraftInfo)
+  }
+
+  async clone(remoteLogId: string) {
+    return this.graftCommand(`graft_clone = "${remoteLogId}"`)
   }
 }

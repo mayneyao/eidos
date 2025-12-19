@@ -1,4 +1,5 @@
 import { logger } from "@/lib/env"
+
 import { timeit } from "../helper"
 import { buildSql, isReadOnlySql } from "../sqlite/helper"
 import { BaseDataSpace } from "./base"
@@ -17,7 +18,7 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
     return this.db.push()
   }
 
-  public fetch(){
+  public fetch() {
     return this.db.fetch()
   }
 
@@ -29,10 +30,16 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
     return this.db.snapshot()
   }
 
+  public tags() {
+    return this.db.tags()
+  }
   public volumes() {
     return this.db.volumes()
   }
 
+  public clone(remoteLogId: string) {
+    return this.db.clone(remoteLogId)
+  }
 
   // close db
   public close() {
@@ -40,10 +47,13 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
     this.dataEventChannel.close()
   }
 
-
   // SQL execution methods
   @timeit(100)
-  public async syncExec2(sql: string, bind: any[] = [], db = this.db): Promise<any> {
+  public async syncExec2(
+    sql: string,
+    bind: any[] = [],
+    db = this.db
+  ): Promise<any> {
     try {
       return await db.exec({
         sql,

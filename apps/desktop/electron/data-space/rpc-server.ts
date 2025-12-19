@@ -4,7 +4,7 @@ import { isIteratorFunction } from "@/packages/core/sqlite/channel/iterator-util
 
 import { MsgType } from "@/lib/const"
 
-import { RpcRequest, RpcResponse } from "./rpc-types"
+import type { RpcRequest, RpcResponse } from "./rpc-types"
 
 /**
  * Handles RPC requests on the server side (worker process).

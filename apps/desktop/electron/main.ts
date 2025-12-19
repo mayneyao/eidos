@@ -309,7 +309,7 @@ ipcMain.handle(MsgType.Volumes, async (event, args) => {
 })
 
 ipcMain.handle(MsgType.CreateSpace, async (event, args) => {
-  const { spaceName, enableSync, volumeId } = args
+  const { spaceName, enableSync } = args
   const data = { spaceName }
   const dataSpace = await getOrSetDataSpace(spaceName)
   if (dataSpace) {

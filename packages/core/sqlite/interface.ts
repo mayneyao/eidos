@@ -1,9 +1,9 @@
 import type { MsgType } from "@/lib/const"
 
 export interface AggregateItem {
-  column: string;
-  function: "sum" | "avg" | "count" | "min" | "max" | "count_distinct";
-  alias?: string;
+  column: string
+  function: "sum" | "avg" | "count" | "min" | "max" | "count_distinct"
+  alias?: string
 }
 
 export type IQuery = {
@@ -42,16 +42,14 @@ export interface ISqlite<T, D> {
   onIterator?: <TValue = any>(thisCallId: string) => AsyncIterable<TValue>
 }
 
+type CommonVersionControlResult = Promise<Record<string, any>>
 
-type CommonVersionControlResult = Promise<Record<string, any>>;
-
-export abstract class BaseServerDatabase  {
+export abstract class BaseServerDatabase {
   filename?: string
 
   get isWalMode() {
     return true
   }
-
 
   // inspect
   info(): CommonVersionControlResult {
@@ -63,6 +61,10 @@ export abstract class BaseServerDatabase  {
   }
 
   snapshot(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  tags(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
@@ -95,22 +97,32 @@ export abstract class BaseServerDatabase  {
     return Promise.resolve({})
   }
 
+  clone(remoteLogId: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
 
   abstract prepare(sql: string): {
-    run: (bind?: any[]) => void;
-    all: (bind?: any[]) => Promise<any[]>;
-  };
-  abstract close(): void;
-  abstract selectObjects(sql: string, bind?: any[]): Promise<{ [columnName: string]: any }[]>;
-  abstract transaction(func: (db: BaseServerDatabase) => void): any;
-  abstract exec(opts: string | {
-    sql: string;
-    bind?: any[];
-    rowMode?: "array" | "object";
-    returnValue?: "resultRows" | "saveSql";
-  }): Promise<any>;
+    run: (bind?: any[]) => void
+    all: (bind?: any[]) => Promise<any[]>
+  }
+  abstract close(): void
+  abstract selectObjects(
+    sql: string,
+    bind?: any[]
+  ): Promise<{ [columnName: string]: any }[]>
+  abstract transaction(func: (db: BaseServerDatabase) => void): any
+  abstract exec(
+    opts:
+      | string
+      | {
+          sql: string
+          bind?: any[]
+          rowMode?: "array" | "object"
+          returnValue?: "resultRows" | "saveSql"
+        }
+  ): Promise<any>
   abstract createFunction(opt: {
-    name: string;
-    xFunc: (...args: any[]) => any;
-  }): any;
+    name: string
+    xFunc: (...args: any[]) => any
+  }): any
 }
