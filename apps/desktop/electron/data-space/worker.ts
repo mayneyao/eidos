@@ -6,6 +6,7 @@ import { EidosMessageChannelName } from "@/lib/const"
 
 import type { SpaceInfo } from "../space-registry"
 import { NodeServerDatabase } from "../sqlite-server"
+import { isInitializationOperation } from "../sync/helper"
 import { createDataEventChannel } from "./data-event-channel"
 import { createExternalFileSystem } from "./external-fs"
 import { initUDF } from "./init-udf"
@@ -19,19 +20,22 @@ function createLogger() {
       port.postMessage({
         type: "log",
         level,
-        message: typeof message === 'string' ? message : JSON.stringify(message),
-        args: args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)),
+        message:
+          typeof message === "string" ? message : JSON.stringify(message),
+        args: args.map((arg) =>
+          typeof arg === "string" ? arg : JSON.stringify(arg)
+        ),
         timestamp: new Date().toISOString(),
       })
     }
   }
 
   return {
-    info: (message: any, ...args: any[]) => log('info', message, ...args),
-    warn: (message: any, ...args: any[]) => log('warn', message, ...args),
-    error: (message: any, ...args: any[]) => log('error', message, ...args),
-    debug: (message: any, ...args: any[]) => log('debug', message, ...args),
-    log: (message: any, ...args: any[]) => log('log', message, ...args),
+    info: (message: any, ...args: any[]) => log("info", message, ...args),
+    warn: (message: any, ...args: any[]) => log("warn", message, ...args),
+    error: (message: any, ...args: any[]) => log("error", message, ...args),
+    debug: (message: any, ...args: any[]) => log("debug", message, ...args),
+    log: (message: any, ...args: any[]) => log("log", message, ...args),
   }
 }
 
@@ -117,16 +121,21 @@ class DataSpaceManager {
     }
     logger.info("init space", spaceName)
 
+    const isInit = isInitializationOperation(spaceInfo)
+
     // Create sync client if credentials available
     const syncClient = graftPathConfig?.credentials
       ? new BucketClient(graftPathConfig.credentials)
       : undefined
 
-    const remoteLogId = await this.getRemoteLogId(
-      syncClient,
-      spaceInfo.sync?.remote,
-      graftPathConfig?.credentials?.bucketName
-    )
+    // Get remote log id if initialization operation
+    const remoteLogId = isInit
+      ? await this.getRemoteLogId(
+          syncClient,
+          spaceInfo.sync?.remote,
+          graftPathConfig?.credentials?.bucketName
+        )
+      : undefined
 
     // Create database with sync support
     const serverDb = await NodeServerDatabase.create(
