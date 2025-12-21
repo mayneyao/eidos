@@ -45,8 +45,10 @@ export function applyGraftConfigToEnv(
         `Graft config file ${graftConfigPath} not found, creating sample config`
       )
       // Write sample graft config
+      // Ensure proper path escaping for Windows compatibility
+      const escapedGraftDirPath = graftDirPath.replace(/\\/g, "\\\\")
       const sampleConfig = `
-data_dir = "${graftDirPath}"
+data_dir = "${escapedGraftDirPath}"
 [remote]
 type = "s3_compatible"
 bucket = "${credentials.bucketName}"
