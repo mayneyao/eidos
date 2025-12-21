@@ -214,7 +214,7 @@ export const GraftSidebar = () => {
   return (
     <div className="flex h-full w-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border/60 px-4 py-1">
+      <div className="flex items-center justify-between border-b border-border/60 pl-4 pr-2 py-1">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold">Graft</h2>
           {syncStatus && <div className={`text-xs`}>{getStatusSummary()}</div>}
@@ -250,7 +250,7 @@ export const GraftSidebar = () => {
           {syncStatus?.status === "diverged" && (
             <ToolButton
               icon={RotateCcw}
-              onClick={handleClone}
+              onClick={handleResetClick}
               loading={isCloning}
               disabled={!sqlite}
               tooltip="Reset to remote state"

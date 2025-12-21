@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useDebounce, useDebounceFn } from "ahooks"
 
+import { toast } from "@/components/ui/use-toast"
 import {
   EidosDataEventChannelName,
   type EidosDataEventChannelMsg,
@@ -56,7 +57,17 @@ export const useGraft = () => {
   )
 
   const pull = useCallback(
-    () => runOp(() => sqlite!.pull(), setIsPulling),
+    () => runOp(() => sqlite!.pull(), setIsPulling, {
+      refresh: true,
+      onSuccess: () => {
+        // Show notification and reload app to ensure state consistency after pull
+        toast({
+          title: "Pull completed",
+          description: "Reloading app to ensure consistency...",
+        })
+        setTimeout(() => window.location.reload(), 1000)
+      }
+    }),
     [runOp, sqlite]
   )
   const push = useCallback(
@@ -131,7 +142,17 @@ export const useGraft = () => {
         await sqlite!.clone(remoteLogId)
         await sqlite!.pull()
         await sqlite!.hydrate()
-      }, setIsCloning)
+      }, setIsCloning, {
+        refresh: true,
+        onSuccess: () => {
+          // Show notification and reload app to ensure state consistency after reset/clone
+          toast({
+            title: "Reset completed",
+            description: "Reloading app to ensure consistency...",
+          })
+          setTimeout(() => window.location.reload(), 1000)
+        }
+      })
     },
     [runOp, sqlite]
   )
