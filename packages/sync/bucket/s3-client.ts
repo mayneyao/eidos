@@ -55,4 +55,28 @@ export class BucketClient {
       throw error
     }
   }
+
+  /**
+   * List top-level folders in the bucket (root level directories).
+   * @param bucket The bucket name
+   * @returns List of root folder paths (e.g., ["folder1/", "folder2/"])
+   */
+  async listRootFolders(bucket: string): Promise<string[]> {
+    const command = new ListObjectsV2Command({
+      Bucket: bucket,
+      Delimiter: "/",
+    })
+
+    try {
+      const response = await this.client.send(command)
+
+      // CommonPrefixes contains the folders when Delimiter is used
+      return (response.CommonPrefixes || [])
+        .map((p) => p.Prefix)
+        .filter((p): p is string => !!p)
+    } catch (error) {
+      console.error("Failed to list root folders:", error)
+      throw error
+    }
+  }
 }

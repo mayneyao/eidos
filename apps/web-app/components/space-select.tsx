@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
+import { Check, ChevronsUpDown, FolderOpen, Plus, PlusCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
@@ -35,6 +35,7 @@ import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
+import { useAuthOptional } from "@/components/auth-provider"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -60,6 +61,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
   const { space } = useCurrentPathInfo()
+  const auth = useAuthOptional()
 
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
@@ -67,6 +69,49 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const [remoteUrl, setRemoteUrl] = React.useState<string>("")
   const [isSelectingFolder, setIsSelectingFolder] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  const [globalSyncEnabled, setGlobalSyncEnabled] = React.useState(false)
+  const [remoteSpaces, setRemoteSpaces] = React.useState<string[]>([])
+  const [loadingRemoteSpaces, setLoadingRemoteSpaces] = React.useState(false)
+
+  // Load global sync config
+  React.useEffect(() => {
+    const loadGlobalSyncConfig = async () => {
+      if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+        try {
+          const syncConfig = await window.eidos.config.get("sync")
+          setGlobalSyncEnabled(syncConfig?.enabled ?? false)
+        } catch {
+          setGlobalSyncEnabled(false)
+        }
+      }
+    }
+    loadGlobalSyncConfig()
+  }, [])
+
+  // Load remote spaces when sync is enabled
+  React.useEffect(() => {
+    const loadRemoteSpaces = async () => {
+      if (globalSyncEnabled && isDesktopMode && typeof window !== "undefined" && window.eidos) {
+        setLoadingRemoteSpaces(true)
+        try {
+          const result = await window.eidos.invoke("list-remote-spaces", "eidos.space")
+          if (result.success && result.spaces) {
+            setRemoteSpaces(result.spaces)
+          } else {
+            setRemoteSpaces([])
+          }
+        } catch (error) {
+          console.error("Failed to load remote spaces:", error)
+          setRemoteSpaces([])
+        } finally {
+          setLoadingRemoteSpaces(false)
+        }
+      } else {
+        setRemoteSpaces([])
+      }
+    }
+    loadRemoteSpaces()
+  }, [globalSyncEnabled])
 
   const reset = () => {
     setSelectedFolder("")
@@ -291,22 +336,72 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                   {t("space.select.folderDescription")}
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="remote-url">
-                  {t("space.select.remoteUrl")} ({t("common.optional")})
-                </Label>
-                <Input
-                  id="remote-url"
-                  type="url"
-                  placeholder={t("space.select.remoteUrlPlaceholder")}
-                  value={remoteUrl}
-                  onChange={(e) => setRemoteUrl(e.target.value)}
-                  className="flex-1"
-                />
-                <p className="text-sm text-muted-foreground">
-                  {t("space.select.remoteUrlDescription")}
-                </p>
-              </div>
+              {globalSyncEnabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="remote-url">
+                    {t("space.select.remoteUrl")} ({t("common.optional")})
+                  </Label>
+                  <div className="relative">
+                    <Command className="rounded-lg border shadow-md">
+                      <CommandInput
+                        placeholder={t("space.select.remoteUrlPlaceholder")}
+                        value={remoteUrl}
+                        onValueChange={setRemoteUrl}
+                        className="h-9"
+                      />
+                      <CommandList className="max-h-48">
+                        <CommandEmpty>
+                          {t("common.noResultsFound")}
+                        </CommandEmpty>
+                        {remoteSpaces.length > 0 && (
+                          <CommandGroup heading={t("space.select.existingRemoteSpaces")}>
+                            {remoteSpaces.map((space) => {
+                              const spaceName = space.replace(/\/$/, "")
+                              const username = auth?.user?.username || "username"
+                              const fullUrl = `https://eidos.space/${username}/${spaceName}`
+                              return (
+                                <CommandItem
+                                  key={space}
+                                  value={fullUrl}
+                                  onSelect={(value) => {
+                                    setRemoteUrl(value)
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <FolderOpen className="mr-2 h-4 w-4" />
+                                  <span>{spaceName}</span>
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        )}
+                        <CommandSeparator />
+                        <CommandGroup>
+                          <CommandItem
+                            onSelect={() => {
+                              window.open("https://eidos.space/new", "_blank")
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            <span>{t("space.select.createNewRemoteSpace")}</span>
+                          </CommandItem>
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </div>
+
+                  {loadingRemoteSpaces && (
+                    <div className="text-sm text-muted-foreground">
+                      {t("space.select.loadingRemoteSpaces")}
+                    </div>
+                  )}
+
+                  <p className="text-sm text-muted-foreground">
+                    {t("space.select.remoteUrlDescription")}
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">

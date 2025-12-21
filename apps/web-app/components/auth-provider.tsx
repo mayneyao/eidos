@@ -15,6 +15,7 @@ export interface AuthUser {
   email?: string
   name?: string
   picture?: string
+  username?: string
   [key: string]: any
 }
 
@@ -207,4 +208,3 @@ export function useAuth(): AuthContextValue {
 export function useAuthOptional(): AuthContextValue | null {
   return useContext(AuthContext)
 }
-

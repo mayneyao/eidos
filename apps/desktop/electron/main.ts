@@ -19,6 +19,7 @@ import { MsgType } from "@/lib/const"
 import { getConfigManager } from "./config"
 import { corsManager } from "./cors-manager"
 import { CredentialsManager } from "./credentials"
+import { BucketClient } from "@/packages/sync/bucket"
 import {
   closeDataSpace,
   getCurrentSpaceId,
@@ -419,6 +420,35 @@ ipcMain.handle("clear-sync-credentials", async (event, providerId) => {
 
 ipcMain.handle("has-sync-credentials", async (event, providerId) => {
   return CredentialsManager.hasSyncCredentials(providerId)
+})
+
+ipcMain.handle("list-remote-spaces", async (event, providerId: string) => {
+  try {
+    // Get sync credentials for the provider
+    const credentials = await CredentialsManager.getSyncCredentials(providerId)
+    if (!credentials) {
+      return { success: false, error: "No credentials found for provider" }
+    }
+
+    // Create S3 client with the credentials
+    const s3Client = new BucketClient({
+      endpoint: credentials.endpoint,
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      bucketName: credentials.bucketName,
+    })
+
+    // List root folders (remote spaces)
+    const spaces = await s3Client.listRootFolders(credentials.bucketName)
+
+    return { success: true, spaces }
+  } catch (error) {
+    console.error("Failed to list remote spaces:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
 })
 
 app.on("before-quit", () => {
