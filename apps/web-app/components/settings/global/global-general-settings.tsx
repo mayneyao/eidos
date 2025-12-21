@@ -100,6 +100,8 @@ export function GlobalGeneralSettings() {
   // Sync state
   const [syncEnabled, setSyncEnabled] = useState(false)
   const [isInitializingSync, setIsInitializingSync] = useState(false)
+  const [syncConfigured, setSyncConfigured] = useState(false)
+  const [isLoadingSyncConfig, setIsLoadingSyncConfig] = useState(true)
 
   // Auth from provider
   const auth = useAuthOptional()
@@ -134,23 +136,48 @@ export function GlobalGeneralSettings() {
     return () => subscription.unsubscribe()
   }, [appearanceForm])
 
-  // Load auto update config
+  // Load desktop configs (auto update and sync)
   useEffect(() => {
-    if (!isDesktop) return
+    if (!isDesktop) {
+      setIsLoadingConfig(false)
+      setIsLoadingSyncConfig(false)
+      return
+    }
 
-    const loadAutoUpdateConfig = async () => {
+    const loadDesktopConfigs = async () => {
       try {
-        const config = await (window as any).eidos.config.get("autoUpdate")
-        setAutoUpdateEnabled(config?.enabled ?? true)
+        // Load auto update config
+        const autoUpdateConfig = await window.eidos.config.get("autoUpdate")
+        setAutoUpdateEnabled(autoUpdateConfig?.enabled ?? true)
       } catch (error) {
         console.error("Failed to load auto-update config:", error)
         setAutoUpdateEnabled(true)
       } finally {
         setIsLoadingConfig(false)
       }
+
+      try {
+        // Load sync config
+        const syncConfig = await window.eidos.config.get("sync")
+        const credentials = await window.eidos.credentials.getSyncCredentials("eidos.space")
+
+        // syncEnabled reflects the config setting
+        const enabled = syncConfig?.enabled ?? false
+        setSyncEnabled(enabled)
+
+        // syncConfigured indicates if credentials are available for the enabled sync
+        const isConfigured = enabled && !!credentials
+        setSyncConfigured(isConfigured)
+      } catch (error) {
+        console.error("Failed to load sync config:", error)
+        setSyncConfigured(false)
+        setSyncEnabled(false)
+      } finally {
+        setIsLoadingSyncConfig(false)
+      }
     }
 
-    loadAutoUpdateConfig()
+    loadDesktopConfigs()
   }, [isDesktop])
 
   function savePreferences(data: AppearanceFormValues) {
@@ -163,7 +190,7 @@ export function GlobalGeneralSettings() {
     if (!isDesktop) return
 
     try {
-      await (window as any).eidos.config.set("autoUpdate", { enabled })
+      await window.eidos.config.set("autoUpdate", { enabled })
       setAutoUpdateEnabled(enabled)
     } catch (error) {
       toast({
@@ -220,16 +247,18 @@ export function GlobalGeneralSettings() {
         )
       }
 
-      // Store credentials if initialization was successful
+      // Store credentials and config if initialization was successful
       if (data.success && isDesktop) {
         try {
           await window.eidos.credentials.setSyncCredentials(
             data.data,
             "eidos.space"
           )
-          console.log("Sync credentials stored successfully")
+          await window.eidos.config.set("sync", { enabled: true })
+          setSyncConfigured(true)
+          console.log("Sync credentials and config stored successfully")
         } catch (storageError) {
-          console.error("Failed to store sync credentials:", storageError)
+          console.error("Failed to store sync credentials/config:", storageError)
           // Don't fail the whole operation if storage fails, just log it
         }
       }
@@ -544,22 +573,34 @@ export function GlobalGeneralSettings() {
               <div className="space-y-0.5">
                 <Label>Enable Sync</Label>
               <p className="text-sm text-muted-foreground">
-                {isInitializingSync
-                  ? "Initializing sync service..."
-                  : !isAuthenticated
-                    ? "Login required to enable synchronization"
-                    : "Enable synchronization for your data"}
+                {isLoadingSyncConfig
+                  ? "Loading sync configuration..."
+                  : isInitializingSync
+                    ? "Initializing sync service..."
+                    : !isAuthenticated
+                      ? "Login required to enable synchronization"
+                      : syncConfigured
+                        ? "Synchronization is configured and ready"
+                        : "Enable synchronization for your data"}
               </p>
               </div>
               <Switch
                 checked={syncEnabled}
-                disabled={isInitializingSync || !isAuthenticated}
+                disabled={isLoadingSyncConfig || isInitializingSync || !isAuthenticated}
                 onCheckedChange={async (enabled) => {
                   if (enabled) {
                     const success = await handleInitializeSync()
                     setSyncEnabled(success)
                   } else {
                     setSyncEnabled(false)
+                    if (isDesktop) {
+                      try {
+                        await window.eidos.config.set("sync", { enabled: false })
+                        setSyncConfigured(false)
+                      } catch (error) {
+                        console.error("Failed to disable sync config:", error)
+                      }
+                    }
                   }
                 }}
               />

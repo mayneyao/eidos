@@ -766,32 +766,6 @@ app.whenReady().then(async () => {
     return { success: true }
   })
 
-  ipcMain.handle("get-sync-status", () => {
-    const dataSpace = getDataSpace()
-    if (!dataSpace) {
-      return { enabled: false }
-    }
-
-    // Type assertion since we know dataSpace.db is NodeServerDatabase in desktop
-    const db = dataSpace.db as any
-    return { enabled: db.isSyncEnabled || false }
-  })
-
-  ipcMain.handle("get-sync-remote", () => {
-    const dataSpace = getDataSpace()
-    if (!dataSpace) {
-      return { remote: null }
-    }
-
-    const registry = getSpaceRegistry()
-    const currentSpace = registry.getLastOpenedSpace()
-    if (!currentSpace) {
-      return { remote: null }
-    }
-
-    return { remote: currentSpace.sync?.remote || null }
-  })
-
   ipcMain.handle(
     "update-space",
     async (_, spaceId: string, updates: { name?: string }) => {

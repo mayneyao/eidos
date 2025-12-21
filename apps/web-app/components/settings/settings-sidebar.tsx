@@ -15,6 +15,7 @@ import {
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
+import { useCurrentSpace } from "@/hooks/use-current-space"
 import { SettingsExternalLinks } from "./settings-external-links"
 
 type SettingsSection =
@@ -51,6 +52,8 @@ export function SettingsSidebar({
   showSpaceSettings = true,
 }: SettingsSidebarProps) {
   const { t } = useTranslation()
+  const { currentSpace: spaceInfo } = useCurrentSpace()
+  const isSyncEnabled = spaceInfo?.sync?.enabled || false
 
   const settingsSections: SettingsItem[] = [
     // Space Settings
@@ -80,6 +83,7 @@ export function SettingsSidebar({
       title: t("space.settings.sync"),
       description: t("space.settings.syncDescription"),
       icon: <Cloud className="h-5 w-5" />,
+      disabled: !isSyncEnabled,
       category: "space",
     },
     // {
@@ -195,11 +199,16 @@ export function SettingsSidebar({
                 {spaceSections.map((section) => (
                   <button
                     key={section.id}
-                    onClick={() => onSectionChange(section.id)}
+                    onClick={() => !section.disabled && onSectionChange(section.id)}
+                    disabled={section.disabled}
                     className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-all duration-200 border ${
                       activeSection === section.id
                         ? "bg-background shadow-sm border-border"
                         : "border-transparent hover:bg-muted"
+                    } ${
+                      section.disabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : "cursor-pointer"
                     }`}
                   >
                     <div
@@ -288,11 +297,16 @@ export function SettingsSidebar({
                 {spaceSections.map((section) => (
                   <button
                     key={section.id}
-                    onClick={() => onSectionChange(section.id)}
+                    onClick={() => !section.disabled && onSectionChange(section.id)}
+                    disabled={section.disabled}
                     className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 border ${
                       activeSection === section.id
                         ? "bg-background shadow-sm border-border"
                         : "border-transparent hover:bg-muted"
+                    } ${
+                      section.disabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : "cursor-pointer"
                     }`}
                   >
                     <div className="flex items-center space-x-2.5 min-h-[1rem]">
