@@ -1,19 +1,29 @@
+import fs from "node:fs"
+import path from "node:path"
 import { BaseServerDatabase } from "@/packages/core/sqlite/interface"
 import {
+  parseGraftAudit,
   parseGraftInfo,
   parseGraftStatus,
   parseGraftTags,
   parseGraftVolumes,
-  parseGraftAudit,
 } from "@/packages/sync/graft/helpers"
-import type Database from "@eidos.space/better-sqlite3"
+import Database from "@eidos.space/better-sqlite3"
+import { getSpaceRegistry } from "@eidos.space/space-manager"
+
+import { applyGraftConfigToEnv } from "../sync/helper"
+import { isVFSInitialized, setVFSInitialized } from "./initializer"
 
 export class NodeBaseServerDatabase extends BaseServerDatabase {
   protected db: Database.Database
+  protected spaceInfo?: any
+  protected graftOptions?: any
 
-  constructor(db: Database.Database) {
+  constructor(db: Database.Database, spaceInfo?: any, graftOptions?: any) {
     super()
     this.db = db
+    this.spaceInfo = spaceInfo
+    this.graftOptions = graftOptions
   }
 
   get isWalMode() {
@@ -223,5 +233,125 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
 
   async audit() {
     return this.graftCommand("graft_audit", parseGraftAudit)
+  }
+
+  async version() {
+    return Promise.resolve({
+      graft_version: this.db.pragma("graft_version"),
+    })
+  }
+
+  async convertToGraft(remote: string): Promise<any> {
+    if (this.isSyncEnabled) {
+      throw new Error("Already in sync mode.")
+    }
+
+    const spaceInfo = this.spaceInfo
+    const credentials = this.graftOptions?.credentials
+    const graftLibPath = this.graftOptions?.libPath
+
+    if (!spaceInfo || !credentials || !graftLibPath) {
+      throw new Error("Missing required configuration for conversion")
+    }
+
+    // 1. Checkpoint current DB
+    this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    // 2. Ensure 4k page size (Graft requirement)
+    try {
+      const currentPageSizeRes = this.db.pragma("page_size")
+      const currentPageSize =
+        Array.isArray(currentPageSizeRes) && currentPageSizeRes.length > 0
+          ? (Object.values(currentPageSizeRes[0])[0] as number)
+          : 4096
+
+      console.log(`Current database page size: ${currentPageSize}`)
+
+      if (currentPageSize !== 4096) {
+        console.log(
+          "Converting database page size to 4096 (Disabling WAL temporarily)..."
+        )
+        // IMPORTANT: Must disable WAL to change page_size
+        this.db.pragma("journal_mode = DELETE")
+        this.db.pragma("page_size = 4096")
+        this.db.exec("VACUUM")
+        console.log("VACUUM completed, page size is now 4096")
+      }
+    } catch (e) {
+      console.error("Failed to check or convert page size:", e)
+      // Non-fatal, try to continue
+    }
+
+    // 3. Path to existing db
+    const dbPath = path.join(spaceInfo.path, ".eidos", "db.sqlite3")
+    if (!fs.existsSync(dbPath)) {
+      throw new Error(`Database file not found: ${dbPath}`)
+    }
+
+    // 3. Close current connection
+    this.db.close()
+
+    // 4. Clear existing graft data (Prevent corruption from previous failed attempts)
+    const graftDirPath = path.join(spaceInfo.path, ".eidos", ".graft")
+    if (fs.existsSync(graftDirPath)) {
+      try {
+        fs.rmSync(graftDirPath, { recursive: true, force: true })
+        console.log("Cleared existing graft directory")
+      } catch (e) {
+        console.warn("Failed to clear graft directory:", e)
+      }
+    }
+    fs.mkdirSync(graftDirPath, { recursive: true })
+
+    // 5. Setup graft environment
+    // Update remote in spaceInfo for applyGraftConfigToEnv
+    const updatedSpaceInfo = {
+      ...spaceInfo,
+      sync: {
+        enabled: true,
+        remote,
+      },
+    }
+    applyGraftConfigToEnv(updatedSpaceInfo, credentials)
+
+    // 5. Initialize VFS if needed
+    if (!isVFSInitialized) {
+      // Use a short-lived memory db just to load the extension library
+      const vfsRegistrationDb = new Database(":memory:")
+      try {
+        vfsRegistrationDb.loadExtension(graftLibPath)
+        setVFSInitialized(true)
+      } finally {
+        vfsRegistrationDb.close()
+      }
+    }
+
+    // 7. Open graft connection
+    this.db = new Database("file:main?vfs=graft")
+
+    // IMPORTANT: Set 4k alignment and memory mode immediately
+    this.db.pragma("page_size = 4096")
+    this.db.pragma("journal_mode = MEMORY")
+    this.isSyncEnabled = true
+
+    console.log(`Starting graft import from: ${dbPath}`)
+    const res = this.db.pragma(`graft_import = "${dbPath}"`)
+    console.log("Graft import result strength:", res)
+
+    // Force a snapshot to sync internal VFS state to disk
+    this.db.pragma("graft_snapshot")
+
+    // 8. Update space registry
+    try {
+      const registry = getSpaceRegistry()
+      registry.setSpaceSync(spaceInfo.id, {
+        enabled: true,
+        remote: remote,
+      })
+    } catch (e) {
+      console.error("Failed to update space registry:", e)
+    }
+
+    return { success: true }
   }
 }

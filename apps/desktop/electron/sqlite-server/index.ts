@@ -46,9 +46,11 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
   constructor(
     db: Database.Database,
     isSyncEnabled: boolean = false,
-    logger?: any
+    logger?: any,
+    spaceInfo?: SpaceInfo,
+    graftOptions?: any
   ) {
-    super(db)
+    super(db, spaceInfo, graftOptions)
     this.setSyncEnabled(isSyncEnabled)
     this.logger = logger || console
   }
@@ -63,6 +65,12 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
     })
     const { db, isSyncEnabled } = await initializer.initializeDatabase(config)
 
-    return new NodeServerDatabase(db, isSyncEnabled, options.logger)
+    return new NodeServerDatabase(
+      db,
+      isSyncEnabled,
+      options.logger,
+      config.spaceInfo,
+      options.graft
+    )
   }
 }

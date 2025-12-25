@@ -41,6 +41,10 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
     return this.db.clone(remoteLogId)
   }
 
+  public convertToGraft(remote: string) {
+    return this.db.convertToGraft(remote)
+  }
+
   public info() {
     return this.db.info()
   }

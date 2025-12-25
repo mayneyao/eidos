@@ -101,6 +101,10 @@ export abstract class BaseServerDatabase {
     return Promise.resolve({})
   }
 
+  convertToGraft(remote: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
   abstract prepare(sql: string): {
     run: (bind?: any[]) => void
     all: (bind?: any[]) => Promise<any[]>

@@ -47,6 +47,9 @@ interface NodeServerDatabaseOptions {
 }
 
 export let isVFSInitialized = false
+export function setVFSInitialized(value: boolean) {
+  isVFSInitialized = value
+}
 
 export class NodeDatabaseInitializer {
   private logger: any = console
@@ -70,6 +73,10 @@ export class NodeDatabaseInitializer {
     }
 
     try {
+      const eidosDirPath = path.join(spaceInfo.path, ".eidos")
+      if (!fs.existsSync(eidosDirPath)) {
+        fs.mkdirSync(eidosDirPath, { recursive: true })
+      }
       const isSyncEnabled = this.options.graft?.enabled ?? false
 
       let isInit = false
@@ -182,6 +189,26 @@ export class NodeDatabaseInitializer {
       "Initializing database connection settings (extensions, pragmas)..."
     )
 
+    // Apply Pragma settings FIRST to ensure correct alignment and mode
+    try {
+      this.logger.log("Applying PRAGMA settings...")
+      if (this.options.graft?.enabled) {
+        // IMPORTANT: Must be 4k for Graft
+        db.pragma("page_size = 4096")
+        db.pragma("journal_mode = MEMORY")
+        this.logger.log("Graft mode PRAGMAs applied (4k, MEMORY).")
+      } else {
+        const pragmaList = generatePragmaList()
+        pragmaList.forEach((pragma) => {
+          this.logger.log(`Executing PRAGMA: ${pragma}`)
+          db.pragma(pragma)
+        })
+        this.logger.log("Standard PRAGMA settings applied successfully.")
+      }
+    } catch (err) {
+      this.logger.error("Failed to apply PRAGMA settings:", err)
+    }
+
     // Load Simple extension if dictionary exists
     if (fs.existsSync(this.options.simple.dictPath)) {
       try {
@@ -190,7 +217,6 @@ export class NodeDatabaseInitializer {
         this.logger.log("Simple extension enabled successfully.")
       } catch (err) {
         this.logger.error("Failed to enable simple extension:", err)
-        // Non-fatal error for simple extension
       }
     } else {
       this.logger.warn(
@@ -217,28 +243,7 @@ export class NodeDatabaseInitializer {
         }
       } catch (err) {
         this.logger.error("Failed to load custom extensions:", err)
-        // Non-fatal error for custom extensions
       }
-    }
-
-    // Apply Pragma settings
-    try {
-      this.logger.log("Applying PRAGMA settings...")
-      if (this.options.graft?.enabled) {
-        // PRAGMA journal_mode = MEMORY;
-        // https://graft.rs/docs/sqlite/compatibility/#tldr-recommended-sqlite-settings
-        db.pragma("journal_mode = MEMORY")
-      } else {
-        const pragmaList = generatePragmaList()
-        pragmaList.forEach((pragma) => {
-          this.logger.log(`Executing PRAGMA: ${pragma}`)
-          db.pragma(pragma)
-        })
-        this.logger.log("PRAGMA settings applied successfully.")
-      }
-    } catch (err) {
-      this.logger.error("Failed to apply PRAGMA settings:", err)
-      // Non-fatal error for pragmas
     }
   }
 
