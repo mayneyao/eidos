@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { create } from "zustand"
+
 import { isDesktopMode } from "@/lib/env"
 
 export interface SpaceInfo {
@@ -52,7 +53,7 @@ function extractSpaceIdFromHostname(hostname: string): string | null {
 /**
  * detect current space id
  */
-function detectCurrentSpaceId(): string | null {
+export function detectCurrentSpaceId(): string | null {
   if (typeof window === "undefined") {
     return null
   }
@@ -75,7 +76,16 @@ function detectCurrentSpaceId(): string | null {
  */
 export const useCurrentSpace = () => {
   const spaceId = detectCurrentSpaceId()
-  const { spaceInfo, isLoading, error, lastFetched, setSpaceInfo, setLoading, setError, setLastFetched } = useSpaceStore()
+  const {
+    spaceInfo,
+    isLoading,
+    error,
+    lastFetched,
+    setSpaceInfo,
+    setLoading,
+    setError,
+    setLastFetched,
+  } = useSpaceStore()
 
   const fetchSpaceInfo = useCallback(async () => {
     if (!spaceId) {
@@ -110,7 +120,9 @@ export const useCurrentSpace = () => {
       }
     } catch (err) {
       console.error("Error fetching space info:", err)
-      setError(err instanceof Error ? err : new Error("Failed to fetch space info"))
+      setError(
+        err instanceof Error ? err : new Error("Failed to fetch space info")
+      )
       setSpaceInfo(null)
     } finally {
       setLoading(false)
