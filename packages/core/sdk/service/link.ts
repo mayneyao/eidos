@@ -417,7 +417,7 @@ export class LinkFieldService {
         db.exec(`DROP TRIGGER ${item.name}`)
       })
       // delete relation table
-      db.exec(`DROP TABLE ${relationTableName}`)
+      db.exec(`DROP TABLE IF EXISTS ${relationTableName}`)
     })
     // clear reference: lookup link title
     await this.dataSpace.reference.delBy(

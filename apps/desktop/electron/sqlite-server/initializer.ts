@@ -224,12 +224,18 @@ export class NodeDatabaseInitializer {
     // Apply Pragma settings
     try {
       this.logger.log("Applying PRAGMA settings...")
-      const pragmaList = generatePragmaList()
-      pragmaList.forEach((pragma) => {
-        this.logger.log(`Executing PRAGMA: ${pragma}`)
-        db.pragma(pragma)
-      })
-      this.logger.log("PRAGMA settings applied successfully.")
+      if (this.options.graft?.enabled) {
+        // PRAGMA journal_mode = MEMORY;
+        // https://graft.rs/docs/sqlite/compatibility/#tldr-recommended-sqlite-settings
+        db.pragma("journal_mode = MEMORY")
+      } else {
+        const pragmaList = generatePragmaList()
+        pragmaList.forEach((pragma) => {
+          this.logger.log(`Executing PRAGMA: ${pragma}`)
+          db.pragma(pragma)
+        })
+        this.logger.log("PRAGMA settings applied successfully.")
+      }
     } catch (err) {
       this.logger.error("Failed to apply PRAGMA settings:", err)
       // Non-fatal error for pragmas

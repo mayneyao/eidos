@@ -335,21 +335,22 @@ export const useSqlite = (dbName?: string) => {
   }
 
   const permanentlyDeleteNode = async (node: ITreeNode) => {
-    switch (node.type) {
-      case "table":
-        await deleteTable(node.id)
-        break
-      case "doc":
-        await deleteDoc(node.id)
-        break
-      case TreeNodeType.Dataview:
-        await deleteView(node.id)
-        break
-      default:
-        if (node.type.startsWith("ext__")) {
-          await deleteExtNode(node.id)
-        }
-        break
+    // Use backend method for permanent deletion (handles recursion automatically)
+    if (sqlWorker) {
+      await sqlWorker.tree.permanentlyDeleteNode(node.id)
+    }
+  }
+
+  const permanentlyDeleteNodes = async (
+    nodes: ITreeNode[],
+    onProgress?: (progress: number) => void
+  ) => {
+    for (let i = 0; i < nodes.length; i++) {
+      await permanentlyDeleteNode(nodes[i])
+      if (onProgress) {
+        const progress = Math.round(((i + 1) / nodes.length) * 100)
+        onProgress(progress)
+      }
     }
   }
 
@@ -563,6 +564,7 @@ export const useSqlite = (dbName?: string) => {
     toggleNodeFullWidth,
     toggleNodeLock,
     permanentlyDeleteNode,
+    permanentlyDeleteNodes,
     getOrCreateTableSubDoc,
     updateNodeName,
     rebuildFTS,
