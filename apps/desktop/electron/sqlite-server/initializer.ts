@@ -161,7 +161,7 @@ export class NodeDatabaseInitializer {
       spaceInfo.path == ":memory:"
         ? ":memory:"
         : path.join(spaceInfo.path, ".eidos", "db.sqlite3")
-    const dbUri = isSyncEnabled ? `file:production?vfs=graft` : dbPath
+    const dbUri = isSyncEnabled ? `file:main?vfs=graft` : dbPath
 
     this.logger.log("Creating database instance...", dbUri)
     const db = new Database(dbUri, config.options)
