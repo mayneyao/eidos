@@ -9,11 +9,11 @@ import * as z from "zod"
 import { SYNC_INTERNAL_URL, URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
-import { useToast } from "@/components/ui/use-toast"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
+import { useToast } from "@/components/ui/use-toast"
 import { useAuthOptional } from "@/components/auth-provider"
 import {
   Form,
@@ -159,7 +159,8 @@ export function GlobalGeneralSettings() {
       try {
         // Load sync config
         const syncConfig = await window.eidos.config.get("sync")
-        const credentials = await window.eidos.credentials.getSyncCredentials("eidos.space")
+        const credentials =
+          await window.eidos.credentials.getSyncCredentials("eidos.space")
 
         // syncEnabled reflects the config setting
         const enabled = syncConfig?.enabled ?? false
@@ -201,6 +202,40 @@ export function GlobalGeneralSettings() {
     }
   }
 
+  const handleToggleSync = async (enabled: boolean) => {
+    if (enabled) {
+      // If credentials exist, just enable sync without full initialization
+      const credentials = isDesktop
+        ? await window.eidos.credentials.getSyncCredentials("eidos.space")
+        : null
+      if (credentials) {
+        try {
+          await window.eidos.config.set("sync", { enabled: true })
+          setSyncEnabled(true)
+          setSyncConfigured(true)
+          return
+        } catch (error) {
+          console.error("Failed to enable sync config:", error)
+        }
+      }
+
+      const success = await handleInitializeSync()
+      setSyncEnabled(success)
+    } else {
+      setSyncEnabled(false)
+      if (isDesktop) {
+        try {
+          await window.eidos.config.set("sync", {
+            enabled: false,
+          })
+          setSyncConfigured(false)
+        } catch (error) {
+          console.error("Failed to disable sync config:", error)
+        }
+      }
+    }
+  }
+
   const handleInitializeSync = async () => {
     if (!isAuthenticated) {
       toast({
@@ -236,7 +271,9 @@ export function GlobalGeneralSettings() {
         console.log("Sync initialization response:", data)
       } catch (jsonError) {
         console.error("Failed to parse response JSON:", jsonError)
-        throw new Error(`Invalid response format: ${response.status} ${response.statusText}`)
+        throw new Error(
+          `Invalid response format: ${response.status} ${response.statusText}`
+        )
       }
 
       if (!response.ok) {
@@ -258,7 +295,10 @@ export function GlobalGeneralSettings() {
           setSyncConfigured(true)
           console.log("Sync credentials and config stored successfully")
         } catch (storageError) {
-          console.error("Failed to store sync credentials/config:", storageError)
+          console.error(
+            "Failed to store sync credentials/config:",
+            storageError
+          )
           // Don't fail the whole operation if storage fails, just log it
         }
       }
@@ -271,7 +311,8 @@ export function GlobalGeneralSettings() {
       return true
     } catch (error) {
       console.error("Failed to initialize sync:", error)
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       console.error("Error details:", { message: errorMessage, error })
       toast({
         title: "Sync Initialization Failed",
@@ -572,41 +613,27 @@ export function GlobalGeneralSettings() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>Enable Sync</Label>
-              <p className="text-sm text-muted-foreground">
-                {isLoadingSyncConfig
-                  ? "Loading sync configuration..."
-                  : isInitializingSync
-                    ? "Initializing sync service..."
-                    : !isAuthenticated
-                      ? "Login required to enable synchronization"
-                      : syncConfigured
-                        ? "Synchronization is configured and ready"
-                        : "Enable synchronization for your data"}
-              </p>
+                <p className="text-sm text-muted-foreground">
+                  {isLoadingSyncConfig
+                    ? "Loading sync configuration..."
+                    : isInitializingSync
+                      ? "Initializing sync service..."
+                      : !isAuthenticated
+                        ? "Login required to enable synchronization"
+                        : syncConfigured
+                          ? "Synchronization is configured and ready"
+                          : "Enable synchronization for your data"}
+                </p>
               </div>
               <Switch
                 checked={syncEnabled}
-                disabled={isLoadingSyncConfig || isInitializingSync || !isAuthenticated}
-                onCheckedChange={async (enabled) => {
-                  if (enabled) {
-                    const success = await handleInitializeSync()
-                    setSyncEnabled(success)
-                  } else {
-                    setSyncEnabled(false)
-                    if (isDesktop) {
-                      try {
-                        await window.eidos.config.set("sync", { enabled: false })
-                        setSyncConfigured(false)
-                      } catch (error) {
-                        console.error("Failed to disable sync config:", error)
-                      }
-                    }
-                  }
-                }}
+                disabled={
+                  isLoadingSyncConfig || isInitializingSync || !isAuthenticated
+                }
+                onCheckedChange={handleToggleSync}
               />
             </div>
           )}
-
         </div>
       </div>
     </div>
