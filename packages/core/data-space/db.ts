@@ -45,6 +45,10 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
     return this.db.convertToGraft(remote)
   }
 
+  public exportToSqlite(outputPath?: string) {
+    return this.db.exportToSqlite(outputPath)
+  }
+
   public info() {
     return this.db.info()
   }
