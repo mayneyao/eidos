@@ -2,12 +2,12 @@ import fs from "fs"
 import path from "path"
 import Database from "@eidos.space/better-sqlite3"
 
-import type { SyncBucketCredentials } from "../credentials"
-import type { SpaceInfo } from "../space-registry"
+import type { SyncBucketCredentials } from "../../credentials"
+import type { SpaceInfo } from "../../space-registry"
 import {
   applyGraftConfigToEnv,
   isInitializationOperation,
-} from "../sync/helper"
+} from "../../sync/helper"
 import { generatePragmaList } from "./config"
 import { loadCustomExtensions, scanCustomExtensions } from "./sqlite-extension"
 

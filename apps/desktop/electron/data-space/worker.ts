@@ -5,7 +5,7 @@ import { BucketClient } from "@/packages/sync/bucket"
 import { EidosMessageChannelName } from "@/lib/const"
 
 import type { SpaceInfo } from "../space-registry"
-import { NodeServerDatabase } from "../sqlite-server"
+import { NodeServerDatabase } from "./sqlite-server"
 import { isInitializationOperation } from "../sync/helper"
 import { createDataEventChannel } from "./data-event-channel"
 import { createExternalFileSystem } from "./external-fs"
