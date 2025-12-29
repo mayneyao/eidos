@@ -1,6 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import { fetchAvailableModels } from "@/packages/ai/helper"
+import { BucketClient } from "@/packages/sync/bucket"
 import {
   BrowserWindow,
   Menu,
@@ -19,7 +20,6 @@ import { MsgType } from "@/lib/const"
 import { getConfigManager } from "./config"
 import { corsManager } from "./cors-manager"
 import { CredentialsManager } from "./credentials"
-import { BucketClient } from "@/packages/sync/bucket"
 import {
   closeDataSpace,
   getCurrentSpaceId,
@@ -36,7 +36,6 @@ import { getApiAgentStatus, initApiAgent } from "./server/api-agent"
 import { startServer } from "./server/server"
 import { GlobalShortcutManager } from "./services/global-shortcut-manager"
 import { getSpaceRegistry, migrateFromLegacyConfig } from "./space-registry"
-import { GraftDb } from "./sync/graft-db"
 import { AppUpdater } from "./updater"
 import { createWindow } from "./window-manager/createWindow"
 import { convertToElectronMenuTemplateWithIds } from "./window-manager/menu-utils"
@@ -756,44 +755,6 @@ app.whenReady().then(async () => {
 
     const registry = getSpaceRegistry()
     return registry.getSpace(spaceId)
-  })
-
-  ipcMain.handle(
-    "space-enable-sync",
-    async (_, spaceId: string, remote: string) => {
-      const dataSpace = getDataSpace()
-      if (!dataSpace) {
-        throw new Error("No active data space")
-      }
-      const registry = getSpaceRegistry()
-      const spaceInfo = registry.getSpace(spaceId)
-      if (!spaceInfo) {
-        throw new Error("Space not found")
-      }
-      const graftDb = new GraftDb(dataSpace)
-      await graftDb.convertToGraft({
-        ...spaceInfo,
-        sync: {
-          enabled: true,
-          remote: remote,
-        },
-      })
-    }
-  )
-
-  ipcMain.handle("space-disable-sync", async (_, spaceId: string) => {
-    const dataSpace = getDataSpace()
-    if (!dataSpace) {
-      throw new Error("No active data space")
-    }
-    const registry = getSpaceRegistry()
-    const spaceInfo = registry.getSpace(spaceId)
-    if (!spaceInfo) {
-      throw new Error("Space not found")
-    }
-    const graftDb = new GraftDb(dataSpace)
-    await graftDb.checkoutFromGraft(spaceInfo)
-    return { success: true }
   })
 
   ipcMain.handle(
