@@ -7,7 +7,7 @@ import type { SpaceInfo } from "../../space-registry"
 import {
   applyGraftConfigToEnv,
   isInitializationOperation,
-} from "../../sync/helper"
+} from "../sync/helper"
 import { generatePragmaList } from "./config"
 import { loadCustomExtensions, scanCustomExtensions } from "./sqlite-extension"
 

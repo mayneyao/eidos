@@ -11,7 +11,7 @@ import {
 import Database from "@eidos.space/better-sqlite3"
 import { getSpaceRegistry } from "@eidos.space/space-manager"
 
-import { applyGraftConfigToEnv } from "../../sync/helper"
+import { applyGraftConfigToEnv } from "../sync/helper"
 import { isVFSInitialized, setVFSInitialized } from "./initializer"
 
 export class NodeBaseServerDatabase extends BaseServerDatabase {

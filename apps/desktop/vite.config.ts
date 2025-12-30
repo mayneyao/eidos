@@ -65,7 +65,11 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
     copyPublicPlugin(),
     electron({
       main: {
-        entry: ["electron/main.ts", "electron/data-space/worker.ts"],
+        entry: [
+          "electron/main.ts",
+          "electron/data-space/worker.ts",
+          "electron/data-space/sync-worker.ts",
+        ],
         vite: {
           assetsInclude: ["**/*.node"],
           resolve: {

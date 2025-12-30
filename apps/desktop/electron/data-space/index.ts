@@ -1,4 +1,7 @@
+import path from "path"
+import { Worker } from "worker_threads"
 import type { DataSpace } from "@/packages/core/data-space"
+import log from "electron-log"
 
 import { CredentialsManager } from "../credentials"
 import { getSpacePath } from "../file-system/space"
@@ -6,7 +9,6 @@ import { getResourcePath } from "../helper"
 import { getSpaceRegistry } from "../space-registry"
 import { DataSpaceProcessPool } from "./process-pool"
 import { RpcClient } from "./rpc-client"
-import log from "electron-log"
 
 export class DataSpaceManager {
   private static instance: DataSpaceManager
@@ -57,6 +59,9 @@ export class DataSpaceManager {
     // Generally 'close' in single-process meant closing db connection.
     // Here it means terminating the worker.
     DataSpaceProcessPool.getInstance().killAll() // or terminate specific
+
+    // Stop sync worker
+    this.stopSyncWorker(this.currentSpaceId)
 
     this.dataSpaceProxy = null
     this.currentSpaceId = null
@@ -116,19 +121,19 @@ export class DataSpaceManager {
     childProcess.on("message", (payload: any) => {
       if (payload.type === "log") {
         const { level, message, args, timestamp } = payload
-        const logMessage = `[${spaceId}] ${message}${args.length > 0 ? ' ' + args.join(' ') : ''}`
+        const logMessage = `[${spaceId}] ${message}${args.length > 0 ? " " + args.join(" ") : ""}`
 
         switch (level) {
-          case 'info':
+          case "info":
             log.info(logMessage)
             break
-          case 'warn':
+          case "warn":
             log.warn(logMessage)
             break
-          case 'error':
+          case "error":
             log.error(logMessage)
             break
-          case 'debug':
+          case "debug":
             log.debug(logMessage)
             break
           default:
@@ -140,7 +145,97 @@ export class DataSpaceManager {
     const proxy = client.createProxy()
     this.dataSpaceProxy = proxy
 
+    // Start Sync Worker (Managed by Main Process)
+    this.startSyncWorker(spaceId, spaceInfo, initData.paths.graftPathConfig)
+
     return proxy
+  }
+
+  private syncWorkers: Map<string, Worker> = new Map()
+
+  private startSyncWorker(
+    spaceId: string,
+    spaceInfo: any,
+    graftPathConfig: any
+  ) {
+    // Stop existing for this space if any
+    this.stopSyncWorker(spaceId)
+
+    // Check if sync is enabled and credentials exist
+    if (!spaceInfo.sync?.remote || !graftPathConfig?.credentials?.accessKeyId) {
+      log.info("Sync not enabled or missing credentials, skipping sync worker.")
+      return
+    }
+    const remoteSpaceId =
+      spaceInfo.sync?.remote?.split("/").pop()?.split(".")[0] || spaceInfo.id
+    const syncConfig = {
+      localPath: getSpacePath(spaceId) + "/.eidos/files", // Reconstruct path
+      bucket: graftPathConfig.credentials.bucketName,
+      // user-id/space-id/
+      prefix: `${remoteSpaceId}/.eidos/files/`,
+      s3Config: {
+        region: graftPathConfig.credentials.region || "us-east-1",
+        endpoint: graftPathConfig.credentials.endpoint,
+        credentials: {
+          accessKeyId: graftPathConfig.credentials.accessKeyId,
+          secretAccessKey: graftPathConfig.credentials.secretAccessKey,
+        },
+      },
+      ignore: [".graft/**"],
+    }
+
+    try {
+      log.info(`Starting sync worker for space ${spaceId}...`)
+      // Use require.resolve to find the worker file.
+      // In dev (ts-node), this might point to .ts, in prod .js.
+      // Since we are in the main process, we can use standard node modules.
+      const workerPath = path.join(__dirname, "sync-worker.js")
+      // Note: In prod, files are bundled. We might need to ensure sync-worker is emitted as a separate file
+      // or use a specific loader.
+      // Assuming similar setup to 'worker.js' which is used by utilityProcess.fork
+      // But here we use worker_threads.
+
+      // Verify if sync-worker.js exists, or try .ts if in dev
+      let actualWorkerPath = workerPath
+      if (!require("fs").existsSync(workerPath)) {
+        actualWorkerPath = path.join(__dirname, "sync-worker.ts")
+      }
+
+      const syncWorker = new Worker(actualWorkerPath, {
+        workerData: { config: syncConfig },
+      })
+
+      this.syncWorkers.set(spaceId, syncWorker)
+
+      syncWorker.on("message", (msg: any) => {
+        if (msg.type === "log") {
+          const { level, message } = msg
+          log.log(`[SyncWorker:${spaceId}] ${message}`)
+        }
+      })
+
+      syncWorker.on("error", (err: Error) => {
+        log.error(`[SyncWorker:${spaceId}] Error:`, err)
+      })
+
+      syncWorker.on("exit", (code: number) => {
+        if (code !== 0) {
+          log.error(`[SyncWorker:${spaceId}] Stopped with exit code ${code}`)
+        }
+        this.syncWorkers.delete(spaceId)
+      })
+    } catch (e) {
+      log.error(`Failed to spawn sync worker for ${spaceId}`, e)
+    }
+  }
+
+  private stopSyncWorker(spaceId: string) {
+    const worker = this.syncWorkers.get(spaceId)
+    if (worker) {
+      log.info(`Stopping sync worker for ${spaceId}`)
+      worker.terminate()
+      this.syncWorkers.delete(spaceId)
+    }
   }
 }
 

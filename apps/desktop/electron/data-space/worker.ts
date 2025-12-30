@@ -1,4 +1,5 @@
 import { workerData } from "worker_threads"
+import * as path from "path"
 import { DataSpace } from "@/packages/core/data-space"
 import { BucketClient } from "@/packages/sync/bucket"
 
@@ -6,7 +7,7 @@ import { EidosMessageChannelName } from "@/lib/const"
 
 import type { SpaceInfo } from "../space-registry"
 import { NodeServerDatabase } from "./sqlite-server"
-import { isInitializationOperation } from "../sync/helper"
+import { isInitializationOperation } from "./sync/helper"
 import { createDataEventChannel } from "./data-event-channel"
 import { createExternalFileSystem } from "./external-fs"
 import { initUDF } from "./init-udf"
@@ -77,18 +78,8 @@ class DataSpaceManager {
     return this.dataSpace
   }
 
-  public async close(): Promise<boolean> {
-    if (!this.dataSpace) {
-      return false
-    }
 
-    // Stop file watcher before closing dataspace
-    this.dataSpace.unwatchFileWatcher()
 
-    this.dataSpace.close()
-    this.dataSpace = null
-    return true
-  }
 
   private async getRemoteLogId(
     syncClient: BucketClient | undefined,
@@ -236,8 +227,24 @@ class DataSpaceManager {
       syncClient: syncClient,
     })
 
+
+
     this.dataSpace.initFileWatcher()
     return this.dataSpace
+  }
+
+
+  public async close(): Promise<boolean> {
+    if (!this.dataSpace) {
+      return false
+    }
+
+    // Stop file watcher before closing dataspace
+    this.dataSpace.unwatchFileWatcher()
+
+    this.dataSpace.close()
+    this.dataSpace = null
+    return true
   }
 }
 
