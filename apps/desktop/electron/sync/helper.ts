@@ -40,27 +40,26 @@ export function applyGraftConfigToEnv(
     const graftConfigPath = path.join(eidosDirPath, "graft.toml")
     const graftDirPath = path.join(eidosDirPath, ".graft")
 
-    if (!fs.existsSync(graftConfigPath)) {
-      console.warn(
-        `Graft config file ${graftConfigPath} not found, creating sample config`
-      )
-      // Write sample graft config
-      // Ensure proper path escaping for Windows compatibility
-      const escapedGraftDirPath = graftDirPath.replace(/\\/g, "\\\\")
-      const sampleConfig = `
+    // Always overwrite graft config
+    // Ensure proper path escaping for Windows compatibility
+    const escapedGraftDirPath = graftDirPath.replace(/\\/g, "\\\\")
+    const sampleConfig = `
 data_dir = "${escapedGraftDirPath}"
 [remote]
 type = "s3_compatible"
 bucket = "${credentials.bucketName}"
-prefix = "${remoteSpaceId}"
+prefix = "${remoteSpaceId}/.eidos/.graft"
 
 # Configure your S3-compatible storage credentials here
 # bucket: Your S3 bucket name
 # prefix: Optional path prefix within the bucket
 `
 
+    try {
       fs.writeFileSync(graftConfigPath, sampleConfig, "utf-8")
-      console.log(`Created sample graft config at ${graftConfigPath}`)
+      console.log(`Written graft config at ${graftConfigPath}`)
+    } catch (e) {
+      console.error(`Failed to write graft config at ${graftConfigPath}`, e)
     }
 
     if (!fs.existsSync(graftDirPath)) {

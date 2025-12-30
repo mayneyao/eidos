@@ -257,8 +257,23 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     // 1. Checkpoint current DB
     this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)")
 
-    // 2. Ensure 4k page size (Graft requirement)
+    // 2. Ensure 4k page size and DELETE journal mode (Graft requirement)
     try {
+      // 2a. Ensure journal_mode is DELETE
+      const journalModeRes = this.db.pragma("journal_mode")
+      const currentJournalMode =
+        Array.isArray(journalModeRes) && journalModeRes.length > 0
+          ? (Object.values(journalModeRes[0])[0] as string).toUpperCase()
+          : ""
+
+      console.log(`Current journal mode: ${currentJournalMode}`)
+
+      if (currentJournalMode !== "DELETE") {
+        console.log("Setting journal_mode to DELETE...")
+        this.db.pragma("journal_mode = DELETE")
+      }
+
+      // 2b. Ensure page_size is 4096
       const currentPageSizeRes = this.db.pragma("page_size")
       const currentPageSize =
         Array.isArray(currentPageSizeRes) && currentPageSizeRes.length > 0
@@ -268,17 +283,16 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       console.log(`Current database page size: ${currentPageSize}`)
 
       if (currentPageSize !== 4096) {
-        console.log(
-          "Converting database page size to 4096 (Disabling WAL temporarily)..."
-        )
-        // IMPORTANT: Must disable WAL to change page_size
-        this.db.pragma("journal_mode = DELETE")
+        console.log("Setting page_size to 4096...")
         this.db.pragma("page_size = 4096")
-        this.db.exec("VACUUM")
-        console.log("VACUUM completed, page size is now 4096")
       }
+
+      // 2c. Run VACUUM to apply changes and compact
+      console.log("Running VACUUM...")
+      this.db.exec("VACUUM")
+      console.log("VACUUM completed")
     } catch (e) {
-      console.error("Failed to check or convert page size:", e)
+      console.error("Failed to check or convert page size/journal mode:", e)
       // Non-fatal, try to continue
     }
 
