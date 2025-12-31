@@ -142,7 +142,7 @@ ipcMain.handle("sqlite-msg", async (event, payload) => {
 
     const currentSpaceId = getCurrentSpaceId()
     if (!dataSpace || !currentSpaceId) {
-      electronLog.info("initializing data space", spaceId)
+
       dataSpace = await getOrSetDataSpace(spaceId)
     } else if (spaceId !== currentSpaceId) {
       electronLog.info("switching to data space", spaceId)
@@ -207,7 +207,7 @@ ipcMain.handle("sqlite-msg-read", async (event, payload) => {
 
     const currentSpaceId = getCurrentSpaceId()
     if (!dataSpace || !currentSpaceId) {
-      electronLog.info("initializing data space", spaceId)
+
       dataSpace = await getOrSetDataSpace(spaceId)
     } else if (spaceId !== currentSpaceId) {
       electronLog.info("switching to data space", spaceId)

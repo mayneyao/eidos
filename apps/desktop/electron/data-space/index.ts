@@ -16,6 +16,7 @@ export class DataSpaceManager {
   private static instance: DataSpaceManager
   private dataSpaceProxy: DataSpace | null = null
   private currentSpaceId: string | null = null
+  private initializationPromise: Promise<DataSpace> | null = null
 
   private constructor() {}
 
@@ -78,79 +79,90 @@ export class DataSpaceManager {
       return this.dataSpaceProxy
     }
 
-    this.currentSpaceId = spaceId
-
-    // Prepare Init configuration for the worker
-    const libPath = getResourcePath(`dist-sqlite-ext/libsimple`)
-    const dictPath = getResourcePath("dist-sqlite-ext/dict")
-    const graftLibPath = getResourcePath("dist-sqlite-ext/libgraft")
-    const vecLibPath = getResourcePath("dist-sqlite-ext/libvec")
-
-    const credentials =
-      await CredentialsManager.getSyncCredentials("eidos.space")
-    if (!credentials) {
-      // throw new Error(`Credentials for eidos.space not found`)
-      // Keep existing logic, maybe it works without credentials for local?
+    if (this.initializationPromise && this.currentSpaceId === spaceId) {
+      return this.initializationPromise
     }
 
-    const spaceInfo = getSpaceRegistry().getSpace(spaceId)
-    if (!spaceInfo) {
-      throw new Error(`Space not found: ${spaceId}`)
-    }
+    this.initializationPromise = (async () => {
+      log.info(`Initializing data space manager for space: ${spaceId}`)
+      this.currentSpaceId = spaceId
 
-    const initData: WorkerInitData = {
-      spaceInfo,
-      paths: {
-        spacePath: getSpacePath(spaceId),
-        simplePathConfig: { libPath, dictPath },
-        vecPathConfig: { libPath: vecLibPath },
-        graftPathConfig: {
-          libPath: graftLibPath,
-          enabled: syncOptions?.enabled ?? spaceInfo.sync?.enabled ?? false,
-          remote: syncOptions?.remote ?? spaceInfo.sync?.remote ?? "",
-          credentials,
-        },
-      },
-    }
+      // Prepare Init configuration for the worker
+      const libPath = getResourcePath(`dist-sqlite-ext/libsimple`)
+      const dictPath = getResourcePath("dist-sqlite-ext/dict")
+      const graftLibPath = getResourcePath("dist-sqlite-ext/libgraft")
+      const vecLibPath = getResourcePath("dist-sqlite-ext/libvec")
 
-    const pool = DataSpaceProcessPool.getInstance()
-    const childProcess = await pool.getProcess(spaceId, initData)
-
-    // Create RPC Client and Proxy
-    const client = new RpcClient(childProcess as any)
-
-    // Listen for log messages from worker
-    childProcess.on("message", (payload: any) => {
-      if (payload.type === "log") {
-        const { level, message, args, timestamp } = payload
-        const logMessage = `[${spaceId}] ${message}${args.length > 0 ? " " + args.join(" ") : ""}`
-
-        switch (level) {
-          case "info":
-            log.info(logMessage)
-            break
-          case "warn":
-            log.warn(logMessage)
-            break
-          case "error":
-            log.error(logMessage)
-            break
-          case "debug":
-            log.debug(logMessage)
-            break
-          default:
-            log.log(logMessage)
-        }
+      const credentials =
+        await CredentialsManager.getSyncCredentials("eidos.space")
+      if (!credentials) {
+        // throw new Error(`Credentials for eidos.space not found`)
+        // Keep existing logic, maybe it works without credentials for local?
       }
+
+      const spaceInfo = getSpaceRegistry().getSpace(spaceId)
+      if (!spaceInfo) {
+        throw new Error(`Space not found: ${spaceId}`)
+      }
+
+      const initData: WorkerInitData = {
+        spaceInfo,
+        paths: {
+          spacePath: getSpacePath(spaceId),
+          simplePathConfig: { libPath, dictPath },
+          vecPathConfig: { libPath: vecLibPath },
+          graftPathConfig: {
+            libPath: graftLibPath,
+            enabled: syncOptions?.enabled ?? spaceInfo.sync?.enabled ?? false,
+            remote: syncOptions?.remote ?? spaceInfo.sync?.remote ?? "",
+            credentials,
+          },
+        },
+      }
+
+      const pool = DataSpaceProcessPool.getInstance()
+      const childProcess = await pool.getProcess(spaceId, initData)
+
+      // Create RPC Client and Proxy
+      const client = new RpcClient(childProcess as any)
+
+      // Listen for log messages from worker
+      childProcess.on("message", (payload: any) => {
+        if (payload.type === "log") {
+          const { level, message, args, timestamp } = payload
+          const logMessage = `[${spaceId}] ${message}${args.length > 0 ? " " + args.join(" ") : ""}`
+
+          switch (level) {
+            case "info":
+              log.info(logMessage)
+              break
+            case "warn":
+              log.warn(logMessage)
+              break
+            case "error":
+              log.error(logMessage)
+              break
+            case "debug":
+              log.debug(logMessage)
+              break
+            default:
+              log.log(logMessage)
+          }
+        }
+      })
+
+      const proxy = client.createProxy()
+      this.dataSpaceProxy = proxy
+
+      // Start Sync Worker (Managed by Main Process)
+      this.startSyncWorker(spaceId, spaceInfo, initData.paths.graftPathConfig)
+
+      return proxy
+    })().finally(() => {
+      this.initializationPromise = null
     })
 
-    const proxy = client.createProxy()
-    this.dataSpaceProxy = proxy
-
-    // Start Sync Worker (Managed by Main Process)
-    this.startSyncWorker(spaceId, spaceInfo, initData.paths.graftPathConfig)
-
-    return proxy
+    return this.initializationPromise
   }
 
   private syncWorkers: Map<string, Worker> = new Map()
