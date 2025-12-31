@@ -5,10 +5,10 @@ import { EidosMessageChannelName } from "@/lib/const"
 
 import type { SpaceInfo } from "../space-registry"
 import { createDataEventChannel } from "./data-event-channel"
-import { createExternalFileSystem } from "./external-fs"
+import { createExternalFileSystem } from "./external-fs/external-fs"
 import { initUDF } from "./init-udf"
-import { RpcServer } from "./rpc-server"
-import type { InitMessage, WorkerInitData } from "./rpc-types"
+import { RpcServer } from "./rpc/rpc-server"
+import type { InitMessage, WorkerInitData } from "./rpc/rpc-types"
 import { NodeServerDatabase } from "./sqlite-server"
 import { isInitializationOperation } from "./sync/helper"
 

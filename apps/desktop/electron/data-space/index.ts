@@ -9,8 +9,8 @@ import { getSpacePath } from "../file-system/space"
 import { getResourcePath } from "../helper"
 import { getSpaceRegistry } from "../space-registry"
 import { DataSpaceProcessPool } from "./process-pool"
-import { RpcClient } from "./rpc-client"
-import type { WorkerInitData } from "./rpc-types"
+import { RpcClient } from "./rpc/rpc-client"
+import type { WorkerInitData } from "./rpc/rpc-types"
 
 export class DataSpaceManager {
   private static instance: DataSpaceManager

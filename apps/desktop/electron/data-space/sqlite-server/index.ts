@@ -48,7 +48,7 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
     isSyncEnabled: boolean = false,
     logger?: any,
     spaceInfo?: SpaceInfo,
-    graftOptions?: any
+    graftOptions?: NodeServerDatabaseOptions["graft"]
   ) {
     super(db, spaceInfo, graftOptions)
     this.setSyncEnabled(isSyncEnabled)
