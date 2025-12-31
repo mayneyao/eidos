@@ -23,10 +23,11 @@ export const useQueryNode = () => {
   )
 
   const fullTextSearch = async (
-    q: string
+    q: string,
+    options?: { onlyDayPages?: boolean }
   ): Promise<ISearchNodes[] | undefined> => {
     if (!sqlite) return
-    const queryResults = await sqlite.fullTextSearch(q)
+    const queryResults = await sqlite.fullTextSearch(q, options)
     const res = queryResults.map((item) => {
       const node = nodeMap[item.id]
       // 2023-11-05

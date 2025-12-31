@@ -68,7 +68,6 @@ export async function initDatabase(
       context: {
         setInterval: undefined,  // Don't provide setInterval to avoid creating timers
       },
-      hasLoadExtension: true,
       dataEventChannel: createMockBroadcastChannel('init-channel') as any,
       enableFTS: true,
     });

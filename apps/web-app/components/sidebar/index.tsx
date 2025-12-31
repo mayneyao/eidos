@@ -1,11 +1,9 @@
 "use client"
 
-import { cn } from "@/lib/utils"
-import { isMac } from "@/lib/web/helper"
-import { Sidebar, SidebarRail } from "@/components/ui/sidebar"
-import { SpaceSelect } from "@/components/space-select"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { SpaceSelect } from "@/components/space-select"
+import { Sidebar, SidebarRail } from "@/components/ui/sidebar"
 
 import { SpaceSettings } from "../settings"
 import { SidebarContent } from "./sidebar-content"
@@ -26,7 +24,7 @@ export const SideBar = () => {
         <SidebarContent />
       </div>
 
-      <div className="mt-auto border-t border-sidebar-border p-1">
+      <div className="mt-auto border-t border-sidebar-border p-1 py-[7px]">
         <div className="flex items-center justify-between gap-1">
           {!isShareMode && <SpaceSelect spaces={spaceList} />}
           <div className="flex items-center gap-1">

@@ -103,3 +103,7 @@ await dataSpace.doc.search("query")
 
 // ...
 ```
+
+## License
+
+MIT

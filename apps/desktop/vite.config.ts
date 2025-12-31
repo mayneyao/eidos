@@ -1,29 +1,32 @@
-import esmShim from '@rollup/plugin-esm-shim'
-import path from "path"
-import type { Plugin, UserConfig } from "vite";
-import { mergeConfig, defineConfig } from "vite"
-import electron from 'vite-plugin-electron/simple'
-import { sharedAlias, sharedConfig } from "../../packages/shared/vite/base.config"
-import { createHtmlPlugin } from "../../packages/shared/vite/plugins"
 import fs from "fs/promises"
+import path from "path"
+import esmShim from "@rollup/plugin-esm-shim"
+import { defineConfig, mergeConfig, type Plugin, type UserConfig } from "vite"
+import electron from "vite-plugin-electron/simple"
+
+import {
+  sharedAlias,
+  sharedConfig,
+} from "../../packages/shared/vite/base.config"
+import { createHtmlPlugin } from "../../packages/shared/vite/plugins"
+
 // import { visualizer } from "rollup-plugin-visualizer"
 
-
 const externalNodeModules = [
-  '@eidos.space/better-sqlite3',
-  'oxc-parser',
-  'oxc-transform',
-  '@vscode/ripgrep',
+  "@eidos.space/better-sqlite3",
+  "oxc-parser",
+  "oxc-transform",
+  "@vscode/ripgrep",
 ]
 
 // desktop do not need android and windows11
 const copyPublicPlugin = (): Plugin => {
   return {
-    name: 'copy-public',
+    name: "copy-public",
     closeBundle: async () => {
-      const publicDir = path.resolve(__dirname, '../web-app/public')
-      const distDir = path.resolve(__dirname, 'dist')
-      console.log('dir', publicDir, distDir)
+      const publicDir = path.resolve(__dirname, "../web-app/public")
+      const distDir = path.resolve(__dirname, "dist")
+      console.log("dir", publicDir, distDir)
 
       try {
         await fs.mkdir(distDir, { recursive: true })
@@ -35,7 +38,7 @@ const copyPublicPlugin = (): Plugin => {
             const srcPath = path.join(src, entry.name)
             const destPath = path.join(dest, entry.name)
 
-            if (entry.name === 'android' || entry.name === 'windows11') {
+            if (entry.name === "android" || entry.name === "windows11") {
               continue
             }
 
@@ -50,46 +53,47 @@ const copyPublicPlugin = (): Plugin => {
 
         await copyDirRecursive(publicDir, distDir)
       } catch (err) {
-        console.error('Error copying public files:', err)
+        console.error("Error copying public files:", err)
       }
-    }
+    },
   }
 }
 
 const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
   plugins: [
-    createHtmlPlugin('renderer/index.tsx'),
+    createHtmlPlugin("renderer/index.tsx"),
     copyPublicPlugin(),
     electron({
       main: {
         entry: [
-          'electron/main.ts',
-          'electron/worker.ts',
+          "electron/main.ts",
+          "electron/data-space/worker.ts",
+          "electron/data-space/sync-worker.ts",
         ],
         vite: {
-          assetsInclude: ['**/*.node'],
+          assetsInclude: ["**/*.node"],
           resolve: {
             alias: sharedAlias,
           },
           define: {
             // Explicitly define process.env.NODE_ENV for electron main process
             // This ensures it's replaced at build time, not evaluated at runtime
-            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+            "process.env.NODE_ENV": JSON.stringify(
+              process.env.NODE_ENV || "development"
+            ),
           },
           build: {
             rollupOptions: {
-              plugins: [
-                esmShim() as unknown as Plugin,
-              ],
-              external: externalNodeModules
+              plugins: [esmShim() as unknown as Plugin],
+              external: externalNodeModules,
             },
           },
-        }
+        },
       },
       preload: {
-        input: 'electron/preload.ts',
+        input: "electron/preload.ts",
         vite: {
-          assetsInclude: ['**/*.node'],
+          assetsInclude: ["**/*.node"],
           resolve: {
             alias: sharedAlias,
           },
@@ -97,11 +101,11 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             rollupOptions: {
               external: externalNodeModules,
               output: {
-                format: 'es',
+                format: "es",
                 inlineDynamicImports: true,
-                entryFileNames: '[name].mjs',
-                chunkFileNames: '[name].mjs',
-                assetFileNames: '[name].[ext]',
+                entryFileNames: "[name].mjs",
+                chunkFileNames: "[name].mjs",
+                assetFileNames: "[name].[ext]",
               },
             },
           },
@@ -118,24 +122,24 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
   ],
   build: {
     rollupOptions: {
-      external: ['electron'],
+      external: ["electron"],
     },
     copyPublicDir: false,
-    assetsDir: 'assets',
-    assetsInclude: ['**/*'],
-    outDir: 'dist',
+    assetsDir: "assets",
+    assetsInclude: ["**/*"],
+    outDir: "dist",
     emptyOutDir: true,
   },
   resolve: {
     alias: {
-      'csv-parse/sync': 'csv-parse/sync',
-      'csv-stringify/sync': 'csv-stringify/sync',
-    }
+      "csv-parse/sync": "csv-parse/sync",
+      "csv-stringify/sync": "csv-stringify/sync",
+    },
   },
   server: {
     headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
     },
     proxy: {
       "/compiled-ui/": {
@@ -143,27 +147,27 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         changeOrigin: true,
       },
       "/api/chat": "http://localhost:13127",
-      '/files/': {
-        target: 'http://localhost:13127',
+      "/files/": {
+        target: "http://localhost:13127",
         changeOrigin: false,
         rewrite: (path: string) => path,
       },
-      '/@/': {
-        target: 'http://localhost:13127',
+      "/@/": {
+        target: "http://localhost:13127",
         changeOrigin: false,
         rewrite: (path: string) => path,
       },
-      '/~/': {
-        target: 'http://localhost:13127',
+      "/~/": {
+        target: "http://localhost:13127",
         changeOrigin: false,
         rewrite: (path: string) => path,
       },
-      '/static/': {
-        target: 'http://localhost:13127',
+      "/static/": {
+        target: "http://localhost:13127",
         changeOrigin: true,
       },
-      '/extensions/': {
-        target: 'http://localhost:13127',
+      "/extensions/": {
+        target: "http://localhost:13127",
         changeOrigin: true,
       },
     },

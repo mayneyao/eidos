@@ -1,21 +1,19 @@
 "use client"
 
 import { useCallback } from "react"
+import { TreeTableName } from "@/packages/core/sqlite/const"
+import { TreeNodeType, type ITreeNode } from "@/packages/core/types/ITreeNode"
 import type { DataSpace } from "@eidos.space/core/data-space"
 
-import { TreeTableName } from "@/packages/core/sqlite/const"
-import type { ITreeNode } from "@/packages/core/types/ITreeNode";
-import { TreeNodeType } from "@/packages/core/types/ITreeNode"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { isDesktopMode } from "@/lib/env"
 import { getRawTableNameById, uuidv7 } from "@/lib/utils"
 import { DefaultState } from "@/components/doc/plugins/AutoLoadSavePlugin"
 import { createTemplateTableSql } from "@/components/table/views/grid/helper"
-
-import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useNodeStore } from "@/apps/web-app/store/node-store"
-import { useAllNodes } from "./use-nodes"
-import { isDesktopMode } from "@/lib/env"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
+import { useAllNodes } from "./use-nodes"
 
 export const useSqlite = (dbName?: string) => {
   const {
@@ -24,12 +22,7 @@ export const useSqlite = (dbName?: string) => {
     setAllUiColumns,
     resetTableData,
   } = useSqliteStore()
-  const {
-    setAllNodes,
-    setNode,
-    addNode,
-    delNode,
-  } = useNodeStore()
+  const { setAllNodes, setNode, addNode, delNode } = useNodeStore()
   const allNodes = useAllNodes()
   const { isShareMode } = useAppRuntimeStore()
 
@@ -97,12 +90,13 @@ export const useSqlite = (dbName?: string) => {
   const createExtNode = async (ext_node_type: string, parent_id?: string) => {
     if (!sqlWorker) return
     const nodeId = await sqlWorker.tree.createExtNode(ext_node_type, parent_id)
-    nodeId && addNode({
-      id: nodeId,
-      name: "",
-      type: `ext__${ext_node_type}`,
-      parent_id,
-    })
+    nodeId &&
+      addNode({
+        id: nodeId,
+        name: "",
+        type: `ext__${ext_node_type}`,
+        parent_id,
+      })
     return nodeId
   }
 
@@ -213,9 +207,9 @@ export const useSqlite = (dbName?: string) => {
   )
 
   const fullTextSearch = useCallback(
-    async (query: string) => {
+    async (query: string, options?: { onlyDayPages?: boolean }) => {
       if (!sqlWorker) return []
-      const res = await sqlWorker.fullTextSearch(query)
+      const res = await sqlWorker.fullTextSearch(query, options)
       return res as { id: string; result: string }[]
     },
     [sqlWorker]
@@ -341,21 +335,22 @@ export const useSqlite = (dbName?: string) => {
   }
 
   const permanentlyDeleteNode = async (node: ITreeNode) => {
-    switch (node.type) {
-      case "table":
-        await deleteTable(node.id)
-        break
-      case "doc":
-        await deleteDoc(node.id)
-        break
-      case TreeNodeType.Dataview:
-        await deleteView(node.id)
-        break
-      default:
-        if (node.type.startsWith("ext__")) {
-          await deleteExtNode(node.id)
-        }
-        break
+    // Use backend method for permanent deletion (handles recursion automatically)
+    if (sqlWorker) {
+      await sqlWorker.tree.permanentlyDeleteNode(node.id)
+    }
+  }
+
+  const permanentlyDeleteNodes = async (
+    nodes: ITreeNode[],
+    onProgress?: (progress: number) => void
+  ) => {
+    for (let i = 0; i < nodes.length; i++) {
+      await permanentlyDeleteNode(nodes[i])
+      if (onProgress) {
+        const progress = Math.round(((i + 1) / nodes.length) * 100)
+        onProgress(progress)
+      }
     }
   }
 
@@ -418,7 +413,7 @@ export const useSqlite = (dbName?: string) => {
     if (!sqlWorker) return
     await sqlWorker.rebuildFTS(tableId)
     if (isDesktopMode) {
-      await window.eidos.invoke('reload-query-worker')
+      await window.eidos.invoke("reload-query-worker")
     }
   }
 
@@ -442,8 +437,10 @@ export const useSqlite = (dbName?: string) => {
         return { migrated: 0, errors: 0 }
       }
 
-      const { migrateDocumentFilePaths } = await import('./use-doc-migration')
-      const { content: newContent, migrated } = await migrateDocumentFilePaths(doc.content)
+      const { migrateDocumentFilePaths } = await import("./use-doc-migration")
+      const { content: newContent, migrated } = await migrateDocumentFilePaths(
+        doc.content
+      )
 
       if (migrated > 0) {
         // Update the document with the migrated content
@@ -469,7 +466,7 @@ export const useSqlite = (dbName?: string) => {
 
     try {
       // Get all document IDs
-      const docs = await sqlWorker.doc.list({}, { fields: ['id'] })
+      const docs = await sqlWorker.doc.list({}, { fields: ["id"] })
       console.log(`Starting migration for ${docs.length} documents`)
 
       for (const doc of docs) {
@@ -478,10 +475,12 @@ export const useSqlite = (dbName?: string) => {
         totalErrors += result.errors
       }
 
-      console.log(`Migration completed: ${totalMigrated} paths migrated, ${totalErrors} errors`)
+      console.log(
+        `Migration completed: ${totalMigrated} paths migrated, ${totalErrors} errors`
+      )
       return { migrated: totalMigrated, errors: totalErrors }
     } catch (error) {
-      console.error('Error during bulk document migration:', error)
+      console.error("Error during bulk document migration:", error)
       return { migrated: totalMigrated, errors: totalErrors + 1 }
     }
   }
@@ -495,7 +494,9 @@ export const useSqlite = (dbName?: string) => {
         const doc = await sqlWorker.doc.get(docId)
         if (!doc || !doc.content) return false
 
-        const { needsDocumentPathMigration } = await import('./use-doc-migration')
+        const { needsDocumentPathMigration } = await import(
+          "./use-doc-migration"
+        )
         return needsDocumentPathMigration(doc.content)
       } else {
         // Check if any document needs migration
@@ -506,7 +507,7 @@ export const useSqlite = (dbName?: string) => {
         return result && result[0]?.count > 0
       }
     } catch (error) {
-      console.error('Error checking document migration need:', error)
+      console.error("Error checking document migration need:", error)
       return false
     }
   }
@@ -529,7 +530,7 @@ export const useSqlite = (dbName?: string) => {
     try {
       return await sqlWorker.needsTableFilePathMigration(tableId)
     } catch (error) {
-      console.error('Error checking table migration need:', error)
+      console.error("Error checking table migration need:", error)
       return false
     }
   }
@@ -563,6 +564,7 @@ export const useSqlite = (dbName?: string) => {
     toggleNodeFullWidth,
     toggleNodeLock,
     permanentlyDeleteNode,
+    permanentlyDeleteNodes,
     getOrCreateTableSubDoc,
     updateNodeName,
     rebuildFTS,
@@ -573,6 +575,6 @@ export const useSqlite = (dbName?: string) => {
     needsDocPathMigration,
     migrateTableFilePaths,
     needsTableFilePathMigration,
-    resetTableData
+    resetTableData,
   }
 }

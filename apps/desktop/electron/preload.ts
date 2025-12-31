@@ -194,6 +194,14 @@ function main() {
     },
     getApiAgentStatus: () => ipcRenderer.invoke('get-api-agent-status'),
 
+    // Credentials management
+    credentials: {
+      setSyncCredentials: (credentials: any, providerId?: string) => ipcRenderer.invoke('set-sync-credentials', credentials, providerId),
+      getSyncCredentials: (providerId?: string) => ipcRenderer.invoke('get-sync-credentials', providerId),
+      clearSyncCredentials: (providerId?: string) => ipcRenderer.invoke('clear-sync-credentials', providerId),
+      hasSyncCredentials: (providerId?: string) => ipcRenderer.invoke('has-sync-credentials', providerId),
+    },
+
     // AI helper functions
     fetchAvailableModels: (apiKey: string, providerType: string, baseUrl?: string) =>
       ipcRenderer.invoke('fetch-available-models', apiKey, providerType, baseUrl),

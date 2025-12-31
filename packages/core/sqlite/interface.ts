@@ -1,9 +1,9 @@
 import type { MsgType } from "@/lib/const"
 
 export interface AggregateItem {
-  column: string;
-  function: "sum" | "avg" | "count" | "min" | "max" | "count_distinct";
-  alias?: string;
+  column: string
+  function: "sum" | "avg" | "count" | "min" | "max" | "count_distinct"
+  alias?: string
 }
 
 export type IQuery = {
@@ -42,6 +42,7 @@ export interface ISqlite<T, D> {
   onIterator?: <TValue = any>(thisCallId: string) => AsyncIterable<TValue>
 }
 
+type CommonVersionControlResult = Promise<Record<string, any>>
 
 export abstract class BaseServerDatabase {
   filename?: string
@@ -50,42 +51,86 @@ export abstract class BaseServerDatabase {
     return true
   }
 
-  pages(): Promise<{ [key: string]: any; }> {
+  // inspect
+  info(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  status(): Promise<{ [key: string]: any; }> {
+  status(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  pull(): Promise<{ [key: string]: any; }> {
+  snapshot(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  push(): Promise<{ [key: string]: any; }> {
+  tags(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  reset(): Promise<{ [key: string]: any; }> {
+  volumes(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
+  audit(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  version(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  // sync
+  hydrate(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  fetch(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  pull(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  push(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  clone(remoteLogId?: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  convertToGraft(remote: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  exportToSqlite(outputPath?: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
 
   abstract prepare(sql: string): {
-    run: (bind?: any[]) => void;
-    all: (bind?: any[]) => Promise<any[]>;
-  };
-  abstract close(): void;
-  abstract selectObjects(sql: string, bind?: any[]): Promise<{ [columnName: string]: any }[]>;
-  abstract transaction(func: (db: BaseServerDatabase) => void): any;
-  abstract exec(opts: string | {
-    sql: string;
-    bind?: any[];
-    rowMode?: "array" | "object";
-    returnValue?: "resultRows" | "saveSql";
-  }): Promise<any>;
+    run: (bind?: any[]) => void
+    all: (bind?: any[]) => Promise<any[]>
+  }
+  abstract close(): void
+  abstract selectObjects(
+    sql: string,
+    bind?: any[]
+  ): Promise<{ [columnName: string]: any }[]>
+  abstract transaction(func: (db: BaseServerDatabase) => void): any
+  abstract exec(
+    opts:
+      | string
+      | {
+          sql: string
+          bind?: any[]
+          rowMode?: "array" | "object"
+          returnValue?: "resultRows" | "saveSql"
+        }
+  ): Promise<any>
   abstract createFunction(opt: {
-    name: string;
-    xFunc: (...args: any[]) => any;
-  }): any;
+    name: string
+    xFunc: (...args: any[]) => any
+  }): any
 }

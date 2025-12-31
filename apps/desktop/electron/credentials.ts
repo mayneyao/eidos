@@ -40,8 +40,17 @@ export interface UserInfo {
     [key: string]: any;
 }
 
+export interface SyncBucketCredentials {
+    bucketName: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    tokenId: string;
+    endpoint: string;
+}
+
 const TOKENS_DIR = 'auth';
 const TOKENS_FILE_NAME = 'oauth_tokens.bin';
+const SYNC_CREDENTIALS_FILE_NAME = 'sync_credentials.bin';
 let warnedAboutPlaintextStorage = false;
 
 async function ensureAppReady() {
@@ -53,6 +62,11 @@ async function ensureAppReady() {
 async function getTokensFilePath(): Promise<string> {
     await ensureAppReady();
     return path.join(app.getPath('userData'), TOKENS_DIR, TOKENS_FILE_NAME);
+}
+
+async function getSyncCredentialsFilePath(providerId: string = 'eidos.space'): Promise<string> {
+    await ensureAppReady();
+    return path.join(app.getPath('userData'), TOKENS_DIR, providerId, SYNC_CREDENTIALS_FILE_NAME);
 }
 
 async function writeSecureTokens(tokensJson: string): Promise<void> {
@@ -99,6 +113,54 @@ async function clearSecureTokens(): Promise<void> {
     } catch (error: any) {
         if (error?.code !== 'ENOENT') {
             console.warn('Failed to clear stored tokens:', error);
+        }
+    }
+}
+
+async function writeSecureSyncCredentials(credentialsJson: string, providerId: string = 'eidos.space'): Promise<void> {
+    const filePath = await getSyncCredentialsFilePath(providerId);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+
+    const encryptionAvailable = safeStorage.isEncryptionAvailable();
+    if (!encryptionAvailable && !warnedAboutPlaintextStorage) {
+        console.warn('Electron safeStorage encryption unavailable; storing sync credentials unencrypted on disk.');
+        warnedAboutPlaintextStorage = true;
+    }
+
+    const payload = encryptionAvailable
+        ? safeStorage.encryptString(credentialsJson)
+        : Buffer.from(credentialsJson, 'utf-8');
+
+    await fs.writeFile(filePath, payload);
+}
+
+async function readSecureSyncCredentials(providerId: string = 'eidos.space'): Promise<string | null> {
+    try {
+        const filePath = await getSyncCredentialsFilePath(providerId);
+        const raw = await fs.readFile(filePath);
+        if (!raw?.length) {
+            return null;
+        }
+
+        return safeStorage.isEncryptionAvailable()
+            ? safeStorage.decryptString(raw)
+            : raw.toString('utf-8');
+    } catch (error: any) {
+        if (error?.code === 'ENOENT') {
+            return null;
+        }
+        console.error('Failed to read stored sync credentials:', error);
+        return null;
+    }
+}
+
+async function clearSecureSyncCredentials(providerId: string = 'eidos.space'): Promise<void> {
+    try {
+        const filePath = await getSyncCredentialsFilePath(providerId);
+        await fs.unlink(filePath);
+    } catch (error: any) {
+        if (error?.code !== 'ENOENT') {
+            console.warn('Failed to clear stored sync credentials:', error);
         }
     }
 }
@@ -339,5 +401,54 @@ export class CredentialsManager {
         }
 
         return tokens.access_token;
+    }
+
+    /**
+     * Store sync bucket credentials securely
+     */
+    static async setSyncCredentials(credentials: SyncBucketCredentials, providerId: string = 'eidos.space'): Promise<void> {
+        try {
+            const credentialsJson = JSON.stringify(credentials);
+            await writeSecureSyncCredentials(credentialsJson, providerId);
+        } catch (error) {
+            console.error('Failed to store sync credentials:', error);
+            throw new Error('Failed to securely store sync credentials');
+        }
+    }
+
+    /**
+     * Retrieve sync bucket credentials from disk
+     */
+    static async getSyncCredentials(providerId: string = 'eidos.space'): Promise<SyncBucketCredentials | null> {
+        try {
+            const credentialsJson = await readSecureSyncCredentials(providerId);
+            if (!credentialsJson) {
+                return null;
+            }
+
+            return JSON.parse(credentialsJson) as SyncBucketCredentials;
+        } catch (error) {
+            console.error('Failed to retrieve sync credentials:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Clear sync bucket credentials
+     */
+    static async clearSyncCredentials(providerId: string = 'eidos.space'): Promise<void> {
+        try {
+            await clearSecureSyncCredentials(providerId);
+        } catch (error) {
+            console.warn('Failed to clear sync credentials from storage:', error);
+        }
+    }
+
+    /**
+     * Check if sync credentials are available
+     */
+    static async hasSyncCredentials(providerId: string = 'eidos.space'): Promise<boolean> {
+        const credentials = await this.getSyncCredentials(providerId);
+        return !!credentials;
     }
 }

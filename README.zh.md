@@ -80,4 +80,6 @@
 
 ## 许可证
 
-本项目采用 AGPL 许可证条款。
+本项目整体采用 AGPL 协议。为了方便集成和生态建设，特定的 package 采用 MIT 协议：
+
+- `@eidos.space/core`: [MIT](./packages/core/LICENSE)

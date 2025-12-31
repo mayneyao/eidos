@@ -21,6 +21,7 @@ export const useSpace = () => {
       // In desktop mode, use IPC to get workspace list
       try {
         const spaces: SpaceInfo[] = await window.eidos.invoke('list-spaces')
+        console.log('spaces', spaces)
         setSpaceList(spaces)
       } catch (error) {
         console.error('Failed to get spaces from Electron:', error)
@@ -89,7 +90,10 @@ export const useSpace = () => {
     if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
       // In desktop mode, use new IPC interface
       try {
-        const result = await window.eidos.invoke('register-space', spaceName, spaceName)
+        const result = await window.eidos.invoke('register-space', spaceName, {
+          customName: spaceName,
+          remoteUrl: enableSync ? volumeId : undefined,
+        })
         if (result.success) {
           await updateSpaceList()
           return result

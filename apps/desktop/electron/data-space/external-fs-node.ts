@@ -1,24 +1,23 @@
-import * as fs from 'node:fs/promises'
-import * as path from 'node:path'
-import type { Dirent, FSWatcher } from 'node:fs'
-import { watch as fsWatch } from 'node:fs'
+import { watch as fsWatch, type Dirent, type FSWatcher } from "node:fs"
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 import type {
-  IExternalFileSystem,
-  IReaddirOptions,
-  IMkdirOptions,
   IDirectoryEntry,
+  IExternalFileSystem,
+  IMkdirOptions,
   IReadFileOptions,
-  IWriteFileOptions,
+  IReaddirOptions,
   IStats,
   IWatchEvent,
-  IWatchOptions
-} from '@eidos.space/core/types/IExternalFileSystem'
+  IWatchOptions,
+  IWriteFileOptions,
+} from "@eidos.space/core/types/IExternalFileSystem"
 
 /**
  * Helper to get the path to the ripgrep binary
  * Handles both development and production (ASAR) environments
  */
-import { searchWithRg } from './search'
+import { searchWithRg } from "./search"
 
 /**
  * Node.js implementation for desktop environment
@@ -32,7 +31,7 @@ import { searchWithRg } from './search'
 export class NodeExternalFileSystem implements IExternalFileSystem {
   /**
    * @param resolvePath Function to resolve ~/ and @/mountName paths to absolute file system paths
-   * 
+   *
    * @example
    * new NodeExternalFileSystem(async (fsPath) => {
    *   if (fsPath.startsWith('~/')) {
@@ -51,7 +50,7 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   constructor(
     private resolvePath: (path: string) => Promise<string | null>,
     private getMounts: () => Promise<Array<{ name: string; path: string }>>
-  ) { }
+  ) {}
 
   /**
    * Normalize virtual path to ensure consistent format
@@ -61,17 +60,17 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
    */
   private normalizeVirtualPath(fsPath: string): string {
     // Handle ~ path: '~' can be used alone and is normalized to '~/'
-    if (fsPath === '~' || fsPath.startsWith('~/')) {
-      return fsPath === '~' ? '~/' : fsPath
+    if (fsPath === "~" || fsPath.startsWith("~/")) {
+      return fsPath === "~" ? "~/" : fsPath
     }
     // Handle @ path: '@/mountName/...' format
     // Note: '@/' alone is invalid and will be rejected by resolvePath
-    if (fsPath.startsWith('@/')) {
+    if (fsPath.startsWith("@/")) {
       return fsPath
     }
     // If it starts with ~ but not ~/, normalize it (e.g., '~file' -> '~/file')
-    if (fsPath.startsWith('~') && fsPath.length > 1 && fsPath[1] !== '/') {
-      return '~/' + fsPath.substring(1)
+    if (fsPath.startsWith("~") && fsPath.length > 1 && fsPath[1] !== "/") {
+      return "~/" + fsPath.substring(1)
     }
     return fsPath
   }
@@ -93,7 +92,12 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
    * Convert Dirent to IDirectoryEntry
    * Converts absolute paths from Dirent to virtual paths (~/ or @/)
    */
-  private direntToEntry(dirent: Dirent, fsPath: string, queryAbsolutePath: string, isRecursive: boolean = false): IDirectoryEntry {
+  private direntToEntry(
+    dirent: Dirent,
+    fsPath: string,
+    queryAbsolutePath: string,
+    isRecursive: boolean = false
+  ): IDirectoryEntry {
     let entryName: string
     let relativePath: string
     let relativeParentPath: string
@@ -101,15 +105,15 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
     if (isRecursive) {
       // In recursive mode, dirent.name is already the relative path (e.g., "subdir/file.txt")
       // This is the full relative path from the queried directory
-      entryName = dirent.name.replace(/\\/g, '/')
+      entryName = dirent.name.replace(/\\/g, "/")
       relativePath = entryName
 
       // For parent path, get the directory part
-      const lastSlashIndex = entryName.lastIndexOf('/')
+      const lastSlashIndex = entryName.lastIndexOf("/")
       if (lastSlashIndex > 0) {
         relativeParentPath = entryName.substring(0, lastSlashIndex)
       } else {
-        relativeParentPath = ''
+        relativeParentPath = ""
       }
     } else {
       // Non-recursive mode: dirent.name is just the filename/directory name
@@ -124,18 +128,18 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
     }
 
     // Normalize to forward slashes for virtual paths
-    relativePath = relativePath.replace(/\\/g, '/')
-    relativeParentPath = relativeParentPath.replace(/\\/g, '/')
+    relativePath = relativePath.replace(/\\/g, "/")
+    relativeParentPath = relativeParentPath.replace(/\\/g, "/")
 
     // Convert relative paths back to virtual paths (~/ or @/)
     const normalizeVirtualPath = (relPath: string): string => {
-      if (!relPath || relPath === '.') {
+      if (!relPath || relPath === ".") {
         // Root level entries should have the query path as their parent
         // Ensure it ends with / for consistency
-        return fsPath.endsWith('/') ? fsPath : fsPath + '/'
+        return fsPath.endsWith("/") ? fsPath : fsPath + "/"
       }
       // Ensure fsPath ends with / for proper path joining
-      const virtualPathBase = fsPath.endsWith('/') ? fsPath : fsPath + '/'
+      const virtualPathBase = fsPath.endsWith("/") ? fsPath : fsPath + "/"
       return virtualPathBase + relPath
     }
 
@@ -143,51 +147,67 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
     const virtualParentPath = normalizeVirtualPath(relativeParentPath)
 
     // Only convert kind from Dirent methods to serializable string
-    let kind: IDirectoryEntry['kind']
+    let kind: IDirectoryEntry["kind"]
     if (dirent.isFile()) {
-      kind = 'file'
+      kind = "file"
     } else if (dirent.isDirectory()) {
-      kind = 'directory'
+      kind = "directory"
     } else if (dirent.isSymbolicLink()) {
-      kind = 'symbolicLink'
+      kind = "symbolicLink"
     } else if (dirent.isBlockDevice()) {
-      kind = 'blockDevice'
+      kind = "blockDevice"
     } else if (dirent.isCharacterDevice()) {
-      kind = 'characterDevice'
+      kind = "characterDevice"
     } else if (dirent.isFIFO()) {
-      kind = 'fifo'
+      kind = "fifo"
     } else if (dirent.isSocket()) {
-      kind = 'socket'
+      kind = "socket"
     } else {
-      kind = 'file' // Fallback
+      kind = "file" // Fallback
     }
 
     return {
       name: entryName,
       path: virtualPath,
       parentPath: virtualParentPath,
-      kind
+      kind,
     }
   }
 
   /**
    * Read directory contents
    */
-  async readdir(fsPath: string, options: { withFileTypes: true; recursive?: boolean }): Promise<IDirectoryEntry[]>
-  async readdir(fsPath: string, options?: { withFileTypes?: false; recursive?: boolean }): Promise<string[]>
-  async readdir(fsPath: string, options?: IReaddirOptions): Promise<string[] | IDirectoryEntry[]> {
+  async readdir(
+    fsPath: string,
+    options: { withFileTypes: true; recursive?: boolean }
+  ): Promise<IDirectoryEntry[]>
+  async readdir(
+    fsPath: string,
+    options?: { withFileTypes?: false; recursive?: boolean }
+  ): Promise<string[]>
+  async readdir(
+    fsPath: string,
+    options?: IReaddirOptions
+  ): Promise<string[] | IDirectoryEntry[]> {
     // Normalize the path to ensure consistent format (e.g., '~' -> '~/')
     const normalizedFsPath = this.normalizeVirtualPath(fsPath)
     const absolutePath = await this.getAbsolutePath(fsPath)
 
     if (options?.withFileTypes) {
-      const dirents = await fs.readdir(absolutePath, {
+      const dirents = (await fs.readdir(absolutePath, {
         withFileTypes: true,
-        recursive: options.recursive
-      }) as Dirent[]
+        recursive: options.recursive,
+      })) as Dirent[]
 
       // Use normalized path for consistent virtual path generation
-      return dirents.map(dirent => this.direntToEntry(dirent, normalizedFsPath, absolutePath, !!options.recursive))
+      return dirents.map((dirent) =>
+        this.direntToEntry(
+          dirent,
+          normalizedFsPath,
+          absolutePath,
+          !!options.recursive
+        )
+      )
     }
 
     return await fs.readdir(absolutePath, { recursive: options?.recursive })
@@ -196,7 +216,10 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   /**
    * Create directory
    */
-  async mkdir(fsPath: string, options?: IMkdirOptions): Promise<string | undefined> {
+  async mkdir(
+    fsPath: string,
+    options?: IMkdirOptions
+  ): Promise<string | undefined> {
     const absolutePath = await this.getAbsolutePath(fsPath)
     return await fs.mkdir(absolutePath, { recursive: options?.recursive })
   }
@@ -205,8 +228,14 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
    * Read file contents
    */
   async readFile(fsPath: string): Promise<Uint8Array>
-  async readFile(fsPath: string, options: { encoding: BufferEncoding; flag?: string } | BufferEncoding): Promise<string>
-  async readFile(fsPath: string, options?: IReadFileOptions | BufferEncoding): Promise<string | Uint8Array> {
+  async readFile(
+    fsPath: string,
+    options: { encoding: BufferEncoding; flag?: string } | BufferEncoding
+  ): Promise<string>
+  async readFile(
+    fsPath: string,
+    options?: IReadFileOptions | BufferEncoding
+  ): Promise<string | Uint8Array> {
     const absolutePath = await this.getAbsolutePath(fsPath)
 
     if (!options) {
@@ -216,21 +245,28 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
     }
 
     // Handle string encoding or options object
-    const encoding = typeof options === 'string' ? options : options.encoding
+    const encoding = typeof options === "string" ? options : options.encoding
     if (encoding) {
-      const flag = typeof options === 'object' ? options.flag : undefined
+      const flag = typeof options === "object" ? options.flag : undefined
       return await fs.readFile(absolutePath, { encoding, flag })
     }
 
     // No encoding but has options (e.g., just flag)
-    const buffer = await fs.readFile(absolutePath, typeof options === 'object' ? { flag: options.flag } : undefined)
+    const buffer = await fs.readFile(
+      absolutePath,
+      typeof options === "object" ? { flag: options.flag } : undefined
+    )
     return new Uint8Array(buffer)
   }
 
   /**
    * Write file contents
    */
-  async writeFile(fsPath: string, data: string | Uint8Array, options?: IWriteFileOptions | BufferEncoding): Promise<void> {
+  async writeFile(
+    fsPath: string,
+    data: string | Uint8Array,
+    options?: IWriteFileOptions | BufferEncoding
+  ): Promise<void> {
     const absolutePath = await this.getAbsolutePath(fsPath)
 
     // Convert Uint8Array to Buffer for Node.js
@@ -241,7 +277,7 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       return
     }
 
-    if (typeof options === 'string') {
+    if (typeof options === "string") {
       await fs.writeFile(absolutePath, nodeData, { encoding: options })
     } else {
       await fs.writeFile(absolutePath, nodeData, options)
@@ -271,7 +307,7 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       isSocket: stats.isSocket(),
       mode: stats.mode,
       uid: stats.uid,
-      gid: stats.gid
+      gid: stats.gid,
     }
   }
 
@@ -304,14 +340,17 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
    * Watch for changes on a file or directory
    * Returns an AsyncIterable that yields watch events
    */
-  async *watch(fsPath: string, options?: IWatchOptions): AsyncIterable<IWatchEvent> {
+  async *watch(
+    fsPath: string,
+    options?: IWatchOptions
+  ): AsyncIterable<IWatchEvent> {
     const absolutePath = await this.getAbsolutePath(fsPath)
 
     // Create a watcher using Node.js fs.watch
     const watcher = fsWatch(absolutePath, {
-      encoding: options?.encoding || 'utf8',
+      encoding: options?.encoding || "utf8",
       persistent: options?.persistent !== false, // default true
-      recursive: options?.recursive || false
+      recursive: options?.recursive || false,
     })
 
     // Handle abort signal
@@ -320,12 +359,15 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       abortListener = () => {
         watcher.close()
       }
-      options.signal.addEventListener('abort', abortListener)
+      options.signal.addEventListener("abort", abortListener)
     }
 
     try {
       // Convert Node.js watcher events to our AsyncIterable format
-      for await (const event of this.createWatchAsyncIterator(watcher, fsPath)) {
+      for await (const event of this.createWatchAsyncIterator(
+        watcher,
+        fsPath
+      )) {
         if (options?.signal?.aborted) {
           break
         }
@@ -334,7 +376,7 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
     } finally {
       // Clean up
       if (abortListener && options?.signal) {
-        options.signal.removeEventListener('abort', abortListener)
+        options.signal.removeEventListener("abort", abortListener)
       }
       watcher.close()
     }
@@ -343,20 +385,29 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   /**
    * Create an AsyncIterator from Node.js fs.FSWatcher
    */
-  private async *createWatchAsyncIterator(watcher: FSWatcher, watchedPath: string): AsyncIterable<IWatchEvent> {
+  private async *createWatchAsyncIterator(
+    watcher: FSWatcher,
+    watchedPath: string
+  ): AsyncIterable<IWatchEvent> {
     const eventQueue: IWatchEvent[] = []
     let resolveNext: ((value: IWatchEvent) => void) | undefined
     let rejectNext: ((error: Error) => void) | undefined
     let isDone = false
 
     // Set up event handlers
-    const onChange = (eventType: 'rename' | 'change', filename: string | null) => {
+    const onChange = (
+      eventType: "rename" | "change",
+      filename: string | null
+    ) => {
       // Convert filename to relative path based on watched path
       let relativeFilename = filename
       if (filename) {
         // Convert absolute path back to virtual path
         const watchedVirtualPath = this.normalizeVirtualPath(watchedPath)
-        if (watchedVirtualPath.startsWith('~/') || watchedVirtualPath.startsWith('@/')) {
+        if (
+          watchedVirtualPath.startsWith("~/") ||
+          watchedVirtualPath.startsWith("@/")
+        ) {
           // For virtual paths, we need to maintain the relative structure
           // Just use the filename as-is since it should already be relative
           relativeFilename = filename
@@ -365,7 +416,7 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
 
       const event: IWatchEvent = {
         eventType,
-        filename: relativeFilename || ''
+        filename: relativeFilename || "",
       }
 
       if (resolveNext) {
@@ -382,7 +433,7 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
         rejectNext = undefined
       } else {
         // If no one is waiting, just log the error for now
-        console.error('Watch error:', error)
+        console.error("Watch error:", error)
       }
     }
 
@@ -390,16 +441,16 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       isDone = true
       if (rejectNext) {
         // Don't reject on close, just resolve with a signal to stop iteration
-        resolveNext?.({ eventType: 'change', filename: '' } as IWatchEvent)
+        resolveNext?.({ eventType: "change", filename: "" } as IWatchEvent)
         rejectNext = undefined
         resolveNext = undefined
       }
     }
 
     // Attach event listeners
-    watcher.on('change', onChange)
-    watcher.on('error', onError)
-    watcher.on('close', onClose)
+    watcher.on("change", onChange)
+    watcher.on("error", onError)
+    watcher.on("close", onClose)
 
     try {
       while (!isDone) {
@@ -414,7 +465,7 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
           })
 
           // Check if this was a close signal (empty event)
-          if (event.filename === '' && isDone) {
+          if (event.filename === "" && isDone) {
             break
           }
 
@@ -423,9 +474,9 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       }
     } finally {
       // Clean up event listeners
-      watcher.off('change', onChange)
-      watcher.off('error', onError)
-      watcher.off('close', onClose)
+      watcher.off("change", onChange)
+      watcher.off("error", onError)
+      watcher.off("close", onClose)
     }
   }
 
@@ -437,21 +488,25 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
    */
   async search(query: string): Promise<string[]> {
     // Parse query into keywords for filtering results
-    const keywords = query.split(/\s+/).filter(k => k.length > 0)
+    const keywords = query.split(/\s+/).filter((k) => k.length > 0)
     if (keywords.length === 0) {
       return []
     }
 
     // Get all paths to search (project root + mounts)
     const mounts = await this.getMounts()
-    const projectRoot = await this.resolvePath('~/')
-    const spaceFilePath = await this.resolvePath('~/.eidos')
+    const projectRoot = await this.resolvePath("~/")
+    const spaceFilePath = await this.resolvePath("~/.eidos")
 
     if (!projectRoot || !spaceFilePath) {
       return []
     }
 
-    const searchPaths = [projectRoot, spaceFilePath, ...mounts.map(m => m.path)]
+    const searchPaths = [
+      projectRoot,
+      spaceFilePath,
+      ...mounts.map((m) => m.path),
+    ]
 
     try {
       // Perform search using the helper
@@ -468,7 +523,9 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
         for (const mount of mounts) {
           if (absolutePath.startsWith(mount.path)) {
             const relative = path.relative(mount.path, absolutePath)
-            virtualPath = relative ? `@/${mount.name}/${relative}` : `@/${mount.name}`
+            virtualPath = relative
+              ? `@/${mount.name}/${relative}`
+              : `@/${mount.name}`
             foundInMount = true
             break
           }
@@ -484,7 +541,9 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
           // Filter against ALL keywords (case-insensitive)
           // We check against the virtual path so it matches what user sees
           const lowerPath = virtualPath.toLowerCase()
-          const allMatch = keywords.every(k => lowerPath.includes(k.toLowerCase()))
+          const allMatch = keywords.every((k) =>
+            lowerPath.includes(k.toLowerCase())
+          )
 
           if (allMatch) {
             results.add(virtualPath)
@@ -494,7 +553,7 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
 
       return Array.from(results)
     } catch (error: any) {
-      console.error('Search failed:', error)
+      console.error("Search failed:", error)
       return []
     }
   }

@@ -1,6 +1,7 @@
 import {
   Cable,
   Cog,
+  Database,
   LockIcon,
   PinIcon,
   PinOffIcon,
@@ -15,6 +16,7 @@ import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { usePeer } from "@/apps/web-app/hooks/use-peer"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useSpaceSyncStatus } from "@/apps/web-app/hooks/use-sync-status"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { AvatarList } from "@/components/avatar-list"
 import { Button } from "@/components/ui/button"
@@ -50,6 +52,7 @@ export const NavStatus = () => {
   const nameList = currentCollaborators.map((c) => c.name)
   const currentNode = useCurrentNode()
   const { pin, unpin } = useNode()
+
 
   const toggleGodMode = () => {
     setGodMode(!isGodMode)

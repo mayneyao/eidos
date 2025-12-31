@@ -24,6 +24,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
@@ -33,8 +34,12 @@ export const Trash = () => {
   const [open, setOpen] = useState(false)
   const { t } = useTranslation()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false)
+  const [clearProgressOpen, setClearProgressOpen] = useState(false)
+  const [clearProgress, setClearProgress] = useState(0)
   const allDeletedNodes = useAllNodes({ isDeleted: true })
-  const { restoreNode, permanentlyDeleteNode } = useSqlite()
+  const { restoreNode, permanentlyDeleteNode, permanentlyDeleteNodes } =
+    useSqlite()
   const [toDeleteNode, setToDeleteNode] = useState<ITreeNode | null>(null)
   const [search, setSearch] = useState("")
   const allNodes = useMemo(() => {
@@ -77,6 +82,23 @@ export const Trash = () => {
     }
   }
 
+  const confirmClearAll = async () => {
+    setClearAllConfirmOpen(false)
+    setClearProgressOpen(true)
+    setClearProgress(0)
+
+    try {
+      await permanentlyDeleteNodes(allDeletedNodes, (progress) => {
+        setClearProgress(progress)
+      })
+      setClearProgressOpen(false)
+      setOpen(false)
+    } catch (error) {
+      setClearProgressOpen(false)
+      console.error("Failed to clear trash:", error)
+    }
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -97,11 +119,24 @@ export const Trash = () => {
               {t("sidebar.trash.restoreOrPermanentlyDeleteNodes")}
             </DialogDescription>
           </DialogHeader>
-          <Input
-            placeholder={t("common.search")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          ></Input>
+          <div className="flex gap-2">
+            <Input
+              placeholder={t("common.search")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1"
+            />
+            {Boolean(allDeletedNodes.length) && (
+              <Button
+                variant="destructive"
+                size="xs"
+                onClick={() => setClearAllConfirmOpen(true)}
+                className="shrink-0"
+              >
+                {t("sidebar.trash.clearAll")}
+              </Button>
+            )}
+          </div>
 
           <ScrollArea className="h-[500px] w-full">
             {!Boolean(allDeletedNodes.length) && (
@@ -158,6 +193,47 @@ export const Trash = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog
+        open={clearAllConfirmOpen}
+        onOpenChange={setClearAllConfirmOpen}
+      >
+        <AlertDialogTrigger></AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("sidebar.trash.clearAllConfirmTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("sidebar.trash.clearAllConfirmDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmClearAll}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {t("common.continue")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Dialog open={clearProgressOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{t("sidebar.trash.clearingTrash")}</DialogTitle>
+            <DialogDescription>
+              {t("sidebar.trash.clearingTrashDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Progress value={clearProgress} className="w-full" />
+            <p className="text-sm text-muted-foreground text-center">
+              {clearProgress}% {t("common.complete")}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

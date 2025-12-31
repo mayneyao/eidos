@@ -218,7 +218,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
 
     try {
       // Check if this is a virtual node (has nodeType in metadata)
-      const isVirtualNode = node.metadata?.nodeType !== undefined
+      const isVirtualNode = node.metadata?.nodeType !== undefined && node.metadata?.nodeType !== "extension"
 
       if (isVirtualNode && node.metadata?.nodeId) {
         // For virtual nodes, update the node name directly via database API

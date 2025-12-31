@@ -1,13 +1,11 @@
-import { handleFunctionCall } from '@/packages/core/rpc';
-import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
 import { OAUTH_CONFIG } from '@/lib/const';
+import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
 import { containsBinaryData, parseMultipartFormData, processBinaryDataForResponse, ProxyHandler, restoreBinaryData } from '@eidos.space/sandbox';
 import { serve } from '@hono/node-server';
 import { BrowserWindow } from 'electron';
 import { log } from 'electron-log';
 import { Hono } from 'hono';
 import path from 'path';
-import { getConfigManager } from '../config';
 import { CredentialsManager, type OAuthTokens, type UserInfo } from '../credentials';
 import { getOrSetDataSpace } from '../data-space';
 import { getFileFromPath, getSpaceFileFromPath } from '../file-system/space';
@@ -406,7 +404,9 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
 
             const dataSpace = await getOrSetDataSpace(spaceId);
             log('rpc', method, params, spaceId, dataSpace.dbName)
-            const result = await handleFunctionCall({ method, params, space: spaceId, dbName: spaceId, userId: 'unknown' }, dataSpace);
+
+            const result = await (dataSpace as any)._executePayload({ method, params, space: spaceId, dbName: spaceId, userId: 'unknown' })
+            // const result = await handleFunctionCall({ method, params, space: spaceId, dbName: spaceId, userId: 'unknown' }, dataSpace);
 
             // Check if result contains binary data and handle accordingly
             if (containsBinaryData(result)) {

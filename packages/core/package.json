@@ -18,7 +18,7 @@
     "sdk"
   ],
   "author": "mayneyao",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.5.2",

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
+import { Check, ChevronsUpDown, FolderOpen, Plus, PlusCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
@@ -31,16 +31,27 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
-import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
+import { useAuthOptional } from "@/components/auth-provider"
 
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 
 interface ISpaceSelectProps {
   spaces: SpaceInfo[]
+}
+
+const getRemotePathname = (url?: string) => {
+  if (!url) return ""
+  try {
+    const u = new URL(url)
+    return u.pathname
+  } catch (e) {
+    return url
+  }
 }
 
 export function SpaceSelect({ spaces }: ISpaceSelectProps) {
@@ -50,15 +61,61 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
   const { space } = useCurrentPathInfo()
+  const auth = useAuthOptional()
 
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false)
   const [selectedFolder, setSelectedFolder] = React.useState<string>("")
+  const [remoteUrl, setRemoteUrl] = React.useState<string>("")
   const [isSelectingFolder, setIsSelectingFolder] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  const [globalSyncEnabled, setGlobalSyncEnabled] = React.useState(false)
+  const [remoteSpaces, setRemoteSpaces] = React.useState<string[]>([])
+  const [loadingRemoteSpaces, setLoadingRemoteSpaces] = React.useState(false)
+
+  // Load global sync config
+  React.useEffect(() => {
+    const loadGlobalSyncConfig = async () => {
+      if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+        try {
+          const syncConfig = await window.eidos.config.get("sync")
+          setGlobalSyncEnabled(syncConfig?.enabled ?? false)
+        } catch {
+          setGlobalSyncEnabled(false)
+        }
+      }
+    }
+    loadGlobalSyncConfig()
+  }, [])
+
+  // Load remote spaces when sync is enabled
+  React.useEffect(() => {
+    const loadRemoteSpaces = async () => {
+      if (globalSyncEnabled && isDesktopMode && typeof window !== "undefined" && window.eidos) {
+        setLoadingRemoteSpaces(true)
+        try {
+          const result = await window.eidos.invoke("list-remote-spaces", "eidos.space")
+          if (result.success && result.spaces) {
+            setRemoteSpaces(result.spaces)
+          } else {
+            setRemoteSpaces([])
+          }
+        } catch (error) {
+          console.error("Failed to load remote spaces:", error)
+          setRemoteSpaces([])
+        } finally {
+          setLoadingRemoteSpaces(false)
+        }
+      } else {
+        setRemoteSpaces([])
+      }
+    }
+    loadRemoteSpaces()
+  }, [globalSyncEnabled])
 
   const reset = () => {
     setSelectedFolder("")
+    setRemoteUrl("")
   }
 
   const goto = useGoto()
@@ -107,12 +164,15 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     setLoading(true)
     try {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
-        // Desktop mode: create space with selected folder
+        // Desktop mode: create space with selected folder and optional remote URL
         const result = await window.eidos.invoke(
           "register-space",
-          selectedFolder
+          selectedFolder,
+          {
+            remoteUrl: remoteUrl || undefined,
+          }
         )
-        
+
         if (result.success && result.space) {
           await updateSpaceList()
           await handleSelect(result.space.id as string)
@@ -143,14 +203,30 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
             role="combobox"
             size="sm"
             aria-expanded={open}
-            className="w-full min-w-[180px] justify-between"
+            className="w-full min-w-[180px] justify-between h-auto py-2"
           >
             {space ? (
               <div className="flex items-center gap-3">
                 <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-80" />
-                <span>
-                  {spaces.find((s) => s.id === space)?.name || space}
-                </span>
+                <div className="flex items-center justify-between w-full overflow-hidden text-left">
+                  <span className="truncate shrink-0 font-medium mr-2">
+                    {spaces.find((s) => s.id === space)?.name || space}
+                  </span>
+                  {(() => {
+                    const currentSpaceInfo = spaces.find((s) => s.id === space)
+                    if (
+                      currentSpaceInfo?.sync?.enabled &&
+                      currentSpaceInfo.sync.remote
+                    ) {
+                      return (
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {getRemotePathname(currentSpaceInfo.sync.remote)}
+                        </span>
+                      )
+                    }
+                    return null
+                  })()}
+                </div>
               </div>
             ) : (
               t("space.select.selectDatabase")
@@ -159,12 +235,13 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         </PopoverTrigger>
         <PopoverContent className="w-full min-w-[180px] p-0">
           <Command>
+            <CommandInput
+              placeholder={t("space.select.searchDatabase")}
+              value={searchValue}
+              onValueChange={setSearchValue}
+              autoFocus
+            />
             <CommandList>
-              <CommandInput
-                placeholder={t("space.select.searchDatabase")}
-                value={searchValue}
-                onValueChange={setSearchValue}
-              />
               <CommandEmpty>
                 <div>{t("common.noResultsFound")}</div>
               </CommandEmpty>
@@ -186,13 +263,20 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                           : "opacity-0"
                       )}
                     />
-                    {space.name}
+                    <div className="flex items-center justify-between w-full overflow-hidden">
+                      <span className="truncate shrink-0 mr-2">
+                        {space.name}
+                      </span>
+                      {space.sync?.enabled && space.sync.remote && (
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {getRemotePathname(space.sync.remote)}
+                        </span>
+                      )}
+                    </div>
                   </CommandItem>
                 ))}
               </CommandGroup>
-            </CommandList>
-            <CommandSeparator />
-            <CommandList>
+              <CommandSeparator />
               <CommandGroup>
                 <DialogTrigger asChild>
                   <CommandItem
@@ -252,6 +336,72 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                   {t("space.select.folderDescription")}
                 </p>
               </div>
+              {globalSyncEnabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="remote-url">
+                    {t("space.select.remoteUrl")} ({t("common.optional")})
+                  </Label>
+                  <div className="relative">
+                    <Command className="rounded-lg border shadow-md">
+                      <CommandInput
+                        placeholder={t("space.select.remoteUrlPlaceholder")}
+                        value={remoteUrl}
+                        onValueChange={setRemoteUrl}
+                        className="h-9"
+                      />
+                      <CommandList className="max-h-48">
+                        <CommandEmpty>
+                          {t("common.noResultsFound")}
+                        </CommandEmpty>
+                        {remoteSpaces.length > 0 && (
+                          <CommandGroup heading={t("space.select.existingRemoteSpaces")}>
+                            {remoteSpaces.map((space) => {
+                              const spaceName = space.replace(/\/$/, "")
+                              const username = auth?.user?.username || "username"
+                              const fullUrl = `https://eidos.space/${username}/${spaceName}`
+                              return (
+                                <CommandItem
+                                  key={space}
+                                  value={fullUrl}
+                                  onSelect={(value) => {
+                                    setRemoteUrl(value)
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <FolderOpen className="mr-2 h-4 w-4" />
+                                  <span>{spaceName}</span>
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        )}
+                        <CommandSeparator />
+                        <CommandGroup>
+                          <CommandItem
+                            onSelect={() => {
+                              window.open("https://eidos.space/new", "_blank")
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            <span>{t("space.select.createNewRemoteSpace")}</span>
+                          </CommandItem>
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </div>
+
+                  {loadingRemoteSpaces && (
+                    <div className="text-sm text-muted-foreground">
+                      {t("space.select.loadingRemoteSpaces")}
+                    </div>
+                  )}
+
+                  <p className="text-sm text-muted-foreground">
+                    {t("space.select.remoteUrlDescription")}
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">

@@ -157,13 +157,30 @@ order by distance limit ${limit};`
         const vectorColumnName = `${columnName}__vec`
         const vectorMetaColumnName = `${columnName}__vec_meta`
 
-        try {
-            // Drop the vector and vector meta columns
-            db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${vectorColumnName}`);
-            db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${vectorMetaColumnName}`);
-        } catch (error: any) {
-            // Ignore errors if columns don't exist
-            console.log(`Some columns might not exist while trying to drop them: ${error.message}`);
+        // Check if vector columns exist before attempting to drop them
+        const checkColumnsSql = `
+            SELECT name FROM pragma_table_info('${tableName}') 
+            WHERE name IN ('${vectorColumnName}', '${vectorMetaColumnName}')
+        `
+        const existingColumns = await this.dataSpace.exec2(checkColumnsSql)
+        const existingColumnNames = existingColumns.map((col: any) => col.name)
+
+        // Drop the vector column if it exists
+        if (existingColumnNames.includes(vectorColumnName)) {
+            try {
+                db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${vectorColumnName}`);
+            } catch (error: any) {
+                console.error(`Error dropping vector column: ${error.message}`);
+            }
+        }
+
+        // Drop the vector meta column if it exists
+        if (existingColumnNames.includes(vectorMetaColumnName)) {
+            try {
+                db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${vectorMetaColumnName}`);
+            } catch (error: any) {
+                console.error(`Error dropping vector meta column: ${error.message}`);
+            }
         }
 
         // Drop the trigger if it exists

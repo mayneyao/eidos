@@ -121,7 +121,9 @@ export class SpaceRegistry extends BaseSpaceRegistry {
                     // Register the migrated space using base class method
                     const space = this.registerSpace(
                         spacePath,
-                        folder.charAt(0).toUpperCase() + folder.slice(1)
+                        {
+                            customName: folder.charAt(0).toUpperCase() + folder.slice(1),
+                        }
                     );
                     migratedSpaces.push(space);
                 }
@@ -154,7 +156,9 @@ export class SpaceRegistry extends BaseSpaceRegistry {
         fs.mkdirSync(defaultSpacePath, { recursive: true });
         
         // Register the default space using base class method
-        const space = this.registerSpace(defaultSpacePath, 'Default');
+        const space = this.registerSpace(defaultSpacePath, {
+            customName: 'Default',
+        });
         this.setLastOpenedSpace(space.id);
 
         console.log('Created default space');

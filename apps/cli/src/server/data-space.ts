@@ -139,7 +139,6 @@ export async function getDataSpace(spaceId: string): Promise<DataSpace> {
     context: {
       setInterval,
     },
-    hasLoadExtension: true,
     dataEventChannel: createMockBroadcastChannel(`space-${spaceId}`) as any,
     enableFTS: true,
   });

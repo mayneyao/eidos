@@ -7,6 +7,7 @@ import { openCommand } from './commands/open';
 import { installCommand, uninstallCommand, statusCommand } from './commands/install';
 import { mountCommand } from './commands/mount';
 import { unmountCommand } from './commands/unmount';
+import { graftInitCommand } from './commands/graft';
 
 const program = new Command();
 
@@ -87,6 +88,33 @@ program
   .argument('<name>', 'mount name to remove')
   .action(async (name: string) => {
     await unmountCommand(name);
+  });
+
+// Graft command
+const graftCommand = program
+  .command('graft')
+  .description('Graft storage management commands');
+
+graftCommand
+  .command('init')
+  .description('Initialize graft storage for syncing')
+  .argument('[path]', 'Path to the space (defaults to current directory)')
+  .option('-r, --remote <url>', 'Remote graft URL (e.g., https://eidos.space/username/space.graft)')
+  .option('--access-key-id <key>', 'AWS access key ID')
+  .option('--secret-access-key <key>', 'AWS secret access key')
+  .option('--bucket-name <name>', 'S3 bucket name (default: eidos-sync)')
+  .option('--endpoint <url>', 'S3 endpoint URL (default: https://s3.eidos.space)')
+  .action(async (targetPath?: string, options?: {
+    remote?: string;
+    accessKeyId?: string;
+    secretAccessKey?: string;
+    bucketName?: string;
+    endpoint?: string;
+  }) => {
+    await graftInitCommand({
+      path: targetPath,
+      ...options,
+    });
   });
 
 // Default action: if a single argument is provided without a command, treat it as 'open'

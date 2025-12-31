@@ -4,7 +4,7 @@ import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import type { ITreeNode } from "@/packages/core/types/ITreeNode";
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
-import { getWeek, isDayPageId, isWeekNodeId } from "@/lib/utils"
+import { getWeek, getWeekInfo, isDayPageId, isWeekNodeId } from "@/lib/utils"
 
 import { useExtensionByIdOrSlug } from "@/apps/web-app/hooks/use-extension"
 import { useNodeStore } from "@/apps/web-app/store/node-store"
@@ -104,12 +104,11 @@ export const useCurrentNodePath = ({
   }, [getNode, nodeId, parentId])
   if (!nodeId) return []
   if (isWeekNodeId(nodeId)) {
-    const week = getWeek(nodeId)
-    const year = nodeId.slice(0, 4)
+    const { week, year } = getWeekInfo(nodeId)
     const formattedWeek = week.toString().padStart(2, "0")
     return [
       {
-        id: year,
+        id: year.toString(),
         name: `Year ${year}`,
         path: `journals?year=${year}`,
         type: null,
@@ -123,13 +122,12 @@ export const useCurrentNodePath = ({
     ]
   }
   if (isDayPageId(nodeId)) {
-    const week = getWeek(nodeId)
-    const year = nodeId.slice(0, 4)
+    const { week, year } = getWeekInfo(nodeId)
     const formattedWeek = week.toString().padStart(2, "0")
-
+ 
     return [
       {
-        id: year,
+        id: year.toString(),
         name: `Year ${year}`,
         path: `journals?year=${year}`,
         type: null,

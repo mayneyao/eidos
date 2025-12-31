@@ -1,38 +1,36 @@
-import { MsgType } from "@/lib/const";
-import {
-  getTableIdByRawTableName
-} from "@/lib/utils";
-import { ColumnTableName } from "../sqlite/const";
-import type { IField } from "../types/IField";
-import type { IExternalFileSystem } from "../types/IExternalFileSystem";
+import { MsgType } from "@/lib/const"
+import { getTableIdByRawTableName } from "@/lib/utils"
 
-import { DataChangeEventHandler } from "../data-pipeline/DataChangeEventHandler";
-import { DataChangeTrigger } from "../data-pipeline/DataChangeTrigger";
-import { LinkRelationUpdater } from "../data-pipeline/LinkRelationUpdater";
-import { TableFullTextSearch } from "../data-pipeline/TableFullTextSearch";
-import { TableSemanticSearch } from "../data-pipeline/TableSemanticSearch";
-import { SQLiteUndoRedo } from "../data-pipeline/UndoRedo";
-import { DbMigrator } from "../db-migrator/DbMigrator";
-import { CsvImportAndExport } from "../import-and-export/csv";
-import { MarkdownImportAndExport } from "../import-and-export/markdown";
-import type { BaseTable } from "../meta-table/base";
-import { ChatTable } from "../meta-table/chat";
-import { ColumnTable } from "../meta-table/column";
-import { DocTable } from "../meta-table/doc";
-import type { IEmbedding } from "../meta-table/embedding";
-import { EmbeddingTable } from "../meta-table/embedding";
-import { ExtensionTable } from "../meta-table/extension";
-import { ExtNodeTable } from "../meta-table/extnode";
-import { FileTable } from "../meta-table/file";
-import { KVTable } from "../meta-table/kv";
-import { MessageTable } from "../meta-table/message";
-import { ReferenceTable } from "../meta-table/reference";
-import { TreeTable } from "../meta-table/tree";
-import { ViewTable } from "../meta-table/view";
-import { SqlDataView } from "../sdk/sql-data-view";
-import { ThemeManager } from "../sdk/theme-manager";
-import type { BaseServerDatabase } from "../sqlite/interface";
-import { withSqlite3AllUDF } from "../udf";
+import { DataChangeEventHandler } from "../data-pipeline/DataChangeEventHandler"
+import { DataChangeTrigger } from "../data-pipeline/DataChangeTrigger"
+import { LinkRelationUpdater } from "../data-pipeline/LinkRelationUpdater"
+import { TableFullTextSearch } from "../data-pipeline/TableFullTextSearch"
+import { TableSemanticSearch } from "../data-pipeline/TableSemanticSearch"
+import { SQLiteUndoRedo } from "../data-pipeline/UndoRedo"
+import { DbMigrator } from "../db-migrator/DbMigrator"
+import { CsvImportAndExport } from "../import-and-export/csv"
+import { MarkdownImportAndExport } from "../import-and-export/markdown"
+import type { BaseTable } from "../meta-table/base"
+import { ChatTable } from "../meta-table/chat"
+import { ColumnTable } from "../meta-table/column"
+import { DocTable } from "../meta-table/doc"
+import { EmbeddingTable, type IEmbedding } from "../meta-table/embedding"
+import { ExtensionTable } from "../meta-table/extension"
+import { ExtNodeTable } from "../meta-table/extnode"
+import { FileTable } from "../meta-table/file"
+import { KVTable } from "../meta-table/kv"
+import { MessageTable } from "../meta-table/message"
+import { ReferenceTable } from "../meta-table/reference"
+import { TreeTable } from "../meta-table/tree"
+import { ViewTable } from "../meta-table/view"
+import { SqlDataView } from "../sdk/sql-data-view"
+import { ThemeManager } from "../sdk/theme-manager"
+import { ColumnTableName } from "../sqlite/const"
+import type { BaseServerDatabase } from "../sqlite/interface"
+import type { IExternalFileSystem } from "../types/IExternalFileSystem"
+import type { IField } from "../types/IField"
+import { withSqlite3AllUDF } from "../udf"
+
 // import { QueueTable } from "./meta-table/queue"
 
 export type EidosTable =
@@ -44,12 +42,11 @@ export type EidosTable =
   | EmbeddingTable
   | FileTable
 
-
 export type EidosDatabase = BaseServerDatabase
 
 export abstract class BaseDataSpace {
   db: EidosDatabase
-  draftDb: BaseDataSpace | undefined
+  draftDb: BaseServerDatabase | undefined
   undoRedoManager: SQLiteUndoRedo
   activeUndoManager: boolean
   dbName: string
@@ -74,7 +71,6 @@ export abstract class BaseDataSpace {
   dataChangeTrigger: DataChangeTrigger
   linkRelationUpdater: LinkRelationUpdater
   allTables: BaseTable<any>[] = []
-  hasLoadExtension = false
   // worker to main thread
   postMessage?: (data: any, transfer?: any[]) => void
   callRenderer?: (type: any, data: any) => Promise<any>
@@ -84,6 +80,7 @@ export abstract class BaseDataSpace {
   // for trigger
   eventHandler: DataChangeEventHandler
   externalFS?: IExternalFileSystem
+  syncClient?: any
 
   // for auto migration
   hasMigrated = false
@@ -102,26 +99,38 @@ export abstract class BaseDataSpace {
       setInterval?: typeof setInterval
       embedding?: (text: string) => Promise<Array<number>>
     }
-    hasLoadExtension?: boolean
-    createUDF?: (db: EidosDatabase) => void,
-    draftDb?: BaseDataSpace
+    createUDF?: (db: EidosDatabase) => void
+    draftDb?: EidosDatabase
     postMessage?: (data: any, transfer?: any[]) => void
     callRenderer?: (type: any, data: any) => Promise<any>
     externalFS?: IExternalFileSystem
-    dataEventChannel: BroadcastChannel,
+    dataEventChannel: BroadcastChannel
     cacheSize?: number
     isUDFWithCtx?: boolean
     enableFTS?: boolean
+    syncClient?: any
   }) {
-    const { db, activeUndoManager, dbName, draftDb,
-      context, createUDF, postMessage, externalFS,
-      dataEventChannel, hasLoadExtension, callRenderer,
-      cacheSize, isUDFWithCtx, enableFTS = false } = config
+    const {
+      db,
+      activeUndoManager,
+      dbName,
+      draftDb,
+      context,
+      createUDF,
+      postMessage,
+      externalFS,
+      dataEventChannel,
+      callRenderer,
+      cacheSize,
+      isUDFWithCtx,
+      enableFTS = false,
+      syncClient,
+    } = config
     this.db = db
     this.context = context
+    this.syncClient = syncClient
 
     this.isUDFWithCtx = Boolean(isUDFWithCtx)
-    this.hasLoadExtension = Boolean(hasLoadExtension)
     if (cacheSize) {
       this.setCacheSize(cacheSize)
     }
@@ -186,12 +195,13 @@ export abstract class BaseDataSpace {
       // this.queue
     ]
     this.initMetaTable()
-    // 
+    //
     this.doc.registerTrigger()
 
     // migration
     if (this.draftDb) {
-      const dbMigrator = new DbMigrator(this as any, this.draftDb as any)
+      this.initMetaTable(this.draftDb)
+      const dbMigrator = new DbMigrator(this.db, this.draftDb)
       dbMigrator.migrate().then(() => {
         this.hasMigrated = true
       })
@@ -217,7 +227,6 @@ export abstract class BaseDataSpace {
     return this.dbName
   }
 
-
   protected setCacheSize(size: number) {
     this.db.exec({
       sql: `PRAGMA cache_size = ${size}`,
@@ -239,12 +248,11 @@ export abstract class BaseDataSpace {
     }
   }
 
-  protected initMetaTable() {
-    this.allTables.forEach((table) => {
-      this.db.exec(table.createTableSql);
-    })
+  protected initMetaTable(db: EidosDatabase = this.db) {
+    for (const table of this.allTables) {
+      db.exec(table.createTableSql)
+    }
   }
-
 
   // table change callback
   public async onTableChange(
@@ -274,7 +282,6 @@ export abstract class BaseDataSpace {
     return await this.embedding.add(embedding)
   }
 
-
   // views
 
   public async isRowExistInQuery(
@@ -303,10 +310,7 @@ export abstract class BaseDataSpace {
     return await this.db.selectObjects(`PRAGMA table_info(${tableName})`)
   }
 
-  public async importCsv(file: {
-    name: string
-    content: string
-  }) {
+  public async importCsv(file: { name: string; content: string }) {
     const csvImport = new CsvImportAndExport({ useWal: this.db.isWalMode })
     console.log("importing csv file", file)
     const tableId = await csvImport.import(file, this as any)
@@ -318,10 +322,7 @@ export abstract class BaseDataSpace {
     return await csvImport.export(tableId, this as any)
   }
 
-  public async importMarkdown(file: {
-    name: string
-    content: string
-  }) {
+  public async importMarkdown(file: { name: string; content: string }) {
     const markdownImport = new MarkdownImportAndExport()
     const nodeId = await markdownImport.import(file, this as any)
     return nodeId
@@ -331,7 +332,6 @@ export abstract class BaseDataSpace {
     const markdownImport = new MarkdownImportAndExport()
     return await markdownImport.export(nodeId, this as any)
   }
-
 
   public async listUiColumns(tableName: string) {
     if (tableName.startsWith("vw_")) {
@@ -374,7 +374,6 @@ export abstract class BaseDataSpace {
   // Abstract methods to be implemented by extensions
   public abstract syncExec2(sql: string, bind?: any[], db?: any): Promise<any>
 
-
   public onUpdate() {
     this.postMessage?.({
       type: MsgType.DataUpdateSignal,
@@ -385,10 +384,23 @@ export abstract class BaseDataSpace {
     console.debug("onUpdate")
   }
 
-  public notify(msg: string | { title: string; description: string }) {
-    const notification = typeof msg === 'string'
-      ? { title: 'Notification', description: msg }
-      : msg
+  public notify(
+    msg:
+      | string
+      | {
+          title: string
+          description: string
+          actions?: Array<{
+            label: string
+            action: "reload" | "dismiss"
+            variant?: "primary" | "secondary"
+          }>
+        }
+  ) {
+    const notification =
+      typeof msg === "string"
+        ? { title: "Notification", description: msg }
+        : msg
     this.postMessage?.({
       type: MsgType.Notify,
       data: notification,
@@ -412,7 +424,13 @@ export abstract class BaseDataSpace {
     })
   }
 
-  public blockUIMsg(msg: string | null, data?: Record<string, any>) {
+  public blockUIMsg(
+    msg: string | null,
+    data?: {
+      // 0-100
+      progress?: number
+    }
+  ) {
     console.log("blockUIMsg", msg, data)
     this.postMessage?.({
       type: MsgType.BlockUIMsg,
@@ -422,5 +440,4 @@ export abstract class BaseDataSpace {
       },
     })
   }
-
 }

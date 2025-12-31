@@ -4,6 +4,8 @@ import React, { lazy, Suspense, useCallback } from "react"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useToast } from "@/components/ui/use-toast"
 import { EidosMessageChannelName, MsgType, WORKER_INIT_MESSAGES, WORKER_MESSAGE_TYPES } from "@/lib/const"
+import { ToastAction } from "@/components/ui/toast"
+import { buttonVariants } from "@/components/ui/button"
 import { getEmbeddingWorker } from "@/lib/embedding/worker"
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { getWorker } from "@/packages/core/sqlite/worker"
@@ -35,7 +37,7 @@ export const useWorker = () => {
   } = useAppRuntimeStore()
   const { setCurrentThemeName, listThemes, setCustomTheme, getCustomTheme, applyTheme } = useThemeStore()
 
-  const { toast } = useToast()
+  const { toast, dismiss } = useToast()
   const initWorker = useCallback(() => {
     if (isInkServiceMode) {
       setInitialized(true)
@@ -60,14 +62,50 @@ export const useWorker = () => {
         case MsgType.WebSocketDisconnected:
           setWebsocketConnected(false)
           break
-        case MsgType.Notify:
-          toast({
-            title: data.title,
-            description: React.createElement(Suspense, {
-              fallback: React.createElement("div", null, "Loading...")
-            }, React.createElement(Markdown, { children: data.description })),
-          })
+        case MsgType.Notify: {
+          const { title, description, actions } = data
+          const toastOptions: any = {
+            title: title,
+            description: React.createElement(
+              Suspense,
+              {
+                fallback: React.createElement("div", null, "Loading..."),
+              },
+              React.createElement(Markdown, { children: description })
+            ),
+            className: "flex-col items-start gap-4",
+          }
+
+          if (actions && actions.length > 0) {
+            toastOptions.action = React.createElement(
+              "div",
+              { className: "flex gap-2 shrink-0 justify-end w-full" },
+              actions.map((action: any, index: number) =>
+                React.createElement(
+                  ToastAction,
+                  {
+                    key: index,
+                    altText: action.label,
+                    className: buttonVariants({
+                      variant: action.variant === "primary" ? "default" : "outline",
+                      size: "sm",
+                    }),
+                    onClick: () => {
+                      if (action.action === "reload") {
+                        window.location.reload()
+                      }
+                      dismiss()
+                    },
+                  },
+                  action.label
+                )
+              )
+            )
+          }
+
+          toast(toastOptions)
           break
+        }
         case MsgType.Navigate:
           // data is the path, such as "/<nodeId>"
           navigate(data)

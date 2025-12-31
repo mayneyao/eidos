@@ -80,4 +80,6 @@ For more details, visit https://docs.eidos.space/
 
 ## License
 
-This project is licensed under the terms of the AGPL license.
+This project is licensed under AGPL. Specific packages are released under MIT to facilitate integration and ecosystem growth:
+
+- `@eidos.space/core`: [MIT](./packages/core/LICENSE)
