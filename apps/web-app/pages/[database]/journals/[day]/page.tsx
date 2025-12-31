@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-import { getLocalDate, getWeek, isWeekNodeId } from "@/lib/utils"
+import { getLocalDate, getWeek, getWeekInfo, isWeekNodeId } from "@/lib/utils"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { Editor } from "@/components/doc/editor"
 import { BreadCrumb } from "@/components/nav/breadcrumb"
@@ -34,12 +34,12 @@ export function EverydayPageContent({
   const { navigate } = useRouterAdapter()
   const { days } = useDays()
   const { isCmdkOpen } = useAppRuntimeStore()
-  const weekNumber = day ? getWeek(day) : null
-  const formattedWeek = weekNumber
+  const { week: weekNumber, year: weekYear } = day ? getWeekInfo(day) : { week: null, year: null }
+  const formattedWeek = weekNumber !== null
     ? weekNumber.toString().padStart(2, "0")
     : null
   const weekNodeId =
-    day && formattedWeek ? `${day.slice(0, 4)}-w${formattedWeek}` : null
+    day && formattedWeek ? `${weekYear}-w${formattedWeek}` : null
   useTabTitle(day)
   const handleDayClick = (date: Date, closePopover = false) => {
     const day = getLocalDate(date)

@@ -336,19 +336,40 @@ export const isWeekNodeId = (str?: string) => {
 }
 
 /**
+ * get week and year of the date
+ * @param day  yyyy-mm-dd || yyyy-w[week]
+ * @returns { week: number, year: number }
+ */
+export const getWeekInfo = (day: string) => {
+  if (isWeekNodeId(day)) {
+    return {
+      week: parseInt(day.split("-w")[1]),
+      year: parseInt(day.split("-w")[0])
+    }
+  }
+  const date = new Date(day)
+  date.setHours(0, 0, 0, 0)
+  // Thursday in current week decides the year.
+  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7)
+  const year = date.getFullYear()
+  const week1 = new Date(year, 0, 4)
+  const week = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7)
+  return { week, year }
+}
+
+/**
  * get week of the year
  * @param day  yyyy-mm-dd || yyyy-w[week]
  * @returns
  */
 export const getWeek = (day: string) => {
-  if (isWeekNodeId(day)) {
-    return parseInt(day.split("-w")[1])
-  }
-  const date = new Date(day)
-  date.setHours(0, 0, 0, 0)
-  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7)
-  const week1 = new Date(date.getFullYear(), 0, 4)
-  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7)
+  return getWeekInfo(day).week
+}
+
+export const getWeekNodeId = (day: string) => {
+  if (isWeekNodeId(day)) return day
+  const { week, year } = getWeekInfo(day)
+  return `${year}-w${week.toString().padStart(2, "0")}`
 }
 
 /**
