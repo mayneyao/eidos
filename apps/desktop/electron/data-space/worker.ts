@@ -1,17 +1,16 @@
 import { workerData } from "worker_threads"
-import * as path from "path"
 import { DataSpace } from "@/packages/core/data-space"
 import { BucketClient } from "@/packages/sync/bucket"
 
-import { EidosMessageChannelName } from "@/lib/const"
+import { EidosMessageChannelName, MsgType } from "@/lib/const"
 
 import type { SpaceInfo } from "../space-registry"
-import { NodeServerDatabase } from "./sqlite-server"
-import { isInitializationOperation } from "./sync/helper"
 import { createDataEventChannel } from "./data-event-channel"
 import { createExternalFileSystem } from "./external-fs"
 import { initUDF } from "./init-udf"
 import { RpcServer } from "./rpc-server"
+import { NodeServerDatabase } from "./sqlite-server"
+import { isInitializationOperation } from "./sync/helper"
 
 // Logger that forwards messages to main process
 function createLogger() {
@@ -78,9 +77,6 @@ class DataSpaceManager {
     return this.dataSpace
   }
 
-
-
-
   private async getRemoteLogId(
     syncClient: BucketClient | undefined,
     remote: string | undefined,
@@ -90,7 +86,9 @@ class DataSpaceManager {
       return undefined
     }
     const remoteSpaceName = remote.split("/").pop()?.split(".")[0]
-    const prefix = remoteSpaceName ? `${remoteSpaceName}/logs/` : ""
+    const prefix = remoteSpaceName
+      ? `${remoteSpaceName}/.eidos/.graft/logs/`
+      : ""
     const remoteLogIds = await syncClient.listSubFolders(bucketName, prefix)
     if (!remoteLogIds.length) {
       return undefined
@@ -227,12 +225,23 @@ class DataSpaceManager {
       syncClient: syncClient,
     })
 
-
-
     this.dataSpace.initFileWatcher()
+    if (isInit) {
+      this.dataSpace.notify({
+        title: "Notification",
+        description:
+          "Space initialized successfully, refresh page to see changes",
+        actions: [
+          {
+            label: "Reload",
+            action: "reload",
+            variant: "primary",
+          },
+        ],
+      })
+    }
     return this.dataSpace
   }
-
 
   public async close(): Promise<boolean> {
     if (!this.dataSpace) {

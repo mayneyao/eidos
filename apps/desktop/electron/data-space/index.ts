@@ -1,3 +1,4 @@
+import fs from "fs"
 import path from "path"
 import { Worker } from "worker_threads"
 import type { DataSpace } from "@/packages/core/data-space"
@@ -168,8 +169,14 @@ export class DataSpaceManager {
     }
     const remoteSpaceId =
       spaceInfo.sync?.remote?.split("/").pop()?.split(".")[0] || spaceInfo.id
+    const localPath = getSpacePath(spaceId) + "/.eidos/files"
+    if (!fs.existsSync(localPath)) {
+      log.warn(`Sync worker skipped: local path ${localPath} does not exist.`)
+      return
+    }
+
     const syncConfig = {
-      localPath: getSpacePath(spaceId) + "/.eidos/files", // Reconstruct path
+      localPath,
       bucket: graftPathConfig.credentials.bucketName,
       // user-id/space-id/
       prefix: `${remoteSpaceId}/.eidos/files/`,
@@ -197,7 +204,7 @@ export class DataSpaceManager {
 
       // Verify if sync-worker.js exists, or try .ts if in dev
       let actualWorkerPath = workerPath
-      if (!require("fs").existsSync(workerPath)) {
+      if (!fs.existsSync(workerPath)) {
         actualWorkerPath = path.join(__dirname, "sync-worker.ts")
       }
 
