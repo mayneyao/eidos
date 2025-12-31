@@ -182,7 +182,7 @@ export class DataSpaceManager {
     }
     const remoteSpaceId =
       spaceInfo.sync?.remote?.split("/").pop()?.split(".")[0] || spaceInfo.id
-    const localPath = getSpacePath(spaceId) + "/.eidos/files"
+    const localPath = path.join(getSpacePath(spaceId), ".eidos", "files")
     if (!fs.existsSync(localPath)) {
       log.warn(`Sync worker skipped: local path ${localPath} does not exist.`)
       return

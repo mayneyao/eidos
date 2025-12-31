@@ -237,14 +237,20 @@ export class FileSynchronizer {
       const entries = await fs.readdir(dir, { withFileTypes: true })
 
       for (const entry of entries) {
-        const relativePath = path.join(base, entry.name)
+        // Use posix-style paths for keys to match S3 (always forward slashes)
+        const relativePath = base 
+          ? path.posix.join(base, entry.name)
+          : entry.name
         const absolutePath = path.join(dir, entry.name)
 
         if (
           this.config.ignore &&
-          this.config.ignore.some((pattern) => relativePath.startsWith(pattern))
+          this.config.ignore.some((pattern) => {
+            // Normalize pattern to posix style and remove trailing /**
+            const normalizedPattern = pattern.replace(/\\/g, '/').replace(/\/\*\*$/, '')
+            return relativePath.startsWith(normalizedPattern)
+          })
         ) {
-          // Simple prefix check for now, can improve with glob
           continue
         }
 
@@ -320,8 +326,9 @@ export class FileSynchronizer {
   private async _upload(key: string, filePath: string) {
     try {
       const fileStream = createReadStream(filePath)
+      // Use posix path for S3 keys (always forward slashes)
       const targetKey = this.config.prefix
-        ? path.join(this.config.prefix, key)
+        ? path.posix.join(this.config.prefix, key)
         : key
 
       const upload = new Upload({
@@ -342,8 +349,9 @@ export class FileSynchronizer {
 
   private async _download(key: string, filePath: string) {
     try {
+      // Use posix path for S3 keys (always forward slashes)
       const targetKey = this.config.prefix
-        ? path.join(this.config.prefix, key)
+        ? path.posix.join(this.config.prefix, key)
         : key
       const cmd = new GetObjectCommand({
         Bucket: this.config.bucket,
@@ -382,12 +390,19 @@ export class FileSynchronizer {
     const walk = async (currentDir: string, currentBase: string) => {
       const entries = await fs.readdir(currentDir, { withFileTypes: true })
       for (const entry of entries) {
-        const relativePath = path.join(currentBase, entry.name)
+        // Use posix-style paths for keys to match S3 (always forward slashes)
+        const relativePath = currentBase
+          ? path.posix.join(currentBase, entry.name)
+          : entry.name
         const absolutePath = path.join(currentDir, entry.name)
 
         if (
           this.config.ignore &&
-          this.config.ignore.some((pattern) => relativePath.startsWith(pattern))
+          this.config.ignore.some((pattern) => {
+            // Normalize pattern to posix style and remove trailing /**
+            const normalizedPattern = pattern.replace(/\\/g, '/').replace(/\/\*\*$/, '')
+            return relativePath.startsWith(normalizedPattern)
+          })
         ) {
           continue
         }
@@ -430,8 +445,9 @@ export class FileSynchronizer {
     hash: string
   } | null> {
     try {
+      // Use posix path for S3 keys (always forward slashes)
       const targetKey = this.config.prefix
-        ? path.join(this.config.prefix, METADATA_FILE)
+        ? path.posix.join(this.config.prefix, METADATA_FILE)
         : METADATA_FILE
 
       const cmd = new GetObjectCommand({
@@ -454,8 +470,9 @@ export class FileSynchronizer {
 
   private async updateS3Meta(meta: { maxMtime: number; hash: string }) {
     try {
+      // Use posix path for S3 keys (always forward slashes)
       const targetKey = this.config.prefix
-        ? path.join(this.config.prefix, METADATA_FILE)
+        ? path.posix.join(this.config.prefix, METADATA_FILE)
         : METADATA_FILE
 
       const body = JSON.stringify({
