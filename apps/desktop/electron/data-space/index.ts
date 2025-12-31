@@ -10,6 +10,7 @@ import { getResourcePath } from "../helper"
 import { getSpaceRegistry } from "../space-registry"
 import { DataSpaceProcessPool } from "./process-pool"
 import { RpcClient } from "./rpc-client"
+import type { WorkerInitData } from "./rpc-types"
 
 export class DataSpaceManager {
   private static instance: DataSpaceManager
@@ -97,7 +98,7 @@ export class DataSpaceManager {
       throw new Error(`Space not found: ${spaceId}`)
     }
 
-    const initData = {
+    const initData: WorkerInitData = {
       spaceInfo,
       paths: {
         spacePath: getSpacePath(spaceId),
@@ -204,9 +205,6 @@ export class DataSpaceManager {
 
       // Verify if sync-worker.js exists, or try .ts if in dev
       let actualWorkerPath = workerPath
-      if (!fs.existsSync(workerPath)) {
-        actualWorkerPath = path.join(__dirname, "sync-worker.ts")
-      }
 
       const syncWorker = new Worker(actualWorkerPath, {
         workerData: { config: syncConfig },

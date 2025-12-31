@@ -1,14 +1,14 @@
-import { workerData } from "worker_threads"
 import { DataSpace } from "@/packages/core/data-space"
 import { BucketClient } from "@/packages/sync/bucket"
 
-import { EidosMessageChannelName, MsgType } from "@/lib/const"
+import { EidosMessageChannelName } from "@/lib/const"
 
 import type { SpaceInfo } from "../space-registry"
 import { createDataEventChannel } from "./data-event-channel"
 import { createExternalFileSystem } from "./external-fs"
 import { initUDF } from "./init-udf"
 import { RpcServer } from "./rpc-server"
+import type { InitMessage, WorkerInitData } from "./rpc-types"
 import { NodeServerDatabase } from "./sqlite-server"
 import { isInitializationOperation } from "./sync/helper"
 
@@ -42,23 +42,12 @@ function createLogger() {
 // Global logger instance
 const logger = createLogger()
 
-// Config can be set via workerData (threads) or argv (process) or message (IPC)
-let config: any = workerData
-
-try {
-  if (!config && process.argv[2]) {
-    config = JSON.parse(process.argv[2])
-  }
-} catch (e) {
-  logger.error("Failed to parse config from argv", e)
-}
-
-// Global config variables
-let spacePath = config?.spacePath
-let simplePathConfig = config?.simplePathConfig
-let vecPathConfig = config?.vecPathConfig
-let graftPathConfig = config?.graftPathConfig
-let spaceInfo: SpaceInfo = config?.spaceInfo
+// Global config variables (initialized via init message)
+let spacePath: string | undefined
+let simplePathConfig: WorkerInitData["paths"]["simplePathConfig"] | undefined
+let vecPathConfig: WorkerInitData["paths"]["vecPathConfig"] | undefined
+let graftPathConfig: WorkerInitData["paths"]["graftPathConfig"] | undefined
+let spaceInfo: SpaceInfo | undefined
 
 class DataSpaceManager {
   private static instance: DataSpaceManager
@@ -109,6 +98,16 @@ class DataSpaceManager {
       return this.dataSpace
     }
     logger.info("init space", spaceName)
+
+    if (
+      !spaceInfo ||
+      !simplePathConfig ||
+      !vecPathConfig ||
+      !graftPathConfig ||
+      !spacePath
+    ) {
+      throw new Error("Worker configuration is not initialized")
+    }
 
     const isInit = isInitializationOperation(spaceInfo)
 
@@ -275,13 +274,15 @@ if (communicationPort) {
   communicationPort.on("message", async (event: any) => {
     const payload = event.data
     if (payload.type === "init") {
+      const initMsg = payload as InitMessage
       logger.info("Worker received init config")
-      spacePath = payload.paths.spacePath
-      simplePathConfig = payload.paths.simplePathConfig
-      vecPathConfig = payload.paths.vecPathConfig
-      graftPathConfig = payload.paths.graftPathConfig
-      spaceInfo = payload.spaceInfo
-      await getOrSetDataSpace(payload.spaceId)
+      spacePath = initMsg.paths.spacePath
+      simplePathConfig = initMsg.paths.simplePathConfig
+      vecPathConfig = initMsg.paths.vecPathConfig
+      graftPathConfig = initMsg.paths.graftPathConfig
+      spaceInfo = initMsg.spaceInfo
+      await getOrSetDataSpace(initMsg.spaceId)
+      communicationPort.postMessage({ type: "worker-ready" })
       return
     }
   })

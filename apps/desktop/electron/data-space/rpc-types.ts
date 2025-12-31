@@ -25,14 +25,31 @@ export type RpcResponse = {
   };
 };
 
-export type InitMessage = {
-  type: 'init';
-  spaceId: string;
-  spaceInfo: any;
-  paths: {
-    spacePath: string;
-    simplePathConfig: any;
-    vecPathConfig: any;
-    graftPathConfig: any;
-  };
-};
+export interface PathConfig {
+  spacePath: string
+  simplePathConfig: {
+    libPath: string
+    dictPath: string
+  }
+  vecPathConfig: {
+    libPath: string
+  }
+  graftPathConfig: {
+    libPath: string
+    enabled: boolean
+    remote: string
+    credentials?: any
+  }
+}
+
+import type { SpaceInfo } from "../space-registry"
+
+export interface WorkerInitData {
+  spaceInfo: SpaceInfo
+  paths: PathConfig
+}
+
+export type InitMessage = WorkerInitData & {
+  type: "init"
+  spaceId: string
+}

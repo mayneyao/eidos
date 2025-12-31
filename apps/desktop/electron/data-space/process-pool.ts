@@ -78,6 +78,12 @@ export class DataSpaceProcessPool extends EventEmitter {
     child.on('message', (message: any) => {
       const payload = message;
 
+      if (payload.type === 'worker-ready') {
+        isReady = true
+        resolveReady!()
+        return
+      }
+
       if (payload.type === 'forward-to-renderer') {
         // Forward message to renderer process
         const webContents = getMainWindowWebContents();
@@ -139,13 +145,8 @@ export class DataSpaceProcessPool extends EventEmitter {
         child.postMessage(initMsg);
     });
 
-    // Wait for worker to signal it's ready (optional, or just resolve immediately if we trust postMessage queue)
-    // For now, let's assume valid start on spawn, but a real "ready" ack is better.
-    // If we want a strict ready signal, the worker should send one back.
-    // Let's rely on standard IPC queueing for now, resolve immediately.
+    // Wait for worker to signal it's ready via 'worker-ready' message
 
-    isReady = true;
-    resolveReady!();
 
     return readyPromise.then(() => child);
   }
