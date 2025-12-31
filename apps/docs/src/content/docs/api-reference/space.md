@@ -66,16 +66,24 @@ eidos.currentSpace.navigate("/file-handler/#~/readme.md")
 eidos.currentSpace.navigate("/file-handler/#@/music/song.mp3")
 ```
 
-### `notify(msg: string | { title: string; description: string })`
+### `notify(msg: string | { title: string; description: string; actions?: Array<{ label: string; action: "reload" | "dismiss"; variant?: "primary" | "secondary" }> })`
 
-Show a notification to the user with markdown support. Supports two calling modes:
+Show a notification to the user with markdown support. Supports advanced interactions via buttons.
 
 ```typescript
 // Simple mode: pass a string as notification content
 notify(msg: string): void
 
 // Full mode: pass an object to customize title and content
-notify(msg: { title: string; description: string }): void
+notify(msg: {
+  title: string
+  description: string
+  actions?: Array<{
+    label: string
+    action: "reload" | "dismiss"
+    variant?: "primary" | "secondary"
+  }>
+}): void
 ```
 
 **Parameters:**
@@ -85,6 +93,10 @@ notify(msg: { title: string; description: string }): void
   - **Full mode**: Pass an object containing:
     - `title` (string): The notification title
     - `description` (string): The notification description (supports markdown)
+    - `actions` (Array): Optional interactive buttons
+      - `label` (string): Button text
+      - `action` (string): Action to perform: `"reload"` (refresh page) or `"dismiss"` (close notification)
+      - `variant` (string): Button style: `"primary"` (solid) or `"secondary"` (outline)
 
 **Examples:**
 
@@ -95,13 +107,18 @@ eidos.currentSpace.notify("Operation completed")
 // Full mode - custom title and content
 eidos.currentSpace.notify({
   title: "Task Completed",
-  description: "Successfully processed **100 records** and updated the database."
+  description:
+    "Successfully processed **100 records** and updated the database.",
 })
 
-// Supports markdown formatting
+// With interactive actions
 eidos.currentSpace.notify({
-  title: "Export Successful",
-  description: "File saved to `~/exports/data.csv`"
+  title: "Update Available",
+  description: "A new version is available. Would you like to refresh the page?",
+  actions: [
+    { label: "Later", action: "dismiss", variant: "secondary" },
+    { label: "Refresh Now", action: "reload", variant: "primary" },
+  ],
 })
 ```
 

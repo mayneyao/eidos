@@ -63,16 +63,24 @@ eidos.currentSpace.navigate("/file-handler/#~/readme.md")
 eidos.currentSpace.navigate("/file-handler/#@/music/song.mp3")
 ```
 
-### `notify(msg: string | { title: string; description: string })`
+### `notify(msg: string | { title: string; description: string; actions?: Array<{ label: string; action: "reload" | "dismiss"; variant?: "primary" | "secondary" }> })`
 
-向用户显示支持 markdown 的通知。支持两种调用模式：
+向用户显示支持 markdown 的通知。支持通过按钮进行高级交互。
 
 ```typescript
 // 简单模式：只传字符串，作为通知内容
 notify(msg: string): void
 
 // 完整模式：传对象，自定义标题和内容
-notify(msg: { title: string; description: string }): void
+notify(msg: {
+  title: string
+  description: string
+  actions?: Array<{
+    label: string
+    action: "reload" | "dismiss"
+    variant?: "primary" | "secondary"
+  }>
+}): void
 ```
 
 **参数:**
@@ -82,6 +90,10 @@ notify(msg: { title: string; description: string }): void
   - **完整模式**: 传入对象，包含：
     - `title` (string): 通知标题
     - `description` (string): 通知描述（支持 markdown）
+    - `actions` (Array): 可选的交互按钮
+      - `label` (string): 按钮文本
+      - `action` (string): 执行动作：`"reload"`（刷新页面）或 `"dismiss"`（关闭通知）
+      - `variant` (string): 按钮样式：`"primary"`（实心）或 `"secondary"`（描边）
 
 **示例:**
 
@@ -92,13 +104,17 @@ eidos.currentSpace.notify("操作已完成")
 // 完整模式 - 自定义标题和内容
 eidos.currentSpace.notify({
   title: "任务完成",
-  description: "成功处理了 **100 条记录** 并更新了数据库。"
+  description: "成功处理了 **100 条记录** 并更新了数据库。",
 })
 
-// 支持 markdown 格式
+// 带有交互按钮
 eidos.currentSpace.notify({
-  title: "导出成功",
-  description: "文件已保存到 `~/exports/data.csv`"
+  title: "发现更新",
+  description: "新版本已准备就绪。是否现在刷新页面？",
+  actions: [
+    { label: "稍后", action: "dismiss", variant: "secondary" },
+    { label: "立即刷新", action: "reload", variant: "primary" },
+  ],
 })
 ```
 

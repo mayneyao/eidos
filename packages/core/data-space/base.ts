@@ -384,7 +384,19 @@ export abstract class BaseDataSpace {
     console.debug("onUpdate")
   }
 
-  public notify(msg: string | { title: string; description: string }) {
+  public notify(
+    msg:
+      | string
+      | {
+          title: string
+          description: string
+          actions?: Array<{
+            label: string
+            action: "reload" | "dismiss"
+            variant?: "primary" | "secondary"
+          }>
+        }
+  ) {
     const notification =
       typeof msg === "string"
         ? { title: "Notification", description: msg }
@@ -412,7 +424,13 @@ export abstract class BaseDataSpace {
     })
   }
 
-  public blockUIMsg(msg: string | null, data?: Record<string, any>) {
+  public blockUIMsg(
+    msg: string | null,
+    data?: {
+      // 0-100
+      progress?: number
+    }
+  ) {
     console.log("blockUIMsg", msg, data)
     this.postMessage?.({
       type: MsgType.BlockUIMsg,
