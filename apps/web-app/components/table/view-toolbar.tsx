@@ -442,12 +442,12 @@ export const ViewToolbar = (props: {
           </DialogContent>
         </Dialog>
         <div
-          className={cn("flex gap-2 hover:opacity-100", {
+          className={cn("flex gap-2 hover:opacity-100 pr-1", {
             // "opacity-0": isEmbed,
           })}
           ref={ref2}
         >
-          <div className="flex gap-1">
+          <div className="flex space-x-1">
             {!isView && <ViewSearch view={currentView} />}
             <ViewFilter view={currentView} />
             <ViewSort view={currentView} />

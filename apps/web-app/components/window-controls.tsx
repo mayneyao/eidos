@@ -3,6 +3,7 @@ import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { cn, isStandaloneBlocksPath } from "@/lib/utils"
 import { isWindowsDesktop } from "@/lib/web/helper"
+import { Button } from "@/components/ui/button"
 
 export function WindowControls() {
   const [isMaximized, setIsMaximized] = useState(false)
@@ -20,18 +21,18 @@ export function WindowControls() {
   return (
     <div
       className={cn(
-        "fixed top-0 right-0 z-50 flex items-center no-drag space-x-1 pr-2 pt-1",
+        "fixed top-0 right-0 z-50 flex items-center no-drag space-x-1 pr-2 h-[38px]",
         {
           hidden: !isWindowsDesktop || isAppWindow,
         }
       )}
     >
-      <button
+      <Button
+        size="xs"
+        variant="ghost"
         onClick={() => window.eidos.minimizeWindow()}
-        className="p-1.5 hover:bg-gray-200/50 dark:hover:bg-gray-700 rounded-sm transition-colors"
       >
         <svg
-          className="w-4 h-4"
           fill="none"
           stroke="currentColor"
           strokeWidth={1.5}
@@ -39,18 +40,18 @@ export function WindowControls() {
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
         </svg>
-      </button>
+      </Button>
 
-      <button
+      <Button
+        size="xs"
+        variant="ghost"
         onClick={() =>
           isMaximized
             ? window.eidos.unmaximizeWindow()
             : window.eidos.maximizeWindow()
         }
-        className="p-1.5 hover:bg-gray-200/50 dark:hover:bg-gray-700 rounded-sm transition-colors"
       >
         <svg
-          className="w-4 h-4"
           fill="none"
           stroke="currentColor"
           strokeWidth={1.5}
@@ -70,14 +71,15 @@ export function WindowControls() {
             />
           )}
         </svg>
-      </button>
+      </Button>
 
-      <button
+      <Button
+        size="xs"
+        variant="ghost"
         onClick={() => window.eidos.closeWindow()}
-        className="p-1.5 hover:bg-red-500/80 hover:text-white rounded-sm transition-colors"
+        className="hover:bg-red-500/80 hover:text-white"
       >
         <svg
-          className="w-4 h-4"
           fill="none"
           stroke="currentColor"
           strokeWidth={1.5}
@@ -89,7 +91,7 @@ export function WindowControls() {
             d="M6 18L18 6M6 6l12 12"
           />
         </svg>
-      </button>
+      </Button>
     </div>
   )
 }

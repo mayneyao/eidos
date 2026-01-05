@@ -59,18 +59,18 @@ export const Nav = ({ children }: { children?: React.ReactNode }) => {
 
       <div
         className={cn("flex items-center gap-1 shrink-0 grow-0", {
-          "pr-[100px]": isWindowsDesktop && !isRightPanelOpen,
+          "pr-[112px]": isWindowsDesktop && !isRightPanelOpen,
         })}
       >
         <NavStatus />
         {isDesktopMode && !isRightPanelOpen && (
           <Button size="xs" variant="ghost" onClick={() => handleAppChange(0)}>
-            <PanelRightIcon className="h-5 w-5" />
+            <PanelRightIcon className="h-4 w-4" />
           </Button>
         )}
         {!isDesktopMode && (
           <Button size="xs" variant="ghost" onClick={() => handleAppChange(0)}>
-            <PanelRightIcon className="h-5 w-5" />
+            <PanelRightIcon className="h-4 w-4" />
           </Button>
         )}
       </div>

@@ -62,8 +62,8 @@ const DefaultAppInfoMap: Record<
 
 const tabButtonBaseClass =
   "relative h-8 w-8 p-0 transition-colors flex-shrink-0"
-const inactiveTabColorClass =
-  "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+const inactiveTabColorClass = ""
+  // "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
 const activeTabColorClass = "bg-background text-foreground"
 const tabButtonClass = (isActive?: boolean, extra?: string) =>
   cn(
