@@ -14,14 +14,9 @@ import {
 import { useTranslation } from "react-i18next"
 
 import { cn, getBlockIdFromUrl, isDayPageId } from "@/lib/utils"
+import { isWindowsDesktop } from "@/lib/web/helper"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { Button } from "@/components/ui/button"
-import {
-  NativeContextMenu as ContextMenu,
-  NativeContextMenuContent as ContextMenuContent,
-  NativeContextMenuItem as ContextMenuItem,
-  NativeContextMenuTrigger as ContextMenuTrigger,
-} from "@/components/ui/native-context-menu"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +24,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Link } from "@/components/ui/link"
+import {
+  NativeContextMenu as ContextMenu,
+  NativeContextMenuContent as ContextMenuContent,
+  NativeContextMenuItem as ContextMenuItem,
+  NativeContextMenuTrigger as ContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 import { AIChatHeader } from "@/components/ai-chat/ai-chat-header"
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
@@ -63,7 +64,7 @@ const DefaultAppInfoMap: Record<
 const tabButtonBaseClass =
   "relative h-8 w-8 p-0 transition-colors flex-shrink-0"
 const inactiveTabColorClass = ""
-  // "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+// "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
 const activeTabColorClass = "bg-background text-foreground"
 const tabButtonClass = (isActive?: boolean, extra?: string) =>
   cn(
@@ -108,7 +109,6 @@ export const RightPanelNav = () => {
   }, [apps, space])
 
   const { mblocks } = useAllMblocks()
-
 
   const getAppInfo = (app: string) => {
     if (app.startsWith("block://")) {
@@ -341,7 +341,6 @@ export const RightPanelNav = () => {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-
       </div>
       <div className="drag-region grow"></div>
       {/* Only show currentApp UI when tempPanelNode is not active */}
@@ -373,7 +372,9 @@ export const RightPanelNav = () => {
         size="xs"
         variant="ghost"
         onClick={() => setIsRightPanelOpen(false, -1)}
-        className={tabButtonClass(false)}
+        className={cn(tabButtonClass(false), {
+          "mr-1": !isWindowsDesktop,
+        })}
       >
         <PanelRightIcon className="h-4 w-4" />
       </Button>

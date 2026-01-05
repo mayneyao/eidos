@@ -2,7 +2,7 @@ import { PanelRightIcon } from "lucide-react"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
-import { isMac, isWindowsDesktop } from "@/lib/web/helper"
+import { isMac, isMacDesktop, isWindowsDesktop } from "@/lib/web/helper"
 import { Button } from "@/components/ui/button"
 import { TabBar } from "@/apps/web-app/components/tab-manager/tab-bar"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
@@ -64,8 +64,15 @@ export const Nav = ({ children }: { children?: React.ReactNode }) => {
       >
         <NavStatus />
         {isDesktopMode && !isRightPanelOpen && (
-          <Button size="xs" variant="ghost" onClick={() => handleAppChange(0)}>
-            <PanelRightIcon className="h-4 w-4" />
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => handleAppChange(0)}
+            className={cn({
+              "mr-1": !isWindowsDesktop && !isRightPanelOpen,
+            })}
+          >
+            <PanelRightIcon className={"h-4 w-4"} />
           </Button>
         )}
         {!isDesktopMode && (
