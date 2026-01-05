@@ -285,20 +285,22 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
 
     app.get('/api/auth/user', async (c) => {
         try {
-            const isAuthenticated = await CredentialsManager.isAuthenticated();
-            if (!isAuthenticated) {
+            // Try to get a valid access token (will auto-refresh if needed)
+            // This call will automatically refresh the token if it's expired
+            const accessToken = await CredentialsManager.getAccessToken();
+            if (!accessToken) {
+                // Token refresh failed, broadcast logout event to frontend
+                broadcastAuthStateChange(false, null);
                 return c.json({ authenticated: false }, 401);
             }
 
-            // Try to get a valid access token (will auto-refresh if needed)
-            const accessToken = await CredentialsManager.getAccessToken();
             const user = await CredentialsManager.getUserInfo();
 
             return c.json({
-                authenticated: !!accessToken,
+                authenticated: true,
                 user: user,
                 // Don't expose tokens in the API response for security
-                hasValidTokens: !!accessToken
+                hasValidTokens: true
             });
         } catch (error: any) {
             console.error('Error checking authentication status:', error);
@@ -341,13 +343,11 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
     // This endpoint should only be called from trusted frontend code
     app.get('/api/auth/token', async (c) => {
         try {
-            const isAuthenticated = await CredentialsManager.isAuthenticated();
-            if (!isAuthenticated) {
-                return c.json({ error: 'Not authenticated' }, 401);
-            }
-
+            // Try to get a valid access token (will auto-refresh if needed)
             const accessToken = await CredentialsManager.getAccessToken();
             if (!accessToken) {
+                // Token refresh failed, broadcast logout event to frontend
+                broadcastAuthStateChange(false, null);
                 return c.json({ error: 'Failed to get access token' }, 401);
             }
 
