@@ -225,7 +225,7 @@ class DataSpaceManager {
     })
 
     this.dataSpace.initFileWatcher()
-    if (isInit) {
+    if (isInit && spaceInfo.sync?.enabled) {
       this.dataSpace.notify({
         title: "Notification",
         description:
