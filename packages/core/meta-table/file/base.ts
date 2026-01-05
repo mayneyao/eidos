@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
 `
 
   async add(data: IFile): Promise<IFile> {
+    // Check if file already exists by path
+    const existing = await this.getFileByPath(data.path)
+    if (existing) {
+      // File already exists, return the existing record
+      return existing
+    }
+    
     this.dataSpace.exec(
       `INSERT INTO ${this.name} (id,name,path,size,mime) VALUES (? , ? , ? , ? , ?);`,
       [data.id, data.name, data.path, data.size, data.mime]
