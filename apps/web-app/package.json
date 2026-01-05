@@ -138,6 +138,7 @@
     "mime-db": "^1.53.0",
     "monaco-editor": "^0.52.0",
     "moo": "^0.5.2",
+    "nanoid": "^5.1.6",
     "ollama-ai-provider": "^1.2.0",
     "openai": "^4.16.1",
     "orderedmap": "^2.1.1",
