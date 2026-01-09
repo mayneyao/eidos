@@ -718,6 +718,7 @@
     "space.select.loadingRemoteSpaces": "正在加载远程空间...",
     "space.select.existingRemoteSpaces": "现有远程空间",
     "space.select.createNewRemoteSpace": "创建新的远程空间",
+    "space.select.authRequiredForRemoteSpaces": "需要登录才能访问远程空间。请先登录以使用此功能。",
     "space.settings.advanced": "高级",
     "space.settings.advancedDescription": "高级配置和调试选项",
     "space.settings.advancedOptions": "高级选项",

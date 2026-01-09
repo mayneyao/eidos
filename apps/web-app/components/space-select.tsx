@@ -338,68 +338,94 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
               </div>
               {globalSyncEnabled && (
                 <div className="space-y-2">
-                  <Label htmlFor="remote-url">
-                    {t("space.select.remoteUrl")} ({t("common.optional")})
-                  </Label>
-                  <div className="relative">
-                    <Command className="rounded-lg border shadow-md">
-                      <CommandInput
-                        placeholder={t("space.select.remoteUrlPlaceholder")}
-                        value={remoteUrl}
-                        onValueChange={setRemoteUrl}
-                        className="h-9"
-                      />
-                      <CommandList className="max-h-48">
-                        <CommandEmpty>
-                          {t("common.noResultsFound")}
-                        </CommandEmpty>
-                        {remoteSpaces.length > 0 && (
-                          <CommandGroup heading={t("space.select.existingRemoteSpaces")}>
-                            {remoteSpaces.map((space) => {
-                              const spaceName = space.replace(/\/$/, "")
-                              const username = auth?.user?.username || "username"
-                              const fullUrl = `https://eidos.space/${username}/${spaceName}`
-                              return (
-                                <CommandItem
-                                  key={space}
-                                  value={fullUrl}
-                                  onSelect={(value) => {
-                                    setRemoteUrl(value)
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  <FolderOpen className="mr-2 h-4 w-4" />
-                                  <span>{spaceName}</span>
-                                </CommandItem>
-                              )
-                            })}
-                          </CommandGroup>
-                        )}
-                        <CommandSeparator />
-                        <CommandGroup>
-                          <CommandItem
-                            onSelect={() => {
-                              window.open("https://eidos.space/new", "_blank")
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <Plus className="mr-2 h-4 w-4" />
-                            <span>{t("space.select.createNewRemoteSpace")}</span>
-                          </CommandItem>
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </div>
+                  {auth?.user ? (
+                    <>
+                      <Label htmlFor="remote-url">
+                        {t("space.select.remoteUrl")} ({t("common.optional")})
+                      </Label>
+                      <div className="relative">
+                        <Command className="rounded-lg border shadow-md">
+                          <CommandInput
+                            placeholder={t("space.select.remoteUrlPlaceholder")}
+                            value={remoteUrl}
+                            onValueChange={setRemoteUrl}
+                            className="h-9"
+                          />
+                          <CommandList className="max-h-48">
+                            <CommandEmpty>
+                              {t("common.noResultsFound")}
+                            </CommandEmpty>
+                            {remoteSpaces.length > 0 && (
+                              <CommandGroup heading={t("space.select.existingRemoteSpaces")}>
+                                {remoteSpaces.map((space) => {
+                                  const spaceName = space.replace(/\/$/, "")
+                                  const username = auth!.user!.username
+                                  const fullUrl = `https://eidos.space/${username}/${spaceName}`
+                                  return (
+                                    <CommandItem
+                                      key={space}
+                                      value={fullUrl}
+                                      onSelect={(value) => {
+                                        setRemoteUrl(value)
+                                      }}
+                                      className="cursor-pointer"
+                                    >
+                                      <FolderOpen className="mr-2 h-4 w-4" />
+                                      <span>{spaceName}</span>
+                                    </CommandItem>
+                                  )
+                                })}
+                              </CommandGroup>
+                            )}
+                            <CommandSeparator />
+                            <CommandGroup>
+                              <CommandItem
+                                onSelect={() => {
+                                  window.open("https://eidos.space/new", "_blank")
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                <span>{t("space.select.createNewRemoteSpace")}</span>
+                              </CommandItem>
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </div>
 
-                  {loadingRemoteSpaces && (
-                    <div className="text-sm text-muted-foreground">
-                      {t("space.select.loadingRemoteSpaces")}
+                      {loadingRemoteSpaces && (
+                        <div className="text-sm text-muted-foreground">
+                          {t("space.select.loadingRemoteSpaces")}
+                        </div>
+                      )}
+
+                      <p className="text-sm text-muted-foreground">
+                        {t("space.select.remoteUrlDescription")}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor="remote-url">
+                        {t("space.select.remoteUrl")} ({t("common.optional")})
+                      </Label>
+                      <div className="bg-muted/50 rounded-md p-4 space-y-3">
+                        <p className="text-sm text-muted-foreground">
+                          {t("space.select.authRequiredForRemoteSpaces")}
+                        </p>
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => auth?.login()}
+                          className="w-full"
+                        >
+                          {t("settings.account.login", "Login")}
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {t("space.select.remoteUrlDescription")}
+                      </p>
                     </div>
                   )}
-
-                  <p className="text-sm text-muted-foreground">
-                    {t("space.select.remoteUrlDescription")}
-                  </p>
                 </div>
               )}
             </div>

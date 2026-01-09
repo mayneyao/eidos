@@ -723,6 +723,7 @@
     "space.select.loadingRemoteSpaces": "Loading remote spaces...",
     "space.select.existingRemoteSpaces": "Existing remote spaces",
     "space.select.createNewRemoteSpace": "Create new remote space",
+    "space.select.authRequiredForRemoteSpaces": "Authentication required to access remote spaces. Please sign in to use this feature.",
     "space.settings.advanced": "Advanced",
     "space.settings.advancedDescription": "Advanced configuration and debugging options",
     "space.settings.advancedOptions": "Advanced Options",
