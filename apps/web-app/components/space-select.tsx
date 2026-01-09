@@ -129,7 +129,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
       try {
         const result = await window.eidos.invoke("switch-space", currentValue)
         if (result.success) {
-          // Workspace switched successfully, Electron will automatically reload to new subdomain
+          // Reload to ensure clean state
+          window.location.reload()
         } else {
           console.error("Failed to switch space:", result.error)
         }
@@ -137,8 +138,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         console.error("Error switching space:", error)
       }
     } else {
-      // Web mode: use route navigation
-      goto(currentValue)
+      // Web mode: navigate to new space URL and reload
+      window.location.href = `/${currentValue}`
     }
   }
 
