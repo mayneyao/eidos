@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "expo-graft-env": ["../src/index"],
+      "expo-graft-env/*": ["../src/*"]
+    }
+  }
+}

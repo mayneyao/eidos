@@ -205,6 +205,17 @@ export default function SettingsScreen() {
             </View>
           )}
 
+          {syncStatus.enabled && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Sync Mode</Text>
+              <Text style={styles.infoValue}>
+                {syncStatus.syncMode === 'graft-vfs' ? '🚀 VFS (Fast)' : 
+                 syncStatus.syncMode === 'file-level' ? '📁 File-level' : 
+                 '❌ Disabled'}
+              </Text>
+            </View>
+          )}
+
           {syncConfig.enabled && (
             <>
               <View style={styles.inputGroup}>
@@ -423,6 +434,22 @@ const styles = StyleSheet.create({
   syncingText: {
     fontSize: 14,
     color: '#007AFF',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E5EA',
+  },
+  infoLabel: {
+    fontSize: 16,
+    color: '#000',
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#8E8E93',
   },
   syncButton: {
     flexDirection: 'row',

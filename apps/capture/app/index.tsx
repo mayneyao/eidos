@@ -40,14 +40,15 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    // Wait for database initialization from _layout.tsx before loading data
     const initializeApp = async () => {
       try {
-        await database.initialize();
-        await fileManager.initialize();
+        // Wait for _layout.tsx to complete database initialization
+        await database.waitForInitialization();
         await loadCaptures();
       } catch (error) {
-        console.error('Failed to initialize app:', error);
-        Alert.alert('Error', 'Failed to initialize app');
+        console.error('Failed to load captures:', error);
+        Alert.alert('Error', 'Failed to load captures');
       }
     };
 

@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { CaptureMetadata, CaptureType } from '../db/types';
@@ -15,7 +15,7 @@ class FileManager {
   async initialize(): Promise<void> {
     try {
       // Create .eidos/files/_capture directory structure
-      const baseDir = `${FileSystem.documentDirectory}.eidos/`;
+      const baseDir = `${FileSystem.documentDirectory}eidos/`;
       const filesDir = `${baseDir}files/`;
       this.captureDir = `${filesDir}_capture/`;
 

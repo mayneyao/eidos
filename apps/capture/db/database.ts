@@ -1,35 +1,148 @@
 import * as SQLite from 'expo-sqlite';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Capture, CaptureType, CaptureMetadata, Setting } from './types';
+import { graftLoader, GraftConfig } from './graft-loader';
 
 const DB_NAME = 'eidos_capture.db';
 
 class DatabaseManager {
   private db: SQLite.SQLiteDatabase | null = null;
   private initPromise: Promise<void> | null = null;
+  private graftEnabled = false;
 
-  async initialize(): Promise<void> {
-    if (this.initPromise) {
+  /**
+   * Get sync config file path
+   * We store sync config in a separate JSON file to avoid database initialization issues
+   */
+  private getSyncConfigPath(): string {
+    if (!FileSystem.documentDirectory) {
+      throw new Error('FileSystem.documentDirectory is not available');
+    }
+    const eidosDir = `${FileSystem.documentDirectory}eidos/`;
+    return `${eidosDir}sync_config.json`;
+  }
+
+  /**
+   * Read sync config from separate JSON file (not database)
+   * This is used at app startup to determine if graft should be enabled
+   * 
+   * We use a separate file to avoid database initialization issues
+   * Returns full config including credentials for graft initialization
+   */
+  async readSyncConfig(): Promise<any | null> {
+    try {
+      const configPath = this.getSyncConfigPath();
+      const fileInfo = await FileSystem.getInfoAsync(configPath);
+      
+      if (!fileInfo.exists) {
+        console.log('No sync config file found');
+        return null;
+      }
+      
+      const configContent = await FileSystem.readAsStringAsync(configPath);
+      const config = JSON.parse(configContent);
+      console.log('Read sync config from file:', { enabled: config.enabled, endpoint: config.endpoint });
+      return config;
+    } catch (error) {
+      console.log('Error reading sync config file:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Write sync config to both database and separate file
+   * The separate file is used for app startup detection
+   */
+  private async writeSyncConfigFile(config: any): Promise<void> {
+    try {
+      // Ensure .eidos directory exists
+      const eidosDir = `${FileSystem.documentDirectory}eidos/`;
+      const dirInfo = await FileSystem.getInfoAsync(eidosDir);
+      
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(eidosDir, { intermediates: true });
+      }
+      
+      const configPath = this.getSyncConfigPath();
+      await FileSystem.writeAsStringAsync(configPath, JSON.stringify(config));
+      console.log('Sync config written to file');
+    } catch (error) {
+      console.error('Error writing sync config file:', error);
+      throw error;
+    }
+  }
+
+  async initialize(enableGraft: boolean = false): Promise<void> {
+    // If already initialized with same mode, return
+    if (this.initPromise && this.graftEnabled === enableGraft) {
       return this.initPromise;
     }
+
+    // If already initialized with different mode, we cannot change it
+    // SQLite doesn't allow changing journal_mode while database is open
+    if (this.initPromise && this.graftEnabled !== enableGraft) {
+      console.warn(`Database already initialized with graft=${this.graftEnabled}, cannot change to ${enableGraft}`);
+      return this.initPromise;
+    }
+
+    this.graftEnabled = enableGraft;
 
     this.initPromise = (async () => {
       try {
         // Ensure .eidos directory exists
-        const eidosDir = `${FileSystem.documentDirectory}.eidos/`;
+        const eidosDir = `${FileSystem.documentDirectory}eidos/`;
         const dirInfo = await FileSystem.getInfoAsync(eidosDir);
         
         if (!dirInfo.exists) {
           await FileSystem.makeDirectoryAsync(eidosDir, { intermediates: true });
         }
 
-        // Open database
-        this.db = await SQLite.openDatabaseAsync(DB_NAME);
-        
-        // Enable WAL mode for better performance (use MEMORY mode when graft is enabled)
-        await this.db.execAsync('PRAGMA journal_mode = WAL;');
-        await this.db.execAsync('PRAGMA synchronous = NORMAL;');
-        await this.db.execAsync('PRAGMA temp_store = MEMORY;');
+        // Step 1: Load graft extension FIRST (if needed) to register VFS
+        if (this.graftEnabled) {
+          console.log('Graft enabled, checking if graftLoader is initialized...');
+          
+          // Check if graftLoader is initialized (should be done by _layout.tsx)
+          if (!graftLoader.isGraftEnabled()) {
+            console.warn('Graft requested but graftLoader not initialized!');
+            console.log('Falling back to standard mode');
+            this.graftEnabled = false;
+          } else {
+            console.log('Loading graft extension to register VFS...');
+            
+            // Use a temporary in-memory database just to load the extension
+            // This registers the graft VFS with SQLite
+            const tempDb = await SQLite.openDatabaseAsync(':memory:');
+            const loaded = await graftLoader.loadExtension(tempDb);
+            await tempDb.closeAsync();
+            
+            if (!loaded) {
+              console.log('Failed to load graft extension, falling back to standard mode');
+              this.graftEnabled = false;
+            } else {
+              console.log('✓ Graft VFS registered successfully');
+            }
+          }
+        }
+
+        // Step 2: Open main database with appropriate VFS
+        if (this.graftEnabled) {
+          // For graft VFS, use URI format to specify VFS
+          // See: https://www.sqlite.org/uri.html
+          const dbUri = `file:${DB_NAME}?vfs=graft`;
+          console.log(`Opening database with Graft VFS: ${dbUri}`);
+          this.db = await SQLite.openDatabaseAsync(dbUri, {
+            useNewConnection: true, // Force new connection for VFS change
+          });
+          
+          // Step 3: Set PRAGMA immediately after opening with graft VFS
+          console.log('Configuring database for graft VFS mode');
+          await this.configureForGraft();
+        } else {
+          // Standard mode - just use database name
+          console.log(`Opening database in standard mode: ${DB_NAME}`);
+          this.db = await SQLite.openDatabaseAsync(DB_NAME);
+          await this.configureStandard();
+        }
         
         // Read and execute schema
         await this.initializeSchema();
@@ -42,6 +155,29 @@ class DatabaseManager {
     })();
 
     return this.initPromise;
+  }
+
+  /**
+   * Configure database for standard mode (no graft)
+   */
+  private async configureStandard(): Promise<void> {
+    if (!this.db) return;
+    
+    await this.db.execAsync('PRAGMA journal_mode = WAL;');
+    await this.db.execAsync('PRAGMA synchronous = NORMAL;');
+    await this.db.execAsync('PRAGMA temp_store = MEMORY;');
+  }
+
+  /**
+   * Configure database for graft VFS mode
+   */
+  private async configureForGraft(): Promise<void> {
+    if (!this.db) return;
+    
+    // Use graftLoader's configuration which sets:
+    // - page_size = 4096 (required by graft)
+    // - journal_mode = MEMORY (required by graft)
+    await graftLoader.configureDatabaseForGraft(this.db);
   }
 
   private async initializeSchema(): Promise<void> {
@@ -69,12 +205,92 @@ class DatabaseManager {
     await this.db.execAsync(schema);
   }
 
+  /**
+   * Wait for database to be initialized
+   * This method will poll until initialization starts or completes
+   */
+  async waitForInitialization(): Promise<void> {
+    // If already initialized, return immediately
+    if (this.db && !this.initPromise) {
+      return;
+    }
+    
+    // If initialization is in progress, wait for it
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+    
+    // Wait for initialization to start (poll for up to 5 seconds)
+    const maxWaitTime = 5000;
+    const pollInterval = 50;
+    const startTime = Date.now();
+    
+    while (!this.initPromise && !this.db) {
+      if (Date.now() - startTime > maxWaitTime) {
+        throw new Error('Database initialization timeout. _layout.tsx should call initialize()');
+      }
+      
+      // Wait a bit and check again
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    
+    // Now wait for the actual initialization to complete
+    if (this.initPromise) {
+      await this.initPromise;
+    }
+  }
+
   async getDatabase(): Promise<SQLite.SQLiteDatabase> {
     if (!this.db) {
-      await this.initialize();
+      // If database not initialized yet, wait for ongoing initialization or throw error
+      if (this.initPromise) {
+        await this.initPromise;
+      } else {
+        throw new Error('Database not initialized. Call initialize() first from _layout.tsx');
+      }
     }
     if (!this.db) throw new Error('Database not initialized');
     return this.db;
+  }
+
+  /**
+   * Check if database is using graft VFS
+   */
+  isGraftEnabled(): boolean {
+    return this.graftEnabled && graftLoader.isUsingNativeVFS();
+  }
+
+  /**
+   * Get database file path
+   */
+  getDatabasePath(): string {
+    if (!FileSystem.documentDirectory) {
+      throw new Error('FileSystem.documentDirectory is not available');
+    }
+    const eidosDir = `${FileSystem.documentDirectory}eidos/`;
+    return `${eidosDir}${DB_NAME}`;
+  }
+
+  /**
+   * Get graft sync status (if using native VFS)
+   */
+  async getGraftSyncStatus() {
+    if (!this.isGraftEnabled() || !this.db) {
+      return null;
+    }
+    
+    return await graftLoader.getSyncStatus(this.db);
+  }
+
+  /**
+   * Manually trigger graft sync
+   */
+  async triggerGraftSync(): Promise<void> {
+    if (!this.isGraftEnabled() || !this.db) {
+      throw new Error('Graft VFS not enabled');
+    }
+    
+    await graftLoader.triggerSync(this.db);
   }
 
   // Capture operations
@@ -189,11 +405,38 @@ class DatabaseManager {
       'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
       [key, value]
     );
+    
+    // If sync_config is updated, also write to separate file
+    // This allows app startup to detect sync config without opening database
+    if (key === 'sync_config') {
+      try {
+        const config = JSON.parse(value);
+        await this.writeSyncConfigFile(config);
+      } catch (error) {
+        console.error('Error writing sync config file:', error);
+        // Don't throw, as database update succeeded
+      }
+    }
   }
 
   async deleteSetting(key: string): Promise<void> {
     const db = await this.getDatabase();
     await db.runAsync('DELETE FROM settings WHERE key = ?', [key]);
+    
+    // If sync_config is deleted, also delete the file
+    if (key === 'sync_config') {
+      try {
+        const configPath = this.getSyncConfigPath();
+        const fileInfo = await FileSystem.getInfoAsync(configPath);
+        if (fileInfo.exists) {
+          await FileSystem.deleteAsync(configPath);
+          console.log('Sync config file deleted');
+        }
+      } catch (error) {
+        console.error('Error deleting sync config file:', error);
+        // Don't throw, as database delete succeeded
+      }
+    }
   }
 
   async getAllSettings(): Promise<Setting[]> {

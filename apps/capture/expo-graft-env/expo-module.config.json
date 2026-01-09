@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ExpoGraftEnvModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.graftenv.ExpoGraftEnvModule"]
+  }
+}

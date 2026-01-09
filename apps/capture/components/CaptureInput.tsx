@@ -69,19 +69,6 @@ export function CaptureInput({
 
   return (
     <View style={styles.container}>
-      {/* Left: Emoji/Sticker button */}
-      <TouchableOpacity
-        style={styles.iconButton}
-        onPress={showAttachmentOptions}
-        disabled={disabled}
-      >
-        <Ionicons 
-          name="happy-outline" 
-          size={28} 
-          color={disabled ? '#999' : '#8E8E93'} 
-        />
-      </TouchableOpacity>
-
       {/* Center: Input field */}
       <View style={styles.inputContainer}>
         <TextInput
@@ -98,20 +85,7 @@ export function CaptureInput({
         />
       </View>
 
-      {/* Right: Attachment button (always visible) */}
-      <TouchableOpacity
-        style={styles.iconButton}
-        onPress={showAttachmentOptions}
-        disabled={disabled}
-      >
-        <Ionicons 
-          name="attach-outline" 
-          size={28} 
-          color={disabled ? '#999' : '#8E8E93'} 
-        />
-      </TouchableOpacity>
-
-      {/* Right: Microphone or Send button (based on message) */}
+      {/* Right: Attachment or Send button */}
       {message.trim() ? (
         <TouchableOpacity
           style={styles.sendButton}
@@ -127,16 +101,13 @@ export function CaptureInput({
       ) : (
         <TouchableOpacity
           style={styles.iconButton}
-          onPress={() => {
-            // Future: Voice recording
-            Alert.alert('Voice Recording', 'Voice recording feature coming soon');
-          }}
+          onPress={showAttachmentOptions}
           disabled={disabled}
         >
-          <Ionicons 
-            name="mic-outline" 
-            size={28} 
-            color={disabled ? '#999' : '#8E8E93'} 
+          <Ionicons
+            name="attach-outline"
+            size={28}
+            color={disabled ? '#999' : '#8E8E93'}
           />
         </TouchableOpacity>
       )}
