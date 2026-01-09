@@ -502,10 +502,22 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       return []
     }
 
+    // Filter mounts to only include paths that exist on this platform
+    // This prevents cross-platform mount paths (e.g., macOS paths on Windows) from breaking search
+    const validMounts: typeof mounts = []
+    for (const mount of mounts) {
+      try {
+        await fs.access(mount.path)
+        validMounts.push(mount)
+      } catch {
+        console.warn(`[Search] Skipping unavailable mount path: ${mount.name} -> ${mount.path}`)
+      }
+    }
+
     const searchPaths = [
       projectRoot,
       spaceFilePath,
-      ...mounts.map((m) => m.path),
+      ...validMounts.map((m) => m.path),
     ]
 
     try {
@@ -520,9 +532,10 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
 
         // First check if it's in a mount (mounts take precedence over project root)
         let foundInMount = false
-        for (const mount of mounts) {
+        for (const mount of validMounts) {
           if (absolutePath.startsWith(mount.path)) {
-            const relative = path.relative(mount.path, absolutePath)
+            // Normalize path separators to forward slashes (Windows compatibility)
+            const relative = path.relative(mount.path, absolutePath).replace(/\\/g, "/")
             virtualPath = relative
               ? `@/${mount.name}/${relative}`
               : `@/${mount.name}`
@@ -533,7 +546,8 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
 
         // If not in a mount, check if it's in project root
         if (!foundInMount && absolutePath.startsWith(projectRoot)) {
-          const relative = path.relative(projectRoot, absolutePath)
+          // Normalize path separators to forward slashes (Windows compatibility)
+          const relative = path.relative(projectRoot, absolutePath).replace(/\\/g, "/")
           virtualPath = `~/${relative}`
         }
 
