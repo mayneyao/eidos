@@ -7,6 +7,7 @@ import {
   RefreshCw,
   RotateCcw,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import {
   AlertDialog,
@@ -25,12 +26,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { useCurrentSpaceId } from "@/apps/web-app/hooks/use-current-space"
+import { useCurrentSpace, useCurrentSpaceId } from "@/apps/web-app/hooks/use-current-space"
 import { useGraft } from "@/apps/web-app/hooks/use-graft"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
 export const GraftSidebar = () => {
+  const { t } = useTranslation()
   const spaceId = useCurrentSpaceId()
+  const { currentSpace } = useCurrentSpace()
   const { currentApp } = useSidebarStore()
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const {
@@ -211,6 +214,8 @@ export const GraftSidebar = () => {
     }
   }
 
+  const isSyncEnabled = currentSpace?.sync?.enabled ?? false
+
   return (
     <div className="flex h-full w-full flex-col">
       {/* Header */}
@@ -267,8 +272,19 @@ export const GraftSidebar = () => {
 
       {/* Status Info */}
       <div className="flex-1 space-y-4 p-4 overflow-y-auto">
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">Status</h3>
+        {!isSyncEnabled ? (
+          <div className="flex flex-col items-center justify-center h-full px-4">
+            <div className="text-center space-y-2">
+              <h3 className="text-sm font-medium">{t("graft.syncNotEnabled", "Sync Not Enabled")}</h3>
+              <p className="text-sm text-muted-foreground">
+                {t("graft.syncNotEnabledDescription", "This space doesn't have sync enabled. Enable sync in space settings to use Graft features.")}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">Status</h3>
 
           {/* Detailed Status */}
           <div className="space-y-2 text-sm">
@@ -450,6 +466,8 @@ export const GraftSidebar = () => {
           </div>
         </div>
         {/* Commit History */}
+          </>
+        )}
       </div>
 
       <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>

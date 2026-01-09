@@ -91,6 +91,8 @@
     "file.handler.currentDefault": "Current Default Handler:",
     "file.handler.setAsDefaultDescription": "This will set the current handler as the default handler for {{extension}} files. All future {{extension}} files will open with this handler automatically.",
     "file.handler.confirmSetAsDefault": "Set as Default",
+    "graft.syncNotEnabled": "Local Space Only",
+    "graft.syncNotEnabledDescription": "This is a local space with no remote repository configured. Configure sync settings to connect to a remote repository and use Graft features.",
     "common.fetch": "Fetch",
     "common.files": "Files",
     "common.filter": "Filter...",
