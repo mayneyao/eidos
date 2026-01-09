@@ -1,24 +1,54 @@
 {
   "name": "@eidos.space/core",
-  "version": "1.0.0",
+  "version": "0.27.0",
   "description": "core package for eidos.space",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "readme.md"
+  ],
   "scripts": {
     "build": "tsdown",
     "test": "echo \"Error: no test specified\" && exit 1",
     "typecheck": "tsc --noEmit",
-    "typecheck:tsgo": "tsgo --noEmit"
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
   },
   "type": "module",
   "keywords": [
+    "eidos",
     "eidos.space",
     "core",
-    "sdk"
+    "sdk",
+    "database",
+    "sqlite",
+    "personal-data-management"
   ],
   "author": "mayneyao",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mayneyao/eidos.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/mayneyao/eidos/issues"
+  },
+  "homepage": "https://github.com/mayneyao/eidos/tree/main/packages/core#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.5.2",
