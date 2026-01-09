@@ -16,7 +16,6 @@
     "typecheck:tsgo": "tsgo --noEmit"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.11",
     "@tailwindcss/typography": "^0.5.9",
     "@testing-library/react-hooks": "^8.0.1",
     "@types/d3": "^7.4.0",
@@ -87,7 +86,6 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@sqlite.org/sqlite-wasm": "3.45.3-build2",
-    "@tailwindcss/vite": "^4.1.11",
     "@tanstack/react-virtual": "^3.13.12",
     "@tsparticles/engine": "^3.4.0",
     "@tsparticles/react": "^3.0.0",
