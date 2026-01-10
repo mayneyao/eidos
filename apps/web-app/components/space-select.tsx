@@ -126,19 +126,18 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
     if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       // Desktop mode: use Electron IPC to switch workspace
+      // Main process will handle URL navigation and reload
       try {
         const result = await window.eidos.invoke("switch-space", currentValue)
-        if (result.success) {
-          // Reload to ensure clean state
-          window.location.reload()
-        } else {
+        if (!result.success) {
           console.error("Failed to switch space:", result.error)
         }
+        // No action needed on success - main process handles reload
       } catch (error) {
         console.error("Error switching space:", error)
       }
     } else {
-      // Web mode: navigate to new space URL and reload
+      // Web mode: navigate to new space URL
       window.location.href = `/${currentValue}`
     }
   }
