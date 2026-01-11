@@ -25,6 +25,12 @@
     // "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
+      "@eidos.space/core": [
+        "./packages/core/index.ts"
+      ],
+      "@eidos.space/core/*": [
+        "./packages/core/*"
+      ],
       "@/locales/*": [
         "./packages/locales/*"
       ],
