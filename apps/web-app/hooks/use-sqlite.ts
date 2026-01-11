@@ -3,7 +3,6 @@
 import { useCallback } from "react"
 import { TreeTableName } from "@/packages/core/sqlite/const"
 import { TreeNodeType, type ITreeNode } from "@/packages/core/types/ITreeNode"
-import type { DataSpace } from "@eidos.space/core/data-space"
 
 import { isDesktopMode } from "@/lib/env"
 import { getRawTableNameById, uuidv7 } from "@/lib/utils"

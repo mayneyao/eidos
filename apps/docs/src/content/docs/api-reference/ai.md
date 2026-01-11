@@ -2,7 +2,7 @@
 title: AI API Reference
 description: Complete API reference for Eidos AI functionality
 sidebar:
-  order: 2
+  order: 3
 ---
 
 The `eidos.AI` object provides powerful artificial intelligence capabilities for text generation and structured data processing.

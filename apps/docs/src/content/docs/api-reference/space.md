@@ -2,7 +2,7 @@
 title: Space API Reference
 description: Complete API reference for Eidos Space functionality
 sidebar:
-  order: 1
+  order: 2
 ---
 
 The `eidos.currentSpace` object provides access to all data space functionality including navigation, document management, and extension node operations.

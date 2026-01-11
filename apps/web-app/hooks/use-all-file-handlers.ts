@@ -1,15 +1,20 @@
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import type { EidosDataEventChannelMsg } from "@/lib/const"
+import { useCallback, useEffect, useMemo } from "react"
+import { ExtensionTableName } from "@/packages/core/sqlite/const"
+import {
+  BlockExtensionType,
+  type FileHandlerMeta,
+  type IExtension,
+} from "@/packages/core/types/IExtension"
+import { create } from "zustand"
+
 import {
   DataUpdateSignalType,
   EidosDataEventChannelMsgType,
   EidosDataEventChannelName,
+  type EidosDataEventChannelMsg,
 } from "@/lib/const"
-import { ExtensionTableName } from "@/packages/core/sqlite/const"
-import type { IExtension, FileHandlerMeta } from "@/packages/core/types/IExtension"
-import { BlockExtensionType } from "@/packages/core/types/IExtension"
-import { useCallback, useEffect } from "react"
-import { create } from "zustand"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { getBuiltInFileHandlers } from "@/extensions/builtin"
 
 const useAllFileHandlersStore = create<{
   fileHandlers: IExtension<FileHandlerMeta>[]
@@ -27,7 +32,9 @@ const useAllFileHandlersStore = create<{
   setFileHandlers: (handlers) => set({ fileHandlers: handlers }),
   addFileHandler: (handler) =>
     set((state) => {
-      const existingIndex = state.fileHandlers.findIndex((h) => h.id === handler.id)
+      const existingIndex = state.fileHandlers.findIndex(
+        (h) => h.id === handler.id
+      )
       if (existingIndex !== -1) {
         return {
           fileHandlers: state.fileHandlers.map((h) =>
@@ -177,13 +184,43 @@ export const useSyncFileHandlers = () => {
 
 /**
  * Hook to get all file handler extensions
- * Automatically syncs with database changes
+ * Automatically syncs with database changes and includes built-in file handlers
  */
 export const useAllFileHandlers = () => {
-
-  const fileHandlers = useAllFileHandlersStore((state) => state.fileHandlers)
+  const dbFileHandlers = useAllFileHandlersStore((state) => state.fileHandlers)
   const loading = useAllFileHandlersStore((state) => state.loading)
   const reload = useAllFileHandlersStore((state) => state.reload)
+
+  // Merge database file handlers with built-in file handlers
+  const fileHandlers = useMemo(() => {
+    const builtInHandlers = getBuiltInFileHandlers()
+
+    // Convert built-in extensions to IExtension<FileHandlerMeta> format
+    const builtInAsExtensions: IExtension<FileHandlerMeta>[] =
+      builtInHandlers.map(
+        (builtIn) =>
+          ({
+            id: builtIn.id,
+            slug: builtIn.slug,
+            name: builtIn.name,
+            type: "block" as const,
+            description: (builtIn.meta as any)?.fileHandler?.description || "",
+            version: "1.0.0",
+            code: "", // Built-in don't need code
+            meta: builtIn.meta as FileHandlerMeta,
+            enabled: true,
+            // Mark as built-in for special handling
+            _builtIn: true,
+            _builtInComponent: builtIn.component,
+          }) as IExtension<FileHandlerMeta> & {
+            _builtIn?: boolean
+            _builtInComponent?: any
+          }
+      )
+
+    // Built-in handlers first, then database handlers
+    return [...builtInAsExtensions, ...dbFileHandlers]
+  }, [dbFileHandlers])
 
   return {
     fileHandlers,
@@ -191,4 +228,3 @@ export const useAllFileHandlers = () => {
     reload,
   }
 }
-

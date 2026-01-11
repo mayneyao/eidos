@@ -3,10 +3,10 @@
 import { create } from "zustand"
 
 import type { IDataStore } from "@/apps/web-app/store/interface"
-import type { DataSpace } from "@eidos.space/core/data-space"
 import type { IField } from "@/packages/core/types/IField"
 import type { IView } from "@/packages/core/types/IView"
 import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
+import type { DataSpace } from "@eidos.space/core"
 
 interface SqliteState {
   isInitialized: boolean
