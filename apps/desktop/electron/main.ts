@@ -697,7 +697,29 @@ app.whenReady().then(async () => {
     const configManager = getConfigManager()
     configManager.setLastOpenedSpace(spaceId)
 
+    // Pre-initialize DataSpace before switching URL
+    // This ensures the backend is ready when the frontend starts querying
+    console.log(`🔧 Pre-initializing DataSpace for: ${spaceId}`)
+    try {
+      await getOrSetDataSpace(spaceId)
+      console.log(`✅ DataSpace initialized for: ${spaceId}`)
+    } catch (error) {
+      console.error(`❌ Failed to initialize DataSpace for ${spaceId}:`, error)
+      throw error
+    }
+
     if (win) {
+      // Wait for page to load before reloading to ensure URL change is applied
+      const waitForLoad = () => {
+        return new Promise<void>((resolve) => {
+          win!.webContents.once("did-finish-load", () => {
+            const currentURL = win!.webContents.getURL()
+            console.log(`📍 Page loaded at: ${currentURL}`)
+            resolve()
+          })
+        })
+      }
+
       if (process.env.VITE_DEV_SERVER_URL) {
         const devUrl = new URL(process.env.VITE_DEV_SERVER_URL)
         const devSubdomainUrl = `http://${spaceId}.eidos.localhost:${devUrl.port}/`
@@ -705,12 +727,22 @@ app.whenReady().then(async () => {
           `🔄 Switching to space in development mode: ${devSubdomainUrl}`
         )
         win.loadURL(devSubdomainUrl)
+        await waitForLoad()
+        console.log(`✅ Page loaded, now reloading to ensure clean state...`)
+        win.reload()
+        await waitForLoad()
+        console.log(`🎉 Space switch complete to: ${spaceId}`)
       } else {
         const prodSubdomainUrl = `http://${spaceId}.eidos.localhost:${PORT}/`
         console.log(
           `🔄 Switching to space in production mode: ${prodSubdomainUrl}`
         )
         win.loadURL(prodSubdomainUrl)
+        await waitForLoad()
+        console.log(`✅ Page loaded, now reloading to ensure clean state...`)
+        win.reload()
+        await waitForLoad()
+        console.log(`🎉 Space switch complete to: ${spaceId}`)
       }
     }
 
