@@ -31,6 +31,12 @@
       "@eidos.space/core/*": [
         "./packages/core/*"
       ],
+      "@eidos.space/react": [
+        "./packages/react/src/index.ts"
+      ],
+      "@eidos.space/react/*": [
+        "./packages/react/src/*"
+      ],
       "@/locales/*": [
         "./packages/locales/*"
       ],
