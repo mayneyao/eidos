@@ -523,12 +523,7 @@
     {},
     {
       get: (target, prop) => {
-        if (prop === "space") {
-          return (space, bindings) => {
-            return makeSpaceProxy(space, bindings)
-          }
-        }
-        if (prop === "currentSpace") {
+        if (prop === "space" || prop === "currentSpace") {
           return makeSpaceProxy(
             "${{currentSpace}}",
             window.__EIDOS_BINDINGS__ || {}

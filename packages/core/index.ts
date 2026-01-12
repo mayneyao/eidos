@@ -14,7 +14,10 @@ export interface EidosTable<T = Record<string, string>> {
  * `eidos.currentSpace.table("tableId").rows.query()`
  */
 export interface Eidos {
-    space(spaceName: string): DataSpace
+    /**
+     * Simplified accessor for currentSpace
+     */
+    space: DataSpace
     currentSpace: DataSpace
 
     /**

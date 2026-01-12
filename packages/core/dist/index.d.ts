@@ -1,5 +1,5 @@
 import { Message } from "ai";
-import * as postal_mime9 from "postal-mime";
+import * as postal_mime27 from "postal-mime";
 import { JsonSchema7ObjectType } from "zod-to-json-schema";
 
 //#region fields/const.d.ts
@@ -1018,7 +1018,7 @@ declare const ComposedDocTable: {
     }>;
     createOrUpdate(data: {
       id: string;
-      text: string | postal_mime9.Email;
+      text: string | postal_mime27.Email;
       type: "html" | "markdown" | "email";
       mode?: "replace" | "append" | "prepend";
     }): Promise<{
@@ -2632,7 +2632,10 @@ interface EidosTable<T = Record<string, string>> {
  * `eidos.currentSpace.table("tableId").rows.query()`
  */
 interface Eidos {
-  space(spaceName: string): DataSpace;
+  /**
+   * Simplified accessor for currentSpace
+   */
+  space: DataSpace;
   currentSpace: DataSpace;
   /**
    * Script functionality

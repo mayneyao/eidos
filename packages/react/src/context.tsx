@@ -24,28 +24,19 @@ export const useEidosStore = create<EidosState>()((set) => ({
  * Create an Eidos instance from a DataSpace (worker proxy)
  *
  * This wraps the DataSpace proxy to provide the full Eidos interface
- * with currentSpace, space(), script, AI, and utils methods.
+ * with currentSpace, space, script, AI, and utils methods.
  *
  * @param dataSpace - The DataSpace worker proxy (accepts any to avoid type mismatch between source/dist)
- * @param options - Additional configuration
  * @returns Eidos interface
  */
 export function createEidos(
-  dataSpace: any,
-  options?: {
-    getSpace?: (spaceName: string) => any
-  }
+  dataSpace: any
 ): Eidos {
   return {
     currentSpace: dataSpace as DataSpace,
 
-    space(spaceName: string): DataSpace {
-      if (options?.getSpace) {
-        return options.getSpace(spaceName) as DataSpace
-      }
-      // Default: return current space (in most cases, extensions work with currentSpace)
-      return dataSpace as DataSpace
-    },
+    // space is a simplified accessor for currentSpace
+    space: dataSpace as DataSpace,
 
     script: {
       async call(scriptId: string, ...args: any[]): Promise<any> {
