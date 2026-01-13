@@ -113,6 +113,7 @@ export const getSqliteProxy = (
       if (
         [
           "doc",
+          "graft",
           "action",
           // deprecated, use extension instead
           "script",

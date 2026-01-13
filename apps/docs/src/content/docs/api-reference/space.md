@@ -5,10 +5,10 @@ sidebar:
   order: 2
 ---
 
-The `eidos.currentSpace` object provides access to all data space functionality including navigation, document management, and extension node operations.
+The `eidos.space` object provides access to all data space functionality including navigation, document management, and extension node operations.
 
 :::tip
-`eidos.currentSpace` exposes many more interfaces than documented here. However, for stability, please try to use the interfaces mentioned in the documentation. We will gradually evaluate which methods can be exposed.
+`eidos.space` exposes many more interfaces than documented here. However, for stability, please try to use the interfaces mentioned in the documentation. We will gradually evaluate which methods can be exposed.
 :::
 
 ---
@@ -41,32 +41,32 @@ navigate(path: string): void
 
 ```typescript
 // Navigate to a specific table
-eidos.currentSpace.navigate("/table_123")
+eidos.space.navigate("/table_123")
 
 // Navigate to a document
-eidos.currentSpace.navigate("/doc_456")
+eidos.space.navigate("/doc_456")
 
 // Navigate to a specific title in a document
-eidos.currentSpace.navigate("/doc_456#my-title")
+eidos.space.navigate("/doc_456#my-title")
 
 // Navigate to today's page
 const today = new Date().toISOString().split("T")[0]
-eidos.currentSpace.navigate(`/${today}`)
+eidos.space.navigate(`/${today}`)
 
 // Navigate to an extension
-eidos.currentSpace.navigate("/extensions/my-extension")
+eidos.space.navigate("/extensions/my-extension")
 
 // Navigate to a block
-eidos.currentSpace.navigate("/blocks/block_789")
+eidos.space.navigate("/blocks/block_789")
 
 // Navigate to a file handler (open a file in the project folder)
-eidos.currentSpace.navigate("/file-handler/#~/readme.md")
+eidos.space.navigate("/file-handler/#~/readme.md")
 
 // Navigate to a file handler (open a file in a mounted folder)
-eidos.currentSpace.navigate("/file-handler/#@/music/song.mp3")
+eidos.space.navigate("/file-handler/#@/music/song.mp3")
 ```
 
-### `notify(msg: string | { title: string; description: string; actions?: Array<{ label: string; action: "reload" | "dismiss"; variant?: "primary" | "secondary" }> })`
+### `notify(msg: string)`
 
 Show a notification to the user with markdown support. Supports advanced interactions via buttons.
 
@@ -102,17 +102,17 @@ notify(msg: {
 
 ```typescript
 // Simple mode - quick notification
-eidos.currentSpace.notify("Operation completed")
+eidos.space.notify("Operation completed")
 
 // Full mode - custom title and content
-eidos.currentSpace.notify({
+eidos.space.notify({
   title: "Task Completed",
   description:
     "Successfully processed **100 records** and updated the database.",
 })
 
 // With interactive actions
-eidos.currentSpace.notify({
+eidos.space.notify({
   title: "Update Available",
   description: "A new version is available. Would you like to refresh the page?",
   actions: [
@@ -126,7 +126,7 @@ eidos.currentSpace.notify({
 
 ## Document API
 
-The `eidos.currentSpace.doc` object provides document management functionality.
+The `eidos.space.doc` object provides document management functionality.
 
 ### `getMarkdown(id: string)`
 
@@ -139,7 +139,7 @@ async getMarkdown(id: string): Promise<string>
 **Example:**
 
 ```typescript
-const markdown = await eidos.currentSpace.doc.getMarkdown("doc_123")
+const markdown = await eidos.space.doc.getMarkdown("doc_123")
 console.log("Markdown content:", markdown)
 ```
 
@@ -154,7 +154,7 @@ async getProperties(id: string): Promise<Record<string, any>>
 **Example:**
 
 ```typescript
-const allProps = await eidos.currentSpace.doc.getProperties("doc_123")
+const allProps = await eidos.space.doc.getProperties("doc_123")
 console.log("All properties:", allProps)
 ```
 
@@ -169,7 +169,7 @@ async setProperties(id: string, properties: Record<string, any>): Promise<{ succ
 **Example:**
 
 ```typescript
-const result = await eidos.currentSpace.doc.setProperties("doc_123", {
+const result = await eidos.space.doc.setProperties("doc_123", {
   title: "My Document",
   author: "John Doe",
   tags: "important,work",
@@ -191,7 +191,7 @@ async deleteProperty(propertyName: string): Promise<void>
 **Example:**
 
 ```typescript
-await eidos.currentSpace.doc.deleteProperty("old_property")
+await eidos.space.doc.deleteProperty("old_property")
 console.log("Property deleted")
 ```
 
@@ -199,7 +199,7 @@ console.log("Property deleted")
 
 ## Extension Node API
 
-The `eidos.currentSpace.extNode` object provides extension node data storage functionality.
+The `eidos.space.extNode` object provides extension node data storage functionality.
 
 ### `getText(id: string)`
 
@@ -212,7 +212,7 @@ async getText(id: string): Promise<string | null>
 **Example:**
 
 ```typescript
-const textContent = await eidos.currentSpace.extNode.getText("node_123")
+const textContent = await eidos.space.extNode.getText("node_123")
 if (textContent) {
   const data = JSON.parse(textContent)
   console.log("Parsed data:", data)
@@ -231,7 +231,7 @@ async setText(id: string, text: string): Promise<boolean>
 
 ```typescript
 const data = { elements: [], appState: {} }
-await eidos.currentSpace.extNode.setText("node_123", JSON.stringify(data))
+await eidos.space.extNode.setText("node_123", JSON.stringify(data))
 ```
 
 ### `getBlob(id: string)`
@@ -245,7 +245,7 @@ async getBlob(id: string): Promise<Buffer | null>
 **Example:**
 
 ```typescript
-const blobData = await eidos.currentSpace.extNode.getBlob("node_123")
+const blobData = await eidos.space.extNode.getBlob("node_123")
 if (blobData) {
   // Process binary data
   console.log("Binary data size:", blobData.length)
@@ -264,7 +264,7 @@ async setBlob(id: string, blob: Buffer): Promise<boolean>
 
 ```typescript
 const buffer = Buffer.from("some binary data")
-await eidos.currentSpace.extNode.setBlob("node_123", buffer)
+await eidos.space.extNode.setBlob("node_123", buffer)
 ```
 
 ---
@@ -314,15 +314,15 @@ readdir(path: string, options?: {
 
 ```typescript
 // List project root directory
-const files = await eidos.currentSpace.fs.readdir("~/")
+const files = await eidos.space.fs.readdir("~/")
 console.log(files)
 // ["package.json", "src", "README.md"]
 
 // List project subdirectory
-const srcFiles = await eidos.currentSpace.fs.readdir("~/src")
+const srcFiles = await eidos.space.fs.readdir("~/src")
 
 // Get entries with type information
-const entries = await eidos.currentSpace.fs.readdir("~/", {
+const entries = await eidos.space.fs.readdir("~/", {
   withFileTypes: true,
 })
 entries.forEach((entry) => {
@@ -333,31 +333,31 @@ entries.forEach((entry) => {
 // README.md: file
 
 // Recursively list all files (including subdirectories)
-const allFiles = await eidos.currentSpace.fs.readdir("~/", { recursive: true })
+const allFiles = await eidos.space.fs.readdir("~/", { recursive: true })
 console.log(allFiles)
 // ["package.json", "src", "src/index.js", "src/utils.js", "README.md"]
 
 // Recursively list with type information
-const allEntries = await eidos.currentSpace.fs.readdir("~/", {
+const allEntries = await eidos.space.fs.readdir("~/", {
   withFileTypes: true,
   recursive: true,
 })
 
 // List mounted folder
-const musicFiles = await eidos.currentSpace.fs.readdir("@/music")
+const musicFiles = await eidos.space.fs.readdir("@/music")
 
 // Recursively list all files in mounted folder
-const allMusicFiles = await eidos.currentSpace.fs.readdir("@/music", {
+const allMusicFiles = await eidos.space.fs.readdir("@/music", {
   recursive: true,
 })
 
 // Access .eidos/files directory (naturally available through ~/ access)
-const eidosFiles = await eidos.currentSpace.fs.readdir("~/.eidos/files")
+const eidosFiles = await eidos.space.fs.readdir("~/.eidos/files")
 console.log(eidosFiles)
 // ["photo.jpg", "document.pdf", "data.json"]
 
 // Recursively list all files in .eidos/files
-const allEidosFiles = await eidos.currentSpace.fs.readdir("~/.eidos/files", {
+const allEidosFiles = await eidos.space.fs.readdir("~/.eidos/files", {
   recursive: true,
 })
 ```
@@ -391,10 +391,10 @@ mkdir(path: string, options?: { recursive?: boolean }): Promise<string | undefin
 
 ```typescript
 // Create directory in mounted folder
-await eidos.currentSpace.fs.mkdir("@/work/projects")
+await eidos.space.fs.mkdir("@/work/projects")
 
 // Recursively create nested directories
-await eidos.currentSpace.fs.mkdir("@/work/2024/Q1", { recursive: true })
+await eidos.space.fs.mkdir("@/work/2024/Q1", { recursive: true })
 ```
 
 **Common use cases:**
@@ -404,15 +404,15 @@ await eidos.currentSpace.fs.mkdir("@/work/2024/Q1", { recursive: true })
 const today = new Date()
 const year = today.getFullYear()
 const month = String(today.getMonth() + 1).padStart(2, "0")
-await eidos.currentSpace.fs.mkdir(`@/archive/${year}/${month}`, {
+await eidos.space.fs.mkdir(`@/archive/${year}/${month}`, {
   recursive: true,
 })
 
 // Check if directory exists, create if not
 try {
-  await eidos.currentSpace.fs.readdir("@/work/temp")
+  await eidos.space.fs.readdir("@/work/temp")
 } catch {
-  await eidos.currentSpace.fs.mkdir("@/work/temp")
+  await eidos.space.fs.mkdir("@/work/temp")
 }
 ```
 
@@ -445,24 +445,24 @@ readFile(path: string, options?: {
 
 ```typescript
 // Read text file
-const text = await eidos.currentSpace.fs.readFile("~/readme.md", "utf8")
+const text = await eidos.space.fs.readFile("~/readme.md", "utf8")
 console.log(text) // "# My Project\nThis is a sample project..."
 
 // Read JSON file
-const configText = await eidos.currentSpace.fs.readFile("~/config.json", "utf8")
+const configText = await eidos.space.fs.readFile("~/config.json", "utf8")
 const config = JSON.parse(configText)
 
 // Read using options object
-const content = await eidos.currentSpace.fs.readFile("~/data.txt", {
+const content = await eidos.space.fs.readFile("~/data.txt", {
   encoding: "utf8"
 })
 
 // Read binary file (images, videos, etc.)
-const imageData = await eidos.currentSpace.fs.readFile("~/image.png")
+const imageData = await eidos.space.fs.readFile("~/image.png")
 console.log(imageData) // Uint8Array(1234) [137, 80, 78, 71, ...]
 
 // Read file from mounted folder
-const musicData = await eidos.currentSpace.fs.readFile("@/music/song.mp3")
+const musicData = await eidos.space.fs.readFile("@/music/song.mp3")
 ```
 
 **Common use cases:**
@@ -470,20 +470,20 @@ const musicData = await eidos.currentSpace.fs.readFile("@/music/song.mp3")
 ```typescript
 // Read and parse JSON config file
 async function loadConfig(path: string) {
-  const content = await eidos.currentSpace.fs.readFile(path, "utf8")
+  const content = await eidos.space.fs.readFile(path, "utf8")
   return JSON.parse(content)
 }
 
 // Read image and convert to base64
 async function imageToBase64(path: string) {
-  const data = await eidos.currentSpace.fs.readFile(path)
+  const data = await eidos.space.fs.readFile(path)
   const base64 = btoa(String.fromCharCode(...data))
   return `data:image/png;base64,${base64}`
 }
 
 // Read text file and process line by line
 async function processTextFile(path: string) {
-  const content = await eidos.currentSpace.fs.readFile(path, "utf8")
+  const content = await eidos.space.fs.readFile(path, "utf8")
   const lines = content.split("\n")
   return lines.filter(line => line.trim().length > 0)
 }
@@ -520,11 +520,11 @@ writeFile(
 
 ```typescript
 // Write text file
-await eidos.currentSpace.fs.writeFile("~/hello.txt", "Hello, World!")
+await eidos.space.fs.writeFile("~/hello.txt", "Hello, World!")
 
 // Write JSON data
 const config = { theme: "dark", language: "en-US" }
-await eidos.currentSpace.fs.writeFile(
+await eidos.space.fs.writeFile(
   "~/config.json",
   JSON.stringify(config, null, 2),
   "utf8"
@@ -532,16 +532,16 @@ await eidos.currentSpace.fs.writeFile(
 
 // Write binary data
 const imageData = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
-await eidos.currentSpace.fs.writeFile("~/image.png", imageData)
+await eidos.space.fs.writeFile("~/image.png", imageData)
 
 // Write with options object
-await eidos.currentSpace.fs.writeFile("~/data.txt", "content", {
+await eidos.space.fs.writeFile("~/data.txt", "content", {
   encoding: "utf8",
   mode: 0o644
 })
 
 // Write to mounted folder
-await eidos.currentSpace.fs.writeFile("@/backup/data.json", JSON.stringify(data))
+await eidos.space.fs.writeFile("@/backup/data.json", JSON.stringify(data))
 ```
 
 **Common use cases:**
@@ -550,14 +550,14 @@ await eidos.currentSpace.fs.writeFile("@/backup/data.json", JSON.stringify(data)
 // Save user configuration
 async function saveConfig(config: object) {
   const content = JSON.stringify(config, null, 2)
-  await eidos.currentSpace.fs.writeFile("~/config.json", content, "utf8")
-  eidos.currentSpace.notify("Configuration saved")
+  await eidos.space.fs.writeFile("~/config.json", content, "utf8")
+  eidos.space.notify("Configuration saved")
 }
 
 // Export data to file
 async function exportData(data: any[], filename: string) {
   const csv = data.map(row => Object.values(row).join(",")).join("\n")
-  await eidos.currentSpace.fs.writeFile(`@/exports/${filename}`, csv, "utf8")
+  await eidos.space.fs.writeFile(`@/exports/${filename}`, csv, "utf8")
 }
 
 // Save Canvas screenshot
@@ -567,7 +567,7 @@ async function saveCanvasToFile(canvas: HTMLCanvasElement, path: string) {
   )
   const arrayBuffer = await blob!.arrayBuffer()
   const data = new Uint8Array(arrayBuffer)
-  await eidos.currentSpace.fs.writeFile(path, data)
+  await eidos.space.fs.writeFile(path, data)
 }
 
 // Create log file (append mode)
@@ -575,10 +575,10 @@ async function appendLog(message: string) {
   const timestamp = new Date().toISOString()
   const logEntry = `[${timestamp}] ${message}\n`
   try {
-    const existing = await eidos.currentSpace.fs.readFile("~/app.log", "utf8")
-    await eidos.currentSpace.fs.writeFile("~/app.log", existing + logEntry)
+    const existing = await eidos.space.fs.readFile("~/app.log", "utf8")
+    await eidos.space.fs.writeFile("~/app.log", existing + logEntry)
   } catch {
-    await eidos.currentSpace.fs.writeFile("~/app.log", logEntry)
+    await eidos.space.fs.writeFile("~/app.log", logEntry)
   }
 }
 ```
@@ -621,13 +621,13 @@ interface IStats {
 
 ```typescript
 // Get file information
-const stats = await eidos.currentSpace.fs.stat("~/readme.md")
+const stats = await eidos.space.fs.stat("~/readme.md")
 console.log(`File size: ${stats.size} bytes`)
 console.log(`Is file: ${stats.isFile}`)
 console.log(`Last modified: ${new Date(stats.mtimeMs)}`)
 
 // Check if it's a file or directory
-const stats = await eidos.currentSpace.fs.stat("~/src")
+const stats = await eidos.space.fs.stat("~/src")
 if (stats.isDirectory) {
   console.log("This is a directory")
 } else if (stats.isFile) {
@@ -635,7 +635,7 @@ if (stats.isDirectory) {
 }
 
 // Get file info from mounted folder
-const musicStats = await eidos.currentSpace.fs.stat("@/music/song.mp3")
+const musicStats = await eidos.space.fs.stat("@/music/song.mp3")
 console.log(`Song size: ${(musicStats.size / 1024 / 1024).toFixed(2)} MB`)
 ```
 
@@ -645,7 +645,7 @@ console.log(`Song size: ${(musicStats.size / 1024 / 1024).toFixed(2)} MB`)
 // Check if file exists
 async function fileExists(path: string): Promise<boolean> {
   try {
-    await eidos.currentSpace.fs.stat(path)
+    await eidos.space.fs.stat(path)
     return true
   } catch {
     return false
@@ -654,7 +654,7 @@ async function fileExists(path: string): Promise<boolean> {
 
 // Get human-readable file size
 async function getFileSize(path: string): Promise<string> {
-  const stats = await eidos.currentSpace.fs.stat(path)
+  const stats = await eidos.space.fs.stat(path)
   const bytes = stats.size
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
@@ -664,11 +664,11 @@ async function getFileSize(path: string): Promise<string> {
 
 // List files in directory with their sizes
 async function listFilesWithSize(dirPath: string) {
-  const files = await eidos.currentSpace.fs.readdir(dirPath)
+  const files = await eidos.space.fs.readdir(dirPath)
   const filesWithSize = await Promise.all(
     files.map(async (file) => {
       const filePath = `${dirPath}/${file}`
-      const stats = await eidos.currentSpace.fs.stat(filePath)
+      const stats = await eidos.space.fs.stat(filePath)
       return {
         name: file,
         size: stats.size,
@@ -682,13 +682,13 @@ async function listFilesWithSize(dirPath: string) {
 
 // Find recently modified files
 async function findRecentlyModified(dirPath: string, days: number = 7) {
-  const files = await eidos.currentSpace.fs.readdir(dirPath)
+  const files = await eidos.space.fs.readdir(dirPath)
   const now = Date.now()
   const cutoff = now - days * 24 * 60 * 60 * 1000
   
   const recentFiles = []
   for (const file of files) {
-    const stats = await eidos.currentSpace.fs.stat(`${dirPath}/${file}`)
+    const stats = await eidos.space.fs.stat(`${dirPath}/${file}`)
     if (stats.isFile && stats.mtimeMs > cutoff) {
       recentFiles.push({
         name: file,
@@ -701,8 +701,8 @@ async function findRecentlyModified(dirPath: string, days: number = 7) {
 
 // Compare modification times of two files
 async function isNewer(file1: string, file2: string): Promise<boolean> {
-  const stats1 = await eidos.currentSpace.fs.stat(file1)
-  const stats2 = await eidos.currentSpace.fs.stat(file2)
+  const stats1 = await eidos.space.fs.stat(file1)
+  const stats2 = await eidos.space.fs.stat(file2)
   return stats1.mtimeMs > stats2.mtimeMs
 }
 ```
@@ -738,25 +738,25 @@ rename(oldPath: string, newPath: string): Promise<void>
 
 ```typescript
 // Rename a file
-await eidos.currentSpace.fs.rename("~/old-name.md", "~/new-name.md")
+await eidos.space.fs.rename("~/old-name.md", "~/new-name.md")
 
 // Rename a directory
-await eidos.currentSpace.fs.rename("~/old-folder", "~/new-folder")
+await eidos.space.fs.rename("~/old-folder", "~/new-folder")
 
 // Move file to different directory
-await eidos.currentSpace.fs.rename("~/src/old.js", "~/lib/new.js")
+await eidos.space.fs.rename("~/src/old.js", "~/lib/new.js")
 
 // Rename file in mounted folder
-await eidos.currentSpace.fs.rename("@/music/old-song.mp3", "@/music/new-song.mp3")
+await eidos.space.fs.rename("@/music/old-song.mp3", "@/music/new-song.mp3")
 
 // Rename a node (virtual path)
-await eidos.currentSpace.fs.rename(
+await eidos.space.fs.rename(
   "~/.eidos/__NODES__/node-id",
   "~/.eidos/__NODES__/New Name"
 )
 
 // Rename an extension (virtual path)
-await eidos.currentSpace.fs.rename(
+await eidos.space.fs.rename(
   "~/.eidos/__EXTENSIONS__/ext-id",
   "~/.eidos/__EXTENSIONS__/new-slug.ts"
 )
@@ -771,34 +771,34 @@ async function renameFiles(files: string[], prefix: string) {
     const dir = file.substring(0, file.lastIndexOf("/"))
     const name = file.substring(file.lastIndexOf("/") + 1)
     const newName = `${prefix}-${name}`
-    await eidos.currentSpace.fs.rename(file, `${dir}/${newName}`)
+    await eidos.space.fs.rename(file, `${dir}/${newName}`)
   }
 }
 
 // Organize files by date
 async function organizeByDate(filePath: string) {
-  const stats = await eidos.currentSpace.fs.stat(filePath)
+  const stats = await eidos.space.fs.stat(filePath)
   const date = new Date(stats.mtimeMs)
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const dir = `@/archive/${year}/${month}`
   
   // Ensure directory exists
-  await eidos.currentSpace.fs.mkdir(dir, { recursive: true })
+  await eidos.space.fs.mkdir(dir, { recursive: true })
   
   // Move file
   const fileName = filePath.substring(filePath.lastIndexOf("/") + 1)
-  await eidos.currentSpace.fs.rename(filePath, `${dir}/${fileName}`)
+  await eidos.space.fs.rename(filePath, `${dir}/${fileName}`)
 }
 
 // Rename with backup
 async function renameWithBackup(oldPath: string, newPath: string) {
   const backupPath = `${oldPath}.backup`
   // First copy the file (by reading and writing)
-  const content = await eidos.currentSpace.fs.readFile(oldPath)
-  await eidos.currentSpace.fs.writeFile(backupPath, content)
+  const content = await eidos.space.fs.readFile(oldPath)
+  await eidos.space.fs.writeFile(backupPath, content)
   // Then rename the original file
-  await eidos.currentSpace.fs.rename(oldPath, newPath)
+  await eidos.space.fs.rename(oldPath, newPath)
 }
 ```
 
@@ -842,12 +842,12 @@ interface IWatchEvent {
 
 ```typescript
 // Watch for changes in nodes directory
-for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__NODES__/")) {
+for await (const event of eidos.space.fs.watch("~/.eidos/__NODES__/")) {
   console.log(`Node ${event.filename} ${event.eventType === 'rename' ? 'created/deleted' : 'content changed'}`)
 }
 
 // Watch for changes in extensions directory
-for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__EXTENSIONS__/")) {
+for await (const event of eidos.space.fs.watch("~/.eidos/__EXTENSIONS__/")) {
   if (event.eventType === 'rename') {
     console.log(`Extension ${event.filename} created or deleted`)
   } else {
@@ -856,7 +856,7 @@ for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__EXTENSIONS__/"
 }
 
 // Recursively watch directory and subdirectories
-for await (const event of eidos.currentSpace.fs.watch("~/src", {
+for await (const event of eidos.space.fs.watch("~/src", {
   recursive: true
 })) {
   console.log(`File ${event.filename} changed`)
@@ -869,7 +869,7 @@ const { signal } = controller
 // Automatically stop watching after 5 seconds
 setTimeout(() => controller.abort(), 5000)
 
-for await (const event of eidos.currentSpace.fs.watch("~/", {
+for await (const event of eidos.space.fs.watch("~/", {
   recursive: true,
   signal
 })) {
@@ -877,7 +877,7 @@ for await (const event of eidos.currentSpace.fs.watch("~/", {
 }
 
 // Watch mounted folder
-for await (const event of eidos.currentSpace.fs.watch("@/music", {
+for await (const event of eidos.space.fs.watch("@/music", {
   recursive: true
 })) {
   console.log(`Music file ${event.filename} changed`)
@@ -889,7 +889,7 @@ for await (const event of eidos.currentSpace.fs.watch("@/music", {
 ```typescript
 // Watch file changes and auto-reload
 async function watchAndReload(filePath: string, callback: () => void) {
-  for await (const event of eidos.currentSpace.fs.watch(filePath)) {
+  for await (const event of eidos.space.fs.watch(filePath)) {
     if (event.eventType === 'change') {
       console.log(`File ${filePath} updated, reloading...`)
       callback()
@@ -899,14 +899,14 @@ async function watchAndReload(filePath: string, callback: () => void) {
 
 // Watch directory changes and sync to database
 async function syncDirectoryChanges(dirPath: string) {
-  for await (const event of eidos.currentSpace.fs.watch(dirPath, {
+  for await (const event of eidos.space.fs.watch(dirPath, {
     recursive: true
   })) {
     if (event.eventType === 'rename') {
       // File created or deleted
       const fullPath = `${dirPath}/${event.filename}`
       try {
-        await eidos.currentSpace.fs.stat(fullPath)
+        await eidos.space.fs.stat(fullPath)
         // File exists, it's a creation
         console.log(`New file: ${fullPath}`)
         // Sync to database...
@@ -929,7 +929,7 @@ async function watchWithTimeout(path: string, timeoutMs: number) {
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   
   try {
-    for await (const event of eidos.currentSpace.fs.watch(path, {
+    for await (const event of eidos.space.fs.watch(path, {
       signal: controller.signal
     })) {
       console.log(`Change: ${event.filename}`)
@@ -948,7 +948,7 @@ async function watchWithTimeout(path: string, timeoutMs: number) {
 // Watch multiple directories
 async function watchMultipleDirs(paths: string[]) {
   const watchers = paths.map(path => 
-    eidos.currentSpace.fs.watch(path, { recursive: true })
+    eidos.space.fs.watch(path, { recursive: true })
   )
   
   // Use Promise.race to watch all directories
@@ -993,3 +993,138 @@ async function* mergeAsyncIterables<T>(...iterables: AsyncIterable<T>[]): AsyncI
 - `~/.eidos/__EXTENSIONS__/` - Extensions directory (virtual path, root only)
 - `@/music` - Mounted folder root
 - `@/music/albums` - Mounted folder subdirectory
+
+---
+
+## Graft (Version Control) API
+
+The `eidos.space.graft` object provides access to Graft, a distributed version control system for SQLite databases. Think of it as **Git for your database**: it allows you to track changes, synchronize with remote repositories, and manage different versions of your data space.
+
+:::note
+These methods are high-level wrappers around the [Graft SQLite PRAGMAs](https://graft.rs/docs/sqlite/pragmas/).
+:::
+
+### `status()`
+
+Get the current synchronization status, including ahead/behind commit counts.
+
+```typescript
+async status(): Promise<{ 
+  ahead: number        // Number of local commits not yet pushed
+  behind: number       // Number of remote commits not yet pulled
+  last_pushed_at: string 
+  last_pulled_at: string 
+}>
+```
+
+**Example:**
+
+```typescript
+const status = await eidos.space.graft.status()
+if (status.behind > 0) {
+  console.log(`You are ${status.behind} commits behind. pulling...`)
+  await eidos.space.graft.pull()
+}
+```
+
+### `fetch()`
+
+Fetch the latest state from the remote server without applying it. This updates the local knowledge of the remote state (updating the `behind` count in status), but does not modify your data.
+
+```typescript
+async fetch(): Promise<void>
+```
+
+### `pull()`
+
+Pull changes from the remote server and apply them to the local space. 
+- Performs a `fetch` first.
+- Merges remote changes into your local database.
+- Automatically triggers a reload if changes are applied.
+
+```typescript
+async pull(): Promise<void>
+```
+
+### `push()`
+
+Push local changes to the remote server.
+
+```typescript
+async push(): Promise<void>
+```
+
+### `tags()`
+
+Get a list of all tags (snapshots) available for this space.
+
+```typescript
+async tags(): Promise<Array<{ 
+  tag: string         // Tag name
+  log_id: string      // Unique ID of the log/commit
+  created_at: string  // Creation timestamp
+}>>
+```
+
+**Example:**
+
+```typescript
+const tags = await eidos.space.graft.tags()
+tags.forEach(tag => console.log(`Snapshot: ${tag.tag} (${tag.created_at})`))
+```
+
+### `clone(remoteLogId?)`
+
+Reset the local space to match the remote state or a specific snapshot. 
+
+:::danger
+**Destructive Operation**: This will replace your current local data with the data from the remote or specified snapshot. Any unpushed local changes will be lost.
+:::
+
+```typescript
+async clone(remoteLogId?: string): Promise<void>
+```
+
+**Parameters:**
+
+- `remoteLogId` (string, optional): Specific log ID to clone from. If omitted, clones from the head of the default branch.
+
+### `hydrate()`
+
+Hydrate the local database from a snapshot. This is used to restore the database to a consistent state from the stored Graft data.
+
+```typescript
+async hydrate(): Promise<void>
+```
+
+### `info()`
+
+Get detailed information about the Graft state, such as snapshot size, page counts, and version info.
+
+```typescript
+async info(): Promise<any>
+```
+
+### `audit()`
+
+Audit the local database against the remote state to check for consistency and integrity issues.
+
+```typescript
+async audit(): Promise<any>
+```
+
+### `volumes()`
+
+List the volumes associated with this space. A volume represents a distinct storage unit or branch in Graft.
+
+```typescript
+async volumes(): Promise<any[]>
+```
+
+### `version()`
+
+Get the version of the Graft extension and protocol being used.
+
+```typescript
+async version(): Promise<{ graft_version: string }>
+```
