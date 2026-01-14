@@ -38,7 +38,7 @@ const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
 
   const language = getEditorLanguage(script)
   const [editorContent, setEditorContent] = useState(
-    script.ts_code || script.code
+    script.ts_code || ""
   )
 
   const { scriptCodeMap, setScriptCodeMap } = useEditorStore()
@@ -76,8 +76,10 @@ const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
   }, [script.code])
 
   useEffect(() => {
-    setEditorContent(script.ts_code || script.code)
-  }, [script.ts_code, script.code])
+    if (script.ts_code) {
+      setEditorContent(script.ts_code)
+    }
+  }, [script.ts_code])
 
   // No need for manual revalidation - useExtensionByIdOrSlug auto-updates
 
@@ -90,7 +92,9 @@ const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
         ts_code !== script.ts_code ||
         (version && version !== script.version)
       ) {
-        setEditorContent(ts_code || code)
+        if (ts_code) {
+        setEditorContent(ts_code)
+      }
         const meta = await extractConstant(ts_code || code, "meta")
         const updateData: Partial<IExtension> = {
           id: script.id,

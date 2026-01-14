@@ -73,7 +73,7 @@ export class ExtensionTable
 
 
     ${createAllTriggersForFields(this.name, [
-    'id', 'slug', 'name', 'type', 'code', 'enabled', 'icon', 'meta'
+    'id', 'slug', 'name', 'type', 'code', 'ts_code', 'enabled', 'icon', 'meta'
   ])}
 
     CREATE INDEX IF NOT EXISTS idx_${this.name}_ts_code_trigram ON ${this.name}(ts_code) WHERE ts_code IS NOT NULL;
