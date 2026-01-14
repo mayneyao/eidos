@@ -180,13 +180,12 @@ export const SimpleCodeEditorWrapper = forwardRef(
         }
         if (language === "typescript") {
           if (customCompile) {
-            customCompile(codeToSave).then((jsCode) => {
-              console.log({
-                jsCode,
-                codeToSave,
-              })
-              onSave?.(jsCode, codeToSave, versionToSave)
+            const jsCode = await customCompile(codeToSave)
+            console.log({
+              jsCode,
+              codeToSave,
             })
+            onSave?.(jsCode, codeToSave, versionToSave)
           } else {
             const jsCode = compile(codeToSave)
             onSave?.(jsCode, codeToSave, versionToSave)
@@ -215,10 +214,10 @@ export const SimpleCodeEditorWrapper = forwardRef(
       [scriptId, ext, getExtensionBySlug]
     )
 
-    const handleAcceptChanges = useCallback(() => {
+    const handleAcceptChanges = useCallback(async () => {
       if (toApplyCode && scriptId) {
         const newVersion = pendingVersionUpdateMap[scriptId]
-        handleSave(toApplyCode, newVersion || undefined)
+        await handleSave(toApplyCode, newVersion || undefined)
         setScriptCodeMap(scriptId, "")
         setPendingVersionUpdate(scriptId, null)
         setActiveTab("preview")
