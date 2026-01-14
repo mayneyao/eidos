@@ -22,7 +22,8 @@ export const meta = {
   componentName: "MonacoEditor",
   fileHandler: {
     title: "Monaco Editor",
-    description: "Code and text file editor powered by Monaco (VS Code)",
+    description:
+      "Advanced code and text editor utilizing the Monaco Editor engine. Provides syntax highlighting, code folding, line numbering, and mini-map navigation for a wide range of programming languages and file formats.",
     extensions: [
       // Programming languages
       ".js",

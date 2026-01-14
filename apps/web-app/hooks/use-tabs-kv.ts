@@ -1,5 +1,6 @@
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { useSqliteKV } from "./use-sqlite-kv"
+import { useExtensionSettings } from "@/apps/web-app/hooks/use-extension-settings"
 
 export type TabId = "nodes" | "extensions" | "today" | "files" | string
 
@@ -51,9 +52,20 @@ export const useTabsKV = () => {
         setTabs(DEFAULT_TABS)
     }, [setTabs])
 
+    const { isExtensionEnabled, enabledExtensions } = useExtensionSettings()
+    
+    // Filter out disabled built-in extensions
+    const filteredTabs = useMemo(() => (tabs || DEFAULT_TABS).filter(id => {
+        // Only filter built-in extensions that are toggleable
+        if (["graft", "today"].includes(id)) {
+            return isExtensionEnabled(id)
+        }
+        return true
+    }), [tabs, isExtensionEnabled, enabledExtensions])
+
     return {
         // Tabs
-        tabs: tabs || DEFAULT_TABS,
+        tabs: filteredTabs,
         addTab,
         removeTab,
         reorderTabs,

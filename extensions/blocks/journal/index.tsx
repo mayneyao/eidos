@@ -1,30 +1,64 @@
-"use client"
-
+/**
+ * Journal Sidebar Block Extension
+ *
+ * Displays a list of daily journal entries with search and infinite scroll
+ */
 import { useEffect, useMemo, useRef } from "react"
 import { useVirtualList } from "ahooks"
 import useInfiniteScroll from "react-infinite-scroll-hook"
 
-import { cn } from "@/lib/utils"
-import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
-
 import { useJournalsSidebarData } from "./use-journals"
 
-const formatDate = (dayId: string) => {
-  const date = new Date(dayId)
-  if (Number.isNaN(date.getTime())) return dayId
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+/**
+ * Extension metadata
+ */
+export const meta = {
+  type: "sidebarBlock",
+  componentName: "JournalsSidebar",
+  sidebarBlock: {
+    title: "Journals",
+    description:
+      "Organize your daily notes with a dedicated sidebar. Features infinite scrolling for history, full-text search, and quick navigation to today or specific dates.",
+  },
 }
 
 type VirtualRow =
   | { type: "section"; label: string }
   | { type: "day"; id: string }
 
-export const JournalsSidebar = () => {
+/**
+ * Simple cn utility for classnames
+ */
+const cn = (...classes: (string | boolean | undefined)[]) =>
+  classes.filter(Boolean).join(" ")
+
+/**
+ * Simple Input component
+ */
+const Input = ({
+  ref,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  ref?: React.Ref<HTMLInputElement>
+}) => (
+  <input
+    ref={ref}
+    {...props}
+    className={cn(
+      "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+      props.className
+    )}
+  />
+)
+
+/**
+ * Simple Skeleton component
+ */
+const Skeleton = ({ className }: { className?: string }) => (
+  <div className={cn("animate-pulse rounded-md bg-muted", className)} />
+)
+
+export function JournalsSidebar() {
   const {
     currentDay,
     days,
@@ -36,7 +70,6 @@ export const JournalsSidebar = () => {
     searchTitleHighlights,
     searchContentHighlights,
     activeDay,
-    setActiveDay,
     search,
     setSearch,
     searchLoading,
@@ -111,7 +144,7 @@ export const JournalsSidebar = () => {
     </div>
   )
 
-  // Ctrl/Cmd + F to focus search input (similar to nodes header)
+  // Ctrl/Cmd + F to focus search input
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {

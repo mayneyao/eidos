@@ -15,6 +15,7 @@ import {
 } from "@/lib/const"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { getBuiltInFileHandlers } from "@/extensions/builtin"
+import { useExtensionSettings } from "@/apps/web-app/hooks/use-extension-settings"
 
 const useAllFileHandlersStore = create<{
   fileHandlers: IExtension<FileHandlerMeta>[]
@@ -190,10 +191,13 @@ export const useAllFileHandlers = () => {
   const dbFileHandlers = useAllFileHandlersStore((state) => state.fileHandlers)
   const loading = useAllFileHandlersStore((state) => state.loading)
   const reload = useAllFileHandlersStore((state) => state.reload)
+  const { isExtensionEnabled } = useExtensionSettings()
 
   // Merge database file handlers with built-in file handlers
   const fileHandlers = useMemo(() => {
-    const builtInHandlers = getBuiltInFileHandlers()
+    const builtInHandlers = getBuiltInFileHandlers().filter((h) =>
+      isExtensionEnabled(h.slug)
+    )
 
     // Convert built-in extensions to IExtension<FileHandlerMeta> format
     const builtInAsExtensions: IExtension<FileHandlerMeta>[] =

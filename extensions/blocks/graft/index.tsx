@@ -1,3 +1,6 @@
+/**
+ * Graft Sidebar Block Extension
+ */
 import { useEffect, useState } from "react"
 import {
   ArrowDown,
@@ -7,7 +10,6 @@ import {
   RefreshCw,
   RotateCcw,
 } from "lucide-react"
-import { useTranslation } from "react-i18next"
 
 import {
   AlertDialog,
@@ -26,18 +28,31 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { useCurrentSpace, useCurrentSpaceId } from "@/apps/web-app/hooks/use-current-space"
-import { useGraft } from "@/apps/web-app/hooks/use-graft"
-import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
+
+import {
+  useEidos,
+  useExtensionContext,
+  type SidebarBlockContext,
+} from "@eidos.space/react"
+import { useGraft } from "./use-graft"
+
+/**
+ * Extension metadata
+ */
+export const meta = {
+  type: "sidebarBlock",
+  componentName: "GraftSidebar",
+  sidebarBlock: {
+    title: "Graft",
+    description:
+      "Synchronize your workspace with remote repositories using Git-like operations (pull, push, clone). View sync status, branch information, and commit history deviation.",
+  },
+}
 
 export const GraftSidebar = () => {
-  const { t } = useTranslation()
-  const spaceId = useCurrentSpaceId()
-  const { currentSpace } = useCurrentSpace()
-  const { currentApp } = useSidebarStore()
+  const ctx = useExtensionContext<SidebarBlockContext>()
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const {
-    sqlite,
     status: syncStatus,
     lastUpdated,
     isStatusLoading,
@@ -58,11 +73,9 @@ export const GraftSidebar = () => {
 
   // Auto-refresh status when graft tab becomes active
   useEffect(() => {
-    if (currentApp === "graft" && spaceId) {
-      refreshStatus()
-      fetch()
-    }
-  }, [currentApp, spaceId, refreshStatus, fetch])
+    refreshStatus()
+    fetch()
+  }, [refreshStatus, fetch])
 
   const handleClone = async () => {
     await clone()
@@ -91,57 +104,6 @@ export const GraftSidebar = () => {
     if (diffHours < 24) return `${diffHours}h ago`
     if (diffDays < 7) return `${diffDays}d ago`
     return date.toLocaleDateString()
-  }
-
-  const getStatusColor = () => {
-    if (isStatusLoading || !syncStatus) return ""
-
-    switch (syncStatus.status) {
-      case "up_to_date":
-        return "text-green-600"
-      case "ahead":
-        return "text-green-600"
-      case "behind":
-        return "text-red-600"
-      case "diverged":
-        return "text-foreground"
-      default:
-        return ""
-    }
-  }
-
-  const getSummaryTheme = () => {
-    if (!syncStatus) return "from-primary/5 to-primary/10 border-primary/20"
-
-    switch (syncStatus.status) {
-      case "up_to_date":
-        return "from-green-500/5 to-green-500/10 border-green-500/20"
-      case "ahead":
-        return "from-green-500/5 to-green-500/10 border-green-500/20"
-      case "behind":
-        return "from-red-500/5 to-red-500/10 border-red-500/20"
-      case "diverged":
-        return "from-red-500/5 to-green-500/5 border-border/20"
-      default:
-        return "from-primary/5 to-primary/10 border-primary/20"
-    }
-  }
-
-  const getDotColor = () => {
-    if (!syncStatus) return "bg-primary"
-
-    switch (syncStatus.status) {
-      case "up_to_date":
-        return "bg-green-500"
-      case "ahead":
-        return "bg-green-500"
-      case "behind":
-        return "bg-red-500"
-      case "diverged":
-        return "bg-green-500"
-      default:
-        return "bg-primary"
-    }
   }
 
   const getStatusText = () => {
@@ -214,7 +176,7 @@ export const GraftSidebar = () => {
     }
   }
 
-  const isSyncEnabled = currentSpace?.sync?.enabled ?? false
+  const isSyncEnabled = ctx.syncEnabled ?? false
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -247,7 +209,7 @@ export const GraftSidebar = () => {
                 icon={RotateCcw}
                 onClick={handleResetClick}
                 loading={isCloning}
-                disabled={!sqlite}
+                disabled={false}
                 tooltip="Reset to remote state"
               />
             </>
@@ -257,7 +219,7 @@ export const GraftSidebar = () => {
               icon={RotateCcw}
               onClick={handleResetClick}
               loading={isCloning}
-              disabled={!sqlite}
+              disabled={false}
               tooltip="Reset to remote state"
             />
           )}
@@ -275,9 +237,9 @@ export const GraftSidebar = () => {
         {!isSyncEnabled ? (
           <div className="flex flex-col items-center justify-center h-full px-4">
             <div className="text-center space-y-2">
-              <h3 className="text-sm font-medium">{t("graft.syncNotEnabled", "Sync Not Enabled")}</h3>
+              <h3 className="text-sm font-medium">Sync Not Enabled</h3>
               <p className="text-sm text-muted-foreground">
-                {t("graft.syncNotEnabledDescription", "This space doesn't have sync enabled. Enable sync in space settings to use Graft features.")}
+                This space doesn't have sync enabled. Enable sync in space settings to use Graft features.
               </p>
             </div>
           </div>
@@ -465,7 +427,6 @@ export const GraftSidebar = () => {
             )}
           </div>
         </div>
-        {/* Commit History */}
           </>
         )}
       </div>
@@ -493,100 +454,6 @@ export const GraftSidebar = () => {
     </div>
   )
 }
-
-// Mock commit data
-const mockCommits = [
-  {
-    id: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
-    date: "2 hours ago",
-    isLocalHead: true,
-    isRemoteHead: false,
-  },
-  {
-    id: "b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7",
-    date: "3 hours ago",
-    isLocalHead: false,
-    isRemoteHead: true,
-  },
-  {
-    id: "c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8",
-    date: "5 hours ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9",
-    date: "8 hours ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-    date: "12 hours ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1",
-    date: "1 day ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "g7h8i9j0k1l2m3n4o5p6q7r8s9t0u2",
-    date: "2 days ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "h8i9j0k1l2m3n4o5p6q7r8s9t0u2v3",
-    date: "3 days ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "i9j0k1l2m3n4o5p6q7r8s9t0u2v3w4",
-    date: "4 days ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "j0k1l2m3n4o5p6q7r8s9t0u2v3w4x5",
-    date: "5 days ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "k1l2m3n4o5p6q7r8s9t0u2v3w4x5y6",
-    date: "6 days ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "l2m3n4o5p6q7r8s9t0u2v3w4x5y6z7",
-    date: "1 week ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "m3n4o5p6q7r8s9t0u2v3w4x5y6z7a8",
-    date: "8 days ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "n4o5p6q7r8s9t0u2v3w4x5y6z7a8b9",
-    date: "9 days ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-  {
-    id: "o5p6q7r8s9t0u2v3w4x5y6z7a8b9c0",
-    date: "10 days ago",
-    isLocalHead: false,
-    isRemoteHead: false,
-  },
-]
 
 const ToolButton = ({
   icon: Icon,

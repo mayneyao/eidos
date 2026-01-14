@@ -4,23 +4,25 @@
  * Renders first-party extensions directly in React (no iframe)
  * with proper context injection via ExtensionContextProvider
  */
-import {
-  ExtensionContextProvider,
-  type ExtNodeContext,
-  type FileHandlerContext,
-  type TableViewContext
-} from "@eidos.space/react"
-import { Suspense, type ReactNode } from "react"
 
+import { Suspense, type ReactNode } from "react"
 import {
   builtInExtensions,
   getBuiltInExtension,
   isBuiltInExtension,
 } from "@/extensions/builtin"
+import {
+  ExtensionContextProvider,
+  type ExtNodeContext,
+  type FileHandlerContext,
+  type SidebarBlockContext,
+  type TableViewContext,
+} from "@eidos.space/react"
 
 interface BuiltInExtNodeRendererProps {
   extensionSlug: string
   space: string
+  locale: string
   nodeId: string
   fallback?: ReactNode
 }
@@ -28,6 +30,7 @@ interface BuiltInExtNodeRendererProps {
 interface BuiltInTableViewRendererProps {
   extensionSlug: string
   space: string
+  locale: string
   tableId: string
   viewId: string
   fallback?: ReactNode
@@ -36,7 +39,17 @@ interface BuiltInTableViewRendererProps {
 interface BuiltInFileHandlerRendererProps {
   extensionSlug: string
   space: string
+  locale: string
   filePath: string
+  fallback?: ReactNode
+}
+
+interface BuiltInSidebarBlockRendererProps {
+  extensionSlug: string
+  space: string
+  currentDay: string
+  locale: string
+  syncEnabled?: boolean
   fallback?: ReactNode
 }
 
@@ -46,6 +59,7 @@ interface BuiltInFileHandlerRendererProps {
 export function BuiltInExtNodeRenderer({
   extensionSlug,
   space,
+  locale,
   nodeId,
   fallback,
 }: BuiltInExtNodeRendererProps) {
@@ -59,6 +73,7 @@ export function BuiltInExtNodeRenderer({
   const context: ExtNodeContext = {
     type: "extNode",
     space,
+    locale,
     nodeId,
   }
 
@@ -79,6 +94,7 @@ export function BuiltInExtNodeRenderer({
 export function BuiltInTableViewRenderer({
   extensionSlug,
   space,
+  locale,
   tableId,
   viewId,
   fallback,
@@ -93,6 +109,7 @@ export function BuiltInTableViewRenderer({
   const context: TableViewContext = {
     type: "tableView",
     space,
+    locale,
     tableId,
     viewId,
   }
@@ -114,6 +131,7 @@ export function BuiltInTableViewRenderer({
 export function BuiltInFileHandlerRenderer({
   extensionSlug,
   space,
+  locale,
   filePath,
   fallback,
 }: BuiltInFileHandlerRendererProps) {
@@ -127,6 +145,7 @@ export function BuiltInFileHandlerRenderer({
   const context: FileHandlerContext = {
     type: "fileHandler",
     space,
+    locale,
     filePath,
   }
 
@@ -134,6 +153,43 @@ export function BuiltInFileHandlerRenderer({
 
   return (
     <Suspense fallback={fallback || <div>Loading...</div>}>
+      <ExtensionContextProvider context={context}>
+        <Component />
+      </ExtensionContextProvider>
+    </Suspense>
+  )
+}
+
+/**
+ * Renders a built-in SidebarBlock extension directly in React
+ */
+export function BuiltInSidebarBlockRenderer({
+  extensionSlug,
+  space,
+  currentDay,
+  locale,
+  syncEnabled,
+  fallback,
+}: BuiltInSidebarBlockRendererProps) {
+  const ext = getBuiltInExtension(extensionSlug)
+
+  if (!ext) {
+    console.warn(`Built-in extension not found: ${extensionSlug}`)
+    return fallback || null
+  }
+
+  const context: SidebarBlockContext = {
+    type: "sidebarBlock",
+    space,
+    currentDay,
+    locale,
+    syncEnabled,
+  }
+
+  const Component = ext.component
+
+  return (
+    <Suspense fallback={fallback || <div></div>}>
       <ExtensionContextProvider context={context}>
         <Component />
       </ExtensionContextProvider>

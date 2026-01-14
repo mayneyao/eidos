@@ -7,6 +7,7 @@ import {
   Folder,
   Info,
   KeyRound,
+  Package,
   Palette,
   Settings as SettingsIcon,
   Shield,
@@ -23,6 +24,7 @@ type SettingsSection =
   | "space-document"
   | "space-mounts"
   | "space-file-handlers"
+  | "space-extensions"
   | "space-sync"
   | "general"
   | "ai"
@@ -86,13 +88,13 @@ export function SettingsSidebar({
       disabled: !isSyncEnabled,
       category: "space",
     },
-    // {
-    //   id: "space-file-handlers",
-    //   title: "File Handlers",
-    //   description: "Manage default applications for file types",
-    //   icon: <FileType className="h-5 w-5" />,
-    //   category: "space",
-    // },
+    {
+      id: "space-extensions",
+      title: "Extensions",
+      description: "Manage installed extensions for this space",
+      icon: <Package className="h-5 w-5" />,
+      category: "space",
+    },
     // Global Settings
     {
       id: "general",

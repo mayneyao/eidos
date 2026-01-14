@@ -20,22 +20,20 @@ function MyExtension() {
   const eidos = useEidos()
 
   // Example: Query table
-  eidos.currentSpace.table("myTable").rows.query()
+  eidos.space.table("myTable").rows.query()
 
   // Example: Read file
-  eidos.currentSpace.fs.readFile("/path/to/file", "utf8")
+  eidos.space.fs.readFile("/path/to/file", "utf8")
 }
 ```
 
 ### Signature
 
-| Property        | Type                          | Description                              |
-| --------------- | ----------------------------- | ---------------------------------------- |
-| `currentSpace`  | `DataSpace`                   | Current space data access                |
-| `space(name)`   | `(name: string) => DataSpace` | Access specific space                    |
-| `script.call()` | `Function`                    | Execute other scripts                    |
-| `AI`            | `object`                      | AI capabilities (text/object generation) |
-| `utils`         | `object`                      | System utilities                         |
+| Property                | Type        | Description                              |
+| ----------------------- | ----------- | ---------------------------------------- |
+| [`currentSpace`](../space) | `DataSpace` | Current space data access                |
+| `space`                 | `DataSpace` | Alias for `currentSpace`                 |
+| [`AI`](../ai)              | `object`    | AI capabilities (text/object generation) |
 
 ---
 

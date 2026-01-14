@@ -1,39 +1,33 @@
-"use client"
-
+/**
+ * Journal sidebar data hook
+ * Refactored to use eidos.currentSpace APIs
+ */
 import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  useEidos,
+  useExtensionContext,
+  type SidebarBlockContext,
+} from "@eidos.space/react"
 
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useAllDays } from "@/apps/web-app/pages/[database]/journals/hooks"
-import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useRouterAdapter } from "@/hooks/use-router-adapter"
-import { getToday, getYesterday } from "@/lib/utils"
+import { buildSnippet, getToday, getYesterday } from "./utils"
 
 const MAX_PREVIEW_COUNT = 40
+const EACH_PAGE_SIZE = 7
 
-const buildSnippet = (markdown: string) => {
-  if (!markdown) return ""
-  // strip simple markdown markers to make a lightweight preview
-  const text = markdown
-    .replace(/`{3}[\s\S]*?`{3}/g, " ")
-    .replace(/`[^`]*`/g, " ")
-    .replace(/[#>*_\-\[\]\(\)]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-  if (!text) return ""
-  return text.length > 140 ? `${text.slice(0, 140)}…` : text
+type IDay = {
+  id: string
 }
 
 export const useJournalsSidebarData = () => {
-  const { space } = useCurrentPathInfo()
-  const { navigate, params } = useRouterAdapter()
-  const currentDay = (params.day as string | undefined) || getToday()
-  const {
-    getDocMarkdown,
-    getDocMarkdownBatch,
-    fullTextSearch,
-    searchDayPages,
-  } = useSqlite(space)
-  const { days, loading, hasNextPage, loadMore } = useAllDays(space)
+  const eidos = useEidos()
+  const space = eidos.currentSpace
+  const ctx = useExtensionContext<SidebarBlockContext>()
+  const currentDay = ctx.currentDay || getToday()
+
+  const [days, setDays] = useState<IDay[]>([])
+  const [currentPage, setCurrentPage] = useState(0)
+  const [hasNextPage, setHasNextPage] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   const [previews, setPreviews] = useState<Record<string, string>>({})
   const [searchTitleHighlights, setSearchTitleHighlights] = useState<
@@ -57,63 +51,86 @@ export const useJournalsSidebarData = () => {
     setActiveDay(currentDay)
   }, [currentDay])
 
+  // Initial load
+  useEffect(() => {
+    const loadInitial = async () => {
+      const initialDays = await space.listDays(0)
+      const existDays = initialDays.map((d: any) => d.id)
+      let _days: IDay[] = [...initialDays]
 
+      if (!existDays.includes(today)) {
+        _days.push({ id: today })
+      }
+
+      _days.sort((a, b) => {
+        return new Date(b.id).getTime() - new Date(a.id).getTime()
+      })
+
+      setDays(_days)
+    }
+    loadInitial()
+  }, [space, today])
 
   const handleLoadMore = useCallback(async () => {
+    if (loading) return
+
+    setLoading(true)
     try {
-      await loadMore()
-    } catch (err) {
-      console.warn("[TodaySidebar] loadMore error", err)
+      const res = await space.listDays(currentPage + 1)
+
+      if (!res?.length) {
+        setHasNextPage(false)
+        return
+      }
+
+      setDays((prevDays) => {
+        const existingIds = new Set(prevDays.map((d: IDay) => d.id))
+        const newDays = res.filter((d: IDay) => !existingIds.has(d.id))
+        return [...prevDays, ...newDays]
+      })
+
+      setCurrentPage(currentPage + 1)
+      if (res.length < EACH_PAGE_SIZE) {
+        setHasNextPage(false)
+      }
+    } finally {
+      setLoading(false)
     }
-  }, [hasNextPage, loadMore, loading])
+  }, [currentPage, space, loading])
 
   const handleOpen = useCallback(
     (dayId: string, options?: { target?: "_blank" | "_self" }) => {
       if (options?.target !== "_blank") {
         setActiveDay(dayId)
       }
-      navigate(`/journals/${dayId}`, { target: options?.target })
+      // Use eidos.currentSpace.navigate for navigation
+      space.navigate(`/journals/${dayId}`)
     },
-    [navigate]
+    [space]
   )
 
-  // Prefetch lightweight snippets for the most recent days to render list cards
+  // Prefetch lightweight snippets for the most recent days
   useEffect(() => {
     let cancelled = false
     const fetchPreviews = async () => {
-      if (!getDocMarkdown) return
       const targetIds = days
         .map((d) => d.id)
         .filter((id) => !fetchedRef.has(id))
         .slice(0, MAX_PREVIEW_COUNT)
 
       if (!targetIds.length) return
+
       let entries: [string, string][] = []
       try {
-        if (getDocMarkdownBatch) {
-          const batchRes = await getDocMarkdownBatch(targetIds)
-          entries = batchRes.map(
-            (item: { id: string; markdown: string }) => [
-              item.id,
-              buildSnippet(item.markdown || ""),
-            ]
-          )
-        } else {
-          // Fallback: sequential fetch (should rarely happen)
-          entries = await Promise.all(
-            targetIds.map(async (id): Promise<[string, string]> => {
-              try {
-                const markdown = await getDocMarkdown(id)
-                return [id, buildSnippet(markdown || "")]
-              } catch (error) {
-                console.warn("Failed to load journal preview", error)
-                return [id, ""]
-              }
-            })
-          )
-        }
+        const batchRes = await space.getDocMarkdownBatch(targetIds)
+        entries = batchRes.map(
+          (item: { id: string; markdown: string }) => [
+            item.id,
+            buildSnippet(item.markdown || ""),
+          ]
+        )
       } catch (error) {
-        console.warn("[TodaySidebar] Failed to batch load journal previews", error)
+        console.warn("[JournalsSidebar] Failed to batch load journal previews", error)
         entries = targetIds.map((id) => [id, ""])
       }
 
@@ -133,7 +150,7 @@ export const useJournalsSidebarData = () => {
     return () => {
       cancelled = true
     }
-  }, [days, getDocMarkdown, fetchedRef, getDocMarkdownBatch])
+  }, [days, space, fetchedRef])
 
   const highlightId = (id: string, term: string) => {
     if (!term) return id
@@ -142,7 +159,7 @@ export const useJournalsSidebarData = () => {
     return id.replace(re, (m) => `<b>${m}</b>`)
   }
 
-  // Backend search combining full-text (highlight) + id LIKE (supports fragments e.g. 2025-12 / 12-05)
+  // Backend search combining full-text + id LIKE
   useEffect(() => {
     let cancelled = false
     if (!search) {
@@ -156,8 +173,8 @@ export const useJournalsSidebarData = () => {
       setSearchLoading(true)
       try {
         const [ftsRes, idLikeRes] = await Promise.all([
-          fullTextSearch ? fullTextSearch(search) : Promise.resolve([]),
-          searchDayPages ? searchDayPages(search, 0, 50) : Promise.resolve([]),
+          space.fullTextSearch(search),
+          space.searchDayPages(search, 0, 50),
         ])
 
         if (cancelled) return
@@ -167,7 +184,7 @@ export const useJournalsSidebarData = () => {
         const contentHighlights: Record<string, string> = {}
         const seen = new Set<string>()
 
-        // prefer full-text results (with backend highlight)
+        // Prefer full-text results (with backend highlight)
         for (const item of ftsRes as any[]) {
           if (seen.has(item.id)) continue
           seen.add(item.id)
@@ -175,14 +192,13 @@ export const useJournalsSidebarData = () => {
           if (item.result) {
             contentHighlights[item.id] = item.result
           }
-          // also highlight id fragment if present in title
           const hlId = highlightId(item.id, search)
           if (hlId !== item.id) {
             titleHighlights[item.id] = hlId
           }
         }
 
-        // add ID/markdown LIKE results if not already present
+        // Add ID/markdown LIKE results if not already present
         for (const item of idLikeRes as any[]) {
           if (seen.has(item.id)) continue
           seen.add(item.id)
@@ -197,14 +213,14 @@ export const useJournalsSidebarData = () => {
         setSearchTitleHighlights(titleHighlights)
         setSearchContentHighlights(contentHighlights)
 
-        // cache snippets from id-like markdown results to avoid refetch
+        // Cache snippets from id-like markdown results
         setPreviews((prev) => {
           const next = { ...prev }
-            ; (idLikeRes as any[]).forEach((item) => {
-              if (item.markdown !== undefined) {
-                next[item.id] = buildSnippet(item.markdown || "")
-              }
-            })
+          ;(idLikeRes as any[]).forEach((item) => {
+            if (item.markdown !== undefined) {
+              next[item.id] = buildSnippet(item.markdown || "")
+            }
+          })
           return next
         })
       } catch (error) {
@@ -219,7 +235,7 @@ export const useJournalsSidebarData = () => {
       cancelled = true
       clearTimeout(handler)
     }
-  }, [search, fullTextSearch, searchDayPages])
+  }, [search, space])
 
   const sections = useMemo(
     () => ({
@@ -251,4 +267,3 @@ export const useJournalsSidebarData = () => {
     sections,
   }
 }
-

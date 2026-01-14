@@ -7,7 +7,9 @@
 import type { ComponentType } from "react"
 import type { ExtensionMeta } from "@eidos.space/core/types/IExtension"
 
-// Direct imports of built-in extensions
+import * as Graft from "./blocks/graft"
+import * as Journal from "./blocks/journal"
+import * as MediaPreview from "./blocks/media-preview"
 import * as MonacoEditor from "./blocks/monaco-editor"
 
 export interface BuiltInExtension {
@@ -41,6 +43,7 @@ function register(slug: string, module: any): BuiltInExtension {
       (meta as any).extNode?.title ||
       (meta as any).tableView?.title ||
       (meta as any).fileHandler?.title ||
+      (meta as any).sidebarBlock?.title ||
       slug,
     type: "block",
     meta,
@@ -53,7 +56,10 @@ function register(slug: string, module: any): BuiltInExtension {
  * Registry of all built-in extensions
  */
 export const builtInExtensions: BuiltInExtension[] = [
+  register("journal", Journal),
+  register("graft", Graft),
   register("monaco-editor", MonacoEditor),
+  register("media-preview", MediaPreview),
 ]
 
 /**

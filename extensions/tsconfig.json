@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@eidos.space/core": ["../packages/core/index.ts"],
+      "@eidos.space/core/*": ["../packages/core/*"],
+      "@eidos.space/react": ["../packages/react/src/index.ts"],
+      "@eidos.space/react/*": ["../packages/react/src/*"],
+      "@/components/*": ["../apps/web-app/components/*"],
+      "@/lib/*": ["../packages/lib/*"],
+      "@/hooks/*": ["../apps/web-app/hooks/*"],
+      "@/*": ["../*"]
+    }
+  },
+  "include": ["./**/*.ts", "./**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -20,22 +20,20 @@ function MyExtension() {
   const eidos = useEidos()
 
   // 示例：查询表格
-  eidos.currentSpace.table("myTable").rows.query()
+  eidos.space.table("myTable").rows.query()
 
   // 示例：读取文件
-  eidos.currentSpace.fs.readFile("/path/to/file", "utf8")
+  eidos.space.fs.readFile("/path/to/file", "utf8")
 }
 ```
 
 ### 签名
 
-| 属性            | 类型        | 描述                          |
-| --------------- | ----------- | ----------------------------- |
-| `currentSpace`  | `DataSpace` | 当前空间数据访问              |
-| `space`         | `DataSpace` | `currentSpace` 的简化访问形式 |
-| `script.call()` | `Function`  | 执行其他脚本                  |
-| `AI`            | `object`    | AI 能力（文本/对象生成）      |
-| `utils`         | `object`    | 系统实用工具                  |
+| 属性                       | 类型        | 描述                     |
+| -------------------------- | ----------- | ------------------------ |
+| [`currentSpace`](../space) | `DataSpace` | 当前空间数据访问         |
+| `space`                    | `DataSpace` | `currentSpace` 的别名    |
+| [`AI`](../ai)              | `object`    | AI 能力（文本/对象生成） |
 
 ---
 

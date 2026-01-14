@@ -5,6 +5,8 @@ import { createContext, useContext, type ReactNode } from 'react'
  */
 export interface BaseExtensionContext {
   space: string
+  /** Current locale for i18n, e.g. 'en', 'zh-CN' */
+  locale: string
 }
 
 /**
@@ -33,9 +35,20 @@ export interface FileHandlerContext extends BaseExtensionContext {
 }
 
 /**
+ * Context for SidebarBlock type extensions
+ */
+export interface SidebarBlockContext extends BaseExtensionContext {
+  type: 'sidebarBlock'
+  /** Current selected day from URL params.day, format YYYY-MM-DD */
+  currentDay: string
+  /** Whether sync is enabled for this space (optional, used by graft) */
+  syncEnabled?: boolean
+}
+
+/**
  * Union of all extension context types
  */
-export type ExtensionContextType = ExtNodeContext | TableViewContext | FileHandlerContext
+export type ExtensionContextType = ExtNodeContext | TableViewContext | FileHandlerContext | SidebarBlockContext
 
 /**
  * React context for extension props (first-party extensions)
@@ -83,6 +96,7 @@ function parseContextFromLocation(): ExtensionContextType | null {
     return {
       type: 'fileHandler',
       space,
+      locale: 'en', // Default locale for third-party extensions
       filePath: decodeURIComponent(hash.slice(1)), // Remove leading #
     }
   }
@@ -94,6 +108,7 @@ function parseContextFromLocation(): ExtensionContextType | null {
     return {
       type: 'tableView',
       space,
+      locale: 'en', // Default locale for third-party extensions
       tableId: parts[0],
       viewId: parts[1],
     }
@@ -104,6 +119,7 @@ function parseContextFromLocation(): ExtensionContextType | null {
     return {
       type: 'extNode',
       space,
+      locale: 'en', // Default locale for third-party extensions
       nodeId: parts[0],
     }
   }
@@ -171,4 +187,11 @@ export function isTableViewContext(ctx: ExtensionContextType): ctx is TableViewC
  */
 export function isFileHandlerContext(ctx: ExtensionContextType): ctx is FileHandlerContext {
   return ctx.type === 'fileHandler'
+}
+
+/**
+ * Type guard to check if context is SidebarBlockContext
+ */
+export function isSidebarBlockContext(ctx: ExtensionContextType): ctx is SidebarBlockContext {
+  return ctx.type === 'sidebarBlock'
 }
