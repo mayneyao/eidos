@@ -3,19 +3,19 @@
  */
 
 /**
- * Get today's date in YYYY-MM-DD format
+ * Get today's date in YYYY-MM-DD format (local timezone)
  */
 export const getToday = (): string => {
-  return new Date().toISOString().split("T")[0]
+  return new Date().toLocaleDateString("en-CA")
 }
 
 /**
- * Get yesterday's date in YYYY-MM-DD format
+ * Get yesterday's date in YYYY-MM-DD format (local timezone)
  */
 export const getYesterday = (): string => {
   const d = new Date()
   d.setDate(d.getDate() - 1)
-  return d.toISOString().split("T")[0]
+  return d.toLocaleDateString("en-CA")
 }
 
 /**
