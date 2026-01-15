@@ -2,7 +2,13 @@ import React from "react"
 import { createRoot } from "react-dom/client"
 
 import { Toaster } from "@/components/ui/toaster"
+import { ExtensionContextProvider, useEidosStore, createEidos } from "@eidos.space/react"
 
+// Initialize the Eidos SDK with window.eidos for useEidos() hook
+if (window.eidos) {
+  const eidos = createEidos(window.eidos.currentSpace)
+  useEidosStore.getState().setEidos(eidos)
+}
 let appRootInstance = null
 let AppComponentRef = null
 let currentProps = {
@@ -66,12 +72,56 @@ try {
 let retryCount = 0
 const maxRetries = 3
 
+// Parse client-side context from URL (space and URL params only, type comes from server)
+const parseClientContext = () => {
+  const hostname = window.location.hostname
+  const pathname = window.location.pathname
+  const hash = window.location.hash
+  
+  // Extract space from hostname: <extId>.block.<space>.eidos.localhost
+  const hostMatch = hostname.match(/\.block\.(.+)\.eidos\.localhost/)
+  const space = hostMatch?.[1] || ''
+  
+  const parts = pathname.split('/').filter(Boolean)
+  
+  // Build context with URL-derived values (type comes from server via extension.meta.type)
+  let context = { space }
+  
+  if (hash) {
+    // FileHandler: #<filePath>
+    context.filePath = decodeURIComponent(hash.slice(1))
+  } else if (parts.length === 2) {
+    // TableView: /<tableId>/<viewId>
+    context.tableId = parts[0]
+    context.viewId = parts[1]
+  } else if (parts.length === 1) {
+    // ExtNode: /<nodeId>
+    context.nodeId = parts[0]
+  } else {
+    context.nodeId = ''
+  }
+  
+  return context
+}
+
 // Helper function to perform the rendering
 const performRender = () => {
   if (appRootInstance && AppComponentRef) {
+    // Merge server-side context with client-side context
+    const serverContext = window.__extensionContext || {}
+    const clientContext = parseClientContext()
+    const extensionContext = { ...clientContext, ...serverContext }
+    
+    const appElement = React.createElement(AppComponentRef, currentProps)
+    
+    // Wrap with ExtensionContextProvider if context is available
+    const wrappedApp = extensionContext.type
+      ? React.createElement(ExtensionContextProvider, { context: extensionContext }, appElement)
+      : appElement
+    
     appRootInstance.render(
       React.createElement(React.StrictMode, null, [
-        React.createElement(AppComponentRef, currentProps),
+        wrappedApp,
         React.createElement(Toaster),
       ])
     )

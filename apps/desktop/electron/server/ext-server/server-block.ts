@@ -129,6 +129,15 @@ export class ServerBlock {
         // // Placeholder for BlockRenderer server-side logic
         const themeRawCode = this.getThemeRawCss()
 
+        // Server-side extension context
+        // type comes from extension meta, locale from user settings
+        // URL-derived context (space, nodeId, tableId, etc.) is parsed client-side in app-wrapper.js
+        const extensionContext = {
+            type: extension?.meta?.type, // tableView, extNode, fileHandler
+            locale: 'en', // TODO: get from user settings
+            // syncEnabled: false, // Add other server-only info here if needed
+        }
+
         const themeMode = await this.getThemeMode()
         const html = getIndexHtml({
             theme: themeMode,
@@ -140,7 +149,8 @@ export class ServerBlock {
             compiledCode,
             defaultPropsString,
             serverSideProps: res?.props || {},
-            rawThemeCss: themeRawCode
+            rawThemeCss: themeRawCode,
+            extensionContext,
         })
         const end = performance.now()
         console.log(`ServerBlock took ${end - start}ms`)

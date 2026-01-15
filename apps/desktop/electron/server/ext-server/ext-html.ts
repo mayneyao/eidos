@@ -11,8 +11,19 @@ export const getIndexHtml = (props: {
   defaultPropsString: string,
   serverSideProps: any,
   rawThemeCss: string;
+  extensionContext?: {
+    type?: string;
+    space?: string;
+    locale?: string;
+    nodeId?: string;
+    tableId?: string;
+    viewId?: string;
+    filePath?: string;
+    currentDay?: string;
+    syncEnabled?: boolean;
+  };
 }) => {
-  const { theme, importMap, cssLoaderScript, sdkInjectScriptContent, envString, twConfig, compiledCode, defaultPropsString, serverSideProps, rawThemeCss } = props
+  const { theme, importMap, cssLoaderScript, sdkInjectScriptContent, envString, twConfig, compiledCode, defaultPropsString, serverSideProps, rawThemeCss, extensionContext } = props
 
   return `<html class="${theme}">
       <head>
@@ -27,6 +38,7 @@ export const getIndexHtml = (props: {
         </script>
         <script>
           window.__serverSideProps = ${JSON.stringify(serverSideProps)};
+          window.__extensionContext = ${extensionContext ? JSON.stringify(extensionContext) : 'null'};
           window.process = {
             env: ${envString}
           };

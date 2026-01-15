@@ -91,6 +91,8 @@ export async function generateImportMap(
         'react-dom/client': `https://esm.sh/stable/react-dom@${REACT_VERSION}/client`,
         'clsx': "https://esm.sh/clsx@2.1.1",
         "tailwind-merge": "https://esm.sh/tailwind-merge",
+        "zustand": "https://esm.sh/zustand@5?external=react",
+        "@eidos.space/react": "https://esm.sh/@eidos.space/react?external=react,zustand",
         "@/lib/utils": `${HOST_URL}/compiled-ui/utils.js`,
     };
     // map localLibs to sandbox.<spaceId>.eidos.localhost:13127/<lib>.js
@@ -100,7 +102,8 @@ export async function generateImportMap(
     });
 
     thirdPartyLibs.forEach((dep) => {
-        if (dep === "react" || dep === "react-dom") return;
+        // Skip libs that are already configured in the import map
+        if (dep === "react" || dep === "react-dom" || dep === "zustand" || dep.startsWith("@eidos.space/")) return;
         // const shouldExternalizeReact = Array.from(uiLibDeps).some(pattern => {
         //     if (pattern.endsWith('*')) {
         //         const prefix = pattern.slice(0, -1);
