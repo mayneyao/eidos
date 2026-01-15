@@ -1,4 +1,4 @@
-import type { LexicalEditor, NodeKey } from "lexical";
+import type { LexicalEditor, NodeKey } from "lexical"
 import { $getNodeByKey } from "lexical"
 import { AppWindowIcon, ClipboardCopyIcon } from "lucide-react"
 
@@ -6,9 +6,9 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
-import { $isFileNode } from "./node"
+import { $isImageNode } from "./node"
 
-export const FileMenu = ({
+export const ImageMenu = ({
   nodeKey,
   editor,
 }: {
@@ -22,7 +22,7 @@ export const FileMenu = ({
     editor.update(() => {
       if (!nodeKey) return
       const node = $getNodeByKey(nodeKey)
-      if ($isFileNode(node)) {
+      if ($isImageNode(node)) {
         let url = node.__src
         if (url.startsWith("http")) {
           navigator.clipboard.writeText(url)
@@ -41,7 +41,7 @@ export const FileMenu = ({
     editor.getEditorState().read(() => {
       if (!nodeKey) return
       const node = $getNodeByKey(nodeKey)
-      if ($isFileNode(node)) {
+      if ($isImageNode(node)) {
         let filePath = node.__src
         // Convert /files/ paths to ~/.eidos/files/ format for file-handler
         if (filePath.startsWith("/files/")) {
@@ -67,4 +67,3 @@ export const FileMenu = ({
     </>
   )
 }
-

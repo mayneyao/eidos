@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { IExtension } from "@/packages/core/types/IExtension"
 import { detectDirective } from "@eidos.space/v3"
 import {
@@ -5,15 +6,14 @@ import {
   LayoutTemplate,
   SquareMousePointer,
 } from "lucide-react"
-import { useEffect, useState } from "react"
 
-import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
-import { closeSettings } from "@/components/settings/settings-events"
+import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useSqlite } from "@/hooks/use-sqlite"
+import { closeSettings } from "@/components/settings/settings-events"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 
 export function NewTabSettings() {
   const { sqlite } = useSqlite()
@@ -32,22 +32,17 @@ export function NewTabSettings() {
     const loadNewTabBlocks = async () => {
       try {
         setIsLoading(true)
-        const allExtensions = await sqlite.extension.list()
-        const blocks = allExtensions.filter((ext) => {
-          // We only care about user blocks for now, or maybe built-in ones too if they support it?
-          // Assuming 'code' property holds the source code.
-          // Type might not be enough, we need to check the code content.
-          // However, extension list might not return full code for all extensions if they are large?
-          // Usually sqlite.extension.list() returns metadata.
-          // Let's assume we can check the code if it's available, or we might need to fetch it.
-          // NOTE: existing code-extractor.test.ts suggests we check source code.
-          // Does IExtension have 'code' property populated?
-          // Let's check IExtension type definition if needed, but for now assuming 'code' field exists on block extensions.
-
-          // Based on typical Eidos extension structure, 'code' is on IExtension.
-          if (!ext.code) return false
-          return detectDirective(ext.code, "use newtab")
+        const candidates = await sqlite.extension.findMany({
+          where: {
+            OR: [
+              { code: { contains: '"use newtab"' } },
+              { code: { contains: "'use newtab'" } },
+            ],
+          },
         })
+        const blocks = (candidates as IExtension[]).filter(
+          (ext) => ext.code && detectDirective(ext.code, "use newtab")
+        )
         setNewTabBlocks(blocks)
       } catch (error) {
         console.error("Error loading new tab blocks:", error)
