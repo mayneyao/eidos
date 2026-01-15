@@ -62,6 +62,17 @@ export const builtInExtensions: BuiltInExtension[] = [
   register("media-preview", MediaPreview),
 ]
 
+// Register extension info for eject feature (avoids circular dependency)
+import { registerExtensionInfo } from "./eject-extension"
+builtInExtensions.forEach((ext) => {
+  registerExtensionInfo({
+    slug: ext.slug,
+    name: ext.name,
+    type: ext.type,
+    meta: ext.meta,
+  })
+})
+
 /**
  * Get a built-in extension by its slug
  */
@@ -115,6 +126,19 @@ export function getBuiltInFileHandlers(): BuiltInExtension[] {
   )
 }
 
+// Initialize extension sources for eject feature
+import { initializeExtensionSources } from "./source-registry"
+initializeExtensionSources()
+
+// Re-export eject functions and types
+export {
+  ejectBuiltInExtension,
+  canEjectExtension,
+  getEjectibleExtensionSlugs,
+  type EjectResult,
+  type EjectRecord,
+} from "./eject-extension"
+
 // Log loaded extensions in development
 if (import.meta.env.DEV) {
   console.log(
@@ -122,3 +146,4 @@ if (import.meta.env.DEV) {
     builtInExtensions.map((e) => e.slug)
   )
 }
+

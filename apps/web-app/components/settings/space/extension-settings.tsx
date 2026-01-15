@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Download } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +17,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useExtensionSettings } from "@/apps/web-app/hooks/use-extension-settings"
+import { useEjectExtension } from "@/apps/web-app/hooks/use-eject-extension"
 import { builtInExtensions } from "@/extensions/builtin"
 import { cn } from "@/lib/utils"
 
@@ -44,6 +45,7 @@ const EXTENSIONS = builtInExtensions
 
     return {
       id,
+      slug: ext.slug, // Original slug for eject
       title: (meta.sidebarBlock?.title || meta.fileHandler?.title || ext.slug) as string,
       description,
       type,
@@ -51,6 +53,7 @@ const EXTENSIONS = builtInExtensions
   })
   .filter(Boolean) as {
   id: string
+  slug: string
   title: string
   description: string
   type: "sidebar" | "file-handler"
@@ -59,6 +62,7 @@ const EXTENSIONS = builtInExtensions
 export function ExtensionSettings() {
   const { t } = useTranslation()
   const { isExtensionEnabled, toggleExtension } = useExtensionSettings()
+  const { eject, isEjecting, canEject } = useEjectExtension()
   const [filterType, setFilterType] = useState<"all" | "sidebar" | "file-handler">("all")
 
   const filteredExtensions = EXTENSIONS.filter(
@@ -141,11 +145,24 @@ export function ExtensionSettings() {
                   {ext.description}
                 </div>
               </div>
-              <Switch
-                id={`extension-${ext.id}`}
-                checked={isExtensionEnabled(ext.id)}
-                onCheckedChange={() => toggleExtension(ext.id)}
-              />
+              <div className="flex items-center gap-2">
+                {canEject(ext.slug) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => eject(ext.slug)}
+                    disabled={isEjecting}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Eject
+                  </Button>
+                )}
+                <Switch
+                  id={`extension-${ext.id}`}
+                  checked={isExtensionEnabled(ext.id)}
+                  onCheckedChange={() => toggleExtension(ext.id)}
+                />
+              </div>
             </div>
           ))}
 
