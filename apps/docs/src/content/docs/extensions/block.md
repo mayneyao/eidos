@@ -385,7 +385,9 @@ For more details on the file system API, see [Space API Reference - File System 
 
 ## 5. Directive System
 
-Block supports special directives to control component behavior and rendering methods. These directives are declared at the top of the code as string literals.
+Block supports a directive system designed for lightweight extensions that do not require a complex `meta` configuration object. By adding specific string literals at the top of the file, you can easily define the behavior and rendering mode of the Block.
+
+These directives simplify the development process, allowing you to enable specific system integrations (such as sidebar rendering or new tab pages) without additional API overhead.
 
 ### 5.1 use sidebar Directive
 
@@ -471,6 +473,34 @@ export function MyNavigation() {
 - Quick action panels
 - Status display components
 - Sidebar tools
+
+### 5.2 use newtab Directive
+
+The `use newtab` directive allows a Block component to be selected as a custom New Tab page.
+
+#### Configuration
+
+1. Add `"use newtab"` at the top of your block file.
+2. Go to **Settings** -> **Space Settings** -> **New Tab**.
+3. Select your block from the list.
+
+```tsx
+"use newtab"
+
+export function MyNewTab() {
+  return (
+    <div className="p-8">
+      <h1>Good Morning!</h1>
+      {/* Custom dashboard content */}
+    </div>
+  )
+}
+```
+
+#### Behavior
+
+- Once configured, opening a new tab (or the home page) will render this block instead of the default Eidos dashboard.
+- You can revert to the default dashboard at any time in settings.
 
 ## 7. Security Considerations
 

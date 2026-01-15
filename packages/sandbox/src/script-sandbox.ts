@@ -141,7 +141,6 @@ export class ScriptSandboxHandler {
         try {
             const compiledCode = await this.getScriptCode(spaceId, scriptId);
 
-            console.log('serveScriptFile', compiledCode);
             if (!compiledCode) {
                 return c.text(`Script not found: ${scriptId}`, 404);
             }

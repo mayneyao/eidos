@@ -12,6 +12,7 @@ import { FileHandlersSettings } from "./space/file-handlers-settings"
 import { GeneralSettings } from "./space/general-settings"
 import { MountSettings } from "./space/mount-settings"
 import { SpaceSyncSettings } from "./space/space-sync-settings"
+import { NewTabSettings } from "./space/new-tab-settings"
 
 type SettingsSection =
   | "space-general"
@@ -19,6 +20,7 @@ type SettingsSection =
   | "space-mounts"
   | "space-file-handlers"
   | "space-extensions"
+  | "space-newtab"
   | "space-sync"
   | "general"
   | "ai"
@@ -46,6 +48,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return "File Handlers"
       case "space-extensions":
         return "Extensions"
+      case "space-newtab":
+        return "New Tab"
       case "space-sync":
         return t("space.settings.sync")
       case "general":
@@ -77,6 +81,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <FileHandlersSettings />
       case "space-extensions":
         return <ExtensionSettings />
+      case "space-newtab":
+        return <NewTabSettings />
       case "space-sync":
         return <SpaceSyncSettings />
       case "general":

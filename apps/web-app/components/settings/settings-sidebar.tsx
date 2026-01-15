@@ -12,6 +12,7 @@ import {
   Settings as SettingsIcon,
   Shield,
   FileType,
+  LayoutTemplate,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -25,6 +26,7 @@ type SettingsSection =
   | "space-mounts"
   | "space-file-handlers"
   | "space-extensions"
+  | "space-newtab"
   | "space-sync"
   | "general"
   | "ai"
@@ -93,6 +95,13 @@ export function SettingsSidebar({
       title: "Extensions",
       description: "Manage installed extensions for this space",
       icon: <Package className="h-5 w-5" />,
+      category: "space",
+    },
+    {
+      id: "space-newtab",
+      title: "New Tab",
+      description: "Customize your new tab page",
+      icon: <LayoutTemplate className="h-5 w-5" />,
       category: "space",
     },
     // Global Settings

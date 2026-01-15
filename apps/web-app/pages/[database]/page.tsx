@@ -10,6 +10,8 @@ import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabTitle } from "@/hooks/use-tab-title"
+import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
+import { BlockApp } from "@/apps/web-app/components/block-renderer/block-app"
 
 export default function DatabaseHome() {
   const { t } = useTranslation()
@@ -19,6 +21,10 @@ export default function DatabaseHome() {
   const { setCmdkOpen, setGlobalSearchOpen, setSpaceSettingsOpen } =
     useAppRuntimeStore()
   const { toggleSidebar } = useSidebar()
+  const [newTabBlockId] = useSqliteKV<string | null>(
+    "eidos:space:settings:newtab",
+    ""
+  )
 
   useTabTitle("Home")
 
@@ -45,6 +51,16 @@ export default function DatabaseHome() {
   const handleToggleSidebar = useCallback(() => {
     toggleSidebar()
   }, [toggleSidebar])
+
+  if (newTabBlockId) {
+    return (
+      <BlockApp
+        url={`block://${newTabBlockId}@${space}`}
+        height="100%"
+        width="100%"
+      />
+    )
+  }
 
   return (
     <div className="flex h-full items-center justify-center p-8">
