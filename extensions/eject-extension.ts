@@ -128,7 +128,7 @@ export function ejectBuiltInExtension(slug: string): EjectResult {
       description: isMain ? description : `Dependency file for ${builtIn.name}`,
       ts_code: source,
       meta: isMain ? builtIn.meta : undefined,
-      type: builtIn.type,
+      type: filename.endsWith('.tsx') ? "block" : "script",
       isMainEntry: isMain,
     }
 

@@ -11,6 +11,10 @@ import * as Graft from "./blocks/graft"
 import * as Journal from "./blocks/journal"
 import * as MediaPreview from "./blocks/media-preview"
 import * as MonacoEditor from "./blocks/monaco-editor"
+// Register extension info for eject feature (avoids circular dependency)
+import { registerExtensionInfo } from "./eject-extension"
+// Initialize extension sources for eject feature
+import { initializeExtensionSources } from "./source-registry"
 
 export interface BuiltInExtension {
   id: string
@@ -62,8 +66,6 @@ export const builtInExtensions: BuiltInExtension[] = [
   register("media-preview", MediaPreview),
 ]
 
-// Register extension info for eject feature (avoids circular dependency)
-import { registerExtensionInfo } from "./eject-extension"
 builtInExtensions.forEach((ext) => {
   registerExtensionInfo({
     slug: ext.slug,
@@ -126,8 +128,6 @@ export function getBuiltInFileHandlers(): BuiltInExtension[] {
   )
 }
 
-// Initialize extension sources for eject feature
-import { initializeExtensionSources } from "./source-registry"
 initializeExtensionSources()
 
 // Re-export eject functions and types
@@ -146,4 +146,3 @@ if (import.meta.env.DEV) {
     builtInExtensions.map((e) => e.slug)
   )
 }
-
