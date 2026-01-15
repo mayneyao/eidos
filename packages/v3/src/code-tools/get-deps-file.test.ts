@@ -49,6 +49,7 @@ describe('resolveLocalFileDependencies', () => {
   it('should resolve all local file dependencies', async () => {
     const result = await resolveLocalFileDependencies(
       'main.ts',
+      'main.ts',
       mockFiles['main.ts'],
       'ts',
       mockFileResolver
@@ -81,6 +82,7 @@ describe('resolveLocalFileDependencies', () => {
 
     const result = await resolveLocalFileDependencies(
       'a.ts',
+      'a.ts',
       circularFiles['a.ts'],
       'ts',
       circularResolver
@@ -110,6 +112,7 @@ describe('resolveLocalFileDependencies', () => {
     };
 
     const result = await resolveLocalFileDependencies(
+      'main.ts',
       'main.ts',
       codeWithMissingImport,
       'ts',
@@ -143,6 +146,7 @@ describe('resolveLocalFileDependencies', () => {
 
     const result = await resolveLocalFileDependencies(
       'main.ts',
+      'main.ts',
       dynamicImportCode,
       'ts',
       dynamicResolver
@@ -172,6 +176,7 @@ describe('resolveLocalFileDependencies', () => {
 
     const result = await resolveLocalFileDependencies(
       'main.ts',
+      'main.ts',
       indexFiles['main.ts'],
       'ts',
       indexResolver
@@ -183,6 +188,7 @@ describe('resolveLocalFileDependencies', () => {
 
   it('should handle empty file content', async () => {
     const result = await resolveLocalFileDependencies(
+      'empty.ts',
       'empty.ts',
       '',
       'ts',
@@ -196,6 +202,7 @@ describe('resolveLocalFileDependencies', () => {
 
   it('should preserve import information in resolved files', async () => {
     const result = await resolveLocalFileDependencies(
+      'main.ts',
       'main.ts',
       mockFiles['main.ts'],
       'ts',
@@ -211,5 +218,40 @@ describe('resolveLocalFileDependencies', () => {
 
     const helperFile = result.find(f => f.id === 'utils/helper.ts');
     expect(helperFile?.imports).toEqual(['../config']);
+  });
+
+  it('should resolve S3 style slugs with prefixes', async () => {
+    const s3Files: Record<string, string> = {
+      'ejected/journal/index': `import { journals } from './use-journals';`,
+      'ejected/journal/use-journals': `import { utils } from './utils';`,
+      'ejected/journal/utils': `export const utils = true;`,
+    };
+
+    const s3Resolver: FileResolver = async (slug: string) => {
+      const content = s3Files[slug];
+      if (!content) return null;
+      // Default to ts for this test
+      return { ext: 'ts', content };
+    };
+
+    const result = await resolveLocalFileDependencies(
+      'ejected/journal/index',
+      'ejected/journal/index',
+      s3Files['ejected/journal/index'],
+      'ts',
+      s3Resolver
+    );
+
+    expect(result).toHaveLength(3);
+    const sortedIds = result.map(f => f.id).sort();
+    expect(sortedIds).toEqual([
+      'ejected/journal/index',
+      'ejected/journal/use-journals',
+      'ejected/journal/utils'
+    ]);
+    
+    // Check specific dependency chain
+    const useJournals = result.find(f => f.id === 'ejected/journal/use-journals');
+    expect(useJournals?.imports).toEqual(['./utils']);
   });
 });

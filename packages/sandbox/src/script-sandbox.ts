@@ -96,8 +96,8 @@ export class ScriptSandboxHandler {
         try {
             log(`Handling sandbox request for space: ${spaceId}, URL: ${url.toString()}`);
 
-            // Handle script file requests: sandbox.<spaceId>.eidos.localhost/scriptid.js
-            if (url.pathname.endsWith('.js')) {
+            // Handle script file requests: sandbox.<spaceId>.eidos.localhost/scriptid.js or /scriptid
+            if (url.pathname !== '/') {
                 return this.serveScriptFile(spaceId, url, c);
             }
 
@@ -120,10 +120,15 @@ export class ScriptSandboxHandler {
      * Handles requests like: sandbox.<spaceId>.eidos.localhost/scriptid.js
      */
     private async serveScriptFile(spaceId: string, url: URL, c: Ctx): Promise<Response> {
-        const scriptId = url.pathname.slice(1, -3); // Remove leading '/' and trailing '.js'
+        let scriptId = url.pathname.slice(1); // Remove leading '/'
+        if (scriptId.endsWith('.js')) {
+            scriptId = scriptId.slice(0, -3);
+        }
+        scriptId = decodeURIComponent(scriptId);
 
-        // Validate script ID: should not contain '/' (no nested paths) and should not be empty
-        if (!scriptId || scriptId.includes('/')) {
+        console.log('serveScriptFile', scriptId);
+        // Validate script ID: should not be empty
+        if (!scriptId) {
             return c.text('Invalid script ID', 400);
         }
 
@@ -136,6 +141,7 @@ export class ScriptSandboxHandler {
         try {
             const compiledCode = await this.getScriptCode(spaceId, scriptId);
 
+            console.log('serveScriptFile', compiledCode);
             if (!compiledCode) {
                 return c.text(`Script not found: ${scriptId}`, 404);
             }

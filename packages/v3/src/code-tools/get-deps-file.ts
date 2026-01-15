@@ -100,21 +100,21 @@ function normalizeImportPath(importPath: string): string {
 }
 
 /**
- * Resolve import path relative to current file
+ * Resolve import path relative to current file slug
  * This is a simplified version - in a real implementation you might need more sophisticated path resolution
  */
-function resolveImportPath(currentFileId: string, importPath: string): string {
-    // For simplicity, we assume file IDs are already normalized paths
+function resolveImportPath(currentSlug: string, importPath: string): string {
+    // For simplicity, we assume slugs are already normalized paths
     // In a real implementation, you might need to handle directory traversal (.., .)
 
     if (importPath.startsWith('./')) {
         // Same directory import
-        const currentDir = currentFileId.includes('/') ? currentFileId.substring(0, currentFileId.lastIndexOf('/')) : '';
+        const currentDir = currentSlug.includes('/') ? currentSlug.substring(0, currentSlug.lastIndexOf('/')) : '';
         const relativePath = importPath.substring(2); // Remove './'
         return currentDir ? `${currentDir}/${relativePath}` : relativePath;
     } else if (importPath.startsWith('../')) {
         // Parent directory import - simplified handling
-        const currentFileParts = currentFileId.split('/');
+        const currentFileParts = currentSlug.split('/');
         const importParts = importPath.split('/');
 
         // Remove the current file name to get the directory
@@ -143,7 +143,8 @@ function resolveImportPath(currentFileId: string, importPath: string): string {
 }
 
 export interface FileResolver {
-    (fileId: string): Promise<{
+    (slug: string): Promise<{
+        id?: string
         ext: 'ts' | 'tsx',
         content: string,
     } | null>
@@ -151,7 +152,8 @@ export interface FileResolver {
 }
 
 export interface ResolvedFile {
-    id: string;
+    id: string; // This is the slug
+    slug: string;
     content: string;
     ext: 'ts' | 'tsx',
     imports: string[];
@@ -160,23 +162,26 @@ export interface ResolvedFile {
 /**
  * Recursively resolve all local file dependencies starting from a given file
  *
- * @param fileId - The ID of the starting file
+ * @param id - The ID of the starting file
+ * @param slug - The slug/path of the starting file
  * @param fileContent - The content of the starting file
- * @param getFileContent - Function to get file content by ID
+ * @param getFileContent - Function to get file content by slug
  * @returns Promise resolving to array of all related files including the starting file
  */
 export async function resolveLocalFileDependencies(
-    fileId: string,
+    id: string,
+    slug: string,
     fileContent: string,
     ext: 'ts' | 'tsx',
     getFileContent: FileResolver
 ): Promise<ResolvedFile[]> {
     const resolvedFiles = new Map<string, ResolvedFile>();
     const processedFiles = new Set<string>();
-    const queue: Array<{ id: string; content: string; ext: 'ts' | 'tsx' }> = [{ id: fileId, content: fileContent, ext }];
+    const queue: Array<{ id: string; slug: string; content: string; ext: 'ts' | 'tsx' }> = [{ id, slug, content: fileContent, ext }];
 
     while (queue.length > 0) {
         const current = queue.shift()!;
+
 
         if (processedFiles.has(current.id)) {
             continue;
@@ -190,6 +195,7 @@ export async function resolveLocalFileDependencies(
         // Store current file info
         resolvedFiles.set(current.id, {
             id: current.id,
+            slug: current.slug,
             content: current.content,
             ext: current.ext,
             imports: localImports
@@ -197,7 +203,7 @@ export async function resolveLocalFileDependencies(
 
         // Process each local import
         for (const importPath of localImports) {
-            const resolvedPath = resolveImportPath(current.id, importPath);
+            const resolvedPath = resolveImportPath(current.slug, importPath);
             const normalizedPath = normalizeImportPath(resolvedPath);
 
             if (!processedFiles.has(normalizedPath)) {
@@ -206,7 +212,12 @@ export async function resolveLocalFileDependencies(
                     const importedFile = await getFileContent(normalizedPath);
 
                     if (importedFile) {
-                        queue.push({ id: normalizedPath, content: importedFile.content, ext: importedFile.ext });
+                        queue.push({ 
+                            id: importedFile.id || normalizedPath, 
+                            slug: normalizedPath, 
+                            content: importedFile.content, 
+                            ext: importedFile.ext 
+                        });
                     } else {
                         // Try with common extensions if the normalized path doesn't work
                         const extensions = ['.ts', '.tsx', '.js', '.jsx'];
@@ -216,7 +227,12 @@ export async function resolveLocalFileDependencies(
                             const pathWithExt = normalizedPath + ext;
                             const fileWithExt = await getFileContent(pathWithExt);
                             if (fileWithExt) {
-                                queue.push({ id: pathWithExt, content: fileWithExt.content, ext: fileWithExt.ext });
+                                queue.push({ 
+                                    id: fileWithExt.id || pathWithExt, 
+                                    slug: pathWithExt, 
+                                    content: fileWithExt.content, 
+                                    ext: fileWithExt.ext 
+                                });
                                 found = true;
                                 break;
                             }
@@ -228,7 +244,12 @@ export async function resolveLocalFileDependencies(
                                 const indexPath = `${normalizedPath}/index${ext}`;
                                 const indexFile = await getFileContent(indexPath);
                                 if (indexFile) {
-                                    queue.push({ id: indexPath, content: indexFile.content, ext: indexFile.ext });
+                                    queue.push({ 
+                                        id: indexFile.id || indexPath, 
+                                        slug: indexPath, 
+                                        content: indexFile.content, 
+                                        ext: indexFile.ext 
+                                    });
                                     break;
                                 }
                             }

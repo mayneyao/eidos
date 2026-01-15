@@ -81,6 +81,7 @@ export async function generateImportMap(
         localLibs: string[],
     },
     spaceId: string,
+    slug?: string
 ) {
     const REACT_VERSION = '18.3.1';
 
@@ -96,9 +97,20 @@ export async function generateImportMap(
         "@/lib/utils": `${HOST_URL}/compiled-ui/utils.js`,
     };
     // map localLibs to sandbox.<spaceId>.eidos.localhost:13127/<lib>.js
+    // map localLibs to sandbox.<spaceId>.eidos.localhost:13127/<lib>.js
     localLibs.forEach((dep) => {
-        const libName = dep.split('/').pop();
-        imports[dep] = `http://sandbox.${spaceId}.eidos.localhost:13127/${libName}.js?no-rewrite=1`;
+        let targetPath: string;
+        if (slug) {
+             const cleanDep = dep.replace(/^\.\//, '');
+             const slugParts = slug.split('/');
+             slugParts.pop(); 
+             const dir = slugParts.join('/');
+             targetPath = dir ? `${dir}/${cleanDep}` : cleanDep;
+        } else {
+             const libName = dep.split('/').pop();
+             targetPath = libName!;
+        }
+        imports[dep] = `http://sandbox.${spaceId}.eidos.localhost:13127/${targetPath}.js?no-rewrite=1`;
     });
 
     thirdPartyLibs.forEach((dep) => {

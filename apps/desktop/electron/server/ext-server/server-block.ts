@@ -125,7 +125,7 @@ export class ServerBlock {
         uiLibs.push("toast", "toaster", "use-toast")
         const envString = JSON.stringify(ServerBlock.getEnvMap(extension?.bindings))
         const defaultPropsString = JSON.stringify({})
-        const { importMapScript, cssLoaderScript } = await generateImportMap({ thirdPartyLibs, uiLibs, cssLibs, localLibs }, spaceId)
+        const { importMapScript, cssLoaderScript } = await generateImportMap({ thirdPartyLibs, uiLibs, cssLibs, localLibs }, spaceId, extension?.slug)
         // // Placeholder for BlockRenderer server-side logic
         const themeRawCode = this.getThemeRawCss()
 

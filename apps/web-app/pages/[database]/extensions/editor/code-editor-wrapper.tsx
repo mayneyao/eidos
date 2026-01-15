@@ -10,7 +10,6 @@ import {
   resolveLocalFileDependencies,
   type ResolvedFile,
 } from "@eidos.space/v3"
-import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import ts from "typescript/lib/typescript"
 
 import { useAllScripts } from "@/hooks/use-all-scripts"
@@ -19,6 +18,7 @@ import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import { useSqlite } from "@/hooks/use-sqlite"
 import buttonRaw from "@/components/ui/button?raw"
 import { twConfig } from "@/components/block-renderer/tailwind-config"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { getDynamicPrompt } from "../helper"
 import { useEditorStore } from "../stores/editor-store"
@@ -69,6 +69,7 @@ export interface CodeEditorProps {
   customCompile?: (code: string) => Promise<string>
   theme?: "vs-dark" | "light"
   scriptId?: string
+  slug: string
   bindings?: IExtension["bindings"]
 }
 
@@ -81,6 +82,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
       customCompile,
       theme = "light",
       scriptId,
+      slug,
       bindings,
     }: CodeEditorProps,
     ref
@@ -88,7 +90,6 @@ export const SimpleCodeEditorWrapper = forwardRef(
     const dynamicPrompt = useMemo(() => getDynamicPrompt(bindings), [bindings])
 
     const { navigate } = useRouterAdapter()
-    const { space } = useCurrentPathInfo()
     const { sqlite } = useSqlite()
     const allScripts = useAllScripts()
     const currentExtension = useExtensionByIdOrSlug(scriptId)
@@ -124,13 +125,16 @@ export const SimpleCodeEditorWrapper = forwardRef(
     const stableSuggestions = customImportSuggestions.suggestions
 
     const jumpToExtension = (id: string) => {
-      navigate(`/extensions/${id}`)
+      navigate(`/extensions/${id}`, {
+        target: "_blank",
+      })
     }
 
     const getExtensionBySlug = useCallback(
       async (
         slug: string
       ): Promise<{
+        id?: string
         content: string
         ext: "ts" | "tsx"
       } | null> => {
@@ -146,6 +150,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
           return null
         }
         return {
+          id: res.id,
           content: res.ts_code!,
           ext: res.type === "block" ? "tsx" : "ts",
         }
@@ -204,6 +209,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
       async (code: string) => {
         const deps = await resolveLocalFileDependencies(
           scriptId || "current",
+          slug,
           code,
           ext,
           getExtensionBySlug
@@ -241,8 +247,9 @@ export const SimpleCodeEditorWrapper = forwardRef(
 
     // Create the file name based on script info
     const fileName = useMemo(() => {
-      return `${scriptId || "current"}.${ext}`
-    }, [scriptId, ext])
+      const baseName = slug || scriptId || "current"
+      return baseName.endsWith(`.${ext}`) ? baseName : `${baseName}.${ext}`
+    }, [scriptId, slug, ext])
 
     const handleEditorChange = useCallback(
       (newCode: string) => {
@@ -264,6 +271,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
           content: dynamicPrompt,
           imports: [],
           ext: "ts",
+          slug: "eidos",
         }
 
         return [...deps, eidosTypeDep]

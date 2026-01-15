@@ -3,12 +3,12 @@ import type { IExtension } from "@/packages/core/meta-table/extension"
 import { compileCode, extractConstant, getCompileMethod } from "@eidos.space/v3"
 import { useMount, useSize } from "ahooks"
 import { CodeIcon, EyeIcon, PanelLeftIcon, SettingsIcon } from "lucide-react"
-import { useTheme } from "@/components/theme-provider"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
+import { useTheme } from "@/components/theme-provider"
 import {
   useExtension,
   useExtensionByIdOrSlug,
@@ -37,9 +37,7 @@ const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
   useTabTitle(script.name)
 
   const language = getEditorLanguage(script)
-  const [editorContent, setEditorContent] = useState(
-    script.ts_code || ""
-  )
+  const [editorContent, setEditorContent] = useState(script.ts_code || "")
 
   const { scriptCodeMap, setScriptCodeMap } = useEditorStore()
 
@@ -93,8 +91,8 @@ const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
         (version && version !== script.version)
       ) {
         if (ts_code) {
-        setEditorContent(ts_code)
-      }
+          setEditorContent(ts_code)
+        }
         const meta = await extractConstant(ts_code || code, "meta")
         const updateData: Partial<IExtension> = {
           id: script.id,
@@ -219,6 +217,7 @@ const ExtensionDetailPageContent = ({ script }: { script: IExtension }) => {
                 language={language}
                 bindings={script.bindings}
                 scriptId={script.id}
+                slug={script.slug}
                 theme={resolvedTheme === "dark" ? "vs-dark" : "light"}
                 customCompile={getCompileMethod(script)}
               />
