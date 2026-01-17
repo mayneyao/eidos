@@ -19,8 +19,9 @@ import { useEidos } from "@eidos.space/react"
 function MyExtension() {
   const eidos = useEidos()
 
-  // 示例：查询表格
-  eidos.space.table("myTable").rows.query()
+  // 示例：查询表格（tableId 是不带连字符的 UUIDv7）
+  const Users = eidos.space.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
+  const users = await Users.findMany()
 
   // 示例：读取文件
   eidos.space.fs.readFile("/path/to/file", "utf8")

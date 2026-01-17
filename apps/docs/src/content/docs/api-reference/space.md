@@ -124,6 +124,269 @@ eidos.space.notify({
 
 ---
 
+## Table API
+
+The `eidos.space.table()` method provides a Prisma-style API for CRUD (Create, Read, Update, Delete) operations on tables. This is the recommended way to interact with table data.
+
+:::note
+Column names are automatically converted from display names to SQL-compliant database column names. Reserved fields include `_id`, `title`, `_created_time`, `_last_edited_time`, etc.
+:::
+
+### Basic Usage
+
+```typescript
+// Get a table client (tableId is a UUIDv7 without dashes)
+const Users = eidos.space.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
+
+// CRUD operations
+await Users.create({ data: { name: "张三", age: 25 } })
+await Users.findMany({ where: { age: { gte: 18 } } })
+await Users.update({ where: { _id: "xxx" }, data: { age: 30 } })
+await Users.delete({ where: { _id: "xxx" } })
+```
+
+### `create(args)`
+
+Create a single record. Auto-generates `_id` if not provided.
+
+```typescript
+async create(args: {
+  data: Record<string, any>
+}): Promise<Record<string, any> & { _id: string }>
+```
+
+**Example:**
+
+```typescript
+const user = await Users.create({
+  data: { name: "张三", email: "zhang@example.com" }
+})
+console.log(user._id) // auto-generated uuid
+```
+
+### `createMany(args)`
+
+Batch create multiple records.
+
+```typescript
+async createMany(args: {
+  data: Record<string, any>[]
+  skipDuplicates?: boolean
+}): Promise<{ count: number }>
+```
+
+**Example:**
+
+```typescript
+const result = await Users.createMany({
+  data: [
+    { name: "User 1" },
+    { name: "User 2" },
+    { name: "User 3" }
+  ]
+})
+console.log(`Created ${result.count} records`)
+```
+
+### `findUnique(args)`
+
+Find a single record by `_id`.
+
+```typescript
+async findUnique(args: {
+  where: { _id: string }
+}): Promise<Record<string, any> | null>
+```
+
+**Example:**
+
+```typescript
+const user = await Users.findUnique({ where: { _id: "019xxx" } })
+if (user) {
+  console.log(user.name)
+}
+```
+
+### `findFirst(args)`
+
+Find the first matching record.
+
+```typescript
+async findFirst(args: {
+  where?: Record<string, any>
+  orderBy?: Record<string, 'asc' | 'desc'>
+}): Promise<Record<string, any> | null>
+```
+
+**Example:**
+
+```typescript
+const oldest = await Users.findFirst({
+  where: { status: "active" },
+  orderBy: { _created_time: "asc" }
+})
+```
+
+### `findMany(args)`
+
+Query multiple records with filtering, sorting, and pagination.
+
+```typescript
+async findMany(args?: {
+  where?: Record<string, any>
+  orderBy?: Record<string, 'asc' | 'desc'>
+  skip?: number
+  take?: number
+}): Promise<Record<string, any>[]>
+```
+
+**Where Clause Operators:**
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `equals` | Exact match | `{ name: { equals: "张三" } }` or `{ name: "张三" }` |
+| `not` | Not equal | `{ status: { not: "deleted" } }` |
+| `gt` | Greater than | `{ age: { gt: 18 } }` |
+| `gte` | Greater than or equal | `{ age: { gte: 18 } }` |
+| `lt` | Less than | `{ age: { lt: 65 } }` |
+| `lte` | Less than or equal | `{ age: { lte: 65 } }` |
+| `contains` | Contains substring | `{ name: { contains: "张" } }` |
+| `startsWith` | Starts with | `{ email: { startsWith: "admin" } }` |
+| `endsWith` | Ends with | `{ email: { endsWith: "@gmail.com" } }` |
+| `in` | In array | `{ status: { in: ["active", "pending"] } }` |
+| `notIn` | Not in array | `{ status: { notIn: ["deleted"] } }` |
+
+**Examples:**
+
+```typescript
+// Simple query
+const allUsers = await Users.findMany()
+
+// With filtering
+const adults = await Users.findMany({
+  where: { age: { gte: 18 } }
+})
+
+// With multiple conditions
+const filtered = await Users.findMany({
+  where: {
+    age: { gte: 18, lte: 65 },
+    status: "active"
+  }
+})
+
+// With sorting
+const sorted = await Users.findMany({
+  orderBy: { name: "asc" }
+})
+
+// With pagination
+const page2 = await Users.findMany({
+  skip: 20,
+  take: 10,
+  orderBy: { _created_time: "desc" }
+})
+```
+
+### `count(args)`
+
+Count matching records.
+
+```typescript
+async count(args?: {
+  where?: Record<string, any>
+}): Promise<number>
+```
+
+**Example:**
+
+```typescript
+const total = await Users.count()
+const activeCount = await Users.count({ where: { status: "active" } })
+```
+
+### `update(args)`
+
+Update a single record by `_id`.
+
+```typescript
+async update(args: {
+  where: { _id: string }
+  data: Record<string, any>
+}): Promise<Record<string, any> | null>
+```
+
+**Example:**
+
+```typescript
+const updated = await Users.update({
+  where: { _id: "019xxx" },
+  data: { age: 30, status: "verified" }
+})
+```
+
+### `updateMany(args)`
+
+Batch update multiple records matching criteria.
+
+```typescript
+async updateMany(args: {
+  where: Record<string, any>
+  data: Record<string, any>
+}): Promise<{ count: number }>
+```
+
+**Example:**
+
+```typescript
+// Deactivate all users older than 65
+const result = await Users.updateMany({
+  where: { age: { gt: 65 } },
+  data: { status: "inactive" }
+})
+console.log(`Updated ${result.count} records`)
+```
+
+### `delete(args)`
+
+Delete a single record by `_id`.
+
+```typescript
+async delete(args: {
+  where: { _id: string }
+}): Promise<Record<string, any> | null>
+```
+
+**Example:**
+
+```typescript
+const deleted = await Users.delete({ where: { _id: "019xxx" } })
+```
+
+### `deleteMany(args)`
+
+Batch delete multiple records matching criteria.
+
+```typescript
+async deleteMany(args?: {
+  where?: Record<string, any>
+}): Promise<{ count: number }>
+```
+
+**Example:**
+
+```typescript
+// Delete all inactive users
+const result = await Users.deleteMany({
+  where: { status: "inactive" }
+})
+
+// Delete all records (use with caution!)
+await Users.deleteMany()
+```
+
+---
+
 ## Document API
 
 The `eidos.space.doc` object provides document management functionality.

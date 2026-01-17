@@ -117,10 +117,12 @@ export async function toggleChecked(
     rowId: string
   }
 ) {
-  const { tableId, viewId, rowId, env } = ctx
+  const { tableId, rowId, env } = ctx
   console.log(env.MY_SECRET) // 获取环境变量
-  await eidos.currentSpace.table(tableId).rows.update(rowId, {
-    checked: !input.checked,
+  const Users = eidos.currentSpace.table(tableId)
+  await Users.update({
+    where: { _id: rowId },
+    data: { checked: !input.checked }
   })
   return {
     success: true,

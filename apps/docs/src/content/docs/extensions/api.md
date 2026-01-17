@@ -13,13 +13,13 @@ Eidos provides three different usage scenarios, but they all use the same API in
 In extensions, you can directly use the global `eidos` object:
 
 ```ts
-// Query table data in current space
-eidos.currentSpace.table("tableId").rows.query()
+// Query table data in current space (tableId is a UUIDv7 without dashes)
+const Users = eidos.currentSpace.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
 
-// Operate on tables in specified space
-eidos.space("mySpace").table("tableId").rows.add({
-  name: "New Record",
-  status: "active",
+// CRUD operations
+const users = await Users.findMany()
+const newUser = await Users.create({
+  data: { name: "New Record", status: "active" }
 })
 ```
 
@@ -35,8 +35,8 @@ const response = await fetch("http://localhost:13127/rpc", {
   },
   body: JSON.stringify({
     space: "mySpace",
-    method: "table('tableId').rows.query",
-    params: [],
+    method: "table('01935b4c9d2e7f8a0b1c2d3e4f5a6b7c').findMany",
+    params: [{}],
   }),
 })
 
@@ -85,13 +85,15 @@ const dataSpace = new DataSpace({
 **1. Blog System**
 
 ```ts
-const posts = await dataSpace.table("posts").rows.query()
+const Posts = dataSpace.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
+const posts = await Posts.findMany()
 ```
 
 **2. Personal Website CMS**
 
 ```ts
-const pages = await dataSpace.table("pages").rows.query()
+const Pages = dataSpace.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
+const pages = await Pages.findMany()
 ```
 
 **3. API Service Backend**
@@ -99,14 +101,16 @@ const pages = await dataSpace.table("pages").rows.query()
 ```ts
 import express from "express"
 
+const Users = dataSpace.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
+
 // RESTful API endpoints
 app.get("/api/users", async (req, res) => {
-  const users = await dataSpace.table("users").rows.query()
+  const users = await Users.findMany()
   res.json(users)
 })
 
 app.post("/api/users", async (req, res) => {
-  const newUser = await dataSpace.table("users").rows.add(req.body)
+  const newUser = await Users.create({ data: req.body })
   res.json(newUser)
 })
 ```
@@ -115,5 +119,5 @@ app.post("/api/users", async (req, res) => {
 
 Eidos provides complete API reference documentation with detailed descriptions of all available methods and functionality:
 
-- [Space API Reference](../../api-reference/space) - Navigation, document management, and extension node operations
+- [Space API Reference](../../api-reference/space) - Navigation, document management, table operations, and extension node operations
 - [AI API Reference](../../api-reference/ai) - Text generation and structured data processing

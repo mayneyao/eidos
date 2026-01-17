@@ -102,7 +102,7 @@ export function createEidos(
  *   const eidos = useEidos()
  *
  *   useEffect(() => {
- *     eidos.currentSpace.table('myTable').rows.query()
+ *     eidos.currentSpace.table('myTable').findMany()
  *   }, [eidos])
  * }
  * ```

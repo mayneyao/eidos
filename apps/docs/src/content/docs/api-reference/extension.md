@@ -19,8 +19,9 @@ import { useEidos } from "@eidos.space/react"
 function MyExtension() {
   const eidos = useEidos()
 
-  // Example: Query table
-  eidos.space.table("myTable").rows.query()
+  // Example: Query table (tableId is a UUIDv7 without dashes)
+  const Users = eidos.space.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
+  const users = await Users.findMany()
 
   // Example: Read file
   eidos.space.fs.readFile("/path/to/file", "utf8")

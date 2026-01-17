@@ -259,7 +259,8 @@
             )
           }
 
-          if (method === "table" || /^[A-Z][A-Za-z0-9_]*$/.test(method)) {
+          // Legacy table API (deprecated, kept for internal use)
+          if (method === "_table" || /^[A-Z][A-Za-z0-9_]*$/.test(method)) {
             return function (id) {
               const tableId = /^[A-Z]/.test(method) ? method : id
               return new Proxy(
@@ -275,7 +276,7 @@
                               const [_params, ...rest] = params
                               const transport = createTransport()
                               const port = await transport.send({
-                                method: `table(${tableId}).rows.${method}`,
+                                method: `_table(${tableId}).rows.${method}`,
                                 params: [_params, ...rest],
                                 space,
                               })
@@ -289,7 +290,7 @@
                       const [_params, ...rest] = params
                       const transport = createTransport()
                       const port = await transport.send({
-                        method: `table("${id}").${method}`,
+                        method: `_table("${id}").${method}`,
                         params: [_params, ...rest],
                         space,
                       })
@@ -301,10 +302,10 @@
             }
           }
 
-          // New Prisma-style tableClient() API
-          if (method === "tableClient") {
+          // Prisma-style table() API - official
+          if (method === "table") {
             return function (id) {
-              const tableClientMethods = [
+              const tableMethods = [
                 "create",
                 "createMany",
                 "findUnique",
@@ -320,11 +321,11 @@
                 {},
                 {
                   get(target, method) {
-                    if (tableClientMethods.includes(method)) {
+                    if (tableMethods.includes(method)) {
                       return async function (args) {
                         const transport = createTransport()
                         const port = await transport.send({
-                          method: `tableClient(${id}).${method}`,
+                          method: `table(${id}).${method}`,
                           params: [args],
                           space,
                         })

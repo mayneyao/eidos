@@ -99,7 +99,7 @@ export function WithNodeOperations<T extends Constructor>(Base: T) {
       switch (node.type) {
         case "table":
           // Table deletion already handles tree node deletion
-          await this.dataSpace.table(node.id).del(node.id)
+          await this.dataSpace._table(node.id).del(node.id)
           break
         case "doc":
           // Delete document content and tree node

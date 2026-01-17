@@ -83,11 +83,33 @@ You must implement one of three script types based on user requirements:
 
 ## Available APIs
 
-For table actions, you can use:
+For table actions, you can use the new Prisma-style API:
 
-- `eidos.currentSpace.table(tableId).rows.update(rowId, data)` - Update table rows
-- `eidos.currentSpace.table(tableId).rows.create(data)` - Create new rows
-- `eidos.currentSpace.table(tableId).rows.delete(rowId)` - Delete rows
+```typescript
+// Get a table client
+const Table = eidos.currentSpace.table(tableId)
+
+// Update a row
+await Table.update({
+  where: { _id: rowId },
+  data: { status: "completed" }
+})
+
+// Create a new row
+await Table.create({
+  data: { name: "New Record", status: "active" }
+})
+
+// Delete a row
+await Table.delete({
+  where: { _id: rowId }
+})
+
+// Query rows
+const rows = await Table.findMany({
+  where: { status: "active" }
+})
+```
 
 ## Code Generation Strategy
 

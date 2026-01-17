@@ -115,7 +115,7 @@ export const useKanbanViewData = (view: IView) => {
                 item.id === itemId ? { ...item, [groupByField]: newStatus, status: newStatus } : item
             )
         )
-        await sqlite?.table(tableId).rows.update(itemId, { [groupByField]: newStatus === NULL_STATUS ? null : newStatus }, {
+        await sqlite?._table(tableId).rows.update(itemId, { [groupByField]: newStatus === NULL_STATUS ? null : newStatus }, {
             useFieldId: true
         })
         await fetchStatusCounts()

@@ -12,7 +12,7 @@ export const meta = {
 
 const getRows = async (ctx: { tableId: string; viewId?: string }) => {
   // @ts-ignore - eidos is injected at runtime
-  const rows = await eidos.currentSpace.table(ctx.tableId).rows.query(
+  const rows = await eidos.currentSpace._table(ctx.tableId).rows.query(
     {},
     {
       viewId: ctx.viewId,

@@ -114,13 +114,14 @@ export function MyListView() {
   const viewId = pathParts[pathParts.length - 1]
 
   useEffect(() => {
-    eidos.currentSpace.table(tableId).rows.query({}, { viewId }).then(setRows)
+    const Table = eidos.currentSpace.table(tableId)
+    Table.findMany().then(setRows)
   }, [tableId, viewId])
 
   return (
     <div>
       {rows.map((row) => (
-        <div key={row.id}>{row.title}</div>
+        <div key={row._id}>{row.title}</div>
       ))}
     </div>
   )

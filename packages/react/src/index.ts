@@ -13,7 +13,7 @@
  *   const [data, setData] = useState([])
  *
  *   useEffect(() => {
- *     eidos.currentSpace.table('myTable').rows.query().then(setData)
+ *     eidos.currentSpace.table('myTable').findMany().then(setData)
  *   }, [eidos])
  *
  *   return <div>{data.length} rows</div>
