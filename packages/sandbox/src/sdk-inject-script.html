@@ -301,6 +301,43 @@
             }
           }
 
+          // New Prisma-style tableClient() API
+          if (method === "tableClient") {
+            return function (id) {
+              const tableClientMethods = [
+                "create",
+                "createMany",
+                "findUnique",
+                "findFirst",
+                "findMany",
+                "count",
+                "update",
+                "updateMany",
+                "delete",
+                "deleteMany",
+              ]
+              return new Proxy(
+                {},
+                {
+                  get(target, method) {
+                    if (tableClientMethods.includes(method)) {
+                      return async function (args) {
+                        const transport = createTransport()
+                        const port = await transport.send({
+                          method: `tableClient(${id}).${method}`,
+                          params: [args],
+                          space,
+                        })
+                        return onCallBack(port)
+                      }
+                    }
+                    return undefined
+                  },
+                }
+              )
+            }
+          }
+
           if (
             [
               "doc",

@@ -6,15 +6,31 @@ import {
 } from "@/lib/utils"
 import { TableManager } from "../sdk/table"
 import { RowsManager } from "../sdk/rows"
+import { TableClient } from "../sdk/table-client"
 import { TreeNodeType } from "../types/ITreeNode"
 import { DataSpaceWithDoc } from "./doc"
 import type { IField } from "../types/IField"
 
 // Extension class to add table-related methods
 export class DataSpaceWithTable extends DataSpaceWithDoc {
-    // table factory method
+    // table factory method (existing API)
     public table(id: string) {
         return new TableManager(id, this)
+    }
+
+    /**
+     * New Prisma-style Table SDK client
+     * Operates directly on database column names for simplified usage
+     * 
+     * @example
+     * ```typescript
+     * const Users = eidos.currentSpace.tableClient("users")
+     * await Users.create({ data: { cl_name: "张三" } })
+     * await Users.findMany({ where: { cl_age: { gte: 18 } } })
+     * ```
+     */
+    public tableClient(id: string) {
+        return new TableClient(getRawTableNameById(id), this)
     }
 
     // table full text search
