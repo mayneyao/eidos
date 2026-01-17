@@ -100,6 +100,9 @@ const useMenuCollector = () => {
   }, [])
 
   const registerItem = React.useCallback((id: string, item: NativeMenuItem, onClick?: () => void) => {
+    // Ensure stale registrations are removed before adding the latest one
+    removeById(id)
+
     const dedupeKey = getDedupeKey(item)
     if (dedupeKey) {
       const existingId = labelIndexRef.current.get(dedupeKey)
@@ -109,8 +112,6 @@ const useMenuCollector = () => {
       labelIndexRef.current.set(dedupeKey, id)
     }
 
-    // Ensure stale registrations are removed before adding the latest one
-    removeById(id)
     itemsRef.current.set(id, item)
     if (!orderRef.current.includes(id)) {
       orderRef.current.push(id)
@@ -122,6 +123,8 @@ const useMenuCollector = () => {
   }, [removeById])
 
   const registerSubmenu = React.useCallback((triggerId: string, trigger: NativeMenuItem, items: NativeMenuItem[]) => {
+    removeById(triggerId)
+
     const dedupeKey = getDedupeKey(trigger)
     if (dedupeKey) {
       const existingId = labelIndexRef.current.get(dedupeKey)
@@ -131,7 +134,6 @@ const useMenuCollector = () => {
       labelIndexRef.current.set(dedupeKey, triggerId)
     }
 
-    removeById(triggerId)
     submenusRef.current.set(triggerId, { trigger, items })
     if (!orderRef.current.includes(triggerId)) {
       orderRef.current.push(triggerId)
