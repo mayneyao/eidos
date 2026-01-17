@@ -1,5 +1,5 @@
 import { Message } from "ai";
-import * as postal_mime27 from "postal-mime";
+import * as postal_mime9 from "postal-mime";
 import { JsonSchema7ObjectType } from "zod-to-json-schema";
 
 //#region fields/const.d.ts
@@ -119,7 +119,7 @@ interface IView<T = any> {
 //#region sdk/index-manager.d.ts
 declare class IndexManager {
   private table;
-  dataSpace: DataSpace;
+  dataSpace: DataSpaceWithTable;
   tableManager: TableManager;
   constructor(table: TableManager);
   createIndex(column: string, onStart?: () => void, onEnd?: () => void): Promise<void>;
@@ -148,7 +148,7 @@ interface OrderByOption<T = any> {
 //#region sdk/rows.d.ts
 declare class RowsManager {
   private table;
-  dataSpace: DataSpace;
+  dataSpace: DataSpaceWithTable;
   fieldMap?: {
     fieldRawColumnNameFieldMap: Record<string, IField>;
     fieldNameRawColumnNameMap: Record<string, string>;
@@ -339,7 +339,7 @@ interface IRelation {
 }
 declare class LinkFieldService {
   private table;
-  dataSpace: DataSpace;
+  dataSpace: DataSpaceWithTable;
   db: EidosDatabase;
   constructor(table: TableManager);
   getEffectRowsByRelationDeleted: (relationTableName: string, relation: IRelation, db?: BaseServerDatabase) => Promise<{
@@ -403,7 +403,7 @@ declare class LinkFieldService {
 //#region sdk/service/lookup.d.ts
 declare class LookupFieldService {
   private table;
-  dataSpace: DataSpace;
+  dataSpace: DataSpaceWithTable;
   constructor(table: TableManager);
   /**
    * find all fields that lookup field depends on
@@ -455,7 +455,7 @@ type SelectProperty = {
 //#region sdk/service/multi-select.d.ts
 declare class MultiSelectFieldService {
   private table;
-  dataSpace: DataSpace;
+  dataSpace: DataSpaceWithTable;
   constructor(table: TableManager);
   updateFieldPropertyIfNeed: (field: IField<SelectProperty>, value: string) => Promise<void>;
   updateSelectOptionName: (field: IField<SelectProperty>, update: {
@@ -469,7 +469,7 @@ declare class MultiSelectFieldService {
 //#region sdk/service/select.d.ts
 declare class SelectFieldService {
   private table;
-  dataSpace: DataSpace;
+  dataSpace: DataSpaceWithTable;
   constructor(table: TableManager);
   static MAX_SELECT_OPTIONS: number;
   updateFieldPropertyIfNeed: (field: IField<SelectProperty>, value: string) => Promise<void>;
@@ -496,7 +496,7 @@ interface TextProperty {
 //#region sdk/service/text.d.ts
 declare class TextFieldService {
   private table;
-  dataSpace: DataSpace;
+  dataSpace: DataSpaceWithTable;
   constructor(table: TableManager);
   queryEmbedding: (fieldId: string, query: string, limit?: number) => Promise<any>;
   updateEmbedding: (fieldId: string, data: {
@@ -529,7 +529,7 @@ declare class TextFieldService {
 //#region sdk/service/index.d.ts
 declare class FieldsManager {
   private table;
-  dataSpace: DataSpace;
+  dataSpace: DataSpaceWithTable;
   constructor(table: TableManager);
   all(): Promise<IField[]>;
   get lookup(): LookupFieldService;
@@ -543,7 +543,7 @@ declare class FieldsManager {
 //#region sdk/service/compute.d.ts
 declare class ComputeService {
   private dataSpace;
-  constructor(dataSpace: DataSpace);
+  constructor(dataSpace: DataSpaceWithTable);
   updateEffectCells: (signal: {
     table: string;
     rowId: string;
@@ -564,10 +564,10 @@ interface ITable {
 }
 declare class TableManager {
   id: string;
-  dataSpace: DataSpace;
+  dataSpace: DataSpaceWithTable;
   rawTableName: string;
   db: EidosDatabase;
-  constructor(id: string, dataSpace: DataSpace);
+  constructor(id: string, dataSpace: DataSpaceWithTable);
   get compute(): ComputeService;
   get rows(): RowsManager;
   get fields(): FieldsManager;
@@ -597,6 +597,155 @@ declare class TableManager {
     tableId: string;
     createTableSql: string;
   };
+}
+//#endregion
+//#region sdk/table-client.d.ts
+/**
+ * Minimal interface for DataSpace dependency
+ * This allows TableClient to work with any class in the DataSpace inheritance chain
+ */
+interface ITableClientDataSpace {
+  db: {
+    prepare: (sql: string) => {
+      run: (values: any[]) => void;
+    };
+  };
+  exec2: (sql: string, bind?: any[]) => Promise<any[]>;
+  undoRedoManager: {
+    event: () => void;
+  };
+}
+/**
+ * Prisma-style Table SDK client for CRUD operations
+ *
+ * This client operates directly on database column names (e.g., `cl_xxx`)
+ * rather than UI display field names for simplicity and performance.
+ *
+ * @example
+ * ```typescript
+ * const Users = eidos.currentSpace.tableClient("users")
+ *
+ * // Create
+ * await Users.create({ data: { cl_name: "张三", cl_email: "z@example.com" } })
+ *
+ * // Read
+ * const user = await Users.findUnique({ where: { _id: "rec123" } })
+ * const users = await Users.findMany({ where: { cl_age: { gte: 18 } }, take: 50 })
+ *
+ * // Update
+ * await Users.update({ where: { _id: "rec123" }, data: { cl_age: 30 } })
+ *
+ * // Delete
+ * await Users.delete({ where: { _id: "rec123" } })
+ * ```
+ */
+declare class TableClient<T extends Record<string, any> = Record<string, any>> {
+  private rawTableName;
+  private dataSpace;
+  constructor(rawTableName: string, dataSpace: ITableClientDataSpace);
+  /**
+   * Create a single record
+   * @param args.data Record data to insert
+   * @returns Created record with generated _id and timestamps
+   */
+  create(args: {
+    data: T;
+  }): Promise<T & {
+    _id: string;
+  }>;
+  /**
+   * Create multiple records in a batch
+   * @param args.data Array of records to insert
+   * @param args.skipDuplicates If true, skip records that would cause unique constraint violations
+   * @returns Array of created records
+   */
+  createMany(args: {
+    data: T[];
+    skipDuplicates?: boolean;
+  }): Promise<{
+    count: number;
+  }>;
+  /**
+   * Find a unique record by _id
+   * @param args.where Where clause with _id
+   * @returns Found record or null
+   */
+  findUnique(args: {
+    where: {
+      _id: string;
+    };
+  }): Promise<T | null>;
+  /**
+   * Find the first record matching the conditions
+   * @param args.where Optional where conditions
+   * @param args.orderBy Optional ordering
+   * @returns First matching record or null
+   */
+  findFirst(args?: {
+    where?: FindManyOptions<T>["where"];
+    orderBy?: FindManyOptions<T>["orderBy"];
+  }): Promise<T | null>;
+  /**
+   * Find multiple records with advanced query options
+   * @param args Query options including where, orderBy, skip, take, select
+   * @returns Array of matching records
+   */
+  findMany(args?: FindManyOptions<T>): Promise<T[]>;
+  /**
+   * Count records matching the conditions
+   * @param args.where Optional where conditions
+   * @returns Count of matching records
+   */
+  count(args?: {
+    where?: FindManyOptions<T>["where"];
+  }): Promise<number>;
+  /**
+   * Update a single record by _id
+   * @param args.where Where clause with _id
+   * @param args.data Data to update
+   * @returns Updated record
+   */
+  update(args: {
+    where: {
+      _id: string;
+    };
+    data: Partial<T>;
+  }): Promise<T | null>;
+  /**
+   * Update multiple records matching the conditions
+   * @param args.where Where conditions
+   * @param args.data Data to update
+   * @returns Count of updated records
+   */
+  updateMany(args: {
+    where: FindManyOptions<T>["where"];
+    data: Partial<T>;
+  }): Promise<{
+    count: number;
+  }>;
+  /**
+   * Delete a single record by _id
+   * @param args.where Where clause with _id
+   * @returns Deleted record or null if not found
+   */
+  delete(args: {
+    where: {
+      _id: string;
+    };
+  }): Promise<T | null>;
+  /**
+   * Delete multiple records matching the conditions
+   * @param args.where Where conditions
+   * @returns Count of deleted records
+   */
+  deleteMany(args: {
+    where: FindManyOptions<T>["where"];
+  }): Promise<{
+    count: number;
+  }>;
+  private getCreateData;
+  private getUpdateData;
+  private buildWhereFromOptions;
 }
 //#endregion
 //#region meta-table/base.d.ts
@@ -1018,7 +1167,7 @@ declare const ComposedDocTable: {
     }>;
     createOrUpdate(data: {
       id: string;
-      text: string | postal_mime27.Email;
+      text: string | postal_mime9.Email;
       type: "html" | "markdown" | "email";
       mode?: "replace" | "append" | "prepend";
     }): Promise<{
@@ -2505,7 +2654,23 @@ declare class DataSpaceWithDoc extends DataSpaceWithFile {
 //#endregion
 //#region data-space/table.d.ts
 declare class DataSpaceWithTable extends DataSpaceWithDoc {
-  table(id: string): TableManager;
+  /**
+   * @deprecated Use table() instead. This is the legacy API that returns TableManager.
+   * Kept for internal use and backward compatibility.
+   */
+  _table(id: string): TableManager;
+  /**
+   * Prisma-style Table SDK client for CRUD operations
+   * Operates directly on database column names for simplified usage
+   *
+   * @example
+   * ```typescript
+   * const Users = eidos.currentSpace.table("users")
+   * await Users.create({ data: { cl_name: "张三" } })
+   * await Users.findMany({ where: { cl_age: { gte: 18 } } })
+   * ```
+   */
+  table(id: string): TableClient<Record<string, any>>;
   rebuildFTS(tableId: string): Promise<void>;
   semanticSearch: (params: {
     tableName: string;
@@ -2618,7 +2783,23 @@ declare class DataSpaceWithTable extends DataSpaceWithDoc {
 //# sourceMappingURL=table.d.ts.map
 //#endregion
 //#region data-space/index.d.ts
-declare class DataSpace extends DataSpaceWithTable {}
+declare class DataSpace extends DataSpaceWithTable {
+  /**
+   * Graft (version control sync) API namespace
+   */
+  get graft(): {
+    pull: () => Promise<Record<string, any>>;
+    push: () => Promise<Record<string, any>>;
+    fetch: () => Promise<Record<string, any>>;
+    clone: (remoteLogId?: string) => Promise<Record<string, any>>;
+    status: () => Promise<Record<string, any>>;
+    tags: () => Promise<Record<string, any>>;
+    volumes: () => Promise<Record<string, any>>;
+    info: () => Promise<Record<string, any>>;
+    audit: () => Promise<Record<string, any>>;
+    hydrate: () => Promise<Record<string, any>>;
+  };
+}
 //#endregion
 //#region index.d.ts
 interface EidosTable<T = Record<string, string>> {
@@ -2629,7 +2810,7 @@ interface EidosTable<T = Record<string, string>> {
 /**
  * eidos is the entry of the sdk
  *
- * `eidos.currentSpace.table("tableId").rows.query()`
+ * `eidos.currentSpace.table("tableId").findMany()`
  */
 interface Eidos {
   /**
