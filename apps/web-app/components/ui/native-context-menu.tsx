@@ -167,7 +167,15 @@ const useMenuCollector = () => {
     }).filter(isNativeMenuItem)
   }, [])
 
-  return { registerItem, unregisterItem, registerSubmenu, getMenuItems }
+  // Clear all registered items - useful for refreshing menu state
+  const clearAll = React.useCallback(() => {
+    itemsRef.current.clear()
+    submenusRef.current.clear()
+    orderRef.current = []
+    labelIndexRef.current.clear()
+  }, [])
+
+  return { registerItem, unregisterItem, registerSubmenu, getMenuItems, clearAll }
 }
 
 // Context to collect menu items
@@ -215,6 +223,10 @@ const NativeContextMenu: React.FC<NativeContextMenuProps> = ({
     },
     registerSubmenu: menuCollector.registerSubmenu,
     getMenuItems: menuCollector.getMenuItems,
+    clearAll: () => {
+      menuCollector.clearAll()
+      clickHandlersRef.current.clear()
+    },
     registerClickHandler: (id: string, handler: () => void) => {
       clickHandlersRef.current.set(id, handler)
     },
@@ -871,6 +883,7 @@ const NativeContextMenuSubContent = React.forwardRef<
     unregisterItem: submenuContext?.unregisterItem || (() => {}),
     registerSubmenu: () => {}, // Submenus don't support nested submenus
     getMenuItems: submenuContext?.getItems || (() => []),
+    clearAll: () => {}, // Submenus don't need clearAll
     registerClickHandler: (parentContext as any)?.registerClickHandler || (() => {}),
   }), [submenuContext, parentContext])
 
