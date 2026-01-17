@@ -2,11 +2,11 @@ import type { IField } from "../../types/IField"
 import { MultiSelectField } from "../../fields/multi-select"
 import type { SelectProperty } from "../../fields/select"
 
-import type { DataSpace } from "../../data-space"
+import type { DataSpaceWithTable } from "../../data-space/table"
 import type { TableManager } from "../table"
 
 export class MultiSelectFieldService {
-  dataSpace: DataSpace
+  dataSpace: DataSpaceWithTable
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
   }

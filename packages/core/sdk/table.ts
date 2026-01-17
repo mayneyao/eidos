@@ -4,7 +4,8 @@ import { generateMergeTableWithNewColumnsSql } from "../sqlite/sql-merge-table-w
 import type { IView } from "../types/IView"
 
 import { isDesktopMode } from "@/lib/env"
-import type { DataSpace, EidosDatabase } from "../data-space"
+import type { EidosDatabase } from "../data-space"
+import type { DataSpaceWithTable } from "../data-space/table"
 import { allFieldTypesMap } from "../fields"
 import type { FieldType } from "../fields/const"
 import { smartSplitFilePaths } from "../fields/helper"
@@ -25,7 +26,7 @@ export class TableManager {
   // table name in sqlite
   rawTableName: string
   db: EidosDatabase
-  constructor(public id: string, public dataSpace: DataSpace) {
+  constructor(public id: string, public dataSpace: DataSpaceWithTable) {
     this.rawTableName = getRawTableNameById(id)
     this.db = dataSpace.db
   }

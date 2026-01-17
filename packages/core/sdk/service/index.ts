@@ -1,4 +1,4 @@
-import type { DataSpace } from "../../data-space"
+import type { DataSpaceWithTable } from "../../data-space/table"
 import type { TableManager } from "../table"
 import { LinkFieldService } from "./link"
 import { LookupFieldService } from "./lookup"
@@ -7,7 +7,7 @@ import { SelectFieldService } from "./select"
 import { TextFieldService } from "./text"
 
 export class FieldsManager {
-  dataSpace: DataSpace
+  dataSpace: DataSpaceWithTable
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
     this.table = table

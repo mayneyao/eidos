@@ -58,8 +58,10 @@ export const getSqliteProxy = (
         return config
       }
       // const r = await sqlite.table("91ba4dd2ad4447cf943db88dbb861323").rows.query()
-      if (method == "table") {
+      // Legacy table API (deprecated, kept for internal use)
+      if (method === "_table" || /^[A-Z][A-Za-z0-9_]*$/.test(method as string)) {
         return function (id: string) {
+          const tableId = /^[A-Z]/.test(method as string) ? (method as string) : id
           return new Proxy<DataSpace>({} as any, {
             get(target, method) {
               if (method == "rows") {
@@ -71,7 +73,7 @@ export const getSqliteProxy = (
                       const res = sqlite.send({
                         type: MsgType.CallFunction,
                         data: {
-                          method: `table(${id}).rows.${method as string}`,
+                          method: `_table(${tableId}).rows.${method as string}`,
                           params: [_params, ...rest],
                           dbName,
                           tableId: id,
@@ -93,7 +95,7 @@ export const getSqliteProxy = (
                 const res = sqlite.send({
                   type: MsgType.CallFunction,
                   data: {
-                    method: `table("${id}").${method as string}`,
+                    method: `_table("${tableId}").${method as string}`,
                     params: [_params, ...rest],
                     dbName,
                     tableId: id,
@@ -106,6 +108,49 @@ export const getSqliteProxy = (
                 }
                 return sqlite.onCallBack(thisCallId)
               }
+            },
+          })
+        }
+      }
+
+      // Prisma-style table() API - official
+      if (method === "table") {
+        return function (id: string) {
+          const tableMethods = [
+            "create",
+            "createMany",
+            "findUnique",
+            "findFirst",
+            "findMany",
+            "count",
+            "update",
+            "updateMany",
+            "delete",
+            "deleteMany",
+          ]
+          return new Proxy<DataSpace>({} as any, {
+            get(target, method) {
+              if (tableMethods.includes(method as string)) {
+                return function (args: any) {
+                  const thisCallId = uuidv7()
+                  const res = sqlite.send({
+                    type: MsgType.CallFunction,
+                    data: {
+                      method: `table(${id}).${method as string}`,
+                      params: [args],
+                      dbName,
+                      tableId: id,
+                      userId,
+                    },
+                    id: thisCallId,
+                  })
+                  if (res) {
+                    return res
+                  }
+                  return sqlite.onCallBack(thisCallId)
+                }
+              }
+              return undefined
             },
           })
         }
