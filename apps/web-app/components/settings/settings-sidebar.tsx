@@ -69,6 +69,20 @@ export function SettingsSidebar({
       category: "space",
     },
     {
+      id: "space-extensions",
+      title: "Extensions",
+      description: "Manage installed extensions for this space",
+      icon: <Package className="h-5 w-5" />,
+      category: "space",
+    },
+    {
+      id: "space-newtab",
+      title: "New Tab",
+      description: "Customize your new tab page",
+      icon: <LayoutTemplate className="h-5 w-5" />,
+      category: "space",
+    },
+    {
       id: "space-document",
       title: t("space.settings.document"),
       description: t("space.settings.documentDescription"),
@@ -88,20 +102,6 @@ export function SettingsSidebar({
       description: t("space.settings.syncDescription"),
       icon: <Cloud className="h-5 w-5" />,
       disabled: !isSyncEnabled,
-      category: "space",
-    },
-    {
-      id: "space-extensions",
-      title: "Extensions",
-      description: "Manage installed extensions for this space",
-      icon: <Package className="h-5 w-5" />,
-      category: "space",
-    },
-    {
-      id: "space-newtab",
-      title: "New Tab",
-      description: "Customize your new tab page",
-      icon: <LayoutTemplate className="h-5 w-5" />,
       category: "space",
     },
     // Global Settings
