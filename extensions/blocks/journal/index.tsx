@@ -1,9 +1,11 @@
+"use sidebar"
+
 /**
  * Journal Sidebar Block Extension
  *
  * Displays a list of daily journal entries with search and infinite scroll
  */
-import { useEffect, useMemo, useRef } from "react"
+import React, { useEffect, useMemo, useRef } from "react"
 import { useVirtualList } from "ahooks"
 import useInfiniteScroll from "react-infinite-scroll-hook"
 

@@ -1,7 +1,14 @@
+"use sidebar"
+
 /**
  * Graft Sidebar Block Extension
  */
-import { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
+import {
+  useEidos,
+  useExtensionContext,
+  type SidebarBlockContext,
+} from "@eidos.space/react"
 import {
   ArrowDown,
   ArrowUp,
@@ -29,11 +36,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-import {
-  useEidos,
-  useExtensionContext,
-  type SidebarBlockContext,
-} from "@eidos.space/react"
 import { useGraft } from "./use-graft"
 
 /**
@@ -240,7 +242,8 @@ export const GraftSidebar = () => {
             <div className="text-center space-y-2">
               <h3 className="text-sm font-medium">Sync Not Enabled</h3>
               <p className="text-sm text-muted-foreground">
-                This space doesn't have sync enabled. Enable sync in space settings to use Graft features.
+                This space doesn't have sync enabled. Enable sync in space
+                settings to use Graft features.
               </p>
             </div>
           </div>
@@ -249,185 +252,185 @@ export const GraftSidebar = () => {
             <div className="space-y-3">
               <h3 className="text-sm font-medium">Status</h3>
 
-          {/* Detailed Status */}
-          <div className="space-y-2 text-sm">
-            {syncStatus ? (
-              <>
-                {syncStatus.currentBranch && (
-                  <p>
-                    <span className="text-muted-foreground">Branch:</span>{" "}
-                    {syncStatus.currentBranch}
+              {/* Detailed Status */}
+              <div className="space-y-2 text-sm">
+                {syncStatus ? (
+                  <>
+                    {syncStatus.currentBranch && (
+                      <p>
+                        <span className="text-muted-foreground">Branch:</span>{" "}
+                        {syncStatus.currentBranch}
+                      </p>
+                    )}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <p>
+                          <span className="text-muted-foreground mr-1">
+                            Status:
+                          </span>
+                          <span className="font-medium text-foreground">
+                            {getStatusText()}
+                          </span>
+                        </p>
+                        {lastUpdated && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {getRelativeTime(lastUpdated)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 py-1">
+                        <div className="flex h-1.5 flex-1 items-stretch rounded-full bg-muted/50 overflow-hidden">
+                          <div
+                            className={`transition-all duration-500 ease-out flex-shrink-0 ${
+                              (syncStatus.ahead || 0) > 0
+                                ? "bg-green-500"
+                                : "bg-muted"
+                            }`}
+                            style={{
+                              width: `${
+                                (syncStatus.ahead || 0) > 0 &&
+                                (syncStatus.behind || 0) > 0
+                                  ? Math.max(
+                                      15,
+                                      ((syncStatus.ahead || 0) /
+                                        ((syncStatus.ahead || 0) +
+                                          (syncStatus.behind || 0))) *
+                                        100
+                                    )
+                                  : (syncStatus.ahead || 0) > 0
+                                    ? 100
+                                    : 0
+                              }%`,
+                              opacity: (syncStatus.ahead || 0) > 0 ? 1 : 0.3,
+                            }}
+                          />
+                          <div
+                            className={`transition-all duration-500 ease-out flex-shrink-0 ${
+                              (syncStatus.behind || 0) > 0
+                                ? "bg-red-500"
+                                : "bg-muted"
+                            }`}
+                            style={{
+                              width: `${
+                                (syncStatus.ahead || 0) > 0 &&
+                                (syncStatus.behind || 0) > 0
+                                  ? Math.max(
+                                      15,
+                                      ((syncStatus.behind || 0) /
+                                        ((syncStatus.ahead || 0) +
+                                          (syncStatus.behind || 0))) *
+                                        100
+                                    )
+                                  : (syncStatus.behind || 0) > 0
+                                    ? 100
+                                    : 0
+                              }%`,
+                              opacity: (syncStatus.behind || 0) > 0 ? 1 : 0.3,
+                              marginLeft:
+                                (syncStatus.ahead || 0) > 0 &&
+                                (syncStatus.behind || 0) > 0
+                                  ? "1px"
+                                  : "0",
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">
+                    Click refresh to fetch status
                   </p>
                 )}
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
+              </div>
+            </div>
+
+            {/* Info Section */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">Info</h3>
+              <div className="space-y-2 text-sm">
+                {graftInfo?.snapshotSize && (
+                  <p>
+                    <span className="text-muted-foreground">Size:</span>{" "}
+                    {graftInfo.snapshotSize}
+                  </p>
+                )}
+                {auditResult &&
+                  auditResult.localPages !== undefined &&
+                  auditResult.totalPages !== undefined && (
                     <p>
-                      <span className="text-muted-foreground mr-1">
-                        Status:
-                      </span>
-                      <span className="font-medium text-foreground">
-                        {getStatusText()}
-                      </span>
-                    </p>
-                    {lastUpdated && (
-                      <span className="text-[10px] text-muted-foreground">
-                        {getRelativeTime(lastUpdated)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 py-1">
-                    <div className="flex h-1.5 flex-1 items-stretch rounded-full bg-muted/50 overflow-hidden">
-                      <div
-                        className={`transition-all duration-500 ease-out flex-shrink-0 ${
-                          (syncStatus.ahead || 0) > 0
-                            ? "bg-green-500"
-                            : "bg-muted"
-                        }`}
-                        style={{
-                          width: `${
-                            (syncStatus.ahead || 0) > 0 &&
-                            (syncStatus.behind || 0) > 0
-                              ? Math.max(
-                                  15,
-                                  ((syncStatus.ahead || 0) /
-                                    ((syncStatus.ahead || 0) +
-                                      (syncStatus.behind || 0))) *
-                                    100
-                                )
-                              : (syncStatus.ahead || 0) > 0
-                                ? 100
-                                : 0
-                          }%`,
-                          opacity: (syncStatus.ahead || 0) > 0 ? 1 : 0.3,
-                        }}
-                      />
-                      <div
-                        className={`transition-all duration-500 ease-out flex-shrink-0 ${
-                          (syncStatus.behind || 0) > 0
-                            ? "bg-red-500"
-                            : "bg-muted"
-                        }`}
-                        style={{
-                          width: `${
-                            (syncStatus.ahead || 0) > 0 &&
-                            (syncStatus.behind || 0) > 0
-                              ? Math.max(
-                                  15,
-                                  ((syncStatus.behind || 0) /
-                                    ((syncStatus.ahead || 0) +
-                                      (syncStatus.behind || 0))) *
-                                    100
-                                )
-                              : (syncStatus.behind || 0) > 0
-                                ? 100
-                                : 0
-                          }%`,
-                          opacity: (syncStatus.behind || 0) > 0 ? 1 : 0.3,
-                          marginLeft:
-                            (syncStatus.ahead || 0) > 0 &&
-                            (syncStatus.behind || 0) > 0
-                              ? "1px"
-                              : "0",
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <p className="text-muted-foreground">
-                Click refresh to fetch status
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Info Section */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">Info</h3>
-          <div className="space-y-2 text-sm">
-            {graftInfo?.snapshotSize && (
-              <p>
-                <span className="text-muted-foreground">Size:</span>{" "}
-                {graftInfo.snapshotSize}
-              </p>
-            )}
-            {auditResult &&
-              auditResult.localPages !== undefined &&
-              auditResult.totalPages !== undefined && (
-                <p>
-                  <span className="text-muted-foreground">Cached:</span>{" "}
-                  {auditResult.localPages} / {auditResult.totalPages} pages
-                  {auditResult.percentage !== undefined && (
-                    <span className="text-xs text-muted-foreground ml-1">
-                      ({auditResult.percentage}%)
-                    </span>
-                  )}
-                </p>
-              )}
-          </div>
-        </div>
-
-        {/* Tags Section */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">Tags</h3>
-          <div className="space-y-2">
-            {tags && Array.isArray(tags) ? (
-              tags.map((tag: any) => (
-                <div
-                  key={tag.name}
-                  className={`rounded-lg border p-2 text-xs transition-colors ${
-                    tag.isCurrent
-                      ? "border-primary/30 bg-primary/5 ring-1 ring-primary/20"
-                      : "border-border/40 bg-muted/20"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold flex items-center gap-1.5">
-                      {tag.name}
-                      {tag.isCurrent && (
-                        <span className="bg-primary/20 text-primary text-[9px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wider">
-                          Current
+                      <span className="text-muted-foreground">Cached:</span>{" "}
+                      {auditResult.localPages} / {auditResult.totalPages} pages
+                      {auditResult.percentage !== undefined && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          ({auditResult.percentage}%)
                         </span>
                       )}
-                    </span>
-                    {tag.status && (
-                      <span className="text-[10px] text-muted-foreground opacity-80 bg-background/50 px-1.5 py-0.5 rounded border border-border/40">
-                        {tag.status}
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-1 font-mono text-[9px] text-muted-foreground/80">
-                    {tag.volumeId && (
-                      <p className="flex justify-between gap-2 overflow-hidden">
-                        <span className="shrink-0">Vol:</span>
-                        <span className="truncate">{tag.volumeId}</span>
-                      </p>
-                    )}
-                    {tag.local && (
-                      <p className="flex justify-between gap-2 overflow-hidden">
-                        <span className="shrink-0">Loc:</span>
-                        <span className="truncate">{tag.local}</span>
-                      </p>
-                    )}
-                    {tag.remote && (
-                      <p className="flex justify-between gap-2 overflow-hidden">
-                        <span className="shrink-0">Rem:</span>
-                        <span className="truncate text-foreground/70">
-                          {tag.remote}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-lg border border-border/40 bg-muted/30 p-3 italic text-xs text-muted-foreground">
-                No tags data available
+                    </p>
+                  )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+
+            {/* Tags Section */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">Tags</h3>
+              <div className="space-y-2">
+                {tags && Array.isArray(tags) ? (
+                  tags.map((tag: any) => (
+                    <div
+                      key={tag.name}
+                      className={`rounded-lg border p-2 text-xs transition-colors ${
+                        tag.isCurrent
+                          ? "border-primary/30 bg-primary/5 ring-1 ring-primary/20"
+                          : "border-border/40 bg-muted/20"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-semibold flex items-center gap-1.5">
+                          {tag.name}
+                          {tag.isCurrent && (
+                            <span className="bg-primary/20 text-primary text-[9px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wider">
+                              Current
+                            </span>
+                          )}
+                        </span>
+                        {tag.status && (
+                          <span className="text-[10px] text-muted-foreground opacity-80 bg-background/50 px-1.5 py-0.5 rounded border border-border/40">
+                            {tag.status}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-1 font-mono text-[9px] text-muted-foreground/80">
+                        {tag.volumeId && (
+                          <p className="flex justify-between gap-2 overflow-hidden">
+                            <span className="shrink-0">Vol:</span>
+                            <span className="truncate">{tag.volumeId}</span>
+                          </p>
+                        )}
+                        {tag.local && (
+                          <p className="flex justify-between gap-2 overflow-hidden">
+                            <span className="shrink-0">Loc:</span>
+                            <span className="truncate">{tag.local}</span>
+                          </p>
+                        )}
+                        {tag.remote && (
+                          <p className="flex justify-between gap-2 overflow-hidden">
+                            <span className="shrink-0">Rem:</span>
+                            <span className="truncate text-foreground/70">
+                              {tag.remote}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-border/40 bg-muted/30 p-3 italic text-xs text-muted-foreground">
+                    No tags data available
+                  </div>
+                )}
+              </div>
+            </div>
           </>
         )}
       </div>
