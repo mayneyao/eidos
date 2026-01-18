@@ -42,6 +42,7 @@ import { useGraft } from "./use-graft"
 export const meta = {
   type: "sidebarBlock",
   componentName: "GraftSidebar",
+  icon: "git-branch",
   sidebarBlock: {
     title: "Graft",
     description:

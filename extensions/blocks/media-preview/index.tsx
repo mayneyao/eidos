@@ -11,6 +11,7 @@ import {
 export const meta = {
   type: "fileHandler",
   componentName: "MediaPreview",
+  icon: "image",
   fileHandler: {
     title: "Media Preview",
     description:

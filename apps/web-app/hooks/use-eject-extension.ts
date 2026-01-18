@@ -70,6 +70,7 @@ export function useEjectExtension() {
             code: compileResult.code,
             ts_code: record.ts_code,
             meta: record.meta,
+            icon: record.icon,
             enabled: record.isMainEntry,
           })
         }

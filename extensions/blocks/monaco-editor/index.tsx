@@ -20,6 +20,7 @@ import type * as Monaco from "monaco-editor"
 export const meta = {
   type: "fileHandler",
   componentName: "MonacoEditor",
+  icon: "code",
   fileHandler: {
     title: "Monaco Editor",
     description:

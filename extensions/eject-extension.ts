@@ -16,6 +16,7 @@ export interface EjectRecord {
   description: string
   ts_code: string     // Source code for this file
   meta?: ExtensionMeta // Only the main entry has meta
+  icon?: string       // Data URI of the extension icon
   type: "block" | "script"
   isMainEntry: boolean
 }
@@ -31,6 +32,7 @@ export interface BuiltInExtensionInfo {
   name: string
   type: "block" | "script"
   meta: ExtensionMeta
+  icon?: string
 }
 
 /**
@@ -128,6 +130,7 @@ export function ejectBuiltInExtension(slug: string): EjectResult {
       description: isMain ? description : `Dependency file for ${builtIn.name}`,
       ts_code: source,
       meta: isMain ? builtIn.meta : undefined,
+      icon: isMain ? builtIn.icon : undefined,
       type: filename.endsWith('.tsx') ? "block" : "script",
       isMainEntry: isMain,
     }

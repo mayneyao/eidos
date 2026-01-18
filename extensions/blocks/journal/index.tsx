@@ -15,6 +15,7 @@ import { useJournalsSidebarData } from "./use-journals"
 export const meta = {
   type: "sidebarBlock",
   componentName: "JournalsSidebar",
+  icon: "calendar-days",
   sidebarBlock: {
     title: "Journals",
     description:

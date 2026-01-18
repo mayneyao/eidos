@@ -12,6 +12,7 @@ import { getConfigManager } from "@/apps/desktop/electron/config";
 import type { IBindings } from "@/packages/core/types/IExtension";
 import { makeSdkInjectScript } from "@eidos.space/sandbox";
 import { uiComponentsDependencies } from "./ui-deps";
+import { getSpaceRegistry } from '../../space-registry';
 
 
 export class ServerBlock {
@@ -104,7 +105,8 @@ export class ServerBlock {
         })
         const code = extension?.ts_code || ""
         const compiledCode = extension?.code || ""
-
+        const spaceInfo = getSpaceRegistry().getSpace(spaceId)
+        
         const { thirdPartyLibs, uiLibs, cssLibs, localLibs } = await getAllLibs(code, uiComponentsDependencies, async (localLibPath) => {
             // Resolve local lib path relative to the entry extension's slug
             // e.g., entry slug: "ejected/graft/index", localLibPath: "./use-graft"
@@ -149,7 +151,7 @@ export class ServerBlock {
         const extensionContext = {
             type: extension?.meta?.type, // tableView, extNode, fileHandler
             locale: 'en', // TODO: get from user settings
-            // syncEnabled: false, // Add other server-only info here if needed
+            syncEnabled: spaceInfo?.sync?.enabled || false,
         }
 
         const themeMode = await this.getThemeMode()

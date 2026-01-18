@@ -22,6 +22,7 @@ export interface BuiltInExtension {
   name: string
   type: "block" | "script"
   meta: ExtensionMeta
+  icon?: string
   component: ComponentType<any>
   isBuiltIn: true
 }
@@ -33,6 +34,7 @@ function register(slug: string, module: any): BuiltInExtension {
   const meta = module.meta as ExtensionMeta
   const componentName = (meta as any).componentName as string
   const component = module[componentName] as ComponentType<any>
+  const icon = (meta as any).icon as string | undefined
 
   if (!meta || !component) {
     throw new Error(
@@ -51,6 +53,7 @@ function register(slug: string, module: any): BuiltInExtension {
       slug,
     type: "block",
     meta,
+    icon,
     component,
     isBuiltIn: true,
   }
@@ -72,6 +75,7 @@ builtInExtensions.forEach((ext) => {
     name: ext.name,
     type: ext.type,
     meta: ext.meta,
+    icon: ext.icon,
   })
 })
 
