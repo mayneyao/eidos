@@ -237,8 +237,17 @@ async findMany(args?: {
   orderBy?: Record<string, 'asc' | 'desc'>
   skip?: number
   take?: number
+  select?: Record<string, boolean>
 }): Promise<Record<string, any>[]>
 ```
+
+**Parameters:**
+
+- `where` (object): Optional filter conditions
+- `orderBy` (object): Optional sorting, e.g., `{ name: 'asc' }`
+- `skip` (number): Optional number of records to skip (for pagination)
+- `take` (number): Optional number of records to return (for pagination)
+- `select` (object): Optional field selection, where keys are column names and values are `true` (include) or `false` (exclude). When using select, only columns set to `true` will be returned in the results.
 
 **Where Clause Operators:**
 
@@ -285,6 +294,11 @@ const page2 = await Users.findMany({
   skip: 20,
   take: 10,
   orderBy: { _created_time: "desc" }
+})
+
+// With select (only return specific columns)
+const userNames = await Users.findMany({
+  select: { _id: true, name: true }
 })
 ```
 

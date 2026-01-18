@@ -233,8 +233,17 @@ async findMany(args?: {
   orderBy?: Record<string, 'asc' | 'desc'>
   skip?: number
   take?: number
+  select?: Record<string, boolean>
 }): Promise<Record<string, any>[]>
 ```
+
+**参数:**
+
+- `where` (object): 可选的过滤条件
+- `orderBy` (object): 可选的排序方式，如 `{ name: 'asc' }`
+- `skip` (number): 可选，跳过的记录数（用于分页）
+- `take` (number): 可选，返回的记录数（用于分页）
+- `select` (object): 可选的字段选择，键为列名，值为 `true`（包含）或 `false`（排除）。使用 select 时，只有设置为 `true` 的列会在结果中返回。
 
 **Where 子句运算符:**
 
@@ -281,6 +290,11 @@ const page2 = await Users.findMany({
   skip: 20,
   take: 10,
   orderBy: { _created_time: "desc" }
+})
+
+// 使用 select（只返回指定列）
+const userNames = await Users.findMany({
+  select: { _id: true, name: true }
 })
 ```
 
