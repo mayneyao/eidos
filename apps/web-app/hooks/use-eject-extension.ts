@@ -52,7 +52,9 @@ export function useEjectExtension() {
           }
 
           // Compile TypeScript to JavaScript
-          const compileResult = await compileCode(record.ts_code)
+          // blocks contain JSX (.tsx), scripts are pure TypeScript (.ts)
+          const isTsx = record.type === "block"
+          const compileResult = await compileCode(record.ts_code, { isTsx })
           if (compileResult.error) {
             throw new Error(`Compile error: ${compileResult.error}`)
           }
