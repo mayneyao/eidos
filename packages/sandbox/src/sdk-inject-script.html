@@ -605,7 +605,7 @@
     const { type, data } = event.data
     const port = event.ports[0]
     if (type === "ScriptFunctionCall") {
-      const { input, context, code, command, bindings, id, space } = data
+      const { input, context, code, command, bindings, id, space, hash } = data
       for (const key in bindings) {
         window.__EIDOS_BINDINGS__ = bindings
       }
@@ -623,7 +623,7 @@
       context.env = env
 
       try {
-        const module = await await import(`/${id}.js`)
+        const module = await await import(`/${id}.js?t=${hash || Date.now()}`)
         const res = await module[command](input, context)
         port.postMessage({
           type: "ScriptFunctionCallResponse",
