@@ -182,6 +182,25 @@ const useMenuCollector = () => {
 const NativeMenuContext = React.createContext<ReturnType<typeof useMenuCollector> | null>(null)
 const NativeMenuModeContext = React.createContext<{ useNative: boolean }>({ useNative: true })
 
+// Global click handler registry - singleton pattern to avoid memory leak
+// Each menu component registers its handlers here, and a single IPC listener dispatches to them
+const globalClickHandlerRegistry = new Map<string, () => void>()
+
+// Singleton IPC listener - only initialized once
+let globalListenerInitialized = false
+const initGlobalMenuClickListener = () => {
+  if (globalListenerInitialized) return
+  if (typeof window === 'undefined' || !window.eidos?.on) return
+  
+  globalListenerInitialized = true
+  window.eidos.on('native-menu-click', (_: any, itemId: string) => {
+    const clickHandler = globalClickHandlerRegistry.get(itemId)
+    if (clickHandler) {
+      clickHandler()
+    }
+  })
+}
+
 // Main Native Context Menu component - only for desktop
 interface NativeContextMenuProps {
   children: React.ReactNode
@@ -207,49 +226,49 @@ const NativeContextMenu: React.FC<NativeContextMenuProps> = ({
     setUseNativeMenu(detectNativeMenu())
   }, [detectNativeMenu])
 
-  const clickHandlersRef = React.useRef<Map<string, () => void>>(new Map())
   const menuCollector = useMenuCollector()
+  // Track registered handler IDs for cleanup
+  const registeredHandlerIds = React.useRef<Set<string>>(new Set())
 
   const menuContextValue = React.useMemo(() => ({
     registerItem: (id: string, item: NativeMenuItem, onClick?: () => void) => {
       menuCollector.registerItem(id, item)
       if (onClick) {
-        clickHandlersRef.current.set(id, onClick)
+        globalClickHandlerRegistry.set(id, onClick)
+        registeredHandlerIds.current.add(id)
       }
     },
     unregisterItem: (id: string) => {
       menuCollector.unregisterItem(id)
-      clickHandlersRef.current.delete(id)
+      globalClickHandlerRegistry.delete(id)
+      registeredHandlerIds.current.delete(id)
     },
     registerSubmenu: menuCollector.registerSubmenu,
     getMenuItems: menuCollector.getMenuItems,
     clearAll: () => {
       menuCollector.clearAll()
-      clickHandlersRef.current.clear()
+      // Clean up only handlers registered by this component
+      registeredHandlerIds.current.forEach(id => {
+        globalClickHandlerRegistry.delete(id)
+      })
+      registeredHandlerIds.current.clear()
     },
     registerClickHandler: (id: string, handler: () => void) => {
-      clickHandlersRef.current.set(id, handler)
+      globalClickHandlerRegistry.set(id, handler)
+      registeredHandlerIds.current.add(id)
     },
   }), [menuCollector])
 
-  // Listen for menu click events from main process
+  // Initialize global listener once
   React.useEffect(() => {
-    const handleMenuClick = (_: any, itemId: string) => {
-      const clickHandler = clickHandlersRef.current.get(itemId)
-      if (clickHandler) {
-        clickHandler()
-      }
-    }
-
-    let listenerId: string | undefined
-    if (window.eidos?.on) {
-      listenerId = window.eidos.on('native-menu-click', handleMenuClick)
-    }
-
+    initGlobalMenuClickListener()
+    
+    // Cleanup handlers registered by this component when unmounting
     return () => {
-      if (window.eidos?.off && listenerId) {
-        window.eidos.off('native-menu-click', listenerId)
-      }
+      registeredHandlerIds.current.forEach(id => {
+        globalClickHandlerRegistry.delete(id)
+      })
+      registeredHandlerIds.current.clear()
     }
   }, [])
 
