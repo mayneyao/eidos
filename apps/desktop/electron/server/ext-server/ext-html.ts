@@ -57,6 +57,11 @@ export const getIndexHtml = (props: {
         <style>
           ${rawThemeCss}
           * {
+            scrollbar-width: thin;
+            /* Make the scrollbar narrower */
+            scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+            /* Thumb and track colors */
+            
             border-color: hsl(var(--border));
           }
     
