@@ -590,6 +590,7 @@
     "settings.devtools.description": "Developer tools settings.",
     "settings.experiment": "Experiment",
     "settings.experiment.description": "Experimental features settings.",
+    "settings.extensions.title": "Extensions",
     "settings.general": "General",
     "settings.general.app": "App",
     "settings.general.autoUpdate": "Auto Update",

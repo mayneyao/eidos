@@ -590,6 +590,7 @@
     "settings.devtools.description": "开发工具设置。",
     "settings.experiment": "实验",
     "settings.experiment.description": "试验性功能设置。",
+    "settings.extensions.title": "扩展",
     "settings.general": "通用",
     "settings.general.app": "应用",
     "settings.general.autoUpdate": "自动更新",
