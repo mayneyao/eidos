@@ -21,10 +21,11 @@ export const useRouterAdapter = () => {
         : [null, null]
 
     // Tab store state
-    const activeTabId = useTabStore((state) => state.activeTabId)
+    const getActiveTabId = useTabStore((state) => state.getActiveTabId)
     const tabs = useTabStore((state) => state.tabs)
     const updateTab = useTabStore((state) => state.updateTab)
 
+    const activeTabId = getActiveTabId()
     const activeTab = tabs.find((t) => t.id === activeTabId)
 
     // Adapter implementations
@@ -90,7 +91,8 @@ export const useRouterAdapter = () => {
                     navigate(to as any, options)
                     return
                 }
-                const { activeTabId: storeActiveTabId, goInTabHistory } = useTabStore.getState()
+                const { goInTabHistory } = useTabStore.getState()
+                const storeActiveTabId = useTabStore.getState().getActiveTabId()
                 if (storeActiveTabId) {
                     goInTabHistory(storeActiveTabId, to)
                 }
@@ -116,12 +118,13 @@ export const useRouterAdapter = () => {
             // Default behavior: navigate within the active tab's history stack
             const {
                 tabs,
-                activeTabId: storeActiveTabId,
+                getActiveTabId: getStoreActiveTabId,
                 openTab: openTabAction,
                 setActiveTab: setActiveTabAction,
                 updateTab,
                 setNextNavigationOptions,
             } = useTabStore.getState()
+            const storeActiveTabId = getStoreActiveTabId()
 
             const targetId = storeActiveTabId || tabs[0]?.id
 

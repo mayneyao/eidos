@@ -15,6 +15,7 @@ import { NodeAppPanel } from "@/components/nav/node-app-panel"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import { useSpaceAppStore } from "./store"
 
@@ -34,6 +35,11 @@ export function DatabaseLayoutBase({
   const { isRightPanelOpen, isExtAppOpen, currentAppIndex, apps, tempPanelNode } =
     useSpaceAppStore()
   const currentApp = apps[currentAppIndex]
+
+  // Check if Nav is visible (only for single panel mode)
+  const panels = useTabStore((state) => state.panels)
+  const isNavVisible = panels.length <= 1
+  const contentHeight = isNavVisible ? "calc(100vh - 38px)" : "100vh"
 
 
   if (!isShareMode && !sqlite) {
@@ -57,16 +63,12 @@ export function DatabaseLayoutBase({
         <SideBar />
         <div className="flex h-screen flex-col min-w-0 grow">
           <Nav />
-          <ResizablePanelGroup direction="horizontal">
-            <div
-              className={cn("flex w-full", {})}
-              style={{ height: "calc(100vh - 38px)" }}
-            >
-              <ResizablePanel minSize={50}>
-                <div className={cn("flex h-full w-auto grow flex-col")}>
-                  {children}
-                </div>
-              </ResizablePanel>
+          <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+            <ResizablePanel minSize={50}>
+              <div className={cn("flex h-full w-full flex-col")}>
+                {children}
+              </div>
+            </ResizablePanel>
               {isRightPanelOpen && (
                 <>
                   <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
@@ -110,7 +112,6 @@ export function DatabaseLayoutBase({
                     </ResizablePanel>
                   </>
                 )} */}
-            </div>
           </ResizablePanelGroup>
         </div>
       </div>

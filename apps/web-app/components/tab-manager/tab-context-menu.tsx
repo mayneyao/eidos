@@ -11,6 +11,8 @@ import {
   MailIcon,
   MoveHorizontal,
   PanelRightIcon,
+  SplitSquareHorizontal,
+  SplitSquareVertical,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -57,7 +59,6 @@ import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
-
 // import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
 import { useHandlerSelection } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-handler-selection"
 import {
@@ -96,9 +97,13 @@ export function TabContextMenu({
 }: TabContextMenuProps) {
   const { t } = useTranslation()
   const tabs = useTabStore((state) => state.tabs)
+  const panels = useTabStore((state) => state.panels)
+  const splitTab = useTabStore((state) => state.splitTab)
   const [open, setOpen] = useState(false)
 
   const isOnlyTab = totalTabs === 1
+  // Check if we can split (max 4 panels)
+  const canSplit = panels.length < 4
   const isLastTab = tabIndex >= totalTabs - 1
 
   // Get current tab and parse its URL for route parameters
@@ -207,7 +212,9 @@ export function TabContextMenu({
     !isLoadingAllHandlers &&
     allHandlers.length > 1 &&
     // Double-check at least one handler supports this extension (guards against stale allHandlers)
-    allHandlers.some((h) => h.meta?.fileHandler?.extensions?.includes(fileExtension))
+    allHandlers.some((h) =>
+      h.meta?.fileHandler?.extensions?.includes(fileExtension)
+    )
 
   const { sqlite, deleteNode, toggleNodeFullWidth, toggleNodeLock } =
     useSqlite()
@@ -320,7 +327,9 @@ export function TabContextMenu({
     (handler: Parameters<typeof openWith>[0]) => {
       const currentFilePath = filePathRef.current
       if (handler._builtIn) {
-        tabNavigate(`/file-handler?handler=${handler.id}&builtin=true#${currentFilePath}`)
+        tabNavigate(
+          `/file-handler?handler=${handler.id}&builtin=true#${currentFilePath}`
+        )
       } else {
         tabNavigate(`/file-handler?handler=${handler.id}#${currentFilePath}`)
       }
@@ -344,7 +353,7 @@ export function TabContextMenu({
   return (
     <>
       {/* Key forces remount when tab or file type changes, ensuring fresh menu registrations */}
-      <ContextMenu key={`${tabId}-${fileExtension}`}>
+      <ContextMenu key={`${tabId}-${tabUrl}`}>
         <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-56">
           {/* Tab Operations */}
@@ -362,6 +371,25 @@ export function TabContextMenu({
           </ContextMenuItem>
 
           <ContextMenuItem onClick={onCloseAll}>Close All</ContextMenuItem>
+
+          {/* Split View Options */}
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            onClick={() => splitTab(tabId, "right")}
+            disabled={!canSplit}
+          >
+            <SplitSquareHorizontal className="mr-2 h-4 w-4" />
+            {t("tab.menu.splitRight", "Split Right")}
+          </ContextMenuItem>
+          {/* Split Down hidden for now
+          <ContextMenuItem
+            onClick={() => splitTab(tabId, "down")}
+            disabled={!canSplit}
+          >
+            <SplitSquareVertical className="mr-2 h-4 w-4" />
+            {t("tab.menu.splitDown", "Split Down")}
+          </ContextMenuItem>
+          */}
 
           {/* Open with submenu (file-handler page with multiple handlers) */}
           {showOpenWith && (

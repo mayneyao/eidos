@@ -1,17 +1,30 @@
 import React, { useCallback } from "react"
-import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, PanelRightIcon, Plus, X } from "lucide-react"
 
+import { isDesktopMode } from "@/lib/env"
 import { cn, isDayPageId } from "@/lib/utils"
+import { isMac, isWindowsDesktop } from "@/lib/web/helper"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { Button } from "@/components/ui/button"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
+import { useAppStore } from "@/apps/web-app/store/app-store"
+import { NavStatus } from "@/components/nav/nav-status"
 
 import { TabContextMenu } from "./tab-context-menu"
 
-export function TabBar() {
+interface TabBarProps {
+  panelId?: string
+  isFirstPanel?: boolean
+  isLastPanel?: boolean
+}
+
+export function TabBar({ panelId, isFirstPanel = false, isLastPanel = false }: TabBarProps) {
   const {
     tabs,
-    activeTabId,
+    panels,
+    activePanelId,
     openTab,
     closeTab,
     closeOtherTabs,
@@ -25,10 +38,36 @@ export function TabBar() {
   } = useTabStore()
   const { setCurrentApp } = useSidebarStore()
   const { sqlite } = useSqlite()
+
+  // Get the panel to work with
+  const currentPanelId = panelId || activePanelId
+  const currentPanel = panels.find((p) => p.id === currentPanelId)
+
+  // Filter tabs to only show those in this panel
+  const panelTabs = currentPanel
+    ? currentPanel.tabIds
+        .map((id) => tabs.find((t) => t.id === id))
+        .filter((t): t is NonNullable<typeof t> => t !== undefined)
+    : tabs
+
+  const activeTabId = currentPanel?.activeTabId || null
+
+  // For right panel toggle button
+  const { isSidebarOpen } = useAppStore()
+  const { isRightPanelOpen, setIsRightPanelOpen, currentAppIndex } = useSpaceAppStore()
+
+  const handleAppChange = (index: number) => {
+    if (index === currentAppIndex) {
+      setIsRightPanelOpen(false)
+    } else {
+      setIsRightPanelOpen(true, index)
+    }
+  }
+
   // Use useCallback to stabilize handleNewTab reference
   const handleNewTab = useCallback(() => {
-    openTab("/", "New Tab")
-  }, [openTab])
+    openTab("/", "New Tab", currentPanelId || undefined)
+  }, [openTab, currentPanelId])
 
   const handleTabClick = (tabId: string, e: React.MouseEvent) => {
     // Middle-click to close
@@ -123,20 +162,28 @@ export function TabBar() {
 
   return (
     <div
-      className="flex items-center gap-0 flex-1 min-w-0 px-1"
+      className={cn(
+        "flex items-center gap-0 shrink-0 min-w-0 px-1 h-[38px] border-b border-border/60 bg-muted/60",
+        {
+          // First panel: add left padding for macOS traffic lights when sidebar is closed
+          "!pl-[72px]": isFirstPanel && (isDesktopMode || navigator.windowControlsOverlay?.visible) && isMac() && !isSidebarOpen,
+          // Windows: add right padding when on last panel
+          "pr-[112px]": isLastPanel && isWindowsDesktop && !isRightPanelOpen,
+        }
+      )}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       id="drag-region"
     >
       {/* Tabs container - can compress with overflow hidden */}
       <div className="flex items-center gap-0 min-w-0 overflow-hidden">
-        {tabs.map((tab, index) => {
+      {panelTabs.map((tab, index) => {
           const isActive = activeTabId === tab.id
           return (
             <TabContextMenu
               key={tab.id}
               tabId={tab.id}
               tabIndex={index}
-              totalTabs={tabs.length}
+              totalTabs={panelTabs.length}
               onClose={() => closeTab(tab.id)}
               onCloseOthers={() => closeOtherTabs(tab.id)}
               onCloseToRight={() => closeTabsToRight(tab.id)}
@@ -231,6 +278,36 @@ export function TabBar() {
       >
         <Plus className="h-4 w-4" />
       </button>
+
+      {/* Spacer to push right panel controls to right edge */}
+      {isLastPanel && <div className="flex-1" />}
+
+      {/* Right panel controls - only on last panel */}
+      {isLastPanel && (
+        <div
+          className="flex items-center gap-1 shrink-0 grow-0"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
+          <NavStatus />
+          {isDesktopMode && !isRightPanelOpen && (
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => handleAppChange(0)}
+              className={cn({
+                "mr-1": !isWindowsDesktop && !isRightPanelOpen,
+              })}
+            >
+              <PanelRightIcon className="h-4 w-4" />
+            </Button>
+          )}
+          {!isDesktopMode && (
+            <Button size="xs" variant="ghost" onClick={() => handleAppChange(0)}>
+              <PanelRightIcon className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

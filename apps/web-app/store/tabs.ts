@@ -22,23 +22,39 @@ export interface ClosedTab {
   historyState?: { entries: TabHistoryEntry[]; index: number }
 }
 
+// New: Panel represents a split view pane containing tabs
+export interface Panel {
+  id: string
+  tabIds: string[]
+  activeTabId: string | null
+}
+
+// Split direction for creating new panels
+export type SplitDirection = "right" | "down"
+
+// Maximum number of panels allowed
+const MAX_PANELS = 4
+
 interface TabState {
   tabs: Tab[]
-  activeTabId: string | null
+  panels: Panel[]
+  activePanelId: string | null
   history: Record<string, { entries: TabHistoryEntry[]; index: number }>
   tabNavigators: Record<string, (delta: number) => void>
   nextNavigationOptions: Record<string, { replace?: boolean }>
   closedTabsStack: ClosedTab[]
+  // Layout direction: 'horizontal' for left-right, 'vertical' for top-bottom
+  splitDirection: "horizontal" | "vertical"
 
-  // Actions
-  openTab: (url: string, title?: string) => void
+  // Tab Actions
+  openTab: (url: string, title?: string, panelId?: string) => void
   closeTab: (id: string) => void
   closeOtherTabs: (id: string) => void
   closeTabsToRight: (id: string) => void
   closeAllTabs: () => void
   setActiveTab: (id: string) => void
   updateTab: (id: string, updates: Partial<Tab>) => void
-  reorderTabs: (newTabs: Tab[]) => void
+  reorderTabs: (newTabs: Tab[], panelId?: string) => void
   recordHistoryNavigation: (
     id: string,
     entry: TabHistoryEntry,
@@ -54,27 +70,49 @@ interface TabState {
     id: string
   ) => { replace?: boolean } | undefined
   reopenLastClosedTab: () => void
+
+  // Panel Actions
+  splitTab: (tabId: string, direction: SplitDirection) => void
+  moveTabToPanel: (tabId: string, targetPanelId: string) => void
+  setActivePanel: (panelId: string) => void
+  closePanel: (panelId: string) => void
+  setSplitDirection: (direction: "horizontal" | "vertical") => void
+
+  // Computed helpers
+  getActiveTabId: () => string | null
+  getPanelTabs: (panelId: string) => Tab[]
+  getPanelForTab: (tabId: string) => Panel | undefined
 }
 
 const storageName = "eidos-tabs-storage"
+
+// Helper to ensure at least one panel exists
+function ensureDefaultPanel(state: Partial<TabState>): Panel[] {
+  if (!state.panels || state.panels.length === 0) {
+    const defaultPanel: Panel = {
+      id: nanoid(),
+      tabIds: state.tabs?.map((t) => t.id) || [],
+      activeTabId: state.tabs?.[0]?.id || null,
+    }
+    return [defaultPanel]
+  }
+  return state.panels
+}
 
 export const useTabStore = create<TabState>()(
   persist(
     (set, get) => ({
       tabs: [],
-      activeTabId: null,
+      panels: [],
+      activePanelId: null,
       history: {},
       tabNavigators: {},
       nextNavigationOptions: {},
       closedTabsStack: [],
+      splitDirection: "horizontal",
 
-      openTab: (url, title = "New Tab") => {
-        const { tabs, activeTabId } = get()
-
-        // Check if tab with same URL already exists
-        // For now, let's allow duplicates like browsers do,
-        // but maybe we want to focus existing one if it's exactly the same?
-        // Let's stick to browser behavior: always open new tab unless explicitly told otherwise.
+      openTab: (url, title = "New Tab", panelId) => {
+        const { tabs, panels, activePanelId } = get()
 
         const newTab: Tab = {
           id: nanoid(),
@@ -83,16 +121,45 @@ export const useTabStore = create<TabState>()(
           lastAccessTime: Date.now(),
         }
 
+        // Determine which panel to add the tab to
+        const targetPanelId = panelId || activePanelId || panels[0]?.id
+
+        if (!targetPanelId) {
+          // No panels exist, create one
+          const newPanel: Panel = {
+            id: nanoid(),
+            tabIds: [newTab.id],
+            activeTabId: newTab.id,
+          }
+          set({
+            tabs: [...tabs, newTab],
+            panels: [newPanel],
+            activePanelId: newPanel.id,
+          })
+          return
+        }
+
+        // Add tab to existing panel
         set({
           tabs: [...tabs, newTab],
-          activeTabId: newTab.id,
+          panels: panels.map((p) =>
+            p.id === targetPanelId
+              ? {
+                  ...p,
+                  tabIds: [...p.tabIds, newTab.id],
+                  activeTabId: newTab.id,
+                }
+              : p
+          ),
+          activePanelId: targetPanelId,
         })
       },
 
       closeTab: (id) => {
         const {
           tabs,
-          activeTabId,
+          panels,
+          activePanelId,
           history,
           tabNavigators,
           nextNavigationOptions,
@@ -109,27 +176,47 @@ export const useTabStore = create<TabState>()(
             icon: closedTab.icon,
             historyState: history[id],
           }
-          // Add to stack, limit to 10 most recent closed tabs
           const newStack = [...closedTabsStack, closedTabInfo].slice(-10)
           set({ closedTabsStack: newStack })
         }
 
-        // If we closed the active tab, switch to the next available one
-        let newActiveId = activeTabId
-        if (activeTabId === id) {
-          if (newTabs.length > 0) {
-            // Try to find the tab to the right, or the one to the left
-            const index = tabs.findIndex((t) => t.id === id)
-            const nextTab = newTabs[index] || newTabs[index - 1]
-            newActiveId = nextTab ? nextTab.id : null
-          } else {
-            newActiveId = null
+        // Find which panel contains this tab and update it
+        let newPanels = panels.map((panel) => {
+          if (!panel.tabIds.includes(id)) return panel
+
+          const newTabIds = panel.tabIds.filter((tid) => tid !== id)
+          let newActiveTabId = panel.activeTabId
+
+          if (panel.activeTabId === id) {
+            // Find next tab to activate
+            const index = panel.tabIds.indexOf(id)
+            const nextTab = newTabIds[index] || newTabIds[index - 1]
+            newActiveTabId = nextTab || null
           }
+
+          return {
+            ...panel,
+            tabIds: newTabIds,
+            activeTabId: newActiveTabId,
+          }
+        })
+
+        // Remove empty panels (but keep at least one)
+        const nonEmptyPanels = newPanels.filter((p) => p.tabIds.length > 0)
+        if (nonEmptyPanels.length > 0) {
+          newPanels = nonEmptyPanels
+        }
+
+        // Update active panel if the current one was removed
+        let newActivePanelId = activePanelId
+        if (!newPanels.find((p) => p.id === activePanelId)) {
+          newActivePanelId = newPanels[0]?.id || null
         }
 
         set({
           tabs: newTabs,
-          activeTabId: newActiveId,
+          panels: newPanels,
+          activePanelId: newActivePanelId,
           history: Object.fromEntries(
             Object.entries(history).filter(([tabId]) => tabId !== id)
           ),
@@ -145,44 +232,83 @@ export const useTabStore = create<TabState>()(
       },
 
       closeOtherTabs: (id) => {
-        const { tabs } = get()
+        const { tabs, panels, activePanelId } = get()
         const tabToKeep = tabs.find((t) => t.id === id)
-        if (tabToKeep) {
-          set({
-            tabs: [tabToKeep],
-            activeTabId: id,
-          })
-        }
+        if (!tabToKeep) return
+
+        // Find which panel the tab is in
+        const panel = panels.find((p) => p.tabIds.includes(id))
+        if (!panel) return
+
+        // Keep only this tab in the panel, remove other panels
+        set({
+          tabs: [tabToKeep],
+          panels: [
+            {
+              ...panel,
+              tabIds: [id],
+              activeTabId: id,
+            },
+          ],
+          activePanelId: panel.id,
+        })
       },
 
       closeTabsToRight: (id) => {
-        const { tabs, activeTabId } = get()
-        const index = tabs.findIndex((t) => t.id === id)
-        if (index === -1) return
+        const { tabs, panels, activePanelId } = get()
 
-        const newTabs = tabs.slice(0, index + 1)
+        // Find which panel contains this tab
+        const panel = panels.find((p) => p.tabIds.includes(id))
+        if (!panel) return
 
-        // If active tab was to the right, switch to the rightmost remaining tab
-        let newActiveId = activeTabId
-        if (activeTabId && !newTabs.find((t) => t.id === activeTabId)) {
-          newActiveId = newTabs[newTabs.length - 1]?.id || null
-        }
+        const index = panel.tabIds.indexOf(id)
+        const newTabIds = panel.tabIds.slice(0, index + 1)
+        const removedTabIds = panel.tabIds.slice(index + 1)
+
+        // Update panel
+        const newPanels = panels.map((p) =>
+          p.id === panel.id
+            ? {
+                ...p,
+                tabIds: newTabIds,
+                activeTabId: newTabIds.includes(p.activeTabId || "")
+                  ? p.activeTabId
+                  : newTabIds[newTabIds.length - 1] || null,
+              }
+            : p
+        )
+
+        // Remove tabs that were closed
+        const newTabs = tabs.filter((t) => !removedTabIds.includes(t.id))
 
         set({
           tabs: newTabs,
-          activeTabId: newActiveId,
+          panels: newPanels,
         })
       },
 
       closeAllTabs: () => {
         set({
           tabs: [],
-          activeTabId: null,
+          panels: [],
+          activePanelId: null,
         })
       },
 
       setActiveTab: (id) => {
-        set({ activeTabId: id })
+        const { panels } = get()
+
+        // Find which panel contains this tab and activate it
+        const panel = panels.find((p) => p.tabIds.includes(id))
+        if (!panel) return
+
+        set({
+          panels: panels.map((p) =>
+            p.id === panel.id ? { ...p, activeTabId: id } : p
+          ),
+          activePanelId: panel.id,
+        })
+
         // Update last access time
         get().updateTab(id, { lastAccessTime: Date.now() })
       },
@@ -193,8 +319,22 @@ export const useTabStore = create<TabState>()(
         }))
       },
 
-      reorderTabs: (newTabs) => {
-        set({ tabs: newTabs })
+      reorderTabs: (newTabs, panelId) => {
+        const { panels, activePanelId } = get()
+        const targetPanelId = panelId || activePanelId
+
+        if (targetPanelId) {
+          // Reorder tabs within a specific panel
+          const newTabIds = newTabs.map((t) => t.id)
+          set({
+            tabs: newTabs,
+            panels: panels.map((p) =>
+              p.id === targetPanelId ? { ...p, tabIds: newTabIds } : p
+            ),
+          })
+        } else {
+          set({ tabs: newTabs })
+        }
       },
 
       recordHistoryNavigation: (id, entry, type) => {
@@ -208,7 +348,6 @@ export const useTabStore = create<TabState>()(
             if (foundIndex !== -1) {
               index = foundIndex
             } else {
-              // If we cannot find the key, fall back to push to avoid desync
               entries = entries.slice(0, index + 1).concat(entry)
               index = entries.length - 1
             }
@@ -291,14 +430,12 @@ export const useTabStore = create<TabState>()(
       },
 
       reopenLastClosedTab: () => {
-        const { closedTabsStack, tabs } = get()
+        const { closedTabsStack, tabs, panels, activePanelId } = get()
         if (closedTabsStack.length === 0) return
 
-        // Pop the last closed tab from the stack
         const lastClosed = closedTabsStack[closedTabsStack.length - 1]
         const newStack = closedTabsStack.slice(0, -1)
 
-        // Create a new tab with the closed tab's information
         const newTab: Tab = {
           id: nanoid(),
           url: lastClosed.url,
@@ -307,11 +444,242 @@ export const useTabStore = create<TabState>()(
           lastAccessTime: Date.now(),
         }
 
+        // Add to active panel or first panel
+        const targetPanelId = activePanelId || panels[0]?.id
+
+        if (!targetPanelId) {
+          // No panels exist, create one
+          const newPanel: Panel = {
+            id: nanoid(),
+            tabIds: [newTab.id],
+            activeTabId: newTab.id,
+          }
+          set({
+            closedTabsStack: newStack,
+            tabs: [...tabs, newTab],
+            panels: [newPanel],
+            activePanelId: newPanel.id,
+          })
+          return
+        }
+
         set({
           closedTabsStack: newStack,
           tabs: [...tabs, newTab],
-          activeTabId: newTab.id,
+          panels: panels.map((p) =>
+            p.id === targetPanelId
+              ? {
+                  ...p,
+                  tabIds: [...p.tabIds, newTab.id],
+                  activeTabId: newTab.id,
+                }
+              : p
+          ),
+          activePanelId: targetPanelId,
         })
+      },
+
+      // Panel Actions
+      splitTab: (tabId, direction) => {
+        const { tabs, panels, splitDirection } = get()
+
+        // Check max panels limit
+        if (panels.length >= MAX_PANELS) {
+          console.warn(`Cannot create more than ${MAX_PANELS} panels`)
+          return
+        }
+
+        const tab = tabs.find((t) => t.id === tabId)
+        if (!tab) return
+
+        // Find current panel
+        const currentPanel = panels.find((p) => p.tabIds.includes(tabId))
+        if (!currentPanel) return
+
+        // Determine new split direction based on the action
+        const newSplitDirection =
+          direction === "right" ? "horizontal" : "vertical"
+
+        // If this panel has only one tab, we need to duplicate the tab instead of moving it
+        if (currentPanel.tabIds.length === 1) {
+          // Create a new tab with the same URL
+          const newTab: Tab = {
+            id: nanoid(),
+            url: tab.url,
+            title: tab.title,
+            icon: tab.icon,
+            lastAccessTime: Date.now(),
+          }
+
+          // Create new panel with the duplicated tab
+          const newPanel: Panel = {
+            id: nanoid(),
+            tabIds: [newTab.id],
+            activeTabId: newTab.id,
+          }
+
+          // Insert new panel after current panel
+          const currentIndex = panels.findIndex((p) => p.id === currentPanel.id)
+          const newPanels = [...panels]
+          newPanels.splice(currentIndex + 1, 0, newPanel)
+
+          set({
+            tabs: [...tabs, newTab],
+            panels: newPanels,
+            activePanelId: newPanel.id,
+            splitDirection: newSplitDirection,
+          })
+          return
+        }
+
+        // Panel has multiple tabs - move the tab to a new panel
+        const newCurrentPanel = {
+          ...currentPanel,
+          tabIds: currentPanel.tabIds.filter((id) => id !== tabId),
+          activeTabId:
+            currentPanel.activeTabId === tabId
+              ? currentPanel.tabIds.find((id) => id !== tabId) || null
+              : currentPanel.activeTabId,
+        }
+
+        // Create new panel with the tab
+        const newPanel: Panel = {
+          id: nanoid(),
+          tabIds: [tabId],
+          activeTabId: tabId,
+        }
+
+        // Insert new panel after current panel
+        const currentIndex = panels.findIndex((p) => p.id === currentPanel.id)
+        const newPanels = [...panels]
+
+        // Update current panel
+        newPanels[currentIndex] = newCurrentPanel
+
+        // Insert new panel after current
+        newPanels.splice(currentIndex + 1, 0, newPanel)
+
+        // Remove empty panels
+        const finalPanels = newPanels.filter((p) => p.tabIds.length > 0)
+
+        set({
+          panels: finalPanels,
+          activePanelId: newPanel.id,
+          splitDirection: newSplitDirection,
+        })
+      },
+
+      moveTabToPanel: (tabId, targetPanelId) => {
+        const { panels, tabs } = get()
+
+        const tab = tabs.find((t) => t.id === tabId)
+        if (!tab) return
+
+        const sourcePanel = panels.find((p) => p.tabIds.includes(tabId))
+        const targetPanel = panels.find((p) => p.id === targetPanelId)
+
+        if (!sourcePanel || !targetPanel || sourcePanel.id === targetPanelId)
+          return
+
+        // Remove from source panel
+        const newSourcePanel = {
+          ...sourcePanel,
+          tabIds: sourcePanel.tabIds.filter((id) => id !== tabId),
+          activeTabId:
+            sourcePanel.activeTabId === tabId
+              ? sourcePanel.tabIds.find((id) => id !== tabId) || null
+              : sourcePanel.activeTabId,
+        }
+
+        // Add to target panel
+        const newTargetPanel = {
+          ...targetPanel,
+          tabIds: [...targetPanel.tabIds, tabId],
+          activeTabId: tabId,
+        }
+
+        let newPanels = panels.map((p) => {
+          if (p.id === sourcePanel.id) return newSourcePanel
+          if (p.id === targetPanel.id) return newTargetPanel
+          return p
+        })
+
+        // Remove empty panels
+        newPanels = newPanels.filter((p) => p.tabIds.length > 0)
+
+        set({
+          panels: newPanels,
+          activePanelId: targetPanelId,
+        })
+      },
+
+      setActivePanel: (panelId) => {
+        set({ activePanelId: panelId })
+      },
+
+      closePanel: (panelId) => {
+        const { panels, tabs, activePanelId, closedTabsStack, history } = get()
+
+        const panel = panels.find((p) => p.id === panelId)
+        if (!panel) return
+
+        // Save tabs to closed stack
+        const closedTabs = panel.tabIds
+          .map((id) => {
+            const tab = tabs.find((t) => t.id === id)
+            if (!tab) return null
+            return {
+              url: tab.url,
+              title: tab.title,
+              icon: tab.icon,
+              historyState: history[id],
+            } as ClosedTab
+          })
+          .filter((t): t is ClosedTab => t !== null)
+
+        const newStack = [...closedTabsStack, ...closedTabs].slice(-10)
+
+        // Remove panel and its tabs
+        const newPanels = panels.filter((p) => p.id !== panelId)
+        const newTabs = tabs.filter((t) => !panel.tabIds.includes(t.id))
+
+        // Update active panel
+        let newActivePanelId = activePanelId
+        if (activePanelId === panelId) {
+          newActivePanelId = newPanels[0]?.id || null
+        }
+
+        set({
+          panels: newPanels,
+          tabs: newTabs,
+          activePanelId: newActivePanelId,
+          closedTabsStack: newStack,
+        })
+      },
+
+      setSplitDirection: (direction) => {
+        set({ splitDirection: direction })
+      },
+
+      // Computed helpers
+      getActiveTabId: () => {
+        const { panels, activePanelId } = get()
+        const activePanel = panels.find((p) => p.id === activePanelId)
+        return activePanel?.activeTabId || null
+      },
+
+      getPanelTabs: (panelId) => {
+        const { panels, tabs } = get()
+        const panel = panels.find((p) => p.id === panelId)
+        if (!panel) return []
+        return panel.tabIds
+          .map((id) => tabs.find((t) => t.id === id))
+          .filter((t): t is Tab => t !== undefined)
+      },
+
+      getPanelForTab: (tabId) => {
+        const { panels } = get()
+        return panels.find((p) => p.tabIds.includes(tabId))
       },
     }),
     {
@@ -319,10 +687,29 @@ export const useTabStore = create<TabState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         tabs: state.tabs,
-        activeTabId: state.activeTabId,
+        panels: state.panels,
+        activePanelId: state.activePanelId,
         history: state.history,
         closedTabsStack: state.closedTabsStack,
+        splitDirection: state.splitDirection,
       }),
+      // Migration: ensure panels exist when loading old state
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.panels = ensureDefaultPanel(state)
+          if (!state.activePanelId && state.panels.length > 0) {
+            state.activePanelId = state.panels[0].id
+          }
+        }
+      },
     }
   )
 )
+
+// Legacy compatibility: activeTabId getter for components that still use it
+// This returns the active tab of the active panel
+Object.defineProperty(useTabStore.getState(), "activeTabId", {
+  get() {
+    return useTabStore.getState().getActiveTabId()
+  },
+})
