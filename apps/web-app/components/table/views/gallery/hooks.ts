@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from "react"
+import { useThrottleFn } from "ahooks"
 
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
@@ -64,6 +65,18 @@ export const useGalleryViewData = (view: IView) => {
     tableId,
   ])
 
+  const { run: updateView } = useThrottleFn(
+    () => {
+      getViewSortedRows().then((rows) => {
+        const rowIds = rows.map((r: any) => r._id)
+        setData(rowIds)
+      })
+    },
+    {
+      wait: 300,
+    }
+  )
+
   useEffect(() => {
     // TODO: Use a universal data source manager, which should be a singleton instance, with a mapping to store all data sources, and also an array to store the order.
     const bc = new BroadcastChannel(EidosDataEventChannelName)
@@ -78,10 +91,7 @@ export const useGalleryViewData = (view: IView) => {
           case DataUpdateSignalType.Insert:
           case DataUpdateSignalType.Update:
           case DataUpdateSignalType.Delete:
-            getViewSortedRows().then((rows) => {
-              const rowIds = rows.map((r: any) => r._id)
-              setData(rowIds)
-            })
+            updateView()
             break
           default:
             break
@@ -93,7 +103,7 @@ export const useGalleryViewData = (view: IView) => {
       bc.removeEventListener("message", handleMsg)
       bc.close()
     }
-  }, [getViewSortedRows, data, tableName])
+  }, [updateView, tableName])
 
   return {
     data,

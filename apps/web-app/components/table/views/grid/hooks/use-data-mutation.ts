@@ -49,10 +49,7 @@ export const useDataMutation = ({
   const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableStore()
   const { setSubPage } = useCurrentSubPage()
   const { tableName, space } = useContext(TableContext)
-  const { getViewSortedRows: _getViewSortedRows } = useViewSort(view.query)
-  const { run: getViewSortedRows } = useThrottleFn(_getViewSortedRows, {
-    wait: 1000,
-  })
+  const { getViewSortedRows } = useViewSort(view.query)
 
   const { getOrCreateTableSubDoc } = useSqlite(space)
   const { increaseCount, reduceCount, setCount } = useViewCount(view)
@@ -81,6 +78,29 @@ export const useDataMutation = ({
     }
     gridRef.current?.updateCells(damageList)
   }, [gridRef, visiblePagesRef])
+
+  const { run: updateView } = useThrottleFn(
+    async (rowId?: string) => {
+      const rows = await getViewSortedRows()
+      if (!rows) return
+      const rowIds = rows.map((r: any) => r._id)
+      if (rowId) {
+        // handle row index change after sort
+        const oldIndex = rowIdsRef.current.findIndex((id) => id === rowId)
+        const newIndex = rowIds.findIndex((id: any) => id === rowId)
+        if (oldIndex !== newIndex) {
+          // TODO: tips for user
+        }
+      }
+      rowIdsRef.current = rowIds
+      dataRef.current = [...rowIds]
+      setCount(rowIds.length)
+      refreshCurrentVisible()
+    },
+    {
+      wait: 300,
+    }
+  )
 
   // check a record whether exist in a view after insert/update
   const checkRowExistInQuery = useCallback(
@@ -157,23 +177,6 @@ export const useDataMutation = ({
     }
   }, [addAddedRowId, addRow, dataRef, increaseCount, rowIdsRef, setCount])
 
-  const updateView = async (rowId?: string) => {
-    const rows = await getViewSortedRows()
-    if (!rows) return
-    const rowIds = rows.map((r: any) => r._id)
-    if (rowId) {
-      // handle row index change after sort
-      const oldIndex = rowIdsRef.current.findIndex((id) => id === rowId)
-      const newIndex = rowIds.findIndex((id: any) => id === rowId)
-      if (oldIndex !== newIndex) {
-        // TODO: tips for user
-      }
-    }
-    rowIdsRef.current = rowIds
-    dataRef.current = [...rowIds]
-    setCount(rowIds.length)
-    refreshCurrentVisible()
-  }
 
   useTableRowEvent({
     tableName,
