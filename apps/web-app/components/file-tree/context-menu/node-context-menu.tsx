@@ -2,6 +2,7 @@
 
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import {
+  CopyIcon,
   ExternalLinkIcon,
   FileIcon,
   FileSpreadsheetIcon,
@@ -26,6 +27,7 @@ import {
   NativeContextMenuSubTrigger as ContextMenuSubTrigger,
   NativeContextMenuTrigger as ContextMenuTrigger,
 } from "@/components/ui/native-context-menu"
+import { useToast } from "@/components/ui/use-toast"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,6 +80,7 @@ export const NodeContextMenu = ({
   selectionHasDataview = false,
 }: NodeContextMenuProps) => {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const isPinned = node.metadata?.isPinned
@@ -175,6 +178,24 @@ export const NodeContextMenu = ({
               <ContextMenuItem onClick={() => onAddToChat(node)}>
                 <MessageSquareIcon className="mr-2 h-4 w-4" />
                 {t("node.menu.addToChat", "Add to Chat")}
+              </ContextMenuItem>
+            )}
+             {node.metadata?.nodeId && (
+              <ContextMenuItem
+                onClick={() => {
+                  if (node.metadata?.nodeId) {
+                    navigator.clipboard.writeText(node.metadata.nodeId)
+                    toast({
+                      description: t(
+                        "node.menu.copyIdSuccess",
+                        "Node ID copied to clipboard"
+                      ),
+                    })
+                  }
+                }}
+              >
+                <CopyIcon className="mr-2 h-4 w-4" />
+                {t("node.menu.copyId", "Copy ID")}
               </ContextMenuItem>
             )}
           </>

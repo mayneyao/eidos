@@ -205,7 +205,7 @@ export function NodeItem({
       </Popover>
       <ContextMenuContent className="w-56">
         {/* <ContextMenuItem onClick={() => navigator.clipboard.writeText(node.id)}>
-          <CopyIcon className="pr-2" />
+          <CopyIcon className="pr-1.5" />
           {t("node.menu.copyId")}
         </ContextMenuItem> */}
         <ContextMenuItem onClick={handleDeleteTable}>
@@ -214,6 +214,11 @@ export function NodeItem({
         <ContextMenuItem onClick={handleRename}>
           <PencilLineIcon className="pr-1.5" />
           {t("node.menu.rename")}
+        </ContextMenuItem>
+
+        <ContextMenuItem onClick={() => navigator.clipboard.writeText(node.id)}>
+          <CopyIcon className="pr-1.5" />
+          {t("node.menu.copyId")}
         </ContextMenuItem>
 
         <ContextMenuItem onClick={handleAddToChat}>
