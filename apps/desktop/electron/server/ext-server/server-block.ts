@@ -106,15 +106,29 @@ export class ServerBlock {
         const compiledCode = extension?.code || ""
 
         const { thirdPartyLibs, uiLibs, cssLibs, localLibs } = await getAllLibs(code, uiComponentsDependencies, async (localLibPath) => {
-            const libName = localLibPath.split('/').pop()
-            if (libName) {
-                const extension = await this.dataSpace.extension.getExtensionBySlugOrId(libName)
-                return extension?.ts_code || ""
+            // Resolve local lib path relative to the entry extension's slug
+            // e.g., entry slug: "ejected/graft/index", localLibPath: "./use-graft"
+            //       -> resolved slug: "ejected/graft/use-graft"
+            let resolvedSlug: string
+            if (extension?.slug && localLibPath.startsWith('./')) {
+                const slugDir = extension.slug.includes('/') 
+                    ? extension.slug.substring(0, extension.slug.lastIndexOf('/'))
+                    : ''
+                const relativePath = localLibPath.substring(2) // Remove './'
+                resolvedSlug = slugDir ? `${slugDir}/${relativePath}` : relativePath
+            } else {
+                // Fallback: use the last segment as the slug (old behavior)
+                resolvedSlug = localLibPath.split('/').pop() || localLibPath
+            }
+            
+            if (resolvedSlug) {
+                const ext = await this.dataSpace.extension.getExtensionBySlugOrId(resolvedSlug)
+                // Use compiled code (JS) instead of ts_code (TS) for better parser compatibility
+                return ext?.code || null
             }
             return null
         })
         const res = await this.handleServerAction(code, dataSpace, url)
-        console.log("server action result", res)
         // // preload some libs
         thirdPartyLibs.push(
             "@radix-ui/react-icons",
