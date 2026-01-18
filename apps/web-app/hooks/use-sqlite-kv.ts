@@ -53,17 +53,7 @@ export const useSqliteKV = <T = any>(
     // Always fetch latest from DB to ensure cache is fresh (SWR pattern)
     sqlite.kv.get(key, dataType).then((result) => {
       const newValue = result !== null ? result : defaultValue
-
-      const currentCache = useKVStore.getState().cache[key]
-
-      // Simple deep equality check to prevent infinite loops
-      const isChanged =
-        currentCache !== newValue &&
-        JSON.stringify(currentCache) !== JSON.stringify(newValue)
-
-      if (isChanged) {
-        setCache(key, newValue)
-      }
+      setCache(key, newValue)
     })
   }, [sqlite, key, dataType, defaultValue, setCache])
 
