@@ -312,6 +312,9 @@ export function useAsyncData<TRowType>(data: {
     setLoading(qs, false)
   }, [qs, setLoading, count, sqlite])
 
+  // Track previous count to detect changes from other tabs
+  const prevCountRef = useRef(count)
+
   useEffect(() => {
     if (isReadOnly) {
       return
@@ -410,6 +413,18 @@ export function useAsyncData<TRowType>(data: {
       loadDataWithOffsetAndLimitDebounced()
     }
   }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages, loadDataWithOffsetAndLimitDebounced, loadDataWithOffsetAndLimitInVisible])
+
+  // When count changes (e.g., due to insert/delete from another tab via shared store),
+  // we need to reload data to stay in sync
+  useEffect(() => {
+    if (count !== prevCountRef.current) {
+      prevCountRef.current = count
+      // Clear the loading cache so pages can be reloaded with fresh data
+      _loadingRef.current = []
+      // Reload the current visible region to get updated data
+      loadDataWithOffsetAndLimitDebounced()
+    }
+  }, [count, loadDataWithOffsetAndLimitDebounced])
 
   useEffect(() => {
     // when view changes, reset scroll position
