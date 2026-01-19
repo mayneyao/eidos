@@ -5,6 +5,7 @@ import type {
   PackageNamePatterns
 } from '../interfaces'
 import { URLResolver } from './url-resolver'
+import { importParserDebug as debug } from '../utils/debug'
 
 /**
  * Import parser service implementation using oxc-parser
@@ -37,7 +38,7 @@ export class ImportParser implements ImportParserService {
       // Fallback to regex parsing for demo purposes
       return this.parseImportsWithRegex(code)
     } catch (error) {
-      console.error('Failed to parse imports:', error)
+      debug.error('Failed to parse imports:', error)
       return []
     }
   }
@@ -73,7 +74,7 @@ export class ImportParser implements ImportParserService {
               const source = match[2] || match[1]
 
               if (!source) {
-                console.warn(`Empty import source on line ${i + 1}: ${line}`)
+                debug.warn(`Empty import source on line ${i + 1}: ${line}`)
                 continue
               }
 
@@ -94,17 +95,17 @@ export class ImportParser implements ImportParserService {
                   hasTypes: false
                 })
               } catch (importError) {
-                console.warn(`Error processing import "${source}" on line ${i + 1}:`, importError)
+                debug.warn(`Error processing import "${source}" on line ${i + 1}:`, importError)
               }
               break
             }
           }
         } catch (lineError) {
-          console.warn(`Error processing line ${i + 1}:`, lineError)
+          debug.warn(`Error processing line ${i + 1}:`, lineError)
         }
       }
     } catch (error) {
-      console.error('Error in regex import parsing:', error)
+      debug.error('Error in regex import parsing:', error)
     }
 
     return imports

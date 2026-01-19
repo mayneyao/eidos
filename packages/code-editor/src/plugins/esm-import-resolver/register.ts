@@ -19,5 +19,3 @@ registerPlugin<ESMImportResolverProps>({
     customImportSuggestions: []
   } as ESMImportResolverProps
 })
-
-console.log('📦 ESM Import Resolver Plugin registered successfully!')
