@@ -8,21 +8,12 @@ export interface ISearchExtensions extends IExtension {
 }
 
 /**
- * Sanitize FTS5 query to prevent syntax errors
- * Wraps the query in double quotes to treat it as a phrase search
- * This handles special characters like hyphens, quotes, etc.
+ * Sanitize search query for trigram-based LIKE search
+ * Simply trims the query - no need for FTS5-style quoting since we use LIKE
  */
-function sanitizeFTSQuery(query: string): string {
+function sanitizeSearchQuery(query: string): string {
   // Remove leading/trailing whitespace
-  const trimmed = query.trim()
-  if (!trimmed) return ''
-
-  // Escape double quotes in the query
-  const escaped = trimmed.replace(/"/g, '""')
-
-  // Wrap in double quotes for phrase search
-  // This treats the entire query as a literal phrase, avoiding FTS5 syntax errors
-  return `"${escaped}"`
+  return query.trim()
 }
 
 export const useQueryExtension = () => {
@@ -51,7 +42,7 @@ export const useQueryExtension = () => {
 
     try {
       // Sanitize query to prevent FTS5 syntax errors
-      const sanitizedQuery = sanitizeFTSQuery(q)
+      const sanitizedQuery = sanitizeSearchQuery(q)
       if (!sanitizedQuery) return []
 
       const results = await sqlite.extension.fullTextSearchExtensions(sanitizedQuery)
