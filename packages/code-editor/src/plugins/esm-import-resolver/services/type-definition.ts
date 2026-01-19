@@ -8,6 +8,7 @@ import type {
   TypeDefinitionMetadata
 } from '../interfaces'
 import { esmTypesDebug as debug } from '../utils/debug'
+import { typeCacheStorage } from '../utils/type-cache-storage'
 
 /**
  * HTTP client for fetching type definitions
@@ -138,6 +139,30 @@ export class TypeDefinitionManager implements TypeDefinitionService {
 
     this.stats.misses++
     this.updateHitRate()
+
+    // Check persistent cache
+    try {
+      const stored = await typeCacheStorage.get(packageUrl)
+      if (stored) {
+        const { definition, metadata } = stored
+        // Check TTL based on metadata
+        if (metadata && !this.isExpired(metadata)) {
+          this.cache.set(packageUrl, definition)
+          this.metadata.set(packageUrl, metadata)
+          this.stats.hits++ // Correct to hit since we found it locally
+          this.stats.misses-- // Revert miss count logic (or maybe stats should track memory vs disk hits?)
+          this.updateHitRate()
+          debug.log(`Restored types from persistent cache for ${packageUrl}`)
+          return definition
+        } else {
+          // Expired
+          debug.log(`Persistent cache expired for ${packageUrl}`)
+          await typeCacheStorage.delete(packageUrl)
+        }
+      }
+    } catch (err) {
+      debug.warn('Error reading from persistent cache:', err)
+    }
 
     try {
       debug.log(`Fetching types for: ${packageUrl}`)
@@ -356,6 +381,14 @@ export function createHash(algorithm: string): Hash;`
     }
 
     this.metadata.set(packageUrl, metadata)
+    
+    // Save to persistent cache
+    typeCacheStorage.set({
+      packageUrl,
+      definition: types,
+      metadata
+    }).catch(err => debug.warn('Failed to save types to persistent cache:', err))
+
     this.updateStats()
   }
 
@@ -365,6 +398,7 @@ export function createHash(algorithm: string): Hash;`
   clearCache(): void {
     this.cache.clear()
     this.metadata.clear()
+    typeCacheStorage.clear().catch(err => debug.warn('Failed to clear persistent cache:', err))
     this.resetStats()
   }
 
