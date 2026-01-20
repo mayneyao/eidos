@@ -48,6 +48,7 @@ export function loadConfig(): HeadlessConfig {
   if (!config.awsSecretAccessKey) missing.push('AWS_SECRET_ACCESS_KEY')
   if (!config.s3Prefix) missing.push('S3_PREFIX')
   if (!config.remoteLogId) missing.push('REMOTE_LOG_ID')
+  if (!config.apiKey) missing.push('API_KEY')
   
   if (missing.length > 0) {
     console.warn(`Missing environment variables: ${missing.join(', ')}`)

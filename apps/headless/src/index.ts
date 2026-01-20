@@ -23,6 +23,7 @@ async function main() {
   console.log('[Config] Data directory:', config.dataDir)
   console.log('[Config] Port:', config.port)
   console.log('[Config] Host:', config.host)
+  console.log('[Config] API Auth:', config.apiKey ? 'Enabled' : 'Disabled')
   console.log('')
   
   // Start server

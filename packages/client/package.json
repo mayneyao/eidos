@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/client",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Eidos RPC client for Node.js and browser",
   "keywords": [
     "eidos",
@@ -27,14 +27,14 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/index.mjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.mts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
     }
   },
   "files": [

@@ -19,6 +19,7 @@ services:
       - DATA_DIR=/data
       - PORT=3000
       - HOST=0.0.0.0
+      - API_KEY=${API_KEY}
     volumes:
       - eidos-data:/data
     restart: unless-stopped

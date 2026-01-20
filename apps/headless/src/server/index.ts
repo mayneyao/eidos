@@ -10,14 +10,10 @@ import { handleFunctionCall } from '../rpc'
 import { HeadlessConfig } from '../config/env'
 import { getDataSpace } from '../data-space'
 
-const app = new Hono()
-
 let currentConfig: HeadlessConfig | null = null
 
-/**
- * Start the HTTP server
- */
 export async function startServer(config: HeadlessConfig): Promise<void> {
+  const app = new Hono()
   currentConfig = config
   
   // Enable CORS
@@ -31,25 +27,24 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
   }))
   
   // Auth Middleware
-  app.use('/rpc', async (c, next) => {
-    if (!config.apiKey) return await next()
+  app.use('*', async (c, next) => {
+    const path = c.req.path.replace(/\/$/, '')
+    const isProtected = path === '/rpc' || path.startsWith('/graft')
+    
+    if (!isProtected) return await next()
+    
+    if (!config.apiKey) {
+      // Log only once on first protected request if needed, but here we log every check for debugging
+      // console.log(`[Auth Check] Path: ${path}, API Key not configured, skipping.`)
+      return await next()
+    }
     
     const authHeader = c.req.header('Authorization')
     if (authHeader === `Bearer ${config.apiKey}`) {
       return await next()
     }
     
-    return c.json({ success: false, error: 'Unauthorized' }, 401)
-  })
-
-  app.use('/graft/*', async (c, next) => {
-    if (!config.apiKey) return await next()
-    
-    const authHeader = c.req.header('Authorization')
-    if (authHeader === `Bearer ${config.apiKey}`) {
-      return await next()
-    }
-    
+    console.warn(`[Auth Check] Unauthorized access attempt to ${path}. Expected Bearer token.`)
     return c.json({ success: false, error: 'Unauthorized' }, 401)
   })
   
@@ -101,16 +96,14 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
     }
   })
   
-  // Graft endpoints - use db.* directly since graft getter may not be exposed
+  // Graft endpoints
   app.get('/graft/status', async (c) => {
-    console.log('[Graft] Status request received')
     try {
       const dataSpace = await getDataSpace(config)
       const status = await (dataSpace.db as any).status()
-      console.log('[Graft] Status result:', status)
       return c.json({ success: true, data: status })
     } catch (error: any) {
-      console.error('[Graft] Error:', error)
+      console.error('[Graft Status Error]', error)
       return c.json({ success: false, error: error.message }, 500)
     }
   })
@@ -142,15 +135,13 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
   // Files serving - Redirect to S3
   app.get('/files/*', async (c) => {
     const requestPath = c.req.path.replace('/files/', '')
-    // Map to S3 key: {S3_FILES_PREFIX}/{path}
     const s3Key = `${config.s3FilesPrefix}/${requestPath}`.replace(/\/+/g, '/')
-    console.log(`[Files] Request received for: ${requestPath}, mapped to S3 key: ${s3Key}`)
     
     try {
       const now = Date.now()
       const cached = signedUrlCache.get(s3Key)
       
-      if (cached && cached.expires > now + 60 * 1000) { // Buffer of 1 minute
+      if (cached && cached.expires > now + 60 * 1000) {
         return c.redirect(cached.url, 302)
       }
 
@@ -172,11 +163,9 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
       }
       
       const url = new URL(urlStr)
-      // Presign the GET request
-      // Note: signQuery: true makes it a presigned URL
       const signedRequest = await aws.sign(url, {
         method: 'GET',
-        // @ts-ignore - aws4fetch types might be tricky, but this works
+        // @ts-ignore
         signQuery: true,
       })
 
