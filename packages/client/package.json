@@ -1,0 +1,65 @@
+{
+  "name": "@eidos.space/client",
+  "version": "0.1.0",
+  "description": "Eidos RPC client for Node.js and browser",
+  "keywords": [
+    "eidos",
+    "eidos.space",
+    "rpc",
+    "client",
+    "sdk",
+    "prisma-style"
+  ],
+  "author": "mayneyao",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mayneyao/eidos.git",
+    "directory": "packages/client"
+  },
+  "bugs": {
+    "url": "https://github.com/mayneyao/eidos/issues"
+  },
+  "homepage": "https://github.com/mayneyao/eidos/tree/main/packages/client#readme",
+  "type": "module",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@eidos.space/core": "^0.28.0"
+  },
+  "devDependencies": {
+    "tsdown": "0.20.0-beta.3",
+    "typescript": "^5.7.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  }
+}
