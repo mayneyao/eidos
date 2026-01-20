@@ -37,6 +37,7 @@ export function createEidosClient(config: EidosClientConfig): EidosClient {
     endpoint,
     timeout,
     fetch: fetchFn,
+    apiKey: config.apiKey,
   }) as unknown as DataSpace
   
   return {

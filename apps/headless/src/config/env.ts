@@ -21,6 +21,9 @@ export interface HeadlessConfig {
   
   // Data directory
   dataDir: string
+
+  // API Authentication
+  apiKey?: string
 }
 
 export function loadConfig(): HeadlessConfig {
@@ -36,6 +39,7 @@ export function loadConfig(): HeadlessConfig {
     port: parseInt(process.env.PORT || '3000', 10),
     host: process.env.HOST || '0.0.0.0',
     dataDir: process.env.DATA_DIR || './data',
+    apiKey: (process.env.API_KEY || '').trim() || undefined,
   }
   
   // Validate required fields

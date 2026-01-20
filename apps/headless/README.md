@@ -29,6 +29,9 @@ PORT=3000
 HOST=0.0.0.0
 # Important: Set DATA_DIR to /data for Docker
 DATA_DIR=/data
+
+# Optional: API Key Authentication
+API_KEY=your-secret-api-key
 ```
 
 #### 2. Run with Docker Compose (Recommended)
@@ -97,12 +100,39 @@ Extensions are loaded from `SQLITE_EXTENSIONS_DIR` or auto-detected from:
 # Query table data
 curl -X POST http://localhost:3000/rpc \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-api-key" \
   -d '{"method": "table(posts).findMany", "params": [{"where": {"published": true}}]}'
 
 # Get document
 curl -X POST http://localhost:3000/rpc \
   -H "Content-Type: application/json" \
   -d '{"method": "doc.get", "params": ["doc-id"]}'
+
+### Graft Operations (via RPC)
+
+You can also perform Graft operations directly through the RPC API:
+
+```bash
+# Get sync status
+curl -X POST http://localhost:3000/rpc \
+  -H "Content-Type: application/json" \
+  -d '{"method": "db.status", "params": []}'
+
+# Pull changes from remote
+curl -X POST http://localhost:3000/rpc \
+  -H "Content-Type: application/json" \
+  -d '{"method": "db.pull", "params": []}'
+
+# Push changes to remote
+curl -X POST http://localhost:3000/rpc \
+  -H "Content-Type: application/json" \
+  -d '{"method": "db.push", "params": []}'
+
+# Get database info
+curl -X POST http://localhost:3000/rpc \
+  -H "Content-Type: application/json" \
+  -d '{"method": "db.info", "params": []}'
+```
 ```
 
 ## Environment Variables
@@ -118,6 +148,7 @@ curl -X POST http://localhost:3000/rpc \
 | `PORT` | No | `3000` | Server port |
 | `HOST` | No | `0.0.0.0` | Server host |
 | `DATA_DIR` | No | `./data` | Local data directory |
+| `API_KEY` | No | - | API Key for authentication |
 | `SQLITE_EXTENSIONS_DIR` | No | auto-detect | Path to SQLite extensions |
 
 *Required for Graft sync

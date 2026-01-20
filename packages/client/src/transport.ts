@@ -7,6 +7,7 @@ export interface TransportConfig {
   endpoint: string
   timeout?: number
   fetch?: typeof fetch
+  apiKey?: string
 }
 
 export interface TransportPort {
@@ -31,6 +32,7 @@ export function createHttpTransport(config: TransportConfig) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...(config.apiKey ? { 'Authorization': `Bearer ${config.apiKey}` } : {}),
           },
           body: JSON.stringify(requestData),
           signal: controller.signal,

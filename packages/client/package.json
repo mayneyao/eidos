@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Eidos RPC client for Node.js and browser",
   "keywords": [
     "eidos",

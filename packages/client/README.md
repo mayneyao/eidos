@@ -15,6 +15,7 @@ import { createEidosClient } from "@eidos.space/client"
 
 const client = createEidosClient({
   endpoint: "http://localhost:3000/rpc",
+  apiKey: "your-api-key", // Optional: if server requires authentication
 })
 
 // Query table data
@@ -112,6 +113,7 @@ The `createEidosClient` function accepts a configuration object:
 | `endpoint` | `string`       | The RPC endpoint URL (e.g., `http://localhost:3000/rpc`) |
 | `timeout`  | `number`       | Request timeout in milliseconds (default: 30000)         |
 | `fetch`    | `typeof fetch` | Custom fetch implementation (optional)                   |
+| `apiKey`   | `string`       | API Key for authentication (optional)                    |
 
 ## Features
 

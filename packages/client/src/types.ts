@@ -24,4 +24,6 @@ export interface EidosClientConfig {
   timeout?: number
   /** Custom fetch function */
   fetch?: typeof fetch
+  /** API Key for authentication */
+  apiKey?: string
 }

@@ -30,6 +30,29 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
     credentials: true,
   }))
   
+  // Auth Middleware
+  app.use('/rpc', async (c, next) => {
+    if (!config.apiKey) return await next()
+    
+    const authHeader = c.req.header('Authorization')
+    if (authHeader === `Bearer ${config.apiKey}`) {
+      return await next()
+    }
+    
+    return c.json({ success: false, error: 'Unauthorized' }, 401)
+  })
+
+  app.use('/graft/*', async (c, next) => {
+    if (!config.apiKey) return await next()
+    
+    const authHeader = c.req.header('Authorization')
+    if (authHeader === `Bearer ${config.apiKey}`) {
+      return await next()
+    }
+    
+    return c.json({ success: false, error: 'Unauthorized' }, 401)
+  })
+  
   // Health check
   app.get('/health', async (c) => {
     const spaceId = config.s3Prefix.split('/')[0] || 'headless'
