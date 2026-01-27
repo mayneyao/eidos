@@ -32,6 +32,13 @@ DATA_DIR=/data
 
 # Optional: API Key Authentication
 API_KEY=your-secret-api-key
+
+# Optional: Hostname Patterns (for Cloudflare/Production)
+# EXTENSION_HOSTNAME_PATTERN="^([a-zA-Z0-9-]+)--([a-zA-Z0-9-]+)\\.yourdomain\\.com$"
+# SANDBOX_HOSTNAME_PATTERN="^sb--([a-zA-Z0-9-]+)\\.yourdomain\\.com$"
+
+# Optional: Compiled UI Directory
+# COMPILED_UI_DIR=/app/compiled-ui
 ```
 
 #### 2. Run with Docker Compose (Recommended)
@@ -96,6 +103,19 @@ Extensions are loaded from `SQLITE_EXTENSIONS_DIR` or auto-detected from:
 | GET | `/graft/status` | Sync status |
 | POST | `/graft/pull` | Pull from remote |
 | POST | `/graft/push` | Push to remote |
+| GET | `*` (Match Pattern) | Extension Rendering (Server-side) |
+
+## Extension Rendering
+
+Headless server supports rendering Eidos blocks directly. It intercepts requests based on the hostnames:
+- Default: `<extId>.block.<spaceId>.eidos.localhost`
+- Production: Configurable via `EXTENSION_HOSTNAME_PATTERN`
+
+When a request matches, the server handles:
+1. Server-side rendering of the Extension HTML.
+2. Serving `/app.js` (the compiled extension code).
+3. Serving `/compiled-ui/*.js` (shared UI components).
+4. Proxying external requests via `/proxy`.
 
 ## RPC Usage
 
@@ -153,6 +173,9 @@ curl -X POST http://localhost:3000/rpc \
 | `DATA_DIR` | No | `./data` | Local data directory |
 | `API_KEY` | No | - | API Key for authentication |
 | `SQLITE_EXTENSIONS_DIR` | No | auto-detect | Path to SQLite extensions |
+| `COMPILED_UI_DIR` | No | `./compiled-ui` | Directory for shared UI components |
+| `EXTENSION_HOSTNAME_PATTERN` | No | auto-detect | Regex for matching extension domains |
+| `SANDBOX_HOSTNAME_PATTERN` | No | auto-detect | Regex for matching sandbox domains |
 
 *Required for Graft sync
 
