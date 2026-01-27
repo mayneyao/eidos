@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/core",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "core package for eidos.space",
   "main": "./index.ts",
   "module": "./index.ts",

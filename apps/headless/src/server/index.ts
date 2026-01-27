@@ -26,6 +26,15 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
 
   const COMPILED_UI_DIR = process.env.COMPILED_UI_DIR || path.join(process.cwd(), 'compiled-ui');
   
+  // Custom hostname patterns for production (e.g., Cloudflare flattened domains)
+  // Example: EXTENSION_HOSTNAME_PATTERN="^([a-zA-Z0-9-]+)--([a-zA-Z0-9-]+)\.ext\.yourdomain\.com$"
+  const hostnamePattern = process.env.EXTENSION_HOSTNAME_PATTERN 
+    ? new RegExp(process.env.EXTENSION_HOSTNAME_PATTERN) 
+    : undefined;
+  const sandboxHostnamePattern = process.env.SANDBOX_HOSTNAME_PATTERN 
+    ? new RegExp(process.env.SANDBOX_HOSTNAME_PATTERN) 
+    : undefined;
+
   // Extension middleware - intercepts <extId>.block.<spaceId>.eidos.localhost requests
   app.use('*', createExtensionMiddleware({
     getExtensionProvider: async () => {
@@ -37,6 +46,8 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
         getThemeMode: async () => dataSpace.kv.get('eidos:space:settings:theme:mode'),
       }
     },
+    hostnamePattern,
+    sandboxHostnamePattern,
     dependencies: createEidosDependencies(),
     port: config.port,
     staticAssets: {
