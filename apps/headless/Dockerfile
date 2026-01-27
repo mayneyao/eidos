@@ -17,6 +17,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # Copy package.json files for all packages to benefit from layer caching
 COPY apps/headless/package.json ./apps/headless/
 COPY packages/core/package.json ./packages/core/
+COPY packages/ext-server/package.json ./packages/ext-server/
+COPY packages/sandbox/package.json ./packages/sandbox/
+COPY packages/v3/package.json ./packages/v3/
 
 # Copy scripts required for postinstall
 COPY apps/headless/scripts ./apps/headless/scripts/
