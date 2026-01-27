@@ -1,18 +1,24 @@
 import { OAUTH_CONFIG } from '@/lib/const';
 import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
 import { containsBinaryData, parseMultipartFormData, processBinaryDataForResponse, ProxyHandler, restoreBinaryData } from '@eidos.space/sandbox';
+import { createExtensionMiddleware, createDesktopConfig } from '@eidos.space/ext-server/desktop';
 import { serve } from '@hono/node-server';
 import { BrowserWindow } from 'electron';
 import { log } from 'electron-log';
 import { Hono } from 'hono';
 import path from 'path';
 import { CredentialsManager, type OAuthTokens, type UserInfo } from '../credentials';
+import { getConfigManager } from '../config';
 import { getOrSetDataSpace } from '../data-space';
 import { getFileFromPath, getSpaceFileFromPath } from '../file-system/space';
 import { getSpaceRegistry } from '../space-registry';
-import { interceptExtensionRequest } from './ext-server';
 import { serveFile } from './serve-file';
 import { serveStatic } from './server-static';
+
+// Static JS assets from ext-server package (bundled via Vite ?raw)
+import appWrapperJs from '@eidos.space/ext-server/src/js/app-wrapper.js?raw';
+import swJs from '@eidos.space/ext-server/src/js/sw.js?raw';
+import tailwindRawJs from '@eidos.space/ext-server/src/js/tailwind-raw.js?raw';
 
 // Channel name for auth state changes
 export const AUTH_STATE_CHANGED_CHANNEL = 'auth-state-changed';
@@ -156,7 +162,18 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
     });
 
     // New middleware to intercept *.eidos.localhost requests
-    app.use('*', interceptExtensionRequest(dist, port));
+    app.use('*', createExtensionMiddleware(createDesktopConfig({
+        getDataSpace: getOrSetDataSpace,
+        getConfigManager,
+        getSpaceRegistry,
+        dist,
+        port,
+        staticAssets: {
+            appWrapperJs,
+            swJs,
+            tailwindRawJs,
+        },
+    })));
 
     // host static files
     app.use('/*', serveStatic({ root: dist }));
