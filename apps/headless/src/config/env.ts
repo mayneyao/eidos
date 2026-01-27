@@ -22,6 +22,11 @@ export interface HeadlessConfig {
   // Data directory
   dataDir: string
 
+  // Extension rendering
+  compiledUiDir: string
+  extensionHostnamePattern?: string
+  sandboxHostnamePattern?: string
+
   // API Authentication
   apiKey?: string
 }
@@ -39,6 +44,9 @@ export function loadConfig(): HeadlessConfig {
     port: parseInt(process.env.PORT || '3000', 10),
     host: process.env.HOST || '0.0.0.0',
     dataDir: process.env.DATA_DIR || './data',
+    compiledUiDir: process.env.COMPILED_UI_DIR || path.join(process.cwd(), 'compiled-ui'),
+    extensionHostnamePattern: process.env.EXTENSION_HOSTNAME_PATTERN,
+    sandboxHostnamePattern: process.env.SANDBOX_HOSTNAME_PATTERN,
     apiKey: (process.env.API_KEY || '').trim() || undefined,
   }
   

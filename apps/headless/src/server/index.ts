@@ -24,16 +24,33 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
   const app = new Hono()
   currentConfig = config
 
-  const COMPILED_UI_DIR = process.env.COMPILED_UI_DIR || path.join(process.cwd(), 'compiled-ui');
+  const COMPILED_UI_DIR = config.compiledUiDir
   
   // Custom hostname patterns for production (e.g., Cloudflare flattened domains)
-  // Example: EXTENSION_HOSTNAME_PATTERN="^([a-zA-Z0-9-]+)--([a-zA-Z0-9-]+)\.ext\.yourdomain\.com$"
-  const hostnamePattern = process.env.EXTENSION_HOSTNAME_PATTERN 
-    ? new RegExp(process.env.EXTENSION_HOSTNAME_PATTERN) 
+  const hostnamePattern = config.extensionHostnamePattern 
+    ? new RegExp(config.extensionHostnamePattern, 'i') 
     : undefined;
-  const sandboxHostnamePattern = process.env.SANDBOX_HOSTNAME_PATTERN 
-    ? new RegExp(process.env.SANDBOX_HOSTNAME_PATTERN) 
+  const sandboxHostnamePattern = config.sandboxHostnamePattern 
+    ? new RegExp(config.sandboxHostnamePattern, 'i') 
     : undefined;
+
+  // Debug logging for domain matching
+  app.use('*', async (c, next) => {
+    if (process.env.DEBUG_DOMAINS === '1') {
+      const rawUrl = c.req.url;
+      const hostname = new URL(rawUrl).hostname;
+      const hostHeader = c.req.header('host');
+      const isExtensionMatch = !!(hostnamePattern && hostname.match(hostnamePattern));
+      const isSandboxMatch = !!(sandboxHostnamePattern && hostname.match(sandboxHostnamePattern));
+      
+      console.log(`[Request] ${c.req.method} ${rawUrl}`);
+      console.log(`[Domain Check] URL Hostname: "${hostname}"`);
+      console.log(`[Domain Check] Host Header: "${hostHeader}"`);
+      console.log(`[Domain Check] Pattern: "${config.extensionHostnamePattern || 'not set'}"`);
+      console.log(`[Domain Check] Result: ${isExtensionMatch ? 'EXTENSION_MATCH' : isSandboxMatch ? 'SANDBOX_MATCH' : 'NO_MATCH'}`);
+    }
+    await next();
+  })
 
   // Extension middleware - intercepts <extId>.block.<spaceId>.eidos.localhost requests
   app.use('*', createExtensionMiddleware({
@@ -241,7 +258,9 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
   })
   
   // Start server
+  const buildTime = new Date().toISOString();
   console.log(`Starting server on ${config.host}:${config.port}...`)
+  console.log(`[Build] Time: ${buildTime}`)
   
   serve({
     fetch: app.fetch,

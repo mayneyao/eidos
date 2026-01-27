@@ -24,6 +24,12 @@ async function main() {
   console.log('[Config] Port:', config.port)
   console.log('[Config] Host:', config.host)
   console.log('[Config] API Auth:', config.apiKey ? 'Enabled' : 'Disabled')
+  if (config.extensionHostnamePattern) {
+    console.log('[Config] Extension Pattern:', config.extensionHostnamePattern)
+  }
+  if (config.sandboxHostnamePattern) {
+    console.log('[Config] Sandbox Pattern:', config.sandboxHostnamePattern)
+  }
   console.log('')
   
   // Start server

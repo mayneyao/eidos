@@ -160,6 +160,10 @@ curl -X POST http://localhost:3000/rpc \
 
 ## Environment Variables
 
+> [!IMPORTANT]
+> **Developer Tip**: When adding new environment variables, remember to register them in `apps/headless/src/config/env.ts` within the `HeadlessConfig` interface and `loadConfig` function. This ensures they are properly validated and logged at startup.
+
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `AWS_ACCESS_KEY_ID` | Yes* | - | S3 access key |
