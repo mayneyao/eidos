@@ -32,6 +32,17 @@ export interface HeadlessConfig {
 }
 
 export function loadConfig(): HeadlessConfig {
+  // Diagnostic log for all environment variables (keys only or masked values)
+  console.log('[Config] Environment Diagnostic:');
+  Object.keys(process.env).sort().forEach(key => {
+    const value = process.env[key];
+    const isSecret = key.includes('KEY') || key.includes('SECRET') || key.includes('PASSWORD') || key.includes('TOKEN');
+    const displayValue = isSecret ? `[REDACTED] (length: ${value?.length || 0})` : value;
+    if (key.startsWith('AWS_') || key.startsWith('S3_') || key.includes('PORT') || key.includes('PATTERN') || key.includes('API')) {
+        console.log(`  ${key}: ${displayValue}`);
+    }
+  });
+
   const config: HeadlessConfig = {
     awsAccessKeyId: (process.env.AWS_ACCESS_KEY_ID || '').trim(),
     awsSecretAccessKey: (process.env.AWS_SECRET_ACCESS_KEY || '').trim(),
@@ -45,8 +56,8 @@ export function loadConfig(): HeadlessConfig {
     host: process.env.HOST || '0.0.0.0',
     dataDir: process.env.DATA_DIR || './data',
     compiledUiDir: process.env.COMPILED_UI_DIR || path.join(process.cwd(), 'compiled-ui'),
-    extensionHostnamePattern: process.env.EXTENSION_HOSTNAME_PATTERN,
-    sandboxHostnamePattern: process.env.SANDBOX_HOSTNAME_PATTERN,
+    extensionHostnamePattern: (process.env.EXTENSION_HOSTNAME_PATTERN || '').trim() || undefined,
+    sandboxHostnamePattern: (process.env.SANDBOX_HOSTNAME_PATTERN || '').trim() || undefined,
     apiKey: (process.env.API_KEY || '').trim() || undefined,
   }
   
