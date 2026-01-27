@@ -23,6 +23,8 @@
     "aws4fetch": "^1.0.20",
     "dotenv": "^16.4.7",
     "hono": "^4.6.15",
+    "oxc-parser": "^0.74.0",
+    "oxc-transform": "^0.74.0",
     "sqlite-graft": "^0.2.1",
     "sqlite-vec": "0.1.7-alpha.2"
   },

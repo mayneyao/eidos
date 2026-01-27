@@ -17,6 +17,9 @@
   "dependencies": {
     "hono": "^4.6.15"
   },
+  "peerDependencies": {
+    "tailwindcss": "^3.0.0 || ^4.0.0"
+  },
   "devDependencies": {
     "@eidos.space/sandbox": "workspace:*",
     "@eidos.space/v3": "workspace:*",
@@ -24,19 +27,6 @@
     "tailwindcss": "^4.0.0",
     "tsdown": "^0.9.1",
     "typescript": "^5.7.3"
-  },
-  "peerDependencies": {
-    "tailwindcss": "^3.0.0 || ^4.0.0",
-    "@eidos.space/sandbox": "*",
-    "@eidos.space/v3": "*"
-  },
-  "peerDependenciesMeta": {
-    "@eidos.space/sandbox": {
-      "optional": true
-    },
-    "@eidos.space/v3": {
-      "optional": true
-    }
   },
   "keywords": [
     "hono",

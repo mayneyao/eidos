@@ -10,6 +10,8 @@ import { createExtensionMiddleware, createEidosDependencies } from '@eidos.space
 import { handleFunctionCall } from '../rpc'
 import { HeadlessConfig } from '../config/env'
 import { getDataSpace } from '../data-space'
+import fs from 'node:fs'
+import path from 'node:path'
 
 // Static JS assets from ext-server package
 import appWrapperJs from '@eidos.space/ext-server/src/js/app-wrapper.js?raw'
@@ -21,6 +23,8 @@ let currentConfig: HeadlessConfig | null = null
 export async function startServer(config: HeadlessConfig): Promise<void> {
   const app = new Hono()
   currentConfig = config
+
+  const COMPILED_UI_DIR = process.env.COMPILED_UI_DIR || path.join(process.cwd(), 'compiled-ui');
   
   // Extension middleware - intercepts <extId>.block.<spaceId>.eidos.localhost requests
   app.use('*', createExtensionMiddleware({
@@ -40,6 +44,15 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
       swJs,
       tailwindRawJs,
     },
+    serveCompiledUI: (pathname) => {
+      // Internal path starts with /compiled-ui/
+      const fileName = pathname.replace('/compiled-ui/', '');
+      const filePath = path.join(COMPILED_UI_DIR, fileName);
+      if (fs.existsSync(filePath)) {
+        return fs.readFileSync(filePath);
+      }
+      return null;
+    }
   }))
   
   // Enable CORS

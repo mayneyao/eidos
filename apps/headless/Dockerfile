@@ -75,6 +75,7 @@ COPY --from=builder /app/deploy/package.json ./
 COPY --from=builder /app/deploy/node_modules ./node_modules
 COPY --from=builder /app/apps/headless/dist ./dist
 COPY --from=builder /app/apps/headless/dist-sqlite-ext /app/extensions
+COPY apps/web-app/public/compiled-ui ./compiled-ui
 
 # Create data directory with correct permissions
 # Remove default ubuntu user (UID 1000) so we can reuse the ID for node
