@@ -1,12 +1,29 @@
-import { log } from 'electron-log';
 import type { Context } from 'hono';
 import type { BlankEnv } from 'hono/types';
 import { proxy } from 'hono/proxy';
 
 type Ctx = Context<BlankEnv, "*", {}>;
 
+/**
+ * Logger interface for dependency injection
+ */
+export interface ProxyLogger {
+    log: (...args: any[]) => void;
+    error: (...args: any[]) => void;
+}
+
+// Default logger using console
+const defaultLogger: ProxyLogger = {
+    log: (...args) => console.log('[ProxyHandler]', ...args),
+    error: (...args) => console.error('[ProxyHandler]', ...args),
+};
+
 export class ProxyHandler {
-    constructor() { }
+    private logger: ProxyLogger;
+
+    constructor(logger?: ProxyLogger) {
+        this.logger = logger || defaultLogger;
+    }
 
     /**
      * Handle proxy requests for external URLs using Hono's official proxy helper
@@ -14,7 +31,7 @@ export class ProxyHandler {
      */
     async handleProxyRequest(url: URL, c: Ctx): Promise<Response> {
         try {
-            log(`Handling proxy request: ${url.toString()}`);
+            this.logger.log(`Handling proxy request: ${url.toString()}`);
 
             // Get the target URL from query parameters
             const targetUrl = url.searchParams.get('url');
@@ -50,11 +67,11 @@ export class ProxyHandler {
             // Clean up potentially problematic headers
             this.cleanupResponseHeaders(response);
 
-            log(`Proxy request completed: ${response.status} ${response.statusText}`);
+            this.logger.log(`Proxy request completed: ${response.status} ${response.statusText}`);
             return response;
 
         } catch (error: any) {
-            log(`Error handling proxy request: ${error.message}`);
+            this.logger.error(`Error handling proxy request: ${error.message}`);
             return c.text(`Proxy error: ${error.message}`, 500);
         }
     }

@@ -25,6 +25,10 @@
       "./*": "./dist/*.js"
     }
   },
+  "devDependencies": {
+    "@eidos.space/v3": "workspace:*",
+    "hono": "^4.6.15"
+  },
   "keywords": [
     "eidos.space",
     "sandbox"

@@ -1,5 +1,3 @@
-import { log } from 'electron-log';
-
 import type { Context } from 'hono';
 import type { BlankEnv } from 'hono/types';
 import { makeSdkInjectScript } from './helper';
@@ -8,6 +6,19 @@ import { getExtLibs } from "@eidos.space/v3";
 // Function type for getting script code - this will be injected by the caller
 type GetScriptCodeFunction = (spaceId: string, scriptId: string) => Promise<string | null>;
 
+/**
+ * Logger interface for dependency injection
+ */
+export interface SandboxLogger {
+    log: (...args: any[]) => void;
+    error: (...args: any[]) => void;
+}
+
+// Default logger using console
+const defaultLogger: SandboxLogger = {
+    log: (...args) => console.log('[ScriptSandbox]', ...args),
+    error: (...args) => console.error('[ScriptSandbox]', ...args),
+};
 
 type Ctx = Context<BlankEnv, "*", {}>;
 
@@ -82,9 +93,11 @@ function rewriteExternalImports(code: string, externalLibs: string[], excludeLib
 
 export class ScriptSandboxHandler {
     private getScriptCode: GetScriptCodeFunction | null = null;
+    private logger: SandboxLogger;
 
-    constructor(getScriptCode?: GetScriptCodeFunction) {
+    constructor(getScriptCode?: GetScriptCodeFunction, logger?: SandboxLogger) {
         this.getScriptCode = getScriptCode || null;
+        this.logger = logger || defaultLogger;
     }
 
     /**
@@ -94,7 +107,7 @@ export class ScriptSandboxHandler {
      */
     async handleSandboxRequest(spaceId: string, url: URL, c: Ctx): Promise<Response> {
         try {
-            log(`Handling sandbox request for space: ${spaceId}, URL: ${url.toString()}`);
+            this.logger.log(`Handling sandbox request for space: ${spaceId}, URL: ${url.toString()}`);
 
             // Handle script file requests: sandbox.<spaceId>.eidos.localhost/scriptid.js or /scriptid
             if (url.pathname !== '/') {
@@ -110,7 +123,7 @@ export class ScriptSandboxHandler {
             return c.text('Sandbox endpoint not found', 404);
 
         } catch (error: any) {
-            log(`Error handling sandbox request for space ${spaceId}: ${error.message}`);
+            this.logger.error(`Error handling sandbox request for space ${spaceId}: ${error.message}`);
             return c.text(`Sandbox error: ${error.message}`, 500);
         }
     }
@@ -146,7 +159,7 @@ export class ScriptSandboxHandler {
             }
 
             const deps = getExtLibs(compiledCode)
-            log(`External dependencies found for ${scriptId}:`, deps);
+            this.logger.log(`External dependencies found for ${scriptId}:`, deps);
 
             // Check if no-rewrite parameter is present
             const noRewrite = url.searchParams.get('no-rewrite') === '1';
@@ -156,7 +169,7 @@ export class ScriptSandboxHandler {
             const excludeLibs = externalParam ? externalParam.split(',').map(lib => lib.trim()) : [];
             
             if (excludeLibs.length > 0) {
-                log(`Excluding libraries from rewrite: ${excludeLibs.join(', ')}`);
+                this.logger.log(`Excluding libraries from rewrite: ${excludeLibs.join(', ')}`);
             }
             
             // Rewrite external imports to use esm.sh URLs (unless no-rewrite=1)
@@ -164,13 +177,13 @@ export class ScriptSandboxHandler {
 
             if (deps.length > 0) {
                 if (noRewrite) {
-                    log(`Skipped rewriting imports for ${scriptId} due to no-rewrite=1 parameter`);
+                    this.logger.log(`Skipped rewriting imports for ${scriptId} due to no-rewrite=1 parameter`);
                 } else {
                     const excludedCount = excludeLibs.length;
                     const logMessage = excludedCount > 0 
                         ? `Rewritten imports for ${scriptId} (excluded ${excludedCount} libraries). Original length: ${compiledCode.length}, New length: ${rewrittenCode.length}`
                         : `Rewritten imports for ${scriptId}. Original length: ${compiledCode.length}, New length: ${rewrittenCode.length}`;
-                    log(logMessage);
+                    this.logger.log(logMessage);
                 }
             }
 
@@ -182,7 +195,7 @@ export class ScriptSandboxHandler {
 
             return c.body(rewrittenCode, { headers });
         } catch (error: any) {
-            log(`Error serving script file ${scriptId} for space ${spaceId}: ${error.message}`);
+            this.logger.error(`Error serving script file ${scriptId} for space ${spaceId}: ${error.message}`);
             return c.text(`Error serving script: ${error.message}`, 500);
         }
     }
