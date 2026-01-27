@@ -1,0 +1,48 @@
+{
+  "name": "@eidos.space/ext-server",
+  "version": "0.1.0",
+  "description": "Hono middleware for rendering Eidos block extensions server-side",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./eidos": "./src/eidos.ts",
+    "./desktop": "./src/desktop.ts",
+    "./src/js/*": "./src/js/*"
+  },
+  "scripts": {
+    "build": "tsdown src/index.ts src/eidos.ts src/desktop.ts --format esm --dts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.15"
+  },
+  "devDependencies": {
+    "@eidos.space/sandbox": "workspace:*",
+    "@eidos.space/v3": "workspace:*",
+    "@types/node": "^20.17.12",
+    "tailwindcss": "^4.0.0",
+    "tsdown": "^0.9.1",
+    "typescript": "^5.7.3"
+  },
+  "peerDependencies": {
+    "tailwindcss": "^3.0.0 || ^4.0.0",
+    "@eidos.space/sandbox": "*",
+    "@eidos.space/v3": "*"
+  },
+  "peerDependenciesMeta": {
+    "@eidos.space/sandbox": {
+      "optional": true
+    },
+    "@eidos.space/v3": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "hono",
+    "middleware",
+    "extension",
+    "eidos"
+  ],
+  "license": "MIT"
+}
