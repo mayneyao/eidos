@@ -41,14 +41,17 @@ cd apps/headless
 docker compose up -d --build
 ```
 
-#### 3. Run with Docker Run
+#### 4. Run with GHCR Image (Pre-built)
+
+If you prefer to use the pre-built image from GitHub Container Registry:
 
 ```bash
-docker run -d \
+docker pull ghcr.io/mayneyao/eidos/headless:latest
+docker run -it --rm \
   -p 3000:3000 \
   --env-file apps/headless/.env \
   --name eidos-headless \
-  eidos-headless
+  ghcr.io/mayneyao/eidos/headless:latest
 ```
 
 ### Local Development

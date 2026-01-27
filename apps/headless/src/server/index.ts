@@ -6,15 +6,41 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { createExtensionMiddleware, createEidosDependencies } from '@eidos.space/ext-server/eidos'
 import { handleFunctionCall } from '../rpc'
 import { HeadlessConfig } from '../config/env'
 import { getDataSpace } from '../data-space'
+
+// Static JS assets from ext-server package
+import appWrapperJs from '@eidos.space/ext-server/src/js/app-wrapper.js?raw'
+import swJs from '@eidos.space/ext-server/src/js/sw.js?raw'
+import tailwindRawJs from '@eidos.space/ext-server/src/js/tailwind-raw.js?raw'
 
 let currentConfig: HeadlessConfig | null = null
 
 export async function startServer(config: HeadlessConfig): Promise<void> {
   const app = new Hono()
   currentConfig = config
+  
+  // Extension middleware - intercepts <extId>.block.<spaceId>.eidos.localhost requests
+  app.use('*', createExtensionMiddleware({
+    getExtensionProvider: async () => {
+      const dataSpace = await getDataSpace(config)
+      return {
+        getById: async (id) => dataSpace.script.get(id),
+        getBySlug: async (slug) => dataSpace.extension.getExtensionBySlug(slug),
+        getBySlugOrId: async (slugOrId) => dataSpace.extension.getExtensionBySlugOrId(slugOrId),
+        getThemeMode: async () => dataSpace.kv.get('eidos:space:settings:theme:mode'),
+      }
+    },
+    dependencies: createEidosDependencies(),
+    port: config.port,
+    staticAssets: {
+      appWrapperJs,
+      swJs,
+      tailwindRawJs,
+    },
+  }))
   
   // Enable CORS
   app.use('*', cors({
