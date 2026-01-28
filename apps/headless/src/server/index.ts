@@ -17,6 +17,7 @@ import path from 'node:path'
 import appWrapperJs from '@eidos.space/ext-server/src/js/app-wrapper.js?raw'
 import swJs from '@eidos.space/ext-server/src/js/sw.js?raw'
 import tailwindRawJs from '@eidos.space/ext-server/src/js/tailwind-raw.js?raw'
+import eidosClientJs from '@eidos.space/client/dist/index.mjs?raw'
 
 let currentConfig: HeadlessConfig | null = null
 
@@ -71,6 +72,7 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
       appWrapperJs,
       swJs,
       tailwindRawJs,
+      eidosClientJs,
     },
     serveCompiledUI: (pathname) => {
       // Internal path starts with /compiled-ui/

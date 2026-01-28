@@ -68,6 +68,7 @@ export interface DesktopConfigOptions {
     appWrapperJs: string;
     swJs: string;
     tailwindRawJs: string;
+    eidosClientJs?: string;
   };
 }
 

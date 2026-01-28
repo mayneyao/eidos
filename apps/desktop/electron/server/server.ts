@@ -19,6 +19,7 @@ import { serveStatic } from './server-static';
 import appWrapperJs from '@eidos.space/ext-server/src/js/app-wrapper.js?raw';
 import swJs from '@eidos.space/ext-server/src/js/sw.js?raw';
 import tailwindRawJs from '@eidos.space/ext-server/src/js/tailwind-raw.js?raw';
+import eidosClientJs from '@eidos.space/client/dist/index.mjs?raw';
 
 // Channel name for auth state changes
 export const AUTH_STATE_CHANGED_CHANNEL = 'auth-state-changed';
@@ -172,6 +173,7 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
             appWrapperJs,
             swJs,
             tailwindRawJs,
+            eidosClientJs,
         },
     })));
 

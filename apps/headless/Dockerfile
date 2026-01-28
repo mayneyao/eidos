@@ -20,6 +20,7 @@ COPY packages/core/package.json ./packages/core/
 COPY packages/ext-server/package.json ./packages/ext-server/
 COPY packages/sandbox/package.json ./packages/sandbox/
 COPY packages/v3/package.json ./packages/v3/
+COPY packages/client/package.json ./packages/client/
 
 # Copy scripts required for postinstall
 COPY apps/headless/scripts ./apps/headless/scripts/

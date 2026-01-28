@@ -15,6 +15,8 @@ export interface TransportPort {
   close: () => void
 }
 
+import { containsBinaryData, processBinaryData, restoreBinaryData } from './binary-data'
+
 /**
  * Create HTTP transport for RPC calls
  */
@@ -28,13 +30,33 @@ export function createHttpTransport(config: TransportConfig) {
       const timeoutId = setTimeout(() => controller.abort(), timeout)
       
       try {
+        let body: any
+        let headers: Record<string, string> = {
+          ...(config.apiKey ? { 'Authorization': `Bearer ${config.apiKey}` } : {}),
+        }
+
+        const hasBinaryData = containsBinaryData(requestData)
+
+        if (hasBinaryData) {
+          const formData = new FormData()
+          let binaryIndex = 0
+          const processedData = processBinaryData(requestData, (binaryData) => {
+            const fieldName = `binary_${binaryIndex++}`
+            formData.append(fieldName, binaryData)
+            return fieldName
+          })
+          formData.append('json', JSON.stringify(processedData))
+          body = formData
+          // Browser will set Content-Type with boundary for FormData
+        } else {
+          body = JSON.stringify(requestData)
+          headers['Content-Type'] = 'application/json'
+        }
+
         const response = await fetchFn(endpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(config.apiKey ? { 'Authorization': `Bearer ${config.apiKey}` } : {}),
-          },
-          body: JSON.stringify(requestData),
+          headers,
+          body,
           signal: controller.signal,
         })
         
@@ -44,13 +66,37 @@ export function createHttpTransport(config: TransportConfig) {
           throw new Error(`HTTP error: ${response.status}`)
         }
         
-        const jsonData = await response.json()
-        
-        if (!jsonData.success) {
-          throw new Error(jsonData.error || 'RPC call failed')
+        const contentType = response.headers.get('content-type')
+        let responseData: any
+
+        if (contentType && contentType.includes('multipart/form-data')) {
+          const formData = await response.formData()
+          const jsonData = JSON.parse(formData.get('json') as string || '{}')
+          
+          if (!jsonData.success) {
+            throw new Error(jsonData.error || 'RPC call failed')
+          }
+
+          const binaryDataMap: Record<string, any> = {}
+          for (const [key, entryValue] of formData.entries()) {
+            const value = entryValue as any
+            if (key.startsWith('binary_') && value instanceof Blob) {
+              const arrayBuffer = await value.arrayBuffer()
+              binaryDataMap[key] = {
+                data: arrayBuffer,
+                type: value.type,
+                size: value.size,
+              }
+            }
+          }
+          responseData = restoreBinaryData(jsonData.data, binaryDataMap)
+        } else {
+          const jsonData = await response.json()
+          if (!jsonData.success) {
+            throw new Error(jsonData.error || 'RPC call failed')
+          }
+          responseData = jsonData.data
         }
-        
-        const responseData = jsonData.data
         
         // Create simulated port for callback compatibility
         const simulatedPort: TransportPort = {

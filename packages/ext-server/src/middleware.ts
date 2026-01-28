@@ -229,6 +229,9 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
     if (url.pathname === "/tailwind-raw.js" && assets?.tailwindRawJs) {
       return new Response(assets.tailwindRawJs, { headers: jsHeaders });
     }
+    if (url.pathname === "/eidos-client.js" && assets?.eidosClientJs) {
+      return new Response(assets.eidosClientJs, { headers: jsHeaders });
+    }
     
     // Serve compiled UI files (desktop feature)
     if (url.pathname.startsWith("/compiled-ui") && config.serveCompiledUI) {

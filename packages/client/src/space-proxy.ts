@@ -64,6 +64,9 @@ export function createSpaceProxy(config: TransportConfig) {
         'dataView',
         'kv',
         'fs',
+        'AI',
+        'ai',
+        'utils',
       ]
       
       if (namespaces.includes(method)) {

@@ -215,5 +215,6 @@ export interface ExtServerConfig {
     appWrapperJs?: string;
     swJs?: string;
     tailwindRawJs?: string;
+    eidosClientJs?: string;
   };
 }
