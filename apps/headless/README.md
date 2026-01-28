@@ -172,6 +172,7 @@ curl -X POST http://localhost:3000/rpc \
 | `S3_BUCKET_NAME` | No | `eidos-sync` | S3 bucket name |
 | `S3_PREFIX` | Yes* | - | Graft data path in S3 |
 | `S3_FILES_PREFIX` | Yes* | - | File storage path in S3 |
+| `S3_CUSTOM_DOMAIN` | No | - | Custom domain for R2 file access (e.g. `files.example.com`) |
 | `PORT` | No | `3000` | Server port |
 | `HOST` | No | `0.0.0.0` | Server host |
 | `DATA_DIR` | No | `./data` | Local data directory |

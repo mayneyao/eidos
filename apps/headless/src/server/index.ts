@@ -225,7 +225,11 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
 
       // Construct S3 URL
       let urlStr = ''
-      if (config.awsEndpoint.includes('cloudflarestorage.com') || config.awsEndpoint.includes('s3.amazonaws.com')) {
+      if (config.s3CustomDomain) {
+        // Use custom domain (bucket name is not needed in path for R2 custom domains)
+        const domain = config.s3CustomDomain.replace(/^https?:\/\//, '')
+        urlStr = `https://${domain}/${s3Key}`
+      } else if (config.awsEndpoint.includes('cloudflarestorage.com') || config.awsEndpoint.includes('s3.amazonaws.com')) {
         const endpoint = config.awsEndpoint.replace(/^https?:\/\//, '')
         urlStr = `https://${config.s3BucketName}.${endpoint}/${s3Key}`
       } else {

@@ -29,6 +29,9 @@ export interface HeadlessConfig {
 
   // API Authentication
   apiKey?: string
+
+  // Custom domain for file access
+  s3CustomDomain?: string
 }
 
 export function loadConfig(): HeadlessConfig {
@@ -59,6 +62,7 @@ export function loadConfig(): HeadlessConfig {
     extensionHostnamePattern: (process.env.EXTENSION_HOSTNAME_PATTERN || '').trim() || undefined,
     sandboxHostnamePattern: (process.env.SANDBOX_HOSTNAME_PATTERN || '').trim() || undefined,
     apiKey: (process.env.API_KEY || '').trim() || undefined,
+    s3CustomDomain: (process.env.S3_CUSTOM_DOMAIN || '').trim() || undefined,
   }
   
   // Validate required fields
