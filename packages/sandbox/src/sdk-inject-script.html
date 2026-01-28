@@ -1,57 +1,79 @@
 <script type="module">
   import { createEidosClient } from '/eidos-client.js';
 
+  // 1. Detect environment and base domain at runtime
+  const { hostname, port, protocol, origin: currentOrigin } = window.location;
+  const portSuffix = port ? `:${port}` : '';
+  const parts = hostname.split('.');
+
+  let baseDomain = '';
+  let rpcEndpoint = '';
+  let proxyBaseUrl = '';
+
+  if (hostname.endsWith('eidos.localhost')) {
+    // Desktop Environment: <ext-id>.block.<spaceId>.eidos.localhost
+    baseDomain = 'eidos.localhost';
+    rpcEndpoint = `${protocol}//${{currentSpace}}.eidos.localhost${portSuffix}/rpc`;
+    proxyBaseUrl = `${protocol}//proxy.eidos.localhost${portSuffix}`;
+  } else {
+    // Non-Desktop Environment: <ext-id>.<baseDomain>
+    // Note: We take everything after the first part as the base domain
+    baseDomain = parts.slice(1).join('.');
+    
+    // In headless, the RPC and Proxy usually live on the base domain directly
+    rpcEndpoint = `${protocol}//${baseDomain}${portSuffix}/rpc`;
+    proxyBaseUrl = `${protocol}//proxy.${baseDomain}${portSuffix}`;
+  }
+
   const EIDOS_CONFIG = {
-    httpEndpoint: "http://${{currentSpace}}.eidos.localhost:13127/rpc",
+    httpEndpoint: rpcEndpoint,
     timeout: 30000,
   }
 
-  // Replace window.fetch with proxy-enabled fetch
+  // 2. Optimized window.fetch proxy
   const originalFetch = window.fetch
   window.fetch = async function (input, init = {}) {
     const url = typeof input === "string" ? input : input.url
     try {
       const requestUrl = new URL(url, window.location.href)
-      const currentOrigin = window.location.origin
-      const requestOrigin = requestUrl.origin
+      const reqHostname = requestUrl.hostname
 
-      if (
-        requestOrigin === currentOrigin ||
-        requestUrl.hostname === "proxy.eidos.localhost" ||
-        requestUrl.hostname === "localhost" ||
-        requestUrl.hostname.endsWith(".eidos.localhost")
-      ) {
+      // Bypass proxy for internal/same-system requests
+      const isInternal = 
+        requestUrl.origin === currentOrigin ||
+        reqHostname === "localhost" ||
+        reqHostname === baseDomain ||
+        reqHostname === `proxy.${baseDomain}` ||
+        reqHostname.endsWith(`.${baseDomain}`);
+
+      if (isInternal) {
         return originalFetch(input, init)
       }
 
-      const proxyUrl = `http://proxy.eidos.localhost:13127/?url=${encodeURIComponent(url)}`
-      return originalFetch(proxyUrl, {
-        ...init,
-        headers: {
-          ...init.headers,
-        },
-      })
+      const proxyUrl = `${proxyBaseUrl}/?url=${encodeURIComponent(url)}`
+      return originalFetch(proxyUrl, init)
     } catch (error) {
       console.warn("Failed to parse URL for proxy, using original fetch:", error)
       return originalFetch(input, init)
     }
   }
 
-  // Initialize Eidos Client
+  // 3. Initialize Eidos Client
   const client = createEidosClient({
     endpoint: EIDOS_CONFIG.httpEndpoint,
     timeout: EIDOS_CONFIG.timeout,
-    // Add apiKey if available in bindings or elsewhere
   });
 
-  // Setup window.eidos to match the legacy structure
-  window.eidos = {
-    ...client,
-    get space() { return client.currentSpace },
-    get currentSpace() { return client.currentSpace },
-  };
+  // 4. Proxy window.eidos to currentSpace
+  window.eidos = new Proxy(client.currentSpace, {
+    get(target, prop) {
+      if (prop === 'space' || prop === 'currentSpace') return target;
+      if (prop === 'client') return client;
+      return target[prop];
+    }
+  });
 
-  // Handle ScriptFunctionCall messages (for script execution in sandbox)
+  // 5. Shared logic for script execution in sandbox
   window.addEventListener("message", async (event) => {
     const { type, data } = event.data
     const port = event.ports[0]
