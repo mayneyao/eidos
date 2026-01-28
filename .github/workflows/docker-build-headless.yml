@@ -7,6 +7,7 @@ on:
       - refactor/extensions
     paths:
       - 'apps/headless/**'
+      - 'packages/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/docker-build-headless.yml'
   pull_request:
