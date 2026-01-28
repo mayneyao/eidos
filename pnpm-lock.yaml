@@ -69,6 +69,9 @@ importers:
       '@eidos.space/better-sqlite3':
         specifier: ^11.9.3
         version: 11.9.3
+      '@eidos.space/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@eidos.space/ext-server':
         specifier: workspace:*
         version: link:../../packages/ext-server
@@ -251,6 +254,9 @@ importers:
       '@eidos.space/better-sqlite3':
         specifier: ^11.9.3
         version: 11.9.3
+      '@eidos.space/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@eidos.space/core':
         specifier: ^0.28.0
         version: 0.28.0(zod@3.25.76)
