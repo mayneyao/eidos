@@ -62,6 +62,7 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
         getBySlug: async (slug) => dataSpace.extension.getExtensionBySlug(slug),
         getBySlugOrId: async (slugOrId) => dataSpace.extension.getExtensionBySlugOrId(slugOrId),
         getThemeMode: async () => dataSpace.kv.get('eidos:space:settings:theme:mode'),
+        dataSpace
       }
     },
     hostnamePattern,

@@ -86,6 +86,7 @@ function createDesktopExtensionProvider(
     getBySlugOrId: async (slugOrId) => dataSpace.extension.getExtensionBySlugOrId(slugOrId),
     getThemeMode: async () => dataSpace.kv.get('eidos:space:settings:theme:mode'),
     getSyncEnabled: () => spaceRegistry.getSpace(spaceId)?.sync?.enabled ?? false,
+    dataSpace,
   };
 }
 
