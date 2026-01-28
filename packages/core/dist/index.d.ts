@@ -2333,6 +2333,14 @@ declare abstract class BaseDataSpace {
   blockUIMsg(msg: string | null, data?: {
     progress?: number;
   }): void;
+  /**
+   * Run server-side action in a sandboxed VM
+   * This is used by the extension server to execute getServerSideProps
+   * in the process where the real DataSpace instance lives.
+   */
+  runServerAction(code: string, options: {
+    url: string;
+  }): Promise<any>;
 }
 //# sourceMappingURL=base.d.ts.map
 //#endregion

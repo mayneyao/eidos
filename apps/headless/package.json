@@ -17,8 +17,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",
     "@eidos.space/better-sqlite3": "^11.9.3",
+    "@eidos.space/core": "^0.28.1",
     "@eidos.space/client": "workspace:*",
-    "@eidos.space/core": "^0.28.0",
     "@eidos.space/ext-server": "workspace:*",
     "@eidos.space/sandbox": "workspace:*",
     "@eidos.space/v3": "workspace:*",
