@@ -440,4 +440,24 @@ export abstract class BaseDataSpace {
       },
     })
   }
+
+  /**
+   * Run server-side action in a sandboxed VM
+   * This is used by the extension server to execute getServerSideProps
+   * in the process where the real DataSpace instance lives.
+   */
+  async runServerAction(code: string, options: { url: string }) {
+    // @ts-ignore - dynamic import to avoid bundling issues in browser if core is shared
+    const vm = await import("vm")
+    const sandbox = {
+      console,
+      context: {
+        currentSpace: this,
+        request: { url: options.url },
+      },
+      URL,
+    }
+    vm.createContext(sandbox)
+    return vm.runInNewContext(code, sandbox, { timeout: 3000 })
+  }
 }

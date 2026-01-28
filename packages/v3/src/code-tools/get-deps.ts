@@ -85,15 +85,18 @@ export async function generateImportMap(
 ) {
     const REACT_VERSION = '18.3.1';
 
+    const ESM_SERVER = 'esm.sh';
     const imports: Record<string, string> = {
-        'react': `https://esm.sh/stable/react@${REACT_VERSION}`,
-        'react/jsx-runtime': `https://esm.sh/stable/react@${REACT_VERSION}/jsx-runtime`,
-        'react-dom': `https://esm.sh/stable/react-dom@${REACT_VERSION}`,
-        'react-dom/client': `https://esm.sh/stable/react-dom@${REACT_VERSION}/client`,
-        'clsx': "https://esm.sh/clsx@2.1.1",
-        "tailwind-merge": "https://esm.sh/tailwind-merge",
-        "zustand": "https://esm.sh/zustand@5?external=react",
-        "@eidos.space/react": "https://esm.sh/@eidos.space/react?external=react,zustand",
+        'react': `https://${ESM_SERVER}/stable/react@${REACT_VERSION}`,
+        'react/jsx-runtime': `https://${ESM_SERVER}/stable/react@${REACT_VERSION}/jsx-runtime`,
+        'react-dom': `https://${ESM_SERVER}/stable/react-dom@${REACT_VERSION}`,
+        'react-dom/client': `https://${ESM_SERVER}/stable/react-dom@${REACT_VERSION}/client`,
+        'clsx': `https://${ESM_SERVER}/clsx@2.1.1`,
+        "tailwind-merge": `https://${ESM_SERVER}/tailwind-merge`,
+        "zustand": `https://${ESM_SERVER}/zustand@5?external=react`,
+        "@eidos.space/react": `https://${ESM_SERVER}/@eidos.space/react@0.27.0?external=react,zustand`,
+        "@radix-ui/react-icons": `https://${ESM_SERVER}/@radix-ui/react-icons@1.3.2?external=react,react-dom`,
+        "@radix-ui/react-toast": `https://${ESM_SERVER}/@radix-ui/react-toast@1.2.14?external=react,react-dom`,
         "@/lib/utils": `${HOST_URL}/compiled-ui/utils.js`,
     };
     // map localLibs to sandbox.<spaceId>.eidos.localhost:13127/<lib>.js
@@ -124,13 +127,14 @@ export async function generateImportMap(
         //     return dep === pattern;
         // });
         // if (shouldExternalizeReact) {
-        //     imports[dep] = `https://esm.sh/${dep}?external=react,react-dom`;
+        //     imports[dep] = `https://${ESM_SERVER}/${dep}?external=react,react-dom`;
         // } else {
-        //     imports[dep] = `https://esm.sh/${dep}?deps=react@${REACT_VERSION}`;
+        //     imports[dep] = `https://${ESM_SERVER}/${dep}?deps=react@${REACT_VERSION}`;
         // }
         // all third party libs use external react and react-dom. avoid multiple versions of react and react-dom
-        imports[dep] = `https://esm.sh/${dep}?external=react,react-dom`;
-
+        if (!imports[dep]){
+            imports[dep] = `https://${ESM_SERVER}/${dep}?external=react,react-dom`;
+        }
     });
 
 
@@ -153,7 +157,7 @@ export async function generateImportMap(
         if (cssFile.startsWith('@/')) {
             cssUrl = `${HOST_URL}${cssFile.replace('@', '')}`;
         } else {
-            cssUrl = `https://esm.sh/${cssFile}`;
+            cssUrl = `https://${ESM_SERVER}/${cssFile}`;
         }
         return `
         <link rel="stylesheet" href="${cssUrl}" crossorigin="anonymous"/>

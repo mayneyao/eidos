@@ -5,7 +5,7 @@
  * This middleware is dependency-free and uses injection for all external dependencies.
  */
 
-import vm from "vm"
+// vm import removed as it is now handled by provider.dataSpace.runServerAction via RPC or direct call
 import type { Context } from "hono"
 import type { BlankEnv } from "hono/types"
 
@@ -40,21 +40,7 @@ function getEnvMap(bindings?: IBindings): Record<string, string> {
   return envMap
 }
 
-/**
- * Run server-side action in a sandboxed VM
- */
-async function runServerAction(
-  code: string,
-  context: { currentSpace: any; request: { url: string } }
-): Promise<any> {
-  const sandbox = {
-    console: { log: console.log },
-    context,
-    URL: URL,
-  }
-  vm.createContext(sandbox)
-  return vm.runInNewContext(code, sandbox, { timeout: 3000 })
-}
+
 
 /**
  * Render extension to HTML
@@ -111,15 +97,11 @@ async function renderExtension(
   )
   if (serverActionCode) {
     try {
-      const result = await runServerAction(`(${serverActionCode})(context)`, {
-        currentSpace: provider.dataSpace,
-        request: { url },
-      })
-      if (!result.hasOwnProperty("props")) {
-        throw new Error("Server action result must have a 'props' property")
-      }
-      serverSideProps = result?.props || { props: {} }
-      console.log("[ExtServer] Server action result:", result)
+      const result = await provider.dataSpace.runServerAction(
+        `(${serverActionCode})(context)`,
+        { url }
+      )
+      serverSideProps = result?.props || {}
     } catch (error) {
       console.error("[ExtServer] Error running server action:", error)
     }
