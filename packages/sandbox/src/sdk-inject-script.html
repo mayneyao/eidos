@@ -6,24 +6,17 @@
   const portSuffix = port ? `:${port}` : '';
   const parts = hostname.split('.');
 
+  // Determine baseDomain for fetch proxying
   let baseDomain = '';
-  let rpcEndpoint = '';
-  let proxyBaseUrl = '';
-
   if (hostname.endsWith('eidos.localhost')) {
-    // Desktop Environment: <ext-id>.block.<spaceId>.eidos.localhost
     baseDomain = 'eidos.localhost';
-    rpcEndpoint = `${protocol}//${{currentSpace}}.eidos.localhost${portSuffix}/rpc`;
-    proxyBaseUrl = `${protocol}//proxy.eidos.localhost${portSuffix}`;
   } else {
-    // Non-Desktop Environment: <ext-id>.<baseDomain>
-    // Note: We take everything after the first part as the base domain
     baseDomain = parts.slice(1).join('.');
-    
-    // In headless, the RPC and Proxy usually live on the base domain directly
-    rpcEndpoint = `${protocol}//${baseDomain}${portSuffix}/rpc`;
-    proxyBaseUrl = `${protocol}//proxy.${baseDomain}${portSuffix}`;
   }
+
+  // Use same-origin RPC to avoid CORS issues
+  const rpcEndpoint = `${protocol}//${hostname}${portSuffix}/rpc`;
+  const proxyBaseUrl = `${protocol}//proxy.${baseDomain}${portSuffix}`;
 
   const EIDOS_CONFIG = {
     httpEndpoint: rpcEndpoint,

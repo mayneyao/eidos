@@ -273,7 +273,8 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
       if (
         url.pathname.startsWith("/files/") ||
         url.pathname.startsWith("/~/") ||
-        url.pathname.startsWith("/@/")
+        url.pathname.startsWith("/@/") ||
+        url.pathname === "/rpc"
       ) {
         return next();
       }
