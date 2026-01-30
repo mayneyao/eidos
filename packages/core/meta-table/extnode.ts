@@ -54,7 +54,7 @@ export class ExtNodeTable
       `
       UPDATE ${this.name}
       SET text = ?
-      WHERE id = ? AND text != ?
+      WHERE id = ? AND text IS NOT ?
     `,
       [text, id, text]
     )
