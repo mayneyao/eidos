@@ -83,3 +83,6 @@
 本项目整体采用 AGPL 协议。为了方便集成和生态建设，特定的 package 采用 MIT 协议：
 
 - `@eidos.space/core`: [MIT](./packages/core/LICENSE)
+- `@eidos.space/react`: [MIT](./packages/react/LICENSE)
+
+此外，[extensions/](./extensions/) 目录下的所有扩展均采用 MIT 协议发布。
