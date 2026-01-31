@@ -56,7 +56,6 @@ eidos/
 │   └── ext-server/       # Extension server (@eidos.space/ext-server)
 ├── extensions/           # Built-in extensions
 │   ├── blocks/           # Block extensions (UI components)
-│   │   ├── excalidraw/   # Excalidraw integration
 │   │   ├── graft/        # Graft sync block
 │   │   ├── journal/      # Journal/day planner
 │   │   ├── media-preview/# Media file preview
