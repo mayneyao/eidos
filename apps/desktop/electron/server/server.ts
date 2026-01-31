@@ -41,22 +41,37 @@ const app = new Hono();
 
 
 /**
- * myspace.eidos.localhost -> myspace
- * myext.block.myspace.eidos.localhost -> myspace
- * @param hostname like <spaceId>.eidos.localhost or <extensionId>.block.<spaceId>.eidos.localhost
+ * Extract spaceId from hostname using regex patterns
+ * 
+ * Supported patterns:
+ * - <spaceId>.eidos.localhost -> spaceId
+ * - <extId>.block.<spaceId>.eidos.localhost -> spaceId  
+ * - sandbox.<spaceId>.eidos.localhost -> spaceId
+ * 
+ * @param hostname like sandbox.<spaceId>.eidos.localhost or <extensionId>.block.<spaceId>.eidos.localhost
  * @returns spaceId
  */
 function extractSpaceIdFromHostname(hostname: string): string | null {
-    const parts = hostname.split('.');
+    // Pattern: <extId>.block.<spaceId>.eidos.localhost
+    const blockPattern = /^[\w-]+\.block\.(\w+)\.eidos\.localhost$/;
+    // Pattern: sandbox.<spaceId>.eidos.localhost
+    const sandboxPattern = /^sandbox\.(\w+)\.eidos\.localhost$/;
+    // Pattern: <spaceId>.eidos.localhost
+    const standardPattern = /^(\w+)\.eidos\.localhost$/;
 
-    // Check for extension pattern: <extensionId>.block.<spaceId>.eidos.localhost
-    if (parts.length >= 4 && parts[1] === 'block') {
-        return parts[2]; // spaceId is at index 2
+    const blockMatch = hostname.match(blockPattern);
+    if (blockMatch) {
+        return blockMatch[1];
     }
 
-    // Standard pattern: <spaceId>.eidos.localhost
-    if (parts.length >= 2) {
-        return parts[0]; // spaceId is at index 0
+    const sandboxMatch = hostname.match(sandboxPattern);
+    if (sandboxMatch) {
+        return sandboxMatch[1];
+    }
+
+    const standardMatch = hostname.match(standardPattern);
+    if (standardMatch) {
+        return standardMatch[1];
     }
 
     return null;
@@ -88,6 +103,15 @@ app.use('*', async (c, next) => {
     const requestOrigin = c.req.header('Origin');
     let isAllowedOrigin = false;
 
+    // Helper function to set CORS headers
+    const setCorsHeaders = (allowOrigin: string) => {
+        c.header('Access-Control-Allow-Origin', allowOrigin);
+        c.header('Vary', 'Origin');
+        c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+        c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+        c.header('Access-Control-Allow-Credentials', 'true');
+    };
+
     if (requestOrigin) {
         try {
             const originUrl = new URL(requestOrigin);
@@ -95,16 +119,26 @@ app.use('*', async (c, next) => {
             // e.g. http://3ujmmomr.block.25-w19.eidos.localhost:13127
             if (originUrl.hostname.endsWith('.eidos.localhost')) {
                 isAllowedOrigin = true;
-                c.header('Access-Control-Allow-Origin', requestOrigin);
-                c.header('Vary', 'Origin');
-                c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-                c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-                c.header('Access-Control-Allow-Credentials', 'true');
+                setCorsHeaders(requestOrigin);
             }
         } catch (e) {
-            // Use the existing log from 'electron-log' if available in this scope,
-            // or consider adding error logging if needed.
-            log('Invalid Origin header:', requestOrigin, e);
+            // Origin header may be "null" (opaque origin from sandboxed iframe)
+            // In this case, allow requests from sandbox domains
+            if (hostname.startsWith('sandbox.') && hostname.endsWith('.eidos.localhost')) {
+                isAllowedOrigin = true;
+                setCorsHeaders('*');
+            } else {
+                // Use the existing log from 'electron-log' if available in this scope,
+                // or consider adding error logging if needed.
+                log('Invalid Origin header:', requestOrigin, e);
+            }
+        }
+    } else {
+        // Handle sandbox requests where Origin is null (opaque origin)
+        // Sandbox iframes run in a restricted context and may not send Origin header
+        if (hostname.startsWith('sandbox.') && hostname.endsWith('.eidos.localhost')) {
+            isAllowedOrigin = true;
+            setCorsHeaders('*');
         }
     }
 

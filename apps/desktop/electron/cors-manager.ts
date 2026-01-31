@@ -56,6 +56,12 @@ export class CorsManager {
                 return;
             }
 
+            // Skip sandbox domains - server-side CORS handling in server.ts
+            if (url.hostname.startsWith('sandbox.') && url.hostname.endsWith('.eidos.localhost')) {
+                callback({ responseHeaders: details.responseHeaders });
+                return;
+            }
+
             // Skip RPC requests to allow server-side CORS handling
             if (allDomains.some(domain => url.hostname.endsWith(domain.replace('*.', ''))) && !url.pathname.includes('/rpc')) {
                 callback({

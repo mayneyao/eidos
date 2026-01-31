@@ -214,6 +214,7 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
     const jsHeaders = new Headers()
     jsHeaders.append("Content-Type", "text/javascript")
     jsHeaders.append("Cross-Origin-Embedder-Policy", "require-corp")
+    jsHeaders.append("Access-Control-Allow-Origin", "*")
 
     // Serve static JS files - must be provided via config.staticAssets
     const assets = config.staticAssets
@@ -243,6 +244,11 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
     // Check for sandbox domain
     const sandboxMatch = hostname.match(sandboxPattern)
     if (sandboxMatch && config.dependencies.createSandboxHandler) {
+      // Skip RPC requests - let server handle them
+      if (url.pathname === "/rpc") {
+        return await next()
+      }
+
       const spaceId = sandboxMatch[1]
       const provider = await config.getExtensionProvider(spaceId)
 
