@@ -19,7 +19,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import { makeSdkInjectScript, ScriptSandboxHandler } from '@eidos.space/sandbox';
+import { ScriptSandboxHandler } from './script-sandbox';
+import { makeSdkInjectScript } from './helper';
 import { 
   extractFunction, 
   getAllLibs, 
@@ -60,16 +61,6 @@ export interface DesktopConfigOptions {
    * Server port
    */
   port?: number;
-  
-  /**
-   * Static assets for JS files (use Vite ?raw imports)
-   */
-  staticAssets?: {
-    appWrapperJs: string;
-    swJs: string;
-    tailwindRawJs: string;
-    eidosClientJs?: string;
-  };
 }
 
 /**
@@ -94,7 +85,7 @@ function createDesktopExtensionProvider(
  * Create pre-configured ExtServerConfig for desktop Electron app
  */
 export function createDesktopConfig(options: DesktopConfigOptions): ExtServerConfig {
-  const { getDataSpace, getConfigManager, getSpaceRegistry, dist, port, staticAssets } = options;
+  const { getDataSpace, getConfigManager, getSpaceRegistry, dist, port } = options;
   
   return {
     getExtensionProvider: async (spaceId) => {
@@ -112,9 +103,6 @@ export function createDesktopConfig(options: DesktopConfigOptions): ExtServerCon
     },
     
     port,
-    
-    // Static JS assets (passed from Vite ?raw imports)
-    staticAssets,
     
     // Theme support from ConfigManager
     getCustomThemes: () => getConfigManager().get('theme').customThemes || [],

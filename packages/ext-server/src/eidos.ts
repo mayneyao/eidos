@@ -16,7 +16,8 @@
  * ```
  */
 
-import { makeSdkInjectScript, ScriptSandboxHandler } from '@eidos.space/sandbox';
+import { ScriptSandboxHandler } from './script-sandbox';
+import { makeSdkInjectScript } from './helper';
 import { 
   extractFunction, 
   getAllLibs, 
@@ -27,7 +28,7 @@ import type { ExtServerDependencies } from './types';
 
 /**
  * Create pre-configured dependencies for the extension middleware
- * using @eidos.space/sandbox and @eidos.space/v3 packages.
+ * using @eidos.space/v3 packages.
  * 
  * This is the recommended way to configure dependencies when using
  * the extension middleware within the Eidos ecosystem.

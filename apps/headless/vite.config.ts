@@ -53,7 +53,6 @@ export default defineConfig({
     noExternal: [
       '@eidos.space/core',
       '@eidos.space/ext-server',
-      '@eidos.space/sandbox',
       '@eidos.space/v3',
     ],
     external: [

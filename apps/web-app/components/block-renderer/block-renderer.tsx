@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react"
 import type { IBindings } from "@/packages/core/types/IExtension"
-import { makeSdkInjectScript } from "@eidos.space/sandbox"
+import { makeSdkInjectScript } from "@eidos.space/ext-server"
 import {
   generateImportMap,
   getAllLibs,

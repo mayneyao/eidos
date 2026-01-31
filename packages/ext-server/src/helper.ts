@@ -1,5 +1,27 @@
 import type { Config } from "tailwindcss"
 
+import { sdkInjectScriptHtml } from "./generated/assets"
+import { IBindings } from "./types"
+
+export const makeSdkInjectScript = ({
+  bindings,
+  space,
+  port = "13127",
+}: {
+  bindings?: IBindings
+  space: string
+  port?: string
+}) => {
+  let res = sdkInjectScriptHtml.replace(/\${{currentSpace}}/g, space)
+
+  if (bindings) {
+    res =
+      `<script>window.__EIDOS_BINDINGS__ = ${JSON.stringify(bindings)}</script>` +
+      res
+  }
+  return res
+}
+
 // Default theme CSS for extensions
 const defaultTheme = `
 :root {

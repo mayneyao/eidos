@@ -13,12 +13,6 @@ import { getDataSpace } from '../data-space'
 import fs from 'node:fs'
 import path from 'node:path'
 
-// Static JS assets from ext-server package
-import appWrapperJs from '@eidos.space/ext-server/src/js/app-wrapper.js?raw'
-import swJs from '@eidos.space/ext-server/src/js/sw.js?raw'
-import tailwindRawJs from '@eidos.space/ext-server/src/js/tailwind-raw.js?raw'
-import eidosClientJs from '@eidos.space/client/dist/index.mjs?raw'
-
 let currentConfig: HeadlessConfig | null = null
 
 export async function startServer(config: HeadlessConfig): Promise<void> {
@@ -69,12 +63,6 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
     sandboxHostnamePattern,
     dependencies: createEidosDependencies(),
     port: config.port,
-    staticAssets: {
-      appWrapperJs,
-      swJs,
-      tailwindRawJs,
-      eidosClientJs,
-    },
     serveCompiledUI: (pathname) => {
       // Internal path starts with /compiled-ui/
       const fileName = pathname.replace('/compiled-ui/', '');

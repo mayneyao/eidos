@@ -59,3 +59,11 @@ export type { DataSpace } from '@eidos.space/core'
 export { createSpaceProxy } from './space-proxy'
 export { createHttpTransport, onCallBack } from './transport'
 export type { TransportConfig, TransportPort } from './transport'
+
+// Re-export binary data utilities for server-side usage
+export {
+  containsBinaryData,
+  processBinaryDataForResponse,
+  restoreBinaryData,
+  parseMultipartFormData,
+} from './binary-data'

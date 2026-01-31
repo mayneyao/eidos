@@ -18,15 +18,17 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/headless/package.json ./apps/headless/
 COPY packages/core/package.json ./packages/core/
 COPY packages/ext-server/package.json ./packages/ext-server/
-COPY packages/sandbox/package.json ./packages/sandbox/
+COPY packages/proxy/package.json ./packages/proxy/
 COPY packages/v3/package.json ./packages/v3/
 COPY packages/client/package.json ./packages/client/
 
 # Copy scripts required for postinstall
 COPY apps/headless/scripts ./apps/headless/scripts/
+COPY packages/ext-server/scripts ./packages/ext-server/scripts/
 
 # Install dependencies for headless and its workspace dependencies
-RUN pnpm install --filter @eidos.space/headless...
+# Use --ignore-scripts to skip prepare scripts that need source files not yet copied
+RUN pnpm install --filter @eidos.space/headless... --ignore-scripts
 
 # Download Node.js prebuild for better-sqlite3 (the package only tries Electron by default)
 # This avoids needing build-essential and compiling from source
@@ -37,6 +39,12 @@ RUN cd node_modules/.pnpm/@eidos.space+better-sqlite3*/node_modules/@eidos.space
 COPY apps/headless ./apps/headless
 COPY packages ./packages
 COPY tsconfig.json ./
+
+# Build client first (required by ext-server's build:assets)
+RUN pnpm --filter @eidos.space/client build
+
+# Build ext-server assets (prepare script was skipped during install, run it now)
+RUN pnpm --filter @eidos.space/ext-server run build:assets
 
 # Build the headless app
 RUN pnpm --filter @eidos.space/headless build

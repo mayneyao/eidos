@@ -8,8 +8,8 @@
     "postinstall": "node scripts/postinstall-sqlite-ext.cjs",
     "download-libsimple": "node scripts/download-libsimple.cjs",
     "setup": "npm run download-libsimple && npm run postinstall",
-    "prebuild": "pnpm --filter @eidos.space/client build",
-    "predev": "pnpm --filter @eidos.space/client build",
+    "prebuild": "pnpm --filter @eidos.space/client build && pnpm --filter @eidos.space/ext-server run build:assets",
+    "predev": "pnpm --filter @eidos.space/client build && pnpm --filter @eidos.space/ext-server run build:assets",
     "dev": "vite-node --watch src/index.ts",
     "build": "vite build",
     "start": "node dist/index.js"
@@ -20,7 +20,6 @@
     "@eidos.space/core": "^0.28.1",
     "@eidos.space/client": "workspace:*",
     "@eidos.space/ext-server": "workspace:*",
-    "@eidos.space/sandbox": "workspace:*",
     "@eidos.space/v3": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "aws4fetch": "^1.0.20",

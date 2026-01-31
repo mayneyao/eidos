@@ -1,6 +1,7 @@
 import { OAUTH_CONFIG } from '@/lib/const';
 import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
-import { containsBinaryData, parseMultipartFormData, processBinaryDataForResponse, ProxyHandler, restoreBinaryData } from '@eidos.space/sandbox';
+import { createProxyMiddleware } from '@eidos.space/proxy';
+import { containsBinaryData, parseMultipartFormData, processBinaryDataForResponse, restoreBinaryData } from '@eidos.space/client';
 import { createExtensionMiddleware, createDesktopConfig } from '@eidos.space/ext-server/desktop';
 import { serve } from '@hono/node-server';
 import { BrowserWindow } from 'electron';
@@ -14,12 +15,6 @@ import { getFileFromPath, getSpaceFileFromPath } from '../file-system/space';
 import { getSpaceRegistry } from '../space-registry';
 import { serveFile } from './serve-file';
 import { serveStatic } from './server-static';
-
-// Static JS assets from ext-server package (bundled via Vite ?raw)
-import appWrapperJs from '@eidos.space/ext-server/src/js/app-wrapper.js?raw';
-import swJs from '@eidos.space/ext-server/src/js/sw.js?raw';
-import tailwindRawJs from '@eidos.space/ext-server/src/js/tailwind-raw.js?raw';
-import eidosClientJs from '@eidos.space/client/dist/index.mjs?raw';
 
 // Channel name for auth state changes
 export const AUTH_STATE_CHANGED_CHANNEL = 'auth-state-changed';
@@ -96,7 +91,7 @@ const CORS_CONFIG = {
  * Check if an origin is allowed
  * Handles both normal origins and "null" (opaque origin from sandboxed iframe)
  */
-function isAllowedOrigin(origin: string | null, hostname: string): boolean {
+function isAllowedOrigin(origin: string | null | undefined, hostname: string): boolean {
     // Handle opaque origin (sandboxed iframe sends "null")
     if (origin === 'null') {
         // Only allow opaque origins from sandbox subdomains
@@ -120,7 +115,7 @@ function isAllowedOrigin(origin: string | null, hostname: string): boolean {
 /**
  * Get the appropriate Access-Control-Allow-Origin value
  */
-function getAllowOrigin(origin: string | null, hostname: string): string {
+function getAllowOrigin(origin: string | null | undefined, hostname: string): string {
     // For sandbox requests with opaque/null origin, use wildcard
     if ((origin === 'null' || !origin) && 
         hostname.startsWith('sandbox.') && hostname.endsWith('.eidos.localhost')) {
@@ -139,8 +134,9 @@ app.use('*', async (c, next) => {
     const hostname = url.hostname;
     const requestOrigin = c.req.header('Origin');
 
-    // Skip CORS handling for proxy subdomain - it handles its own CORS
-    if (hostname === 'proxy.eidos.localhost') {
+    // Skip CORS handling for proxy subdomains - they handle their own CORS
+    // Pattern: *.proxy.eidos.localhost (e.g., api.openai.com.proxy.eidos.localhost)
+    if (hostname.endsWith('.proxy.eidos.localhost')) {
         await next();
         return;
     }
@@ -182,32 +178,9 @@ const handleStaticFile = async (c: any) => {
 
 export function startServer({ dist, port }: { dist: string, port: number }) {
 
-    // Proxy handler for proxy.eidos.localhost requests
-    const proxyHandler = new ProxyHandler();
-
-    app.use('*', async (c, next) => {
-        const url = new URL(c.req.url);
-        const hostname = url.hostname;
-
-        // Check if this is a proxy request
-        if (hostname === 'proxy.eidos.localhost') {
-            // Handle CORS preflight requests
-            if (c.req.method === 'OPTIONS') {
-                return await proxyHandler.handleOptionsRequest(c);
-            }
-
-            // Handle status endpoint
-            if (url.pathname === '/status') {
-                return await proxyHandler.getProxyStatus(c);
-            }
-
-            // Handle proxy requests
-            return await proxyHandler.handleProxyRequest(url, c);
-        }
-
-        // Continue to next middleware if not a proxy request
-        await next();
-    });
+    // Proxy middleware: handles *.proxy.eidos.localhost subdomains
+    // Pattern: <target-host>.proxy.eidos.localhost/<path> -> https://<target-host>/<path>
+    app.use('*', createProxyMiddleware({ baseDomain: 'eidos.localhost' }));
 
     // New middleware to intercept *.eidos.localhost requests
     app.use('*', createExtensionMiddleware(createDesktopConfig({
@@ -216,12 +189,6 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
         getSpaceRegistry,
         dist,
         port,
-        staticAssets: {
-            appWrapperJs,
-            swJs,
-            tailwindRawJs,
-            eidosClientJs,
-        },
     })));
 
     // host static files

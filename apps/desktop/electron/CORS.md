@@ -26,24 +26,24 @@ Request Flow:
 └────────┬────────┘     └─────────────────┘
          │
          ▼
-┌─────────────────┐
-│  Hono Server    │
-│  (server.ts)    │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
-┌────────┐ ┌──────────┐
-│ Global │ │  Proxy   │ (skips global CORS)
-│ CORS   │ │ Handler  │ (handles own CORS)
-│ Middleware    │ └──────────┘
-└───┬────┘
-    │
-    ▼
-┌─────────────────┐
-│ Extension       │
-│ Middleware      │ (static assets need own CORS headers)
-└─────────────────┘
+┌──────────────────────────────────────────────┐
+│              Hono Server                     │
+│              (server.ts)                     │
+├──────────────────────────────────────────────┤
+│  ┌─────────────┐    ┌─────────────────────┐  │
+│  │ Proxy       │    │ Global CORS         │  │
+│  │ Handler     │    │ Middleware          │  │
+│  │ (*.proxy.*) │    │ (skips *.proxy.*)   │  │
+│  │ Own CORS    │    │                     │  │
+│  └─────────────┘    └──────────┬──────────┘  │
+│                                │             │
+│                   ┌────────────┴─────────┐   │
+│                   ▼                    ▼     │
+│         ┌──────────────┐    ┌──────────────┐ │
+│         │ Extension    │    │ API Routes   │ │
+│         │ Middleware   │    │ (/rpc, /ai)  │ │
+│         └──────────────┘    └──────────────┘ │
+└──────────────────────────────────────────────┘
 ```
 
 ## Components
@@ -115,8 +115,18 @@ const jsHeaders = new Headers({
 ### 3. Proxy Handler (`packages/sandbox/src/proxy-handler.ts`)
 
 **Responsibilities**:
-- Proxy external URLs through `proxy.eidos.localhost`
+- Proxy external URLs through `*.proxy.eidos.localhost` subdomains
 - Handle CORS for proxied responses
+
+**Subdomain Pattern**:
+```
+api.openai.com.proxy.eidos.localhost/v1/chat -> https://api.openai.com/v1/chat
+```
+
+**Why subdomain pattern**:
+- Better compatibility with libraries that only support modifying base URL
+- No need to encode URLs as query parameters
+- Cleaner URL structure
 
 **Why it handles its own CORS**:
 The proxy serves external content that needs different CORS handling than internal Eidos resources.
@@ -139,7 +149,7 @@ The following hostname patterns are supported:
 | `<space>.eidos.localhost` | `myspace.eidos.localhost` | `myspace` | Main app |
 | `sandbox.<space>.eidos.localhost` | `sandbox.myspace.eidos.localhost` | `myspace` | Script sandbox |
 | `<ext>.block.<space>.eidos.localhost` | `abc.block.myspace.eidos.localhost` | `myspace` | Extension blocks |
-| `proxy.eidos.localhost` | `proxy.eidos.localhost` | N/A | External proxy |
+| `<host>.proxy.eidos.localhost` | `api.openai.com.proxy.eidos.localhost` | N/A | External proxy |
 
 ## Testing
 

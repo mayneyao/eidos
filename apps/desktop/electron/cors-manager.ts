@@ -61,7 +61,9 @@ export class CorsManager {
             const isSameDomain = allDomains.some(domain => 
                 url.hostname.endsWith(domain.replace('*.', ''))
             );
-            if (isSameDomain && !details.url.includes('/rpc') && url.hostname !== 'proxy.eidos.localhost') {
+            // Skip proxy subdomains: *.proxy.eidos.localhost
+            const isProxyDomain = url.hostname.endsWith('.proxy.eidos.localhost');
+            if (isSameDomain && !details.url.includes('/rpc') && !isProxyDomain) {
                 details.requestHeaders['Origin'] = '';
             }
             callback({ requestHeaders: details.requestHeaders });
@@ -92,8 +94,10 @@ export class CorsManager {
             const isSameDomain = allDomains.some(domain => 
                 url.hostname.endsWith(domain.replace('*.', ''))
             );
+            // Skip proxy subdomains: *.proxy.eidos.localhost
+            const isProxyDomain = url.hostname.endsWith('.proxy.eidos.localhost');
             
-            if (isSameDomain && !url.pathname.includes('/rpc') && url.hostname !== 'proxy.eidos.localhost') {
+            if (isSameDomain && !url.pathname.includes('/rpc') && !isProxyDomain) {
                 callback({
                     responseHeaders: {
                         ...details.responseHeaders,

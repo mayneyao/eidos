@@ -10,6 +10,7 @@ import type { Context } from "hono"
 import type { BlankEnv } from "hono/types"
 
 import { getIndexHtml, type ExtensionContext } from "./ext-html"
+import { appWrapperJs, eidosClientJs, swJs, tailwindRawJs } from "./generated/assets"
 import { presetThemes, twConfig } from "./helper"
 import type {
   ExtServerConfig,
@@ -183,8 +184,7 @@ async function renderExtension(
  *
  * @example
  * ```typescript
- * import { createExtensionMiddleware } from '@eidos.space/ext-server';
- * import { makeSdkInjectScript } from '@eidos.space/sandbox';
+ * import { createExtensionMiddleware, makeSdkInjectScript } from '@eidos.space/ext-server';
  * import { extractFunction, getAllLibs, generateImportMap, uiComponentsDependencies } from '@eidos.space/v3';
  *
  * app.use('*', createExtensionMiddleware({
@@ -220,19 +220,18 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
       "Access-Control-Allow-Origin": "*",
     })
 
-    // Serve static JS files - must be provided via config.staticAssets
-    const assets = config.staticAssets
-    if (url.pathname === "/sw.js" && assets?.swJs) {
-      return new Response(assets.swJs, { headers: jsHeaders })
+    // Serve static JS files - all internal assets from ext-server package
+    if (url.pathname === "/sw.js") {
+      return new Response(swJs, { headers: jsHeaders })
     }
-    if (url.pathname === "/app-wrapper.js" && assets?.appWrapperJs) {
-      return new Response(assets.appWrapperJs, { headers: jsHeaders })
+    if (url.pathname === "/app-wrapper.js") {
+      return new Response(appWrapperJs, { headers: jsHeaders })
     }
-    if (url.pathname === "/tailwind-raw.js" && assets?.tailwindRawJs) {
-      return new Response(assets.tailwindRawJs, { headers: jsHeaders })
+    if (url.pathname === "/tailwind-raw.js") {
+      return new Response(tailwindRawJs, { headers: jsHeaders })
     }
-    if (url.pathname === "/eidos-client.js" && assets?.eidosClientJs) {
-      return new Response(assets.eidosClientJs, { headers: jsHeaders })
+    if (url.pathname === "/eidos-client.js") {
+      return new Response(eidosClientJs, { headers: jsHeaders })
     }
 
     // Serve compiled UI files (desktop feature)

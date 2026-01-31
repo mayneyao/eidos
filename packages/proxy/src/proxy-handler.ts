@@ -27,18 +27,19 @@ export class ProxyHandler {
 
     /**
      * Handle proxy requests for external URLs using Hono's official proxy helper
-     * This provides a secure and optimized proxy service for cross-origin requests
+     * 
+     * Subdomain pattern: <target-host>.proxy.eidos.localhost/<path> -> https://<target-host>/<path>
+     * Example: api.openai.com.proxy.eidos.localhost/v1/chat -> https://api.openai.com/v1/chat
+     * 
+     * This design allows better compatibility with libraries that only support modifying
+     * the base URL (hostname) rather than requiring custom URL construction.
      */
-    async handleProxyRequest(url: URL, c: Ctx): Promise<Response> {
+    async handleProxyRequest(targetHost: string, url: URL, c: Ctx): Promise<Response> {
         try {
-            this.logger.log(`Handling proxy request: ${url.toString()}`);
-
-            // Get the target URL from query parameters
-            const targetUrl = url.searchParams.get('url');
-
-            if (!targetUrl) {
-                return c.text('Missing target URL parameter', 400);
-            }
+            // Construct the target URL from the subdomain and pathname
+            const targetUrl = `https://${targetHost}${url.pathname}${url.search}`;
+            
+            this.logger.log(`Proxy: ${url.hostname}${url.pathname} -> ${targetUrl}`);
 
             // Validate the target URL
             if (!this.isValidTargetUrl(targetUrl)) {
@@ -54,7 +55,7 @@ export class ProxyHandler {
                     ...this.buildProxyHeaders(c),
                     // Add proxy identification headers
                     'X-Forwarded-For': '127.0.0.1',
-                    'X-Forwarded-Host': c.req.header('host') || 'eidos.localhost',
+                    'X-Forwarded-Host': targetHost,
                     // Ensure essential headers
                     'User-Agent': c.req.header('User-Agent') || 'Eidos-Proxy/2.0',
                     'Accept': c.req.header('Accept') || '*/*',

@@ -218,16 +218,4 @@ export interface ExtServerConfig {
    * If provided, will handle /compiled-ui/* requests
    */
   serveCompiledUI?: (pathname: string) => Buffer | null
-
-  /**
-   * Optional: Static assets for JS files
-   * If provided, these will be used instead of reading from filesystem
-   * (For bundlers like Vite with ?raw imports)
-   */
-  staticAssets?: {
-    appWrapperJs?: string
-    swJs?: string
-    tailwindRawJs?: string
-    eidosClientJs?: string
-  }
 }

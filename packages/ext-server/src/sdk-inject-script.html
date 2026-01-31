@@ -16,7 +16,6 @@
 
   // Use same-origin RPC to avoid CORS issues
   const rpcEndpoint = `${protocol}//${hostname}${portSuffix}/rpc`;
-  const proxyBaseUrl = `${protocol}//proxy.${baseDomain}${portSuffix}`;
 
   const EIDOS_CONFIG = {
     httpEndpoint: rpcEndpoint,
@@ -24,6 +23,8 @@
   }
 
   // 2. Optimized window.fetch proxy
+  // Subdomain pattern: <target-host>.proxy.<base-domain>
+  // Example: https://api.openai.com/v1/chat -> http://api.openai.com.proxy.eidos.localhost:13127/v1/chat
   const originalFetch = window.fetch
   window.fetch = async function (input, init = {}) {
     const url = typeof input === "string" ? input : input.url
@@ -36,14 +37,17 @@
         requestUrl.origin === currentOrigin ||
         reqHostname === "localhost" ||
         reqHostname === baseDomain ||
-        reqHostname === `proxy.${baseDomain}` ||
+        reqHostname.endsWith(`.proxy.${baseDomain}`) ||
         reqHostname.endsWith(`.${baseDomain}`);
 
       if (isInternal) {
         return originalFetch(input, init)
       }
 
-      const proxyUrl = `${proxyBaseUrl}/?url=${encodeURIComponent(url)}`
+      // Subdomain proxy: rewrite hostname from api.example.com to api.example.com.proxy.eidos.localhost
+      const proxyHostname = `${reqHostname}.proxy.${baseDomain}`;
+      const proxyUrl = `${protocol}//${proxyHostname}${portSuffix}${requestUrl.pathname}${requestUrl.search}`;
+      
       return originalFetch(proxyUrl, init)
     } catch (error) {
       console.warn("Failed to parse URL for proxy, using original fetch:", error)
