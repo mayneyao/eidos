@@ -77,83 +77,96 @@ function extractSpaceIdFromHostname(hostname: string): string | null {
     return null;
 }
 
-function isValidEidosOrigin(origin: string): boolean {
-    try {
-        const url = new URL(origin);
+/**
+ * Unified CORS Configuration
+ * Single source of truth for all CORS settings
+ */
+const CORS_CONFIG = {
+    // Origins that are allowed to make requests
+    allowedOrigins: ['*.eidos.localhost'],
+    // Whether to allow credentials (cookies, auth headers)
+    allowCredentials: true,
+    // Allowed HTTP methods
+    allowedMethods: 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
+    // Allowed headers
+    allowedHeaders: 'Content-Type, Authorization, X-Requested-With',
+};
 
-        // Check if the hostname ends with .eidos.localhost
-        // This ensures we only allow legitimate eidos subdomains
-        return url.hostname.endsWith('.eidos.localhost') || url.hostname === 'eidos.localhost';
+/**
+ * Check if an origin is allowed
+ * Handles both normal origins and "null" (opaque origin from sandboxed iframe)
+ */
+function isAllowedOrigin(origin: string | null, hostname: string): boolean {
+    // Handle opaque origin (sandboxed iframe sends "null")
+    if (origin === 'null') {
+        // Only allow opaque origins from sandbox subdomains
+        return hostname.startsWith('sandbox.') && hostname.endsWith('.eidos.localhost');
+    }
+    
+    // No origin header - allow if from sandbox subdomain
+    if (!origin) {
+        return hostname.startsWith('sandbox.') && hostname.endsWith('.eidos.localhost');
+    }
+    
+    try {
+        const originUrl = new URL(origin);
+        // Allow all *.eidos.localhost origins
+        return originUrl.hostname.endsWith('.eidos.localhost');
     } catch {
-        // If URL parsing fails, it's not a valid origin
         return false;
     }
 }
 
+/**
+ * Get the appropriate Access-Control-Allow-Origin value
+ */
+function getAllowOrigin(origin: string | null, hostname: string): string {
+    // For sandbox requests with opaque/null origin, use wildcard
+    if ((origin === 'null' || !origin) && 
+        hostname.startsWith('sandbox.') && hostname.endsWith('.eidos.localhost')) {
+        return '*';
+    }
+    // For normal cross-origin requests, echo the origin
+    return origin || '*';
+}
+
+/**
+ * Unified CORS middleware
+ * All CORS handling happens here - no other layer should set CORS headers
+ */
 app.use('*', async (c, next) => {
     const url = new URL(c.req.url);
     const hostname = url.hostname;
+    const requestOrigin = c.req.header('Origin');
 
-    // Skip CORS handling for proxy requests - they handle their own CORS
+    // Skip CORS handling for proxy subdomain - it handles its own CORS
     if (hostname === 'proxy.eidos.localhost') {
         await next();
         return;
     }
 
-    const requestOrigin = c.req.header('Origin');
-    let isAllowedOrigin = false;
-
-    // Helper function to set CORS headers
-    const setCorsHeaders = (allowOrigin: string) => {
-        c.header('Access-Control-Allow-Origin', allowOrigin);
+    const allowed = isAllowedOrigin(requestOrigin, hostname);
+    
+    if (allowed) {
+        c.header('Access-Control-Allow-Origin', getAllowOrigin(requestOrigin, hostname));
         c.header('Vary', 'Origin');
-        c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-        c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-        c.header('Access-Control-Allow-Credentials', 'true');
-    };
-
-    if (requestOrigin) {
-        try {
-            const originUrl = new URL(requestOrigin);
-            // Allow requests from *.eidos.localhost
-            // e.g. http://3ujmmomr.block.25-w19.eidos.localhost:13127
-            if (originUrl.hostname.endsWith('.eidos.localhost')) {
-                isAllowedOrigin = true;
-                setCorsHeaders(requestOrigin);
-            }
-        } catch (e) {
-            // Origin header may be "null" (opaque origin from sandboxed iframe)
-            // In this case, allow requests from sandbox domains
-            if (hostname.startsWith('sandbox.') && hostname.endsWith('.eidos.localhost')) {
-                isAllowedOrigin = true;
-                setCorsHeaders('*');
-            } else {
-                // Use the existing log from 'electron-log' if available in this scope,
-                // or consider adding error logging if needed.
-                log('Invalid Origin header:', requestOrigin, e);
-            }
-        }
-    } else {
-        // Handle sandbox requests where Origin is null (opaque origin)
-        // Sandbox iframes run in a restricted context and may not send Origin header
-        if (hostname.startsWith('sandbox.') && hostname.endsWith('.eidos.localhost')) {
-            isAllowedOrigin = true;
-            setCorsHeaders('*');
+        c.header('Access-Control-Allow-Methods', CORS_CONFIG.allowedMethods);
+        c.header('Access-Control-Allow-Headers', CORS_CONFIG.allowedHeaders);
+        if (CORS_CONFIG.allowCredentials) {
+            c.header('Access-Control-Allow-Credentials', 'true');
         }
     }
 
-    // Handle preflight (OPTIONS) requests for allowed origins
-    if (c.req.method === 'OPTIONS' && isAllowedOrigin) {
-        // Respond to preflight requests with 204 No Content.
-        // CORS headers are already set if isAllowedOrigin is true.
+    // Handle preflight (OPTIONS) requests
+    if (c.req.method === 'OPTIONS' && allowed) {
         return c.body(null, 204);
     }
 
-    // These COOP/COEP headers were in the original middleware.
-    c.header("Cross-Origin-Opener-Policy", "same-origin");
-    c.header("Cross-Origin-Embedder-Policy", "require-corp");
+    // COOP/COEP headers for cross-origin isolation (required for SharedArrayBuffer/WASM)
+    c.header('Cross-Origin-Opener-Policy', 'same-origin');
+    c.header('Cross-Origin-Embedder-Policy', 'require-corp');
 
-    await next(); // Continue to the next middleware or route handler
+    await next();
 });
 
 
@@ -478,13 +491,8 @@ export function startServer({ dist, port }: { dist: string, port: number }) {
                 // Update the JSON data to include the processed result
                 formData.set('json', JSON.stringify({ success: true, data: processedResult }));
 
-                return new Response(formData, {
-                    headers: {
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
-                        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-                    }
-                });
+                // Note: CORS headers are set by the global middleware above
+                return new Response(formData);
             } else {
                 // Regular JSON response
                 return c.json({ success: true, data: result });

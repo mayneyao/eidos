@@ -211,10 +211,14 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
     const url = new URL(c.req.url)
     const hostname = url.hostname
 
-    const jsHeaders = new Headers()
-    jsHeaders.append("Content-Type", "text/javascript")
-    jsHeaders.append("Cross-Origin-Embedder-Policy", "require-corp")
-    jsHeaders.append("Access-Control-Allow-Origin", "*")
+    // CORS headers for static JS assets
+    // These are necessary because this middleware returns directly,
+    // bypassing any upstream CORS middleware
+    const jsHeaders = new Headers({
+      "Content-Type": "text/javascript",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+      "Access-Control-Allow-Origin": "*",
+    })
 
     // Serve static JS files - must be provided via config.staticAssets
     const assets = config.staticAssets
