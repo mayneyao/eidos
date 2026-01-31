@@ -62,6 +62,29 @@ export const FileTreeContextMenu = ({
 }: FileTreeContextMenuProps) => {
   const nodeType = node.metadata?.nodeType
   const isExtension = nodeType === "extension"
+  const isVirtualFolder = node.metadata?.isVirtualFolder
+
+  // For virtual folders in extensions (prefix folders), treat as extension context
+  if (isVirtualFolder) {
+    return (
+      <ExtensionContextMenu
+        node={node}
+        onRename={onRename}
+        onDelete={onDelete}
+        onCopySlug={onCopySlug}
+        onCopy={onCopyExtension}
+        onOpenInNewTab={onOpenInNewTab}
+        onShare={onShareExtension}
+        onCopyCode={onCopyExtensionCode}
+        onOpenStandalone={onOpenExtensionStandalone}
+        onOpenDefaultBrowser={onOpenExtensionDefaultBrowser}
+        isMultiSelection={isMultiSelection}
+        selectionCount={selectionCount}
+      >
+        {children}
+      </ExtensionContextMenu>
+    )
+  }
 
   // For regular files (no metadata), show minimal context menu
   if (!nodeType) {

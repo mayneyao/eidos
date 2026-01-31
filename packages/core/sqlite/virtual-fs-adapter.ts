@@ -836,12 +836,29 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
   /**
    * Delete a directory
+   * For virtual extension folders: deletes all extensions inside the folder
    */
   async rmdir(path: string): Promise<void> {
-    // Virtual paths don't support rmdir
-    if (this.isVirtualPath(path)) {
-      throw new Error("rmdir not supported for virtual paths")
+    const parsed = this.parseVirtualPath(path)
+    
+    // Handle virtual extension folders
+    if (parsed?.type === "extensions") {
+      const folderPrefix = parsed.subPath.replace(/^\//, "")
+      
+      if (!folderPrefix) {
+        throw new Error("Cannot delete root extensions directory")
+      }
+      
+      // Delete all extensions with slugs starting with this folder prefix (including subfolders)
+      await this.db.exec({
+        sql: `DELETE FROM eidos__extensions WHERE slug LIKE ?`,
+        bind: [`${folderPrefix}/%`]
+      })
+      
+      return
     }
+    
+    // Delegate to underlying filesystem for non-virtual paths
     return this.underlyingFS.rmdir(path)
   }
 
@@ -974,25 +991,55 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   }
 
   /**
-   * Rename an extension in the eidos__extensions table
+   * Rename/move an extension in the eidos__extensions table
    * Supports hierarchical slug paths like "ejected/journals/index"
+   * 
+   * When moving (drag & drop):
+   * - oldPath: ~/.eidos/__EXTENSIONS__/{old-prefix}/{uuid}
+   * - newPath: ~/.eidos/__EXTENSIONS__/{new-prefix}/{uuid}
+   * - We need to preserve the extension name and only change the path prefix
    */
   private async renameExtension(oldPath: string, newPath: string): Promise<void> {
     // Extract extension ID from old path
-    // oldPath format: ~/.eidos/__EXTENSIONS__/sub/path/id (where id is the extension UUID)
+    // oldPath format: ~/.eidos/__EXTENSIONS__/sub/path/{uuid} (where uuid is the extension ID)
     const pathWithoutPrefix = oldPath.replace("~/.eidos/__EXTENSIONS__", "").replace(/^\//, "")
     const pathParts = pathWithoutPrefix.split("/").filter(Boolean)
     
-    // The last part should be the extension ID
+    // The last part should be the extension ID (UUID)
     const extensionId = pathParts[pathParts.length - 1]
     if (!extensionId) {
       throw new Error("Invalid extension path")
     }
 
-    // Extract new slug from new path
-    // newPath format: ~/.eidos/__EXTENSIONS__/folder/new-slug.ts or folder/new-slug.tsx
-    const newFileName = newPath.replace("~/.eidos/__EXTENSIONS__/", "")
-    const newSlug = newFileName.replace(/\.(ts|tsx)$/, "")
+    // Get current extension to extract the name part of the slug
+    const extension = await this.db.selectObjects(
+      `SELECT slug FROM eidos__extensions WHERE id = ?`,
+      [extensionId]
+    ) as Array<{ slug: string }>
+
+    if (!extension || extension.length === 0) {
+      throw new Error(`Extension not found: ${extensionId}`)
+    }
+
+    const currentSlug = extension[0].slug
+    // If no slug exists, use the extension ID as the name (fallback)
+    const effectiveSlug = currentSlug || extensionId
+    // Extract the extension name (last part of the slug)
+    const slugParts = effectiveSlug.split("/")
+    const extensionName = slugParts[slugParts.length - 1]
+
+    // Extract new path prefix from newPath
+    // newPath format: ~/.eidos/__EXTENSIONS__/{new-prefix}/{uuid}
+    const newPathWithoutPrefix = newPath.replace("~/.eidos/__EXTENSIONS__/", "").replace(/^\//, "")
+    const newPathParts = newPathWithoutPrefix.split("/").filter(Boolean)
+    
+    // Remove the UUID from the path to get the folder prefix
+    // The UUID is always the last segment
+    const newPrefixParts = newPathParts.slice(0, -1)
+    const newPrefix = newPrefixParts.join("/")
+
+    // Build new slug: new-prefix + extension-name
+    const newSlug = newPrefix ? `${newPrefix}/${extensionName}` : extensionName
 
     if (!newSlug) {
       throw new Error("Invalid new path: slug cannot be empty")

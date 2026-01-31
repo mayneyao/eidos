@@ -42,6 +42,26 @@ export const useFileTreeOperations = (rootDir?: string) => {
       if (!sqlite) return
 
       const nodeId = node.metadata?.nodeId
+      
+      // Handle virtual folder deletion (for extensions) - delete all extensions inside
+      if (node.metadata?.isVirtualFolder && isVirtualExtensionsPath) {
+        try {
+          await sqlite.fs.rmdir(node.path)
+          toast({
+            title: "Folder deleted",
+            description: "All extensions in the folder have been deleted",
+          })
+        } catch (error) {
+          console.error("Failed to delete virtual folder:", error)
+          toast({
+            title: "Failed to delete folder",
+            description: error instanceof Error ? error.message : String(error),
+            variant: "destructive",
+          })
+        }
+        return
+      }
+      
       if (!nodeId) {
         console.warn("Cannot delete node without nodeId")
         return

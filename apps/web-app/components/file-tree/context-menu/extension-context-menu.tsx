@@ -251,20 +251,27 @@ export const ExtensionContextMenu = ({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectionCount > 1
+              {isMultiSelection
                 ? t("extension.confirmDeleteMultiple", "Delete selected items?")
-                : t("common.confirmDelete", "Confirm Delete")}
+                : node.metadata?.isVirtualFolder
+                  ? t("extension.confirmDeleteFolder", "Delete folder?")
+                  : t("common.confirmDelete", "Confirm Delete")}
             </DialogTitle>
             <DialogDescription>
-              {selectionCount > 1
+              {isMultiSelection
                 ? t(
                     "extension.deleteWarningMultiple",
-                    "Are you sure you want to delete these items? This action cannot be undone."
+                    "Are you sure you want to delete these items? This action cannot be undone and items cannot be recovered from Trash."
                   )
-                : t(
-                    "extension.deleteWarning",
-                    "Are you sure you want to delete this extension? This action cannot be undone."
-                  )}
+                : node.metadata?.isVirtualFolder
+                  ? t(
+                      "extension.deleteFolderWarning",
+                      "Are you sure you want to delete this folder and all extensions inside (including subfolders)? This action cannot be undone and items cannot be recovered from Trash."
+                    )
+                  : t(
+                      "extension.deleteWarning",
+                      "Are you sure you want to delete this extension? This action cannot be undone and items cannot be recovered from Trash."
+                    )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
