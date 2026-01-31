@@ -39,9 +39,11 @@ interface FileTreeProps {
   nodes?: FileTreeNode[]
   /** Base directory path for operations when using nodes mode */
   baseDir?: string
+  /** For extensions: treat slug prefixes as directories */
+  viewPrefixesAsDirectories?: boolean
 }
 
-const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
+const FileTree = ({ rootDir, nodes, baseDir, viewPrefixesAsDirectories = true }: FileTreeProps) => {
   const { sqlite } = useSqlite()
   const { navigate } = useRouterAdapter()
   const { isFavorite } = useFavBlocks()
@@ -99,6 +101,7 @@ const FileTree = ({ rootDir, nodes, baseDir }: FileTreeProps) => {
     expandedNodes,
     setExpandedNodes,
     onScrollToNode: scrollToNode,
+    viewPrefixesAsDirectories,
   })
 
   // Context menu operations - use baseDir or rootDir for path detection

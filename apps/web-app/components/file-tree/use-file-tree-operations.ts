@@ -248,8 +248,8 @@ export const useFileTreeOperations = (rootDir?: string) => {
    */
   const handleCopySlug = useCallback(
     (node: FileTreeNode) => {
-      // Extract slug from name (remove file extension)
-      const slug = node.name.replace(/\.(ts|tsx)$/, "")
+      // Use the original slug from metadata if available, otherwise extract from name
+      const slug = node.metadata?.slug || node.name.replace(/\.(ts|tsx)$/, "")
       navigator.clipboard.writeText(slug)
       toast({
         title: "Slug copied to clipboard",

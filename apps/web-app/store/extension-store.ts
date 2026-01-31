@@ -27,6 +27,8 @@ interface ExtensionState {
   setIsExtensionsExpanded: (expanded: boolean) => void
   isContentExpanded: boolean
   setIsContentExpanded: (expanded: boolean) => void
+  viewPrefixesAsDirectories: boolean
+  setViewPrefixesAsDirectories: (enabled: boolean) => void
 }
 
 export const useExtensionStore = create<ExtensionState>()(
@@ -53,6 +55,8 @@ export const useExtensionStore = create<ExtensionState>()(
       setIsExtensionsExpanded: (expanded: boolean) => set({ isExtensionsExpanded: expanded }),
       isContentExpanded: true,
       setIsContentExpanded: (expanded: boolean) => set({ isContentExpanded: expanded }),
+      viewPrefixesAsDirectories: true,
+      setViewPrefixesAsDirectories: (enabled: boolean) => set({ viewPrefixesAsDirectories: enabled }),
     }),
     {
       name: "extension-state",
@@ -60,6 +64,7 @@ export const useExtensionStore = create<ExtensionState>()(
         sortField: state.sortField,
         sortOrder: state.sortOrder,
         focusedExtensionId: state.focusedExtensionId,
+        viewPrefixesAsDirectories: state.viewPrefixesAsDirectories,
       }),
     }
   )

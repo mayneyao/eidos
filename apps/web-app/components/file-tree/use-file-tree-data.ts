@@ -12,6 +12,7 @@ interface UseFileTreeDataOptions {
   expandedNodes: Set<string>
   setExpandedNodes: React.Dispatch<React.SetStateAction<Set<string>>>
   onScrollToNode?: (path: string) => void
+  viewPrefixesAsDirectories?: boolean
 }
 
 /**
@@ -24,6 +25,7 @@ export const useFileTreeData = ({
   expandedNodes,
   setExpandedNodes,
   onScrollToNode,
+  viewPrefixesAsDirectories = true,
 }: UseFileTreeDataOptions) => {
   const { sqlite } = useSqlite()
   const normalizedRootDir = rootDir ? rootDir.replace(/\/+$/, "") : rootDir
@@ -70,8 +72,11 @@ export const useFileTreeData = ({
 
       try {
         // console.log(`Reading directory: ${path}`)
+        // Check if this is an extensions directory to pass viewPrefixesAsDirectories option
+        const isExtensionsPath = path.startsWith("~/.eidos/__EXTENSIONS__")
         const entries = await sqlite.fs.readdir(path, {
           withFileTypes: true,
+          ...(isExtensionsPath && { viewPrefixesAsDirectories }),
         })
         // console.log(`Directory entries for ${path}:`, entries)
 
@@ -98,7 +103,7 @@ export const useFileTreeData = ({
         })
       }
     },
-    [sqlite]
+    [sqlite, viewPrefixesAsDirectories]
   )
 
   // Keep a ref to expandedNodes to access it in loadRootDirectory without adding it to dependencies
@@ -111,8 +116,11 @@ export const useFileTreeData = ({
     if (!sqlite || !normalizedRootDir) return
 
     try {
+      // Check if this is an extensions directory to pass viewPrefixesAsDirectories option
+      const isExtensionsPath = normalizedRootDir.startsWith("~/.eidos/__EXTENSIONS__")
       const entries = await sqlite.fs.readdir(normalizedRootDir, {
         withFileTypes: true,
+        ...(isExtensionsPath && { viewPrefixesAsDirectories }),
       })
 
       // Inject path into entries
@@ -137,7 +145,7 @@ export const useFileTreeData = ({
     } catch (error) {
       console.error("Failed to load root directory:", error)
     }
-  }, [sqlite, normalizedRootDir, loadSubDirectory])
+  }, [sqlite, normalizedRootDir, loadSubDirectory, viewPrefixesAsDirectories])
 
   // Load root directory only in rootDir mode
   useEffect(() => {

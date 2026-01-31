@@ -233,8 +233,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
   /**
    * Read a virtual directory based on the virtual path
+   * @param viewPrefixesAsDirectories - For extensions: treat slug prefixes as folders (e.g., "a/b/c" -> a/b/c.ts)
    */
-  async readVirtualDir(path: string, recursive = false): Promise<IDirectoryEntry[]> {
+  async readVirtualDir(path: string, recursive = false, viewPrefixesAsDirectories = true): Promise<IDirectoryEntry[]> {
     const parsed = this.parseVirtualPath(path)
     if (!parsed) return []
 
@@ -242,7 +243,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       case "nodes":
         return this.readNodesDir(parsed.subPath, recursive)
       case "extensions":
-        return this.readExtensionsDir(parsed.subPath, recursive)
+        return this.readExtensionsDir(parsed.subPath, recursive, viewPrefixesAsDirectories)
       default:
         return []
     }
@@ -434,18 +435,89 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
   /**
    * Read extensions from eidos__extensions table
+   * Supports two modes:
+   * - viewPrefixesAsDirectories=true: Hierarchical display based on slug prefixes (S3-like)
+   *   e.g., "ejected/journals/index.tsx" will be shown as folder "ejected/" > "journals/" > "index.tsx"
+   * - viewPrefixesAsDirectories=false: Flat display with full slug as filename
+   *   e.g., "ejected/journals/index.tsx" will be shown as "ejected/journals/index.tsx"
    */
-  private async readExtensionsDir(subPath: string, recursive = false): Promise<IDirectoryEntry[]> {
-    // Extensions are flat, only root path is supported
-    if (subPath !== "/") {
-      return []
-    }
-
+  private async readExtensionsDir(subPath: string, recursive = false, viewPrefixesAsDirectories = true): Promise<IDirectoryEntry[]> {
     const query = `SELECT * FROM eidos__extensions ORDER BY slug ASC`
     const extensions = await this.db.selectObjects(query) as IExtension[]
 
-    // Transform to IDirectoryEntry
-    return extensions.map((ext) => this.extensionToEntry(ext))
+    // Normalize subPath (remove leading slash, ensure trailing slash for prefix matching)
+    const normalizedSubPath = subPath.replace(/^\//, "")
+    const currentPrefix = normalizedSubPath ? normalizedSubPath + "/" : ""
+
+    // Filter extensions that are under the current path
+    const relevantExtensions = extensions.filter((ext) => {
+      if (!ext.slug) return false
+      // Include if slug starts with current prefix or if we're at root
+      return currentPrefix === "" || ext.slug.startsWith(currentPrefix)
+    })
+
+    // Flat mode: return all matching extensions as flat list
+    if (!viewPrefixesAsDirectories) {
+      return relevantExtensions.map((ext) => this.extensionToEntry(ext, "", false))
+    }
+
+    // Recursive mode in hierarchical view: return all matching extensions
+    if (recursive) {
+      return relevantExtensions.map((ext) => this.extensionToEntry(ext, normalizedSubPath, true))
+    }
+
+    // Build hierarchical view
+    const entries: IDirectoryEntry[] = []
+    const seenPrefixes = new Set<string>()
+
+    for (const ext of relevantExtensions) {
+      if (!ext.slug) continue
+
+      // Get the remaining path after current prefix
+      const remainingPath = currentPrefix === "" 
+        ? ext.slug 
+        : ext.slug.slice(currentPrefix.length)
+
+      // Check if there's a nested folder
+      const slashIndex = remainingPath.indexOf("/")
+
+      if (slashIndex === -1) {
+        // No more nested levels, this is a file
+        entries.push(this.extensionToEntry(ext, normalizedSubPath, true))
+      } else {
+        // There's a nested folder, extract the folder name
+        const folderName = remainingPath.slice(0, slashIndex)
+        const fullFolderPath = currentPrefix + folderName
+
+        if (!seenPrefixes.has(fullFolderPath)) {
+          seenPrefixes.add(fullFolderPath)
+          entries.push(this.createVirtualFolderEntry(folderName, fullFolderPath))
+        }
+      }
+    }
+
+    return entries
+  }
+
+  /**
+   * Create a virtual folder entry for extension slug prefixes
+   */
+  private createVirtualFolderEntry(folderName: string, fullPath: string): IDirectoryEntry {
+    const parentParts = fullPath.split("/").slice(0, -1)
+    const parentPath = parentParts.length > 0 
+      ? `~/.eidos/__EXTENSIONS__/${parentParts.join("/")}` 
+      : "~/.eidos/__EXTENSIONS__"
+    
+    return {
+      name: folderName,
+      path: `~/.eidos/__EXTENSIONS__/${fullPath}`,
+      parentPath,
+      kind: "directory",
+      metadata: {
+        nodeType: "folder",
+        isVirtualFolder: true, // Mark as virtual folder for UI
+      },
+    }
   }
 
   /**
@@ -661,12 +733,30 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
   /**
    * Convert IExtension to IDirectoryEntry
+   * @param ext - Extension data
+   * @param parentSubPath - The subPath of the parent directory (for building correct paths)
+   * @param hierarchicalMode - Whether in hierarchical mode (affects display name)
    */
-  private extensionToEntry(ext: IExtension): IDirectoryEntry {
+  private extensionToEntry(ext: IExtension, parentSubPath: string = "", hierarchicalMode = true): IDirectoryEntry {
+    let displayName: string
+
+    if (hierarchicalMode) {
+      // Hierarchical mode: use the last part of the slug + extension
+      const slugParts = ext.slug?.split("/") || [ext.id]
+      const lastSlugPart = slugParts[slugParts.length - 1]
+      displayName = `${lastSlugPart}.${ext.type === "script" ? "ts" : "tsx"}`
+    } else {
+      // Flat mode: use full slug as filename + extension
+      displayName = `${ext.slug}.${ext.type === "script" ? "ts" : "tsx"}`
+    }
+
+    // Build the path using the full slug structure for navigation
+    const pathPrefix = parentSubPath ? `~/.eidos/__EXTENSIONS__/${parentSubPath}` : "~/.eidos/__EXTENSIONS__"
+    
     return {
-      name: `${ext.slug}.${ext.type === "script" ? "ts" : "tsx"}`,
-      path: `~/.eidos/__EXTENSIONS__/${ext.id}`,
-      parentPath: "~/.eidos/__EXTENSIONS__",
+      name: displayName,
+      path: `${pathPrefix}/${ext.id}`,
+      parentPath: pathPrefix,
       kind: "file",
       metadata: {
         nodeType: "extension",
@@ -674,18 +764,19 @@ export class VirtualFsAdapter implements IExternalFileSystem {
         isPinned: false,
         icon: ext.icon,
         extensionType: ext.type,
+        slug: ext.slug, // Keep original slug for reference
       },
     }
   }
 
   // Implement IExternalFileSystem interface - delegate to underlying FS or handle virtual paths
 
-  async readdir(path: string, options: { withFileTypes: true; recursive?: boolean }): Promise<IDirectoryEntry[]>
-  async readdir(path: string, options?: { withFileTypes?: false; recursive?: boolean }): Promise<string[]>
+  async readdir(path: string, options: { withFileTypes: true; recursive?: boolean; viewPrefixesAsDirectories?: boolean }): Promise<IDirectoryEntry[]>
+  async readdir(path: string, options?: { withFileTypes?: false; recursive?: boolean; viewPrefixesAsDirectories?: boolean }): Promise<string[]>
   async readdir(path: string, options?: any): Promise<string[] | IDirectoryEntry[]> {
     // Handle virtual paths
     if (this.isVirtualPath(path)) {
-      const entries = await this.readVirtualDir(path, options?.recursive)
+      const entries = await this.readVirtualDir(path, options?.recursive, options?.viewPrefixesAsDirectories)
 
       if (options?.withFileTypes) {
         return entries
@@ -884,18 +975,24 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
   /**
    * Rename an extension in the eidos__extensions table
+   * Supports hierarchical slug paths like "ejected/journals/index"
    */
   private async renameExtension(oldPath: string, newPath: string): Promise<void> {
     // Extract extension ID from old path
-    const extensionId = this.getNodeIdFromPath(oldPath.replace("~/.eidos/__EXTENSIONS__", ""))
+    // oldPath format: ~/.eidos/__EXTENSIONS__/sub/path/id (where id is the extension UUID)
+    const pathWithoutPrefix = oldPath.replace("~/.eidos/__EXTENSIONS__", "").replace(/^\//, "")
+    const pathParts = pathWithoutPrefix.split("/").filter(Boolean)
+    
+    // The last part should be the extension ID
+    const extensionId = pathParts[pathParts.length - 1]
     if (!extensionId) {
       throw new Error("Invalid extension path")
     }
 
     // Extract new slug from new path
-    // newPath format: ~/.eidos/__EXTENSIONS__/new-slug.ts or new-slug.tsx
-    const fileName = newPath.replace("~/.eidos/__EXTENSIONS__/", "")
-    const newSlug = fileName.replace(/\.(ts|tsx)$/, "")
+    // newPath format: ~/.eidos/__EXTENSIONS__/folder/new-slug.ts or folder/new-slug.tsx
+    const newFileName = newPath.replace("~/.eidos/__EXTENSIONS__/", "")
+    const newSlug = newFileName.replace(/\.(ts|tsx)$/, "")
 
     if (!newSlug) {
       throw new Error("Invalid new path: slug cannot be empty")

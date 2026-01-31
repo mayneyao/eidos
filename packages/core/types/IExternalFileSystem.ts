@@ -23,6 +23,10 @@ export interface IDirectoryEntry {
     namePath?: string
     /** ID-based virtual path (rooted at ~/.eidos/__NODES__) */
     idPath?: string
+    /** Original slug for extension entries (for hierarchical display) */
+    slug?: string
+    /** Whether this is a virtual folder created from slug prefix */
+    isVirtualFolder?: boolean
   }
 }
 
